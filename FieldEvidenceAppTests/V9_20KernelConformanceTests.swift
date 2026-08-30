@@ -610,6 +610,16 @@ extension V9_20KernelConformanceTests {
     }
 }
 
+private final class C53SharedKernelReliabilityTests: XCTestCase {
+    func testV23P03C53KernelBoundaryUsesExplicitUnavailableDisposition() {
+        XCTAssertEqual(C53SharedCheckRunnerContractBoundaryV1.evidenceIDs.count, 5)
+        XCTAssertTrue(C53SharedCheckRunnerContractBoundaryV1.checkRunnerMayRecordObservationButNotReliabilityTruth)
+        XCTAssertTrue(C53SharedCheckRunnerCoordinatorBoundaryV1.checkRunnerMayNotWriteIncidentOrExposureRecords)
+        XCTAssertTrue(ServiceReliabilityFJ09ContractV1.requiresExplicitUnavailableDisposition)
+        XCTAssertTrue(ServiceReliabilityFJ09ContractV1.canonicalDecodeRequiresExactByteParity)
+    }
+}
+
 extension V9_20KernelConformanceTests {
     func testC22RecoverabilityVerificationAnchor() throws {
         XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)

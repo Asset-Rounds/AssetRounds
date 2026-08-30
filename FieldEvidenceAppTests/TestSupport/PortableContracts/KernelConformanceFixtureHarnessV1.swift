@@ -6,6 +6,10 @@ import ImageIO
 import UniformTypeIdentifiers
 @testable import FieldEvidenceApp
 
+private enum C53AssetServiceReliabilityBoundary_KernelConformanceFixtureHarnessV1 {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
 enum KernelConformanceFixtureFailureV1: Error, Equatable {
     case missingArtifact(String)
     case invalidArtifact(String)

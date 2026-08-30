@@ -2001,3 +2001,25 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Reporting_Snapsho
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 reliability snapshot validation
+
+enum C53ServiceReliabilitySnapshotValidatorV1 {
+    static let validatesTheSourceProjectionBeforeRendering = true
+    static let rejectsUnqualifiedExactMetrics = true
+    static let acceptsNoOperationalConclusion = true
+
+    static func validate(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+
+    static func validate(
+        input: ReliabilityMetricInputProjectionV1
+    ) throws -> C53ServiceReliabilityReportProjectionV1 {
+        let projection = try C53ServiceReliabilityReportProjectionRegistryV1.projection(input: input)
+        try validate(projection)
+        return projection
+    }
+}

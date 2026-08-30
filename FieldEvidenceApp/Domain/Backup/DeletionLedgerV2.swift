@@ -588,6 +588,7 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
         try C32AssistanceDeletionLedgerPolicyV1.validate()
         try C33TemporalEvidenceDeletionLedgerPolicyV1.validate()
         try C52ServiceRequestDeletionLedgerPolicyV1.validate()
+        try C53ServiceReliabilityDeletionLedgerBoundaryV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }
@@ -654,4 +655,84 @@ enum C52ServiceRequestBoundary_DeletionLedgerV2 {
     static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}
+
+/// C53 source rows are deleted through the existing whole-sign ledger and
+/// mutation journal.  Incident/exposure history remains append-only until
+/// workspace Erase; the ledger never becomes a second reliability store.
+enum C53ServiceReliabilityDeletionLedgerBoundaryV1 {
+    static let durableFamilyCount = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies.count
+    static let durableFamilies = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies
+    static let ordinaryDeletionPreservesAppendOnlyHistory = true
+    static let ordinaryDeletionPreservesReliabilityIdentityEpochs = true
+    static let workspaceEraseClearsAllSourceRowsAndReceipts = true
+    static let derivedProjectionsAreRebuilt = true
+    static let derivedProjectionsCreateLedgerEntries = false
+    static let createsParallelTombstoneFamily = false
+
+    static func validate() throws {
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        guard durableFamilyCount == 7,
+              durableFamilies.count == durableFamilyCount,
+              ordinaryDeletionPreservesAppendOnlyHistory,
+              ordinaryDeletionPreservesReliabilityIdentityEpochs,
+              workspaceEraseClearsAllSourceRowsAndReceipts,
+              derivedProjectionsAreRebuilt,
+              !derivedProjectionsCreateLedgerEntries,
+              !createsParallelTombstoneFamily else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+
+    static func eraseClosure(
+        records: V4BackupRecordsV1,
+        workspaceID: UUID
+    ) throws -> C53ServiceReliabilityEraseClosureV1 {
+        try validate()
+        return try C53ServiceReliabilityEraseClosureV1(
+            records: records,
+            workspaceID: workspaceID
+        )
+    }
+}
+
+struct C53ServiceReliabilityEraseClosureV1: Equatable, Sendable {
+    let workspaceID: UUID
+    let sourceEventIDs: [UUID]
+    let receiptMutationIDs: [UUID]
+
+    init(records: V4BackupRecordsV1, workspaceID: UUID) throws {
+        guard workspaceID != UUID.zero else { throw DeletionLedgerFailureV2.invalidIdentity }
+        let rows: C53ServiceReliabilityBackupRowsV1
+        do {
+            rows = try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+                from: records,
+                workspaceID: workspaceID
+            )
+        } catch {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+        let eventIDs = rows.incidents.map(\.eventID)
+            + rows.impactSegments.map(\.eventID)
+            + rows.causeAssertions.map(\.eventID)
+            + rows.remedyAssertions.map(\.eventID)
+            + rows.repairIntervals.map(\.eventID)
+            + rows.restorationAssertions.map(\.eventID)
+            + rows.qualifiedExposures.map(\.eventID)
+        guard Set(eventIDs).count == eventIDs.count else {
+            throw DeletionLedgerFailureV2.duplicateIdentity
+        }
+        let mutationIDs = rows.receipts.map { $0.mutationReceipt.mutationID.rawValue }
+        guard Set(mutationIDs).count == mutationIDs.count else {
+            throw DeletionLedgerFailureV2.duplicateIdentity
+        }
+        self.workspaceID = workspaceID
+        sourceEventIDs = eventIDs.sorted { $0.uuidString < $1.uuidString }
+        receiptMutationIDs = mutationIDs.sorted { $0.uuidString < $1.uuidString }
+    }
+
+    func validate(records: V4BackupRecordsV1) throws {
+        let expected = try Self(records: records, workspaceID: workspaceID)
+        guard self == expected else { throw DeletionLedgerFailureV2.invalidIdentity }
+    }
 }

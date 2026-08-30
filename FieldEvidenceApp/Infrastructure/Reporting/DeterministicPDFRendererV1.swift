@@ -1813,3 +1813,40 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Reporting_Determi
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 reliability PDF projection boundary
+
+enum C53ServiceReliabilityPDFRendererV1 {
+    static let outputIsMetadataOnly = true
+    static let unavailableQualificationIsRenderedVerbatim = true
+    static let emitsSafetyComplianceOrVerificationClaim = false
+    static let meanRecordedRestorationIsNotMTTR = true
+
+    static func metricLines(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> [String] {
+        try projection.validate()
+        return [
+            "Availability: \(qualificationText(projection.availabilityQualification, value: projection.availabilityFraction))",
+            "MTBF: \(qualificationText(projection.mtbfQualification, value: projection.mtbfOperatingMillisecondsPerFailure))",
+            "MTTR: \(qualificationText(projection.mttrQualification, value: projection.meanExactRepairInterval))",
+            "Mean recorded restoration interval: \(rationalText(projection.meanRecordedRestorationInterval) ?? "unavailable")",
+        ]
+    }
+
+    private static func qualificationText(
+        _ qualification: ServiceReliabilityQualificationV1,
+        value: ServiceReliabilityRationalV1?
+    ) -> String {
+        switch qualification {
+        case .qualified:
+            return rationalText(value) ?? "unavailable"
+        case .unavailable(let reason):
+            return "unavailable:\(reason.rawValue)"
+        }
+    }
+
+    private static func rationalText(_ value: ServiceReliabilityRationalV1?) -> String? {
+        value.map { "\($0.numerator)/\($0.denominator)" }
+    }
+}

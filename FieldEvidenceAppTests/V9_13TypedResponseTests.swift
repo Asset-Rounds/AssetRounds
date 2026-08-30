@@ -366,3 +366,13 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_13
         XCTAssertFalse(ActivityStateMachineV2.permits(from: .finalized, to: .draft))
     }
 }
+
+private final class C53SharedTypedResponseReliabilityTests: XCTestCase {
+    func testV23P03C53TypedResponseRemainsAnEvidenceInput() {
+        XCTAssertTrue(C53SharedWorkflowReliabilityBoundaryV1.reliabilityInputIsNotWorkflowState)
+        XCTAssertTrue(C53SharedWorkflowReliabilityBoundaryV1.metricProjectionIsDerivedOnly)
+        XCTAssertFalse(C53SharedWorkflowReliabilityBoundaryV1.automaticWorkOrReleaseToServiceIsPermitted)
+        XCTAssertTrue(C53SharedServiceReliabilitySemanticBoundaryV1.metricRequiresQualifiedPositiveExposure)
+        XCTAssertFalse(ServiceReliabilityClaimBoundaryV1.restorationImpliesVerification)
+    }
+}

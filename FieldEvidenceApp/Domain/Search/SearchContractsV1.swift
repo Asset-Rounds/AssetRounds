@@ -3995,3 +3995,102 @@ enum C52ServiceRequestBoundary_SearchContractsV1 {
     static let hiddenDuplicateScoresIndexed: Bool = false
     static let duplicateProjectionIsSearchable: Bool = false
 }
+
+// MARK: - C53 service-reliability derived search projection
+
+struct C53ServiceReliabilitySearchProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let subjectID: UUID
+    let reliabilityIdentityEpochID: UUID
+    let sourceProjectionSHA256: String
+    let availabilityQualification: String
+    let mtbfQualification: String
+    let mttrQualification: String
+    let includedSourceEventCount: Int
+    let excludedSourceCount: Int
+    let exactAvailabilityIndexed: Bool
+    let exactMTBFIndexed: Bool
+    let exactMTTRIndexed: Bool
+    let normalizedTokens: [String]
+
+    init(projection: C53ServiceReliabilityReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = projection.workspaceID
+        subjectID = projection.subjectID
+        reliabilityIdentityEpochID = projection.reliabilityIdentityEpochID
+        sourceProjectionSHA256 = projection.sourceProjectionSHA256
+        availabilityQualification = Self.qualificationText(projection.availabilityQualification)
+        mtbfQualification = Self.qualificationText(projection.mtbfQualification)
+        mttrQualification = Self.qualificationText(projection.mttrQualification)
+        includedSourceEventCount = projection.includedSourceEventIDs.count
+        excludedSourceCount = projection.excludedSources.count
+        // Search exposes qualification state only; exact metric values never
+        // become query tokens or derived search truth.
+        exactAvailabilityIndexed = false
+        exactMTBFIndexed = false
+        exactMTTRIndexed = false
+        normalizedTokens = Self.tokens(
+            availabilityQualification,
+            mtbfQualification,
+            mttrQualification,
+            includedSourceEventCount > 0 ? "sources-present" : "sources-none",
+            excludedSourceCount > 0 ? "sources-excluded" : "sources-complete"
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              SearchContractValidationV1.validID(subjectID.uuidString),
+              SearchContractValidationV1.validID(reliabilityIdentityEpochID.uuidString),
+              MutationEnvelopeV1.isSHA256(sourceProjectionSHA256),
+              includedSourceEventCount >= 0,
+              excludedSourceCount >= 0,
+              !exactAvailabilityIndexed,
+              !exactMTBFIndexed,
+              !exactMTTRIndexed,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    private static func qualificationText(
+        _ value: ServiceReliabilityQualificationV1
+    ) -> String {
+        switch value {
+        case .qualified:
+            return "qualified"
+        case .unavailable(let reason):
+            return "unavailable-" + reason.rawValue.lowercased()
+        }
+    }
+
+    private static func tokens(_ values: String...) -> [String] {
+        Array(Set(values.flatMap {
+            SearchContractValidationV1.normalizeSearchText($0)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        })).sorted()
+    }
+}
+
+enum C53ServiceReliabilitySearchProjectionBoundaryV1 {
+    static let sourceIsCanonicalMetricInput = true
+    static let indexIsDerivedAndDisposable = true
+    static let exactMetricValuesAreNotSearchable = true
+    static let rawEventBytesAreNotSearchable = true
+    static let actorAndEvidenceLocatorValuesAreNotSearchable = true
+
+    static func projection(
+        _ report: C53ServiceReliabilityReportProjectionV1
+    ) throws -> C53ServiceReliabilitySearchProjectionV1 {
+        let value = try C53ServiceReliabilitySearchProjectionV1(projection: report)
+        try value.validate()
+        return value
+    }
+}

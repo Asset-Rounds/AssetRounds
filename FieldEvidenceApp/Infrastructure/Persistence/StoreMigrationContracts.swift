@@ -764,7 +764,14 @@ struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
                 || (sourceRelease == .v29 && targetRelease == .v30)
                 || (sourceRelease == .v30 && targetRelease == .v31)
                 || (sourceRelease == .v31 && targetRelease == .v32)
-                || (sourceRelease == .v32 && targetRelease == .v33)) else {
+                || (sourceRelease == .v32 && targetRelease == .v33)
+                || (sourceRelease == .v33 && targetRelease == .v34)
+                || (sourceRelease == .v34 && targetRelease == .v35)
+                || (sourceRelease == .v35 && targetRelease == .v36)
+                || (sourceRelease == .v36 && targetRelease == .v37)
+                || (sourceRelease == .v37 && targetRelease == .v38)
+                || (sourceRelease == .v38 && targetRelease == .v39)
+                || (sourceRelease == .v39 && targetRelease == .v40)) else {
             throw StoreMigrationFailure.invalidContract
         }
 
@@ -1648,3 +1655,4 @@ enum C52ServiceRequestMigrationBoundaryV1 {
     static let migrationPreservesAllV38Bytes = true
     static let downgradeDisposition = "READ_ONLY_OR_FORWARD_FIX"
 }
+enum C53AssetServiceReliabilityMigrationBoundaryV1{static let sourceVersion=39,targetVersion=40,recordsSchemaVersion=39,newlyAddedRowCount=7,sourceRowsMustBeEmpty=true,derivedProjectionMigrated=false}

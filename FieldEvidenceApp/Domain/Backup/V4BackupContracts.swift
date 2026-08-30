@@ -1342,6 +1342,298 @@ struct V38BackupServiceRequestWorkLinkEventV1: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - C53 append-only asset-service reliability backup rows
+
+/// The records envelope keeps the seven C53 durable families separate at its
+/// API boundary, while each row uses one closed transport shape.  `canonicalData`
+/// is always the exact post-image emitted by the service-reliability codec; the
+/// duplicated identity columns are checked again on decode to prevent row
+/// substitution.  The aliases below intentionally do not introduce parallel
+/// domain contracts.
+enum C53ServiceReliabilityBackupContractFailureV1: Error, Equatable, Sendable {
+    case invalidSchemaVersion
+    case invalidIdentity
+    case invalidDigest
+    case invalidHistory
+    case invalidWorkspaceBinding
+}
+
+struct V39BackupServiceReliabilityRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Hashable, Sendable {
+        case incident = "ASSET_SERVICE_INCIDENT"
+        case impactSegment = "SERVICE_IMPACT_SEGMENT"
+        case causeAssertion = "SERVICE_CAUSE_ASSERTION"
+        case remedyAssertion = "SERVICE_REMEDY_ASSERTION"
+        case repairInterval = "SERVICE_REPAIR_INTERVAL"
+        case restorationAssertion = "SERVICE_RESTORATION_ASSERTION"
+        case qualifiedExposure = "QUALIFIED_SERVICE_EXPOSURE"
+    }
+
+    let kind: Kind
+    let eventID: UUID
+    /// The stable append-only chain identity (`incidentID`, `segmentID`,
+    /// assertion/repair ID, or exposure ID), not a mutable projection key.
+    let lineageID: UUID
+    let incidentID: UUID?
+    let workspaceID: UUID
+    let revision: UInt64
+    let mutationID: UUID
+    let eventSHA256: String
+    let canonicalData: Data
+
+    init(
+        kind: Kind,
+        eventID: UUID,
+        lineageID: UUID,
+        incidentID: UUID?,
+        workspaceID: UUID,
+        revision: UInt64,
+        mutationID: UUID,
+        eventSHA256: String,
+        canonicalData: Data
+    ) throws {
+        self.kind = kind
+        self.eventID = eventID
+        self.lineageID = lineageID
+        self.incidentID = incidentID
+        self.workspaceID = workspaceID
+        self.revision = revision
+        self.mutationID = mutationID
+        self.eventSHA256 = eventSHA256
+        self.canonicalData = canonicalData
+        try validateEnvelope()
+    }
+
+    init(_ value: AssetServiceIncidentV1) throws {
+        try value.validate()
+        try self.init(kind: .incident, eventID: value.eventID,
+                      lineageID: value.incidentID, incidentID: value.incidentID,
+                      workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                      mutationID: value.mutationID.rawValue, eventSHA256: value.eventSHA256,
+                      canonicalData: try ServiceReliabilityCanonicalCodecV1.encode(value))
+    }
+
+    init(_ value: ServiceImpactSegmentV1) throws {
+        try value.validate()
+        try self.init(kind: .impactSegment, eventID: value.eventID,
+                      lineageID: value.segmentID, incidentID: value.incidentID,
+                      workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                      mutationID: value.mutationID.rawValue, eventSHA256: value.eventSHA256,
+                      canonicalData: try ServiceReliabilityCanonicalCodecV1.encode(value))
+    }
+
+    init(_ value: ServiceCauseAssertionV1) throws {
+        try value.validate()
+        try self.init(kind: .causeAssertion, eventID: value.eventID,
+                      lineageID: value.assertionID, incidentID: value.incidentID,
+                      workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                      mutationID: value.mutationID.rawValue, eventSHA256: value.eventSHA256,
+                      canonicalData: try ServiceReliabilityCanonicalCodecV1.encode(value))
+    }
+
+    init(_ value: ServiceRemedyAssertionV1) throws {
+        try value.validate()
+        try self.init(kind: .remedyAssertion, eventID: value.eventID,
+                      lineageID: value.assertionID, incidentID: value.incidentID,
+                      workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                      mutationID: value.mutationID.rawValue, eventSHA256: value.eventSHA256,
+                      canonicalData: try ServiceReliabilityCanonicalCodecV1.encode(value))
+    }
+
+    init(_ value: ServiceRepairIntervalV1) throws {
+        try value.validate()
+        try self.init(kind: .repairInterval, eventID: value.eventID,
+                      lineageID: value.repairID, incidentID: value.incidentID,
+                      workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                      mutationID: value.mutationID.rawValue, eventSHA256: value.eventSHA256,
+                      canonicalData: try ServiceReliabilityCanonicalCodecV1.encode(value))
+    }
+
+    init(_ value: ServiceRestorationAssertionV1) throws {
+        try value.validate()
+        try self.init(kind: .restorationAssertion, eventID: value.eventID,
+                      lineageID: value.assertionID, incidentID: value.incidentID,
+                      workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                      mutationID: value.mutationID.rawValue, eventSHA256: value.eventSHA256,
+                      canonicalData: try ServiceReliabilityCanonicalCodecV1.encode(value))
+    }
+
+    init(_ value: QualifiedServiceExposureV1) throws {
+        try value.validate()
+        try self.init(kind: .qualifiedExposure, eventID: value.eventID,
+                      lineageID: value.exposureID, incidentID: nil,
+                      workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                      mutationID: value.mutationID.rawValue, eventSHA256: value.eventSHA256,
+                      canonicalData: try ServiceReliabilityCanonicalCodecV1.encode(value))
+    }
+
+    func value() throws -> ServiceReliabilityMutationPayloadV1 {
+        let payload: ServiceReliabilityMutationPayloadV1
+        switch kind {
+        case .incident:
+            payload = .incident(try ServiceReliabilityCanonicalCodecV1.decode(
+                AssetServiceIncidentV1.self, from: canonicalData
+            ))
+        case .impactSegment:
+            payload = .impact(try ServiceReliabilityCanonicalCodecV1.decode(
+                ServiceImpactSegmentV1.self, from: canonicalData
+            ))
+        case .causeAssertion:
+            payload = .cause(try ServiceReliabilityCanonicalCodecV1.decode(
+                ServiceCauseAssertionV1.self, from: canonicalData
+            ))
+        case .remedyAssertion:
+            payload = .remedy(try ServiceReliabilityCanonicalCodecV1.decode(
+                ServiceRemedyAssertionV1.self, from: canonicalData
+            ))
+        case .repairInterval:
+            payload = .repair(try ServiceReliabilityCanonicalCodecV1.decode(
+                ServiceRepairIntervalV1.self, from: canonicalData
+            ))
+        case .restorationAssertion:
+            payload = .restoration(try ServiceReliabilityCanonicalCodecV1.decode(
+                ServiceRestorationAssertionV1.self, from: canonicalData
+            ))
+        case .qualifiedExposure:
+            payload = .exposure(try ServiceReliabilityCanonicalCodecV1.decode(
+                QualifiedServiceExposureV1.self, from: canonicalData
+            ))
+        }
+        guard payload.eventID == eventID,
+              payload.workspaceID.rawValue == workspaceID,
+              payload.revision == revision,
+              payload.mutationID.rawValue == mutationID,
+              payload.eventSHA256 == eventSHA256 else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity
+        }
+        switch payload {
+        case .incident(let value):
+            guard kind == .incident, lineageID == value.incidentID,
+                  incidentID == value.incidentID else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+        case .impact(let value):
+            guard kind == .impactSegment, lineageID == value.segmentID,
+                  incidentID == value.incidentID else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+        case .cause(let value):
+            guard kind == .causeAssertion, lineageID == value.assertionID,
+                  incidentID == value.incidentID else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+        case .remedy(let value):
+            guard kind == .remedyAssertion, lineageID == value.assertionID,
+                  incidentID == value.incidentID else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+        case .repair(let value):
+            guard kind == .repairInterval, lineageID == value.repairID,
+                  incidentID == value.incidentID else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+        case .restoration(let value):
+            guard kind == .restorationAssertion, lineageID == value.assertionID,
+                  incidentID == value.incidentID else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+        case .exposure(let value):
+            guard kind == .qualifiedExposure, lineageID == value.exposureID,
+                  incidentID == nil else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+        }
+        return payload
+    }
+
+    private func validateEnvelope() throws {
+        try ServiceReliabilityLimitsV1.id(eventID)
+        try ServiceReliabilityLimitsV1.id(lineageID)
+        try incidentID.map(ServiceReliabilityLimitsV1.id)
+        try ServiceReliabilityLimitsV1.id(workspaceID)
+        try ServiceReliabilityLimitsV1.id(mutationID)
+        try ServiceReliabilityLimitsV1.digest(eventSHA256)
+        guard revision > 0, !canonicalData.isEmpty else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case kind, eventID, lineageID, incidentID, workspaceID, revision,
+             mutationID, eventSHA256, canonicalData
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard Set(container.allKeys) == Set(CodingKeys.allCases) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .kind, in: container,
+                debugDescription: "C53 service-reliability row contains an unknown key"
+            )
+        }
+        try self.init(
+            kind: try container.decode(Kind.self, forKey: .kind),
+            eventID: try container.decode(UUID.self, forKey: .eventID),
+            lineageID: try container.decode(UUID.self, forKey: .lineageID),
+            incidentID: try container.decodeIfPresent(UUID.self, forKey: .incidentID),
+            workspaceID: try container.decode(UUID.self, forKey: .workspaceID),
+            revision: try container.decode(UInt64.self, forKey: .revision),
+            mutationID: try container.decode(UUID.self, forKey: .mutationID),
+            eventSHA256: try container.decode(String.self, forKey: .eventSHA256),
+            canonicalData: try container.decode(Data.self, forKey: .canonicalData)
+        )
+    }
+}
+
+typealias V39BackupAssetServiceIncidentRecordV1 = V39BackupServiceReliabilityRecordV1
+typealias V39BackupServiceImpactSegmentRecordV1 = V39BackupServiceReliabilityRecordV1
+typealias V39BackupServiceCauseAssertionRecordV1 = V39BackupServiceReliabilityRecordV1
+typealias V39BackupServiceRemedyAssertionRecordV1 = V39BackupServiceReliabilityRecordV1
+typealias V39BackupServiceRepairIntervalRecordV1 = V39BackupServiceReliabilityRecordV1
+typealias V39BackupServiceRestorationAssertionRecordV1 = V39BackupServiceReliabilityRecordV1
+typealias V39BackupQualifiedServiceExposureRecordV1 = V39BackupServiceReliabilityRecordV1
+
+/// The journal remains the receipt source of truth. This typed transport row
+/// is a closed projection of the existing C53 mutation receipt, never a second
+/// writer or store.
+struct V39BackupServiceReliabilityReceiptRecordV1: Codable, Equatable, Sendable {
+    let mutationID: UUID
+    let bundleSHA256: String
+    let canonicalData: Data
+
+    init(_ value: ServiceReliabilityMutationReceiptV1) throws {
+        mutationID = value.mutationReceipt.mutationID.rawValue
+        bundleSHA256 = value.bundleSHA256
+        canonicalData = try WorkspaceMutationCanonicalV1.data(value)
+        try validateEnvelope()
+    }
+
+    func value() throws -> ServiceReliabilityMutationReceiptV1 {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(ServiceReliabilityMutationReceiptV1.self, from: canonicalData)
+        guard try WorkspaceMutationCanonicalV1.data(value) == canonicalData,
+              value.mutationReceipt.mutationID.rawValue == mutationID,
+              value.bundleSHA256 == bundleSHA256 else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidDigest
+        }
+        try value.mutationReceipt.validate()
+        return value
+    }
+
+    private func validateEnvelope() throws {
+        try ServiceReliabilityLimitsV1.id(mutationID)
+        try ServiceReliabilityLimitsV1.digest(bundleSHA256)
+        guard !canonicalData.isEmpty else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidDigest
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case mutationID, bundleSHA256, canonicalData
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard Set(container.allKeys) == Set(CodingKeys.allCases) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .mutationID, in: container,
+                debugDescription: "C53 service-reliability receipt contains an unknown key"
+            )
+        }
+        mutationID = try container.decode(UUID.self, forKey: .mutationID)
+        bundleSHA256 = try container.decode(String.self, forKey: .bundleSHA256)
+        canonicalData = try container.decode(Data.self, forKey: .canonicalData)
+        try validateEnvelope()
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -1378,6 +1670,16 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let serviceRequests: [V38BackupServiceRequestRecordV1]
     let serviceRequestDispositionEvents: [V38BackupServiceRequestDispositionEventV1]
     let serviceRequestWorkLinkEvents: [V38BackupServiceRequestWorkLinkEventV1]
+    /// C53 actor-recorded operational-impact source rows. The metric input
+    /// projection is intentionally absent and is rebuilt from these histories.
+    let serviceReliabilityIncidents: [V39BackupAssetServiceIncidentRecordV1]
+    let serviceImpactSegments: [V39BackupServiceImpactSegmentRecordV1]
+    let serviceCauseAssertions: [V39BackupServiceCauseAssertionRecordV1]
+    let serviceRemedyAssertions: [V39BackupServiceRemedyAssertionRecordV1]
+    let serviceRepairIntervals: [V39BackupServiceRepairIntervalRecordV1]
+    let serviceRestorationAssertions: [V39BackupServiceRestorationAssertionRecordV1]
+    let qualifiedServiceExposures: [V39BackupQualifiedServiceExposureRecordV1]
+    let serviceReliabilityReceipts: [V39BackupServiceReliabilityReceiptRecordV1]
     let surveyDefinitions:[V24BackupSurveyDefinitionRecordV1]
     let accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]
     let fieldReferences:[V22BackupFieldReferenceRecordV1]
@@ -1464,7 +1766,15 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         workResources: [V37BackupWorkResourceRecordV1] = [],
         serviceRequests: [V38BackupServiceRequestRecordV1] = [],
         serviceRequestDispositionEvents: [V38BackupServiceRequestDispositionEventV1] = [],
-        serviceRequestWorkLinkEvents: [V38BackupServiceRequestWorkLinkEventV1] = []
+        serviceRequestWorkLinkEvents: [V38BackupServiceRequestWorkLinkEventV1] = [],
+        serviceReliabilityIncidents: [V39BackupAssetServiceIncidentRecordV1] = [],
+        serviceImpactSegments: [V39BackupServiceImpactSegmentRecordV1] = [],
+        serviceCauseAssertions: [V39BackupServiceCauseAssertionRecordV1] = [],
+        serviceRemedyAssertions: [V39BackupServiceRemedyAssertionRecordV1] = [],
+        serviceRepairIntervals: [V39BackupServiceRepairIntervalRecordV1] = [],
+        serviceRestorationAssertions: [V39BackupServiceRestorationAssertionRecordV1] = [],
+        qualifiedServiceExposures: [V39BackupQualifiedServiceExposureRecordV1] = [],
+        serviceReliabilityReceipts: [V39BackupServiceReliabilityReceiptRecordV1] = []
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -1483,6 +1793,14 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.serviceRequests = serviceRequests
         self.serviceRequestDispositionEvents = serviceRequestDispositionEvents
         self.serviceRequestWorkLinkEvents = serviceRequestWorkLinkEvents
+        self.serviceReliabilityIncidents = serviceReliabilityIncidents
+        self.serviceImpactSegments = serviceImpactSegments
+        self.serviceCauseAssertions = serviceCauseAssertions
+        self.serviceRemedyAssertions = serviceRemedyAssertions
+        self.serviceRepairIntervals = serviceRepairIntervals
+        self.serviceRestorationAssertions = serviceRestorationAssertions
+        self.qualifiedServiceExposures = qualifiedServiceExposures
+        self.serviceReliabilityReceipts = serviceReliabilityReceipts
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -1526,7 +1844,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
          case workflowRecords, evidenceContexts, pairedObservationLinks, lighting
          case assistanceAcceptanceReceipts, temporalEvidence, acceptedLabelGenerationSnapshots, operationalContacts, activityContracts, workResources
-         case serviceRequests, serviceRequestDispositionEvents, serviceRequestWorkLinkEvents
+          case serviceRequests, serviceRequestDispositionEvents, serviceRequestWorkLinkEvents
+          case serviceReliabilityIncidents, serviceImpactSegments, serviceCauseAssertions
+          case serviceRemedyAssertions, serviceRepairIntervals, serviceRestorationAssertions
+          case qualifiedServiceExposures, serviceReliabilityReceipts
     }
 
     init(from decoder: Decoder) throws {
@@ -1645,6 +1966,38 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             serviceRequestWorkLinkEvents: try values.decodeIfPresent(
                 [V38BackupServiceRequestWorkLinkEventV1].self,
                 forKey: .serviceRequestWorkLinkEvents
+            ) ?? [],
+            serviceReliabilityIncidents: try values.decodeIfPresent(
+                [V39BackupAssetServiceIncidentRecordV1].self,
+                forKey: .serviceReliabilityIncidents
+            ) ?? [],
+            serviceImpactSegments: try values.decodeIfPresent(
+                [V39BackupServiceImpactSegmentRecordV1].self,
+                forKey: .serviceImpactSegments
+            ) ?? [],
+            serviceCauseAssertions: try values.decodeIfPresent(
+                [V39BackupServiceCauseAssertionRecordV1].self,
+                forKey: .serviceCauseAssertions
+            ) ?? [],
+            serviceRemedyAssertions: try values.decodeIfPresent(
+                [V39BackupServiceRemedyAssertionRecordV1].self,
+                forKey: .serviceRemedyAssertions
+            ) ?? [],
+            serviceRepairIntervals: try values.decodeIfPresent(
+                [V39BackupServiceRepairIntervalRecordV1].self,
+                forKey: .serviceRepairIntervals
+            ) ?? [],
+            serviceRestorationAssertions: try values.decodeIfPresent(
+                [V39BackupServiceRestorationAssertionRecordV1].self,
+                forKey: .serviceRestorationAssertions
+            ) ?? [],
+            qualifiedServiceExposures: try values.decodeIfPresent(
+                [V39BackupQualifiedServiceExposureRecordV1].self,
+                forKey: .qualifiedServiceExposures
+            ) ?? [],
+            serviceReliabilityReceipts: try values.decodeIfPresent(
+                [V39BackupServiceReliabilityReceiptRecordV1].self,
+                forKey: .serviceReliabilityReceipts
             ) ?? []
         )
     }
@@ -1897,6 +2250,317 @@ enum C52ServiceRequestBackupEnrollmentV1 {
                 catch { throw ServiceRequestBackupContractFailureV1.invalidHistory }
             }
         }
+    }
+}
+
+/// C53 backup enrollment is a projection of the existing mutation journal and
+/// the seven SwiftData source families.  It deliberately has no projection or
+/// capability storage of its own: restore writes the canonical rows through
+/// the normal workspace writer and rebuilds metric projections afterwards.
+struct C53ServiceReliabilityBackupRowsV1: Sendable {
+    let incidents: [AssetServiceIncidentV1]
+    let impactSegments: [ServiceImpactSegmentV1]
+    let causeAssertions: [ServiceCauseAssertionV1]
+    let remedyAssertions: [ServiceRemedyAssertionV1]
+    let repairIntervals: [ServiceRepairIntervalV1]
+    let restorationAssertions: [ServiceRestorationAssertionV1]
+    let qualifiedExposures: [QualifiedServiceExposureV1]
+    let receipts: [ServiceReliabilityMutationReceiptV1]
+}
+
+enum C53ServiceReliabilityBackupEnrollmentV1 {
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let durableFamilyCount = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies.count
+    static let canonicalRowKinds = [
+        "ASSET_SERVICE_INCIDENT", "SERVICE_IMPACT_SEGMENT", "SERVICE_CAUSE_ASSERTION",
+        "SERVICE_REMEDY_ASSERTION", "SERVICE_REPAIR_INTERVAL",
+        "SERVICE_RESTORATION_ASSERTION", "QUALIFIED_SERVICE_EXPOSURE"
+    ]
+    static let appendOnlySourceHistory = true
+    static let reliabilityIdentityEpochIsEmbedded = true
+    static let derivedProjectionIsPersistent = AssetServiceReliabilityPersistenceEnrollmentV1.derivedProjectionIsPersistent
+    static let rawCapabilityBytesAreExcluded = true
+
+    static func validate(
+        records: V4BackupRecordsV1,
+        workspaceID expectedWorkspaceID: UUID? = nil
+    ) throws {
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        guard persistentSchemaVersion == 40,
+              recordsSchemaVersion == 39,
+              durableFamilyCount == 7,
+              canonicalRowKinds.count == durableFamilyCount,
+              appendOnlySourceHistory,
+              reliabilityIdentityEpochIsEmbedded,
+              !derivedProjectionIsPersistent,
+              rawCapabilityBytesAreExcluded else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidSchemaVersion
+        }
+
+        let hasRows = !records.serviceReliabilityIncidents.isEmpty
+            || !records.serviceImpactSegments.isEmpty
+            || !records.serviceCauseAssertions.isEmpty
+            || !records.serviceRemedyAssertions.isEmpty
+            || !records.serviceRepairIntervals.isEmpty
+            || !records.serviceRestorationAssertions.isEmpty
+            || !records.qualifiedServiceExposures.isEmpty
+            || !records.serviceReliabilityReceipts.isEmpty
+        if records.recordsSchemaVersion < recordsSchemaVersion {
+            guard !hasRows else {
+                throw C53ServiceReliabilityBackupContractFailureV1.invalidSchemaVersion
+            }
+            return
+        }
+        guard records.recordsSchemaVersion == recordsSchemaVersion else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidSchemaVersion
+        }
+
+        let rows = try decodedRows(from: records)
+        let allPayloads: [ServiceReliabilityMutationPayloadV1] =
+            rows.incidents.map { .incident($0) }
+            + rows.impactSegments.map { .impact($0) }
+            + rows.causeAssertions.map { .cause($0) }
+            + rows.remedyAssertions.map { .remedy($0) }
+            + rows.repairIntervals.map { .repair($0) }
+            + rows.restorationAssertions.map { .restoration($0) }
+            + rows.qualifiedExposures.map { .exposure($0) }
+        let workspaces = Set(allPayloads.map { $0.workspaceID.rawValue })
+        guard workspaces.count <= 1,
+              expectedWorkspaceID.map({ workspaces.isEmpty || workspaces == Set([$0]) }) ?? true else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidWorkspaceBinding
+        }
+        let assetIDs = Set(records.assets.map(\.id))
+        guard allPayloads.allSatisfy({ payload in
+            let subject: ServiceReliabilitySubjectV1
+            switch payload {
+            case .incident(let value): subject = value.subject
+            case .impact(let value): subject = value.subject
+            case .cause(let value): subject = value.subject
+            case .remedy(let value): subject = value.subject
+            case .repair(let value): subject = value.subject
+            case .restoration(let value): subject = value.subject
+            case .exposure(let value): subject = value.subject
+            }
+            return assetIDs.contains(subject.asset.subjectID)
+        }) else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidWorkspaceBinding
+        }
+
+        try validateChain(rows.incidents, lineage: \.incidentID,
+                          workspace: \.workspaceID, revision: \.revision,
+                          predecessor: \.predecessor,
+                          validate: { try $0.validate() },
+                          successor: { try $0.validateSuccessor(of: $1) })
+        try validateChain(rows.impactSegments, lineage: \.segmentID,
+                          workspace: \.workspaceID, revision: \.revision,
+                          predecessor: \.predecessor,
+                          validate: { try $0.validate() },
+                          successor: { try $0.validateSuccessor(of: $1) })
+        try validateChain(rows.causeAssertions, lineage: \.assertionID,
+                          workspace: \.workspaceID, revision: \.revision,
+                          predecessor: \.predecessor,
+                          validate: { try $0.validate() },
+                          successor: { try $0.validateSuccessor(of: $1) })
+        try validateChain(rows.remedyAssertions, lineage: \.assertionID,
+                          workspace: \.workspaceID, revision: \.revision,
+                          predecessor: \.predecessor,
+                          validate: { try $0.validate() },
+                          successor: { try $0.validateSuccessor(of: $1) })
+        try validateChain(rows.repairIntervals, lineage: \.repairID,
+                          workspace: \.workspaceID, revision: \.revision,
+                          predecessor: \.predecessor,
+                          validate: { try $0.validate() },
+                          successor: { try $0.validateSuccessor(of: $1) })
+        try validateChain(rows.restorationAssertions, lineage: \.assertionID,
+                          workspace: \.workspaceID, revision: \.revision,
+                          predecessor: \.predecessor,
+                          validate: { try $0.validate() },
+                          successor: { try $0.validateSuccessor(of: $1) })
+        try validateChain(rows.qualifiedExposures, lineage: \.exposureID,
+                          workspace: \.workspaceID, revision: \.revision,
+                          predecessor: \.predecessor,
+                          validate: { try $0.validate() },
+                          successor: { try $0.validateSuccessor(of: $1) })
+
+        let incidentIDs = Set(rows.incidents.map(\.incidentID))
+        guard rows.impactSegments.allSatisfy({ incidentIDs.contains($0.incidentID) }),
+              rows.causeAssertions.allSatisfy({ incidentIDs.contains($0.incidentID) }),
+              rows.remedyAssertions.allSatisfy({ incidentIDs.contains($0.incidentID) }),
+              rows.repairIntervals.allSatisfy({ incidentIDs.contains($0.incidentID) }),
+              rows.restorationAssertions.allSatisfy({ incidentIDs.contains($0.incidentID) }) else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidHistory
+        }
+
+        var eventIDs = Set<UUID>()
+        for payload in allPayloads {
+            guard eventIDs.insert(payload.eventID).inserted else {
+                throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity
+            }
+        }
+        guard let history = records.mutationHistory else {
+            guard allPayloads.isEmpty && rows.receipts.isEmpty else {
+                throw C53ServiceReliabilityBackupContractFailureV1.invalidHistory
+            }
+            return
+        }
+        let historyClosure = try serviceReliabilityClosure(from: history)
+        let rowPayloadsByEventID = Dictionary(uniqueKeysWithValues: allPayloads.map { ($0.eventID, $0) })
+        let historyPayloadsByEventID = Dictionary(uniqueKeysWithValues: historyClosure.payloads.map { ($0.eventID, $0) })
+        guard rowPayloadsByEventID == historyPayloadsByEventID else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidHistory
+        }
+        let orderedHistoryReceipts = historyClosure.receipts.sorted {
+            $0.mutationReceipt.mutationID.rawValue.uuidString
+                < $1.mutationReceipt.mutationID.rawValue.uuidString
+        }
+        guard rows.receipts == orderedHistoryReceipts else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidHistory
+        }
+        let receiptIDs = rows.receipts.map { $0.mutationReceipt.mutationID.rawValue }
+        guard Set(receiptIDs).count == receiptIDs.count,
+              receiptIDs == receiptIDs.sorted(by: { $0.uuidString < $1.uuidString }) else {
+            throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity
+        }
+    }
+
+    static func canonicalRows(
+        from records: V4BackupRecordsV1,
+        workspaceID expectedWorkspaceID: UUID? = nil
+    ) throws -> C53ServiceReliabilityBackupRowsV1 {
+        try validate(records: records, workspaceID: expectedWorkspaceID)
+        return try decodedRows(from: records)
+    }
+
+    static func receiptRecords(
+        from history: MutationHistorySnapshotV1?
+    ) throws -> [V39BackupServiceReliabilityReceiptRecordV1] {
+        guard let history else { return [] }
+        return try serviceReliabilityReceipts(from: history)
+            .map(V39BackupServiceReliabilityReceiptRecordV1.init)
+            .sorted { $0.mutationID.uuidString < $1.mutationID.uuidString }
+    }
+
+    private static func decodedRows(
+        from records: V4BackupRecordsV1
+    ) throws -> C53ServiceReliabilityBackupRowsV1 {
+        for rows in [
+            records.serviceReliabilityIncidents,
+            records.serviceImpactSegments,
+            records.serviceCauseAssertions,
+            records.serviceRemedyAssertions,
+            records.serviceRepairIntervals,
+            records.serviceRestorationAssertions,
+            records.qualifiedServiceExposures
+        ] {
+            let keys = rows.map(rowKey)
+            guard keys == keys.sorted(), Set(keys).count == keys.count else {
+                throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity
+            }
+        }
+        let incidentPayloads = try records.serviceReliabilityIncidents.map { try $0.value() }
+        let impactPayloads = try records.serviceImpactSegments.map { try $0.value() }
+        let causePayloads = try records.serviceCauseAssertions.map { try $0.value() }
+        let remedyPayloads = try records.serviceRemedyAssertions.map { try $0.value() }
+        let repairPayloads = try records.serviceRepairIntervals.map { try $0.value() }
+        let restorationPayloads = try records.serviceRestorationAssertions.map { try $0.value() }
+        let exposurePayloads = try records.qualifiedServiceExposures.map { try $0.value() }
+        let incidents = try incidentPayloads.map { payload -> AssetServiceIncidentV1 in
+            guard case .incident(let value) = payload else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+            return value
+        }
+        let impactSegments = try impactPayloads.map { payload -> ServiceImpactSegmentV1 in
+            guard case .impact(let value) = payload else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+            return value
+        }
+        let causeAssertions = try causePayloads.map { payload -> ServiceCauseAssertionV1 in
+            guard case .cause(let value) = payload else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+            return value
+        }
+        let remedyAssertions = try remedyPayloads.map { payload -> ServiceRemedyAssertionV1 in
+            guard case .remedy(let value) = payload else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+            return value
+        }
+        let repairIntervals = try repairPayloads.map { payload -> ServiceRepairIntervalV1 in
+            guard case .repair(let value) = payload else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+            return value
+        }
+        let restorationAssertions = try restorationPayloads.map { payload -> ServiceRestorationAssertionV1 in
+            guard case .restoration(let value) = payload else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+            return value
+        }
+        let qualifiedExposures = try exposurePayloads.map { payload -> QualifiedServiceExposureV1 in
+            guard case .exposure(let value) = payload else { throw C53ServiceReliabilityBackupContractFailureV1.invalidIdentity }
+            return value
+        }
+        let receipts = try records.serviceReliabilityReceipts.map { try $0.value() }
+        return C53ServiceReliabilityBackupRowsV1(
+            incidents: incidents, impactSegments: impactSegments,
+            causeAssertions: causeAssertions, remedyAssertions: remedyAssertions,
+            repairIntervals: repairIntervals, restorationAssertions: restorationAssertions,
+            qualifiedExposures: qualifiedExposures, receipts: receipts
+        )
+    }
+
+    private static func rowKey(_ value: V39BackupServiceReliabilityRecordV1) -> String {
+        "\(value.kind.rawValue)|\(value.workspaceID.uuidString.lowercased())|\(value.lineageID.uuidString.lowercased())|\(value.revision)|\(value.eventID.uuidString.lowercased())"
+    }
+
+    private static func validateChain<T>(
+        _ values: [T],
+        lineage: (T) -> UUID,
+        workspace: (T) -> WorkspaceID,
+        revision: (T) -> UInt64,
+        predecessor: (T) -> ServiceReliabilityEventReferenceV1?,
+        validate: (T) throws -> Void,
+        successor: (T, T) throws -> Void
+    ) throws {
+        let groups = Dictionary(grouping: values) {
+            "\(workspace($0).rawValue.uuidString.lowercased())|\(lineage($0).uuidString.lowercased())"
+        }
+        for group in groups.values {
+            let ordered = group.sorted { revision($0) < revision($1) }
+            let revisions = ordered.map(revision)
+            guard let first = ordered.first,
+                  revision(first) == 1,
+                  predecessor(first) == nil,
+                  Set(revisions).count == revisions.count else {
+                throw C53ServiceReliabilityBackupContractFailureV1.invalidHistory
+            }
+            try ordered.forEach(validate)
+            for index in ordered.indices.dropFirst() {
+                do { try successor(ordered[index], ordered[index - 1]) }
+                catch { throw C53ServiceReliabilityBackupContractFailureV1.invalidHistory }
+            }
+        }
+    }
+
+    private static func serviceReliabilityClosure(
+        from history: MutationHistorySnapshotV1
+    ) throws -> (payloads:[ServiceReliabilityMutationPayloadV1],receipts:[ServiceReliabilityMutationReceiptV1]) {
+        var payloads:[ServiceReliabilityMutationPayloadV1]=[]
+        var receipts:[ServiceReliabilityMutationReceiptV1]=[]
+        var mutationIDs=Set<UUID>(),eventIDs=Set<UUID>()
+        for record in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard case let .applyServiceReliability(bundle) = envelope.command else { continue }
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            let typedReceipt=try ServiceReliabilityMutationReceiptV1(bundle:bundle,mutationReceipt:receipt)
+            guard mutationIDs.insert(bundle.mutationID.rawValue).inserted,
+                  bundle.payloads.allSatisfy({eventIDs.insert($0.eventID).inserted}),
+                  typedReceipt.postImages == (try bundle.mutationPostImages) else {
+                throw C53ServiceReliabilityBackupContractFailureV1.invalidHistory
+            }
+            payloads += bundle.payloads
+            receipts.append(typedReceipt)
+        }
+        return (payloads,receipts)
+    }
+
+    private static func serviceReliabilityReceipts(
+        from history: MutationHistorySnapshotV1
+    ) throws -> [ServiceReliabilityMutationReceiptV1] {
+        try serviceReliabilityClosure(from:history).receipts
     }
 }
 
@@ -2858,6 +3522,41 @@ func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->S
      func replacingOperationalContacts(_ values:[V35BackupOperationalContactRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:values,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
      func replacingActivityContracts(_ values:[V36BackupActivityContractRecordV2])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:values,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
      func replacingWorkResources(_ value:[V37BackupWorkResourceRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:value,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
+
+    func replacingServiceReliability(_ rows:C53ServiceReliabilityBackupRowsV1)throws->Self{
+        Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,
+             placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,
+             surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,
+             recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,
+             privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,
+             packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,
+             inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,
+             functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,
+             assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,
+             assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,
+             assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,
+             locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,
+             locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,
+             partyAccountability:partyAccountability,
+             recordsSchemaVersion:max(recordsSchemaVersion,C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion),
+             reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,
+             sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,
+             pairedObservationLinks:pairedObservationLinks,lighting:lighting,
+             assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,
+             acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,
+             operationalContacts:operationalContacts,activityContracts:activityContracts,
+             workResources:workResources,serviceRequests:serviceRequests,
+             serviceRequestDispositionEvents:serviceRequestDispositionEvents,
+             serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents,
+             serviceReliabilityIncidents:try rows.incidents.map(V39BackupServiceReliabilityRecordV1.init),
+             serviceImpactSegments:try rows.impactSegments.map(V39BackupServiceReliabilityRecordV1.init),
+             serviceCauseAssertions:try rows.causeAssertions.map(V39BackupServiceReliabilityRecordV1.init),
+             serviceRemedyAssertions:try rows.remedyAssertions.map(V39BackupServiceReliabilityRecordV1.init),
+             serviceRepairIntervals:try rows.repairIntervals.map(V39BackupServiceReliabilityRecordV1.init),
+             serviceRestorationAssertions:try rows.restorationAssertions.map(V39BackupServiceReliabilityRecordV1.init),
+             qualifiedServiceExposures:try rows.qualifiedExposures.map(V39BackupServiceReliabilityRecordV1.init),
+             serviceReliabilityReceipts:try rows.receipts.map(V39BackupServiceReliabilityReceiptRecordV1.init))
+    }
 }
 
 struct V4BackupEntryV1: Codable, Equatable, Sendable {

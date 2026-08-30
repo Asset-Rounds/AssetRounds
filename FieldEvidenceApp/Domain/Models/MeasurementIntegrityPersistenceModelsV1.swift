@@ -38,3 +38,13 @@ private enum MeasurementIntegrityPersistenceCodecV1 {
     init(_ value: MeasurementQualityAssessmentV1) throws { try value.validate();assessmentID=value.assessmentID;workspaceID=value.workspaceID.rawValue;subjectID=value.subjectID;revision=value.revision;mutationID=value.mutationID.rawValue;assessmentSHA256=value.assessmentSHA256;canonicalData=try MeasurementIntegrityCanonicalCodecV1.encode(value) }
     func value() throws -> MeasurementQualityAssessmentV1 { let v:MeasurementQualityAssessmentV1=try MeasurementIntegrityPersistenceCodecV1.decode(MeasurementQualityAssessmentV1.self,canonicalData);guard v.assessmentID==assessmentID,v.workspaceID.rawValue==workspaceID,v.subjectID==subjectID,v.revision==revision,v.mutationID.rawValue==mutationID,v.assessmentSHA256==assessmentSHA256 else{throw MeasurementIntegrityPersistenceFailureV1.corruptRow};return v }
 }
+
+enum C53SharedMeasurementPersistenceBoundaryV1 {
+    static let exposureType: QualifiedServiceExposureV1.Type = QualifiedServiceExposureV1.self
+    static let c19MeasurementRowsRemainCanonical = true
+    static let c53ReliabilityRowsAreNotStoredInMeasurementModels = true
+    static let canonicalDataDigestAndRevisionAreValidated = true
+    static let crossWorkspaceOrDuplicateEvidenceFailsClosed = true
+    static let derivedReliabilityProjectionIsNotPersistedHere = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

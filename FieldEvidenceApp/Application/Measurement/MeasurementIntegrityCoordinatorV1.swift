@@ -131,3 +131,13 @@ enum MeasurementIntegrityCoordinatorV1 {
                            assessments: assessment.map { [$0] } ?? [])
     }
 }
+
+enum C53SharedMeasurementCoordinatorBoundaryV1 {
+    static let subjectType: ServiceReliabilitySubjectV1.Type = ServiceReliabilitySubjectV1.self
+    static let acceptedMeasurementEvidenceMayInformQualification = true
+    static let unverifiedCalibrationCannotQualifyExactExposure = true
+    static let measurementAssessmentDoesNotClaimUptimeOrRelease = true
+    static let coordinatorDoesNotCreateReliabilityRecords = true
+    static let noHardwareIoTOrPredictiveMaintenancePath = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

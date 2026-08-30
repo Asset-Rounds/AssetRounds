@@ -7,6 +7,10 @@ private enum C52ServiceRequestBoundary_V9_13PersistentKindLifecycleCoverageTests
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
+private enum C53AssetServiceReliabilityBoundary_V9_13PersistentKindLifecycleCoverageTests {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
 private final class C45PersistentKindCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityKeepsPlansAndProjectionResultsDerived() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)

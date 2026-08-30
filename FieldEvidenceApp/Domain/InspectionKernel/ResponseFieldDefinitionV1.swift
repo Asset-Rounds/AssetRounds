@@ -184,6 +184,27 @@ struct ResponseFieldDefinitionV1: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - C53 reliability response-field isolation
+
+enum C53ServiceReliabilityResponseFieldBoundaryV1 {
+    static let responseFieldRegistrationCount = 0
+    static let reliabilityProjectionType: Any.Type = ReliabilityMetricInputProjectionV1.self
+    static let reliabilityIsNotModeledAsInspectionResponse = true
+    static let releasedResponseSchemaRemainsByteCompatible = true
+    static let exactMetricQualificationIsNotAResponseValidationRule = true
+
+    static func validate(
+        _ input: ReliabilityMetricInputProjectionV1
+    ) throws {
+        try input.validate()
+        guard responseFieldRegistrationCount == 0,
+              reliabilityIsNotModeledAsInspectionResponse,
+              releasedResponseSchemaRemainsByteCompatible else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+    }
+}
+
 enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_InspectionKernel_ResponseFieldDefinitionV1_swift {
     static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
     static let installationAndPunchReceiptsRemainIndependent = true

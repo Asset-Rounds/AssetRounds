@@ -66,6 +66,11 @@
   "retryDisposition": "SAME_IMMUTABLE_RECEIPT_OR_SAFE_DISCARD",
   "rollbackCompatibility": ["PRE_ACTIVATION_DISCARDABLE", "ACTIVATED_FORWARD_FIX_REQUIRED"],
   "brandExclusion": "BRAND_IMPACT_MANIFEST_IS_EVIDENCE_ONLY",
+  "c53SharedBoundary": {
+    "contractNames": ["AssetServiceIncidentV1", "ServiceImpactSegmentV1", "QualifiedServiceExposureV1", "ReliabilityMetricInputProjectionV1"],
+    "usesMeasurementAsEvidenceOnly": true,
+    "unknownIntervalsQualifyForExactMetrics": false
+  },
   "forbiddenProductionSymbols": ["MeasurementProviderV1", "RemoteCalibrationProviderV1", "URLSession", "CloudKit"],
   "forbiddenClaims": ["HARDWARE_INTEGRATION", "REMOTE_CALIBRATION", "AUTOMATIC_COMPLIANCE", "PREDICTIVE_MAINTENANCE", "AI_DIAGNOSIS", "FLOATING_POINT_CANONICAL_VALUE", "MUTABLE_FINAL_MEASUREMENT", "CLOUD_OR_ACCOUNT_STATE", "NATIVE_IPAD_SURFACE", "SIGNING_TESTFLIGHT_APP_STORE_OR_DEPLOYMENT"],
   "persistence": {

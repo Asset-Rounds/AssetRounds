@@ -574,3 +574,13 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_WorkflowMod
     static let siteRoleOwnershipForbidden = true
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-persistence
+
+enum C53SharedWorkflowReliabilityBoundaryV1 {
+    static let metricProjectionType: ReliabilityMetricInputProjectionV1.Type = ReliabilityMetricInputProjectionV1.self
+    static let reliabilityInputIsNotWorkflowState = true
+    static let incidentCorrectionDoesNotRewriteHistory = true
+    static let metricProjectionIsDerivedOnly = true
+    static let automaticWorkOrReleaseToServiceIsPermitted = false
+    static let unknownImpactOrOriginRemainsVisibleButUnqualified = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

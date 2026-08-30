@@ -499,3 +499,4 @@ enum C52ServiceRequestMutationReceiptEnrollmentV1 {
     static let postImageKinds: [WorkspaceEntityKindV1] = [.serviceRequestRecord, .serviceRequestDispositionEvent, .serviceRequestWorkLinkEvent]
     static let durableReceiptRecoveryRequired = true
 }
+enum C53AssetServiceReliabilityMutationReceiptEnrollmentV1{static let commandKind:WorkspaceCommandKindV1 = .applyServiceReliability;static let typedReceipt=ServiceReliabilityMutationReceiptV1.self;static let postImageKinds:[WorkspaceEntityKindV1]=[.assetServiceIncident,.serviceImpactSegment,.serviceCauseAssertion,.serviceRemedyAssertion,.serviceRepairInterval,.serviceRestorationAssertion,.qualifiedServiceExposure];static let durableReceiptRecoveryRequired=true}

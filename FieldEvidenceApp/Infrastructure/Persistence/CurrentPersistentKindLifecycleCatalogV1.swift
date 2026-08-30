@@ -120,6 +120,7 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
         guard C52ServiceRequestPersistentLifecycleBoundaryV1.validate() else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
+        guard C53AssetServiceReliabilityPersistentLifecycleBoundaryV1.validate() else{throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage}
         try coverageManifest.validate()
         try descriptors.forEach { try $0.validate() }
         try lifecyclePolicies.forEach { try $0.validate() }
@@ -1137,3 +1138,4 @@ enum C52ServiceRequestPersistentLifecycleBoundaryV1 {
             && cloneForkPreservesHistoryAndInvalidatesCapabilities
     }
 }
+enum C53AssetServiceReliabilityPersistentLifecycleBoundaryV1{static let persistentSchemaVersion=40,recordsSchemaVersion=39,durableRows=AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies,derivedProjectionRebuildable=true;static func validate()->Bool{durableRows.count==7&&derivedProjectionRebuildable}}

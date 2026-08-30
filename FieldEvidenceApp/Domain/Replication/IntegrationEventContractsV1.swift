@@ -669,3 +669,51 @@ enum C52ServiceRequestBoundary_IntegrationEventContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+enum C53AssetServiceReliabilityIntegrationEventContractV1 {
+    static let sourceIsDurableMutationReceiptPostImage = true
+    static let derivedReliabilityProjectionIsEventTruth = false
+
+    static func definitions() throws -> [IntegrationEventContractDefinitionV1] {
+        try [
+            ("service_reliability.asset_service_incident.v1", WorkspaceEntityKindV1.assetServiceIncident),
+            ("service_reliability.service_impact_segment.v1", .serviceImpactSegment),
+            ("service_reliability.service_cause_assertion.v1", .serviceCauseAssertion),
+            ("service_reliability.service_remedy_assertion.v1", .serviceRemedyAssertion),
+            ("service_reliability.service_repair_interval.v1", .serviceRepairInterval),
+            ("service_reliability.service_restoration_assertion.v1", .serviceRestorationAssertion),
+            ("service_reliability.qualified_service_exposure.v1", .qualifiedServiceExposure),
+        ].map {
+            try IntegrationEventContractDefinitionV1(
+                eventKind: $0.0,
+                eventVersion: 1,
+                sourceEntityKind: $0.1,
+                sensitivity: .workspaceData,
+                emittedVisibility: .workspaceInternal,
+                redaction: .notRequired
+            )
+        }.sorted { $0.stableKey < $1.stableKey }
+    }
+
+    static var eventKinds: [String] {
+        get throws { try definitions().map(\.eventKind) }
+    }
+
+    static func validate(registry: IntegrationContractRegistryV1) throws {
+        let expected = try definitions()
+        guard expected.count == 7,
+              expected.allSatisfy({ $0.eventKind == $0.eventKind.lowercased() }),
+              sourceIsDurableMutationReceiptPostImage,
+              !derivedReliabilityProjectionIsEventTruth else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
+        for definition in expected {
+            guard try registry.definition(for: definition.sourceEntityKind) == definition,
+                  try registry.definition(
+                    eventKind: definition.eventKind,
+                    version: definition.eventVersion
+                  ) == definition else {
+                throw IntegrationEventFailureV1.unknownEventKind
+            }
+        }
+    }
+}

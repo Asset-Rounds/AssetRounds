@@ -645,3 +645,25 @@ enum ExactMeasurementPrivacyRegionBridgeV1 {
         }
     }
 }
+
+// MARK: - C53 reliability measurement boundary
+
+enum C53ServiceReliabilityMeasurementBoundaryV1 {
+    static let sourceUsesExactIntegerIntervals = true
+    static let sourceAssignsNoDegradationWeight =
+        ServiceReliabilityClaimBoundaryV1.assignsNoDegradationWeight
+    static let meanRecordedRestorationIsNotMTTR = true
+    static let unavailableMetricsMustRemainUnavailable = true
+    static let exactDecimalConversionIsNotRequiredForQualification = true
+
+    static func validate(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws {
+        try projection.validate()
+        guard sourceAssignsNoDegradationWeight,
+              meanRecordedRestorationIsNotMTTR,
+              unavailableMetricsMustRemainUnavailable else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+    }
+}

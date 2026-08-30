@@ -51,6 +51,15 @@ extension InspectionPackageRegistryV2 {
     }
 }
 
+enum C53SharedInspectionPackageRegistryBoundaryV1 {
+    static let payloadType: ServiceReliabilityMutationPayloadV1.Type = ServiceReliabilityMutationPayloadV1.self
+    static let registryValidatesSubjectBindingOnly = true
+    static let registryDoesNotPersistImpactOrExposureRecords = true
+    static let registryDoesNotProjectReliabilityMetrics = true
+    static let staleOrCrossWorkspaceBindingFailsClosed = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}
+
 extension InspectionPackageRegistryV2 {
     func package(id: String, admitting release: FieldReferenceReleaseV1) throws -> InspectionPackageV2 {
         let value = try package(id: id)

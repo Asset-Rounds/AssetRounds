@@ -7,6 +7,10 @@ private enum C52ServiceRequestBoundary_S6_4AtomicRestoreTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
+private enum C53AssetServiceReliabilityBoundary_S6_4AtomicRestoreTests {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
 private final class C45AtomicRestoreCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityRestoresActiveOrHistoricDispositionExactly() {
         XCTAssertEqual(Set(AcceptedLabelSnapshotDispositionV1.allCases), [.activeSourceWorkspace, .historicCloneOrFork])

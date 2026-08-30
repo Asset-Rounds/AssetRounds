@@ -51,6 +51,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyPortableReview,
             .applyWorkResource,
             .applyServiceRequest,
+            .applyServiceReliability,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -221,6 +222,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyWorkResource(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyServiceRequest(value):
             return try applyServiceRequest(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyServiceReliability(value):
+            return try applyServiceReliability(value,temporaryRelativePath:temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -418,6 +421,29 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
         return matches == mutation.payloads.count
+    }
+
+    private func applyServiceReliability(_ bundle:ServiceReliabilityAtomicBundleV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{
+        do{try bundle.validateForCanonicalWriter();for payload in bundle.payloads{try validateServiceReliabilityAppend(payload);switch payload{case .incident(let v):modelContext.insert(try AssetServiceIncidentRow(v));case .impact(let v):modelContext.insert(try ServiceImpactSegmentRow(v));case .cause(let v):modelContext.insert(try ServiceCauseAssertionRow(v));case .remedy(let v):modelContext.insert(try ServiceRemedyAssertionRow(v));case .repair(let v):modelContext.insert(try ServiceRepairIntervalRow(v));case .restoration(let v):modelContext.insert(try ServiceRestorationAssertionRow(v));case .exposure(let v):modelContext.insert(try QualifiedServiceExposureRow(v))}};return try WorkspaceMutationEffectV1(affectedEntities:bundle.affectedIdentities,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}
+    }
+
+    private func validateServiceReliabilityAppend(_ payload:ServiceReliabilityMutationPayloadV1)throws{
+        let eventID=payload.eventID,workspaceID=payload.workspaceID.rawValue,predecessor=payload.predecessorReference
+        func check(_ rows:[(UUID,UUID,UInt64,UUID?,String)])throws{guard !rows.contains(where:{$0.0==eventID&&$0.1==workspaceID})else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard let prior=rows.first(where:{$0.0==predecessor.eventID&&$0.1==workspaceID}),!rows.contains(where:{$0.3==predecessor.eventID}),predecessor.revision==prior.2,predecessor.eventSHA256==prior.4,prior.2<UInt64.max,payload.revision==prior.2+1 else{throw WorkspaceMutationFailureV1.staleEntityRevision(try payload.concurrencyIdentity)}}else{guard payload.revision==1 else{throw WorkspaceMutationFailureV1.invalidCommand}}}
+        switch payload{
+        case .incident:try check(try modelContext.fetch(FetchDescriptor<AssetServiceIncidentRow>()).map{($0.eventID,$0.workspaceID,$0.revision,$0.predecessorEventID,$0.eventSHA256)})
+        case .impact:try check(try modelContext.fetch(FetchDescriptor<ServiceImpactSegmentRow>()).map{($0.eventID,$0.workspaceID,$0.revision,$0.predecessorEventID,$0.eventSHA256)})
+        case .cause:try check(try modelContext.fetch(FetchDescriptor<ServiceCauseAssertionRow>()).map{($0.eventID,$0.workspaceID,$0.revision,$0.predecessorEventID,$0.eventSHA256)})
+        case .remedy:try check(try modelContext.fetch(FetchDescriptor<ServiceRemedyAssertionRow>()).map{($0.eventID,$0.workspaceID,$0.revision,$0.predecessorEventID,$0.eventSHA256)})
+        case .repair:try check(try modelContext.fetch(FetchDescriptor<ServiceRepairIntervalRow>()).map{($0.eventID,$0.workspaceID,$0.revision,$0.predecessorEventID,$0.eventSHA256)})
+        case .restoration:try check(try modelContext.fetch(FetchDescriptor<ServiceRestorationAssertionRow>()).map{($0.eventID,$0.workspaceID,$0.revision,$0.predecessorEventID,$0.eventSHA256)})
+        case .exposure:try check(try modelContext.fetch(FetchDescriptor<QualifiedServiceExposureRow>()).map{($0.eventID,$0.workspaceID,$0.revision,$0.predecessorEventID,$0.eventSHA256)})}
+    }
+
+    func persistedServiceReliabilityEffectMatches(_ bundle:ServiceReliabilityAtomicBundleV1)throws->Bool{
+        try bundle.validateForCanonicalWriter();var matches=0
+        for payload in bundle.payloads{let exact:Bool;switch payload{case .incident(let v):exact=try modelContext.fetch(FetchDescriptor<AssetServiceIncidentRow>()).first(where:{$0.eventID==v.eventID&&$0.workspaceID==v.workspaceID.rawValue}).map{try $0.value()==v} ?? false;case .impact(let v):exact=try modelContext.fetch(FetchDescriptor<ServiceImpactSegmentRow>()).first(where:{$0.eventID==v.eventID&&$0.workspaceID==v.workspaceID.rawValue}).map{try $0.value()==v} ?? false;case .cause(let v):exact=try modelContext.fetch(FetchDescriptor<ServiceCauseAssertionRow>()).first(where:{$0.eventID==v.eventID&&$0.workspaceID==v.workspaceID.rawValue}).map{try $0.value()==v} ?? false;case .remedy(let v):exact=try modelContext.fetch(FetchDescriptor<ServiceRemedyAssertionRow>()).first(where:{$0.eventID==v.eventID&&$0.workspaceID==v.workspaceID.rawValue}).map{try $0.value()==v} ?? false;case .repair(let v):exact=try modelContext.fetch(FetchDescriptor<ServiceRepairIntervalRow>()).first(where:{$0.eventID==v.eventID&&$0.workspaceID==v.workspaceID.rawValue}).map{try $0.value()==v} ?? false;case .restoration(let v):exact=try modelContext.fetch(FetchDescriptor<ServiceRestorationAssertionRow>()).first(where:{$0.eventID==v.eventID&&$0.workspaceID==v.workspaceID.rawValue}).map{try $0.value()==v} ?? false;case .exposure(let v):exact=try modelContext.fetch(FetchDescriptor<QualifiedServiceExposureRow>()).first(where:{$0.eventID==v.eventID&&$0.workspaceID==v.workspaceID.rawValue}).map{try $0.value()==v} ?? false};if exact{matches+=1}}
+        guard matches==0||matches==bundle.payloads.count else{throw WorkspaceMutationFailureV1.persistenceFailed};return matches==bundle.payloads.count
     }
 
     /// Read-only C47 recovery preflight.  Returning `false` is reserved for
@@ -2388,6 +2414,13 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             case .serviceRequestWorkLinkEvent:
                 let values = try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>(predicate: #Predicate { $0.eventID == id }))
                 guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
+            case .assetServiceIncident:exists=try modelContext.fetch(FetchDescriptor<AssetServiceIncidentRow>()).contains{$0.eventID==id}
+            case .serviceImpactSegment:exists=try modelContext.fetch(FetchDescriptor<ServiceImpactSegmentRow>()).contains{$0.eventID==id}
+            case .serviceCauseAssertion:exists=try modelContext.fetch(FetchDescriptor<ServiceCauseAssertionRow>()).contains{$0.eventID==id}
+            case .serviceRemedyAssertion:exists=try modelContext.fetch(FetchDescriptor<ServiceRemedyAssertionRow>()).contains{$0.eventID==id}
+            case .serviceRepairInterval:exists=try modelContext.fetch(FetchDescriptor<ServiceRepairIntervalRow>()).contains{$0.eventID==id}
+            case .serviceRestorationAssertion:exists=try modelContext.fetch(FetchDescriptor<ServiceRestorationAssertionRow>()).contains{$0.eventID==id}
+            case .qualifiedServiceExposure:exists=try modelContext.fetch(FetchDescriptor<QualifiedServiceExposureRow>()).contains{$0.eventID==id}
             case .sitePartyRoleEvent:
                 let values = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>(predicate: #Predicate { $0.eventID == id }))
                 guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1

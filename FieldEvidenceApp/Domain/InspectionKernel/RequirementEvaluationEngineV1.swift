@@ -594,3 +594,25 @@ enum DeterministicDerivedFactEvaluatorV1 {
         }
     }
 }
+
+// MARK: - C53 reliability evaluation isolation
+
+enum C53ServiceReliabilityRequirementEvaluationBoundaryV1 {
+    static let engineDoesNotInferComplianceFromReliabilityMetrics = true
+    static let engineConsumesOnlyExplicitEvidenceBindings = true
+    static let unavailableQualificationRemainsUnknown = true
+    static let restorationIsNotAnAutomaticRequirementPass = true
+
+    static func evidenceInput(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> RequirementIntegrityInputV1 {
+        let input = try C53ServiceReliabilityRequirementEvidenceBoundaryV1.integrityInput(projection)
+        guard engineDoesNotInferComplianceFromReliabilityMetrics,
+              engineConsumesOnlyExplicitEvidenceBindings,
+              unavailableQualificationRemainsUnknown,
+              restorationIsNotAnAutomaticRequirementPass else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+        return input
+    }
+}

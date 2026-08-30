@@ -51,3 +51,13 @@ enum MeasurementIntegrityLifecycleCatalogV1 {
         return nil
     }
 }
+
+enum C53SharedMeasurementLifecycleBoundaryV1 {
+    static let exposureType: QualifiedServiceExposureV1.Type = QualifiedServiceExposureV1.self
+    static let c19MeasurementLifecycleRemainsCanonical = true
+    static let c53IncidentAndExposureLifecycleHasSeparateOwner = true
+    static let measurementRowsAreNotReliabilityMetricOutputs = true
+    static let replayAndRetryRemainOldOrNewOnly = true
+    static let noAutomaticReleaseToService = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

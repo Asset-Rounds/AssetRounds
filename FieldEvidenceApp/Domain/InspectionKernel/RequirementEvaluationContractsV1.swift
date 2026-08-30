@@ -739,6 +739,32 @@ struct RequirementIntegrityInputV1: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - C53 reliability requirement-evidence boundary
+
+enum C53ServiceReliabilityRequirementEvidenceBoundaryV1 {
+    static let reliabilityProjectionIsEvidenceNotAssurance = true
+    static let unavailableMetricIsNotRequirementFailure = true
+    static let exactMetricValuesAreNotReinterpretedAsCompliance = true
+    static let reportDigestBindsTheProjection = true
+
+    static func integrityInput(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> RequirementIntegrityInputV1 {
+        try projection.validate()
+        guard reliabilityProjectionIsEvidenceNotAssurance,
+              unavailableMetricIsNotRequirementFailure,
+              exactMetricValuesAreNotReinterpretedAsCompliance,
+              reportDigestBindsTheProjection else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+        return try RequirementIntegrityInputV1(
+            canonicalEvidenceReferenceIDs: ["c53-reliability-projection-" + projection.projectionSHA256],
+            snapshotSHA256: nil,
+            reportSHA256: projection.projectionSHA256
+        )
+    }
+}
+
 struct RequirementExplanationItemV1: Equatable, Sendable {
     let requirementID: String
     let result: RequirementEvaluationResultV1

@@ -2571,3 +2571,46 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Reporting_ReportP
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 reliability projection registry
+
+enum C53ServiceReliabilityReportProjectionRegistryV1 {
+    static let projectionIsDerivedFromCanonicalMetricInput = true
+    static let registryOwnsNoReliabilityEventPersistence = true
+    static let exactMetricAvailabilityIsQualificationGated = true
+
+    static func projection(
+        input: ReliabilityMetricInputProjectionV1
+    ) throws -> C53ServiceReliabilityReportProjectionV1 {
+        try C53ServiceReliabilityReportProjectionBoundaryV1.projection(from: input)
+    }
+
+    static func projection(
+        workspaceID: WorkspaceID,
+        subject: ServiceReliabilitySubjectV1,
+        observationWindow: ServiceReliabilityClosedIntervalV1,
+        asOf: ServiceReliabilityInstantV1,
+        exposures: [QualifiedServiceExposureV1],
+        segments: [ServiceImpactSegmentV1],
+        repairs: [ServiceRepairIntervalV1],
+        restorations: [ServiceRestorationAssertionV1]
+    ) throws -> C53ServiceReliabilityReportProjectionV1 {
+        let input = try ServiceReliabilityProjectionEngineV1.project(
+            workspaceID: workspaceID,
+            subject: subject,
+            observationWindow: observationWindow,
+            asOf: asOf,
+            exposures: exposures,
+            segments: segments,
+            repairs: repairs,
+            restorations: restorations
+        )
+        return try projection(input: input)
+    }
+
+    static func validate(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+}

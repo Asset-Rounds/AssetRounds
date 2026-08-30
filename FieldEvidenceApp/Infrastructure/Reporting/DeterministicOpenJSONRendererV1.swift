@@ -3647,3 +3647,26 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Reporting_Determi
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 reliability open JSON renderer boundary
+
+enum C53ServiceReliabilityOpenJSONRendererV1 {
+    static let format = "OPEN_JSON"
+    static let usesCanonicalProjectionBytes = true
+    static let emitsUnavailableQualification = true
+    static let emitsOperationalOrComplianceClaim = false
+
+    static func render(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> Data {
+        try projection.validate()
+        return try ServiceReliabilityCanonicalCodecV1.encode(projection)
+    }
+
+    static func reopen(_ data: Data) throws -> C53ServiceReliabilityReportProjectionV1 {
+        try ServiceReliabilityCanonicalCodecV1.decode(
+            C53ServiceReliabilityReportProjectionV1.self,
+            from: data
+        )
+    }
+}

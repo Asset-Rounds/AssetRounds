@@ -246,9 +246,10 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateC33TemporalEvidence(value)
             try Self.validateC45AcceptedLabelSnapshots(value)
             try Self.validateC46OperationalContacts(value)
-            try Self.validateC47ActivityContracts(value)
-            try Self.validateC49WorkResources(value)
-            try Self.validateC52ServiceRequests(value)
+             try Self.validateC47ActivityContracts(value)
+             try Self.validateC49WorkResources(value)
+             try Self.validateC52ServiceRequests(value)
+             try Self.validateC53ServiceReliability(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -271,6 +272,11 @@ private extension BackupCanonicalDecoderV1 {
 
     static func validateC47ActivityContracts(_ records: V4BackupRecordsV1) throws {
         do { _ = try records.validateC47ActivityContracts() }
+        catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+    }
+
+    static func validateC53ServiceReliability(_ records: V4BackupRecordsV1) throws {
+        do { try C53ServiceReliabilityBackupEnrollmentV1.validate(records: records) }
         catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
     }
 
@@ -1278,7 +1284,8 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion == recordsSchemaVersion,
+        guard (records.recordsSchemaVersion == recordsSchemaVersion
+                || records.recordsSchemaVersion == C53ServiceReliabilityBackupDecodingBoundaryV1.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }
@@ -1319,4 +1326,13 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
             guard linkValues.filter{$0.workspaceID==value.workspaceID&&$0.predecessorEventID==value.eventID}.count<=1 else{throw ServiceRequestBackupContractFailureV1.invalidHistory}
         }
     }
+}
+
+enum C53ServiceReliabilityBackupDecodingBoundaryV1 {
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let strictCanonicalRows = true
+    static let validatesExactPredecessorClosure = true
+    static let rejectsDerivedMetricProjection = true
+    static let rejectsRawCapabilityBytes = true
 }

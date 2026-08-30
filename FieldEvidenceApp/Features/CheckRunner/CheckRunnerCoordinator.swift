@@ -2740,3 +2740,12 @@ enum C34RouteAdoptionBoundary_CheckRunnerCoordinatorV1 {
     static let resolutionResultType = RouteResolutionResultV1.self
     static let startsAutomaticWork = false
 }
+
+enum C53SharedCheckRunnerCoordinatorBoundaryV1 {
+    static let writerReceiptType: ServiceReliabilityWriterReceiptV1.Type = ServiceReliabilityWriterReceiptV1.self
+    static let checkRunnerMayPrepareEvidenceForExplicitReview = true
+    static let checkRunnerMayNotWriteIncidentOrExposureRecords = true
+    static let checkRunnerMayNotStartAutomaticWork = true
+    static let checkRunnerMayNotAnnounceVerifiedReliability = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

@@ -1172,3 +1172,4 @@ enum C52ServiceRequestBoundary_ChangeJournalContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+enum C53AssetServiceReliabilityChangeJournalBoundaryV1{static let commandKind:WorkspaceCommandKindV1 = .applyServiceReliability;static let entityKinds:[WorkspaceEntityKindV1]=[.assetServiceIncident,.serviceImpactSegment,.serviceCauseAssertion,.serviceRemedyAssertion,.serviceRepairInterval,.serviceRestorationAssertion,.qualifiedServiceExposure];static let projectionIsRebuildable=true}

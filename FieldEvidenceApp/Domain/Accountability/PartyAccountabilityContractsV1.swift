@@ -709,3 +709,13 @@ enum C34RouteAccountabilityBoundaryV1 {
         }
     }
 }
+
+enum C53SharedPartyAccountabilityBoundaryV1 {
+    static let subjectType: ServiceReliabilitySubjectV1.Type = ServiceReliabilitySubjectV1.self
+    static let causeAssessmentMayBeSuspectedOrActorRecordedConfirmed = true
+    static let requesterOrActorIdentityIsVerified = false
+    static let restorationCreatesNoApprovalOrReleaseClaim = true
+    static let repairResponsibilityIsNotInferred = true
+    static let correctionHistoryIsAppendOnly = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

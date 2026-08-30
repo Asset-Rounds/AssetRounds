@@ -614,6 +614,7 @@ private extension BackupImportService {
             try C33TemporalEvidenceBackupImportPolicyV1.validate(temporaryValue)
             try C49WorkResourceBackupImportPolicyV1.validate(temporaryValue)
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(temporaryValue)
+            try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(temporaryValue)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -655,6 +656,7 @@ private extension BackupImportService {
             try C33TemporalEvidenceBackupImportPolicyV1.validate(value)
             try C49WorkResourceBackupImportPolicyV1.validate(value)
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(value)
+            try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(value)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -769,6 +771,7 @@ private extension BackupImportService {
             try C33TemporalEvidenceBackupImportPolicyV1.validate(temporaryValue)
             try C49WorkResourceBackupImportPolicyV1.validate(temporaryValue)
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(temporaryValue)
+            try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(temporaryValue)
             let indexByPath = Dictionary(
                 uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
             )
@@ -813,6 +816,7 @@ private extension BackupImportService {
             try C33TemporalEvidenceBackupImportPolicyV1.validate(value)
             try C49WorkResourceBackupImportPolicyV1.validate(value)
             try C52ServiceRequestBackupImportServiceBoundaryV1.validate(value)
+            try C53ServiceReliabilityBackupImportServiceBoundaryV1.validate(value)
             guard value.manifest == temporaryValue.manifest,
                   value.records == temporaryValue.records,
                   value.members.keys == temporaryValue.members.keys else {
@@ -1040,6 +1044,9 @@ private extension BackupImportService {
             )) != nil
         case (4,37,36):
             schemaPairIsValid = (try? C49WorkResourcePersistenceBoundaryV1.validate()) != nil
+        case (4, 40, 39):
+            schemaPairIsValid = (try? AssetServiceReliabilityPersistenceEnrollmentV1.validate()) != nil
+                && C53ServiceReliabilityBackupImportServiceBoundaryV1.recordsSchemaVersion == 39
         default:
             schemaPairIsValid = false
         }
@@ -1612,6 +1619,12 @@ enum C52ServiceRequestBackupImportServiceBoundaryV1 {
     static func validate(_ package: ValidatedV4BackupPackageV1) throws {
         let persistent=package.manifest.source.persistentSchemaVersion
         let records=package.records
+        if persistent == C53ServiceReliabilityBackupImportServiceBoundaryV1.persistentSchemaVersion {
+            guard records.recordsSchemaVersion == C53ServiceReliabilityBackupImportServiceBoundaryV1.recordsSchemaVersion else {
+                throw BackupImportServiceError.invalidGeneration
+            }
+            return
+        }
         guard records.recordsSchemaVersion >= recordsSchemaVersion || persistent >= 39 else {
             try C52ServiceRequestBackupDecodingBoundaryV1.validate(records)
             return
@@ -1630,5 +1643,42 @@ enum C52ServiceRequestBackupImportServiceBoundaryV1 {
             )
         }
         catch { throw BackupImportServiceError.invalidGeneration }
+    }
+}
+
+enum C53ServiceReliabilityBackupImportServiceBoundaryV1 {
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let importsAllSevenSourceFamilies = true
+    static let validatesCanonicalHistoryBeforeMaterialization = true
+    static let preservesIdentityEpochs = true
+    static let rebuildsDerivedProjection = true
+    static let acceptsRawCapability = false
+
+    static func validate(_ package: ValidatedV4BackupPackageV1) throws {
+        let records = package.records
+        let persistent = package.manifest.source.persistentSchemaVersion
+        guard records.recordsSchemaVersion >= recordsSchemaVersion || persistent >= persistentSchemaVersion else {
+            try C53ServiceReliabilityBackupEnrollmentV1.validate(records: records)
+            return
+        }
+        guard persistent == persistentSchemaVersion,
+              records.recordsSchemaVersion == recordsSchemaVersion,
+              importsAllSevenSourceFamilies,
+              validatesCanonicalHistoryBeforeMaterialization,
+              preservesIdentityEpochs,
+              rebuildsDerivedProjection,
+              !acceptsRawCapability else {
+            throw BackupImportServiceError.invalidGeneration
+        }
+        do {
+            try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+            try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                records: records,
+                workspaceID: package.manifest.source.workspaceID
+            )
+        } catch {
+            throw BackupImportServiceError.invalidGeneration
+        }
     }
 }

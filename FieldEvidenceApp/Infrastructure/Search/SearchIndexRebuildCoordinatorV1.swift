@@ -2477,3 +2477,31 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Search_SearchInde
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 service-reliability deterministic rebuild
+
+enum C53ServiceReliabilitySearchRebuildBoundaryV1 {
+    static let rebuildsFromCanonicalReportProjection = true
+    static let rebuildIsDeterministic = true
+    static let indexIsDroppedBeforeRestoreReplayPublication = true
+    static let exactMetricValuesRemainNonSearchable = true
+
+    static func records(
+        from projections: [C53ServiceReliabilityReportProjectionV1]
+    ) throws -> [C53ServiceReliabilitySearchProjectionV1] {
+        let values = try projections.map {
+            try C53ServiceReliabilitySearchProjectionBoundaryV1.projection($0)
+        }
+        let sorted = values.sorted {
+            ($0.workspaceID.rawValue.uuidString, $0.subjectID.uuidString, $0.reliabilityIdentityEpochID.uuidString)
+                < ($1.workspaceID.rawValue.uuidString, $1.subjectID.uuidString, $1.reliabilityIdentityEpochID.uuidString)
+        }
+        guard zip(sorted, sorted.dropFirst()).allSatisfy({ lhs, rhs in
+            (lhs.workspaceID.rawValue, lhs.subjectID, lhs.reliabilityIdentityEpochID)
+                != (rhs.workspaceID.rawValue, rhs.subjectID, rhs.reliabilityIdentityEpochID)
+        }) else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        return sorted
+    }
+}

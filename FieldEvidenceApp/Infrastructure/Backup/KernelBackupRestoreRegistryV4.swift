@@ -625,6 +625,7 @@ enum KernelBackupRestoreRegistryV4 {
         try C33TemporalEvidenceBackupRestoreRegistryV1.validate()
         try C45AcceptedLabelBackupRestoreRegistryV1.validate()
         try C46OperationalContactBackupRestoreRegistryV1.validate()
+        try C53ServiceReliabilityKernelBackupRestoreEnrollmentV1.validate()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()
@@ -748,6 +749,34 @@ enum C52ServiceRequestKernelBackupRestoreEnrollmentV1 {
               durableFamilies.count == 3,replaceRestorePreservesAppendOnlyHistory,
               cloneForkPreservesHistory,cloneForkInvalidatesOutstandingCapability,
               !rawCapabilityExported,!derivedDuplicateProjectionExported else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+/// C53 carries only the seven canonical, append-only source families through
+/// restore. Mutation receipts remain journal evidence and the reliability
+/// metric is rebuilt after recovery rather than persisted as a projection.
+enum C53ServiceReliabilityKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let durableFamilies = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies
+    static let replaceRestorePreservesAppendOnlyHistory = true
+    static let cloneForkPreservesSourceIdentityHistory = true
+    static let cloneForkInvalidatesOutstandingCapabilities = true
+    static let derivedReliabilityProjectionPersisted = false
+    static let rawCapabilityExported = false
+
+    static func validate() throws {
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        guard persistentSchemaVersion == 40,
+              recordsSchemaVersion == 39,
+              durableFamilies.count == 7,
+              replaceRestorePreservesAppendOnlyHistory,
+              cloneForkPreservesSourceIdentityHistory,
+              cloneForkInvalidatesOutstandingCapabilities,
+              !derivedReliabilityProjectionPersisted,
+              !rawCapabilityExported else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

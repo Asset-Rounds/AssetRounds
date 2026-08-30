@@ -2390,3 +2390,86 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Diagnostics_Diagn
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 reliability privacy-safe diagnostics
+
+/// Diagnostics expose bounded projection health only. They deliberately omit
+/// raw event bytes, actor identity, evidence locators, interval values, and
+/// any operational/safety/compliance conclusion.
+struct C53ServiceReliabilityDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceProjectionSHA256: String
+    let availabilityQualification: String
+    let mtbfQualification: String
+    let mttrQualification: String
+    let excludedSourceCount: Int
+    let exposureIntervalCount: Int
+    let operatingExposurePresent: Bool
+    let exactRepairIntervalCount: Int
+    let recordedRestorationIntervalCount: Int
+    let exactMetricValuesExported: Bool
+    let operationalClaimExported: Bool
+
+    init(projection: C53ServiceReliabilityReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        sourceProjectionSHA256 = projection.sourceProjectionSHA256
+        availabilityQualification = Self.qualificationText(projection.availabilityQualification)
+        mtbfQualification = Self.qualificationText(projection.mtbfQualification)
+        mttrQualification = Self.qualificationText(projection.mttrQualification)
+        excludedSourceCount = projection.excludedSources.count
+        exposureIntervalCount = projection.exposureIntervalCount
+        operatingExposurePresent = projection.operatingExposureDurationMilliseconds > 0
+        exactRepairIntervalCount = projection.completedRepairCount
+        recordedRestorationIntervalCount = projection.restorationIntervalCount
+        exactMetricValuesExported = false
+        operationalClaimExported = false
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              MutationEnvelopeV1.isSHA256(sourceProjectionSHA256),
+              !availabilityQualification.isEmpty,
+              !mtbfQualification.isEmpty,
+              !mttrQualification.isEmpty,
+              excludedSourceCount >= 0,
+              exposureIntervalCount >= 0,
+              exactRepairIntervalCount >= 0,
+              recordedRestorationIntervalCount >= 0,
+              !exactMetricValuesExported,
+              !operationalClaimExported else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+    }
+
+    private static func qualificationText(
+        _ value: ServiceReliabilityQualificationV1
+    ) -> String {
+        switch value {
+        case .qualified:
+            return "QUALIFIED"
+        case .unavailable(let reason):
+            return "UNAVAILABLE:\(reason.rawValue)"
+        }
+    }
+}
+
+enum C53ServiceReliabilityDiagnosticBoundaryV1 {
+    static let metadataOnly = true
+    static let sourceBytesExported = false
+    static let actorIdentityExported = false
+    static let evidenceLocatorsExported = false
+    static let exactMetricValuesExported = false
+    static let operationalClaimsExported = false
+
+    static func metadata(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> C53ServiceReliabilityDiagnosticMetadataV1 {
+        let value = try C53ServiceReliabilityDiagnosticMetadataV1(projection: projection)
+        try value.validate()
+        return value
+    }
+}

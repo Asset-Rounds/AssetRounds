@@ -733,6 +733,25 @@ final class BackupRestoreService {
                 validatedPackage.records.operationalContacts
             )
         }
+        do {
+            let serviceReliabilityRows=try C53ServiceReliabilityReplacementRestoreBoundaryV1.canonicalRows(
+                current: frozenCurrentRecords,
+                incoming: validatedPackage.records,
+                mode: mode,
+                sourceWorkspaceID: incomingIdentity?.workspaceID.rawValue,
+                targetWorkspaceID: frozenCurrentIdentity.workspaceID.rawValue
+            )
+            expectedRecords=try expectedRecords.replacingServiceReliability(serviceReliabilityRows)
+            let expectedReliabilityWorkspaceID:UUID? = mode == .clone || mode == .fork
+                ? incomingIdentity?.workspaceID.rawValue
+                : frozenCurrentIdentity.workspaceID.rawValue
+            try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                records:expectedRecords,
+                workspaceID:expectedReliabilityWorkspaceID
+            )
+        } catch {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
         if validatedPackage.manifest.source.recordsSchemaVersion <= 2,
            expectedRecords.mutationHistory == nil {
             expectedRecords = replacingMutationHistoryForCurrentWriter(
@@ -1983,7 +2002,15 @@ private extension BackupRestoreService {
             workResources: records.workResources,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts
         )
     }
 
@@ -2059,7 +2086,15 @@ private extension BackupRestoreService {
             workResources: records.workResources,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts
         )
     }
 
@@ -2078,6 +2113,44 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
             _ = try records.validateC49WorkResources()
         } else if !records.workResources.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                let expectedWorkspaceID: UUID?
+                if let decision = identityDecision {
+                    switch decision.mode {
+                    case .clone, .fork:
+                        expectedWorkspaceID = decision.source.workspaceID
+                    case .emptyInstall, .replaceExisting:
+                        expectedWorkspaceID = decision.targetPointer.workspaceID
+                    }
+                } else {
+                    expectedWorkspaceID = legacyDestinationIdentity.workspaceID.rawValue
+                }
+                let values = try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+                    from: records, workspaceID: expectedWorkspaceID
+                )
+                guard values.incidents.count == records.serviceReliabilityIncidents.count,
+                      values.impactSegments.count == records.serviceImpactSegments.count,
+                      values.causeAssertions.count == records.serviceCauseAssertions.count,
+                      values.remedyAssertions.count == records.serviceRemedyAssertions.count,
+                      values.repairIntervals.count == records.serviceRepairIntervals.count,
+                      values.restorationAssertions.count == records.serviceRestorationAssertions.count,
+                      values.qualifiedExposures.count == records.qualifiedServiceExposures.count,
+                      values.receipts.count == records.serviceReliabilityReceipts.count else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.serviceReliabilityIncidents.isEmpty
+                    || !records.serviceImpactSegments.isEmpty
+                    || !records.serviceCauseAssertions.isEmpty
+                    || !records.serviceRemedyAssertions.isEmpty
+                    || !records.serviceRepairIntervals.isEmpty
+                    || !records.serviceRestorationAssertions.isEmpty
+                    || !records.qualifiedServiceExposures.isEmpty
+                    || !records.serviceReliabilityReceipts.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
@@ -2227,6 +2300,28 @@ private extension BackupRestoreService {
             // is valid only while the preserved canonical contact bytes still
             // match their archived applyOperationalContact envelopes.
             _ = try normalized.validateC46OperationalContacts()
+        }
+        if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                let expectedWorkspaceID:UUID?
+                if let identityDecision {
+                    expectedWorkspaceID = identityDecision.mode == .clone || identityDecision.mode == .fork
+                        ? identityDecision.source.workspaceID
+                        : identityDecision.targetPointer.workspaceID
+                } else {
+                    expectedWorkspaceID = legacyDestinationIdentity.workspaceID.rawValue
+                }
+                let rows=try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+                    from:records,
+                    workspaceID:expectedWorkspaceID
+                )
+                normalized=try normalized.replacingServiceReliability(rows)
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records:normalized,
+                    workspaceID:expectedWorkspaceID
+                )
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidRestoreAuthority }
         }
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
@@ -2491,7 +2586,15 @@ private extension BackupRestoreService {
             workResources: records.workResources,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts
         )
     }
 
@@ -2811,7 +2914,15 @@ private extension BackupRestoreService {
                 workResources: records.workResources,
                 serviceRequests: records.serviceRequests,
                 serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+                serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+                serviceImpactSegments: records.serviceImpactSegments,
+                serviceCauseAssertions: records.serviceCauseAssertions,
+                serviceRemedyAssertions: records.serviceRemedyAssertions,
+                serviceRepairIntervals: records.serviceRepairIntervals,
+                serviceRestorationAssertions: records.serviceRestorationAssertions,
+                qualifiedServiceExposures: records.qualifiedServiceExposures,
+                serviceReliabilityReceipts: records.serviceReliabilityReceipts
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -2901,7 +3012,15 @@ private extension BackupRestoreService {
             workResources: records.workResources,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts
         )
     }
 
@@ -6864,7 +6983,15 @@ private extension BackupRestoreService {
             workResources: records.workResources,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts
         )
     }
 
@@ -7412,7 +7539,13 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == 30
                 || records.recordsSchemaVersion == 31
                 || records.recordsSchemaVersion == 32
-                || records.recordsSchemaVersion == 33)
+                || records.recordsSchemaVersion == 33
+                || records.recordsSchemaVersion == 34
+                || records.recordsSchemaVersion == 35
+                || records.recordsSchemaVersion == 36
+                || records.recordsSchemaVersion == 37
+                || records.recordsSchemaVersion == 38
+                || records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -7435,7 +7568,10 @@ private extension BackupRestoreService {
              (27, let ledger?, _), (28, let ledger?, _),
              (29, let ledger?, _), (30, let ledger?, _),
              (31, let ledger?, _), (32, let ledger?, _),
-             (33, let ledger?, _):
+             (33, let ledger?, _), (34, let ledger?, _),
+             (35, let ledger?, _), (36, let ledger?, _),
+             (37, let ledger?, _), (38, let ledger?, _),
+             (C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -8410,6 +8546,47 @@ private extension BackupRestoreService {
                     || !records.serviceRequestWorkLinkEvents.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
+        if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                let expectedWorkspaceID: UUID?
+                if let decision = identityDecision {
+                    switch decision.mode {
+                    case .clone, .fork:
+                        expectedWorkspaceID = decision.source.workspaceID
+                    case .emptyInstall, .replaceExisting:
+                        expectedWorkspaceID = decision.targetPointer.workspaceID
+                    }
+                } else {
+                    expectedWorkspaceID = legacyDestinationIdentity.workspaceID.rawValue
+                }
+                let values = try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+                    from: records, workspaceID: expectedWorkspaceID
+                )
+                // Only the seven append-only source families are materialized.
+                // Receipts stay in the mutation journal and metric projections
+                // are derived after recovery; neither is a second durable store.
+                for value in values.incidents { context.insert(try AssetServiceIncidentRow(value)) }
+                for value in values.impactSegments { context.insert(try ServiceImpactSegmentRow(value)) }
+                for value in values.causeAssertions { context.insert(try ServiceCauseAssertionRow(value)) }
+                for value in values.remedyAssertions { context.insert(try ServiceRemedyAssertionRow(value)) }
+                for value in values.repairIntervals { context.insert(try ServiceRepairIntervalRow(value)) }
+                for value in values.restorationAssertions { context.insert(try ServiceRestorationAssertionRow(value)) }
+                for value in values.qualifiedExposures { context.insert(try QualifiedServiceExposureRow(value)) }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else if !records.serviceReliabilityIncidents.isEmpty
+                    || !records.serviceImpactSegments.isEmpty
+                    || !records.serviceCauseAssertions.isEmpty
+                    || !records.serviceRemedyAssertions.isEmpty
+                    || !records.serviceRepairIntervals.isEmpty
+                    || !records.serviceRestorationAssertions.isEmpty
+                    || !records.qualifiedServiceExposures.isEmpty
+                    || !records.serviceReliabilityReceipts.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -8446,7 +8623,8 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
                     || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == 37
-                    || records.recordsSchemaVersion == C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion else {
+                    || records.recordsSchemaVersion == C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion
+                    || records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -9795,7 +9973,15 @@ private extension BackupRestoreService {
             workResources: records.workResources,
             serviceRequests: records.serviceRequests,
             serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts
         )
     }
 
@@ -9837,7 +10023,15 @@ private extension BackupRestoreService {
             workResources: expected.workResources,
             serviceRequests: expected.serviceRequests,
             serviceRequestDispositionEvents: expected.serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: expected.serviceRequestWorkLinkEvents
+            serviceRequestWorkLinkEvents: expected.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: expected.serviceReliabilityIncidents,
+            serviceImpactSegments: expected.serviceImpactSegments,
+            serviceCauseAssertions: expected.serviceCauseAssertions,
+            serviceRemedyAssertions: expected.serviceRemedyAssertions,
+            serviceRepairIntervals: expected.serviceRepairIntervals,
+            serviceRestorationAssertions: expected.serviceRestorationAssertions,
+            qualifiedServiceExposures: expected.qualifiedServiceExposures,
+            serviceReliabilityReceipts: expected.serviceReliabilityReceipts
         )
         guard predecessor == expected,
               actual.locationNodes.isEmpty,
@@ -9974,6 +10168,27 @@ private extension BackupRestoreService {
         )
         let serviceRequestWorkLinkRows = try context.fetch(
             FetchDescriptor<ServiceRequestWorkLinkEventRow>()
+        )
+        let serviceReliabilityIncidentRows = try context.fetch(
+            FetchDescriptor<AssetServiceIncidentRow>()
+        )
+        let serviceImpactSegmentRows = try context.fetch(
+            FetchDescriptor<ServiceImpactSegmentRow>()
+        )
+        let serviceCauseAssertionRows = try context.fetch(
+            FetchDescriptor<ServiceCauseAssertionRow>()
+        )
+        let serviceRemedyAssertionRows = try context.fetch(
+            FetchDescriptor<ServiceRemedyAssertionRow>()
+        )
+        let serviceRepairIntervalRows = try context.fetch(
+            FetchDescriptor<ServiceRepairIntervalRow>()
+        )
+        let serviceRestorationAssertionRows = try context.fetch(
+            FetchDescriptor<ServiceRestorationAssertionRow>()
+        )
+        let qualifiedServiceExposureRows = try context.fetch(
+            FetchDescriptor<QualifiedServiceExposureRow>()
         )
         let requirementAssurance = try context.fetch(
             FetchDescriptor<RequirementAssuranceRow>()
@@ -10367,6 +10582,37 @@ private extension BackupRestoreService {
             if case .applyServiceRequest = envelope.command { return true }
             return false
         } ?? false
+        let serviceReliabilityRowKey: (V39BackupServiceReliabilityRecordV1) -> String = { value in
+            "\(value.kind.rawValue)|\(value.workspaceID.uuidString.lowercased())|\(value.lineageID.uuidString.lowercased())|\(value.revision)|\(value.eventID.uuidString.lowercased())"
+        }
+        let serviceReliabilityIncidentRecords = try serviceReliabilityIncidentRows
+            .map { try V39BackupAssetServiceIncidentRecordV1($0.value()) }
+            .sorted { serviceReliabilityRowKey($0) < serviceReliabilityRowKey($1) }
+        let serviceImpactSegmentRecords = try serviceImpactSegmentRows
+            .map { try V39BackupServiceImpactSegmentRecordV1($0.value()) }
+            .sorted { serviceReliabilityRowKey($0) < serviceReliabilityRowKey($1) }
+        let serviceCauseAssertionRecords = try serviceCauseAssertionRows
+            .map { try V39BackupServiceCauseAssertionRecordV1($0.value()) }
+            .sorted { serviceReliabilityRowKey($0) < serviceReliabilityRowKey($1) }
+        let serviceRemedyAssertionRecords = try serviceRemedyAssertionRows
+            .map { try V39BackupServiceRemedyAssertionRecordV1($0.value()) }
+            .sorted { serviceReliabilityRowKey($0) < serviceReliabilityRowKey($1) }
+        let serviceRepairIntervalRecords = try serviceRepairIntervalRows
+            .map { try V39BackupServiceRepairIntervalRecordV1($0.value()) }
+            .sorted { serviceReliabilityRowKey($0) < serviceReliabilityRowKey($1) }
+        let serviceRestorationAssertionRecords = try serviceRestorationAssertionRows
+            .map { try V39BackupServiceRestorationAssertionRecordV1($0.value()) }
+            .sorted { serviceReliabilityRowKey($0) < serviceReliabilityRowKey($1) }
+        let qualifiedServiceExposureRecords = try qualifiedServiceExposureRows
+            .map { try V39BackupQualifiedServiceExposureRecordV1($0.value()) }
+            .sorted { serviceReliabilityRowKey($0) < serviceReliabilityRowKey($1) }
+        let serviceReliabilityReceiptRecords = try C53ServiceReliabilityBackupEnrollmentV1
+            .receiptRecords(from: mutationHistory)
+        let hasServiceReliabilityHistory = try mutationHistory?.receipts.contains { record in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            if case .applyServiceReliability = envelope.command { return true }
+            return false
+        } ?? false
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
@@ -10573,7 +10819,17 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: (!serviceRequestRecords.isEmpty
+            recordsSchemaVersion: (!serviceReliabilityIncidentRecords.isEmpty
+                || !serviceImpactSegmentRecords.isEmpty
+                || !serviceCauseAssertionRecords.isEmpty
+                || !serviceRemedyAssertionRecords.isEmpty
+                || !serviceRepairIntervalRecords.isEmpty
+                || !serviceRestorationAssertionRecords.isEmpty
+                || !qualifiedServiceExposureRecords.isEmpty
+                || !serviceReliabilityReceiptRecords.isEmpty
+                || hasServiceReliabilityHistory)
+                ? C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion
+                : (!serviceRequestRecords.isEmpty
                 || !serviceRequestDispositionRecords.isEmpty
                 || !serviceRequestWorkLinkRecords.isEmpty
                 || hasServiceRequestHistory)
@@ -10626,7 +10882,7 @@ private extension BackupRestoreService {
                     : 11)
                 : 12)
                 : 13)
-                : 14),
+                : 14,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -10671,7 +10927,15 @@ private extension BackupRestoreService {
             workResources: workResourceRecords,
             serviceRequests: serviceRequestRecords,
             serviceRequestDispositionEvents: serviceRequestDispositionRecords,
-            serviceRequestWorkLinkEvents: serviceRequestWorkLinkRecords
+            serviceRequestWorkLinkEvents: serviceRequestWorkLinkRecords,
+            serviceReliabilityIncidents: serviceReliabilityIncidentRecords,
+            serviceImpactSegments: serviceImpactSegmentRecords,
+            serviceCauseAssertions: serviceCauseAssertionRecords,
+            serviceRemedyAssertions: serviceRemedyAssertionRecords,
+            serviceRepairIntervals: serviceRepairIntervalRecords,
+            serviceRestorationAssertions: serviceRestorationAssertionRecords,
+            qualifiedServiceExposures: qualifiedServiceExposureRecords,
+            serviceReliabilityReceipts: serviceReliabilityReceiptRecords
         )
     }
 

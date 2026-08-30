@@ -479,3 +479,12 @@ enum C52ServiceRequestBoundary_PackageReleaseBindingV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+enum C53SharedPackageReleaseBindingBoundaryV1 {
+    static let eventReferenceType: ServiceReliabilityEventReferenceV1.Type = ServiceReliabilityEventReferenceV1.self
+    static let bindingRequiresExactPackageAndSubjectRevision = true
+    static let sourceBytesRemainImmutable = true
+    static let metricInputIsNotReleaseMetadata = true
+    static let restorationDoesNotImplyReleaseToService = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

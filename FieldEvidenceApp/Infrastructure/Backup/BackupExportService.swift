@@ -119,9 +119,16 @@ final class BackupExportService {
         let installationTaskResults: [InstallationTaskResultRow]
         let installationAsBuiltSnapshots: [InstallationAsBuiltSnapshotRow]
         let punchReviewBasisSnapshots: [PunchReviewBasisSnapshotRow]
-        let serviceRequestRecords: [ServiceRequestRecordRow]
-        let serviceRequestDispositionEvents: [ServiceRequestDispositionEventRow]
-        let serviceRequestWorkLinkEvents: [ServiceRequestWorkLinkEventRow]
+         let serviceRequestRecords: [ServiceRequestRecordRow]
+         let serviceRequestDispositionEvents: [ServiceRequestDispositionEventRow]
+         let serviceRequestWorkLinkEvents: [ServiceRequestWorkLinkEventRow]
+         let serviceReliabilityIncidents: [AssetServiceIncidentRow]
+         let serviceImpactSegments: [ServiceImpactSegmentRow]
+         let serviceCauseAssertions: [ServiceCauseAssertionRow]
+         let serviceRemedyAssertions: [ServiceRemedyAssertionRow]
+         let serviceRepairIntervals: [ServiceRepairIntervalRow]
+         let serviceRestorationAssertions: [ServiceRestorationAssertionRow]
+         let qualifiedServiceExposures: [QualifiedServiceExposureRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -1703,9 +1710,16 @@ private extension BackupExportService {
                   installationTaskResults: try modelContext.fetch(FetchDescriptor<InstallationTaskResultRow>()),
                   installationAsBuiltSnapshots: try modelContext.fetch(FetchDescriptor<InstallationAsBuiltSnapshotRow>()),
                   punchReviewBasisSnapshots: try modelContext.fetch(FetchDescriptor<PunchReviewBasisSnapshotRow>()),
-                  serviceRequestRecords: try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>()),
-                  serviceRequestDispositionEvents: try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>()),
-                  serviceRequestWorkLinkEvents: try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>()),
+                   serviceRequestRecords: try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>()),
+                   serviceRequestDispositionEvents: try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>()),
+                   serviceRequestWorkLinkEvents: try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>()),
+                  serviceReliabilityIncidents: try modelContext.fetch(FetchDescriptor<AssetServiceIncidentRow>()),
+                  serviceImpactSegments: try modelContext.fetch(FetchDescriptor<ServiceImpactSegmentRow>()),
+                  serviceCauseAssertions: try modelContext.fetch(FetchDescriptor<ServiceCauseAssertionRow>()),
+                  serviceRemedyAssertions: try modelContext.fetch(FetchDescriptor<ServiceRemedyAssertionRow>()),
+                  serviceRepairIntervals: try modelContext.fetch(FetchDescriptor<ServiceRepairIntervalRow>()),
+                  serviceRestorationAssertions: try modelContext.fetch(FetchDescriptor<ServiceRestorationAssertionRow>()),
+                  qualifiedServiceExposures: try modelContext.fetch(FetchDescriptor<QualifiedServiceExposureRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2348,6 +2362,34 @@ private extension BackupExportService {
             .map { try V38BackupServiceRequestWorkLinkEventV1($0.value()) }
             .sorted { ($0.workspaceID.uuidString, $0.eventID.uuidString)
                 < ($1.workspaceID.uuidString, $1.eventID.uuidString) }
+        let reliabilityOrder: (V39BackupServiceReliabilityRecordV1, V39BackupServiceReliabilityRecordV1) -> Bool = {
+            ($0.kind.rawValue, $0.workspaceID.uuidString, $0.lineageID.uuidString, $0.revision, $0.eventID.uuidString)
+                < ($1.kind.rawValue, $1.workspaceID.uuidString, $1.lineageID.uuidString, $1.revision, $1.eventID.uuidString)
+        }
+        let serviceReliabilityIncidents = mutationHistory == nil ? [] : try rows.serviceReliabilityIncidents
+            .map { try V39BackupAssetServiceIncidentRecordV1($0.value()) }
+            .sorted(by: reliabilityOrder)
+        let serviceImpactSegments = mutationHistory == nil ? [] : try rows.serviceImpactSegments
+            .map { try V39BackupServiceImpactSegmentRecordV1($0.value()) }
+            .sorted(by: reliabilityOrder)
+        let serviceCauseAssertions = mutationHistory == nil ? [] : try rows.serviceCauseAssertions
+            .map { try V39BackupServiceCauseAssertionRecordV1($0.value()) }
+            .sorted(by: reliabilityOrder)
+        let serviceRemedyAssertions = mutationHistory == nil ? [] : try rows.serviceRemedyAssertions
+            .map { try V39BackupServiceRemedyAssertionRecordV1($0.value()) }
+            .sorted(by: reliabilityOrder)
+        let serviceRepairIntervals = mutationHistory == nil ? [] : try rows.serviceRepairIntervals
+            .map { try V39BackupServiceRepairIntervalRecordV1($0.value()) }
+            .sorted(by: reliabilityOrder)
+        let serviceRestorationAssertions = mutationHistory == nil ? [] : try rows.serviceRestorationAssertions
+            .map { try V39BackupServiceRestorationAssertionRecordV1($0.value()) }
+            .sorted(by: reliabilityOrder)
+        let qualifiedServiceExposures = mutationHistory == nil ? [] : try rows.qualifiedServiceExposures
+            .map { try V39BackupQualifiedServiceExposureRecordV1($0.value()) }
+            .sorted(by: reliabilityOrder)
+        let serviceReliabilityReceipts = try C53ServiceReliabilityBackupEnrollmentV1.receiptRecords(
+            from: mutationHistory
+        )
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2417,7 +2459,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C52ServiceRequestBackupExportBoundaryV1.recordsSchemaVersion,
+                : C53ServiceReliabilityBackupExportBoundaryV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2455,10 +2497,18 @@ private extension BackupExportService {
             operationalContacts: operationalContacts,
             activityContracts: activityContracts,
             workResources: workResources,
-            serviceRequests: serviceRequests,
-            serviceRequestDispositionEvents: serviceRequestDispositionEvents,
-            serviceRequestWorkLinkEvents: serviceRequestWorkLinkEvents
-        )
+             serviceRequests: serviceRequests,
+             serviceRequestDispositionEvents: serviceRequestDispositionEvents,
+             serviceRequestWorkLinkEvents: serviceRequestWorkLinkEvents,
+             serviceReliabilityIncidents: serviceReliabilityIncidents,
+             serviceImpactSegments: serviceImpactSegments,
+             serviceCauseAssertions: serviceCauseAssertions,
+             serviceRemedyAssertions: serviceRemedyAssertions,
+             serviceRepairIntervals: serviceRepairIntervals,
+             serviceRestorationAssertions: serviceRestorationAssertions,
+             qualifiedServiceExposures: qualifiedServiceExposures,
+             serviceReliabilityReceipts: serviceReliabilityReceipts
+         )
     }
 
     private func inspectionReviewRecords(
@@ -3655,4 +3705,14 @@ enum C52ServiceRequestBackupExportBoundaryV1 {
     static let exportsCanonicalHistory = true
     static let exportsRawCapability = false
     static let exportsDerivedDuplicateProjection = false
+}
+
+enum C53ServiceReliabilityBackupExportBoundaryV1 {
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let exportsAllSevenSourceFamilies = true
+    static let exportsMutationHistoryReceipts = true
+    static let exportsDerivedMetricProjection = false
+    static let exportsRawCapability = false
+    static let preservesReliabilityIdentityEpoch = true
 }

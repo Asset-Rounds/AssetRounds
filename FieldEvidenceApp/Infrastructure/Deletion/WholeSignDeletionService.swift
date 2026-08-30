@@ -1963,6 +1963,13 @@ private extension WholeSignDeletionService {
         let serviceRequestRecords: [ServiceRequestRecordRow]
         let serviceRequestDispositionEvents: [ServiceRequestDispositionEventRow]
         let serviceRequestWorkLinkEvents: [ServiceRequestWorkLinkEventRow]
+        let serviceReliabilityIncidents: [AssetServiceIncidentRow]
+        let serviceReliabilityImpacts: [ServiceImpactSegmentRow]
+        let serviceReliabilityCauses: [ServiceCauseAssertionRow]
+        let serviceReliabilityRemedies: [ServiceRemedyAssertionRow]
+        let serviceReliabilityRepairs: [ServiceRepairIntervalRow]
+        let serviceReliabilityRestorations: [ServiceRestorationAssertionRow]
+        let qualifiedServiceExposures: [QualifiedServiceExposureRow]
         let assetLocators: [AssetLocatorRow]
         let locatorBindingReceipts: [LocatorBindingReceiptRow]
         let planDocuments: [PlanDocumentRow]
@@ -2044,6 +2051,13 @@ private extension WholeSignDeletionService {
                  serviceRequestRecords: try boundedFetch(ServiceRequestRecordRow.self),
                  serviceRequestDispositionEvents: try boundedFetch(ServiceRequestDispositionEventRow.self),
                  serviceRequestWorkLinkEvents: try boundedFetch(ServiceRequestWorkLinkEventRow.self),
+                 serviceReliabilityIncidents: try boundedFetch(AssetServiceIncidentRow.self),
+                 serviceReliabilityImpacts: try boundedFetch(ServiceImpactSegmentRow.self),
+                 serviceReliabilityCauses: try boundedFetch(ServiceCauseAssertionRow.self),
+                 serviceReliabilityRemedies: try boundedFetch(ServiceRemedyAssertionRow.self),
+                 serviceReliabilityRepairs: try boundedFetch(ServiceRepairIntervalRow.self),
+                 serviceReliabilityRestorations: try boundedFetch(ServiceRestorationAssertionRow.self),
+                 qualifiedServiceExposures: try boundedFetch(QualifiedServiceExposureRow.self),
                  assetLocators: try boundedFetch(AssetLocatorRow.self),
                  locatorBindingReceipts: try boundedFetch(LocatorBindingReceiptRow.self),
                  planDocuments: try boundedFetch(PlanDocumentRow.self),
@@ -2151,6 +2165,22 @@ private extension WholeSignDeletionService {
         try rows.serviceRequestRecords.forEach { _ = try $0.value() }
         try rows.serviceRequestDispositionEvents.forEach { _ = try $0.value() }
         try rows.serviceRequestWorkLinkEvents.forEach { _ = try $0.value() }
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        try C53AssetServiceReliabilityKernelDeletionEraseEnrollmentV1.validate()
+        let reliabilityInventory = AssetServiceReliabilityDeletionInventoryV1(
+            incidentEventIDs: Set(try rows.serviceReliabilityIncidents.map { try $0.value().eventID }),
+            impactEventIDs: Set(try rows.serviceReliabilityImpacts.map { try $0.value().eventID }),
+            causeEventIDs: Set(try rows.serviceReliabilityCauses.map { try $0.value().eventID }),
+            remedyEventIDs: Set(try rows.serviceReliabilityRemedies.map { try $0.value().eventID }),
+            repairEventIDs: Set(try rows.serviceReliabilityRepairs.map { try $0.value().eventID }),
+            restorationEventIDs: Set(try rows.serviceReliabilityRestorations.map { try $0.value().eventID }),
+            exposureEventIDs: Set(try rows.qualifiedServiceExposures.map { try $0.value().eventID })
+        )
+        try C53AssetServiceReliabilityWholeSignDeletionRuleV1.validate(
+            before: reliabilityInventory,
+            after: reliabilityInventory,
+            workspaceErase: false
+        )
         let planDocuments = try rows.planDocuments.map { try $0.value() }
         let planRevisions = try rows.planRevisions.map { try $0.value() }
         let planPlacements = try rows.planPlacements.map { try $0.value() }

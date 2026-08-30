@@ -8,6 +8,10 @@ private enum C52ServiceRequestBoundary_V10_01WorkspaceWriterTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
+private enum C53AssetServiceReliabilityBoundary_V10_01WorkspaceWriterTests {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
 private final class C45WorkspaceWriterCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityWriterSupportsOnlyTypedAssetLabelCommand() {
         XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyAssetLabel))

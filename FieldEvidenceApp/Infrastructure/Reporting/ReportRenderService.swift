@@ -1924,3 +1924,23 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Reporting_ReportR
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 reliability render service boundary
+
+enum C53ServiceReliabilityReportRenderServiceV1 {
+    static let renderingIsPureAndDeterministic = true
+    static let renderServiceOwnsNoCanonicalReliabilityEvents = true
+    static let unavailableMetricsRemainUnavailable = true
+
+    static func openJSON(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> Data {
+        try C53ServiceReliabilityOpenJSONRendererV1.render(projection)
+    }
+
+    static func pdfMetadataLines(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> [String] {
+        try C53ServiceReliabilityPDFRendererV1.metricLines(projection)
+    }
+}

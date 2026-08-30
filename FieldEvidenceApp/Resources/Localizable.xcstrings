@@ -3950,6 +3950,30 @@
       "comment" : "C52 urgency is supplied by the requester and is not verified by AssetRounds.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Urgency is self-asserted" } } }
     },
+    "service_reliability.cause.unverified" : {
+      "comment" : "C53 cause assessment is recorded provenance only; it does not verify identity, diagnosis, or responsibility.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cause assessment is unverified" } } }
+    },
+    "service_reliability.exposure.qualified" : {
+      "comment" : "C53 qualified exposure is an explicit interval input and does not claim uptime or release to service.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Qualified service exposure" } } }
+    },
+    "service_reliability.incident.recorded" : {
+      "comment" : "C53 records an observed operational-impact incident without inferring cause, safety, compliance, or service release.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Operational impact recorded" } } }
+    },
+    "service_reliability.metric.unavailable" : {
+      "comment" : "C53 reliability metrics remain unavailable when exposure, coverage, intervals, origin, or exclusions do not qualify.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reliability metric unavailable" } } }
+    },
+    "service_reliability.restoration.recorded" : {
+      "comment" : "C53 restoration is recorded evidence only and does not imply safety, compliance, approval, or release to service.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Restoration recorded" } } }
+    },
+    "service_reliability.segment.impact" : {
+      "comment" : "C53 impact kind remains explicit; degraded and intermittent segments receive no invented availability weight.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Service impact segment" } } }
+    },
     "navigation.route.fallback.action" : {
       "comment" : "C34 action that opens the validated safe route destination.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Go to safe destination" } } }

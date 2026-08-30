@@ -49,6 +49,13 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case serviceRequestRecord
     case serviceRequestDispositionEvent
     case serviceRequestWorkLinkEvent
+    case assetServiceIncident
+    case serviceImpactSegment
+    case serviceCauseAssertion
+    case serviceRemedyAssertion
+    case serviceRepairInterval
+    case serviceRestorationAssertion
+    case qualifiedServiceExposure
     case sitePartyRoleEvent
     case actorSnapshot
     case qualificationSnapshot
@@ -2087,6 +2094,35 @@ extension ServiceRequestMutationV1 {
     }
 }
 
+// MARK: - C53 append-only asset-service reliability mutation bridge
+
+extension ServiceReliabilityMutationPayloadV1 {
+    var workspaceID:WorkspaceID { switch self {case .incident(let v):v.workspaceID;case .impact(let v):v.workspaceID;case .cause(let v):v.workspaceID;case .remedy(let v):v.workspaceID;case .repair(let v):v.workspaceID;case .restoration(let v):v.workspaceID;case .exposure(let v):v.workspaceID} }
+    var mutationID:MutationIDV1 { switch self {case .incident(let v):v.mutationID;case .impact(let v):v.mutationID;case .cause(let v):v.mutationID;case .remedy(let v):v.mutationID;case .repair(let v):v.mutationID;case .restoration(let v):v.mutationID;case .exposure(let v):v.mutationID} }
+    var eventID:UUID { switch self {case .incident(let v):v.eventID;case .impact(let v):v.eventID;case .cause(let v):v.eventID;case .remedy(let v):v.eventID;case .repair(let v):v.eventID;case .restoration(let v):v.eventID;case .exposure(let v):v.eventID} }
+    var predecessorReference:ServiceReliabilityEventReferenceV1? { switch self {case .incident(let v):v.predecessor;case .impact(let v):v.predecessor;case .cause(let v):v.predecessor;case .remedy(let v):v.predecessor;case .repair(let v):v.predecessor;case .restoration(let v):v.predecessor;case .exposure(let v):v.predecessor} }
+    var predecessorEventID:UUID? { switch self {case .incident(let v):v.predecessor?.eventID;case .impact(let v):v.predecessor?.eventID;case .cause(let v):v.predecessor?.eventID;case .remedy(let v):v.predecessor?.eventID;case .repair(let v):v.predecessor?.eventID;case .restoration(let v):v.predecessor?.eventID;case .exposure(let v):v.predecessor?.eventID} }
+    var revision:UInt64 { switch self {case .incident(let v):v.revision;case .impact(let v):v.revision;case .cause(let v):v.revision;case .remedy(let v):v.revision;case .repair(let v):v.revision;case .restoration(let v):v.revision;case .exposure(let v):v.revision} }
+    var eventSHA256:String { switch self {case .incident(let v):v.eventSHA256;case .impact(let v):v.eventSHA256;case .cause(let v):v.eventSHA256;case .remedy(let v):v.eventSHA256;case .repair(let v):v.eventSHA256;case .restoration(let v):v.eventSHA256;case .exposure(let v):v.eventSHA256} }
+    var entityKind:WorkspaceEntityKindV1 { switch self {case .incident:.assetServiceIncident;case .impact:.serviceImpactSegment;case .cause:.serviceCauseAssertion;case .remedy:.serviceRemedyAssertion;case .repair:.serviceRepairInterval;case .restoration:.serviceRestorationAssertion;case .exposure:.qualifiedServiceExposure} }
+    var affectedIdentity:WorkspaceEntityIdentityV1 { get throws { try .init(kind:entityKind,id:eventID) } }
+    var concurrencyIdentity:WorkspaceEntityIdentityV1 { get throws { try .init(kind:entityKind,id:predecessorEventID ?? eventID) } }
+    var expectedEntityRevision:UInt64 { revision-1 }
+    var mutationPostImage:MutationPostImageV1 { get throws {
+        let c=try concurrencyIdentity
+        switch self {case .incident:return .assetServiceIncident(id:eventID,concurrencyIdentity:c,revision:revision,semanticSHA256:eventSHA256);case .impact:return .serviceImpactSegment(id:eventID,concurrencyIdentity:c,revision:revision,semanticSHA256:eventSHA256);case .cause:return .serviceCauseAssertion(id:eventID,concurrencyIdentity:c,revision:revision,semanticSHA256:eventSHA256);case .remedy:return .serviceRemedyAssertion(id:eventID,concurrencyIdentity:c,revision:revision,semanticSHA256:eventSHA256);case .repair:return .serviceRepairInterval(id:eventID,concurrencyIdentity:c,revision:revision,semanticSHA256:eventSHA256);case .restoration:return .serviceRestorationAssertion(id:eventID,concurrencyIdentity:c,revision:revision,semanticSHA256:eventSHA256);case .exposure:return .qualifiedServiceExposure(id:eventID,concurrencyIdentity:c,revision:revision,semanticSHA256:eventSHA256)}
+    } }
+}
+
+extension ServiceReliabilityAtomicBundleV1 {
+    var affectedIdentities:[WorkspaceEntityIdentityV1] { get throws { try payloads.map(\.affectedIdentity).sorted{$0.stableKey<$1.stableKey} } }
+    var concurrencyIdentities:[WorkspaceEntityIdentityV1] { get throws { try payloads.map(\.concurrencyIdentity).sorted{$0.stableKey<$1.stableKey} } }
+    var mutationPostImages:[MutationPostImageV1] { get throws { try payloads.map(\.mutationPostImage).sorted{try $0.identity.stableKey<$1.identity.stableKey} } }
+    func expectedRevision(for identity:WorkspaceEntityIdentityV1)throws->UInt64{guard let p=try payloads.first(where:{try $0.concurrencyIdentity==identity})else{throw WorkspaceMutationContractFailureV1.invalidPlan};return p.expectedEntityRevision}
+    func validateForCanonicalWriter()throws{try validate();let affected=try affectedIdentities,concurrency=try concurrencyIdentities;guard Set(affected).count==affected.count,Set(concurrency).count==concurrency.count,expectedRevision.entityRevisions.filter({concurrency.contains($0.identity)}).count==concurrency.count,try concurrency.allSatisfy({identity in expectedRevision.entityRevisions.first(where:{$0.identity==identity})?.revision==(try self.expectedRevision(for:identity))})else{throw WorkspaceMutationContractFailureV1.invalidPlan}}
+    func canonicalWorkspaceMutationRequest()throws->WorkspaceMutationRequestV1{try validateForCanonicalWriter();return .init(mutationID:mutationID,expectedRevision:expectedRevision,command:.applyServiceReliability(self))}
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -2135,6 +2171,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyPortableReview(PortableReviewMutationV1)
     case applyWorkResource(WorkResourceMutationV1)
     case applyServiceRequest(ServiceRequestMutationV1)
+    case applyServiceReliability(ServiceReliabilityAtomicBundleV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2185,6 +2222,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyPortableReview:.applyPortableReview
         case .applyWorkResource:.applyWorkResource
         case .applyServiceRequest:.applyServiceRequest
+        case .applyServiceReliability:.applyServiceReliability
         }
     }
 }
@@ -2237,6 +2275,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyPortableReview="apply_portable_review_v1"
     case applyWorkResource="apply_work_resource_v1"
     case applyServiceRequest="apply_service_request_v1"
+    case applyServiceReliability="apply_service_reliability_v1"
 }
 
 extension WorkspaceCommandV1 {
@@ -3038,6 +3077,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyPortableReview,disposition:.compensatable,stableReason:"append_existing_c14_review_successor_only"),
         .init(commandKind:.applyWorkResource,disposition:.compensatable,stableReason:"append_work_resource_successor_only"),
         .init(commandKind:.applyServiceRequest,disposition:.compensatable,stableReason:"append_request_history_or_explicit_unlink_reversal_only"),
+        .init(commandKind:.applyServiceReliability,disposition:.compensatable,stableReason:"append_incident_impact_cause_remedy_repair_restoration_or_exposure_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

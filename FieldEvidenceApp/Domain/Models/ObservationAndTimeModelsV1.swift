@@ -700,3 +700,14 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_Observation
     static let siteRoleOwnershipForbidden = true
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-persistence
+
+enum C53SharedObservationTimeBoundaryV1 {
+    static let instantType: ServiceReliabilityInstantV1.Type = ServiceReliabilityInstantV1.self
+    static let intervalType: ServiceReliabilityClosedIntervalV1.Type = ServiceReliabilityClosedIntervalV1.self
+    static let timeBasisAndZoneAreExplicit = true
+    static let qualifiedIntervalsUseClosedPositiveWindow = true
+    static let unknownOrEstimatedIntervalsEnterExactMetrics = false
+    static let wallClockOrAppAgeDefinesExposure = false
+    static let impactPrecedenceIsDeterministic = ["FULL_INTERRUPTION", "DEGRADED", "INTERMITTENT"]
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

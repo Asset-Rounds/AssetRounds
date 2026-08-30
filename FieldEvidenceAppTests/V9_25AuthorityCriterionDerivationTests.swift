@@ -859,6 +859,16 @@ extension V9_25AuthorityCriterionDerivationTests {
     }
 }
 
+private final class C53SharedAuthorityReliabilityTests: XCTestCase {
+    func testV23P03C53AuthorityBindingFreezesReliabilitySubject() {
+        XCTAssertTrue(C53SharedAuthorityCriterionBoundaryV1.reliabilityInputsBindToFrozenSubjectContext)
+        XCTAssertTrue(C53SharedAuthorityCriterionBoundaryV1.causeAndRestorationAreRecordedProvenance)
+        XCTAssertFalse(C53SharedAuthorityCriterionBoundaryV1.verifiedIdentityOrResponsibilityIsInferred)
+        XCTAssertTrue(C53SharedPackageReleaseBindingBoundaryV1.bindingRequiresExactPackageAndSubjectRevision)
+        XCTAssertEqual(AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion, 40)
+    }
+}
+
 private extension V9_25AuthorityCriterionDerivationTests {
     struct Fixture {
         let workspaceID: WorkspaceID

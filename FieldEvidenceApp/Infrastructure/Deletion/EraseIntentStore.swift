@@ -492,6 +492,7 @@ final class EraseIntentStore {
         try PlanEraseIntentStorePolicyV1.validate()
         try PlacementPoseEraseIntentStorePolicyV1.validate()
         try SurveySessionEraseIntentEnrollmentV1.validate()
+        try C53AssetServiceReliabilityEraseIntentStorePolicyV1.validate()
         let root = applicationSupportURL.standardizedFileURL
         guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
         if expectedApplicationSupportIdentity == nil {
@@ -1420,3 +1421,17 @@ enum C48PortableExchangeEraseIntentStoreEnrollmentV2 {
     }
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-erase
+
+enum C53AssetServiceReliabilityEraseIntentStorePolicyV1 {
+    static let durableFamilies = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies
+    static let ownsFilesystemPayload = false
+
+    static func validate() throws {
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        guard durableFamilies.count == 7,
+              !ownsFilesystemPayload,
+              C53AssetServiceReliabilityEraseIntentBoundaryV1.validate() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}

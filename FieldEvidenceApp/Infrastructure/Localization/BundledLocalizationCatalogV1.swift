@@ -4882,3 +4882,63 @@ enum C34RouteBundledLocalizationCatalogV1 {
         }
     }
 }
+
+// MARK: - C53 asset-service reliability localization
+
+extension BundledLocalizationCatalogV1 {
+    static func assetServiceReliabilityEnglish(
+        _ key: C53AssetServiceReliabilityLocalizationKeyV1
+    ) -> String {
+        C53AssetServiceReliabilityLocalizationPolicyV1.english(key)
+    }
+
+    static func assetServiceReliabilityRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try registry()
+        let additions = try C53AssetServiceReliabilityLocalizationKeyV1.allCases
+            .sorted { $0.rawValue < $1.rawValue }
+            .map { key in
+                LocalizationKeyDefinitionV1(
+                    key: try LocalizationKeyV1(key.rawValue),
+                    meaningID: key.rawValue,
+                    translatorComment: "C53 recorded reliability state; no verified identity, uptime, safety, compliance, or release-to-service claim.",
+                    englishDefaultValue: key.englishDefaultValue,
+                    arguments: [],
+                    requiredEnglishPluralCategories: [],
+                    state: .active,
+                    deprecatedFallbackKey: nil
+                )
+            }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
+extension C53AssetServiceReliabilityLocalizationKeyV1 {
+    var englishDefaultValue: String {
+        C53AssetServiceReliabilityLocalizationPolicyV1.english(self)
+    }
+}
+
+enum C53AssetServiceReliabilityLocalizationBoundaryV1 {
+    static let sourceLocale = "en"
+    static let usesExistingBundledCatalog = true
+    static let rawSourceBytesLocalized = false
+    static let rawCapabilityLocalized = false
+    static let verifiedIdentityLocalized = false
+    static let releaseToServiceLocalized = false
+
+    static func validate() throws {
+        try C53AssetServiceReliabilityLocalizationPolicyV1.validate()
+        let values = C53AssetServiceReliabilityLocalizationKeyV1.allCases.map {
+            BundledLocalizationCatalogV1.assetServiceReliabilityEnglish($0)
+        }
+        guard sourceLocale == "en",
+              usesExistingBundledCatalog,
+              values.allSatisfy({ !$0.isEmpty }),
+              !rawSourceBytesLocalized,
+              !rawCapabilityLocalized,
+              !verifiedIdentityLocalized,
+              !releaseToServiceLocalized else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

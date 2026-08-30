@@ -1594,3 +1594,27 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Search_LocalSearc
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 service-reliability local-index boundary
+
+enum C53ServiceReliabilityLocalSearchIndexBoundaryV1 {
+    static let storeType: LocalSearchIndexStoreV1.Type = LocalSearchIndexStoreV1.self
+    static let rowsAreDerivedOnly = true
+    static let rowsAreDisposable = true
+    static let rebuildAfterRestoreReplayDelete = true
+    static let exactMetricValuesAreNotIndexed = true
+    static let rawServiceReliabilityEventBytesAreNotIndexed = true
+
+    static func record(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> C53ServiceReliabilitySearchProjectionV1 {
+        try C53ServiceReliabilitySearchProjectionBoundaryV1.projection(projection)
+    }
+
+    static func serializedRecord(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> Data {
+        let record = try record(projection)
+        return try C53ServiceReliabilitySearchPersistenceBoundaryV1.encode(record)
+    }
+}

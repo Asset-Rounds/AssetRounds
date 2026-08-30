@@ -674,3 +674,22 @@ enum C52ServiceRequestBoundary_EraseIntentV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+enum C53AssetServiceReliabilityEraseIntentBoundaryV1 {
+    static let canonicalFamilyCount = 7
+    static let ordinaryDeletionPreservesAppendOnlyHistory = true
+    static let workspaceEraseClearsCanonicalRowsAndMutationHistory = true
+    static let metricProjectionIsNonpersistent = true
+    static let cloneOrForkDoesNotActivateSourceGenerationHistory = true
+    static let externalCopiesCannotBeRecalled = true
+
+    static func validate() -> Bool {
+        canonicalFamilyCount == AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies.count
+            && ordinaryDeletionPreservesAppendOnlyHistory
+            && workspaceEraseClearsCanonicalRowsAndMutationHistory
+            && metricProjectionIsNonpersistent
+            && cloneOrForkDoesNotActivateSourceGenerationHistory
+            && externalCopiesCannotBeRecalled
+            && !AssetServiceReliabilityPersistenceEnrollmentV1.derivedProjectionIsPersistent
+    }
+}

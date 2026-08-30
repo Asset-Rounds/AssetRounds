@@ -2078,3 +2078,29 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Finalization_Repo
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
 }
+
+// MARK: - C53 reliability canonical snapshot encoding
+
+enum C53ServiceReliabilityReportSnapshotEncoderV1 {
+    static let encodingIsCanonicalJSON = true
+    static let decodeRequiresExactByteParity = ServiceReliabilityFJ09ContractV1.canonicalDecodeRequiresExactByteParity
+
+    static func encode(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try projection.validate()
+        let data = try ServiceReliabilityCanonicalCodecV1.encode(projection)
+        return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+    }
+
+    static func decode(_ data: Data) throws -> C53ServiceReliabilityReportProjectionV1 {
+        let value = try ServiceReliabilityCanonicalCodecV1.decode(
+            C53ServiceReliabilityReportProjectionV1.self,
+            from: data
+        )
+        guard try ServiceReliabilityCanonicalCodecV1.encode(value) == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+}

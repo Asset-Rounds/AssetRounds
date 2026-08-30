@@ -1193,3 +1193,40 @@ enum C52ServiceRequestBoundary_WholeSignDeletionRule {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C53 append-only service-reliability deletion boundary
+
+struct AssetServiceReliabilityDeletionInventoryV1: Equatable, Sendable {
+    let incidentEventIDs: Set<UUID>
+    let impactEventIDs: Set<UUID>
+    let causeEventIDs: Set<UUID>
+    let remedyEventIDs: Set<UUID>
+    let repairEventIDs: Set<UUID>
+    let restorationEventIDs: Set<UUID>
+    let exposureEventIDs: Set<UUID>
+
+    static let empty = Self(
+        incidentEventIDs: [], impactEventIDs: [], causeEventIDs: [], remedyEventIDs: [],
+        repairEventIDs: [], restorationEventIDs: [], exposureEventIDs: []
+    )
+}
+
+enum C53AssetServiceReliabilityWholeSignDeletionRuleV1 {
+    static let ordinaryAssetOrSiteDeletionPreservesAppendOnlyHistory = true
+    static let workspaceEraseClearsAllSevenCanonicalFamilies = true
+    static let metricProjectionIsRebuiltRatherThanDeletedAsTruth = true
+
+    static func validate(
+        before: AssetServiceReliabilityDeletionInventoryV1,
+        after: AssetServiceReliabilityDeletionInventoryV1,
+        workspaceErase: Bool
+    ) throws {
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        guard ordinaryAssetOrSiteDeletionPreservesAppendOnlyHistory,
+              workspaceEraseClearsAllSevenCanonicalFamilies,
+              metricProjectionIsRebuiltRatherThanDeletedAsTruth,
+              workspaceErase ? after == .empty : after == before else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+    }
+}

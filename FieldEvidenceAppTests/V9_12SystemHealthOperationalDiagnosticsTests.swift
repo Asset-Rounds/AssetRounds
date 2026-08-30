@@ -846,6 +846,17 @@ extension V9_12SystemHealthOperationalDiagnosticsTests {
     }
 }
 
+private final class C53SharedDiagnosticsReliabilityTests: XCTestCase {
+    func testV23P03C53DiagnosticsRemainTruthfulAndNoncanonical() {
+        XCTAssertTrue(C53SharedMeasurementLifecycleBoundaryV1.measurementRowsAreNotReliabilityMetricOutputs)
+        XCTAssertTrue(C53SharedMeasurementLifecycleBoundaryV1.replayAndRetryRemainOldOrNewOnly)
+        XCTAssertTrue(C53SharedServiceReliabilitySemanticBoundaryV1.noVerifiedIdentityOrReleaseToServiceClaim)
+        XCTAssertFalse(C53AssetServiceReliabilityLocalizationPolicyV1.verifiedIdentityClaimed)
+        XCTAssertEqual(C53SharedServiceReliabilitySemanticBoundaryV1.zeroExposureDisposition,
+                       "UNAVAILABLE_ZERO_QUALIFIED_EXPOSURE")
+    }
+}
+
 extension V9_12SystemHealthOperationalDiagnosticsTests {
     func testV23P03C18ReplayClassificationIsPartOfOperationalLifecycle() throws {
         let required: Set<PackageSandboxCheckKindV1> = [.classification, .replay, .searchRebuild]

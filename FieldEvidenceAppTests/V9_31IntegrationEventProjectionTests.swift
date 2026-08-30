@@ -758,6 +758,16 @@ extension V9_31IntegrationEventProjectionTests {
     }
 }
 
+private final class C53SharedProjectionReliabilityTests: XCTestCase {
+    func testV23P03C53ProjectionCannotPromoteRawOrDerivedState() {
+        XCTAssertTrue(C53SharedServiceReliabilitySemanticBoundaryV1.rawCapabilitiesAndDiagnosticProjectionsExcluded)
+        XCTAssertTrue(C53SharedInspectionPackageRegistryBoundaryV1.registryDoesNotProjectReliabilityMetrics)
+        XCTAssertTrue(C53SharedInspectionPackageReleaseBoundaryV1.incidentAndExposureHistoryRemainAppendOnly)
+        XCTAssertFalse(C53AssetServiceReliabilityLocalizationPolicyV1.uptimeClaimed)
+        XCTAssertFalse(C53AssetServiceReliabilityLocalizationPolicyV1.releaseToServiceClaimed)
+    }
+}
+
 extension V9_31IntegrationEventProjectionTests {
     func testC21ClientCapabilityLifecycleAnchor() throws {
         XCTAssertEqual(ClientCapabilityProfileV1.schemaVersion, 1)

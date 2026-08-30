@@ -613,6 +613,7 @@ enum KernelDeletionEraseRegistryV4 {
         try validateSearchLifecycle()
         try validateIntegrationProjectionLifecycle()
         try validateAssistanceLifecycle()
+        try C53AssetServiceReliabilityKernelDeletionEraseEnrollmentV1.validate()
         try validate(registrations)
     }
 
@@ -786,6 +787,28 @@ enum C52ServiceRequestKernelDeletionEraseEnrollmentV1 {
               workspaceEraseClearsAllThreeFamilies,
               eraseClearsProtectedInvitationMappings,
               !escapedPortableFilesAreRecallable else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+enum C53AssetServiceReliabilityKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies
+    static let ordinaryDeleteDisposition = "PRESERVE_APPEND_ONLY_HISTORY"
+    static let workspaceEraseClearsAllCanonicalFamilies = true
+    static let cloneForkSourceHistoryIsNotActiveTruth = true
+    static let derivedMetricProjectionIsRebuilt = true
+    static let rowsOwnNoFilesystemPayload = true
+
+    static func validate() throws {
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        guard durableFamilies.count == 7,
+              ordinaryDeleteDisposition == "PRESERVE_APPEND_ONLY_HISTORY",
+              workspaceEraseClearsAllCanonicalFamilies,
+              cloneForkSourceHistoryIsNotActiveTruth,
+              derivedMetricProjectionIsRebuilt,
+              rowsOwnNoFilesystemPayload,
+              C53AssetServiceReliabilityEraseIntentBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

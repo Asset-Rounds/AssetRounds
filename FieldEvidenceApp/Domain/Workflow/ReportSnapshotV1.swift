@@ -549,3 +549,22 @@ enum C52ServiceRequestBoundary_ReportSnapshotV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C53 reliability snapshot boundary
+
+/// Reliability is an additive report projection. It does not add an optional
+/// field to the frozen legacy snapshot shape or make the snapshot mutable.
+enum C53ServiceReliabilityReportSnapshotBoundaryV1 {
+    static let snapshotType: ReportSnapshotV1.Type = ReportSnapshotV1.self
+    static let projectionType: C53ServiceReliabilityReportProjectionV1.Type =
+        C53ServiceReliabilityReportProjectionV1.self
+    static let projectionIsOptionalAndAdditive = true
+    static let historicSnapshotBytesAreRewritten = false
+    static let unavailableMetricsRemainUnavailable = true
+
+    static func validate(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+}

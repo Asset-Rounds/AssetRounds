@@ -3,6 +3,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C53AssetServiceReliabilityBoundary_V10_03ReplicationConflictRegistryTests {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
 final class V10_03ReplicationConflictRegistryTests: XCTestCase {
     func testV23P03C40SupersessionCarriesDistinctReplicationAndConcurrencyIdentities() throws {
         let workspaceID = WorkspaceID(rawValue: Self.id(70))

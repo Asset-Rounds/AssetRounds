@@ -167,7 +167,7 @@ private extension StoreGenerationFactory {
             targetRelease = .v38
         case 38:
             sourceRelease = .v38
-            targetRelease = .v39
+            targetRelease = .v40
         default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
         guard sourceManifest.storeSchemaRelease == sourceRelease,
@@ -700,8 +700,8 @@ private extension StoreGenerationFactory {
         guard completed.targetRelease != PersistentSchemaReleaseRegistryV1.activeRelease else {
             return validatedSession
         }
-        guard [.v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26,.v27,.v28,.v29,.v30,.v31,.v32,.v33,.v34,.v35,.v36,.v37,.v38,.v39].contains(completed.targetRelease),
-              PersistentSchemaReleaseRegistryV1.activeRelease == .v39 else {
+        guard [.v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26,.v27,.v28,.v29,.v30,.v31,.v32,.v33,.v34,.v35,.v36,.v37,.v38,.v39,.v40].contains(completed.targetRelease),
+              PersistentSchemaReleaseRegistryV1.activeRelease == .v40 else {
             throw StoreMigrationFailure.maintenanceRequired(.futureVersion)
         }
         let current = try decodeCurrentPointer(
@@ -747,6 +747,7 @@ private extension StoreGenerationFactory {
         case .v37: completedVersion = 37
         case .v38: completedVersion = 38
         case .v39: completedVersion = 39
+        case .v40: completedVersion = 40
         default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
         guard case .v3(let pointer, let pointerData) = current,
@@ -827,7 +828,7 @@ private extension StoreGenerationFactory {
                 identity: try compatibilityIdentity(for: pointer)
             )
         case .v3(let pointer, _):
-            guard [.v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26, .v27, .v28, .v29, .v30, .v31, .v32, .v33, .v34, .v35, .v36, .v37, .v38, .v39].contains(journal.targetRelease),
+            guard [.v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26, .v27, .v28, .v29, .v30, .v31, .v32, .v33, .v34, .v35, .v36, .v37, .v38, .v39, .v40].contains(journal.targetRelease),
                   pointer.generationManifestSHA256 == journal.targetManifestDigest else {
                 throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
             }
@@ -1343,6 +1344,7 @@ private extension StoreGenerationFactory {
         case (.v36, .v37):return try desiredSuccessorPointerData(journal:journal,manifestDigest:manifestDigest,sourceVersion:36,targetVersion:37)
         case (.v37, .v38):return try desiredSuccessorPointerData(journal:journal,manifestDigest:manifestDigest,sourceVersion:37,targetVersion:38)
         case (.v38, .v39):return try desiredSuccessorPointerData(journal:journal,manifestDigest:manifestDigest,sourceVersion:38,targetVersion:39)
+        case (.v39, .v40):return try desiredSuccessorPointerData(journal:journal,manifestDigest:manifestDigest,sourceVersion:39,targetVersion:40)
         default:
             throw StoreMigrationFailure.invalidContract
         }
@@ -1406,6 +1408,7 @@ private extension StoreGenerationFactory {
         case 37: expectedRelease = .v37
         case 38: expectedRelease = .v38
         case 39: expectedRelease = .v39
+        case 40: expectedRelease = .v40
         default: throw StoreMigrationFailure.maintenanceRequired(.futureVersion)
         }
         guard manifest.generationID == generationID,
@@ -1537,6 +1540,7 @@ private extension StoreGenerationFactory {
         case 37: release = .v37
         case 38: release = .v38
         case 39: release = .v39
+        case 40: release = .v40
         default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
         guard manifest.storeSchemaRelease == release else {
@@ -1592,6 +1596,7 @@ private extension StoreGenerationFactory {
         case 37: container = try makeV37Container(at:modelStoreURL,migrate:false)
         case 38: container = try makeV38Container(at:modelStoreURL,migrate:false)
         case 39: container = try makeV39Container(at:modelStoreURL,migrate:false)
+        case 40: container = try makeV40Container(at:modelStoreURL,migrate:false)
         default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
         if pointer.storeSchemaVersion == 3 {
@@ -1640,7 +1645,8 @@ private extension StoreGenerationFactory {
          }else if pointer.storeSchemaVersion == 36{_ = try requireV36Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }else if pointer.storeSchemaVersion == 37{_ = try requireV37Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }else if pointer.storeSchemaVersion == 38{_ = try requireV38Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
-         }else{_ = try requireV39Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
+         }else if pointer.storeSchemaVersion == 39{_ = try requireV39Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
+         }else{_ = try requireV40Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }
         if pointer.storeSchemaVersion == 3 {
             guard manifest.semanticSHA256 == (try semanticDigest(at: modelStoreURL, release: release)) else {
@@ -1978,6 +1984,7 @@ private extension StoreGenerationFactory {
         case (.v36,.v37):return try autoreleasepool{let container=try makeV37Container(at:modelStoreURL,migrate:true);let context=container.mainContext;let markers=try context.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>());if markers.count==1,markers[0].schemaVersion==37{_ = try requireV37Marker(in:context,expectedMigrationID:migrationID);return StoreMigrationCanonicalJSONV1.sha256(try semanticExportV37(in:context))};guard markers.count==1,markers[0].schemaVersion==36,StoreMigrationCanonicalJSONV1.sha256(try semanticExportV36(in:context))==expectedSemanticDigest,try workResourceRowsAreEmpty(in:context)else{throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)};try backfillV37Marker(in:context,migrationID:migrationID);return StoreMigrationCanonicalJSONV1.sha256(try semanticExportV37(in:context))}
         case (.v37,.v38):return try autoreleasepool{let container=try makeV38Container(at:modelStoreURL,migrate:true);let context=container.mainContext;let markers=try context.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>());if markers.count==1,markers[0].schemaVersion==38{_ = try requireV38Marker(in:context,expectedMigrationID:migrationID);return StoreMigrationCanonicalJSONV1.sha256(try semanticExportV38(in:context))};guard markers.count==1,markers[0].schemaVersion==37,StoreMigrationCanonicalJSONV1.sha256(try semanticExportV37(in:context))==expectedSemanticDigest,try scheduleExceptionRowsAreEmpty(in:context)else{throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)};try backfillV38Marker(in:context,migrationID:migrationID);return StoreMigrationCanonicalJSONV1.sha256(try semanticExportV38(in:context))}
         case (.v38,.v39):return try autoreleasepool{let container=try makeV39Container(at:modelStoreURL,migrate:true);let context=container.mainContext;let markers=try context.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>());if markers.count==1,markers[0].schemaVersion==39{_ = try requireV39Marker(in:context,expectedMigrationID:migrationID);return StoreMigrationCanonicalJSONV1.sha256(try semanticExportV39(in:context))};guard markers.count==1,markers[0].schemaVersion==38,StoreMigrationCanonicalJSONV1.sha256(try semanticExportV38(in:context))==expectedSemanticDigest,try serviceRequestRowsAreEmpty(in:context)else{throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)};try backfillV39Marker(in:context,migrationID:migrationID);return StoreMigrationCanonicalJSONV1.sha256(try semanticExportV39(in:context))}
+        case (.v39,.v40):return try autoreleasepool{let container=try makeV40Container(at:modelStoreURL,migrate:true);let context=container.mainContext;let markers=try context.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>());if markers.count==1,markers[0].schemaVersion==40{_ = try requireV40Marker(in:context,expectedMigrationID:migrationID);return StoreMigrationCanonicalJSONV1.sha256(try semanticExportV40(in:context))};guard markers.count==1,markers[0].schemaVersion==39,StoreMigrationCanonicalJSONV1.sha256(try semanticExportV39(in:context))==expectedSemanticDigest,try serviceReliabilityRowsAreEmpty(in:context)else{throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)};try backfillV40Marker(in:context,migrationID:migrationID);return StoreMigrationCanonicalJSONV1.sha256(try semanticExportV40(in:context))}
         default:
             throw StoreMigrationFailure.invalidContract
         }
@@ -2063,6 +2070,7 @@ private extension StoreGenerationFactory {
             case .v37:container=try makeV37Container(at:modelStoreURL,migrate:false);_ = try requireV37Marker(in:container.mainContext,expectedMigrationID:markerMigrationID)
             case .v38:container=try makeV38Container(at:modelStoreURL,migrate:false);_ = try requireV38Marker(in:container.mainContext,expectedMigrationID:markerMigrationID)
             case .v39:container=try makeV39Container(at:modelStoreURL,migrate:false);_ = try requireV39Marker(in:container.mainContext,expectedMigrationID:markerMigrationID)
+            case .v40:container=try makeV40Container(at:modelStoreURL,migrate:false);_ = try requireV40Marker(in:container.mainContext,expectedMigrationID:markerMigrationID)
             }
             if release == .v21{return try semanticExportV21(in:container.mainContext)}
             if release == .v22{return try semanticExportV22(in:container.mainContext)}
@@ -2083,6 +2091,7 @@ private extension StoreGenerationFactory {
             if release == .v37{return try semanticExportV37(in:container.mainContext)}
             if release == .v38{return try semanticExportV38(in:container.mainContext)}
             if release == .v39{return try semanticExportV39(in:container.mainContext)}
+            if release == .v40{return try semanticExportV40(in:container.mainContext)}
             if release == .v20{return try semanticExportV20(in:container.mainContext)}
             if release == .v19{return try semanticExportV19(in:container.mainContext)}
             if release == .v18{return try semanticExportV18(in:container.mainContext)}
@@ -2461,6 +2470,7 @@ private extension StoreGenerationFactory {
     @MainActor private func semanticExportV37(in c:ModelContext)throws->Data{let entries=try c.fetch(FetchDescriptor<ManualWorkResourceRecordRow>()).map{try $0.value()}.sorted{($0.workspaceID.rawValue.uuidString.lowercased(),$0.entryID.uuidString.lowercased())<($1.workspaceID.rawValue.uuidString.lowercased(),$1.entryID.uuidString.lowercased())};return try StoreMigrationCanonicalJSONV1.encode(StoreSemanticEnvelopeV37(base:semanticExportV36(in:c),workResources:entries))}
     @MainActor private func semanticExportV38(in c:ModelContext)throws->Data{let calendars=try c.fetch(FetchDescriptor<ExceptionCalendarReleaseRow>()).map{try $0.value()}.sorted{$0.releaseID.uuidString.lowercased()<$1.releaseID.uuidString.lowercased()},overrides=try c.fetch(FetchDescriptor<ScheduleOverrideEventRow>()).map{try $0.value()}.sorted{$0.eventID.uuidString.lowercased()<$1.eventID.uuidString.lowercased()};return try StoreMigrationCanonicalJSONV1.encode(StoreSemanticEnvelopeV38(base:semanticExportV37(in:c),calendars:calendars,overrides:overrides))}
     @MainActor private func semanticExportV39(in c:ModelContext)throws->Data{let records=try c.fetch(FetchDescriptor<ServiceRequestRecordRow>()).map{try $0.value()}.sorted{($0.workspaceID.rawValue.uuidString,$0.recordID.uuidString,$0.revision)<($1.workspaceID.rawValue.uuidString,$1.recordID.uuidString,$1.revision)},dispositions=try c.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>()).map{try $0.value()}.sorted{$0.eventID.uuidString<$1.eventID.uuidString},links=try c.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>()).map{try $0.value()}.sorted{$0.eventID.uuidString<$1.eventID.uuidString};return try StoreMigrationCanonicalJSONV1.encode(StoreSemanticEnvelopeV39(base:semanticExportV38(in:c),records:records,dispositions:dispositions,workLinks:links))}
+    @MainActor private func semanticExportV40(in c:ModelContext)throws->Data{func ordered<T>(_ values:[T],key:(T)->(String,String,UInt64))->[T]{values.sorted{key($0)<key($1)}};let incidents=ordered(try c.fetch(FetchDescriptor<AssetServiceIncidentRow>()).map{try $0.value()}){($0.workspaceID.rawValue.uuidString,$0.eventID.uuidString,$0.revision)},impacts=ordered(try c.fetch(FetchDescriptor<ServiceImpactSegmentRow>()).map{try $0.value()}){($0.workspaceID.rawValue.uuidString,$0.eventID.uuidString,$0.revision)},causes=ordered(try c.fetch(FetchDescriptor<ServiceCauseAssertionRow>()).map{try $0.value()}){($0.workspaceID.rawValue.uuidString,$0.eventID.uuidString,$0.revision)},remedies=ordered(try c.fetch(FetchDescriptor<ServiceRemedyAssertionRow>()).map{try $0.value()}){($0.workspaceID.rawValue.uuidString,$0.eventID.uuidString,$0.revision)},repairs=ordered(try c.fetch(FetchDescriptor<ServiceRepairIntervalRow>()).map{try $0.value()}){($0.workspaceID.rawValue.uuidString,$0.eventID.uuidString,$0.revision)},restorations=ordered(try c.fetch(FetchDescriptor<ServiceRestorationAssertionRow>()).map{try $0.value()}){($0.workspaceID.rawValue.uuidString,$0.eventID.uuidString,$0.revision)},exposures=ordered(try c.fetch(FetchDescriptor<QualifiedServiceExposureRow>()).map{try $0.value()}){($0.workspaceID.rawValue.uuidString,$0.eventID.uuidString,$0.revision)};let events=try (incidents.map{try ServiceReliabilityCanonicalCodecV1.encode($0)}+impacts.map{try ServiceReliabilityCanonicalCodecV1.encode($0)}+causes.map{try ServiceReliabilityCanonicalCodecV1.encode($0)}+remedies.map{try ServiceReliabilityCanonicalCodecV1.encode($0)}+repairs.map{try ServiceReliabilityCanonicalCodecV1.encode($0)}+restorations.map{try ServiceReliabilityCanonicalCodecV1.encode($0)}+exposures.map{try ServiceReliabilityCanonicalCodecV1.encode($0)});return try StoreMigrationCanonicalJSONV1.encode(StoreSemanticEnvelopeV40(base:semanticExportV39(in:c),events:events))}
 
     @MainActor
     private func semanticDigest(
@@ -2713,6 +2723,7 @@ private extension StoreGenerationFactory {
     @MainActor private func makeV37Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{guard C50IncumbentFileExchangeStoreGenerationBoundaryV1.validate() else{throw StoreMigrationFailure.invalidContract};let schema=Schema(PersistentSchemaV37.models,version:PersistentSchemaV37.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV37",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV36.self:nil,configurations:[configuration]);_ = try requireActivityContracts(in:container.mainContext);_ = try requireWorkResources(in:container.mainContext);return container}
     @MainActor private func makeV38Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{guard C51ScheduleExceptionStoreGenerationBoundaryV1.validate() else{throw StoreMigrationFailure.invalidContract};let schema=Schema(PersistentSchemaV38.models,version:PersistentSchemaV38.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV38",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV37.self:nil,configurations:[configuration]);_ = try requireActivityContracts(in:container.mainContext);_ = try requireWorkResources(in:container.mainContext);_ = try requireScheduleExceptions(in:container.mainContext);return container}
     @MainActor private func makeV39Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{guard C52ServiceRequestStoreGenerationBoundaryV1.validate() else{throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)};let schema=Schema(PersistentSchemaV39.models,version:PersistentSchemaV39.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV39",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV38.self:nil,configurations:[configuration]);_ = try requireActivityContracts(in:container.mainContext);_ = try requireWorkResources(in:container.mainContext);_ = try requireScheduleExceptions(in:container.mainContext);_ = try requireServiceRequests(in:container.mainContext);return container}
+    @MainActor private func makeV40Container(at modelStoreURL:URL,migrate:Bool)throws->ModelContainer{let schema=Schema(PersistentSchemaV40.models,version:PersistentSchemaV40.versionIdentifier);let configuration=ModelConfiguration("FieldEvidenceV40",schema:schema,url:modelStoreURL,allowsSave:true,cloudKitDatabase:.none);let container=try ModelContainer(for:schema,migrationPlan:migrate ? PersistentSchemaMigrationPlanV39.self:nil,configurations:[configuration]);_ = try requireActivityContracts(in:container.mainContext);_ = try requireWorkResources(in:container.mainContext);_ = try requireScheduleExceptions(in:container.mainContext);_ = try requireServiceRequests(in:container.mainContext);_ = try requireServiceReliability(in:container.mainContext);return container}
     @MainActor private func assetLabelRowsAreEmpty(in c:ModelContext)throws->Bool{try c.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()).isEmpty}
     @MainActor private func requireAssetLabels(in c:ModelContext)throws->Int{let rows=try c.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>());for row in rows{_ = try row.value()};guard Set(rows.map(\.stableIdentity)).count==rows.count else{throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)};return rows.count}
     @MainActor private func operationalContactRowsAreEmpty(in c:ModelContext)throws->Bool{try c.fetch(FetchDescriptor<ServiceContactPointRow>()).isEmpty&&c.fetch(FetchDescriptor<SystemHandoffIntentRow>()).isEmpty}
@@ -3779,6 +3790,11 @@ private extension StoreGenerationFactory {
     @MainActor private func serviceRequestRowsAreEmpty(in c:ModelContext)throws->Bool{try c.fetch(FetchDescriptor<ServiceRequestRecordRow>()).isEmpty&&c.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>()).isEmpty&&c.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>()).isEmpty}
     @MainActor private func backfillV39Marker(in c:ModelContext,migrationID:UUID)throws{let marker=try requireV38Marker(in:c,expectedMigrationID:migrationID);guard try serviceRequestRowsAreEmpty(in:c)else{throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)};marker.schemaVersion=39;marker.releaseID=PersistentSchemaReleaseV1.v39.compatibilityID;marker.predecessorReleaseID=PersistentSchemaReleaseV1.v38.compatibilityID;try c.save();_ = try requireV39Marker(in:c,expectedMigrationID:migrationID)}
     @MainActor private func requireV39Marker(in c:ModelContext,expectedMigrationID:UUID?)throws->PersistentSchemaReleaseMarker{let markers=try c.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>());guard markers.count==1,let marker=markers.first,marker.id==PersistentSchemaReleaseRegistryV1.v2MarkerID,marker.schemaVersion==39,marker.releaseID==PersistentSchemaReleaseV1.v39.compatibilityID,marker.predecessorReleaseID==PersistentSchemaReleaseV1.v38.compatibilityID,expectedMigrationID.map({marker.migrationID==$0}) ?? marker.migrationID != nil else{throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)};_ = try requireActivityContracts(in:c);_ = try requireWorkResources(in:c);_ = try requireScheduleExceptions(in:c);_ = try requireServiceRequests(in:c);return marker}
+    @MainActor private func serviceReliabilityRowsAreEmpty(in c:ModelContext)throws->Bool{try c.fetch(FetchDescriptor<AssetServiceIncidentRow>()).isEmpty&&c.fetch(FetchDescriptor<ServiceImpactSegmentRow>()).isEmpty&&c.fetch(FetchDescriptor<ServiceCauseAssertionRow>()).isEmpty&&c.fetch(FetchDescriptor<ServiceRemedyAssertionRow>()).isEmpty&&c.fetch(FetchDescriptor<ServiceRepairIntervalRow>()).isEmpty&&c.fetch(FetchDescriptor<ServiceRestorationAssertionRow>()).isEmpty&&c.fetch(FetchDescriptor<QualifiedServiceExposureRow>()).isEmpty}
+    @MainActor private func requireReliabilityChain<T>(_ values:[T],eventID:(T)->UUID,workspaceID:(T)->WorkspaceID,revision:(T)->UInt64,digest:(T)->String,predecessor:(T)->ServiceReliabilityEventReferenceV1?)throws->Int{let identities=values.map{"\(workspaceID($0).rawValue.uuidString.lowercased()):\(eventID($0).uuidString.lowercased())"};guard Set(identities).count==identities.count else{throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)};for value in values{if let reference=predecessor(value){let priors=values.filter{workspaceID($0)==workspaceID(value)&&eventID($0)==reference.eventID&&revision($0)==reference.revision&&digest($0)==reference.eventSHA256};guard priors.count==1,revision(priors[0])<UInt64.max,revision(value)==revision(priors[0])+1 else{throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)}}else if revision(value) != 1{throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)};let successors=values.filter{candidate in guard workspaceID(candidate)==workspaceID(value),let reference=predecessor(candidate)else{return false};return reference.eventID==eventID(value)&&reference.revision==revision(value)&&reference.eventSHA256==digest(value)};guard successors.count<=1 else{throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)}};return values.count}
+    @MainActor private func requireServiceReliability(in c:ModelContext)throws->Int{let incidents=try c.fetch(FetchDescriptor<AssetServiceIncidentRow>()).map{$0.value()},impacts=try c.fetch(FetchDescriptor<ServiceImpactSegmentRow>()).map{$0.value()},causes=try c.fetch(FetchDescriptor<ServiceCauseAssertionRow>()).map{$0.value()},remedies=try c.fetch(FetchDescriptor<ServiceRemedyAssertionRow>()).map{$0.value()},repairs=try c.fetch(FetchDescriptor<ServiceRepairIntervalRow>()).map{$0.value()},restorations=try c.fetch(FetchDescriptor<ServiceRestorationAssertionRow>()).map{$0.value()},exposures=try c.fetch(FetchDescriptor<QualifiedServiceExposureRow>()).map{$0.value()};return try requireReliabilityChain(incidents,eventID:{ $0.eventID },workspaceID:{ $0.workspaceID },revision:{ $0.revision },digest:{ $0.eventSHA256 },predecessor:{ $0.predecessor })+requireReliabilityChain(impacts,eventID:{ $0.eventID },workspaceID:{ $0.workspaceID },revision:{ $0.revision },digest:{ $0.eventSHA256 },predecessor:{ $0.predecessor })+requireReliabilityChain(causes,eventID:{ $0.eventID },workspaceID:{ $0.workspaceID },revision:{ $0.revision },digest:{ $0.eventSHA256 },predecessor:{ $0.predecessor })+requireReliabilityChain(remedies,eventID:{ $0.eventID },workspaceID:{ $0.workspaceID },revision:{ $0.revision },digest:{ $0.eventSHA256 },predecessor:{ $0.predecessor })+requireReliabilityChain(repairs,eventID:{ $0.eventID },workspaceID:{ $0.workspaceID },revision:{ $0.revision },digest:{ $0.eventSHA256 },predecessor:{ $0.predecessor })+requireReliabilityChain(restorations,eventID:{ $0.eventID },workspaceID:{ $0.workspaceID },revision:{ $0.revision },digest:{ $0.eventSHA256 },predecessor:{ $0.predecessor })+requireReliabilityChain(exposures,eventID:{ $0.eventID },workspaceID:{ $0.workspaceID },revision:{ $0.revision },digest:{ $0.eventSHA256 },predecessor:{ $0.predecessor })}
+    @MainActor private func backfillV40Marker(in c:ModelContext,migrationID:UUID)throws{let marker=try requireV39Marker(in:c,expectedMigrationID:migrationID);guard try serviceReliabilityRowsAreEmpty(in:c)else{throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)};marker.schemaVersion=40;marker.releaseID=PersistentSchemaReleaseV1.v40.compatibilityID;marker.predecessorReleaseID=PersistentSchemaReleaseV1.v39.compatibilityID;try c.save();_ = try requireV40Marker(in:c,expectedMigrationID:migrationID)}
+    @MainActor private func requireV40Marker(in c:ModelContext,expectedMigrationID:UUID?)throws->PersistentSchemaReleaseMarker{let markers=try c.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>());guard markers.count==1,let marker=markers.first,marker.id==PersistentSchemaReleaseRegistryV1.v2MarkerID,marker.schemaVersion==40,marker.releaseID==PersistentSchemaReleaseV1.v40.compatibilityID,marker.predecessorReleaseID==PersistentSchemaReleaseV1.v39.compatibilityID,expectedMigrationID.map({marker.migrationID==$0}) ?? marker.migrationID != nil else{throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)};_ = try requireActivityContracts(in:c);_ = try requireWorkResources(in:c);_ = try requireScheduleExceptions(in:c);_ = try requireServiceRequests(in:c);_ = try requireServiceReliability(in:c);return marker}
     @MainActor private func requireServiceRequests(in c:ModelContext)throws->Int {
         let recordRows=try c.fetch(FetchDescriptor<ServiceRequestRecordRow>())
         let dispositionRows=try c.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>())
@@ -4877,8 +4893,8 @@ private extension StoreGenerationFactory {
         let root = installedGenerationURL(id: newID)
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
-            let container = try makeV39Container(at: modelStoreURL, migrate: false)
-            let marker = try requireV39Marker(
+            let container = try makeV40Container(at: modelStoreURL, migrate: false)
+            let marker = try requireV40Marker(
                 in: container.mainContext,
                 expectedMigrationID: nil
             )
@@ -4893,7 +4909,7 @@ private extension StoreGenerationFactory {
         if let existing = try store.loadManifestIfPresent(
             targetGenerationID: newID
         ) {
-            guard existing.manifest.storeSchemaRelease == .v39,
+            guard existing.manifest.storeSchemaRelease == .v40,
                   existing.manifest.migrationID == markerMigrationID else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
@@ -4911,7 +4927,7 @@ private extension StoreGenerationFactory {
         }
         let semantic = try semanticExport(
             at: modelStoreURL,
-            release: .v39,
+            release: .v40,
             markerMigrationID: markerMigrationID
         )
         try protectGeneration(at: root, staging: false, requireModel: true)
@@ -4919,7 +4935,7 @@ private extension StoreGenerationFactory {
             generationID: newID,
             predecessorGenerationID: expectedOldID,
             migrationID: markerMigrationID,
-            storeSchemaRelease: .v39,
+            storeSchemaRelease: .v40,
             semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(semantic),
             frozenIdentityDigest: try frozenIdentityDigest(for: root),
             files: try generationFileDigests(at: root, durable: true)
@@ -4955,7 +4971,7 @@ private extension StoreGenerationFactory {
             workspaceID: identity.workspaceID,
             replicaID: identity.replicaID,
             knownReplicaIDs: history,
-            storeSchemaVersion: 39
+            storeSchemaVersion: 40
         )
     }
 
@@ -4977,7 +4993,7 @@ private extension StoreGenerationFactory {
             targetGenerationID: newID,
             expectedDigest: preparedGenerationManifestSHA256
         )
-        guard manifest.storeSchemaRelease == .v39 else {
+        guard manifest.storeSchemaRelease == .v40 else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         try requireRestoreManifestSnapshot(
@@ -4993,7 +5009,7 @@ private extension StoreGenerationFactory {
             workspaceID: identity.workspaceID,
             replicaID: identity.replicaID,
             knownReplicaIDs: knownReplicaIDs,
-            storeSchemaVersion: 39
+            storeSchemaVersion: 40
         )
     }
 
@@ -5124,6 +5140,9 @@ private extension StoreGenerationFactory {
             case .v39:
                 context = try makeV39Container(at:modelStoreURL,migrate:false).mainContext
                 marker = try requireV39Marker(in:context,expectedMigrationID:manifest.migrationID)
+            case .v40:
+                context = try makeV40Container(at:modelStoreURL,migrate:false).mainContext
+                marker = try requireV40Marker(in:context,expectedMigrationID:manifest.migrationID)
             case .v1:
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
@@ -8131,7 +8150,7 @@ struct StoreGenerationFactory {
             workspaceID: identity.workspaceID,
             replicaID: identity.replicaID,
             knownReplicaIDs: [identity.replicaID],
-            storeSchemaVersion: 39
+            storeSchemaVersion: 40
         )
         let proof = try deletionLedgerProof(in: session.modelContext)
         guard proof.entryCount == 0 else {
@@ -8359,7 +8378,7 @@ struct StoreGenerationFactory {
             workspaceID: WorkspaceID(rawValue: identity.workspaceID),
             replicaID: ReplicaID(rawValue: identity.replicaID),
             knownReplicaIDs: Set(identity.knownReplicaIDs.map { ReplicaID(rawValue: $0) }),
-            storeSchemaVersion: 39
+            storeSchemaVersion: 40
         )
     }
 
@@ -8415,8 +8434,8 @@ struct StoreGenerationFactory {
         let root = restoreStagingGenerationURL(id: newID)
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
-            let container = try makeV39Container(at: modelStoreURL, migrate: false)
-            let marker = try requireV39Marker(
+            let container = try makeV40Container(at: modelStoreURL, migrate: false)
+            let marker = try requireV40Marker(
                 in: container.mainContext,
                 expectedMigrationID: nil
             )
@@ -8443,10 +8462,10 @@ struct StoreGenerationFactory {
                 generationID: newID,
                 predecessorGenerationID: expectedOldID,
                 migrationID: markerMigrationID,
-                storeSchemaRelease: .v39,
+                storeSchemaRelease: .v40,
                 semanticSHA256: try semanticDigest(
                     at: modelStoreURL,
-                    release: .v39
+                    release: .v40
                 ),
                 frozenIdentityDigest: try frozenIdentityDigest(for: root),
                 files: try generationFileDigests(at: root, durable: true)
@@ -8654,7 +8673,7 @@ struct StoreGenerationFactory {
         archiveProvenanceSHA256: String,
         populate: (ModelContext) throws -> Void
     ) throws {
-        guard (1...C52ServiceRequestStoreGenerationBoundaryV1.recordsSchemaVersion)
+        guard (1...C53AssetServiceReliabilityStoreGenerationBoundaryV1.recordsSchemaVersion)
                 .contains(recordsSchemaVersion),
               CompatibilityCanonicalV1.validSHA256(archiveProvenanceSHA256),
               (recordsSchemaVersion >= 5) == (sourceGenerationID != nil) else {
@@ -8769,7 +8788,7 @@ struct StoreGenerationFactory {
             }
             let firstTargetPersistentSchemaVersion = max(recordsSchemaVersion + 2, 10)
             let currentPersistentSchemaVersion =
-                C51ScheduleExceptionMigrationBoundaryV1.persistentSchemaVersion
+                C53AssetServiceReliabilityStoreGenerationBoundaryV1.targetPersistentSchemaVersion
             if firstTargetPersistentSchemaVersion <= currentPersistentSchemaVersion {
                 for targetPersistentSchemaVersion in
                     firstTargetPersistentSchemaVersion...currentPersistentSchemaVersion {
@@ -8783,8 +8802,8 @@ struct StoreGenerationFactory {
                 }
             } else {
                 _ = try autoreleasepool {
-                    let container = try makeV39Container(at: modelURL, migrate: false)
-                    return try requireV39Marker(
+                    let container = try makeV40Container(at: modelURL, migrate: false)
+                    return try requireV40Marker(
                         in: container.mainContext,
                         expectedMigrationID: id
                     )
@@ -8842,6 +8861,7 @@ struct StoreGenerationFactory {
         case 37: container = try makeV37Container(at: modelStoreURL, migrate: false)
         case 38: container = try makeV38Container(at: modelStoreURL, migrate: false)
         case 39: container = try makeV39Container(at: modelStoreURL, migrate: false)
+        case 40: container = try makeV40Container(at: modelStoreURL, migrate: false)
         default: throw StoreGenerationFailure.dataPointerInvalid
         }
         guard let release = PersistentSchemaReleaseV1(rawValue: "V\(persistentSchemaVersion)"),
@@ -8963,6 +8983,9 @@ struct StoreGenerationFactory {
         case 39:
             let container = try makeV39Container(at: modelStoreURL, migrate: true)
             try backfillV39Marker(in: container.mainContext, migrationID: migrationID)
+        case 40:
+            let container = try makeV40Container(at: modelStoreURL, migrate: true)
+            try backfillV40Marker(in: container.mainContext, migrationID: migrationID)
         default:
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -9982,6 +10005,9 @@ struct StoreGenerationFactory {
                  let states=try container.mainContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>());guard states.count==1,let state=states.first,state.generationID==id else{throw GenerationLeaseRegistryFailureV1.corruptRegistry};let identity=try WorkspaceReplicaIdentityV1(workspaceID:WorkspaceID(rawValue:state.workspaceID),replicaID:ReplicaID(rawValue:state.activeReplicaID));let journal=try MutationJournalStoreV1(modelContext:container.mainContext,identity:identity,generationID:id,allowStateBootstrap:false);try journal.validateAll()
              case .v39:
                  container=try makeV39Container(at:modelURL,migrate:false);_ = try requireV39Marker(in:container.mainContext,expectedMigrationID:loaded.manifest.migrationID);_ = try semanticExportV39(in:container.mainContext)
+                 let states=try container.mainContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>());guard states.count==1,let state=states.first,state.generationID==id else{throw GenerationLeaseRegistryFailureV1.corruptRegistry};let identity=try WorkspaceReplicaIdentityV1(workspaceID:WorkspaceID(rawValue:state.workspaceID),replicaID:ReplicaID(rawValue:state.activeReplicaID));let journal=try MutationJournalStoreV1(modelContext:container.mainContext,identity:identity,generationID:id,allowStateBootstrap:false);try journal.validateAll()
+             case .v40:
+                 container=try makeV40Container(at:modelURL,migrate:false);_ = try requireV40Marker(in:container.mainContext,expectedMigrationID:loaded.manifest.migrationID);_ = try semanticExportV40(in:container.mainContext)
                  let states=try container.mainContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>());guard states.count==1,let state=states.first,state.generationID==id else{throw GenerationLeaseRegistryFailureV1.corruptRegistry};let identity=try WorkspaceReplicaIdentityV1(workspaceID:WorkspaceID(rawValue:state.workspaceID),replicaID:ReplicaID(rawValue:state.activeReplicaID));let journal=try MutationJournalStoreV1(modelContext:container.mainContext,identity:identity,generationID:id,allowStateBootstrap:false);try journal.validateAll()
              }
         }
@@ -11182,7 +11208,7 @@ struct StoreGenerationFactory {
             markerMigrationID: Self.bootstrapManifestMigrationID
         )
         try autoreleasepool {
-            let container = try makeV39Container(at: modelStoreURL, migrate: false)
+            let container = try makeV40Container(at: modelStoreURL, migrate: false)
             _ = try MutationJournalStoreV1(
                 modelContext: container.mainContext,
                 identity: pointerEnrichmentIdentity,
@@ -11201,10 +11227,10 @@ struct StoreGenerationFactory {
                 excluding: generationID
             ),
             migrationID: Self.bootstrapManifestMigrationID,
-            storeSchemaRelease: .v39,
+            storeSchemaRelease: .v40,
             semanticSHA256: try semanticDigest(
                 at: modelStoreURL,
-                release: .v39
+                release: .v40
             ),
             frozenIdentityDigest: try frozenIdentityDigest(
                 for: generationRootURL
@@ -11223,7 +11249,7 @@ struct StoreGenerationFactory {
             generationManifestSHA256: manifestDigest,
             workspaceID: pointerEnrichmentIdentity.workspaceID,
             replicaID: pointerEnrichmentIdentity.replicaID,
-            storeSchemaVersion: 39
+            storeSchemaVersion: 40
         )
         let retiredPointer = RetiredPointerV1(
             generationIDs: [],
@@ -11444,7 +11470,7 @@ struct StoreGenerationFactory {
         markerMigrationID: UUID
     ) throws {
         try autoreleasepool {
-            let container = try makeV39Container(
+            let container = try makeV40Container(
                 at: modelStoreURL,
                 migrate: false
             )
@@ -11452,13 +11478,13 @@ struct StoreGenerationFactory {
                 let context = container.mainContext
                 context.insert(PersistentSchemaReleaseMarker(
                     id: PersistentSchemaReleaseRegistryV1.v2MarkerID,
-                    schemaVersion: 39,
-                    releaseID: PersistentSchemaReleaseRegistryV1.v39CompatibilityID,
-                    predecessorReleaseID: PersistentSchemaReleaseRegistryV1.v38CompatibilityID,
+                    schemaVersion: 40,
+                    releaseID: PersistentSchemaReleaseRegistryV1.v40CompatibilityID,
+                    predecessorReleaseID: PersistentSchemaReleaseRegistryV1.v39CompatibilityID,
                     migrationID: markerMigrationID
                 ))
                 try context.save()
-                _ = try requireV39Marker(in: context, expectedMigrationID: markerMigrationID)
+                _ = try requireV40Marker(in: context, expectedMigrationID: markerMigrationID)
             }
         }
     }
@@ -11514,8 +11540,8 @@ struct StoreGenerationFactory {
         }
         let container: ModelContainer
         do {
-            container = try makeV39Container(at: modelStoreURL, migrate: false)
-            _ = try requireV39Marker(in: container.mainContext, expectedMigrationID: nil)
+            container = try makeV40Container(at: modelStoreURL, migrate: false)
+            _ = try requireV40Marker(in: container.mainContext, expectedMigrationID: nil)
         }
         catch { throw StoreGenerationFailure.dataPointerInvalid }
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)
@@ -11763,6 +11789,7 @@ private struct StoreSemanticEnvelopeV36:Codable{let base:Data;let envelopes:[Act
 private struct StoreSemanticEnvelopeV37:Codable{let base:Data;let workResources:[WorkResourceEntryV1]}
 private struct StoreSemanticEnvelopeV38:Codable{let base:Data;let calendars:[ExceptionCalendarReleaseV1];let overrides:[ScheduleOverrideEventV1]}
 private struct StoreSemanticEnvelopeV39:Codable{let base:Data;let records:[ServiceRequestRecordV1];let dispositions:[ServiceRequestDispositionEventV1];let workLinks:[ServiceRequestWorkLinkEventV1]}
+private struct StoreSemanticEnvelopeV40:Codable{let base:Data;let events:[Data]}
 
 private struct AssetSemanticDateBoxV1: Codable {
     let value: Date
@@ -11982,3 +12009,4 @@ enum C52ServiceRequestStoreGenerationBoundaryV1 {
             && derivedDuplicateProjectionIsRebuilt
     }
 }
+enum C53AssetServiceReliabilityStoreGenerationBoundaryV1{static let sourcePersistentSchemaVersion=39,targetPersistentSchemaVersion=40,recordsSchemaVersion=39;static let derivedProjectionPersistent=false}

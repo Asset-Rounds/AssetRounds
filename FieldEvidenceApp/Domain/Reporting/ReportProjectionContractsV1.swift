@@ -5928,3 +5928,218 @@ enum C52ServiceRequestBoundary_ReportProjectionContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C53 service-reliability report projection
+
+/// A renderer-neutral, immutable report view over the C53 metric-input
+/// projection. Exact values are emitted only when the source projection
+/// qualified them; an unavailable qualification remains explicit.
+enum C53ServiceReliabilityReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case nonCanonical
+    case forbiddenOperationalClaim
+}
+
+struct C53ServiceReliabilityReportProjectionV1: Codable, Equatable, Sendable,
+    ServiceReliabilityCanonicalValidatingV1 {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let subjectID: UUID
+    let reliabilityIdentityEpochID: UUID
+    let observationWindow: ServiceReliabilityClosedIntervalV1
+    let asOf: ServiceReliabilityInstantV1
+    let exposureDurationMilliseconds: UInt64
+    let unplannedFullDowntimeMilliseconds: UInt64
+    let operatingExposureDurationMilliseconds: UInt64
+    let exposureIntervalCount: Int
+    let downtimeIntervalCount: Int
+    let operatingExposureIntervalCount: Int
+    let completedRepairCount: Int
+    let restorationIntervalCount: Int
+    let availabilityQualification: ServiceReliabilityQualificationV1
+    let mtbfQualification: ServiceReliabilityQualificationV1
+    let mttrQualification: ServiceReliabilityQualificationV1
+    let availabilityFraction: ServiceReliabilityRationalV1?
+    let mtbfOperatingMillisecondsPerFailure: ServiceReliabilityRationalV1?
+    /// The mean exact repair interval (MTTR input), not a restoration claim.
+    let meanExactRepairInterval: ServiceReliabilityRationalV1?
+    /// A separate recorded restoration interval metric; it never substitutes
+    /// for MTTR and is nil when no restoration intervals were recorded.
+    let meanRecordedRestorationInterval: ServiceReliabilityRationalV1?
+    let includedSourceEventIDs: [UUID]
+    let excludedSources: [ServiceReliabilityExcludedSourceV1]
+    let sourceProjectionSHA256: String
+    let projectionSHA256: String
+
+    init(input: ReliabilityMetricInputProjectionV1) throws {
+        try input.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = input.workspaceID
+        subjectID = input.subject.asset.subjectID
+        reliabilityIdentityEpochID = input.subject.reliabilityIdentityEpochID
+        observationWindow = input.observationWindow
+        asOf = input.asOf
+        exposureDurationMilliseconds = input.exposureDurationMilliseconds
+        unplannedFullDowntimeMilliseconds = input.unplannedFullDowntimeMilliseconds
+        operatingExposureDurationMilliseconds = input.operatingExposureDurationMilliseconds
+        exposureIntervalCount = input.exposure.count
+        downtimeIntervalCount = input.downtime.count
+        operatingExposureIntervalCount = input.operatingExposure.count
+        completedRepairCount = input.completedRepairCount
+        restorationIntervalCount = input.qualifiedRestorationIntervals.count
+        availabilityQualification = input.availabilityQualification
+        mtbfQualification = input.mtbfQualification
+        mttrQualification = input.mttrQualification
+        availabilityFraction = try input.availabilityFraction
+        mtbfOperatingMillisecondsPerFailure = try input.mtbfOperatingMillisecondsPerFailure
+        meanExactRepairInterval = try input.meanExactRepairMilliseconds
+        meanRecordedRestorationInterval = try input.meanRecordedRestorationMilliseconds
+        includedSourceEventIDs = input.includedSourceEventIDs
+        excludedSources = input.excludedSources
+        sourceProjectionSHA256 = input.projectionSHA256
+        projectionSHA256 = try ServiceReliabilityCanonicalCodecV1.sha256(
+            Basis(
+                schemaVersion: Self.schemaVersion,
+                workspaceID: input.workspaceID,
+                subjectID: input.subject.asset.subjectID,
+                reliabilityIdentityEpochID: input.subject.reliabilityIdentityEpochID,
+                observationWindow: input.observationWindow,
+                asOf: input.asOf,
+                exposureDurationMilliseconds: input.exposureDurationMilliseconds,
+                unplannedFullDowntimeMilliseconds: input.unplannedFullDowntimeMilliseconds,
+                operatingExposureDurationMilliseconds: input.operatingExposureDurationMilliseconds,
+                exposureIntervalCount: input.exposure.count,
+                downtimeIntervalCount: input.downtime.count,
+                operatingExposureIntervalCount: input.operatingExposure.count,
+                completedRepairCount: input.completedRepairCount,
+                restorationIntervalCount: input.qualifiedRestorationIntervals.count,
+                availabilityQualification: input.availabilityQualification,
+                mtbfQualification: input.mtbfQualification,
+                mttrQualification: input.mttrQualification,
+                availabilityFraction: try input.availabilityFraction,
+                mtbfOperatingMillisecondsPerFailure: try input.mtbfOperatingMillisecondsPerFailure,
+                meanExactRepairInterval: try input.meanExactRepairMilliseconds,
+                meanRecordedRestorationInterval: try input.meanRecordedRestorationMilliseconds,
+                includedSourceEventIDs: input.includedSourceEventIDs,
+                excludedSources: input.excludedSources,
+                sourceProjectionSHA256: input.projectionSHA256
+            )
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              completedRepairCount >= 0,
+              restorationIntervalCount >= 0,
+              exposureIntervalCount >= 0,
+              downtimeIntervalCount >= 0,
+              operatingExposureIntervalCount >= 0,
+              includedSourceEventIDs == includedSourceEventIDs.sorted(by: { $0.uuidString < $1.uuidString }),
+              Set(includedSourceEventIDs).count == includedSourceEventIDs.count,
+              excludedSources == excludedSources.sorted(),
+              Set(excludedSources).count == excludedSources.count else {
+            throw C53ServiceReliabilityReportProjectionFailureV1.invalidValue
+        }
+        try ServiceReliabilityLimitsV1.id(subjectID)
+        try ServiceReliabilityLimitsV1.id(reliabilityIdentityEpochID)
+        try observationWindow.validate()
+        try asOf.validate()
+        try includedSourceEventIDs.forEach(ServiceReliabilityLimitsV1.id)
+        try excludedSources.forEach { try $0.validate() }
+        try ServiceReliabilityLimitsV1.digest(sourceProjectionSHA256)
+        try ServiceReliabilityLimitsV1.digest(projectionSHA256)
+        for value in [availabilityFraction, mtbfOperatingMillisecondsPerFailure,
+                      meanExactRepairInterval, meanRecordedRestorationInterval].compactMap({ $0 }) {
+            try value.validate()
+        }
+        guard (availabilityQualification == .qualified) == (availabilityFraction != nil),
+              (mtbfQualification == .qualified) == (mtbfOperatingMillisecondsPerFailure != nil),
+              (mttrQualification == .qualified) == (meanExactRepairInterval != nil),
+              (restorationIntervalCount > 0) == (meanRecordedRestorationInterval != nil),
+              projectionSHA256 == (try ServiceReliabilityCanonicalCodecV1.sha256(basis)) else {
+            throw C53ServiceReliabilityReportProjectionFailureV1.nonCanonical
+        }
+        guard !ServiceReliabilityClaimBoundaryV1.restorationImpliesSafety,
+              !ServiceReliabilityClaimBoundaryV1.restorationImpliesCompliance,
+              !ServiceReliabilityClaimBoundaryV1.restorationImpliesVerification,
+              ServiceReliabilityClaimBoundaryV1.restorationGrantsNoIndependentOperationalAuthority,
+              !ServiceReliabilityClaimBoundaryV1.automaticallyConfirmsCause else {
+            throw C53ServiceReliabilityReportProjectionFailureV1.forbiddenOperationalClaim
+        }
+    }
+
+    private var basis: Basis {
+        Basis(
+            schemaVersion: schemaVersion,
+            workspaceID: workspaceID,
+            subjectID: subjectID,
+            reliabilityIdentityEpochID: reliabilityIdentityEpochID,
+            observationWindow: observationWindow,
+            asOf: asOf,
+            exposureDurationMilliseconds: exposureDurationMilliseconds,
+            unplannedFullDowntimeMilliseconds: unplannedFullDowntimeMilliseconds,
+            operatingExposureDurationMilliseconds: operatingExposureDurationMilliseconds,
+            exposureIntervalCount: exposureIntervalCount,
+            downtimeIntervalCount: downtimeIntervalCount,
+            operatingExposureIntervalCount: operatingExposureIntervalCount,
+            completedRepairCount: completedRepairCount,
+            restorationIntervalCount: restorationIntervalCount,
+            availabilityQualification: availabilityQualification,
+            mtbfQualification: mtbfQualification,
+            mttrQualification: mttrQualification,
+            availabilityFraction: availabilityFraction,
+            mtbfOperatingMillisecondsPerFailure: mtbfOperatingMillisecondsPerFailure,
+            meanExactRepairInterval: meanExactRepairInterval,
+            meanRecordedRestorationInterval: meanRecordedRestorationInterval,
+            includedSourceEventIDs: includedSourceEventIDs,
+            excludedSources: excludedSources,
+            sourceProjectionSHA256: sourceProjectionSHA256
+        )
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let workspaceID: WorkspaceID
+        let subjectID: UUID
+        let reliabilityIdentityEpochID: UUID
+        let observationWindow: ServiceReliabilityClosedIntervalV1
+        let asOf: ServiceReliabilityInstantV1
+        let exposureDurationMilliseconds: UInt64
+        let unplannedFullDowntimeMilliseconds: UInt64
+        let operatingExposureDurationMilliseconds: UInt64
+        let exposureIntervalCount: Int
+        let downtimeIntervalCount: Int
+        let operatingExposureIntervalCount: Int
+        let completedRepairCount: Int
+        let restorationIntervalCount: Int
+        let availabilityQualification: ServiceReliabilityQualificationV1
+        let mtbfQualification: ServiceReliabilityQualificationV1
+        let mttrQualification: ServiceReliabilityQualificationV1
+        let availabilityFraction: ServiceReliabilityRationalV1?
+        let mtbfOperatingMillisecondsPerFailure: ServiceReliabilityRationalV1?
+        let meanExactRepairInterval: ServiceReliabilityRationalV1?
+        let meanRecordedRestorationInterval: ServiceReliabilityRationalV1?
+        let includedSourceEventIDs: [UUID]
+        let excludedSources: [ServiceReliabilityExcludedSourceV1]
+        let sourceProjectionSHA256: String
+    }
+}
+
+enum C53ServiceReliabilityReportProjectionBoundaryV1 {
+    static let sourceProjectionIsImmutable = true
+    static let unavailableMetricsAreExplicit = true
+    static let meanRecordedRestorationIsDistinctFromMTTR = true
+    static let complianceAndSafetyClaimsAreForbidden = true
+    static let rendererMayOnlyConsumeValidatedProjection = true
+
+    static func projection(
+        from input: ReliabilityMetricInputProjectionV1
+    ) throws -> C53ServiceReliabilityReportProjectionV1 {
+        let value = try C53ServiceReliabilityReportProjectionV1(input: input)
+        try value.validate()
+        return value
+    }
+}

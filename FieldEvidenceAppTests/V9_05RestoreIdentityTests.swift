@@ -8,6 +8,10 @@ private enum C52ServiceRequestBoundary_V9_05RestoreIdentityTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
+private enum C53AssetServiceReliabilityBoundary_V9_05RestoreIdentityTests {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
 private final class C50RestoreIdentityTests: XCTestCase {
     func testV23P03C50ReplaceCloneAndForkNeverActivateOrReinterpretAdapterState() {
         for mode in BackupRestoreMode.allCases {

@@ -28,6 +28,31 @@ extension FindingV1 {
     }
 }
 
+// MARK: - C53 reliability finding-source boundary
+
+enum C53ServiceReliabilityFindingBoundaryV1 {
+    static let sourceKind: FindingSourceKindV1 = .importedRecord
+    static let findingsAreNotSynthesizedFromMetricQualification = true
+    static let sourceBytesRemainOutsideFindingPayload = true
+    static let unavailableMetricsDoNotBecomeFindingSeverity = true
+
+    static func sourceReference(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> FindingSourceV1 {
+        try projection.validate()
+        guard findingsAreNotSynthesizedFromMetricQualification,
+              sourceBytesRemainOutsideFindingPayload,
+              unavailableMetricsDoNotBecomeFindingSeverity else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+        return try FindingSourceV1(
+            kind: sourceKind,
+            sourceID: "c53-service-reliability-" + projection.projectionSHA256,
+            sourceRevision: 1
+        )
+    }
+}
+
 enum FindingContractLimitsV1 {
     static let maximumIDBytes = 128
     static let maximumTextBytes = 2_048

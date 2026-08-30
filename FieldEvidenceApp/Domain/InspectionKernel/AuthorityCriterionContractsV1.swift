@@ -1392,3 +1392,14 @@ extension MeasurementProtocolReleaseV1 {
         }
     }
 }
+
+enum C53SharedAuthorityCriterionBoundaryV1 {
+    static let subjectType: ServiceReliabilitySubjectV1.Type = ServiceReliabilitySubjectV1.self
+    static let intervalType: ServiceReliabilityClosedIntervalV1.Type = ServiceReliabilityClosedIntervalV1.self
+    static let reliabilityInputsBindToFrozenSubjectContext = true
+    static let causeAndRestorationAreRecordedProvenance = true
+    static let verifiedIdentityOrResponsibilityIsInferred = false
+    static let releaseToServiceOrComplianceIsInferred = false
+    static let metricOutputIsOwnedByDownstreamProjection = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

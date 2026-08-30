@@ -771,6 +771,15 @@ extension InspectionPackageAuthorityCriterionBindingV1 {
     }
 }
 
+enum C53SharedInspectionPackageContractBoundaryV1 {
+    static let incidentType: AssetServiceIncidentV1.Type = AssetServiceIncidentV1.self
+    static let assetServiceReliabilityIsPackageScoped = true
+    static let releaseBindingFreezesSubjectContext = true
+    static let packageContractCreatesNoReliabilityWriter = true
+    static let metricDefinitionsRemainDownstreamOwned = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}
+
 // MARK: - C20 reviewed-derivative package binding
 
 extension InspectionPackageAuthorityCriterionBindingV1 {

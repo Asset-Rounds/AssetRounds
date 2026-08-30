@@ -420,3 +420,71 @@ enum C48PortableExchangeImportBoundaryV2 {
         }
     }
 }
+
+/// C53 imports the seven service-reliability source families and their
+/// journal receipts through the existing backup envelope.  No derived metric,
+/// capability byte, or parallel import store is part of the archive contract.
+enum C53ServiceReliabilityBackupImportContractBoundaryV1 {
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let durableFamilyCount = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies.count
+    static let canonicalRowKinds = C53ServiceReliabilityBackupEnrollmentV1.canonicalRowKinds
+    static let importsCanonicalRowsOnly = true
+    static let importsMutationHistoryReceipts = true
+    static let replacesAllSevenFamiliesInOneWriterTransaction = true
+    static let preservesAppendOnlyIncidentAndExposureHistory = true
+    static let preservesReliabilityIdentityEpochs = true
+    static let derivedProjectionsAreRebuilt = true
+    static let importsProjectionRows = false
+
+    static func validate(
+        persistent: Int,
+        records: Int,
+        backup: V4BackupRecordsV1,
+        workspaceID: UUID? = nil
+    ) throws {
+        guard persistent == persistentSchemaVersion,
+              records == backup.recordsSchemaVersion,
+              records == recordsSchemaVersion,
+              persistentSchemaVersion == 40,
+              durableFamilyCount == 7,
+              canonicalRowKinds == C53ServiceReliabilityBackupEnrollmentV1.canonicalRowKinds,
+              importsCanonicalRowsOnly,
+              importsMutationHistoryReceipts,
+              replacesAllSevenFamiliesInOneWriterTransaction,
+              preservesAppendOnlyIncidentAndExposureHistory,
+              preservesReliabilityIdentityEpochs,
+              derivedProjectionsAreRebuilt,
+              !importsProjectionRows else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        do {
+            try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                records: backup,
+                workspaceID: workspaceID
+            )
+        } catch {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    }
+
+    static func validate(_ backup: V4BackupRecordsV1, workspaceID: UUID? = nil) throws {
+        try validate(
+            persistent: persistentSchemaVersion,
+            records: backup.recordsSchemaVersion,
+            backup: backup,
+            workspaceID: workspaceID
+        )
+    }
+
+    static func canonicalRows(
+        from backup: V4BackupRecordsV1,
+        workspaceID: UUID? = nil
+    ) throws -> C53ServiceReliabilityBackupRowsV1 {
+        try validate(backup, workspaceID: workspaceID)
+        return try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+            from: backup,
+            workspaceID: workspaceID
+        )
+    }
+}

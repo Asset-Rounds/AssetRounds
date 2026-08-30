@@ -5214,3 +5214,88 @@ enum C34RouteLocalizationContractV1 {
         }
     }
 }
+
+// MARK: - C53 asset-service reliability localization
+
+/// C53 labels describe recorded operational-impact and qualification state.
+/// They never turn an observation into a verified identity, uptime claim, or
+/// release-to-service decision.
+enum C53AssetServiceReliabilityLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case causeUnverified = "service_reliability.cause.unverified"
+    case exposureQualified = "service_reliability.exposure.qualified"
+    case incidentRecorded = "service_reliability.incident.recorded"
+    case metricUnavailable = "service_reliability.metric.unavailable"
+    case restorationRecorded = "service_reliability.restoration.recorded"
+    case segmentImpact = "service_reliability.segment.impact"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum C53AssetServiceReliabilityLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let englishOnly = true
+    static let recordedStateOnly = true
+    static let verifiedIdentityClaimed = false
+    static let uptimeClaimed = false
+    static let releaseToServiceClaimed = false
+    static let unknownIntervalsQualifyForExactMetrics = false
+
+    static func english(_ key: C53AssetServiceReliabilityLocalizationKeyV1) -> String {
+        switch key {
+        case .causeUnverified: return "Cause assessment is unverified"
+        case .exposureQualified: return "Qualified service exposure"
+        case .incidentRecorded: return "Operational impact recorded"
+        case .metricUnavailable: return "Reliability metric unavailable"
+        case .restorationRecorded: return "Restoration recorded"
+        case .segmentImpact: return "Service impact segment"
+        }
+    }
+
+    static func validate() throws {
+        let values = C53AssetServiceReliabilityLocalizationKeyV1.allCases
+        let rawValues = values.map(\.rawValue)
+        guard sourceLocale == "en",
+              englishOnly,
+              recordedStateOnly,
+              !verifiedIdentityClaimed,
+              !uptimeClaimed,
+              !releaseToServiceClaimed,
+              !unknownIntervalsQualifyForExactMetrics,
+              rawValues == rawValues.sorted(),
+              Set(rawValues).count == rawValues.count,
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
+/// Shared C53 boundary constants let inherited surfaces enroll the four
+/// contract refs without introducing a second writer, store, or claim.
+enum C53SharedServiceReliabilitySemanticBoundaryV1 {
+    static let cardID = "V23-P03-C53"
+    static let schema = "V23P03C53AssetServiceReliabilityContractV1"
+    static let incidentType: AssetServiceIncidentV1.Type = AssetServiceIncidentV1.self
+    static let impactSegmentType: ServiceImpactSegmentV1.Type = ServiceImpactSegmentV1.self
+    static let qualifiedExposureType: QualifiedServiceExposureV1.Type = QualifiedServiceExposureV1.self
+    static let metricInputProjectionType: ReliabilityMetricInputProjectionV1.Type = ReliabilityMetricInputProjectionV1.self
+    static let claimBoundaryType: ServiceReliabilityClaimBoundaryV1.Type = ServiceReliabilityClaimBoundaryV1.self
+    static let journeyContractType: ServiceReliabilityFJ09ContractV1.Type = ServiceReliabilityFJ09ContractV1.self
+    static let contractNames = [
+        "AssetServiceIncidentV1",
+        "ServiceImpactSegmentV1",
+        "QualifiedServiceExposureV1",
+        "ReliabilityMetricInputProjectionV1"
+    ]
+    static let impactKinds = ["FULL_INTERRUPTION", "DEGRADED", "INTERMITTENT", "UNKNOWN"]
+    static let originKinds = ["PLANNED", "UNPLANNED", "UNKNOWN"]
+    static let appendOnlyIncidentAndCorrectionHistory = true
+    static let metricRequiresQualifiedPositiveExposure = true
+    static let unknownIntervalsExcludedFromExactMetrics = true
+    static let noVerifiedIdentityOrReleaseToServiceClaim = true
+    static let noAutomaticWorkOrDuplicateAction = true
+    static let rawCapabilitiesAndDiagnosticProjectionsExcluded = true
+    static let zeroExposureDisposition = "UNAVAILABLE_ZERO_QUALIFIED_EXPOSURE"
+}

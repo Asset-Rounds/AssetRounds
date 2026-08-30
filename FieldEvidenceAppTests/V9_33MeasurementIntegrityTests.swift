@@ -346,6 +346,12 @@ private struct C19CorpusFlagsV1: Decodable {
     let release: Bool
 }
 
+private struct C53MeasurementReliabilityBoundaryFixtureV1: Decodable {
+    let contractNames: [String]
+    let usesMeasurementAsEvidenceOnly: Bool
+    let unknownIntervalsQualifyForExactMetrics: Bool
+}
+
 private struct C19CorpusFixtureV1: Decodable {
     let schema: String
     let schemaVersion: Int
@@ -391,6 +397,7 @@ private struct C19CorpusFixtureV1: Decodable {
     let noSecondWriter: Bool
     let noSecondStore: Bool
     let noActivationFromSandbox: Bool
+    let c53SharedBoundary: C53MeasurementReliabilityBoundaryFixtureV1
     let provisionalFlags: C19CorpusFlagsV1
 }
 
@@ -467,6 +474,12 @@ final class V9_33MeasurementIntegrityTests: XCTestCase {
         XCTAssertFalse(corpus.provisionalFlags.adoption)
         XCTAssertFalse(corpus.provisionalFlags.acceptance)
         XCTAssertFalse(corpus.provisionalFlags.release)
+        XCTAssertEqual(corpus.c53SharedBoundary.contractNames,
+                       C53SharedServiceReliabilitySemanticBoundaryV1.contractNames)
+        XCTAssertTrue(corpus.c53SharedBoundary.usesMeasurementAsEvidenceOnly)
+        XCTAssertFalse(corpus.c53SharedBoundary.unknownIntervalsQualifyForExactMetrics)
+        XCTAssertTrue(C53SharedMeasurementEvidenceBoundaryV1.measurementCapturesRemainEvidenceInputs)
+        XCTAssertTrue(C53SharedMeasurementEvidenceBoundaryV1.unqualifiedCaptureCannotSatisfyServiceExposure)
     }
 
     func testV23P03C19G01InstrumentCalibrationCaptureAndQualityReviewAreDeterministic() throws {

@@ -178,6 +178,21 @@ enum ServiceRequestEraseAllPolicyV1 {
         }
     }
 }
+enum AssetServiceReliabilityEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        guard C53AssetServiceReliabilityEraseIntentBoundaryV1.validate(),
+              try context.fetchCount(FetchDescriptor<AssetServiceIncidentRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ServiceImpactSegmentRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ServiceCauseAssertionRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ServiceRemedyAssertionRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ServiceRepairIntervalRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ServiceRestorationAssertionRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<QualifiedServiceExposureRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
 enum AssetLocatorEraseAllPolicyV1 {
     static let persistentSchemaVersion = 26
     static let recordsSchemaVersion = 25
@@ -1476,6 +1491,9 @@ private extension EraseAllService {
         try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
         try PlanEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try PlacementPoseEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext

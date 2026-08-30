@@ -541,3 +541,24 @@ enum C47ActivityContractCompatibility_FieldEvidenceApp_Domain_InspectionKernel_R
     static let legacyInspectionTruthIsNotRewritten = true
     static let threeReceiptIsolationIsRequired = true
 }
+
+// MARK: - C53 reliability response isolation
+
+enum C53ServiceReliabilityResponseValueBoundaryV1 {
+    static let reliabilityEventsAreNotResponseValues = true
+    static let metricInputIsNotAUserResponse = true
+    static let responseRegistryIsNotReliabilityAuthority = true
+    static let rawActorRecordedImpactBytesAreNotResponsePayload = true
+    static let exactMetricQualificationRemainsInServiceReliabilityProjection = true
+
+    static func validate(
+        _ input: ReliabilityMetricInputProjectionV1
+    ) throws {
+        try input.validate()
+        guard reliabilityEventsAreNotResponseValues,
+              metricInputIsNotAUserResponse,
+              responseRegistryIsNotReliabilityAuthority else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+    }
+}

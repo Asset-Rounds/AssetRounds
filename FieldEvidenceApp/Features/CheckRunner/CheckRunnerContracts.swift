@@ -997,3 +997,15 @@ enum C34RouteAdoptionBoundary_CheckRunnerContractsV1 {
     static let canonicalTargetType = NavigationTargetV1.self
     static let routeIsReadOnly = true
 }
+
+enum C53SharedCheckRunnerContractBoundaryV1 {
+    static let atomicBundleType: ServiceReliabilityAtomicBundleV1.Type = ServiceReliabilityAtomicBundleV1.self
+    static let evidenceIDs = [
+        "V23-P03-C53-G01", "V23-P03-C53-A01", "V23-P03-C53-H01",
+        "V23-P03-C53-I01", "V23-P03-C53-R01"
+    ]
+    static let checkRunnerMayRecordObservationButNotReliabilityTruth = true
+    static let checkRunnerMayNotCreateWorkOrReleaseToServiceClaim = true
+    static let unqualifiedMetricResultIsUnavailable = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

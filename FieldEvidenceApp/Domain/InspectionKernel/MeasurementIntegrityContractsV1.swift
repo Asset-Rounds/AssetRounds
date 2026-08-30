@@ -401,3 +401,14 @@ enum MeasurementIntegrityValidationV1{
 }
 
 private extension UUID { static let zero = UUID(uuidString:"00000000-0000-0000-0000-000000000000")! }
+
+enum C53SharedMeasurementEvidenceBoundaryV1 {
+    static let measurementCaptureType: MeasurementCaptureV1.Type = MeasurementCaptureV1.self
+    static let metricInputType: ReliabilityMetricInputProjectionV1.Type = ReliabilityMetricInputProjectionV1.self
+    static let measurementCapturesRemainEvidenceInputs = true
+    static let explicitObservationBasisAndTimeAreRetained = true
+    static let unqualifiedCaptureCannotSatisfyServiceExposure = true
+    static let fixedPointDigestAndRevisionSemanticsRemainC19 = true
+    static let noHardwareIoTOrPredictiveProviderIsIntroduced = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

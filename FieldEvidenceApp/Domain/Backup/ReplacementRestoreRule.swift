@@ -1331,10 +1331,17 @@ enum C52ServiceRequestReplacementRestorePolicyV1 {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
         do {
-            try C52ServiceRequestBackupEnrollmentV1.validate(
-                records: records,
-                workspaceID: targetWorkspaceID
-            )
+            if records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: records,
+                    workspaceID: targetWorkspaceID
+                )
+            } else {
+                try C52ServiceRequestBackupEnrollmentV1.validate(
+                    records: records,
+                    workspaceID: targetWorkspaceID
+                )
+            }
         } catch {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
@@ -1385,4 +1392,125 @@ enum C52ServiceRequestBoundary_ReplacementRestoreRule {
     static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}
+
+/// C53 replacement/clone planning carries reliability source rows and
+/// receipts as immutable evidence; no derived reliability projection is
+/// treated as restore input.
+enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let preservesAppendOnlyIncidentAndExposureHistory = true
+    static let preservesReliabilityIdentityEpochs = true
+    static let cloneForkRequiresExplicitWorkspaceRebind = true
+    static let cloneForkAutomaticallyActivatesSourceRows = false
+    static let derivedProjectionsAreRebuilt = true
+
+    static func validate(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        sourceWorkspaceID: UUID?,
+        targetWorkspaceID: UUID?
+    ) throws {
+        guard persistentSchemaVersion == 40,
+              recordsSchemaVersion == 39,
+              preservesAppendOnlyIncidentAndExposureHistory,
+              preservesReliabilityIdentityEpochs,
+              cloneForkRequiresExplicitWorkspaceRebind,
+              !cloneForkAutomaticallyActivatesSourceRows,
+              derivedProjectionsAreRebuilt,
+              current.recordsSchemaVersion <= recordsSchemaVersion,
+              incoming.recordsSchemaVersion <= recordsSchemaVersion else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            switch mode {
+            case .emptyInstall:
+                guard !containsRows(current) else { throw ReplacementRestoreRuleError.invalidAuthority }
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: current
+                )
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: incoming,
+                    workspaceID: targetWorkspaceID
+                )
+            case .replaceExisting:
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: current,
+                    workspaceID: targetWorkspaceID
+                )
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: incoming,
+                    workspaceID: targetWorkspaceID
+                )
+            case .clone, .fork:
+                guard let sourceWorkspaceID, let targetWorkspaceID,
+                      sourceWorkspaceID != targetWorkspaceID else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: incoming,
+                    workspaceID: sourceWorkspaceID
+                )
+            }
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+
+    static func canonicalRows(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        sourceWorkspaceID: UUID?,
+        targetWorkspaceID: UUID?
+    ) throws -> C53ServiceReliabilityBackupRowsV1 {
+        try validate(
+            current: current,
+            incoming: incoming,
+            mode: mode,
+            sourceWorkspaceID: sourceWorkspaceID,
+            targetWorkspaceID: targetWorkspaceID
+        )
+        let incomingRows=try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+            from: incoming,
+            workspaceID: mode == .clone || mode == .fork ? sourceWorkspaceID:targetWorkspaceID
+        )
+        guard mode == .replaceExisting else{return incomingRows}
+        let currentRows=try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+            from: current,
+            workspaceID: targetWorkspaceID
+        )
+        return try .init(
+            incidents:merge(currentRows.incidents,incomingRows.incidents,key:{"\($0.incidentID.uuidString)|\($0.revision)"}),
+            impactSegments:merge(currentRows.impactSegments,incomingRows.impactSegments,key:{"\($0.segmentID.uuidString)|\($0.revision)"}),
+            causeAssertions:merge(currentRows.causeAssertions,incomingRows.causeAssertions,key:{"\($0.assertionID.uuidString)|\($0.revision)"}),
+            remedyAssertions:merge(currentRows.remedyAssertions,incomingRows.remedyAssertions,key:{"\($0.assertionID.uuidString)|\($0.revision)"}),
+            repairIntervals:merge(currentRows.repairIntervals,incomingRows.repairIntervals,key:{"\($0.repairID.uuidString)|\($0.revision)"}),
+            restorationAssertions:merge(currentRows.restorationAssertions,incomingRows.restorationAssertions,key:{"\($0.assertionID.uuidString)|\($0.revision)"}),
+            qualifiedExposures:merge(currentRows.qualifiedExposures,incomingRows.qualifiedExposures,key:{"\($0.exposureID.uuidString)|\($0.revision)"}),
+            receipts:merge(currentRows.receipts,incomingRows.receipts,key:{$0.mutationReceipt.mutationID.rawValue.uuidString})
+        )
+    }
+
+    private static func merge<T:Equatable>(_ current:[T],_ incoming:[T],key:(T)->String)throws->[T]{
+        var values:[String:T]=[:]
+        for value in current+incoming{let identity=key(value)
+            if let prior=values[identity],prior != value{throw ReplacementRestoreRuleError.invalidAuthority}
+            values[identity]=value
+        }
+        return values.sorted{$0.key<$1.key}.map(\.value)
+    }
+
+    private static func containsRows(_ records:V4BackupRecordsV1)->Bool{
+        !records.serviceReliabilityIncidents.isEmpty
+            || !records.serviceImpactSegments.isEmpty
+            || !records.serviceCauseAssertions.isEmpty
+            || !records.serviceRemedyAssertions.isEmpty
+            || !records.serviceRepairIntervals.isEmpty
+            || !records.serviceRestorationAssertions.isEmpty
+            || !records.qualifiedServiceExposures.isEmpty
+            || !records.serviceReliabilityReceipts.isEmpty
+    }
 }

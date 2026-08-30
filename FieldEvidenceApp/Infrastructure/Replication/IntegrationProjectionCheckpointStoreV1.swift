@@ -484,3 +484,4 @@ enum C52ServiceRequestProjectionCheckpointBoundaryV1 {
     static let checkpointCannotSkipWorkLinkReversal = true
     static let rebuildStartsFromCanonicalJournal = true
 }
+enum C53AssetServiceReliabilityProjectionCheckpointBoundaryV1{static let checkpointAdvancesAfterDurableReceipt=true;static let checkpointCannotSkipIncidentSuccessors=true;static let derivedProjectionBytesCheckpointed=false}

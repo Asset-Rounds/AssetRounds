@@ -506,3 +506,22 @@ enum C52ServiceRequestIntegrationProjectionBoundaryV1 {
     static let workLinkReversalIsDistinctAppendOnlyEvent = true
     static let duplicateSuggestionProjectionExcluded = true
 }
+enum C53AssetServiceReliabilityIntegrationProjectionBoundaryV1 {
+    static var canonicalEventKinds: [String] {
+        get throws { try C53AssetServiceReliabilityIntegrationEventContractV1.eventKinds }
+    }
+    static let sourceIsMutationReceiptPostImage = true
+    static let reliabilityProjectionRebuildsFromCanonicalEvents = true
+
+    static func validate(registry: IntegrationContractRegistryV1) throws {
+        try C53AssetServiceReliabilityIntegrationEventContractV1.validate(registry: registry)
+        for definition in try C53AssetServiceReliabilityIntegrationEventContractV1.definitions() {
+            guard try registry.definition(
+                eventKind: definition.eventKind,
+                version: definition.eventVersion
+            ) == definition else {
+                throw IntegrationEventFailureV1.unknownEventKind
+            }
+        }
+    }
+}

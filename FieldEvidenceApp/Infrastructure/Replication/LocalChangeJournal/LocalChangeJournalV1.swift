@@ -1855,3 +1855,4 @@ enum C52ServiceRequestLocalChangeReplayBoundaryV1 {
     static let replayMayRebuildDerivedProjections = true
     static let replayMayPersistDuplicateProjection = false
 }
+enum C53AssetServiceReliabilityLocalChangeReplayBoundaryV1{static let replayableCommandKind:WorkspaceCommandKindV1 = .applyServiceReliability;static let durableFamilies=AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies;static let replayRequiresMatchingMutationReceipt=true;static let derivedProjectionMayBeRebuilt=true}

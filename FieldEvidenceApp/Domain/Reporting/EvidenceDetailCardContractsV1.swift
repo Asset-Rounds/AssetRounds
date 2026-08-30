@@ -2122,3 +2122,55 @@ enum C52ServiceRequestBoundary_EvidenceDetailCardContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C53 reliability evidence-detail card
+
+struct C53ServiceReliabilityEvidenceDetailCardV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let projectionSHA256: String
+    let availabilityQualification: ServiceReliabilityQualificationV1
+    let mtbfQualification: ServiceReliabilityQualificationV1
+    let mttrQualification: ServiceReliabilityQualificationV1
+    let meanRecordedRestorationIntervalPresent: Bool
+    let sourceCount: Int
+    let excludedSourceCount: Int
+
+    init(projection: C53ServiceReliabilityReportProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        projectionSHA256 = projection.projectionSHA256
+        availabilityQualification = projection.availabilityQualification
+        mtbfQualification = projection.mtbfQualification
+        mttrQualification = projection.mttrQualification
+        meanRecordedRestorationIntervalPresent = projection.meanRecordedRestorationInterval != nil
+        sourceCount = projection.includedSourceEventIDs.count
+        excludedSourceCount = projection.excludedSources.count
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              MutationEnvelopeV1.isSHA256(projectionSHA256),
+              sourceCount >= 0,
+              excludedSourceCount >= 0 else {
+            throw C53ServiceReliabilityReportProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+enum C53ServiceReliabilityEvidenceDetailBoundaryV1 {
+    static let cardIsDerivedFromImmutableProjection = true
+    static let exactMetricValuesAreQualificationGated = true
+    static let sourceBytesAndActorIdentityAreExcluded = true
+    static let restorationCardDoesNotClaimMTTR = true
+
+    static func card(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> C53ServiceReliabilityEvidenceDetailCardV1 {
+        let value = try C53ServiceReliabilityEvidenceDetailCardV1(projection: projection)
+        try value.validate()
+        return value
+    }
+}

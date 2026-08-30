@@ -3933,3 +3933,75 @@ enum C52ServiceRequestBoundary_CompletedActivitySnapshotContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C53 immutable snapshot binding
+
+/// Binds a derived reliability report to the already-completed snapshot
+/// digest. The binding is additive and never rewrites the completed snapshot.
+struct C53ServiceReliabilityCompletedSnapshotBindingV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let completedSnapshotSHA256: String
+    let projection: C53ServiceReliabilityReportProjectionV1
+    let bindingSHA256: String
+
+    init(
+        completedSnapshotSHA256: String,
+        projection: C53ServiceReliabilityReportProjectionV1
+    ) throws {
+        try ServiceReliabilityLimitsV1.digest(completedSnapshotSHA256)
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        self.completedSnapshotSHA256 = completedSnapshotSHA256
+        self.projection = projection
+        bindingSHA256 = try ServiceReliabilityCanonicalCodecV1.sha256(
+            Basis(
+                schemaVersion: Self.schemaVersion,
+                completedSnapshotSHA256: completedSnapshotSHA256,
+                projectionSHA256: projection.projectionSHA256
+            )
+        )
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+        try ServiceReliabilityLimitsV1.digest(completedSnapshotSHA256)
+        try projection.validate()
+        try ServiceReliabilityLimitsV1.digest(bindingSHA256)
+        guard bindingSHA256 == (try ServiceReliabilityCanonicalCodecV1.sha256(basis)) else {
+            throw ServiceReliabilityFailureV1.invalidValue
+        }
+    }
+
+    private var basis: Basis {
+        Basis(
+            schemaVersion: schemaVersion,
+            completedSnapshotSHA256: completedSnapshotSHA256,
+            projectionSHA256: projection.projectionSHA256
+        )
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let completedSnapshotSHA256: String
+        let projectionSHA256: String
+    }
+}
+
+enum C53ServiceReliabilityCompletedSnapshotBoundaryV1 {
+    static let completedSnapshotBytesRemainImmutable = true
+    static let reportProjectionIsAdditive = true
+    static let correctionCreatesAReplacementBinding = true
+    static let rawServiceReliabilityEventsAreNotSnapshotBytes = true
+
+    static func bind(
+        completedSnapshotSHA256: String,
+        projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> C53ServiceReliabilityCompletedSnapshotBindingV1 {
+        try .init(completedSnapshotSHA256: completedSnapshotSHA256, projection: projection)
+    }
+}

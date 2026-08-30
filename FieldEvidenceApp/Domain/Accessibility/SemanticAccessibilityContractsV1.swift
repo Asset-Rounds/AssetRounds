@@ -2628,3 +2628,53 @@ enum C52ServiceRequestBoundary_SemanticAccessibilityContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C53 asset-service reliability accessibility
+
+enum C53AssetServiceReliabilityAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case incidentRecorded = "service_reliability.incident.recorded"
+    case segmentImpact = "service_reliability.segment.impact"
+    case causeUnverified = "service_reliability.cause.unverified"
+    case restorationRecorded = "service_reliability.restoration.recorded"
+    case exposureQualified = "service_reliability.exposure.qualified"
+    case metricUnavailable = "service_reliability.metric.unavailable"
+}
+
+enum C53AssetServiceReliabilityAccessibilityPolicyV1 {
+    static let semanticIDs = C53AssetServiceReliabilityAccessibilityIDV1.allCases.map(\.rawValue)
+    static let statusIsNotColorOnly = true
+    static let causeAndQualificationStateAreSpoken = true
+    static let unavailableReasonIsSpoken = true
+    static let rawCapabilityOrSourceBytesAreSpoken = false
+    static let releaseToServiceIsAnnounced = false
+    static let dynamicTypeAndRTLRemainRequired = true
+
+    static func localizationKey(
+        for id: C53AssetServiceReliabilityAccessibilityIDV1
+    ) -> C53AssetServiceReliabilityLocalizationKeyV1 {
+        switch id {
+        case .incidentRecorded: .incidentRecorded
+        case .segmentImpact: .segmentImpact
+        case .causeUnverified: .causeUnverified
+        case .restorationRecorded: .restorationRecorded
+        case .exposureQualified: .exposureQualified
+        case .metricUnavailable: .metricUnavailable
+        }
+    }
+
+    static func validate() throws {
+        let keys = C53AssetServiceReliabilityAccessibilityIDV1.allCases.map {
+            localizationKey(for: $0).rawValue
+        }
+        guard semanticIDs.count == Set(semanticIDs).count,
+              keys.count == Set(keys).count,
+              statusIsNotColorOnly,
+              causeAndQualificationStateAreSpoken,
+              unavailableReasonIsSpoken,
+              !rawCapabilityOrSourceBytesAreSpoken,
+              !releaseToServiceIsAnnounced,
+              dynamicTypeAndRTLRemainRequired else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

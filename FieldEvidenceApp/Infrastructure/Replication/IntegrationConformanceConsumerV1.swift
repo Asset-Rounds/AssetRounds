@@ -282,3 +282,4 @@ enum C52ServiceRequestIntegrationConformanceBoundaryV1 {
     static let duplicateProjectionSubjectCount = 0
     static let requiresExactlyOnceWorkLinkAndReversal = true
 }
+enum C53AssetServiceReliabilityIntegrationConformanceBoundaryV1{static let requiredFamilies=AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies;static let derivedProjectionSubjectCount=0;static let requiresAppendOnlyRevisionAndDigest=true}

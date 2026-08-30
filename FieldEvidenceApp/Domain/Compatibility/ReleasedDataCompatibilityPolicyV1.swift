@@ -1253,3 +1253,51 @@ enum C52ServiceRequestBoundary_ReleasedDataCompatibilityPolicyV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C53 service-reliability released-data compatibility
+
+struct C53ServiceReliabilityCompatibilityPolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let sourceContract = "SERVICE_RELIABILITY_CONTRACT_V1"
+    static let reportProjectionContract = "C53_SERVICE_RELIABILITY_REPORT_PROJECTION_V1"
+    static let searchProjectionContract = "C53_SERVICE_RELIABILITY_SEARCH_PROJECTION_V1"
+
+    let schemaVersion: Int
+    let canonicalEventsRemainAppendOnly: Bool
+    let historicProjectionBytesRemainReadable: Bool
+    let derivedSearchRowsDropAndRebuild: Bool
+    let unavailableMetricQualificationIsPreserved: Bool
+    let meanRecordedRestorationRemainsDistinctFromMTTR: Bool
+    let unknownFutureVersionsFailClosed: Bool
+    let noAutomaticOperationalClaimMigration: Bool
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        canonicalEventsRemainAppendOnly = true
+        historicProjectionBytesRemainReadable = true
+        derivedSearchRowsDropAndRebuild = true
+        unavailableMetricQualificationIsPreserved = true
+        meanRecordedRestorationRemainsDistinctFromMTTR = true
+        unknownFutureVersionsFailClosed = true
+        noAutomaticOperationalClaimMigration = true
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              canonicalEventsRemainAppendOnly,
+              historicProjectionBytesRemainReadable,
+              derivedSearchRowsDropAndRebuild,
+              unavailableMetricQualificationIsPreserved,
+              meanRecordedRestorationRemainsDistinctFromMTTR,
+              unknownFutureVersionsFailClosed,
+              noAutomaticOperationalClaimMigration,
+              ServiceReliabilityFJ09ContractV1.requiresExplicitUnavailableDisposition,
+              ServiceReliabilityClaimBoundaryV1.restorationGrantsNoIndependentOperationalAuthority else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+}
+
+extension ReleasedDataCompatibilityPolicyV1 {
+    static let serviceReliabilityCompatibility = C53ServiceReliabilityCompatibilityPolicyV1()
+}

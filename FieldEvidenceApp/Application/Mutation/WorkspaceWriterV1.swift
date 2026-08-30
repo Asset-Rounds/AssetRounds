@@ -20,6 +20,9 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
     func persistedServiceRequestEffectMatches(
         _ mutation: ServiceRequestMutationV1
     ) throws -> Bool
+    func persistedServiceReliabilityEffectMatches(
+        _ bundle: ServiceReliabilityAtomicBundleV1
+    ) throws -> Bool
     func persistAppliedActivityContractEffect(
         _ mutation: ActivityContractMutationV2
     ) throws
@@ -52,6 +55,7 @@ extension WorkspaceWriterAdapterPortV1 {
     ) throws -> Bool {
         false
     }
+    func persistedServiceReliabilityEffectMatches(_ bundle:ServiceReliabilityAtomicBundleV1)throws->Bool{false}
 
     func persistedActivityContractEffectMatches(
         _ mutation: ActivityContractMutationV2
@@ -656,6 +660,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 }
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
               catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyServiceReliability(let value):
+            do{try value.validateForCanonicalWriter();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,value.expectedRevision==request.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}
+            catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -919,6 +926,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             for image in try mutation.mutationPostImages {
                 entityRevisions[try image.identity] = image.revision
             }
+        } else if case let .applyServiceReliability(bundle) = request.command {
+            for image in try bundle.mutationPostImages { entityRevisions[try image.identity]=image.revision }
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1427,6 +1436,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=try value.affectedIdentities
         case let .applyServiceRequest(value):
             try value.validateForCanonicalWriter();values=try value.affectedIdentities
+        case let .applyServiceReliability(value):
+            try value.validateForCanonicalWriter();values=try value.affectedIdentities
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1486,6 +1497,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyPortableReview(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyWorkResource(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyServiceRequest(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
+        if case let .applyServiceReliability(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
         return try targetIdentities(for: command)
     }
 
@@ -1801,6 +1813,62 @@ extension WorkspaceWriterV1 {
         guard try currentRevision().workspaceID == mutation.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
         guard let journalStore, let receipt = try journalStore.receipt(mutationID: mutation.mutationID) else { return nil }
         return try .init(mutation: mutation, mutationReceipt: receipt)
+    }
+}
+
+// MARK: - C53 append-only asset-service reliability sole writer
+extension WorkspaceWriterV1 {
+    func commitServiceReliability(
+        _ bundle: ServiceReliabilityAtomicBundleV1
+    ) throws -> ServiceReliabilityMutationReceiptV1 {
+        try bundle.validateForCanonicalWriter()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let existing = try journalStore.receipt(mutationID: bundle.mutationID) {
+            return try .init(bundle: bundle, mutationReceipt: existing)
+        }
+        let current = try currentRevision()
+        guard bundle.expectedRevision.workspaceID == current.workspaceID,
+              bundle.expectedRevision.generationID == current.generationID,
+              bundle.expectedRevision.writerInstanceID == current.writerInstanceID,
+              bundle.expectedRevision.workspaceRevision == current.revision else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        let request = try bundle.canonicalWorkspaceMutationRequest()
+        if try adapter.persistedServiceReliabilityEffectMatches(bundle) {
+            let envelope = try MutationEnvelopeV1(
+                request: request,
+                identity: identity,
+                sourceKind: .localUser
+            )
+            let receipt = try journalStore.commit(
+                envelope: envelope,
+                writerInstanceID: writerInstanceID,
+                affectedEntities: try bundle.affectedIdentities,
+                committedAt: clock.now()
+            )
+            return try .init(bundle: bundle, mutationReceipt: receipt)
+        }
+        _ = try execute(request)
+        guard let receipt = try journalStore.receipt(mutationID: bundle.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return try .init(bundle: bundle, mutationReceipt: receipt)
+    }
+
+    func durableServiceReliabilityReceipt(
+        bundle: ServiceReliabilityAtomicBundleV1
+    ) throws -> ServiceReliabilityMutationReceiptV1? {
+        try bundle.validateForCanonicalWriter()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard try currentRevision().workspaceID == bundle.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let journalStore,
+              let receipt = try journalStore.receipt(mutationID: bundle.mutationID) else {
+            return nil
+        }
+        return try .init(bundle: bundle, mutationReceipt: receipt)
     }
 }
 

@@ -866,6 +866,16 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
     }
 }
 
+private final class C53SharedObservationReliabilityTests: XCTestCase {
+    func testV23P03C53ObservationEvidenceKeepsQualificationExplicit() {
+        XCTAssertEqual(C53SharedObservationTimeBoundaryV1.sourceContractNames.count, 4)
+        XCTAssertTrue(C53SharedObservationTimeBoundaryV1.timeBasisAndZoneAreExplicit)
+        XCTAssertTrue(C53SharedObservationTimeBoundaryV1.qualifiedIntervalsUseClosedPositiveWindow)
+        XCTAssertFalse(C53SharedObservationTimeBoundaryV1.unknownOrEstimatedIntervalsEnterExactMetrics)
+        XCTAssertTrue(ServiceReliabilityClaimBoundaryV1.sourceTruthIsActorRecordedOperationalImpact)
+    }
+}
+
 private enum V911TestFailure: Error {
     case invalidDate(String)
     case unknownFixtureValue(String)

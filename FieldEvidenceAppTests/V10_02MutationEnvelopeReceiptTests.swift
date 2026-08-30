@@ -5,6 +5,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C53AssetServiceReliabilityBoundary_V10_02MutationEnvelopeReceiptTests {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
 final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
     func testV23P03C39ReleaseReferenceCanonicalReceiptIsStable() throws {
         let reference = AssetSemanticCatalogReleaseReferenceV1(

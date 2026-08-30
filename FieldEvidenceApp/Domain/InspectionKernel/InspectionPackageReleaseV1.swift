@@ -625,3 +625,12 @@ enum C52ServiceRequestBoundary_InspectionPackageReleaseV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+enum C53SharedInspectionPackageReleaseBoundaryV1 {
+    static let claimBoundaryType: ServiceReliabilityClaimBoundaryV1.Type = ServiceReliabilityClaimBoundaryV1.self
+    static let releaseCarriesFrozenReliabilitySubjectContext = true
+    static let incidentAndExposureHistoryRemainAppendOnly = true
+    static let unqualifiedIntervalsRemainVisibleButNonmetric = true
+    static let releaseDoesNotClaimUptimeSafetyComplianceOrServiceReadiness = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

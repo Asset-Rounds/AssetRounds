@@ -1414,3 +1414,61 @@ enum C52ServiceRequestSearchPersistenceBoundaryV1 {
     static let acceptedSourceBytesIndexed = false
     static let duplicateCandidateProjectionPersisted = false
 }
+
+// MARK: - C53 service-reliability search persistence
+
+/// This envelope is a disposable search projection. It is never a SwiftData
+/// row, backup source, journal entry, or canonical service-reliability event.
+struct C53ServiceReliabilitySearchPersistenceEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let projection: C53ServiceReliabilitySearchProjectionV1
+    let lifecycle: [SearchIndexLifecycleDispositionV1]
+
+    init(projection: C53ServiceReliabilitySearchProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        self.projection = projection
+        lifecycle = Self.expectedLifecycle
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              lifecycle == Self.expectedLifecycle else {
+            throw SearchContractFailureV1.unsupportedSchemaVersion
+        }
+        try projection.validate()
+    }
+
+    static let expectedLifecycle: [SearchIndexLifecycleDispositionV1] = [
+        .excludedFromMigration,
+        .excludedFromBackup,
+        .excludedFromExport,
+        .purgeOnDelete,
+        .purgeOnErase,
+        .dropAndRebuildAfterRestore,
+        .dropAndRebuildOnDowngrade,
+    ]
+}
+
+enum C53ServiceReliabilitySearchPersistenceBoundaryV1 {
+    static let projectionRowsAreNonPersistent = true
+    static let excludedFromBackupExportReplay = true
+    static let rebuiltAfterRestoreDeleteErase = true
+    static let canonicalServiceReliabilityEventsAreNotSearchRows = true
+
+    static func envelope(
+        _ projection: C53ServiceReliabilitySearchProjectionV1
+    ) throws -> C53ServiceReliabilitySearchPersistenceEnvelopeV1 {
+        try .init(projection: projection)
+    }
+
+    static func encode(
+        _ projection: C53ServiceReliabilitySearchProjectionV1
+    ) throws -> Data {
+        let envelope = try envelope(projection)
+        return try SearchPersistenceCodecV1.encode(envelope)
+    }
+}

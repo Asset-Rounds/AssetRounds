@@ -858,10 +858,17 @@ enum C52ServiceRequestRestoreIdentityPolicyV1 {
             expectedWorkspaceID = sourceWorkspaceID
         }
         do {
-            try C52ServiceRequestBackupEnrollmentV1.validate(
-                records: records,
-                workspaceID: expectedWorkspaceID
-            )
+            if records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: records,
+                    workspaceID: expectedWorkspaceID
+                )
+            } else {
+                try C52ServiceRequestBackupEnrollmentV1.validate(
+                    records: records,
+                    workspaceID: expectedWorkspaceID
+                )
+            }
         } catch {
             throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
         }
@@ -882,4 +889,70 @@ enum C52ServiceRequestBoundary_RestoreIdentityV1 {
     static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}
+
+/// C53 keeps reliability identity epochs and source-history workspace binding
+/// intact while a clone/fork remains historic evidence until explicit rebind.
+enum C53ServiceReliabilityRestoreDispositionV1: String, Codable, Equatable, Sendable {
+    case preserveSameWorkspaceCanonicalClosure = "PRESERVE_SAME_WORKSPACE_CANONICAL_CLOSURE"
+    case retainSourceBoundHistoricClosure = "RETAIN_SOURCE_BOUND_HISTORIC_CLOSURE"
+
+    static func resolve(_ mode: BackupRestoreMode) -> Self {
+        switch mode {
+        case .emptyInstall, .replaceExisting: return .preserveSameWorkspaceCanonicalClosure
+        case .clone, .fork: return .retainSourceBoundHistoricClosure
+        }
+    }
+}
+
+enum C53ServiceReliabilityRestoreIdentityBoundaryV1 {
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let cloneForkPreservesAppendOnlyHistory = true
+    static let cloneForkPreservesReliabilityIdentityEpochs = true
+    static let cloneForkRequiresExplicitWorkspaceRebind = true
+    static let cloneForkAutomaticallyActivatesSourceRows = false
+    static let derivedProjectionsAreRebuilt = true
+
+    static func disposition(for mode: BackupRestoreMode) -> C53ServiceReliabilityRestoreDispositionV1 {
+        C53ServiceReliabilityRestoreDispositionV1.resolve(mode)
+    }
+
+    static func validates(_ identity: RestoreIdentityV1) -> Bool {
+        guard let sourceWorkspaceID = identity.source.workspaceID else { return false }
+        switch identity.mode {
+        case .emptyInstall, .replaceExisting:
+            return sourceWorkspaceID == identity.targetPointer.workspaceID
+                && disposition(for: identity.mode) == .preserveSameWorkspaceCanonicalClosure
+        case .clone, .fork:
+            return sourceWorkspaceID != identity.targetPointer.workspaceID
+                && disposition(for: identity.mode) == .retainSourceBoundHistoricClosure
+        }
+    }
+
+    static func validate(
+        _ records: V4BackupRecordsV1,
+        identity: RestoreIdentityV1
+    ) throws {
+        guard let sourceWorkspaceID = identity.source.workspaceID,
+              validates(identity),
+              persistentSchemaVersion == 40,
+              recordsSchemaVersion == 39,
+              cloneForkPreservesAppendOnlyHistory,
+              cloneForkPreservesReliabilityIdentityEpochs,
+              cloneForkRequiresExplicitWorkspaceRebind,
+              !cloneForkAutomaticallyActivatesSourceRows,
+              derivedProjectionsAreRebuilt,
+              records.recordsSchemaVersion <= recordsSchemaVersion else {
+            throw RestoreIdentityDecisionErrorV1.invalidMode
+        }
+        do {
+            try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                records: records,
+                workspaceID: sourceWorkspaceID
+            )
+        } catch {
+            throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
+        }
+    }
 }
