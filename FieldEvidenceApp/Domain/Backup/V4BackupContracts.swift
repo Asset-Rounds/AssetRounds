@@ -565,6 +565,21 @@ enum C51ScheduleBackupClosureV1 {
         }
     }
 }
+enum C52ServiceRequestBoundary_V4BackupContracts {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}
 
 /// C29 transports the immutable plan families as canonical value records.
 /// Spatial frames are embedded in revisions for persistence but are carried
@@ -1168,6 +1183,165 @@ struct V37BackupWorkResourceRecordV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C52 canonical service-request rows are carried in the records envelope.
+/// The duplicated identity columns are checked against `canonicalData` on
+/// decode so a backup cannot substitute a row while retaining its digest.
+enum ServiceRequestBackupContractFailureV1: Error, Equatable, Sendable {
+    case invalidSchemaVersion
+    case invalidIdentity
+    case invalidDigest
+    case invalidHistory
+    case invalidWorkspaceBinding
+    case prohibitedProjection
+}
+
+struct V38BackupServiceRequestRecordV1: Codable, Equatable, Sendable {
+    let recordID: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let mutationID: UUID
+    let recordSHA256: String
+    let acceptedSourceSHA256: String?
+    let canonicalData: Data
+
+    init(_ value: ServiceRequestRecordV1) throws {
+        try value.validate()
+        recordID = value.recordID
+        workspaceID = value.workspaceID.rawValue
+        revision = value.revision
+        mutationID = value.mutationID.rawValue
+        recordSHA256 = value.recordSHA256
+        acceptedSourceSHA256 = value.acceptedSourceBytes?.sha256
+        canonicalData = try ServiceRequestCanonicalCodecV1.data(value)
+    }
+
+    func value() throws -> ServiceRequestRecordV1 {
+        let value = try ServiceRequestCanonicalCodecV1.decode(
+            ServiceRequestRecordV1.self,
+            from: canonicalData
+        )
+        try value.validate()
+        guard recordID == value.recordID,
+              workspaceID == value.workspaceID.rawValue,
+              revision == value.revision,
+              mutationID == value.mutationID.rawValue,
+              recordSHA256 == value.recordSHA256,
+              acceptedSourceSHA256 == value.acceptedSourceBytes?.sha256 else {
+            throw ServiceRequestBackupContractFailureV1.invalidIdentity
+        }
+        return value
+    }
+}
+
+struct V38BackupServiceRequestDispositionEventV1: Codable, Equatable, Sendable {
+    let eventID: UUID
+    let workspaceID: UUID
+    let requestRecordID: UUID
+    let requestRevision: UInt64
+    let revision: UInt64
+    let mutationID: UUID
+    let eventSHA256: String
+    let predecessorEventID: UUID?
+    let predecessorEventSHA256: String?
+    let canonicalData: Data
+
+    init(_ value: ServiceRequestDispositionEventV1) throws {
+        try value.validate()
+        eventID = value.eventID
+        workspaceID = value.workspaceID.rawValue
+        requestRecordID = value.request.recordID
+        requestRevision = value.request.revision
+        revision = value.revision
+        mutationID = value.mutationID.rawValue
+        eventSHA256 = value.eventSHA256
+        predecessorEventID = value.predecessorEventID
+        predecessorEventSHA256 = value.predecessorEventSHA256
+        canonicalData = try ServiceRequestCanonicalCodecV1.data(value)
+    }
+
+    func value() throws -> ServiceRequestDispositionEventV1 {
+        let value = try ServiceRequestCanonicalCodecV1.decode(
+            ServiceRequestDispositionEventV1.self,
+            from: canonicalData
+        )
+        try value.validate()
+        guard eventID == value.eventID,
+              workspaceID == value.workspaceID.rawValue,
+              requestRecordID == value.request.recordID,
+              requestRevision == value.request.revision,
+              revision == value.revision,
+              mutationID == value.mutationID.rawValue,
+              eventSHA256 == value.eventSHA256,
+              predecessorEventID == value.predecessorEventID,
+              predecessorEventSHA256 == value.predecessorEventSHA256 else {
+            throw ServiceRequestBackupContractFailureV1.invalidIdentity
+        }
+        return value
+    }
+}
+
+struct V38BackupServiceRequestWorkLinkEventV1: Codable, Equatable, Sendable {
+    let eventID: UUID
+    let workspaceID: UUID
+    let requestRecordID: UUID
+    let requestRevision: UInt64
+    let canonicalWorkID: UUID
+    let canonicalWorkRevision: UInt64
+    let canonicalWorkSHA256: String
+    let kind: ServiceRequestWorkLinkKindV1
+    let revision: UInt64
+    let mutationID: UUID
+    let eventSHA256: String
+    let reversesEventID: UUID?
+    let predecessorEventID: UUID?
+    let predecessorEventSHA256: String?
+    let canonicalData: Data
+
+    init(_ value: ServiceRequestWorkLinkEventV1) throws {
+        try value.validate()
+        eventID = value.eventID
+        workspaceID = value.workspaceID.rawValue
+        requestRecordID = value.request.recordID
+        requestRevision = value.request.revision
+        canonicalWorkID = value.canonicalWorkID
+        canonicalWorkRevision = value.canonicalWorkRevision
+        canonicalWorkSHA256 = value.canonicalWorkSHA256
+        kind = value.kind
+        revision = value.revision
+        mutationID = value.mutationID.rawValue
+        eventSHA256 = value.eventSHA256
+        reversesEventID = value.reversesEventID
+        predecessorEventID = value.predecessorEventID
+        predecessorEventSHA256 = value.predecessorEventSHA256
+        canonicalData = try ServiceRequestCanonicalCodecV1.data(value)
+    }
+
+    func value() throws -> ServiceRequestWorkLinkEventV1 {
+        let value = try ServiceRequestCanonicalCodecV1.decode(
+            ServiceRequestWorkLinkEventV1.self,
+            from: canonicalData
+        )
+        try value.validate()
+        guard eventID == value.eventID,
+              workspaceID == value.workspaceID.rawValue,
+              requestRecordID == value.request.recordID,
+              requestRevision == value.request.revision,
+              canonicalWorkID == value.canonicalWorkID,
+              canonicalWorkRevision == value.canonicalWorkRevision,
+              canonicalWorkSHA256 == value.canonicalWorkSHA256,
+              kind == value.kind,
+              revision == value.revision,
+              mutationID == value.mutationID.rawValue,
+              eventSHA256 == value.eventSHA256,
+              reversesEventID == value.reversesEventID,
+              predecessorEventID == value.predecessorEventID,
+              predecessorEventSHA256 == value.predecessorEventSHA256 else {
+            throw ServiceRequestBackupContractFailureV1.invalidIdentity
+        }
+        return value
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -1198,6 +1372,12 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     /// C49 canonical append-only manual-resource and direct-cost history.
     /// Search/totals/drafts are deliberately absent and rebuilt after import.
     let workResources: [V37BackupWorkResourceRecordV1]
+    /// C52 canonical service-request record revisions and append-only
+    /// disposition/work-link history. Derived projections and raw capability
+    /// material intentionally have no records-envelope fields.
+    let serviceRequests: [V38BackupServiceRequestRecordV1]
+    let serviceRequestDispositionEvents: [V38BackupServiceRequestDispositionEventV1]
+    let serviceRequestWorkLinkEvents: [V38BackupServiceRequestWorkLinkEventV1]
     let surveyDefinitions:[V24BackupSurveyDefinitionRecordV1]
     let accessibleDocumentAssessments:[V23BackupAccessibleDocumentAssessmentRecordV1]
     let fieldReferences:[V22BackupFieldReferenceRecordV1]
@@ -1281,7 +1461,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         acceptedLabelGenerationSnapshots: [V34BackupAcceptedLabelSnapshotRecordV1] = [],
         operationalContacts: [V35BackupOperationalContactRecordV1] = [],
         activityContracts: [V36BackupActivityContractRecordV2] = [],
-        workResources: [V37BackupWorkResourceRecordV1] = []
+        workResources: [V37BackupWorkResourceRecordV1] = [],
+        serviceRequests: [V38BackupServiceRequestRecordV1] = [],
+        serviceRequestDispositionEvents: [V38BackupServiceRequestDispositionEventV1] = [],
+        serviceRequestWorkLinkEvents: [V38BackupServiceRequestWorkLinkEventV1] = []
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -1297,6 +1480,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.operationalContacts = operationalContacts
         self.activityContracts = activityContracts
         self.workResources = workResources
+        self.serviceRequests = serviceRequests
+        self.serviceRequestDispositionEvents = serviceRequestDispositionEvents
+        self.serviceRequestWorkLinkEvents = serviceRequestWorkLinkEvents
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -1340,6 +1526,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
          case workflowRecords, evidenceContexts, pairedObservationLinks, lighting
          case assistanceAcceptanceReceipts, temporalEvidence, acceptedLabelGenerationSnapshots, operationalContacts, activityContracts, workResources
+         case serviceRequests, serviceRequestDispositionEvents, serviceRequestWorkLinkEvents
     }
 
     init(from decoder: Decoder) throws {
@@ -1446,8 +1633,270 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             workResources: try values.decodeIfPresent(
                 [V37BackupWorkResourceRecordV1].self,
                 forKey: .workResources
+            ) ?? [],
+            serviceRequests: try values.decodeIfPresent(
+                [V38BackupServiceRequestRecordV1].self,
+                forKey: .serviceRequests
+            ) ?? [],
+            serviceRequestDispositionEvents: try values.decodeIfPresent(
+                [V38BackupServiceRequestDispositionEventV1].self,
+                forKey: .serviceRequestDispositionEvents
+            ) ?? [],
+            serviceRequestWorkLinkEvents: try values.decodeIfPresent(
+                [V38BackupServiceRequestWorkLinkEventV1].self,
+                forKey: .serviceRequestWorkLinkEvents
             ) ?? []
         )
+    }
+}
+
+/// C52 backup enrollment for the V39 store. Canonical request rows and both
+/// append-only history families share one records envelope; all projections,
+/// capability material, and import plans are reconstructed or operation-scoped.
+enum C52ServiceRequestBackupEnrollmentV1 {
+    static let persistentSchemaVersion = ServiceRequestPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let recordsSchemaVersion = 38
+    static let durableFamilyCount = 3
+    static let canonicalRowKinds = [
+        "ServiceRequestRecordV1",
+        "ServiceRequestDispositionEventV1",
+        "ServiceRequestWorkLinkEventV1"
+    ]
+    static let immutableAcceptedSourceBytesAreRetained = true
+    static let rawCapabilityBytesAreExcluded = true
+    static let derivedProjectionsAreExcluded = true
+    static let automaticWorkAndDuplicateActionsAreExcluded = true
+
+    static func validate(
+        records: V4BackupRecordsV1,
+        workspaceID expectedWorkspaceID: UUID? = nil
+    ) throws {
+        try ServiceRequestPersistenceEnrollmentV1.validate()
+        guard persistentSchemaVersion == 39,
+              recordsSchemaVersion == 38,
+              durableFamilyCount == canonicalRowKinds.count,
+              canonicalRowKinds.count == 3,
+              immutableAcceptedSourceBytesAreRetained,
+              rawCapabilityBytesAreExcluded,
+              derivedProjectionsAreExcluded,
+              automaticWorkAndDuplicateActionsAreExcluded,
+              !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent,
+              !ServiceRequestNoncanonicalBoundaryV1.stateProjectionIsPersistent,
+              !ServiceRequestNoncanonicalBoundaryV1.importPlanIsPersistent,
+              !ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth,
+              !ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted,
+              !ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted else {
+            throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
+        }
+
+        let containsServiceRequestRows = !records.serviceRequests.isEmpty
+            || !records.serviceRequestDispositionEvents.isEmpty
+            || !records.serviceRequestWorkLinkEvents.isEmpty
+        // V38 is the first envelope carrying C52 rows. Older archives remain
+        // decodable with their established empty-array defaults.
+        guard !containsServiceRequestRows || records.recordsSchemaVersion == recordsSchemaVersion else {
+            throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
+        }
+        guard records.recordsSchemaVersion < recordsSchemaVersion
+                || records.mutationHistory != nil else {
+            throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
+        }
+
+        let requestValues = try records.serviceRequests.map { try $0.value() }
+        let dispositionValues = try records.serviceRequestDispositionEvents.map { try $0.value() }
+        let workLinkValues = try records.serviceRequestWorkLinkEvents.map { try $0.value() }
+
+        let requestKeys = requestValues.map(requestIdentity)
+        guard Set(requestKeys).count == requestKeys.count,
+              records.serviceRequests.map(recordIdentity) == records.serviceRequests.map(recordIdentity).sorted() else {
+            throw ServiceRequestBackupContractFailureV1.invalidIdentity
+        }
+        let dispositionKeys = dispositionValues.map(eventIdentity)
+        guard Set(dispositionKeys).count == dispositionKeys.count,
+              records.serviceRequestDispositionEvents.map(dispositionIdentity)
+                  == records.serviceRequestDispositionEvents.map(dispositionIdentity).sorted() else {
+            throw ServiceRequestBackupContractFailureV1.invalidIdentity
+        }
+        let workLinkKeys = records.serviceRequestWorkLinkEvents.map(workLinkIdentity)
+        guard Set(workLinkKeys).count == workLinkKeys.count,
+              records.serviceRequestWorkLinkEvents.map(workLinkIdentity)
+                  == records.serviceRequestWorkLinkEvents.map(workLinkIdentity).sorted() else {
+            throw ServiceRequestBackupContractFailureV1.invalidIdentity
+        }
+
+        var workspaces = Set<UUID>()
+        for value in requestValues {
+            try value.validate()
+            try value.acceptedSourceBytes?.validate()
+            workspaces.insert(value.workspaceID.rawValue)
+        }
+        guard dispositionValues.allSatisfy({ value in
+            workspaces.insert(value.workspaceID.rawValue)
+            return true
+        }), workLinkValues.allSatisfy({ value in
+            workspaces.insert(value.workspaceID.rawValue)
+            return true
+        }), workspaces.count <= 1,
+              expectedWorkspaceID.map({ workspaces.isEmpty || workspaces == Set([$0]) }) ?? true else {
+            throw ServiceRequestBackupContractFailureV1.invalidWorkspaceBinding
+        }
+
+        var recordsByIdentity: [String: ServiceRequestRecordV1] = [:]
+        for value in requestValues {
+            recordsByIdentity[requestIdentity(value)] = value
+        }
+        try validateRecordHistory(requestValues)
+        try validateDispositionHistory(dispositionValues, recordsByIdentity: recordsByIdentity)
+        try validateWorkLinkHistory(workLinkValues, recordsByIdentity: recordsByIdentity)
+    }
+
+    static func canonicalRows(
+        from records: V4BackupRecordsV1,
+        workspaceID expectedWorkspaceID: UUID? = nil
+    ) throws -> (
+        records: [ServiceRequestRecordV1],
+        dispositions: [ServiceRequestDispositionEventV1],
+        workLinks: [ServiceRequestWorkLinkEventV1]
+    ) {
+        try validate(records: records, workspaceID: expectedWorkspaceID)
+        return (
+            try records.serviceRequests.map { try $0.value() },
+            try records.serviceRequestDispositionEvents.map { try $0.value() },
+            try records.serviceRequestWorkLinkEvents.map { try $0.value() }
+        )
+    }
+
+    private static func requestIdentity(_ value: ServiceRequestRecordV1) -> String {
+        "\(value.workspaceID.rawValue.uuidString.lowercased())|\(value.recordID.uuidString.lowercased())|\(value.revision)"
+    }
+
+    private static func recordIdentity(_ value: V38BackupServiceRequestRecordV1) -> String {
+        "\(value.workspaceID.uuidString.lowercased())|\(value.recordID.uuidString.lowercased())|\(value.revision)"
+    }
+
+    private static func eventIdentity(_ value: ServiceRequestDispositionEventV1) -> String {
+        "\(value.workspaceID.rawValue.uuidString.lowercased())|\(value.eventID.uuidString.lowercased())"
+    }
+
+    private static func dispositionIdentity(_ value: V38BackupServiceRequestDispositionEventV1) -> String {
+        "\(value.workspaceID.uuidString.lowercased())|\(value.eventID.uuidString.lowercased())"
+    }
+
+    private static func workLinkIdentity(_ value: V38BackupServiceRequestWorkLinkEventV1) -> String {
+        "\(value.workspaceID.uuidString.lowercased())|\(value.eventID.uuidString.lowercased())"
+    }
+
+    private static func chainIdentity(
+        workspaceID: WorkspaceID,
+        recordID: UUID,
+        revision: UInt64
+    ) -> String {
+        "\(workspaceID.rawValue.uuidString.lowercased())|\(recordID.uuidString.lowercased())|\(revision)"
+    }
+
+    private static func validateRecordHistory(
+        _ values: [ServiceRequestRecordV1]
+    ) throws {
+        let chains = Dictionary(grouping: values) {
+            "\($0.workspaceID.rawValue.uuidString.lowercased())|\($0.recordID.uuidString.lowercased())"
+        }
+        for chain in chains.values {
+            let ordered = chain.sorted { $0.revision < $1.revision }
+            guard ordered.first?.revision == 1,
+                  ordered.first?.supersedes == nil else {
+                throw ServiceRequestBackupContractFailureV1.invalidHistory
+            }
+            for index in ordered.indices.dropFirst() {
+                do { try ordered[index].validateSuccessor(of: ordered[index - 1]) }
+                catch { throw ServiceRequestBackupContractFailureV1.invalidHistory }
+            }
+        }
+    }
+
+    private static func validateDispositionHistory(
+        _ values: [ServiceRequestDispositionEventV1],
+        recordsByIdentity: [String: ServiceRequestRecordV1]
+    ) throws {
+        for value in values {
+            let key = chainIdentity(
+                workspaceID: value.workspaceID,
+                recordID: value.request.recordID,
+                revision: value.request.revision
+            )
+            guard let request = recordsByIdentity[key],
+                  request.recordSHA256 == value.request.recordSHA256 else {
+                throw ServiceRequestBackupContractFailureV1.invalidHistory
+            }
+            if let duplicate = value.duplicateRecord {
+                let duplicateKey = chainIdentity(
+                    workspaceID: value.workspaceID,
+                    recordID: duplicate.recordID,
+                    revision: duplicate.revision
+                )
+                guard recordsByIdentity[duplicateKey]?.recordSHA256 == duplicate.recordSHA256 else {
+                    throw ServiceRequestBackupContractFailureV1.invalidHistory
+                }
+            }
+        }
+        try validateDispositionChains(values)
+    }
+
+    private static func validateWorkLinkHistory(
+        _ values: [ServiceRequestWorkLinkEventV1],
+        recordsByIdentity: [String: ServiceRequestRecordV1]
+    ) throws {
+        for value in values {
+            let key = chainIdentity(
+                workspaceID: value.workspaceID,
+                recordID: value.request.recordID,
+                revision: value.request.revision
+            )
+            guard let request = recordsByIdentity[key],
+                  request.recordSHA256 == value.request.recordSHA256 else {
+                throw ServiceRequestBackupContractFailureV1.invalidHistory
+            }
+        }
+        try validateWorkLinkChains(values)
+    }
+
+    private static func validateDispositionChains(
+        _ values: [ServiceRequestDispositionEventV1]
+    ) throws {
+        let chains = Dictionary(grouping: values) {
+            "\($0.workspaceID.rawValue.uuidString.lowercased())|\($0.request.recordID.uuidString.lowercased())|\($0.request.revision)"
+        }
+        for chain in chains.values {
+            let ordered = chain.sorted { $0.revision < $1.revision }
+            guard ordered.first?.revision == 1,
+                  ordered.first?.predecessorEventID == nil,
+                  ordered.first?.predecessorEventSHA256 == nil else {
+                throw ServiceRequestBackupContractFailureV1.invalidHistory
+            }
+            for index in ordered.indices.dropFirst() {
+                do { try ordered[index].validateSuccessor(of: ordered[index - 1]) }
+                catch { throw ServiceRequestBackupContractFailureV1.invalidHistory }
+            }
+        }
+    }
+
+    private static func validateWorkLinkChains(
+        _ values: [ServiceRequestWorkLinkEventV1]
+    ) throws {
+        let chains = Dictionary(grouping: values) {
+            "\($0.workspaceID.rawValue.uuidString.lowercased())|\($0.request.recordID.uuidString.lowercased())|\($0.request.revision)"
+        }
+        for chain in chains.values {
+            let ordered = chain.sorted { $0.revision < $1.revision }
+            guard ordered.first?.revision == 1,
+                  ordered.first?.predecessorEventID == nil,
+                  ordered.first?.predecessorEventSHA256 == nil else {
+                throw ServiceRequestBackupContractFailureV1.invalidHistory
+            }
+            for index in ordered.indices.dropFirst() {
+                do { try ordered[index].validateSuccessor(of: ordered[index - 1]) }
+                catch { throw ServiceRequestBackupContractFailureV1.invalidHistory }
+            }
+        }
     }
 }
 
@@ -2309,7 +2758,7 @@ extension V4BackupRecordsV1{
              evidenceContexts: evidenceContexts,
              pairedObservationLinks: pairedObservationLinks,
              lighting: lighting,
-             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)
+             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)
     }
 
     func replacingSchedules(_ values: [V27BackupScheduleRecordV1]) -> Self {
@@ -2338,7 +2787,7 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)
     }
 
     func replacingPlans(_ values: [V28BackupPlanRecordV1]) -> Self {
@@ -2368,7 +2817,7 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)
     }
 
     func replacingPlacementPoses(_ values: [V29BackupPlacementPoseRecordV1]) -> Self {
@@ -2398,17 +2847,17 @@ extension V4BackupRecordsV1{
               evidenceContexts: evidenceContexts,
               pairedObservationLinks: pairedObservationLinks,
               lighting: lighting,
-              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)
+              assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)
     }
 
-     func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)}
-func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)}
-     func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)}
-     func replacingTemporalEvidence(_ values:[V33BackupTemporalEvidenceRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:values,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)}
-     func replacingAcceptedLabelGenerationSnapshots(_ values:[V34BackupAcceptedLabelSnapshotRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:values,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources)}
-     func replacingOperationalContacts(_ values:[V35BackupOperationalContactRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:values,activityContracts:activityContracts,workResources:workResources)}
-     func replacingActivityContracts(_ values:[V36BackupActivityContractRecordV2])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:values,workResources:workResources)}
-     func replacingWorkResources(_ value:[V37BackupWorkResourceRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:value)}
+     func replacingAccessibleDocumentAssessments(_ values:[V23BackupAccessibleDocumentAssessmentRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:values,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
+func replacingSurveyDefinitions(_ values:[V24BackupSurveyDefinitionRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:values,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
+     func replacingGuidedSurveys(_ values:[V25BackupGuidedSurveyRecordV1])->Self{Self(guidedSurveys:values,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
+     func replacingTemporalEvidence(_ values:[V33BackupTemporalEvidenceRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:values,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
+     func replacingAcceptedLabelGenerationSnapshots(_ values:[V34BackupAcceptedLabelSnapshotRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:values,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
+     func replacingOperationalContacts(_ values:[V35BackupOperationalContactRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:values,activityContracts:activityContracts,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
+     func replacingActivityContracts(_ values:[V36BackupActivityContractRecordV2])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:values,workResources:workResources,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
+     func replacingWorkResources(_ value:[V37BackupWorkResourceRecordV1])->Self{Self(guidedSurveys:guidedSurveys,assetLocators:assetLocators,schedules:schedules,plans:plans,placementPoses:placementPoses,accessibleDocumentAssessments:accessibleDocumentAssessments,surveyDefinitions:surveyDefinitions,fieldReferences:fieldReferences,recoverabilityReceipts:recoverabilityReceipts,clientCapabilities:clientCapabilities,privacyTransforms:privacyTransforms,measurementIntegrity:measurementIntegrity,packageEvolution:packageEvolution,fieldDrafts:fieldDrafts,workPackets:workPackets,inspectionReview:inspectionReview,evidenceAssurance:evidenceAssurance,functionalRelationships:functionalRelationships,authorityCriterion:authorityCriterion,assetSemantics:assetSemantics,assetCompositionEdges:assetCompositionEdges,assetCompositionEvents:assetCompositionEvents,assetPlacementEvents:assetPlacementEvents,assets:assets,deletionLedger:deletionLedger,evidenceFiles:evidenceFiles,issues:issues,locationHierarchyEvents:locationHierarchyEvents,locationMigrationReceipts:locationMigrationReceipts,locationNodes:locationNodes,mutationHistory:mutationHistory,packets:packets,partyAccountability:partyAccountability,recordsSchemaVersion:recordsSchemaVersion,reports:reports,requirementAssurance:requirementAssurance,savedSmartViews:savedSmartViews,sites:sites,workflowRecords:workflowRecords,evidenceContexts:evidenceContexts,pairedObservationLinks:pairedObservationLinks,lighting:lighting,assistanceAcceptanceReceipts:assistanceAcceptanceReceipts,temporalEvidence:temporalEvidence,acceptedLabelGenerationSnapshots:acceptedLabelGenerationSnapshots,operationalContacts:operationalContacts,activityContracts:activityContracts,workResources:value,serviceRequests:serviceRequests,serviceRequestDispositionEvents:serviceRequestDispositionEvents,serviceRequestWorkLinkEvents:serviceRequestWorkLinkEvents)}
 }
 
 struct V4BackupEntryV1: Codable, Equatable, Sendable {

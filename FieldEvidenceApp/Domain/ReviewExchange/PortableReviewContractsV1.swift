@@ -917,3 +917,16 @@ enum C50PortableReviewAdapterDelegationV1 {
         }
     }
 }
+
+// MARK: - C52 service-request protocol type separation
+
+enum C52PortableReviewTypeSeparationBoundaryV1 {
+    static let reviewProofContract: Any.Type = ReviewCapabilityProofV1.self
+    static let serviceProofContract: Any.Type = ServiceRequestCapabilityProofV1.self
+    static let reviewResponseContract: Any.Type = OriginRecordedReviewResponseV1.self
+    static let serviceSubmissionContract: Any.Type = PortableServiceRequestSubmissionV1.self
+    static let reviewProofAuthorizesServiceSubmission = false
+    static let serviceProofAuthorizesReviewResponse = false
+    static let reviewResponseCanBecomeServiceRecord = false
+    static let serviceStatusCanClaimReviewApproval = false
+}

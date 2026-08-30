@@ -3515,6 +3515,21 @@ enum SurveyDefinitionLocalizationPolicyV1 {
         }
     }
 }
+enum C52ServiceRequestBoundary_LocalizationContractsV1 {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}
 
 // MARK: - C26 guided-survey session localization contract
 
@@ -5057,6 +5072,73 @@ enum C49WorkResourceLocalizationPolicyV1 {
         guard values == values.sorted(), Set(values).count == values.count,
               keys.allSatisfy({ !english($0).isEmpty }),
               rawStockAndInventoryClaimsAreNotLocalized else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
+// MARK: - C52 portable service-request localization
+
+/// C52 wording describes recorded, self-asserted service-request state only.
+/// It deliberately does not promise emergency handling, delivery, identity,
+/// urgency verification, or an SLA.
+enum C52ServiceRequestLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case contactUnverified = "service_request.contact.unverified"
+    case duplicateSuggestion = "service_request.duplicate.suggestion"
+    case intakeManual = "service_request.intake.manual"
+    case intakePortable = "service_request.intake.portable"
+    case stateAccepted = "service_request.state.accepted"
+    case stateDeclined = "service_request.state.declined"
+    case stateHistoryOnly = "service_request.state.history_only"
+    case stateUntriaged = "service_request.state.untriaged"
+    case statusNoDeliveryClaim = "service_request.status.no_delivery_claim"
+    case urgencySelfAsserted = "service_request.urgency.self_asserted"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum C52ServiceRequestLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let englishOnly = true
+    static let duplicateCandidatesAreSuggestionOnly = true
+    static let requesterIdentityIsUnverified = true
+    static let urgencyIsSelfAsserted = true
+    static let emergencyHandlingIsNotClaimed = true
+    static let deliveryIsNotClaimed = true
+    static let serviceLevelAgreementIsNotClaimed = true
+
+    static func english(_ key: C52ServiceRequestLocalizationKeyV1) -> String {
+        switch key {
+        case .intakeManual: return "Service request recorded manually"
+        case .intakePortable: return "Portable service request"
+        case .stateUntriaged: return "Awaiting review"
+        case .stateAccepted: return "Service request accepted"
+        case .stateDeclined: return "Service request declined"
+        case .stateHistoryOnly: return "History only"
+        case .duplicateSuggestion: return "Possible duplicate — review required"
+        case .contactUnverified: return "Contact information is unverified"
+        case .urgencySelfAsserted: return "Urgency is self-asserted"
+        case .statusNoDeliveryClaim: return "Recorded locally; delivery was not confirmed"
+        }
+    }
+
+    static func validate() throws {
+        let values = C52ServiceRequestLocalizationKeyV1.allCases
+        let rawValues = values.map(\.rawValue)
+        guard sourceLocale == "en",
+              englishOnly,
+              rawValues == rawValues.sorted(),
+              Set(rawValues).count == rawValues.count,
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }),
+              duplicateCandidatesAreSuggestionOnly,
+              requesterIdentityIsUnverified,
+              urgencyIsSelfAsserted,
+              emergencyHandlingIsNotClaimed,
+              deliveryIsNotClaimed,
+              serviceLevelAgreementIsNotClaimed else {
             throw LocalizationContractFailureV1.invalidValue
         }
     }

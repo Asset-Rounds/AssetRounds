@@ -499,3 +499,10 @@ enum C34SceneNavigationIntegrationProjectionBoundaryV1 {
     static let projectsSceneSnapshot = false
     static func validate() -> Bool { projectedRouteKindCount == 0 && !projectsSceneSnapshot && C34SceneNavigationIntegrationEventBoundaryV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-projection
+enum C52ServiceRequestIntegrationProjectionBoundaryV1 {
+    static let canonicalEventKinds = ["SERVICE_REQUEST_RECORD", "SERVICE_REQUEST_DISPOSITION", "SERVICE_REQUEST_WORK_LINK"]
+    static let sourceIsMutationReceiptPostImage = true
+    static let workLinkReversalIsDistinctAppendOnlyEvent = true
+    static let duplicateSuggestionProjectionExcluded = true
+}

@@ -1,5 +1,6 @@
 {
   "schema": "V22P03C48PortableReviewCorpusV1",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V22ReviewExchange", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "schemaVersion": 1,
   "cardID": "V23-P03-C48",
   "corpusID": "v23-p03-c48-portable-review-v1",

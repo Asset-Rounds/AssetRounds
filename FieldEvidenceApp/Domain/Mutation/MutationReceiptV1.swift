@@ -168,6 +168,9 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case installationAsBuiltSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case punchReviewBasisSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workResourceEntry(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case serviceRequestRecord(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case serviceRequestDispositionEvent(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case serviceRequestWorkLinkEvent(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case workflowRecord(id: UUID, revision: UInt64, semanticSHA256: String)
     case evidenceFile(id: UUID, revision: UInt64, semanticSHA256: String)
     case issue(id: UUID, revision: UInt64, semanticSHA256: String)
@@ -279,6 +282,9 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .installationAsBuiltSnapshot(id,_,_,_):return try .init(kind:.installationAsBuiltSnapshot,id:id)
             case let .punchReviewBasisSnapshot(id,_,_,_):return try .init(kind:.punchReviewBasisSnapshot,id:id)
             case let .workResourceEntry(id,_,_,_):return try .init(kind:.workResourceEntry,id:id)
+            case let .serviceRequestRecord(id,_,_,_):return try .init(kind:.serviceRequestRecord,id:id)
+            case let .serviceRequestDispositionEvent(id,_,_,_):return try .init(kind:.serviceRequestDispositionEvent,id:id)
+            case let .serviceRequestWorkLinkEvent(id,_,_,_):return try .init(kind:.serviceRequestWorkLinkEvent,id:id)
             case let .workflowRecord(id, _, _): return try .init(kind: .workflowRecord, id: id)
             case let .evidenceFile(id, _, _): return try .init(kind: .evidenceFile, id: id)
             case let .issue(id, _, _): return try .init(kind: .issue, id: id)
@@ -292,6 +298,9 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var semanticSHA256: String {
         switch self {
+        case let .serviceRequestRecord(_,_,_,value),
+             let .serviceRequestDispositionEvent(_,_,_,value),
+             let .serviceRequestWorkLinkEvent(_,_,_,value): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .exceptionCalendarRelease(_,_,_,value),let .scheduleOverrideEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value),let .serviceContactPoint(_,_,_,value),let .systemHandoffIntent(_,_,_,value),let .activitySessionEnvelope(_,_,_,value),let .activityStateTransition(_,_,_,value),let .installationTaskResult(_,_,_,value),let .installationAsBuiltSnapshot(_,_,_,value),let .punchReviewBasisSnapshot(_,_,_,value),let .workResourceEntry(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
@@ -321,6 +330,12 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     var concurrencyIdentity: WorkspaceEntityIdentityV1 {
         get throws {
             switch self {
+            case let .serviceRequestRecord(_,value,_,_):
+                guard value.kind == .serviceRequestRecord else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .serviceRequestDispositionEvent(_,value,_,_):
+                guard value.kind == .serviceRequestDispositionEvent else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
+            case let .serviceRequestWorkLinkEvent(_,value,_,_):
+                guard value.kind == .serviceRequestWorkLinkEvent else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
             case let .authoritySourceRelease(_, value, _, _):
                 guard value.kind == .authoritySourceRelease else { throw WorkspaceMutationFailureV1.invalidReceipt }; return value
             case let .requirementBasisBinding(_, value, _, _):
@@ -428,6 +443,9 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
 
     var revision: UInt64 {
         switch self {
+        case let .serviceRequestRecord(_,_,value,_),
+             let .serviceRequestDispositionEvent(_,_,value,_),
+             let .serviceRequestWorkLinkEvent(_,_,value,_): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .exceptionCalendarRelease(_,_,value,_),let .scheduleOverrideEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_),let .serviceContactPoint(_,_,value,_),let .systemHandoffIntent(_,_,value,_),let .activitySessionEnvelope(_,_,value,_),let .activityStateTransition(_,_,value,_),let .installationTaskResult(_,_,value,_),let .installationAsBuiltSnapshot(_,_,value,_),let .punchReviewBasisSnapshot(_,_,value,_),let .workResourceEntry(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
@@ -1363,6 +1381,31 @@ struct WorkResourceMutationReceiptV1: Codable, Equatable, Sendable {
         affectedIdentity = affected
     }
 }
+
+struct ServiceRequestMutationReceiptV1: Codable, Equatable, Sendable {
+    let mutationSHA256: String
+    let mutationReceipt: MutationReceiptV1
+    let postImages: [MutationPostImageV1]
+
+    init(mutation: ServiceRequestMutationV1, mutationReceipt: MutationReceiptV1) throws {
+        try mutation.validateForCanonicalWriter()
+        try mutationReceipt.validate()
+        let images = try mutation.mutationPostImages
+        let expected = Dictionary(uniqueKeysWithValues: mutationReceipt.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        let resulting = Dictionary(uniqueKeysWithValues: mutationReceipt.resultingRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        guard mutationReceipt.mutationID == mutation.mutationID,
+              mutationReceipt.identity.workspaceID == mutation.workspaceID,
+              mutationReceipt.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(WorkspaceCommandV1.applyServiceRequest(mutation))),
+              mutationReceipt.postImages == images,
+              try mutation.concurrencyIdentities.allSatisfy({ expected[$0] == (try mutation.expectedRevision(for: $0)) }),
+              try images.allSatisfy({ resulting[try $0.identity] == $0.revision }) else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        mutationSHA256 = try WorkspaceMutationCanonicalV1.sha256(mutation)
+        self.mutationReceipt = mutationReceipt
+        postImages = images
+    }
+}
 // MARK: - C32 assistance mutation receipt boundary
 
 enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Mutation_MutationReceiptV1_swift {
@@ -1400,3 +1443,4 @@ enum C34SceneNavigationMutationReceiptBoundaryV1 {
             && !restorationProducesReceipt && C34SceneNavigationCanonicalExclusionV1.validate()
     }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-receipt

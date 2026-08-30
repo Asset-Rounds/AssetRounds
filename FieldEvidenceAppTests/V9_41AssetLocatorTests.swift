@@ -5,6 +5,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_41AssetLocatorTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45AssetLocatorCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityShortCodeUsesExistingExternalKeyAuthority() throws {
         let code = try ManualShortCodeV1(randomBody: "23456789AB")

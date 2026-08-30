@@ -1,5 +1,11 @@
 import Foundation
 
+enum C52ServiceRequestLocalJobPortBoundaryV1 {
+    static let serviceRequestAdmissionIsBackgroundJob = false
+    static let workConversionIsAutomatic = false
+    static let canonicalReceiptIsSynthesizedByJobPort = false
+}
+
 enum ScheduleLocalJobBoundaryV1 { static let derivedProjectionsAreRebuildable = true }
 
 /// The C51 reconciliation input is an immutable source frontier, not a

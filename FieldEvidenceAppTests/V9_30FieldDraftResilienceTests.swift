@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_30FieldDraftResilienceTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45FieldDraftCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityKeepsUnacceptedPlansAndResultsDerivedScratch() {
         XCTAssertEqual(Set(AssetLabelPersistenceEnrollmentV1.derivedFamilies), ["AssetLabelGenerationPlanV1", "LabelProjectionResultV1"])

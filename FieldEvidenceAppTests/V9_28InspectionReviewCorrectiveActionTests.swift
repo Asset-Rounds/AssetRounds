@@ -4,6 +4,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_28InspectionReviewCorrectiveActionTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private struct C14CorpusReviewEdge: Codable {
     let from: String
     let to: String

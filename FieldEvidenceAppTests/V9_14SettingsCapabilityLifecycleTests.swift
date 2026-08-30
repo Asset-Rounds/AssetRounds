@@ -3,6 +3,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_14SettingsCapabilityLifecycleTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45SettingsCapabilityCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityKeepsOutputActivationExplicitAndBounded() {
         XCTAssertEqual(Set(LabelOutputActivationDecisionV1.allCases), [.enabledBoundedLocalOnly, .disabledOrDeferred])

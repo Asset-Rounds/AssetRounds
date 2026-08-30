@@ -1,6 +1,10 @@
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_S8_2GoldenAccessibilityTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45GoldenAccessibilityCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityOwnsAccessibleStructuredTextArtifact() {
         XCTAssertTrue(LabelArtifactKindV1.allCases.contains(.structuredText))

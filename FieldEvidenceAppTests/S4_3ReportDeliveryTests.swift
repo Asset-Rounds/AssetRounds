@@ -8,6 +8,10 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_S4_3ReportDeliveryTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45ReportDeliveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDoesNotEquateGenerationWithExternalHandoff() {
         XCTAssertEqual(LabelOutputDispositionV1.generated.rawValue, "GENERATED")

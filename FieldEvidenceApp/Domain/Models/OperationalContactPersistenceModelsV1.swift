@@ -350,3 +350,4 @@ private struct OperationalContactSiteDigestBasisV1: Codable {
 }
 
 enum C46OperationalContactBoundary_55{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-persistence

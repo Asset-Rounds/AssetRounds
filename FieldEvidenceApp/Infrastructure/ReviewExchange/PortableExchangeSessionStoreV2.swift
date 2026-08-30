@@ -103,6 +103,270 @@ struct PortableExchangeImportReceiptV2: Codable, Equatable, Sendable {
     let appliedToCanonicalC14: Bool
 }
 
+/// Service-request staging is deliberately a typed facade over the C48
+/// session envelope.  The capability never appears in this value's encoded
+/// form; the store accepts it only long enough to place its raw bytes in the
+/// protected capability artifact.
+struct PortableExchangeServiceRequestInvitationStageInputV2: Sendable {
+    let sessionID: UUID?
+    let invitation: PortableServiceRequestInvitationV1
+    let protocolRelease: PortableServiceRequestProtocolReleaseV1
+    let workspaceID: UUID?
+
+    init(
+        sessionID: UUID? = nil,
+        invitation: PortableServiceRequestInvitationV1,
+        protocolRelease: PortableServiceRequestProtocolReleaseV1,
+        workspaceID: UUID? = nil
+    ) {
+        self.sessionID = sessionID
+        self.invitation = invitation
+        self.protocolRelease = protocolRelease
+        self.workspaceID = workspaceID
+    }
+}
+
+struct PortableExchangeServiceRequestImportPreviewV2: Equatable, Sendable {
+    let invitationPublicID: ServiceRequestInvitationPublicIDV1
+    let submissionPublicID: ServiceRequestSubmissionPublicIDV1
+    let canonicalSourceSHA256: String
+    let capabilityAssessment: ServiceRequestCapabilityAssessmentV1
+    let sessionID: UUID?
+    let submissionAlreadyRecorded: Bool
+
+    init(
+        invitationPublicID: ServiceRequestInvitationPublicIDV1,
+        submissionPublicID: ServiceRequestSubmissionPublicIDV1,
+        canonicalSourceSHA256: String,
+        capabilityAssessment: ServiceRequestCapabilityAssessmentV1,
+        sessionID: UUID?,
+        submissionAlreadyRecorded: Bool
+    ) throws {
+        try ServiceRequestLimitsV1.digest(canonicalSourceSHA256)
+        self.invitationPublicID = invitationPublicID
+        self.submissionPublicID = submissionPublicID
+        self.canonicalSourceSHA256 = canonicalSourceSHA256
+        self.capabilityAssessment = capabilityAssessment
+        self.sessionID = sessionID
+        self.submissionAlreadyRecorded = submissionAlreadyRecorded
+    }
+}
+
+private enum PortableExchangeServiceRequestReceiptCodingV2 {
+    private struct AnyKey: CodingKey {
+        let stringValue: String
+        let intValue: Int?
+
+        init?(stringValue: String) {
+            self.stringValue = stringValue
+            intValue = nil
+        }
+
+        init?(intValue: Int) {
+            stringValue = String(intValue)
+            self.intValue = intValue
+        }
+    }
+
+    static func requireAllowed<Key: CodingKey & CaseIterable>(
+        _ decoder: Decoder,
+        _ keys: Key.Type,
+        required: [Key]
+    ) throws where Key.AllCases: Collection {
+        let actual = Set(
+            try decoder.container(keyedBy: AnyKey.self).allKeys.map(\.stringValue)
+        )
+        let allowed = Set(Key.allCases.map(\.stringValue))
+        let requiredNames = Set(required.map(\.stringValue))
+        guard actual.isSubset(of: allowed), requiredNames.isSubset(of: actual) else {
+            throw ServiceRequestFailureV1.unknownKey
+        }
+    }
+}
+
+struct PortableExchangeServiceRequestImportReceiptV2: Codable, Equatable, Sendable {
+    let operationID: UUID
+    let invitationPublicID: ServiceRequestInvitationPublicIDV1
+    let submissionPublicID: ServiceRequestSubmissionPublicIDV1
+    let disposition: ServiceRequestImportDispositionV1
+    let resultingState: PortableExchangeSessionStateV2?
+    let capabilityAssessment: ServiceRequestCapabilityAssessmentV1
+    let appliedToCanonicalWorkspace: Bool
+
+    init(
+        operationID: UUID,
+        invitationPublicID: ServiceRequestInvitationPublicIDV1,
+        submissionPublicID: ServiceRequestSubmissionPublicIDV1,
+        disposition: ServiceRequestImportDispositionV1,
+        resultingState: PortableExchangeSessionStateV2?,
+        capabilityAssessment: ServiceRequestCapabilityAssessmentV1,
+        appliedToCanonicalWorkspace: Bool
+    ) throws {
+        self.operationID = operationID
+        self.invitationPublicID = invitationPublicID
+        self.submissionPublicID = submissionPublicID
+        self.disposition = disposition
+        self.resultingState = resultingState
+        self.capabilityAssessment = capabilityAssessment
+        self.appliedToCanonicalWorkspace = appliedToCanonicalWorkspace
+        try validate()
+    }
+
+    func validate() throws {
+        try ServiceRequestLimitsV1.id(operationID)
+        try invitationPublicID.validate()
+        try submissionPublicID.validate()
+        guard !appliedToCanonicalWorkspace else {
+            throw ServiceRequestFailureV1.invalidHistory
+        }
+        switch disposition {
+        case .discardUnimported, .keepQuarantined:
+            guard resultingState == nil else {
+                throw ServiceRequestFailureV1.invalidHistory
+            }
+        case .recordHistoryOnly:
+            guard resultingState == .historyOnlyTerminal else {
+                throw ServiceRequestFailureV1.invalidHistory
+            }
+        case .acceptAsNew, .acceptAndLinkDuplicate, .declineWithReason:
+            guard resultingState == nil else {
+                throw ServiceRequestFailureV1.invalidHistory
+            }
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case operationID
+        case invitationPublicID
+        case submissionPublicID
+        case disposition
+        case resultingState
+        case capabilityAssessment
+        case appliedToCanonicalWorkspace
+    }
+
+    init(from decoder: Decoder) throws {
+        try PortableExchangeServiceRequestReceiptCodingV2.requireAllowed(decoder, CodingKeys.self,
+            required: [
+                .operationID,
+                .invitationPublicID,
+                .submissionPublicID,
+                .disposition,
+                .capabilityAssessment,
+                .appliedToCanonicalWorkspace,
+            ]
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            operationID: try container.decode(UUID.self, forKey: .operationID),
+            invitationPublicID: try container.decode(
+                ServiceRequestInvitationPublicIDV1.self,
+                forKey: .invitationPublicID
+            ),
+            submissionPublicID: try container.decode(
+                ServiceRequestSubmissionPublicIDV1.self,
+                forKey: .submissionPublicID
+            ),
+            disposition: try container.decode(
+                ServiceRequestImportDispositionV1.self,
+                forKey: .disposition
+            ),
+            resultingState: try container.decodeIfPresent(
+                PortableExchangeSessionStateV2.self,
+                forKey: .resultingState
+            ),
+            capabilityAssessment: try container.decode(
+                ServiceRequestCapabilityAssessmentV1.self,
+                forKey: .capabilityAssessment
+            ),
+            appliedToCanonicalWorkspace: try container.decode(
+                Bool.self,
+                forKey: .appliedToCanonicalWorkspace
+            )
+        )
+    }
+}
+
+struct PortableExchangeServiceRequestReconciliationReceiptV2: Codable, Equatable, Sendable {
+    let operationID: UUID
+    let invitationPublicID: ServiceRequestInvitationPublicIDV1
+    let submissionPublicID: ServiceRequestSubmissionPublicIDV1
+    let disposition: ServiceRequestImportDispositionV1
+    let resultingState: PortableExchangeSessionStateV2
+    let canonicalMutationReceiptSHA256: String?
+
+    init(
+        operationID: UUID,
+        invitationPublicID: ServiceRequestInvitationPublicIDV1,
+        submissionPublicID: ServiceRequestSubmissionPublicIDV1,
+        disposition: ServiceRequestImportDispositionV1,
+        resultingState: PortableExchangeSessionStateV2,
+        canonicalMutationReceiptSHA256: String?
+    ) throws {
+        self.operationID = operationID
+        self.invitationPublicID = invitationPublicID
+        self.submissionPublicID = submissionPublicID
+        self.disposition = disposition
+        self.resultingState = resultingState
+        self.canonicalMutationReceiptSHA256 = canonicalMutationReceiptSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        try ServiceRequestLimitsV1.id(operationID)
+        try invitationPublicID.validate()
+        try submissionPublicID.validate()
+        guard disposition == .acceptAsNew
+                || disposition == .acceptAndLinkDuplicate
+                || disposition == .declineWithReason,
+              resultingState == .responsePendingDecision
+                || resultingState == .historyOnlyTerminal,
+              let canonicalMutationReceiptSHA256 else {
+            throw ServiceRequestFailureV1.invalidHistory
+        }
+        try ServiceRequestLimitsV1.digest(canonicalMutationReceiptSHA256)
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case operationID
+        case invitationPublicID
+        case submissionPublicID
+        case disposition
+        case resultingState
+        case canonicalMutationReceiptSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        try PortableExchangeServiceRequestReceiptCodingV2.requireAllowed(decoder, CodingKeys.self,
+            required: Array(CodingKeys.allCases)
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            operationID: try container.decode(UUID.self, forKey: .operationID),
+            invitationPublicID: try container.decode(
+                ServiceRequestInvitationPublicIDV1.self,
+                forKey: .invitationPublicID
+            ),
+            submissionPublicID: try container.decode(
+                ServiceRequestSubmissionPublicIDV1.self,
+                forKey: .submissionPublicID
+            ),
+            disposition: try container.decode(
+                ServiceRequestImportDispositionV1.self,
+                forKey: .disposition
+            ),
+            resultingState: try container.decode(
+                PortableExchangeSessionStateV2.self,
+                forKey: .resultingState
+            ),
+            canonicalMutationReceiptSHA256: try container.decodeIfPresent(
+                String.self,
+                forKey: .canonicalMutationReceiptSHA256
+            )
+        )
+    }
+}
+
 protocol PortableExchangeSessionStorePortV2: Sendable {
     func sessions(
         in namespace: PortableExchangeSessionNamespaceV2?
@@ -119,13 +383,66 @@ protocol PortableExchangeSessionStorePortV2: Sendable {
     func erase(operationID: UUID) async throws -> PortableExchangeEraseReceiptV2
 }
 
+/// The service-request facade deliberately shares the C48 actor and journal.
+/// Its typed methods keep service proofs and dispositions out of the review
+/// response grammar while retaining the same protected backup/restore root.
+protocol PortableExchangeServiceRequestStorePortV2: Sendable {
+    func stageServiceRequestInvitation(
+        _ input: PortableExchangeServiceRequestInvitationStageInputV2
+    ) async throws -> PortableExchangeSessionRecordV2
+    func markServiceRequestInvitationExported(
+        _ invitationPublicID: ServiceRequestInvitationPublicIDV1
+    ) async throws -> PortableExchangeSessionRecordV2
+    func serviceRequestSession(
+        invitationPublicID: ServiceRequestInvitationPublicIDV1
+    ) async throws -> PortableExchangeSessionRecordV2?
+    func serviceRequestManifestBytes(
+        invitationPublicID: ServiceRequestInvitationPublicIDV1
+    ) async throws -> Data?
+    func serviceRequestSourceBytes(
+        invitationPublicID: ServiceRequestInvitationPublicIDV1,
+        submissionPublicID: ServiceRequestSubmissionPublicIDV1
+    ) async throws -> Data?
+    func previewServiceRequest(
+        _ submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data,
+        capability: ServiceRequestSubmissionCapabilityV1?
+    ) async throws -> PortableExchangeServiceRequestImportPreviewV2
+    func applyServiceRequestImport(
+        _ submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data,
+        disposition: ServiceRequestImportDispositionV1,
+        capability: ServiceRequestSubmissionCapabilityV1?,
+        operationID: UUID
+    ) async throws -> PortableExchangeServiceRequestImportReceiptV2
+    func prepareServiceRequestImport(
+        plan: ServiceRequestImportPlanV1,
+        receipt: ServiceRequestImportReceiptV1,
+        submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data,
+        capability: ServiceRequestSubmissionCapabilityV1?
+    ) async throws -> PortableExchangeServiceRequestReconciliationReceiptV2
+    func finalizeServiceRequestImport(
+        plan: ServiceRequestImportPlanV1,
+        receipt: ServiceRequestImportReceiptV1
+    ) async throws -> PortableExchangeServiceRequestReconciliationReceiptV2
+    func recoverServiceRequestImport(
+        _ receipt: ServiceRequestImportReceiptV1
+    ) async throws -> PortableExchangeServiceRequestReconciliationReceiptV2
+    func quarantineServiceRequest(
+        _ sourceBytes: Data,
+        reason: String
+    ) async throws
+}
+
 /// The sole C48 owner of REVIEW and SERVICE_REQUEST exchange staging.
 ///
 /// The actor owns only protected, operation-scoped staging.  It never inserts
 /// SwiftData rows and never applies a C14 review mutation.  Callers hand an
 /// accepted response to the existing canonical writer after the explicit
 /// preview/decision boundary.
-actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2 {
+actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
+    PortableExchangeServiceRequestStorePortV2 {
     private let rootURL: URL
     private let envelopeURL: URL
     private let journalURL: URL
@@ -3334,5 +3651,895 @@ extension PortableExchangeSessionStoreV2: PortableReviewSessionReconciliationV1 
 
     private static func hexString(_ value: Data) -> String {
         value.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+// MARK: - Type-separated C52 service-request exchange
+
+extension PortableExchangeSessionStoreV2 {
+    /// Stages the invitation manifest and its protected capability in the
+    /// shared C48 store.  The invitation envelope itself is intentionally not
+    /// persisted because it contains the bearer capability in cleartext.
+    @discardableResult
+    func stageServiceRequestInvitation(
+        _ input: PortableExchangeServiceRequestInvitationStageInputV2
+    ) throws -> PortableExchangeSessionRecordV2 {
+        try input.protocolRelease.validate()
+        try input.invitation.validate()
+        guard input.invitation.manifest.protocolReleaseSHA256
+                == input.protocolRelease.releaseSHA256 else {
+            throw ServiceRequestFailureV1.incompatibleVersion
+        }
+        let invitationID = input.invitation.manifest.invitationPublicID.rawValue
+        let manifestBytes = try ServiceRequestCanonicalCodecV1.data(
+            input.invitation.manifest
+        )
+        let capability = try input.invitation.capability
+        if let existing = try session(
+            publicRequestID: invitationID,
+            namespace: .serviceRequest
+        ) {
+            guard let manifestReference = existing.immutableBytes.first(where: {
+                      $0.role == .requestManifest
+                  }),
+                  existing.requestManifestSHA256
+                    == ServiceRequestCanonicalCodecV1.sha256(manifestBytes),
+                  try readPayload(manifestReference.relativePath) == manifestBytes,
+                  let protectedCapability = existing.protectedCapability,
+                  protectedCapability.sha256
+                    == ServiceRequestCanonicalCodecV1.sha256(capability.rawBytes),
+                  try readCapability(protectedCapability.relativePath)
+                    == capability.rawBytes else {
+                throw PortableExchangePersistenceFailureV2.duplicateSession
+            }
+            return existing
+        }
+        guard let releaseDigest = Self.hexData(
+            input.protocolRelease.releaseSHA256
+        ) else {
+            throw ServiceRequestFailureV1.invalidDigest
+        }
+        let bearer = try BearerResponseCapabilityV1(rawBytes: capability.rawBytes)
+        return try stage(PortableExchangeSessionStageInputV2(
+            sessionID: input.sessionID,
+            namespace: .serviceRequest,
+            publicRequestID: invitationID,
+            revision: 1,
+            workspaceID: input.workspaceID,
+            canonicalReviewIdentity: invitationID,
+            canonicalSubjectIdentity: nil,
+            protocolReleaseDigest: releaseDigest,
+            requestManifestBytes: manifestBytes,
+            requestPackageBytes: nil,
+            capability: bearer,
+            state: .openUnexported
+        ))
+    }
+
+    @discardableResult
+    func stageServiceRequestInvitation(
+        _ invitation: PortableServiceRequestInvitationV1,
+        protocolRelease: PortableServiceRequestProtocolReleaseV1,
+        sessionID: UUID? = nil,
+        workspaceID: UUID? = nil
+    ) throws -> PortableExchangeSessionRecordV2 {
+        try stageServiceRequestInvitation(
+            PortableExchangeServiceRequestInvitationStageInputV2(
+                sessionID: sessionID,
+                invitation: invitation,
+                protocolRelease: protocolRelease,
+                workspaceID: workspaceID
+            )
+        )
+    }
+
+    @discardableResult
+    func markServiceRequestInvitationExported(
+        _ invitationPublicID: ServiceRequestInvitationPublicIDV1
+    ) throws -> PortableExchangeSessionRecordV2 {
+        try invitationPublicID.validate()
+        guard let record = try session(
+            publicRequestID: invitationPublicID.rawValue,
+            namespace: .serviceRequest
+        ) else {
+            throw PortableExchangePersistenceFailureV2.sessionNotFound
+        }
+        return try markExported(id: record.sessionID)
+    }
+
+    func serviceRequestSession(
+        invitationPublicID: ServiceRequestInvitationPublicIDV1
+    ) throws -> PortableExchangeSessionRecordV2? {
+        try invitationPublicID.validate()
+        return try session(
+            publicRequestID: invitationPublicID.rawValue,
+            namespace: .serviceRequest
+        )
+    }
+
+    /// Returns only the immutable invitation manifest.  Raw capability bytes
+    /// are never returned by the store facade.
+    func serviceRequestManifestBytes(
+        invitationPublicID: ServiceRequestInvitationPublicIDV1
+    ) throws -> Data? {
+        guard let record = try serviceRequestSession(
+            invitationPublicID: invitationPublicID
+        ) else { return nil }
+        guard let reference = record.immutableBytes.first(where: {
+            $0.role == .requestManifest
+        }) else { return nil }
+        let bytes = try readPayload(reference.relativePath)
+        guard UInt64(bytes.count) == reference.byteCount,
+              StoreMigrationCanonicalJSONV1.sha256(bytes) == reference.sha256 else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        return bytes
+    }
+
+    /// Returns the immutable submission source, never the protected
+    /// capability.  Service submissions are represented by the accepted
+    /// response slot of their invitation session and remain single-use.
+    func serviceRequestSourceBytes(
+        invitationPublicID: ServiceRequestInvitationPublicIDV1,
+        submissionPublicID: ServiceRequestSubmissionPublicIDV1
+    ) throws -> Data? {
+        try submissionPublicID.validate()
+        guard let record = try serviceRequestSession(
+            invitationPublicID: invitationPublicID
+        ) else { return nil }
+        guard record.responseIDs.contains(submissionPublicID.rawValue) else {
+            return nil
+        }
+        guard let reference = record.immutableBytes.last(where: {
+                  $0.role == .acceptedResponse
+              }),
+              record.acceptedResponseSHA256 == reference.sha256 else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        let bytes = try readPayload(reference.relativePath)
+        guard UInt64(bytes.count) == reference.byteCount,
+              StoreMigrationCanonicalJSONV1.sha256(bytes) == reference.sha256 else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        return bytes
+    }
+
+    func previewServiceRequest(
+        _ submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data,
+        capability: ServiceRequestSubmissionCapabilityV1? = nil
+    ) throws -> PortableExchangeServiceRequestImportPreviewV2 {
+        let sourceDigest = try validateServiceSubmissionSource(
+            submission,
+            sourceBytes: sourceBytes
+        )
+        guard let record = try serviceRequestSession(
+            invitationPublicID: submission.invitationPublicID
+        ) else {
+            return try PortableExchangeServiceRequestImportPreviewV2(
+                invitationPublicID: submission.invitationPublicID,
+                submissionPublicID: submission.submissionPublicID,
+                canonicalSourceSHA256: sourceDigest,
+                capabilityAssessment: ServiceRequestCapabilityAssessmentV1(
+                    proofValidity: .unavailable,
+                    importEligibility: .unavailable
+                ),
+                sessionID: nil,
+                submissionAlreadyRecorded: false
+            )
+        }
+
+        let manifest: ServiceRequestInvitationManifestV1
+        guard let manifestBytes = try serviceRequestManifestBytes(
+            invitationPublicID: submission.invitationPublicID
+        ) else {
+            return try makeServiceRequestPreview(
+                submission: submission,
+                sourceDigest: sourceDigest,
+                record: record,
+                proofValidity: .unavailable,
+                eligibility: .unavailable,
+                alreadyRecorded: false
+            )
+        }
+        do {
+            manifest = try ServiceRequestCanonicalCodecV1.decode(
+                ServiceRequestInvitationManifestV1.self,
+                from: manifestBytes
+            )
+        } catch {
+            return try makeServiceRequestPreview(
+                submission: submission,
+                sourceDigest: sourceDigest,
+                record: record,
+                proofValidity: capability == nil ? .unavailable : .invalid,
+                eligibility: .unavailable,
+                alreadyRecorded: false
+            )
+        }
+
+        guard manifest.invitationPublicID == submission.invitationPublicID,
+              manifest.protocolReleaseSHA256 == submission.protocolReleaseSHA256,
+              manifest.scope.scopeSHA256 == submission.frozenScopeSHA256,
+              record.protocolReleaseDigest == Self.hexData(
+                  submission.protocolReleaseSHA256
+              ) else {
+            return try makeServiceRequestPreview(
+                submission: submission,
+                sourceDigest: sourceDigest,
+                record: record,
+                proofValidity: capability == nil ? .unavailable : .invalid,
+                eligibility: .staleScope,
+                alreadyRecorded: false
+            )
+        }
+
+        let alreadyRecorded = record.responseIDs.contains(
+            submission.submissionPublicID.rawValue
+        )
+        if alreadyRecorded,
+           record.acceptedResponseSHA256 != sourceDigest {
+            throw ServiceRequestFailureV1.divergentSubmission
+        }
+        let protectedCapability = try storedServiceRequestCapability(for: record)
+        let proofValidity: ServiceRequestProofValidityV1
+        let capabilityForProof: ServiceRequestSubmissionCapabilityV1?
+        if let capability {
+            if let protectedCapability, protectedCapability == capability {
+                capabilityForProof = capability
+            } else {
+                capabilityForProof = nil
+            }
+        } else {
+            capabilityForProof = protectedCapability
+        }
+        if capability != nil, capabilityForProof == nil {
+            proofValidity = .invalid
+        } else if let capabilityForProof {
+            let input = try ServiceRequestCapabilityProofInputV1(
+                protocolReleaseDigest: Self.hexData(
+                    submission.protocolReleaseSHA256
+                )!,
+                invitationPublicID: submission.invitationPublicID,
+                invitationManifestDigest: Self.hexData(
+                    submission.invitationManifestSHA256
+                )!,
+                frozenScopeSnapshotDigest: Self.hexData(
+                    submission.frozenScopeSHA256
+                )!,
+                submissionPublicID: submission.submissionPublicID,
+                canonicalSubmissionBodyDigest: Self.hexData(
+                    submission.canonicalBodySHA256
+                )!,
+                mediaManifestDigest: Self.hexData(
+                    submission.mediaManifest.manifestSHA256
+                )!
+            )
+            proofValidity = (try ServiceRequestCapabilityProofCodecV1.verify(
+                submission.proof,
+                capability: capabilityForProof,
+                input: input
+            )) ? .valid : .invalid
+        } else {
+            proofValidity = .unavailable
+        }
+        return try makeServiceRequestPreview(
+            submission: submission,
+            sourceDigest: sourceDigest,
+            record: record,
+            proofValidity: proofValidity,
+            eligibility: serviceRequestEligibility(for: record),
+            alreadyRecorded: alreadyRecorded
+        )
+    }
+
+    func previewServiceRequest(
+        _ submission: PortableServiceRequestSubmissionV1,
+        capability: ServiceRequestSubmissionCapabilityV1? = nil
+    ) throws -> PortableExchangeServiceRequestImportPreviewV2 {
+        try previewServiceRequest(
+            submission,
+            sourceBytes: try ServiceRequestCanonicalCodecV1.data(submission),
+            capability: capability
+        )
+    }
+
+    @discardableResult
+    func applyServiceRequestImport(
+        _ submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data,
+        disposition: ServiceRequestImportDispositionV1,
+        capability: ServiceRequestSubmissionCapabilityV1? = nil,
+        operationID: UUID = UUID()
+    ) throws -> PortableExchangeServiceRequestImportReceiptV2 {
+        let preview = try previewServiceRequest(
+            submission,
+            sourceBytes: sourceBytes,
+            capability: capability
+        )
+        switch disposition {
+        case .discardUnimported:
+            return PortableExchangeServiceRequestImportReceiptV2(
+                operationID: operationID,
+                invitationPublicID: submission.invitationPublicID,
+                submissionPublicID: submission.submissionPublicID,
+                disposition: disposition,
+                resultingState: nil,
+                capabilityAssessment: preview.capabilityAssessment,
+                appliedToCanonicalWorkspace: false
+            )
+        case .keepQuarantined:
+            try quarantineServiceRequest(
+                sourceBytes,
+                reason: disposition.rawValue
+            )
+            return PortableExchangeServiceRequestImportReceiptV2(
+                operationID: operationID,
+                invitationPublicID: submission.invitationPublicID,
+                submissionPublicID: submission.submissionPublicID,
+                disposition: disposition,
+                resultingState: nil,
+                capabilityAssessment: preview.capabilityAssessment,
+                appliedToCanonicalWorkspace: false
+            )
+        case .recordHistoryOnly:
+            guard let sessionID = preview.sessionID else {
+                throw PortableExchangePersistenceFailureV2.sessionNotFound
+            }
+            let record = try recordServiceRequestHistoryOnly(
+                sessionID: sessionID,
+                submission: submission,
+                sourceBytes: sourceBytes
+            )
+            return PortableExchangeServiceRequestImportReceiptV2(
+                operationID: operationID,
+                invitationPublicID: submission.invitationPublicID,
+                submissionPublicID: submission.submissionPublicID,
+                disposition: disposition,
+                resultingState: record.state,
+                capabilityAssessment: preview.capabilityAssessment,
+                appliedToCanonicalWorkspace: false
+            )
+        case .acceptAsNew, .acceptAndLinkDuplicate, .declineWithReason:
+            // Canonical service-request rows belong to WorkspaceWriterV1.
+            // The typed plan/receipt overload below is the only path that
+            // prepares this store before that writer and finalizes it after
+            // the durable canonical receipt.
+            throw PortableExchangePersistenceFailureV2.invalidTransition
+        }
+    }
+
+    func quarantineServiceRequest(
+        _ sourceBytes: Data,
+        reason: String = ServiceRequestImportDispositionV1.keepQuarantined.rawValue
+    ) throws {
+        guard !sourceBytes.isEmpty,
+              sourceBytes.count <= ServiceRequestLimitsV1.maximumPortableFileBytes,
+              !reason.isEmpty,
+              reason.utf8.count <= 512 else {
+            throw ServiceRequestFailureV1.limitExceeded
+        }
+        try quarantine(
+            sourceBytes,
+            namespace: .serviceRequest,
+            reason: reason
+        )
+    }
+
+    /// Prepares a canonical service-request mutation.  This is the staging
+    /// half of the two-plane operation; WorkspaceWriterV1 must publish the
+    /// canonical `ServiceRequestImportReceiptV1` before the caller finalizes
+    /// this protected exchange session.
+    func prepareServiceRequestImport(
+        plan: ServiceRequestImportPlanV1,
+        receipt: ServiceRequestImportReceiptV1,
+        submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data,
+        capability: ServiceRequestSubmissionCapabilityV1? = nil
+    ) throws -> PortableExchangeServiceRequestReconciliationReceiptV2 {
+        let sourceDigest = try validateServiceSubmissionSource(
+            submission,
+            sourceBytes: sourceBytes
+        )
+        try validateServiceImportBinding(
+            plan: plan,
+            receipt: receipt,
+            submission: submission,
+            sourceDigest: sourceDigest
+        )
+        let preview = try previewServiceRequest(
+            submission,
+            sourceBytes: sourceBytes,
+            capability: capability
+        )
+        guard preview.capabilityAssessment == plan.capabilityAssessment else {
+            throw ServiceRequestFailureV1.staleRevision
+        }
+        guard plan.disposition != .recordHistoryOnly,
+              plan.disposition == .acceptAsNew
+                || plan.disposition == .acceptAndLinkDuplicate
+                || plan.disposition == .declineWithReason,
+              let sessionID = preview.sessionID else {
+            throw ServiceRequestFailureV1.ineligibleImport
+        }
+        let requiresEligibleCapability = plan.disposition == .acceptAsNew
+            || plan.disposition == .acceptAndLinkDuplicate
+        guard !requiresEligibleCapability
+                || (preview.capabilityAssessment.proofValidity == .valid
+                    && preview.capabilityAssessment.importEligibility == .eligible) else {
+            throw ServiceRequestFailureV1.ineligibleImport
+        }
+        return try prepareServiceRequestSubmission(
+            sessionID: sessionID,
+            invitationPublicID: submission.invitationPublicID,
+            submission: submission,
+            sourceBytes: sourceBytes,
+            plan: plan,
+            receipt: receipt
+        )
+    }
+
+    /// Completes the protected side after the canonical writer has published
+    /// the receipt.  A repeated completion returns the same terminal image.
+    func finalizeServiceRequestImport(
+        plan: ServiceRequestImportPlanV1,
+        receipt: ServiceRequestImportReceiptV1
+    ) throws -> PortableExchangeServiceRequestReconciliationReceiptV2 {
+        try validateServiceImportPlan(plan)
+        try validateServiceImportReceipt(receipt)
+        guard plan.workspaceID == receipt.workspaceID,
+              plan.zeroWrite,
+              plan.submissionPublicID == receipt.submissionPublicID,
+              plan.planSHA256 == receipt.planSHA256,
+              plan.disposition == receipt.disposition,
+              plan.mutationID == receipt.mutationID else {
+            throw ServiceRequestFailureV1.scopeMismatch
+        }
+        return try finalizePendingServiceRequest(
+            receipt: receipt,
+            expectedWorkspaceID: plan.workspaceID
+        )
+    }
+
+    /// Startup recovery is authorized only by the exact canonical receipt
+    /// digest stored in the pending marker.  No workspace effect is inferred
+    /// from a service file alone.
+    func recoverServiceRequestImport(
+        _ receipt: ServiceRequestImportReceiptV1
+    ) throws -> PortableExchangeServiceRequestReconciliationReceiptV2 {
+        try validateServiceImportReceipt(receipt)
+        return try finalizePendingServiceRequest(
+            receipt: receipt,
+            expectedWorkspaceID: receipt.workspaceID
+        )
+    }
+
+    private func recordServiceRequestHistoryOnly(
+        sessionID: UUID,
+        submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data
+    ) throws -> PortableExchangeSessionRecordV2 {
+        let sourceDigest = try validateServiceSubmissionSource(
+            submission,
+            sourceBytes: sourceBytes
+        )
+        try ensureLoaded()
+        guard var current = envelope?.sessions.first(where: {
+            $0.sessionID == sessionID && $0.namespace == .serviceRequest
+        }) else {
+            throw PortableExchangePersistenceFailureV2.sessionNotFound
+        }
+        if current.pendingMutationID != nil {
+            throw PortableExchangePersistenceFailureV2.invalidTransition
+        }
+        if current.responseIDs.contains(submission.submissionPublicID.rawValue) {
+            guard current.acceptedResponseSHA256 == sourceDigest else {
+                throw ServiceRequestFailureV1.divergentSubmission
+            }
+            if current.state.isImmutableHistory {
+                return current
+            }
+            throw PortableExchangePersistenceFailureV2.invalidTransition
+        }
+        guard current.state == .exportedAwaitingResponse else {
+            throw PortableExchangePersistenceFailureV2.invalidTransition
+        }
+        let reference = try persistImmutableBytes(
+            sourceBytes,
+            role: .acceptedResponse,
+            sessionID: current.sessionID
+        )
+        current.immutableBytes.append(reference)
+        current.responseIDs.append(submission.submissionPublicID.rawValue)
+        current.acceptedResponseSHA256 = sourceDigest
+        current.state = .historyOnlyTerminal
+        current.capabilityState = .historyOnlyTerminal
+        if current.protectedCapability != nil {
+            try removeCapability(for: current)
+            current.protectedCapability = nil
+        }
+        current.updatedAt = clock.now()
+        try replaceRecordAndPublish(current, operation: .accept)
+        return current
+    }
+
+    private func prepareServiceRequestSubmission(
+        sessionID: UUID,
+        invitationPublicID: ServiceRequestInvitationPublicIDV1,
+        submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data,
+        plan: ServiceRequestImportPlanV1,
+        receipt: ServiceRequestImportReceiptV1
+    ) throws -> PortableExchangeServiceRequestReconciliationReceiptV2 {
+        let sourceDigest = try ServiceRequestCanonicalCodecV1.sha256(sourceBytes)
+        try ensureLoaded()
+        guard var current = envelope?.sessions.first(where: {
+            $0.sessionID == sessionID && $0.namespace == .serviceRequest
+        }) else {
+            throw PortableExchangePersistenceFailureV2.sessionNotFound
+        }
+        let effectDigest = receipt.canonicalMutationReceiptSHA256
+        guard let effectDigest else {
+            throw ServiceRequestFailureV1.invalidHistory
+        }
+        if let pending = current.pendingMutationID {
+            guard pending == receipt.mutationID,
+                  current.pendingEffectSHA256 == effectDigest,
+                  current.pendingImportReceiptSHA256 == receipt.receiptSHA256,
+                  try hasStoredServiceImportReceipt(receipt, in: current) else {
+                throw PortableExchangePersistenceFailureV2.invalidTransition
+            }
+            return try serviceReconciliationReceipt(
+                operationID: receipt.mutationID.rawValue,
+                invitationPublicID: invitationPublicID,
+                submissionPublicID: submission.submissionPublicID,
+                disposition: receipt.disposition,
+                resultingState: current.state,
+                canonicalMutationReceiptSHA256: effectDigest
+            )
+        }
+        guard current.workspaceID == nil
+                || current.workspaceID == plan.workspaceID.rawValue,
+              current.state == .exportedAwaitingResponse
+                || current.state == .openUnexported,
+              current.protectedCapability != nil else {
+            throw ServiceRequestFailureV1.ineligibleImport
+        }
+        if current.responseIDs.contains(submission.submissionPublicID.rawValue) {
+            guard current.acceptedResponseSHA256 == sourceDigest else {
+                throw ServiceRequestFailureV1.divergentSubmission
+            }
+        } else {
+            current.immutableBytes.append(try persistImmutableBytes(
+                sourceBytes,
+                role: .acceptedResponse,
+                sessionID: current.sessionID
+            ))
+            current.responseIDs.append(submission.submissionPublicID.rawValue)
+            current.acceptedResponseSHA256 = sourceDigest
+        }
+        guard try !hasStoredServiceImportReceipt(receipt, in: current) else {
+            throw PortableExchangePersistenceFailureV2.invalidTransition
+        }
+        current.immutableBytes.append(try persistImmutableBytes(
+            ServiceRequestCanonicalCodecV1.data(receipt),
+            role: .reconciliationReceipt,
+            sessionID: current.sessionID
+        ))
+        current.workspaceID = plan.workspaceID.rawValue
+        current.canonicalReviewIdentity =
+            current.canonicalReviewIdentity ?? invitationPublicID.rawValue
+        current.pendingMutationID = receipt.mutationID
+        current.pendingEffectSHA256 = effectDigest
+        current.pendingImportReceiptSHA256 = receipt.receiptSHA256
+        current.state = .responsePendingDecision
+        current.capabilityState = .responsePendingDecision
+        current.updatedAt = clock.now()
+        try replaceRecordAndPublish(current, operation: .accept)
+        return try serviceReconciliationReceipt(
+            operationID: receipt.mutationID.rawValue,
+            invitationPublicID: invitationPublicID,
+            submissionPublicID: submission.submissionPublicID,
+            disposition: receipt.disposition,
+            resultingState: current.state,
+            canonicalMutationReceiptSHA256: effectDigest
+        )
+    }
+
+    private func finalizePendingServiceRequest(
+        receipt: ServiceRequestImportReceiptV1,
+        expectedWorkspaceID: WorkspaceID
+    ) throws -> PortableExchangeServiceRequestReconciliationReceiptV2 {
+        try ensureLoaded()
+        let pending = (envelope?.sessions ?? []).filter {
+            $0.namespace == .serviceRequest
+                && $0.pendingMutationID == receipt.mutationID
+                && $0.responseIDs.contains(receipt.submissionPublicID.rawValue)
+        }
+        if pending.count > 1 {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        if var current = pending.first {
+            guard current.workspaceID == expectedWorkspaceID.rawValue,
+                  current.acceptedResponseSHA256 == receipt.canonicalSourceSHA256,
+                  current.pendingEffectSHA256
+                    == receipt.canonicalMutationReceiptSHA256,
+                  current.pendingImportReceiptSHA256 == receipt.receiptSHA256,
+                  try hasStoredServiceImportReceipt(receipt, in: current) else {
+                throw PortableExchangePersistenceFailureV2.invalidTransition
+            }
+            let invitationID = try serviceInvitationID(for: current)
+            current.state = .historyOnlyTerminal
+            current.capabilityState = .historyOnlyTerminal
+            current.pendingMutationID = nil
+            current.pendingEffectSHA256 = nil
+            current.pendingImportReceiptSHA256 = nil
+            if current.protectedCapability != nil {
+                try removeCapability(for: current)
+                current.protectedCapability = nil
+            }
+            current.updatedAt = clock.now()
+            try replaceRecordAndPublish(current, operation: .accept)
+            return try serviceReconciliationReceipt(
+                operationID: receipt.mutationID.rawValue,
+                invitationPublicID: invitationID,
+                submissionPublicID: receipt.submissionPublicID,
+                disposition: receipt.disposition,
+                resultingState: current.state,
+                canonicalMutationReceiptSHA256:
+                    receipt.canonicalMutationReceiptSHA256
+            )
+        }
+
+        let completed = (envelope?.sessions ?? []).filter {
+            $0.namespace == .serviceRequest
+                && $0.responseIDs.contains(receipt.submissionPublicID.rawValue)
+                && $0.acceptedResponseSHA256 == receipt.canonicalSourceSHA256
+                && $0.state.isImmutableHistory
+        }
+        guard completed.count == 1 else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        guard completed[0].workspaceID == expectedWorkspaceID.rawValue,
+              try hasStoredServiceImportReceipt(receipt, in: completed[0]) else {
+            throw PortableExchangePersistenceFailureV2.invalidTransition
+        }
+        let invitationID = try serviceInvitationID(for: completed[0])
+        return try serviceReconciliationReceipt(
+            operationID: receipt.mutationID.rawValue,
+            invitationPublicID: invitationID,
+            submissionPublicID: receipt.submissionPublicID,
+            disposition: receipt.disposition,
+            resultingState: completed[0].state,
+            canonicalMutationReceiptSHA256: receipt.canonicalMutationReceiptSHA256
+        )
+    }
+
+    private func makeServiceRequestPreview(
+        submission: PortableServiceRequestSubmissionV1,
+        sourceDigest: String,
+        record: PortableExchangeSessionRecordV2,
+        proofValidity: ServiceRequestProofValidityV1,
+        eligibility: ServiceRequestImportEligibilityV1,
+        alreadyRecorded: Bool
+    ) throws -> PortableExchangeServiceRequestImportPreviewV2 {
+        try PortableExchangeServiceRequestImportPreviewV2(
+            invitationPublicID: submission.invitationPublicID,
+            submissionPublicID: submission.submissionPublicID,
+            canonicalSourceSHA256: sourceDigest,
+            capabilityAssessment: ServiceRequestCapabilityAssessmentV1(
+                proofValidity: proofValidity,
+                importEligibility: eligibility
+            ),
+            sessionID: record.sessionID,
+            submissionAlreadyRecorded: alreadyRecorded
+        )
+    }
+
+    private func serviceRequestEligibility(
+        for record: PortableExchangeSessionRecordV2
+    ) -> ServiceRequestImportEligibilityV1 {
+        switch record.state {
+        case .exportedAwaitingResponse:
+            return .eligible
+        case .historyOnlyClonedOrForked:
+            return .clonedOrForked
+        case .superseded, .historyOnlySuperseded:
+            return .targetRetired
+        case .quarantined, .erasePending, .erased:
+            return .unavailable
+        case .responsePendingDecision:
+            return .eligible
+        case .openUnexported,
+             .acknowledgedAwaitingDecision, .approvalResponseRecorded,
+             .changesResponseRecorded, .closedWithoutResponse,
+             .historyOnlyTerminal:
+            return .invitationTerminal
+        }
+    }
+
+    private func serviceInvitationID(
+        for record: PortableExchangeSessionRecordV2
+    ) throws -> ServiceRequestInvitationPublicIDV1 {
+        if let bytes = try serviceRequestManifestBytes(
+            invitationPublicID: try ServiceRequestInvitationPublicIDV1(
+                record.publicRequestID
+            )
+        ), let manifest = try? ServiceRequestCanonicalCodecV1.decode(
+            ServiceRequestInvitationManifestV1.self,
+            from: bytes
+        ) {
+            return manifest.invitationPublicID
+        }
+        return try ServiceRequestInvitationPublicIDV1(record.publicRequestID)
+    }
+
+    private func hasStoredServiceImportReceipt(
+        _ receipt: ServiceRequestImportReceiptV1,
+        in record: PortableExchangeSessionRecordV2
+    ) throws -> Bool {
+        let expected = try ServiceRequestCanonicalCodecV1.data(receipt)
+        let expectedSHA256 = ServiceRequestCanonicalCodecV1.sha256(expected)
+        for reference in record.immutableBytes
+            where reference.role == .reconciliationReceipt {
+            let bytes = try readPayload(reference.relativePath)
+            guard UInt64(bytes.count) == reference.byteCount,
+                  ServiceRequestCanonicalCodecV1.sha256(bytes) == reference.sha256 else {
+                throw PortableExchangePersistenceFailureV2.corruptStore
+            }
+            if reference.sha256 == expectedSHA256 && bytes == expected {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func storedServiceRequestCapability(
+        for record: PortableExchangeSessionRecordV2
+    ) throws -> ServiceRequestSubmissionCapabilityV1? {
+        guard let artifact = record.protectedCapability else { return nil }
+        let bytes = try readCapability(artifact.relativePath)
+        guard artifact.byteCount == UInt64(bytes.count),
+              artifact.sha256 == ServiceRequestCanonicalCodecV1.sha256(bytes) else {
+            throw PortableExchangePersistenceFailureV2.invalidCapabilityArtifact
+        }
+        return try ServiceRequestSubmissionCapabilityV1(rawBytes: bytes)
+    }
+
+    private func validateServiceSubmissionSource(
+        _ submission: PortableServiceRequestSubmissionV1,
+        sourceBytes: Data
+    ) throws -> String {
+        try submission.validate()
+        guard !sourceBytes.isEmpty,
+              sourceBytes.count <= ServiceRequestLimitsV1.maximumPortableFileBytes else {
+            throw ServiceRequestFailureV1.limitExceeded
+        }
+        let canonical = try ServiceRequestCanonicalCodecV1.data(submission)
+        guard canonical == sourceBytes else {
+            throw ServiceRequestFailureV1.nonCanonicalEncoding
+        }
+        return ServiceRequestCanonicalCodecV1.sha256(sourceBytes)
+    }
+
+    private func validateServiceImportBinding(
+        plan: ServiceRequestImportPlanV1,
+        receipt: ServiceRequestImportReceiptV1,
+        submission: PortableServiceRequestSubmissionV1,
+        sourceDigest: String
+    ) throws {
+        try validateServiceImportPlan(plan)
+        try ServiceRequestLimitsV1.id(plan.workspaceID.rawValue)
+        try submission.submissionPublicID.validate()
+        try ServiceRequestLimitsV1.digest(plan.canonicalSourceSHA256)
+        try ServiceRequestLimitsV1.digest(plan.planSHA256)
+        guard plan.zeroWrite,
+              plan.submissionPublicID == submission.submissionPublicID,
+              plan.canonicalSourceSHA256 == sourceDigest else {
+            throw ServiceRequestFailureV1.scopeMismatch
+        }
+        try validateServiceImportReceipt(receipt)
+        guard receipt.workspaceID == plan.workspaceID,
+              receipt.submissionPublicID == plan.submissionPublicID,
+              receipt.canonicalSourceSHA256 == sourceDigest,
+              receipt.planSHA256 == plan.planSHA256,
+              receipt.disposition == plan.disposition,
+              receipt.mutationID == plan.mutationID else {
+            throw ServiceRequestFailureV1.scopeMismatch
+        }
+        try ServiceRequestLimitsV1.digest(
+            plan.duplicateProjection.basisRequestSHA256
+        )
+        try ServiceRequestLimitsV1.digest(
+            plan.duplicateProjection.ruleReleaseSHA256
+        )
+        try ServiceRequestLimitsV1.digest(
+            plan.duplicateProjection.projectionSHA256
+        )
+        guard plan.duplicateProjection.suggestionOnly,
+              (plan.disposition == .acceptAndLinkDuplicate)
+                == (plan.selectedDuplicate != nil) else {
+            throw ServiceRequestFailureV1.invalidHistory
+        }
+    }
+
+    private func validateServiceImportPlan(
+        _ plan: ServiceRequestImportPlanV1
+    ) throws {
+        let rebuilt = try ServiceRequestImportPlanV1(
+            workspaceID: plan.workspaceID,
+            basisWorkspaceRevision: plan.basisWorkspaceRevision,
+            submissionPublicID: plan.submissionPublicID,
+            canonicalSourceSHA256: plan.canonicalSourceSHA256,
+            capabilityAssessment: plan.capabilityAssessment,
+            duplicateProjection: plan.duplicateProjection,
+            disposition: plan.disposition,
+            selectedDuplicate: plan.selectedDuplicate,
+            mutationID: plan.mutationID
+        )
+        guard plan.zeroWrite, rebuilt.planSHA256 == plan.planSHA256 else {
+            throw ServiceRequestFailureV1.invalidHistory
+        }
+    }
+
+    private func validateServiceImportReceipt(
+        _ receipt: ServiceRequestImportReceiptV1
+    ) throws {
+        try ServiceRequestLimitsV1.id(receipt.receiptID)
+        try ServiceRequestLimitsV1.id(receipt.workspaceID.rawValue)
+        try receipt.submissionPublicID.validate()
+        try ServiceRequestLimitsV1.digest(receipt.canonicalSourceSHA256)
+        try ServiceRequestLimitsV1.digest(receipt.planSHA256)
+        try ServiceRequestLimitsV1.digest(receipt.receiptSHA256)
+        if let digest = receipt.canonicalMutationReceiptSHA256 {
+            try ServiceRequestLimitsV1.digest(digest)
+        }
+        let canonical: Bool = [
+            ServiceRequestImportDispositionV1.acceptAsNew,
+            .acceptAndLinkDuplicate,
+            .declineWithReason,
+            .recordHistoryOnly,
+        ].contains(receipt.disposition)
+        guard canonical == (receipt.canonicalMutationReceiptSHA256 != nil),
+              canonical == (receipt.resultingRecord != nil),
+              receipt.recordedAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw ServiceRequestFailureV1.invalidHistory
+        }
+        let rebuilt = try ServiceRequestImportReceiptV1(
+            receiptID: receipt.receiptID,
+            workspaceID: receipt.workspaceID,
+            submissionPublicID: receipt.submissionPublicID,
+            canonicalSourceSHA256: receipt.canonicalSourceSHA256,
+            planSHA256: receipt.planSHA256,
+            disposition: receipt.disposition,
+            mutationID: receipt.mutationID,
+            canonicalMutationReceiptSHA256: receipt.canonicalMutationReceiptSHA256,
+            resultingRecord: receipt.resultingRecord,
+            recordedAt: receipt.recordedAt
+        )
+        guard rebuilt.receiptSHA256 == receipt.receiptSHA256 else {
+            throw ServiceRequestFailureV1.invalidHistory
+        }
+    }
+
+    private func serviceReconciliationReceipt(
+        operationID: UUID,
+        invitationPublicID: ServiceRequestInvitationPublicIDV1,
+        submissionPublicID: ServiceRequestSubmissionPublicIDV1,
+        disposition: ServiceRequestImportDispositionV1,
+        resultingState: PortableExchangeSessionStateV2,
+        canonicalMutationReceiptSHA256: String?
+    ) throws -> PortableExchangeServiceRequestReconciliationReceiptV2 {
+        if let canonicalMutationReceiptSHA256 {
+            try ServiceRequestLimitsV1.digest(canonicalMutationReceiptSHA256)
+        }
+        return PortableExchangeServiceRequestReconciliationReceiptV2(
+            operationID: operationID,
+            invitationPublicID: invitationPublicID,
+            submissionPublicID: submissionPublicID,
+            disposition: disposition,
+            resultingState: resultingState,
+            canonicalMutationReceiptSHA256: canonicalMutationReceiptSHA256
+        )
     }
 }

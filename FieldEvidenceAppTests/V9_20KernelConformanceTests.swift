@@ -3,6 +3,10 @@ import Foundation
 import SwiftData
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_20KernelConformanceTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C50KernelConformanceTests: XCTestCase {
     func testV23P03C50DisabledRegistryIsClosedZeroProductionAndTruthful() throws {
         let selection = try IncumbentSelectionReceiptV1(

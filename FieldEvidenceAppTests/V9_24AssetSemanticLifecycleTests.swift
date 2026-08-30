@@ -3,6 +3,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_24AssetSemanticLifecycleTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45AssetSemanticLifecycleCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDelegatesLocatorIdentityToC27() {
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)

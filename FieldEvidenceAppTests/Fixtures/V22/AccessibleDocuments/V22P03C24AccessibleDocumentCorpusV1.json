@@ -1,5 +1,6 @@
 {
   "schema": "V22P03C24AccessibleDocumentCorpusV1",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V22AccessibleDocuments", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "schemaVersion": 1,
   "corpusID": "c24-accessible-document-v1",
   "cardID": "V23-P03-C24",

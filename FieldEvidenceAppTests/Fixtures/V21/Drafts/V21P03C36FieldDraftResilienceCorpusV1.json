@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V21Drafts", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "schema": "V21P03C36FieldDraftResilienceCorpusV1",
   "corpusID": "V21P03C36FieldDraftResilienceCorpusV1",
   "cardID": "V23-P03-C36",

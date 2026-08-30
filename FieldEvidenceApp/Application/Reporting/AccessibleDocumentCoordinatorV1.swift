@@ -112,3 +112,26 @@ enum C50AccessibleDocumentIncumbentCoordinatorBoundaryV1 {
         try tree.validate()
     }
 }
+
+// MARK: - C52 service-request status accessibility boundary
+
+/// Accessible output may consume only the derived request-state artifact. The
+/// self-asserted requester/contact fields and accepted source bytes remain out
+/// of the report tree, and rendering cannot be presented as delivery.
+enum C52AccessibleServiceRequestStatusBoundaryV1 {
+    static let statusArtifactContract: Any.Type = ServiceRequestStatusArtifactHandoffV1.self
+    static let stateProjectionContract: Any.Type = ServiceRequestStateProjectionV1.self
+    static let consumesDerivedStateOnly = true
+    static let requesterOrContactAssertionConsumed = false
+    static let acceptedSourceBytesConsumed = false
+    static let deliveryClaimPermitted = false
+    static let existingAccessibleRendererRemainsSoleRenderer = true
+
+    static func validate(_ artifact: ServiceRequestStatusArtifactHandoffV1) throws {
+        guard !artifact.requesterIdentityVerified,
+              !artifact.deliveryClaimed,
+              artifact.handoffIntent.target.kind == .serviceContactPoint else {
+            throw AccessibleDocumentFailureV1.invalidValue
+        }
+    }
+}

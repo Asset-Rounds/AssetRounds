@@ -478,3 +478,9 @@ enum C34SceneNavigationProjectionCheckpointBoundaryV1 {
     static let checkpointsSceneSnapshot = false
     static func validate() -> Bool { checkpointedRouteKindCount == 0 && !checkpointsSceneSnapshot && C34SceneNavigationIntegrationProjectionBoundaryV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-checkpoint
+enum C52ServiceRequestProjectionCheckpointBoundaryV1 {
+    static let checkpointAdvancesAfterDurableReceipt = true
+    static let checkpointCannotSkipWorkLinkReversal = true
+    static let rebuildStartsFromCanonicalJournal = true
+}

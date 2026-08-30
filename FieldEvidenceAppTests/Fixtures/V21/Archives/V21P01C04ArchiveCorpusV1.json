@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V21Archives", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "authority": "V21-P01-C04",
   "limits": {
     "maximumIndexByteCount": 4194304,

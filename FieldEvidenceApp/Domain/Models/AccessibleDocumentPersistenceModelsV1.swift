@@ -94,3 +94,14 @@ enum C50AccessibleDocumentIncumbentPersistenceBoundaryV1 {
         try value.validateIntrinsic()
     }
 }
+
+// MARK: - C52 service-request status persistence boundary
+
+enum C52AccessibleServiceRequestStatusPersistenceBoundaryV1 {
+    static let statusArtifactIsDerived = true
+    static let statusArtifactAddsDurableRow = false
+    static let acceptedSourceBytesEnterAccessibleRows = false
+    static let requesterContactAssertionsEnterAccessibleRows = false
+    static let deliveryOutcomeIsPersisted = false
+    static let canonicalServiceRowsRemain = ServiceRequestPersistenceEnrollmentV1.durableFamilies
+}

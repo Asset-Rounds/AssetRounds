@@ -5,6 +5,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_52AssetLabelTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 @MainActor
 final class V9_52AssetLabelTests: XCTestCase {
     func testV23P03C45G01AcceptedPlanGeneratesByteIdenticalPDFCSVTextAndIndependentQRDecode() throws {

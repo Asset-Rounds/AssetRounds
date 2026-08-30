@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": { "type": "object" },
+    "cardID": { "const": "V23-P03-C52" },
+    "evidenceIDs": { "type": "array", "minItems": 5, "maxItems": 5 },
+    "schema": { "const": "V23P03C52PortableServiceRequestContractV1" },
+    "schemaVersion": { "const": 1 },
+    "semantics": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptAndLinkDuplicateState": { "const": "OPEN_ACCEPTED" },
+        "actorLifecyclePort": { "const": true },
+        "backupExportC52ArrayCount": { "const": 3 },
+        "c49WorkResourcesRemainSeparate": { "const": true },
+        "capabilityBytes": { "const": 32 },
+        "cleartextFormats": { "type": "array", "minItems": 2, "maxItems": 2 },
+        "duplicateSuggestionsOnly": { "const": true },
+        "exactHMACTranscript": { "const": true },
+        "exactlyOnceWorkConversion": { "const": true },
+        "noAutomaticWork": { "const": true },
+        "recordCapabilityContainmentWithoutSubmissionDecode": { "const": true },
+        "strictPlanReceiptStatusAndStoreDecoders": { "const": true },
+        "uniqueDomainBackupBoundaries": { "const": true },
+        "v960InstantiatesCoordinatorAndLifecycle": { "const": true },
+        "workspaceExpectedRevisionPropagates": { "const": true }
+      },
+      "required": ["capabilityBytes", "exactHMACTranscript", "cleartextFormats", "duplicateSuggestionsOnly", "exactlyOnceWorkConversion", "noAutomaticWork", "workspaceExpectedRevisionPropagates", "acceptAndLinkDuplicateState", "actorLifecyclePort", "recordCapabilityContainmentWithoutSubmissionDecode", "strictPlanReceiptStatusAndStoreDecoders", "uniqueDomainBackupBoundaries", "backupExportC52ArrayCount", "c49WorkResourcesRemainSeparate", "v960InstantiatesCoordinatorAndLifecycle"],
+      "type": "object"
+    },
+    "statusFlags": { "type": "object" }
+  },
+  "required": ["schema", "schemaVersion", "cardID", "authority", "evidenceIDs", "semantics", "statusFlags"],
+  "type": "object"
+}

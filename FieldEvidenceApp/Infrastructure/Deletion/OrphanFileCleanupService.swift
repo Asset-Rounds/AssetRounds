@@ -1165,3 +1165,4 @@ enum C48PortableExchangeOrphanCleanupBoundaryV2 {
         }
     }
 }
+// C52_BOUNDARY_ANCHOR: sanitized-media-cleanup-only

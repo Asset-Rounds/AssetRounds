@@ -1,0 +1,76 @@
+{
+  "authority": {
+    "appBaseHead": "837fe50cc71f030618236aafe7896ac424f10437",
+    "appBaseTree": "965d8633d5bbd4f4f7d26941085e9a9e428185af",
+    "contextDigest": "bdc93a2b8154732b8d60e41642a4456e66a251a26257447a3575853bc16e4de6",
+    "coordinationCASSequence": 351,
+    "coordinationHead": "a570041e3d8aaac2d6c361058fc6e3ef339a8d00",
+    "coordinationLedgerDigest": "830e2ce7e3739b83d79fb1abe8f33acaefc7e7103a5b814af4d4e5300d1a75e7",
+    "coordinationProjectionDigest": "449e99ba1dfde75d3ae2c8e1aae97772f35a593404ffe1ee8eaa1209cd46e4ba",
+    "coordinationTree": "9df30630cb993834b3792ce6ec5d09e715b39d5d",
+    "directPrerequisiteFences": {
+      "V23-P03-C46": "466e730797b35fa438c4ab60cbf9c347372680bf504d0257db4b7e952577235b",
+      "V23-P03-C48": "1abe6ceebd594bee60bdec5fd19b8758c18e585dc7dd35a5757e500b75673027"
+    },
+    "dossierSHA256": "ae29ad5b4f773a4b3a66cf2b5b9b4c16a5407d9183c8c93242bda97b6dea7565",
+    "dossierUTF8Length": 7215,
+    "hydrationTransitionDigest": "afd460b4cba8aaf350b01601c7af0394c5311f8e1dfed8b317dd8c0a6040667e",
+    "inheritedV21PayloadPresent": false,
+    "pathFenceDigest": "c8757de12d29beea737ab668dd2a04523cc28931135cc5925b5b7887060f25cb",
+    "provisionalPrerequisiteDigest": "8b948592897d21c263fe2553b61a422a3a91845faacdf82e9e0558af26f9975d",
+    "registerOrdinal": 83,
+    "registerRowSHA256": "4b641a5e76345d64358d813a111be0e064e8485259e87a7428a17e6704221ef4",
+    "registerRowUTF8Length": 317,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionUTF8Length": 44217
+  },
+  "cardID": "V23-P03-C52",
+  "cases": [
+    "V23-P03-C52-G01",
+    "V23-P03-C52-A01",
+    "V23-P03-C52-H01",
+    "V23-P03-C52-I01",
+    "V23-P03-C52-R01"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C52-G01",
+    "V23-P03-C52-A01",
+    "V23-P03-C52-H01",
+    "V23-P03-C52-I01",
+    "V23-P03-C52-R01"
+  ],
+  "hostedDispatchEnabled": false,
+  "journey": "FJ08",
+  "nativeCompileRan": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "priorPrerequisiteProof": {
+    "cards": [
+      "V23-P03-C46",
+      "V23-P03-C48"
+    ],
+    "fences": {
+      "V23-P03-C46": "466e730797b35fa438c4ab60cbf9c347372680bf504d0257db4b7e952577235b",
+      "V23-P03-C48": "1abe6ceebd594bee60bdec5fd19b8758c18e585dc7dd35a5757e500b75673027"
+    },
+    "liveResealRequired": false
+  },
+  "s10ReservationOverlapCount": 0,
+  "s10ReservedPathCount": 86,
+  "schema": "V23P03C52PortableServiceRequestEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  }
+}

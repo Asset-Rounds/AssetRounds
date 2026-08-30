@@ -1253,3 +1253,18 @@ enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let lifecycleEnrollmentCount = 0
     static func validate() -> Bool { persistentKindCount == 0 && lifecycleEnrollmentCount == 0 && C34SceneNavigationCanonicalExclusionV1.validate() }
 }
+enum C52ServiceRequestBoundary_PersistentKindLifecycleRegistryV1 {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}

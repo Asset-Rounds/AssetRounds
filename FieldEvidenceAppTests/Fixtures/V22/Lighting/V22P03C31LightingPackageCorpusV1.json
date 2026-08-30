@@ -1,5 +1,6 @@
 {
   "cardID": "V23-P03-C31",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V22Lighting", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "claimTiers": [
     "OBSERVED",
     "MEASURED",

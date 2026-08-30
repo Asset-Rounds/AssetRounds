@@ -1,5 +1,11 @@
 import Foundation
 
+enum C52ServiceRequestRuntimePortBoundaryV1 {
+    static let hostedTransportEnabled = false
+    static let automaticDispatchEnabled = false
+    static let capabilityBytesEnterRuntimePort = false
+}
+
 protocol ScheduleProjectionClockV1: Sendable { func nowUTC() -> Date }
 
 enum C51ScheduleRuntimeBoundaryV1 {

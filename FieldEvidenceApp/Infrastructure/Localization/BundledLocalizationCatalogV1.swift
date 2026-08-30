@@ -4754,6 +4754,75 @@ enum C50IncumbentFileExchangeLocalizationBoundaryV1 {
     }
 }
 
+// MARK: - C52 portable service-request localization
+
+extension BundledLocalizationCatalogV1 {
+    static func serviceRequestEnglish(
+        _ key: C52ServiceRequestLocalizationKeyV1
+    ) -> String {
+        C52ServiceRequestLocalizationPolicyV1.english(key)
+    }
+
+    /// C52 is English-only and additive.  These labels describe local
+    /// recorded state and never claim delivery, emergency handling, identity,
+    /// urgency verification, or an SLA.
+    static func serviceRequestRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try registry()
+        let additions = try C52ServiceRequestLocalizationKeyV1.allCases
+            .sorted { $0.rawValue < $1.rawValue }
+            .map { key in
+                LocalizationKeyDefinitionV1(
+                    key: try LocalizationKeyV1(key.rawValue),
+                    meaningID: key.rawValue,
+                    translatorComment: "C52 local service-request state; no delivery, emergency, identity, urgency, or SLA claim.",
+                    englishDefaultValue: key.englishDefaultValue,
+                    arguments: [],
+                    requiredEnglishPluralCategories: [],
+                    state: .active,
+                    deprecatedFallbackKey: nil
+                )
+            }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
+extension C52ServiceRequestLocalizationKeyV1 {
+    var englishDefaultValue: String {
+        C52ServiceRequestLocalizationPolicyV1.english(self)
+    }
+}
+
+enum C52ServiceRequestLocalizationBoundaryV1 {
+    static let sourceLocale = "en"
+    static let usesExistingBundledCatalog = true
+    static let rawCapabilityLocalized = false
+    static let rawSubmissionBytesLocalized = false
+    static let requesterIdentityVerified = false
+    static let urgencyVerified = false
+    static let deliveryClaimed = false
+    static let emergencyHandlingClaimed = false
+    static let serviceLevelAgreementClaimed = false
+
+    static func validate() throws {
+        try C52ServiceRequestLocalizationPolicyV1.validate()
+        let values = C52ServiceRequestLocalizationKeyV1.allCases.map {
+            BundledLocalizationCatalogV1.serviceRequestEnglish($0)
+        }
+        guard usesExistingBundledCatalog,
+              sourceLocale == "en",
+              values.allSatisfy({ !$0.isEmpty }),
+              !rawCapabilityLocalized,
+              !rawSubmissionBytesLocalized,
+              !requesterIdentityVerified,
+              !urgencyVerified,
+              !deliveryClaimed,
+              !emergencyHandlingClaimed,
+              !serviceLevelAgreementClaimed else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
 // MARK: - C34 route restoration catalog
 
 enum C34RouteBundledLocalizationCatalogV1 {

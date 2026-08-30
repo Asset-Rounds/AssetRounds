@@ -784,3 +784,102 @@ enum C49WorkResourceRestoreIdentityPolicyV1 {
         identity.source.workspaceID != identity.targetPointer.workspaceID
     }
 }
+
+/// C52 restore identity is independent from the canonical row bytes. A
+/// replace/empty install keeps the destination workspace binding; clone/fork
+/// keeps the complete request history as historic source evidence and requires
+/// an explicit workspace rebind before it can become destination truth.
+enum C52ServiceRequestRestoreIdentityPolicyV1 {
+    static let persistentSchemaVersion = C52ServiceRequestBackupEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C52ServiceRequestBackupEnrollmentV1.recordsSchemaVersion
+    static let sameWorkspaceReplacePreservesHistory = true
+    static let sameWorkspaceReplacePreservesImmutableSourceBytes = true
+    static let cloneForkPreservesHistory = true
+    static let cloneForkRequiresExplicitWorkspaceRebind = true
+    static let cloneForkInvalidatesOutstandingCapabilities = true
+    static let derivedProjectionsAreRebuilt = true
+    static let rawCapabilityBytesAreRestored = false
+
+    static func preservesCanonicalWorkspaceBinding(for mode: BackupRestoreMode) -> Bool {
+        mode == .emptyInstall || mode == .replaceExisting
+    }
+
+    static func requiresExplicitWorkspaceRebind(for mode: BackupRestoreMode) -> Bool {
+        mode == .clone || mode == .fork
+    }
+
+    static func validates(_ identity: RestoreIdentityV1) -> Bool {
+        guard identity.mode == .emptyInstall
+                || identity.mode == .replaceExisting
+                || identity.mode == .clone
+                || identity.mode == .fork,
+              persistentSchemaVersion == 39,
+              recordsSchemaVersion == 38,
+              sameWorkspaceReplacePreservesHistory,
+              sameWorkspaceReplacePreservesImmutableSourceBytes,
+              cloneForkPreservesHistory,
+              cloneForkRequiresExplicitWorkspaceRebind,
+              cloneForkInvalidatesOutstandingCapabilities,
+              derivedProjectionsAreRebuilt,
+              !rawCapabilityBytesAreRestored else {
+            return false
+        }
+        switch identity.mode {
+        case .emptyInstall:
+            return identity.source.workspaceID == identity.targetPointer.workspaceID
+        case .replaceExisting:
+            return true
+        case .clone, .fork:
+            return identity.source.workspaceID.map {
+                $0 != identity.targetPointer.workspaceID
+            } ?? false
+        }
+    }
+
+    static func validate(
+        _ records: V4BackupRecordsV1,
+        identity: RestoreIdentityV1
+    ) throws {
+        guard validates(identity),
+              ServiceRequestLifecycleRegistrationBoundaryV1.replaceRestorePreservesHistory,
+              ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkPreservesHistory,
+              ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities else {
+            throw RestoreIdentityDecisionErrorV1.invalidMode
+        }
+
+        let sourceWorkspaceID = identity.source.workspaceID
+        let expectedWorkspaceID: UUID?
+        switch identity.mode {
+        case .emptyInstall, .replaceExisting:
+            expectedWorkspaceID = identity.targetPointer.workspaceID
+        case .clone, .fork:
+            // Before an explicit rebind, rows remain source-bound historic
+            // evidence. No clone/fork may silently present them as target rows.
+            expectedWorkspaceID = sourceWorkspaceID
+        }
+        do {
+            try C52ServiceRequestBackupEnrollmentV1.validate(
+                records: records,
+                workspaceID: expectedWorkspaceID
+            )
+        } catch {
+            throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
+        }
+    }
+}
+
+enum C52ServiceRequestBoundary_RestoreIdentityV1 {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}

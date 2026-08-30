@@ -69,7 +69,9 @@ enum C31LightingBackupImportPolicyV1 {
                 || (manifest.persistentSchemaVersion == 34 && records.recordsSchemaVersion == 33)
                 || (manifest.persistentSchemaVersion == 35 && records.recordsSchemaVersion == 34)
                 || (manifest.persistentSchemaVersion == 36 && records.recordsSchemaVersion == 35)
-                || (manifest.persistentSchemaVersion == 37 && records.recordsSchemaVersion == 36)) else {
+                || (manifest.persistentSchemaVersion == 37 && records.recordsSchemaVersion == 36)
+                || (manifest.persistentSchemaVersion == 38 && records.recordsSchemaVersion == 37)
+                || (manifest.persistentSchemaVersion == 39 && records.recordsSchemaVersion == 38)) else {
             throw BackupImportServiceError.invalidGeneration
         }
         do {
@@ -611,6 +613,7 @@ private extension BackupImportService {
             try C32AssistanceBackupImportPolicyV1.validate(temporaryValue)
             try C33TemporalEvidenceBackupImportPolicyV1.validate(temporaryValue)
             try C49WorkResourceBackupImportPolicyV1.validate(temporaryValue)
+            try C52ServiceRequestBackupImportServiceBoundaryV1.validate(temporaryValue)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -651,6 +654,7 @@ private extension BackupImportService {
             try C32AssistanceBackupImportPolicyV1.validate(value)
             try C33TemporalEvidenceBackupImportPolicyV1.validate(value)
             try C49WorkResourceBackupImportPolicyV1.validate(value)
+            try C52ServiceRequestBackupImportServiceBoundaryV1.validate(value)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -764,6 +768,7 @@ private extension BackupImportService {
             try C32AssistanceBackupImportPolicyV1.validate(temporaryValue)
             try C33TemporalEvidenceBackupImportPolicyV1.validate(temporaryValue)
             try C49WorkResourceBackupImportPolicyV1.validate(temporaryValue)
+            try C52ServiceRequestBackupImportServiceBoundaryV1.validate(temporaryValue)
             let indexByPath = Dictionary(
                 uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
             )
@@ -807,6 +812,7 @@ private extension BackupImportService {
             try C32AssistanceBackupImportPolicyV1.validate(value)
             try C33TemporalEvidenceBackupImportPolicyV1.validate(value)
             try C49WorkResourceBackupImportPolicyV1.validate(value)
+            try C52ServiceRequestBackupImportServiceBoundaryV1.validate(value)
             guard value.manifest == temporaryValue.manifest,
                   value.records == temporaryValue.records,
                   value.members.keys == temporaryValue.members.keys else {
@@ -1594,5 +1600,35 @@ enum C49WorkResourceBackupImportPolicyV1 {
         } catch {
             throw BackupImportServiceError.invalidGeneration
         }
+    }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-backup
+enum C52ServiceRequestBackupImportServiceBoundaryV1 {
+    static let recordsSchemaVersion = 38
+    static let importsCanonicalHistoryThroughRestoreAuthority = true
+    static let importedOutstandingCapabilitiesRemainValid = false
+    static let importedDuplicateProjectionIsRebuilt = true
+
+    static func validate(_ package: ValidatedV4BackupPackageV1) throws {
+        let persistent=package.manifest.source.persistentSchemaVersion
+        let records=package.records
+        guard records.recordsSchemaVersion >= recordsSchemaVersion || persistent >= 39 else {
+            try C52ServiceRequestBackupDecodingBoundaryV1.validate(records)
+            return
+        }
+        guard persistent == 39,records.recordsSchemaVersion == recordsSchemaVersion,
+              importsCanonicalHistoryThroughRestoreAuthority,
+              !importedOutstandingCapabilitiesRemainValid,
+              importedDuplicateProjectionIsRebuilt else {
+            throw BackupImportServiceError.invalidGeneration
+        }
+        do {
+            try C52ServiceRequestBackupImportBoundaryV1.validate(
+                persistent: persistent,
+                records: records.recordsSchemaVersion,
+                backup: records
+            )
+        }
+        catch { throw BackupImportServiceError.invalidGeneration }
     }
 }

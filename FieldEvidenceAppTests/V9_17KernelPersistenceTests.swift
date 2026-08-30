@@ -2,6 +2,10 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_17KernelPersistenceTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C50KernelPersistenceTests: XCTestCase {
     func testV23P03C50PortEnrollsNoPersistentModelStoreOrCanonicalFamily() {
         XCTAssertEqual(C50IncumbentFileExchangeKernelBackupEnrollmentV1.canonicalRegistrationCount, 0)

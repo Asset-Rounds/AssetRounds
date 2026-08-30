@@ -1,6 +1,12 @@
 import CryptoKit
 import Foundation
 
+enum C52ServiceRequestLocalJobModelBoundaryV1 {
+    static let requestAdmissionUsesNoDurableJobKind = true
+    static let rawCapabilityIsJobInput = false
+    static let conversionReceiptIsJobCheckpoint = false
+}
+
 enum ScheduleGenerationJobBoundaryV1 { static let outputIsDerivedPlan = true }
 
 enum C51ScheduleReconciliationJobModelBoundaryV1 {

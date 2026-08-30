@@ -38,6 +38,55 @@ enum C49WorkResourceBackupImportBoundaryV1 {
     }
 }
 
+/// C52 imports the three canonical service-request families atomically into
+/// their existing owners. Older envelopes keep their established absent-array
+/// defaults; an envelope carrying any C52 row must advertise records schema 38.
+enum C52ServiceRequestBackupImportBoundaryV1 {
+    static let persistentSchemaVersion = C52ServiceRequestBackupEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C52ServiceRequestBackupEnrollmentV1.recordsSchemaVersion
+    static let durableFamilyCount = C52ServiceRequestBackupEnrollmentV1.durableFamilyCount
+    static let replacesCanonicalRowsAtomically = true
+    static let preservesAppendOnlyHistory = true
+    static let preservesImmutableAcceptedSourceBytes = true
+    static let rebindRequiresExplicitRestoreIdentity = true
+    static let cloneAndForkInvalidateOutstandingCapabilities = true
+    static let derivedProjectionsAreRebuilt = true
+    static let rawCapabilityBytesAreImportable = false
+
+    static func validate(
+        persistent: Int,
+        records: Int,
+        backup: V4BackupRecordsV1
+    ) throws {
+        guard persistent == persistentSchemaVersion,
+              records == backup.recordsSchemaVersion,
+              recordsSchemaVersion == 38,
+              durableFamilyCount == 3,
+              replacesCanonicalRowsAtomically,
+              preservesAppendOnlyHistory,
+              preservesImmutableAcceptedSourceBytes,
+              rebindRequiresExplicitRestoreIdentity,
+              cloneAndForkInvalidateOutstandingCapabilities,
+              derivedProjectionsAreRebuilt,
+              !rawCapabilityBytesAreImportable else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        do {
+            try C52ServiceRequestBackupEnrollmentV1.validate(records: backup)
+        } catch {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    }
+
+    static func validate(_ backup: V4BackupRecordsV1) throws {
+        try validate(
+            persistent: persistentSchemaVersion,
+            records: backup.recordsSchemaVersion,
+            backup: backup
+        )
+    }
+}
+
 enum V12FunctionalRelationshipImportBoundaryV1 {
     static let persistentSchemaVersion = 12
     static let recordsSchemaVersion = 11
@@ -49,6 +98,21 @@ enum V12FunctionalRelationshipImportBoundaryV1 {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
     }
+}
+enum C52ServiceRequestBoundary_V4BackupImportContracts {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
 
 enum V13EvidenceAssuranceImportBoundaryV1 {

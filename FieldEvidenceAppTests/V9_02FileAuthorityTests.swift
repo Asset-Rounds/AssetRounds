@@ -4,6 +4,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_02FileAuthorityTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 final class V9_02FileAuthorityTests: XCTestCase {
     private let fileManager = FileManager.default
 

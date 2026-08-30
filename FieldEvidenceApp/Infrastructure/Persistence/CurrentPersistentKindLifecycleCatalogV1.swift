@@ -117,6 +117,9 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
         guard C50IncumbentFileExchangePersistentLifecycleBoundaryV1.validate() else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
+        guard C52ServiceRequestPersistentLifecycleBoundaryV1.validate() else {
+            throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
+        }
         try coverageManifest.validate()
         try descriptors.forEach { try $0.validate() }
         try lifecyclePolicies.forEach { try $0.validate() }
@@ -1106,5 +1109,31 @@ enum C50IncumbentFileExchangePersistentLifecycleBoundaryV1 {
             && eraseDisposition == "NOT_APPLICABLE"
             && canonicalImportedEffectsUseExistingLifecycleOwner
             && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-lifecycle
+enum C52ServiceRequestPersistentLifecycleBoundaryV1 {
+    static let persistentSchemaVersion = 39
+    static let recordsSchemaVersion = 38
+    static let durableRows = ["ServiceRequestRecordRow", "ServiceRequestDispositionEventRow", "ServiceRequestWorkLinkEventRow"]
+    static let durableModelCount = 3
+    static let immutableAcceptedSourceBytes = true
+    static let duplicateAndStateProjectionsAreRebuildable = true
+    static let rawSubmissionCapabilityIsProhibitedPersistent = true
+    static let deletePreservesAcceptedHistory = true
+    static let eraseClearsAllWorkspaceOwnedRows = true
+    static let cloneForkPreservesHistoryAndInvalidatesCapabilities = true
+
+    static func validate() -> Bool {
+        persistentSchemaVersion == 39
+            && recordsSchemaVersion == 38
+            && durableRows.count == durableModelCount
+            && Set(durableRows) == Set(CurrentSyncClassificationCatalogV1.v39PersistentModelNames)
+            && immutableAcceptedSourceBytes
+            && duplicateAndStateProjectionsAreRebuildable
+            && rawSubmissionCapabilityIsProhibitedPersistent
+            && deletePreservesAcceptedHistory
+            && eraseClearsAllWorkspaceOwnedRows
+            && cloneForkPreservesHistoryAndInvalidatesCapabilities
     }
 }

@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_36RecoverabilityVerificationTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C50RecoverabilityVerificationTests: XCTestCase {
     func testV23P03C50RecoveryNeverReappliesAndDivergenceRemainsQuarantined() throws {
         let operationID = UUID(uuidString: "c5000000-0000-4000-8000-000000003601")!

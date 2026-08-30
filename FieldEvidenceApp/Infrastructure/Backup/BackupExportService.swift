@@ -119,6 +119,9 @@ final class BackupExportService {
         let installationTaskResults: [InstallationTaskResultRow]
         let installationAsBuiltSnapshots: [InstallationAsBuiltSnapshotRow]
         let punchReviewBasisSnapshots: [PunchReviewBasisSnapshotRow]
+        let serviceRequestRecords: [ServiceRequestRecordRow]
+        let serviceRequestDispositionEvents: [ServiceRequestDispositionEventRow]
+        let serviceRequestWorkLinkEvents: [ServiceRequestWorkLinkEventRow]
         let fieldReferenceReleases:[FieldReferenceReleaseRow]
         let fieldReferenceBindings:[FieldReferenceBindingRow]
         let recoverabilityVerificationReceipts:[RecoverabilityVerificationReceiptRow]
@@ -845,7 +848,10 @@ private extension BackupExportService {
                 temporalEvidence: records.temporalEvidence,
                 acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
                 activityContracts: records.activityContracts,
-                workResources: records.workResources
+                workResources: records.workResources,
+                serviceRequests: records.serviceRequests,
+                serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(semanticRecords).data
@@ -1697,6 +1703,9 @@ private extension BackupExportService {
                   installationTaskResults: try modelContext.fetch(FetchDescriptor<InstallationTaskResultRow>()),
                   installationAsBuiltSnapshots: try modelContext.fetch(FetchDescriptor<InstallationAsBuiltSnapshotRow>()),
                   punchReviewBasisSnapshots: try modelContext.fetch(FetchDescriptor<PunchReviewBasisSnapshotRow>()),
+                  serviceRequestRecords: try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>()),
+                  serviceRequestDispositionEvents: try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>()),
+                  serviceRequestWorkLinkEvents: try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>()),
                  fieldReferenceReleases:try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>()),
                 fieldReferenceBindings:try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>()),
                 recoverabilityVerificationReceipts:try modelContext.fetch(FetchDescriptor<RecoverabilityVerificationReceiptRow>()),
@@ -2327,6 +2336,18 @@ private extension BackupExportService {
             .map(V37BackupWorkResourceRecordV1.init)
             .sorted { ($0.workspaceID.uuidString, $0.entryID.uuidString)
                 < ($1.workspaceID.uuidString, $1.entryID.uuidString) }
+        let serviceRequests = mutationHistory == nil ? [] : try rows.serviceRequestRecords
+            .map { try V38BackupServiceRequestRecordV1($0.value()) }
+            .sorted { ($0.workspaceID.uuidString, $0.recordID.uuidString, $0.revision)
+                < ($1.workspaceID.uuidString, $1.recordID.uuidString, $1.revision) }
+        let serviceRequestDispositionEvents = mutationHistory == nil ? [] : try rows.serviceRequestDispositionEvents
+            .map { try V38BackupServiceRequestDispositionEventV1($0.value()) }
+            .sorted { ($0.workspaceID.uuidString, $0.eventID.uuidString)
+                < ($1.workspaceID.uuidString, $1.eventID.uuidString) }
+        let serviceRequestWorkLinkEvents = mutationHistory == nil ? [] : try rows.serviceRequestWorkLinkEvents
+            .map { try V38BackupServiceRequestWorkLinkEventV1($0.value()) }
+            .sorted { ($0.workspaceID.uuidString, $0.eventID.uuidString)
+                < ($1.workspaceID.uuidString, $1.eventID.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2396,7 +2417,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C49BackupEnrollmentV1.recordsSchemaVersion,
+                : C52ServiceRequestBackupExportBoundaryV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2433,7 +2454,10 @@ private extension BackupExportService {
             acceptedLabelGenerationSnapshots: acceptedLabelGenerationSnapshots,
             operationalContacts: operationalContacts,
             activityContracts: activityContracts,
-            workResources: workResources
+            workResources: workResources,
+            serviceRequests: serviceRequests,
+            serviceRequestDispositionEvents: serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: serviceRequestWorkLinkEvents
         )
     }
 
@@ -3623,4 +3647,12 @@ private extension BackupExportService {
             }
         }
     }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-backup
+enum C52ServiceRequestBackupExportBoundaryV1 {
+    static let recordsSchemaVersion = 38
+    static let exportsAcceptedSourceBytes = true
+    static let exportsCanonicalHistory = true
+    static let exportsRawCapability = false
+    static let exportsDerivedDuplicateProjection = false
 }

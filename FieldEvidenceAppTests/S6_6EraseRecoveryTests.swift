@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_S6_6EraseRecoveryTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45EraseRecoveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityLeavesNoDurableRenderScratch() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])

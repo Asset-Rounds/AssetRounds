@@ -1,5 +1,11 @@
 import Foundation
 
+enum C52ServiceRequestCheckRunnerContractBoundaryV1 {
+    static let duplicateCandidatesAreProjectionOnly = true
+    static let triageDispositionIsRequired = true
+    static let checkRunnerMayCreateWork = false
+}
+
 struct CheckRunnerScheduleContextV1: Equatable, Sendable {
     let occurrenceID: OccurrenceIDV1
     let startEventSHA256: String

@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_40SurveySessionTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45SurveySessionCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityRequiresExplicitBoundedPlanStart() {
         XCTAssertEqual(AssetLabelGenerationPlanV1.schemaVersion, 1)

@@ -122,10 +122,11 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
     static let v35PersistentModelNames=["ServiceContactPointRow","SystemHandoffIntentRow"]
     static let v36PersistentModelNames=["ActivitySessionEnvelopeRow","ActivityStateTransitionRow","InstallationTaskResultRow","InstallationAsBuiltSnapshotRow","PunchReviewBasisSnapshotRow"]
     static let v37PersistentModelNames=["ManualWorkResourceRecordRow"]
+    static let v39PersistentModelNames=["ServiceRequestDispositionEventRow","ServiceRequestRecordRow","ServiceRequestWorkLinkEventRow"]
     static let activePersistentModelNames =
         (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
             + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
-            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames + v27PersistentModelNames + v28PersistentModelNames + v29PersistentModelNames + v30PersistentModelNames + v31PersistentModelNames + v32PersistentModelNames + v33PersistentModelNames + v34PersistentModelNames + v35PersistentModelNames + v36PersistentModelNames + v37PersistentModelNames + v38PersistentModelNames).sorted()
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames + v27PersistentModelNames + v28PersistentModelNames + v29PersistentModelNames + v30PersistentModelNames + v31PersistentModelNames + v32PersistentModelNames + v33PersistentModelNames + v34PersistentModelNames + v35PersistentModelNames + v36PersistentModelNames + v37PersistentModelNames + v38PersistentModelNames + v39PersistentModelNames).sorted()
 
     static let ownedFileClassNames = [
         "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
@@ -258,7 +259,7 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
         "StoreSemanticEnvelopeV27","ExceptionCalendarReleaseV1","ScheduleOverrideEventV1","OccurrenceGenerationPlanV1","DueQueueProjectionV1","ReminderProjectionV1",
         "StoreSemanticEnvelopeV28","PlanDocumentV1","PlanRevisionV1","SpatialReferenceFrameV1","PlanPlacementV1","RebasePreviewV1","RebaseReceiptV1",
         "StoreSemanticEnvelopeV29","PoseAxisDescriptorRegistryV1","AssetPoseCurrentTipV1","CompletedPlacementPoseSnapshotV1",
-        "StoreSemanticEnvelopeV30","EvidenceContextV1","PairedObservationLinkV1","StoreSemanticEnvelopeV31","LightingTopologyV1","LightingDuePreviewV1","StoreSemanticEnvelopeV32","StoreSemanticEnvelopeV33","StoreSemanticEnvelopeV34","StoreSemanticEnvelopeV35","StoreSemanticEnvelopeV36","StoreSemanticEnvelopeV37","StoreSemanticEnvelopeV38",
+        "StoreSemanticEnvelopeV30","EvidenceContextV1","PairedObservationLinkV1","StoreSemanticEnvelopeV31","LightingTopologyV1","LightingDuePreviewV1","StoreSemanticEnvelopeV32","StoreSemanticEnvelopeV33","StoreSemanticEnvelopeV34","StoreSemanticEnvelopeV35","StoreSemanticEnvelopeV36","StoreSemanticEnvelopeV37","StoreSemanticEnvelopeV38","StoreSemanticEnvelopeV39",
         "WorkspaceMutationStateSemanticV1",
         "entityMutationRevision",
         "workspaceMutationState",
@@ -490,6 +491,9 @@ struct CurrentSyncClassificationCatalogV1: Sendable {
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
         guard C50IncumbentFileExchangeSyncBoundaryV1.validate() else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
+        }
+        guard C52ServiceRequestSyncClassificationBoundaryV1.validate() else {
             throw CurrentSyncClassificationCatalogFailureV1.invalidInventory
         }
         try SyncClassificationRegistryV1.validate()
@@ -839,6 +843,18 @@ private extension CurrentSyncClassificationCatalogV1 {
                 name: name,
                 profile: .replicatedMutationHistory,
                 dependencies: [try subject(category: .persistentModel, name: "MutationReceiptRow")]
+            ))
+        }
+        for name in v39PersistentModelNames {
+            let dependencies = name == "ServiceRequestRecordRow"
+                ? [try subject(category: .persistentModel, name: "MutationReceiptRow")]
+                : [try subject(category: .persistentModel, name: "ServiceRequestRecordRow"),
+                   try subject(category: .persistentModel, name: "MutationReceiptRow")]
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedMutationHistory,
+                dependencies: dependencies
             ))
         }
 
@@ -1339,26 +1355,27 @@ private extension CurrentSyncClassificationCatalogV1 {
         case "StoreSemanticEnvelopeV17":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames)
         case "StoreSemanticEnvelopeV18":return try subjects(category:.persistentModel,names:persistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames)
         case "StoreSemanticEnvelopeV19":return try subjects(category:.persistentModel,names:(v1PersistentModelNames+v2PersistentModelNames+v3PersistentModelNames+v4PersistentModelNames+v5PersistentModelNames+v6PersistentModelNames+v7PersistentModelNames+v8PersistentModelNames+v9PersistentModelNames+v10PersistentModelNames+v11PersistentModelNames+v12PersistentModelNames+v13PersistentModelNames+v14PersistentModelNames+v15PersistentModelNames+v16PersistentModelNames+v17PersistentModelNames+v18PersistentModelNames+v19PersistentModelNames))
-        case "StoreSemanticEnvelopeV20":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v21PersistentModelNames+v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV21":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV20":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v21PersistentModelNames+v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV21":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v22PersistentModelNames+v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
         case "RecoverabilityVerificationStagingV1","RecoverabilityFreshnessProjectionV1","RecoverabilityVerificationLifecycleV1":return[try subject(category:.persistentModel,name:"RecoverabilityVerificationReceiptRow")]
-        case "StoreSemanticEnvelopeV22":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV23":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV24":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV25":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV26":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v27PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV27":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v28PersistentModelNames+v29PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV28":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v29PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV29":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v30PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV30":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV31":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v32PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV32":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v33PersistentModelNames+v34PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV33":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v34PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV34":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV35":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV36":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v37PersistentModelNames+v38PersistentModelNames).contains($0)})
-        case "StoreSemanticEnvelopeV37":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v38PersistentModelNames.contains($0)})
-        case "StoreSemanticEnvelopeV38":return try subjects(category:.persistentModel,names:activePersistentModelNames)
+        case "StoreSemanticEnvelopeV22":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v23PersistentModelNames+v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV23":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v24PersistentModelNames+v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV24":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v25PersistentModelNames+v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV25":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v26PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV26":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v27PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV27":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v28PersistentModelNames+v29PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV28":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v29PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV29":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v30PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV30":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV31":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v32PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV32":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v33PersistentModelNames+v34PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV33":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v34PersistentModelNames+v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV34":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v35PersistentModelNames+v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV35":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v36PersistentModelNames+v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV36":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v37PersistentModelNames+v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV37":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!(v38PersistentModelNames+v39PersistentModelNames).contains($0)})
+        case "StoreSemanticEnvelopeV38":return try subjects(category:.persistentModel,names:activePersistentModelNames.filter{!v39PersistentModelNames.contains($0)})
+        case "StoreSemanticEnvelopeV39":return try subjects(category:.persistentModel,names:activePersistentModelNames)
         case "PlanDocumentV1","PlanRevisionV1","SpatialReferenceFrameV1","PlanPlacementV1","RebasePreviewV1","RebaseReceiptV1":return try subjects(category:.persistentModel,names:v28PersistentModelNames)
         case "PoseAxisDescriptorRegistryV1","AssetPoseCurrentTipV1","CompletedPlacementPoseSnapshotV1":return try subjects(category:.persistentModel,names:v29PersistentModelNames)
         case "EvidenceContextV1","PairedObservationLinkV1":return try subjects(category:.persistentModel,names:v30PersistentModelNames)
@@ -1543,8 +1560,9 @@ private extension CurrentSyncClassificationCatalogV1 {
             InstallationTaskResultRow.self,InstallationAsBuiltSnapshotRow.self,
             PunchReviewBasisSnapshotRow.self,
             ManualWorkResourceRecordRow.self,
+            ServiceRequestRecordRow.self,ServiceRequestDispositionEventRow.self,ServiceRequestWorkLinkEventRow.self,
         ]
-        let runtimeNames = PersistentSchemaV38.models.map { modelType in
+        let runtimeNames = PersistentSchemaV39.models.map { modelType in
             String(describing: modelType)
                 .split(separator: ".")
                 .last
@@ -1557,9 +1575,9 @@ private extension CurrentSyncClassificationCatalogV1 {
               Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
                 == Set(frozenV5.map { ObjectIdentifier($0) }),
               frozenNames == persistentModelNames,
-              PersistentSchemaV38.models.count == 123,
-              PersistentSchemaV38.models.count == expected.count,
-              Set(PersistentSchemaV38.models.map { ObjectIdentifier($0) })
+              PersistentSchemaV39.models.count == 126,
+              PersistentSchemaV39.models.count == expected.count,
+              Set(PersistentSchemaV39.models.map { ObjectIdentifier($0) })
                 == Set(expected.map { ObjectIdentifier($0) }),
               runtimeNames.count == Set(runtimeNames).count,
               runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),
@@ -1669,5 +1687,22 @@ enum C34SceneNavigationSyncBoundaryV1 {
             && portableExport == .excluded
             && !journalParticipation
             && !customerExportParticipation
+    }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-sync
+enum C52ServiceRequestSyncClassificationBoundaryV1 {
+    static let localOnlyCanonicalKinds = ["ServiceRequestRecordV1", "ServiceRequestDispositionEventV1", "ServiceRequestWorkLinkEventV1"]
+    static let integrationEventKinds = ["SERVICE_REQUEST_RECORD", "SERVICE_REQUEST_DISPOSITION", "SERVICE_REQUEST_WORK_LINK"]
+    static let duplicateProjectionIsCanonicalSyncTruth = false
+    static let rawCapabilityIsSyncable = false
+    static let unsanitizedMediaIsSyncable = false
+
+    static func validate() -> Bool {
+        Set(localOnlyCanonicalKinds) == Set(["ServiceRequestRecordV1", "ServiceRequestDispositionEventV1", "ServiceRequestWorkLinkEventV1"])
+            && integrationEventKinds.count == 3
+            && !duplicateProjectionIsCanonicalSyncTruth
+            && !rawCapabilityIsSyncable
+            && !unsanitizedMediaIsSyncable
+            && CurrentSyncClassificationCatalogV1.v39PersistentModelNames.count == 3
     }
 }

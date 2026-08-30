@@ -46,6 +46,9 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case installationAsBuiltSnapshot
     case punchReviewBasisSnapshot
     case workResourceEntry
+    case serviceRequestRecord
+    case serviceRequestDispositionEvent
+    case serviceRequestWorkLinkEvent
     case sitePartyRoleEvent
     case actorSnapshot
     case qualificationSnapshot
@@ -1993,6 +1996,97 @@ struct WorkResourceMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - C52 canonical service-request mutation bridge
+
+extension ServiceRequestMutationPayloadV1 {
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .appendRecord(value):
+                return try .init(kind: .serviceRequestRecord, id: value.recordID)
+            case let .appendDisposition(value):
+                return try .init(kind: .serviceRequestDispositionEvent, id: value.eventID)
+            case let .appendWorkLink(value), let .appendWorkLinkReversal(value):
+                return try .init(kind: .serviceRequestWorkLinkEvent, id: value.eventID)
+            }
+        }
+    }
+
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .appendRecord(value):
+                return try .init(kind: .serviceRequestRecord, id: value.recordID)
+            case let .appendDisposition(value):
+                return try .init(kind: .serviceRequestDispositionEvent, id: value.predecessorEventID ?? value.eventID)
+            case let .appendWorkLink(value), let .appendWorkLinkReversal(value):
+                return try .init(kind: .serviceRequestWorkLinkEvent, id: value.predecessorEventID ?? value.eventID)
+            }
+        }
+    }
+
+    var expectedEntityRevision: UInt64 {
+        switch self {
+        case let .appendRecord(value): return value.revision - 1
+        case let .appendDisposition(value): return value.revision - 1
+        case let .appendWorkLink(value), let .appendWorkLinkReversal(value): return value.revision - 1
+        }
+    }
+
+    var mutationPostImage: MutationPostImageV1 {
+        get throws {
+            switch self {
+            case let .appendRecord(value):
+                return try .serviceRequestRecord(
+                    id: value.recordID, concurrencyIdentity: concurrencyIdentity,
+                    revision: value.revision, semanticSHA256: value.recordSHA256
+                )
+            case let .appendDisposition(value):
+                return try .serviceRequestDispositionEvent(
+                    id: value.eventID, concurrencyIdentity: concurrencyIdentity,
+                    revision: value.revision, semanticSHA256: value.eventSHA256
+                )
+            case let .appendWorkLink(value), let .appendWorkLinkReversal(value):
+                return try .serviceRequestWorkLinkEvent(
+                    id: value.eventID, concurrencyIdentity: concurrencyIdentity,
+                    revision: value.revision, semanticSHA256: value.eventSHA256
+                )
+            }
+        }
+    }
+}
+
+extension ServiceRequestMutationV1 {
+    var affectedIdentities: [WorkspaceEntityIdentityV1] {
+        get throws { try payloads.map(\.affectedIdentity).sorted { $0.stableKey < $1.stableKey } }
+    }
+    var concurrencyIdentities: [WorkspaceEntityIdentityV1] {
+        get throws { try payloads.map(\.concurrencyIdentity).sorted { $0.stableKey < $1.stableKey } }
+    }
+    var mutationPostImages: [MutationPostImageV1] {
+        get throws { try payloads.map(\.mutationPostImage).sorted { try $0.identity.stableKey < $1.identity.stableKey } }
+    }
+    func expectedRevision(for identity: WorkspaceEntityIdentityV1) throws -> UInt64 {
+        guard let payload = try payloads.first(where: { try $0.concurrencyIdentity == identity }) else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        return payload.expectedEntityRevision
+    }
+    func validateForCanonicalWriter() throws {
+        try validate()
+        let affected = try affectedIdentities
+        let concurrency = try concurrencyIdentities
+        guard affected.count <= MutationReceiptV1.maximumPostImageCount,
+              Set(affected).count == affected.count,
+              Set(concurrency).count == concurrency.count,
+              expectedRevision.entityRevisions.count == concurrency.count,
+              try concurrency.allSatisfy({ identity in
+                  expectedRevision.entityRevisions.first(where: { $0.identity == identity })?.revision
+                      == self.expectedRevision(for: identity)
+              }) else { throw WorkspaceMutationContractFailureV1.invalidPlan }
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -2040,6 +2134,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyActivityContract(ActivityContractMutationV2)
     case applyPortableReview(PortableReviewMutationV1)
     case applyWorkResource(WorkResourceMutationV1)
+    case applyServiceRequest(ServiceRequestMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2089,6 +2184,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyActivityContract:.applyActivityContract
         case .applyPortableReview:.applyPortableReview
         case .applyWorkResource:.applyWorkResource
+        case .applyServiceRequest:.applyServiceRequest
         }
     }
 }
@@ -2140,6 +2236,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyActivityContract="apply_activity_contract_v2"
     case applyPortableReview="apply_portable_review_v1"
     case applyWorkResource="apply_work_resource_v1"
+    case applyServiceRequest="apply_service_request_v1"
 }
 
 extension WorkspaceCommandV1 {
@@ -2940,6 +3037,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyActivityContract,disposition:.compensatable,stableReason:"append_activity_contract_successor_only"),
         .init(commandKind:.applyPortableReview,disposition:.compensatable,stableReason:"append_existing_c14_review_successor_only"),
         .init(commandKind:.applyWorkResource,disposition:.compensatable,stableReason:"append_work_resource_successor_only"),
+        .init(commandKind:.applyServiceRequest,disposition:.compensatable,stableReason:"append_request_history_or_explicit_unlink_reversal_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {
@@ -3141,3 +3239,4 @@ extension ReplicaID: Codable {
         try container.encode(rawValue, forKey: .rawValue)
     }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-command

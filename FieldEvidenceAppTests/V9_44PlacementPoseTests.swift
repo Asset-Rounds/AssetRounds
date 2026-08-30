@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_44PlacementPoseTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45PlacementPoseCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityUsesIntegralMicrometreTemplateGeometry() throws {
         let geometry = try AssetLabelGeometryV1(

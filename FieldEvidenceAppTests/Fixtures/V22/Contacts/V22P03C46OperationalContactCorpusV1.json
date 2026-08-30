@@ -1,5 +1,6 @@
 {
   "schema": "V22P03C46OperationalContactCorpusV1",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V22Contacts", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "schemaVersion": 1,
   "cardID": "V23-P03-C46",
   "classification": "IMPLEMENT_NOW",

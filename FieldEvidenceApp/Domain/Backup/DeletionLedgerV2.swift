@@ -32,6 +32,56 @@ enum C49WorkResourceDeletionLedgerPolicyV1 {
     static let eraseUsesWorkspaceEraseAuthority = true
 }
 
+/// C52 canonical request history is not an ordinary subject-deletion tombstone
+/// target. Erase removes the workspace-owned rows and asks the C48 protected
+/// session store to invalidate outstanding capabilities in the same operation.
+enum C52ServiceRequestDeletionLedgerPolicyV1 {
+    static let durableKinds = C52ServiceRequestBackupEnrollmentV1.canonicalRowKinds
+    static let protectedOperationKind = "PortableExchangeSessionNamespaceV2.SERVICE_REQUEST"
+    static let eraseInventory = durableKinds + [protectedOperationKind]
+    static let ordinaryDeletionPreservesCanonicalHistory = true
+    static let ordinaryDeletionPreservesImmutableSourceBytes = true
+    static let workspaceEraseRemovesCanonicalRows = true
+    static let workspaceEraseRemovesOwnedProtectedState = true
+    static let eraseInvalidatesOutstandingCapabilitiesViaC48Store = true
+    static let rawCapabilityBytesCreateLedgerEntries = false
+    static let derivedProjectionCreatesLedgerEntries = false
+    static let createsParallelServiceRequestTombstoneKind = false
+
+    static func validate() throws {
+        guard durableKinds.count == 3,
+              Set(durableKinds).count == durableKinds.count,
+              eraseInventory == durableKinds + [protectedOperationKind],
+              ordinaryDeletionPreservesCanonicalHistory,
+              ordinaryDeletionPreservesImmutableSourceBytes,
+              workspaceEraseRemovesCanonicalRows,
+              workspaceEraseRemovesOwnedProtectedState,
+              eraseInvalidatesOutstandingCapabilitiesViaC48Store,
+              !rawCapabilityBytesCreateLedgerEntries,
+              !derivedProjectionCreatesLedgerEntries,
+              !createsParallelServiceRequestTombstoneKind,
+              ServiceRequestLifecycleRegistrationBoundaryV1.eraseRemovesOwnedProtectedState,
+              ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+
+    static func validate(
+        records: V4BackupRecordsV1,
+        workspaceID: UUID? = nil
+    ) throws {
+        try validate()
+        do {
+            try C52ServiceRequestBackupEnrollmentV1.validate(
+                records: records,
+                workspaceID: workspaceID
+            )
+        } catch {
+            throw DeletionLedgerFailureV2.invalidIdentity
+        }
+    }
+}
+
 struct DeletionLedgerProofV2: Codable, Equatable, Sendable {
     let entryCount: Int
     let canonicalSHA256: String
@@ -537,6 +587,7 @@ struct DeletionLedgerV2: Codable, Equatable, Sendable {
         try C31LightingDeletionLedgerPolicyV1.validate()
         try C32AssistanceDeletionLedgerPolicyV1.validate()
         try C33TemporalEvidenceDeletionLedgerPolicyV1.validate()
+        try C52ServiceRequestDeletionLedgerPolicyV1.validate()
         guard schemaVersion == 2 else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }
@@ -588,4 +639,19 @@ enum C48PortableExchangeDeletionLedgerBoundaryV2 {
     static let ordinaryDeletionInvalidatesExactMappedSessions = true
     static let immutableExchangeHistoryIsRetained = true
     static let workspaceEraseClearsProtectedLocalStore = true
+}
+enum C52ServiceRequestBoundary_DeletionLedgerV2 {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }

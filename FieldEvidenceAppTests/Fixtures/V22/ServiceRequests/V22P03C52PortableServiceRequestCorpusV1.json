@@ -1,0 +1,186 @@
+{
+  "schema": "V22P03C52PortableServiceRequestCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C52",
+  "corpusID": "v23-p03-c52-portable-service-request-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "contracts": [
+    "PortableServiceRequestProtocolReleaseV1",
+    "ServiceRequestSubmissionCapabilityV1",
+    "ServiceRequestCapabilityProofV1",
+    "ServiceRequestCapabilityProofInputV1",
+    "ServiceRequestRecordV1",
+    "ServiceRequestDispositionEventV1",
+    "ServiceRequestWorkLinkEventV1",
+    "DirectPrerequisiteEvidenceSetV1",
+    "CardAcceptanceInclusionProofV1",
+    "CardAcceptanceInclusionProofRecoveryReceiptV1",
+    "CandidateAcceptanceCompatibilityReceiptV1"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C52-G01",
+    "V23-P03-C52-A01",
+    "V23-P03-C52-H01",
+    "V23-P03-C52-I01",
+    "V23-P03-C52-R01"
+  ],
+  "protocol": {
+    "protocolID": "PORTABLE_SERVICE_REQUEST_V1",
+    "protocolVersion": 1,
+    "invitationSchemaID": "AR_SERVICE_INVITATION_V1",
+    "submissionSchemaID": "AR_SERVICE_SUBMISSION_V1",
+    "invitationFileExtension": "arserviceinvite",
+    "submissionFileExtension": "arservicesubmission",
+    "proofDomain": "AssetRounds.ServiceRequestCapabilityProof.V1",
+    "cleartextReadableAndForwardable": true,
+    "envelopeInnerKindPermitted": false,
+    "allowedMediaFormats": ["JPEG", "HEIC", "PNG"],
+    "capabilityByteCount": 32,
+    "proofByteCount": 32,
+    "forwardingTransfersSubmissionAbility": true,
+    "sharingProvesDelivery": false
+  },
+  "proofVector": {
+    "vectorID": "SRV1-001",
+    "capabilityHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "protocolReleaseDigestHex": "0000000000000000000000000000000000000000000000000000000000000000",
+    "invitationPublicID": "INV-C52-VECTOR-001",
+    "invitationManifestDigestHex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "frozenScopeSnapshotDigestHex": "2222222222222222222222222222222222222222222222222222222222222222",
+    "submissionPublicID": "SUB-C52-VECTOR-001",
+    "canonicalSubmissionBodyDigestHex": "3333333333333333333333333333333333333333333333333333333333333333",
+    "mediaManifestDigestHex": "4444444444444444444444444444444444444444444444444444444444444444",
+    "transcriptByteCount": 269,
+    "transcriptSHA256": "04364f8c612650f6b4b1bbbc464506d4f4db3b251950d2062c987e7ab4a08381",
+    "proofHMACSHA256": "3154efd1948e127f1a8df5b8b91ef729c3e7761442ae5065221ec29da1425213"
+  },
+  "channels": [
+    "PHONE",
+    "EMAIL",
+    "TEXT",
+    "PAPER",
+    "IN_PERSON",
+    "OTHER",
+    "PORTABLE_SUBMISSION"
+  ],
+  "dispositions": [
+    "ACCEPT_AS_NEW",
+    "ACCEPT_AND_LINK_DUPLICATE",
+    "DECLINE_WITH_REASON",
+    "RECORD_HISTORY_ONLY",
+    "KEEP_QUARANTINED",
+    "DISCARD_UNIMPORTED"
+  ],
+  "states": [
+    "OPEN_UNTRIAGED",
+    "OPEN_ACCEPTED",
+    "HANDLED_BY_LINKED_WORK",
+    "DECLINED",
+    "CLOSED_NO_WORK",
+    "SUPERSEDED"
+  ],
+  "duplicateCases": [
+    {"caseID": "SAME_SITE_EXACT_CATEGORY", "scope": "SAME_SITE", "sharedAsset": true, "reason": "EXACT_CATEGORY", "suggestionOnly": true},
+    {"caseID": "SAME_SITE_NORMALIZED_TERMS", "scope": "SAME_SITE", "sharedAsset": false, "reason": "NORMALIZED_TERMS", "suggestionOnly": true},
+    {"caseID": "SAME_SITE_BOUNDED_WINDOW", "scope": "SAME_SITE", "sharedAsset": true, "reason": "BOUNDED_TIME_WINDOW", "suggestionOnly": true},
+    {"caseID": "CROSS_SITE_NO_SUGGESTION", "scope": "CROSS_SITE", "sharedAsset": false, "reason": "NONE", "suggestionOnly": true}
+  ],
+  "triageCases": [
+    {"disposition": "ACCEPT_AS_NEW", "state": "OPEN_ACCEPTED", "canonicalWrite": true},
+    {"disposition": "ACCEPT_AND_LINK_DUPLICATE", "state": "OPEN_ACCEPTED", "canonicalWrite": true},
+    {"disposition": "DECLINE_WITH_REASON", "state": "DECLINED", "canonicalWrite": true},
+    {"disposition": "RECORD_HISTORY_ONLY", "state": "CLOSED_NO_WORK", "canonicalWrite": true},
+    {"disposition": "KEEP_QUARANTINED", "state": "OPEN_UNTRIAGED", "canonicalWrite": false},
+    {"disposition": "DISCARD_UNIMPORTED", "state": "OPEN_UNTRIAGED", "canonicalWrite": false}
+  ],
+  "hostileCases": [
+    "TRAVERSAL",
+    "ABSOLUTE_PATH",
+    "DUPLICATE_MEMBER",
+    "CASE_COLLISION",
+    "SYMLINK",
+    "HARDLINK",
+    "ZIP_BOMB",
+    "OVERSIZE",
+    "WRONG_MAGIC",
+    "UNKNOWN_VERSION",
+    "HTML_SCRIPT_FORM_MACRO",
+    "MALFORMED_NFC_CONTROL",
+    "WRONG_INVITATION",
+    "REBINDING",
+    "STALE_SCOPE",
+    "MOVED_RETIRED_DELETED_TARGET",
+    "DIVERGENT_SUBMISSION_ID",
+    "INVALID_CAPABILITY_OR_PROOF",
+    "EXIF_GPS_METADATA",
+    "LOW_STORAGE",
+    "PROTECTED_DATA",
+    "QUOTA_EXHAUSTION"
+  ],
+  "interruptionBoundaries": [
+    "INVITATION_RENDER",
+    "INVITATION_SEAL",
+    "INVITATION_EXPORT",
+    "SHARE_CANCEL",
+    "SUBMISSION_SEAL",
+    "QUARANTINE_VALIDATION",
+    "PREVIEW",
+    "EXPLICIT_DISPOSITION",
+    "CANONICAL_REQUEST_WRITE",
+    "CONVERSION_EFFECT",
+    "RECEIPT",
+    "UNLINK_REVERSAL"
+  ],
+  "retryRules": {
+    "sameSubmissionIDAndDigestReturnsSameReceipt": true,
+    "sameSubmissionIDDifferentBytesQuarantines": true,
+    "effectBeforeReceiptConverges": true,
+    "canonicalRequestLinkCountIsZeroOrOne": true,
+    "siblingsArePreserved": true
+  },
+  "lifecycle": {
+    "serviceNamespaceIndependentFromReview": true,
+    "v1ToV2PreservesBytesIDsTimestampsAndState": true,
+    "backupPreservesCanonicalHistory": true,
+    "cloneAndForkPreserveHistory": true,
+    "cloneAndForkInvalidateOutstandingCapabilities": true,
+    "eraseRemovesAppOwnedProtectedState": true,
+    "escapedCopiesCanBeAcknowledgedButNotRecalled": true
+  },
+  "privacy": {
+    "requesterIdentityVerified": false,
+    "contactVerified": false,
+    "urgencyVerified": false,
+    "capabilityInSubmission": false,
+    "capabilityInReportsLogsSearchAccessibility": false,
+    "recipientMediaIsDerivedOnly": true,
+    "contactPromotionIsOperationalOnly": true
+  },
+  "status": {
+    "customerSafeBoundedArtifact": true,
+    "deliveryClaimed": false,
+    "emergencyHandlingClaimed": false,
+    "slaClaimed": false
+  },
+  "workConversion": {
+    "requiresExplicitChoice": true,
+    "bindsRequestRevision": true,
+    "bindsTargetRevision": true,
+    "usesMutationID": true,
+    "exactlyOneCanonicalLink": true,
+    "unlinkIsAppendOnlyReversal": true,
+    "automaticWorkCreation": false
+  },
+  "localization": {
+    "sourceLocale": "en",
+    "englishOnly": true,
+    "deliveryWordsForbidden": true,
+    "emergencyWordsForbidden": true,
+    "slaWordsForbidden": true
+  },
+  "typedAnchor": "C52ServiceRequestBoundary_V22P03C52PortableServiceRequestCorpusV1"
+}

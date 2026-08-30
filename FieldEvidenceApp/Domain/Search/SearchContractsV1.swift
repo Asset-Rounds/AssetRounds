@@ -3978,3 +3978,20 @@ enum C34RouteAdoptionBoundary_SearchContractsV1 {
     static let canonicalTargetType = NavigationTargetV1.self
     static let routeStoresQueryText = false
 }
+
+enum C52ServiceRequestBoundary_SearchContractsV1 {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requestBodyType: ServiceRequestSubmissionBodyV1.Type = ServiceRequestSubmissionBodyV1.self
+    static let permittedCurrentNonSensitiveFields: [String] = [
+        "REQUEST_TEXT", "CATEGORY", "STATED_DATE", "URGENCY_ASSERTION",
+        "REQUESTER_ASSERTION_STATUS", "CONTACT_ASSERTION_STATUS"
+    ]
+    static let requesterAssertionIsVerifiedIdentity: Bool = false
+    static let contactAssertionIsVerifiedIdentity: Bool = false
+    static let rawCapabilityBytesIndexed: Bool = false
+    static let immutableSourceBytesIndexed: Bool = false
+    static let dispositionProvenanceIndexed: Bool = false
+    static let workLinkProvenanceIndexed: Bool = false
+    static let hiddenDuplicateScoresIndexed: Bool = false
+    static let duplicateProjectionIsSearchable: Bool = false
+}

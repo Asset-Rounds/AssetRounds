@@ -1,5 +1,11 @@
 import Foundation
 
+enum C52ServiceRequestCheckRunnerCoordinatorBoundaryV1 {
+    static let submitsOrDispatchesServiceRequests = false
+    static let automaticallyAcceptsDuplicateCandidates = false
+    static let automaticallyConvertsRequestToWork = false
+}
+
 enum CheckRunnerScheduleCoordinatorBoundaryV1 { static let checkRunnerMayAutoStartOccurrence = false }
 
 enum C51CheckRunnerScheduleCoordinatorBoundaryV1 {

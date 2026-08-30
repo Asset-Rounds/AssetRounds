@@ -1,5 +1,6 @@
 {
   "cardID": "V23-P03-C30",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V22EvidenceContext", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "correctionHostiles": [
     "INVALID_TIME_ZONE",
     "OFFSET_CONFLICT",

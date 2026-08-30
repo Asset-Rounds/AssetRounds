@@ -7,6 +7,10 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_S4_4HistoryComparisonTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45HistoryComparisonCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityComparesActiveAndHistoricSnapshotsWithoutReinterpretation() {
         XCTAssertEqual(Set(AcceptedLabelSnapshotDispositionV1.allCases), [.activeSourceWorkspace, .historicCloneOrFork])

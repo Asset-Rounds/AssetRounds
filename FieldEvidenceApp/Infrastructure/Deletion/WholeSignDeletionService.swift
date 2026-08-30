@@ -1960,6 +1960,9 @@ private extension WholeSignDeletionService {
         let occurrenceHistoryEvents: [OccurrenceHistoryEventRow]
         let exceptionCalendarReleases: [ExceptionCalendarReleaseRow]
         let scheduleOverrideEvents: [ScheduleOverrideEventRow]
+        let serviceRequestRecords: [ServiceRequestRecordRow]
+        let serviceRequestDispositionEvents: [ServiceRequestDispositionEventRow]
+        let serviceRequestWorkLinkEvents: [ServiceRequestWorkLinkEventRow]
         let assetLocators: [AssetLocatorRow]
         let locatorBindingReceipts: [LocatorBindingReceiptRow]
         let planDocuments: [PlanDocumentRow]
@@ -2038,6 +2041,9 @@ private extension WholeSignDeletionService {
                  occurrenceHistoryEvents: try boundedFetch(OccurrenceHistoryEventRow.self),
                  exceptionCalendarReleases: try boundedFetch(ExceptionCalendarReleaseRow.self),
                  scheduleOverrideEvents: try boundedFetch(ScheduleOverrideEventRow.self),
+                 serviceRequestRecords: try boundedFetch(ServiceRequestRecordRow.self),
+                 serviceRequestDispositionEvents: try boundedFetch(ServiceRequestDispositionEventRow.self),
+                 serviceRequestWorkLinkEvents: try boundedFetch(ServiceRequestWorkLinkEventRow.self),
                  assetLocators: try boundedFetch(AssetLocatorRow.self),
                  locatorBindingReceipts: try boundedFetch(LocatorBindingReceiptRow.self),
                  planDocuments: try boundedFetch(PlanDocumentRow.self),
@@ -2140,6 +2146,11 @@ private extension WholeSignDeletionService {
             after: scheduleInventory,
             workspaceErase: false
         )
+        try ServiceRequestPersistenceEnrollmentV1.validate()
+        try C52ServiceRequestKernelDeletionEraseEnrollmentV1.validate()
+        try rows.serviceRequestRecords.forEach { _ = try $0.value() }
+        try rows.serviceRequestDispositionEvents.forEach { _ = try $0.value() }
+        try rows.serviceRequestWorkLinkEvents.forEach { _ = try $0.value() }
         let planDocuments = try rows.planDocuments.map { try $0.value() }
         let planRevisions = try rows.planRevisions.map { try $0.value() }
         let planPlacements = try rows.planPlacements.map { try $0.value() }
@@ -4452,3 +4463,4 @@ enum TemporalEvidenceWholeSignDeletionBoundaryV1 {
 enum C45AcceptedLabelDeletionServiceBoundaryV1 { static let resolvesSnapshotLocatorReferences=true;static let removesDerivedOutputScratch=true }
 
 enum C46OperationalContactBoundary_41{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-delete

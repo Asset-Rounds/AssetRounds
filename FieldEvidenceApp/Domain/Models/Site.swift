@@ -88,3 +88,4 @@ enum C46SiteDirectionsPersistenceBoundaryV1 {
     static let historicSolarLocationMayBeInferred = false
     static let coordinateIsStoredBySite = false
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-persistence

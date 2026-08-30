@@ -421,6 +421,7 @@ enum PersistentSchemaV35:VersionedSchema{static let versionIdentifier=Schema.Ver
 enum PersistentSchemaV36:VersionedSchema{static let versionIdentifier=Schema.Version(36,0,0);static var models:[any PersistentModel.Type]{PersistentSchemaV35.models+[ActivitySessionEnvelopeRow.self,ActivityStateTransitionRow.self,InstallationTaskResultRow.self,InstallationAsBuiltSnapshotRow.self,PunchReviewBasisSnapshotRow.self]}}
 enum PersistentSchemaV37:VersionedSchema{static let versionIdentifier=Schema.Version(37,0,0);static var models:[any PersistentModel.Type]{PersistentSchemaV36.models+[ManualWorkResourceRecordRow.self]}}
 enum PersistentSchemaV38:VersionedSchema{static let versionIdentifier=Schema.Version(38,0,0);static var models:[any PersistentModel.Type]{PersistentSchemaV37.models+[ExceptionCalendarReleaseRow.self,ScheduleOverrideEventRow.self]}}
+enum PersistentSchemaV39:VersionedSchema{static let versionIdentifier=Schema.Version(39,0,0);static var models:[any PersistentModel.Type]{PersistentSchemaV38.models+[ServiceRequestRecordRow.self,ServiceRequestDispositionEventRow.self,ServiceRequestWorkLinkEventRow.self]}}
 
 enum PersistentSchemaMigrationStageV1: String, Equatable, Sendable {
     case bootstrap = "BOOTSTRAP"
@@ -497,6 +498,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
     case v36 = "V36"
     case v37 = "V37"
     case v38 = "V38"
+    case v39 = "V39"
 
     var compatibilityID: String {
         switch self {
@@ -538,6 +540,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         case .v36:return "ACTIVITY_CONTRACT_FAMILIES_V2"
         case .v37:return "WORK_RESOURCE_ENTRY_V1"
         case .v38:return "ADVANCED_SCHEDULE_EXCEPTION_V1"
+        case .v39:return "PORTABLE_SERVICE_REQUEST_V1"
         }
     }
 
@@ -581,6 +584,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         case .v36:return PersistentSchemaV36.versionIdentifier
         case .v37:return PersistentSchemaV37.versionIdentifier
         case .v38:return PersistentSchemaV38.versionIdentifier
+        case .v39:return PersistentSchemaV39.versionIdentifier
         }
     }
 
@@ -624,6 +628,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         case .v36:return PersistentSchemaV35.versionIdentifier
         case .v37:return PersistentSchemaV36.versionIdentifier
         case .v38:return PersistentSchemaV37.versionIdentifier
+        case .v39:return PersistentSchemaV38.versionIdentifier
         }
     }
 
@@ -667,6 +672,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         case .v36:return PersistentSchemaV36.models
         case .v37:return PersistentSchemaV37.models
         case .v38:return PersistentSchemaV38.models
+        case .v39:return PersistentSchemaV39.models
         }
     }
 
@@ -674,7 +680,7 @@ enum PersistentSchemaReleaseV1: String, Codable, Equatable, Sendable {
         switch self {
         case .v1: return .bootstrap
         case .v2, .v3, .v4: return .lightweight
-        case .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26, .v27, .v28, .v29, .v30, .v31, .v32, .v33, .v34, .v35, .v36, .v37, .v38: return .custom
+        case .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26, .v27, .v28, .v29, .v30, .v31, .v32, .v33, .v34, .v35, .v36, .v37, .v38, .v39: return .custom
         }
     }
 }
@@ -899,6 +905,7 @@ enum PersistentSchemaMigrationPlanV34:SchemaMigrationPlan{static var schemas:[an
 enum PersistentSchemaMigrationPlanV35:SchemaMigrationPlan{static var schemas:[any VersionedSchema.Type]{[PersistentSchemaV35.self,PersistentSchemaV36.self]};static let migrateV35ToV36=MigrationStage.custom(fromVersion:PersistentSchemaV35.self,toVersion:PersistentSchemaV36.self,willMigrate:nil,didMigrate:{_ in});static var stages:[MigrationStage]{[migrateV35ToV36]}}
 enum PersistentSchemaMigrationPlanV36:SchemaMigrationPlan{static var schemas:[any VersionedSchema.Type]{[PersistentSchemaV36.self,PersistentSchemaV37.self]};static let migrateV36ToV37=MigrationStage.custom(fromVersion:PersistentSchemaV36.self,toVersion:PersistentSchemaV37.self,willMigrate:nil,didMigrate:{_ in});static var stages:[MigrationStage]{[migrateV36ToV37]}}
 enum PersistentSchemaMigrationPlanV37:SchemaMigrationPlan{static var schemas:[any VersionedSchema.Type]{[PersistentSchemaV37.self,PersistentSchemaV38.self]};static let migrateV37ToV38=MigrationStage.custom(fromVersion:PersistentSchemaV37.self,toVersion:PersistentSchemaV38.self,willMigrate:nil,didMigrate:{_ in});static var stages:[MigrationStage]{[migrateV37ToV38]}}
+enum PersistentSchemaMigrationPlanV38:SchemaMigrationPlan{static var schemas:[any VersionedSchema.Type]{[PersistentSchemaV38.self,PersistentSchemaV39.self]};static let migrateV38ToV39=MigrationStage.custom(fromVersion:PersistentSchemaV38.self,toVersion:PersistentSchemaV39.self,willMigrate:nil,didMigrate:{_ in});static var stages:[MigrationStage]{[migrateV38ToV39]}}
 
 enum PersistentSchemaReleaseRegistryV1 {
     static let v1CompatibilityID = PersistentSchemaReleaseV1.v1.compatibilityID
@@ -939,15 +946,16 @@ enum PersistentSchemaReleaseRegistryV1 {
     static let v36CompatibilityID=PersistentSchemaReleaseV1.v36.compatibilityID
     static let v37CompatibilityID=PersistentSchemaReleaseV1.v37.compatibilityID
     static let v38CompatibilityID=PersistentSchemaReleaseV1.v38.compatibilityID
+    static let v39CompatibilityID=PersistentSchemaReleaseV1.v39.compatibilityID
     static let v2MarkerIDString = "00000000-0000-0000-0000-000000000002"
     static let v2MarkerID = UUID(uuidString: v2MarkerIDString)!
 
-    static let releases: [PersistentSchemaReleaseV1] = [.v1,.v2,.v3,.v4,.v5,.v6,.v7,.v8,.v9,.v10,.v11,.v12,.v13,.v14,.v15,.v16,.v17,.v18,.v19,.v20,.v21,.v22,.v23,.v24,.v25,.v26,.v27,.v28,.v29,.v30,.v31,.v32,.v33,.v34,.v35,.v36,.v37,.v38]
+    static let releases: [PersistentSchemaReleaseV1] = [.v1,.v2,.v3,.v4,.v5,.v6,.v7,.v8,.v9,.v10,.v11,.v12,.v13,.v14,.v15,.v16,.v17,.v18,.v19,.v20,.v21,.v22,.v23,.v24,.v25,.v26,.v27,.v28,.v29,.v30,.v31,.v32,.v33,.v34,.v35,.v36,.v37,.v38,.v39]
 
-    static let activeVersionIdentifier=PersistentSchemaV38.versionIdentifier;static let activeCompatibilityID=v38CompatibilityID
+    static let activeVersionIdentifier=PersistentSchemaV39.versionIdentifier;static let activeCompatibilityID=v39CompatibilityID
 
     static var activeRelease: PersistentSchemaReleaseV1 {
-        .v38
+        .v39
     }
 
     static var activeReleaseDescriptor: PersistentSchemaReleaseV1 {
@@ -955,7 +963,7 @@ enum PersistentSchemaReleaseRegistryV1 {
     }
 
     static var activeMigrationPlan: any SchemaMigrationPlan.Type {
-        PersistentSchemaMigrationPlanV37.self
+        PersistentSchemaMigrationPlanV38.self
     }
 
     static func validate() throws {
@@ -963,6 +971,7 @@ enum PersistentSchemaReleaseRegistryV1 {
               C51ScheduleExceptionMigrationBoundaryV1.validate() else {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidActiveRelease
         }
+        try ServiceRequestPersistenceEnrollmentV1.validate()
         try PersistentLifecycleContractReleaseRegistryV1.validate()
         try validate(releases)
     }
@@ -970,7 +979,7 @@ enum PersistentSchemaReleaseRegistryV1 {
     static func validate(
         _ candidate: [PersistentSchemaReleaseV1]
     ) throws {
-        guard candidate.count == 38 else {
+        guard candidate.count == 39 else {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidReleaseCount
         }
 
@@ -1268,8 +1277,10 @@ enum PersistentSchemaReleaseRegistryV1 {
         guard candidate[36] == .v37,candidate[36].versionIdentifier==PersistentSchemaV37.versionIdentifier,candidate[36].compatibilityID==v37CompatibilityID,candidate[36].predecessorVersionIdentifier==PersistentSchemaV36.versionIdentifier,candidate[36].models.count==121,candidate[36].models.map({ObjectIdentifier($0)})==expectedV37ModelIDs,Array(expectedV37ModelIDs.dropLast(1))==expectedV36ModelIDs,candidate[36].migrationStage == .custom else{throw PersistentSchemaReleaseRegistryErrorV1.invalidSuccessorRelease}
         let expectedV38ModelIDs=PersistentSchemaV38.models.map{ObjectIdentifier($0)}
         guard candidate[37] == .v38,candidate[37].versionIdentifier==PersistentSchemaV38.versionIdentifier,candidate[37].compatibilityID==v38CompatibilityID,candidate[37].predecessorVersionIdentifier==PersistentSchemaV37.versionIdentifier,candidate[37].models.count==123,candidate[37].models.map({ObjectIdentifier($0)})==expectedV38ModelIDs,Array(expectedV38ModelIDs.dropLast(2))==expectedV37ModelIDs,candidate[37].migrationStage == .custom else{throw PersistentSchemaReleaseRegistryErrorV1.invalidSuccessorRelease}
+        let expectedV39ModelIDs=PersistentSchemaV39.models.map{ObjectIdentifier($0)}
+        guard candidate[38] == .v39,candidate[38].versionIdentifier==PersistentSchemaV39.versionIdentifier,candidate[38].compatibilityID==v39CompatibilityID,candidate[38].predecessorVersionIdentifier==PersistentSchemaV38.versionIdentifier,candidate[38].models.count==126,candidate[38].models.map({ObjectIdentifier($0)})==expectedV39ModelIDs,Array(expectedV39ModelIDs.dropLast(3))==expectedV38ModelIDs,candidate[38].migrationStage == .custom else{throw PersistentSchemaReleaseRegistryErrorV1.invalidSuccessorRelease}
 
-        guard activeRelease == .v38,activeVersionIdentifier==candidate[37].versionIdentifier,activeCompatibilityID==candidate[37].compatibilityID,
+        guard activeRelease == .v39,activeVersionIdentifier==candidate[38].versionIdentifier,activeCompatibilityID==candidate[38].compatibilityID,
               PersistentSchemaMigrationPlanV1.schemas.count == 2,
               ObjectIdentifier(PersistentSchemaMigrationPlanV1.schemas[0])
                   == ObjectIdentifier(PersistentSchemaV1.self),
@@ -1346,7 +1357,8 @@ enum PersistentSchemaReleaseRegistryV1 {
               PersistentSchemaMigrationPlanV34.schemas.count==2,ObjectIdentifier(PersistentSchemaMigrationPlanV34.schemas[0])==ObjectIdentifier(PersistentSchemaV34.self),ObjectIdentifier(PersistentSchemaMigrationPlanV34.schemas[1])==ObjectIdentifier(PersistentSchemaV35.self),PersistentSchemaMigrationPlanV34.stages.count==1,
               PersistentSchemaMigrationPlanV35.schemas.count==2,ObjectIdentifier(PersistentSchemaMigrationPlanV35.schemas[0])==ObjectIdentifier(PersistentSchemaV35.self),ObjectIdentifier(PersistentSchemaMigrationPlanV35.schemas[1])==ObjectIdentifier(PersistentSchemaV36.self),PersistentSchemaMigrationPlanV35.stages.count==1,
               PersistentSchemaMigrationPlanV36.schemas.count==2,ObjectIdentifier(PersistentSchemaMigrationPlanV36.schemas[0])==ObjectIdentifier(PersistentSchemaV36.self),ObjectIdentifier(PersistentSchemaMigrationPlanV36.schemas[1])==ObjectIdentifier(PersistentSchemaV37.self),PersistentSchemaMigrationPlanV36.stages.count==1,
-              PersistentSchemaMigrationPlanV37.schemas.count==2,ObjectIdentifier(PersistentSchemaMigrationPlanV37.schemas[0])==ObjectIdentifier(PersistentSchemaV37.self),ObjectIdentifier(PersistentSchemaMigrationPlanV37.schemas[1])==ObjectIdentifier(PersistentSchemaV38.self),PersistentSchemaMigrationPlanV37.stages.count==1 else {
+              PersistentSchemaMigrationPlanV37.schemas.count==2,ObjectIdentifier(PersistentSchemaMigrationPlanV37.schemas[0])==ObjectIdentifier(PersistentSchemaV37.self),ObjectIdentifier(PersistentSchemaMigrationPlanV37.schemas[1])==ObjectIdentifier(PersistentSchemaV38.self),PersistentSchemaMigrationPlanV37.stages.count==1,
+              PersistentSchemaMigrationPlanV38.schemas.count==2,ObjectIdentifier(PersistentSchemaMigrationPlanV38.schemas[0])==ObjectIdentifier(PersistentSchemaV38.self),ObjectIdentifier(PersistentSchemaMigrationPlanV38.schemas[1])==ObjectIdentifier(PersistentSchemaV39.self),PersistentSchemaMigrationPlanV38.stages.count==1 else {
             throw PersistentSchemaReleaseRegistryErrorV1.invalidActiveRelease
         }
     }
@@ -1372,7 +1384,7 @@ enum PersistentSchemaReleaseRegistryV1 {
 
     static func activeSchema() throws -> Schema {
         try validate()
-        return Schema(PersistentSchemaV38.models,version:PersistentSchemaV38.versionIdentifier)
+        return Schema(PersistentSchemaV39.models,version:PersistentSchemaV39.versionIdentifier)
     }
 }
 
@@ -1453,3 +1465,4 @@ enum C34SceneNavigationPersistentSchemaBoundaryV1 {
     }
     static func validate() -> Bool { schemaVersionBumpCount == 0 && routeModelCount == 0 && C34SceneNavigationPersistentKindBoundaryV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: persistent-schema-v39

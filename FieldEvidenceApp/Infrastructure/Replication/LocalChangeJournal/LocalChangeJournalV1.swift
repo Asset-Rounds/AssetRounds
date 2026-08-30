@@ -1845,3 +1845,13 @@ enum C34SceneNavigationLocalJournalBoundaryV1 {
     static let journalsResolutionOrRestoration = false
     static func validate() -> Bool { durableRouteKindCount == 0 && !journalsResolutionOrRestoration && C34SceneNavigationChangeJournalBoundaryV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-replay
+enum C52ServiceRequestLocalChangeReplayBoundaryV1 {
+    static let replayableCommandKind: WorkspaceCommandKindV1 = .applyServiceRequest
+    static let recordFamily = "ServiceRequestRecordV1"
+    static let dispositionFamily = "ServiceRequestDispositionEventV1"
+    static let workLinkFamily = "ServiceRequestWorkLinkEventV1"
+    static let replayRequiresMatchingMutationReceipt = true
+    static let replayMayRebuildDerivedProjections = true
+    static let replayMayPersistDuplicateProjection = false
+}

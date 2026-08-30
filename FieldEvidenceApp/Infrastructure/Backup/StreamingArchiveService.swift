@@ -20,7 +20,7 @@ enum C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1 {
 enum GuidedSurveyStreamingArchiveDispositionV1 {
     static func validate(records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion < 24 ||
-                ((24...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) &&
+                ((24...C52ServiceRequestStreamingArchiveBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) &&
                  records.guidedSurveys.count <= 200_000) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
@@ -84,6 +84,10 @@ enum GuidedSurveyStreamingArchiveDispositionV1 {
             } catch {
                 throw StreamingArchiveFailureV1.invalidArchive
             }
+        }
+        if records.recordsSchemaVersion >= C52ServiceRequestStreamingArchiveBoundaryV1.recordsSchemaVersion {
+            do { try C52ServiceRequestStreamingArchiveBoundaryV1.validate(records: records) }
+            catch { throw StreamingArchiveFailureV1.invalidArchive }
         }
     }
 }
@@ -1637,3 +1641,11 @@ private extension StreamingArchiveService {
 }
 
 enum C45AcceptedLabelStreamingArchiveServiceBoundaryV1 { static let validatesSnapshotDigestBeforeWrite=true;static let neverStagesRendererOutputAsBackupTruth=true }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-archive
+enum C52ServiceRequestStreamingArchiveServiceBoundaryV1 {
+    static let recordsSchemaVersion = 38
+    static let canonicalFamilyCount = 3
+    static let streamsAcceptedSourceBytesWithDigest = true
+    static let rawCapabilityStreamed = false
+    static let unsanitizedMediaStreamed = false
+}

@@ -1033,3 +1033,26 @@ enum C50PortableReviewPersistenceDelegationV1 {
         }
     }
 }
+
+// MARK: - C52 service-request session namespace boundary
+
+enum C52PortableServiceRequestPersistenceDelegationV1 {
+    static let sessionStoreContract: Any.Type = PortableExchangeSessionStoreV2.self
+    static let canonicalServiceRows = ServiceRequestPersistenceEnrollmentV1.durableModels
+    static let canonicalServiceRowCount = ServiceRequestPersistenceEnrollmentV1.durableModelCount
+    static let serviceCapabilityUsesProtectedOperationScope = true
+    static let reviewCapabilityIsNotServiceAuthority = true
+    static let sessionBytesAreNotCanonicalRequestTruth = true
+    static let noAdditionalSessionStore = true
+
+    static func validate() throws {
+        try ServiceRequestPersistenceEnrollmentV1.validate()
+        guard canonicalServiceRows.count == canonicalServiceRowCount,
+              serviceCapabilityUsesProtectedOperationScope,
+              reviewCapabilityIsNotServiceAuthority,
+              sessionBytesAreNotCanonicalRequestTruth,
+              noAdditionalSessionStore else {
+            throw PortableExchangePersistenceFailureV2.invalidRecord
+        }
+    }
+}

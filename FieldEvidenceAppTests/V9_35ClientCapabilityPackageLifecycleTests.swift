@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_35ClientCapabilityPackageLifecycleTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45PackageLifecycleCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityBlocksReprintWhenTemplateOrRendererReleaseIsMissing() {
         XCTAssertEqual(LabelReprintEligibilityV1.blockedMissingRelease.rawValue, "BLOCKED_MISSING_RELEASE")

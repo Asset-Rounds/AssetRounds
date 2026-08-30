@@ -1,6 +1,12 @@
 import Darwin
 import Foundation
 
+enum C52ServiceRequestLocalJobRunnerBoundaryV1 {
+    static let mayReplayImmutableReceipt = true
+    static let mayInventCanonicalServiceRequestEffect = false
+    static let mayTransmitServiceRequest = false
+}
+
 enum ScheduleGenerationRunnerBoundaryV1 { static let retriesAreIdempotent = true }
 
 enum C51ScheduleReconciliationRunnerBoundaryV1 {

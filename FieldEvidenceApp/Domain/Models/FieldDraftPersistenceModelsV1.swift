@@ -199,3 +199,4 @@ enum C34DraftResumeNavigationBoundaryV1 {
             && !SceneNavigationLifecycleDispositionV1().workspaceTruth
     }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-persistence

@@ -3,6 +3,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_10LifecycleBoundaryTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45LifecycleBoundaryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityClosesReprintLifecycleOutcomes() {
         XCTAssertEqual(LabelReprintEligibilityV1.activeExactReprint.rawValue, "ACTIVE_EXACT_REPRINT")

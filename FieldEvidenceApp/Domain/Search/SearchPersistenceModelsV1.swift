@@ -1403,3 +1403,14 @@ enum C34SceneNavigationSearchPersistenceBoundaryV1 {
     static let indexesRouteRestorationReceipt = false
     static func validate() -> Bool { persistentRowFamilyCount == 0 && !indexesSceneSnapshot && !indexesRouteRestorationReceipt && C34SceneNavigationCanonicalExclusionV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-search
+enum C52ServiceRequestSearchPersistenceBoundaryV1 {
+    static let canonicalSourceFamily = "ServiceRequestRecordV1"
+    static let indexedFields = ["requestText", "category", "requester.displayName", "requester.organization"]
+    static let currentAcceptedRecordOnly = true
+    static let indexIsDisposableAndRebuildable = true
+    static let rawContactValueIndexed = false
+    static let rawCapabilityIndexed = false
+    static let acceptedSourceBytesIndexed = false
+    static let duplicateCandidateProjectionPersisted = false
+}

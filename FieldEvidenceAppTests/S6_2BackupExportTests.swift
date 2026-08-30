@@ -7,6 +7,10 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_S6_2BackupExportTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45BackupExportCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityExportsAcceptedSnapshotNotScratchPlans() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])

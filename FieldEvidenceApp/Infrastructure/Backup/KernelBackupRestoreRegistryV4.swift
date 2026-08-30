@@ -731,3 +731,24 @@ enum C48PortableExchangeKernelBackupRestoreEnrollmentV2 {
         }
     }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-lifecycle
+enum C52ServiceRequestKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 39
+    static let recordsSchemaVersion = 38
+    static let durableFamilies = ServiceRequestPersistenceEnrollmentV1.durableFamilies
+    static let replaceRestorePreservesAppendOnlyHistory = true
+    static let cloneForkPreservesHistory = true
+    static let cloneForkInvalidatesOutstandingCapability = true
+    static let rawCapabilityExported = false
+    static let derivedDuplicateProjectionExported = false
+
+    static func validate() throws {
+        try ServiceRequestPersistenceEnrollmentV1.validate()
+        guard persistentSchemaVersion == 39,recordsSchemaVersion == 38,
+              durableFamilies.count == 3,replaceRestorePreservesAppendOnlyHistory,
+              cloneForkPreservesHistory,cloneForkInvalidatesOutstandingCapability,
+              !rawCapabilityExported,!derivedDuplicateProjectionExported else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}

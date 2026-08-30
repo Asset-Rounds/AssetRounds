@@ -167,6 +167,17 @@ enum FieldReferenceEraseAllPolicyV1{static func validatePublishedEmptyGeneration
 enum AccessibleDocumentEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
 enum SurveyDefinitionEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<SurveyDefinitionIdentityRow>())==0,try context.fetchCount(FetchDescriptor<SurveyDefinitionReleaseRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
 enum SurveySessionEraseAllPolicyV1{static func validatePublishedEmptyGeneration(_ context:ModelContext)throws{guard try context.fetchCount(FetchDescriptor<SurveySessionRow>())==0,try context.fetchCount(FetchDescriptor<FactCaptureRow>())==0,try context.fetchCount(FetchDescriptor<ProvisionalSubjectRow>())==0,try context.fetchCount(FetchDescriptor<SubjectPromotionReceiptRow>())==0,try context.fetchCount(FetchDescriptor<SurveyPublicationSnapshotRow>())==0 else{throw EraseAllServiceError.invalidAuthority}}}
+enum ServiceRequestEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        try ServiceRequestPersistenceEnrollmentV1.validate()
+        try C52ServiceRequestKernelDeletionEraseEnrollmentV1.validate()
+        guard try context.fetchCount(FetchDescriptor<ServiceRequestRecordRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ServiceRequestDispositionEventRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ServiceRequestWorkLinkEventRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
 enum AssetLocatorEraseAllPolicyV1 {
     static let persistentSchemaVersion = 26
     static let recordsSchemaVersion = 25
@@ -1464,6 +1475,7 @@ private extension EraseAllService {
         try SurveySessionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try PlanEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try PlacementPoseEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
@@ -2741,3 +2753,4 @@ extension EraseAllService {
 }
 
 enum C45AcceptedLabelEraseAllBoundaryV1 { static let deletesAcceptedSnapshotRows=true;static let deletesLeasedLabelScratch=true }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-erase

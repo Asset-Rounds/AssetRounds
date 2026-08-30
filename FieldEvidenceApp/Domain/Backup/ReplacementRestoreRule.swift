@@ -386,6 +386,7 @@ private extension ReplacementRestoreRule {
         through ledger: DeletionLedgerV2
     ) throws -> V4BackupRecordsV1 {
         try ledger.validate()
+        try C52ServiceRequestReplacementRestorePolicyV1.validate(records)
         try AssetLocatorReplacementRestorePolicyV1.validate(records.assetLocators)
         try ScheduleReplacementRestorePolicyV1.validate(records.schedules)
         try PlanReplacementRestorePolicyV1.validate(records.plans)
@@ -469,7 +470,10 @@ private extension ReplacementRestoreRule {
             workflowRecords: workflow,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -521,7 +525,10 @@ private extension ReplacementRestoreRule {
             workflowRecords: records.workflowRecords,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -571,7 +578,10 @@ private extension ReplacementRestoreRule {
             workflowRecords: records.workflowRecords,
             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
             temporalEvidence: mutationHistory == nil ? [] : records.temporalEvidence,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -612,7 +622,10 @@ private extension ReplacementRestoreRule {
             workflowRecords: records.workflowRecords,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
-            activityContracts: records.activityContracts
+            activityContracts: records.activityContracts,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -1280,4 +1293,96 @@ enum C48PortableExchangeReplacementRuleV2 {
             $0.workspaceID == nil || $0.workspaceID == targetWorkspaceID
         }) else { throw ReplacementRestoreRuleError.invalidAuthority }
     }
+}
+
+/// C52 canonical request rows are replaced atomically by their existing
+/// writer. The restore rule never rewrites an escaped source byte or treats a
+/// duplicate/state projection as canonical; clone/fork rebinding is explicit.
+enum C52ServiceRequestReplacementRestorePolicyV1 {
+    static let persistentSchemaVersion = C52ServiceRequestBackupEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C52ServiceRequestBackupEnrollmentV1.recordsSchemaVersion
+    static let sameWorkspaceReplacementPreservesHistory = true
+    static let sameWorkspaceReplacementPreservesImmutableSourceBytes = true
+    static let cloneForkPreservesHistoryAsHistoricEvidence = true
+    static let cloneForkRequiresExplicitWorkspaceRebind = true
+    static let cloneForkInvalidatesOutstandingCapabilitiesViaC48Store = true
+    static let derivedProjectionsAreRebuilt = true
+    static let rawCapabilityBytesAreRestored = false
+    static let automaticWorkOrDuplicateActionIsPermitted = false
+
+    static func requiresExplicitWorkspaceRebind(for mode: BackupRestoreMode) -> Bool {
+        mode == .clone || mode == .fork
+    }
+
+    static func validate(
+        _ records: V4BackupRecordsV1,
+        targetWorkspaceID: UUID? = nil
+    ) throws {
+        guard persistentSchemaVersion == 39,
+              recordsSchemaVersion == 38,
+              sameWorkspaceReplacementPreservesHistory,
+              sameWorkspaceReplacementPreservesImmutableSourceBytes,
+              cloneForkPreservesHistoryAsHistoricEvidence,
+              cloneForkRequiresExplicitWorkspaceRebind,
+              cloneForkInvalidatesOutstandingCapabilitiesViaC48Store,
+              derivedProjectionsAreRebuilt,
+              !rawCapabilityBytesAreRestored,
+              !automaticWorkOrDuplicateActionIsPermitted else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            try C52ServiceRequestBackupEnrollmentV1.validate(
+                records: records,
+                workspaceID: targetWorkspaceID
+            )
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+
+    static func validate(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        sourceWorkspaceID: UUID? = nil,
+        targetWorkspaceID: UUID? = nil
+    ) throws {
+        guard sameWorkspaceReplacementPreservesHistory,
+              cloneForkPreservesHistoryAsHistoricEvidence else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        switch mode {
+        case .emptyInstall, .replaceExisting:
+            try validate(incoming, targetWorkspaceID: targetWorkspaceID)
+            try validate(current, targetWorkspaceID: targetWorkspaceID)
+        case .clone, .fork:
+            guard cloneForkRequiresExplicitWorkspaceRebind,
+                  cloneForkInvalidatesOutstandingCapabilitiesViaC48Store,
+                  let sourceWorkspaceID,
+                  let targetWorkspaceID,
+                  sourceWorkspaceID != targetWorkspaceID else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            // Both snapshots are validated under their source identity. The
+            // destination binding is established by RestoreIdentityV1 before
+            // any canonical row is accepted by the writer.
+            try validate(current, targetWorkspaceID: sourceWorkspaceID)
+            try validate(incoming, targetWorkspaceID: sourceWorkspaceID)
+        }
+    }
+}
+enum C52ServiceRequestBoundary_ReplacementRestoreRule {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }

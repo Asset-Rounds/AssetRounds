@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_01VersionedSchemaIdentityTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C50VersionedSchemaIdentityTests: XCTestCase {
     func testV23P03C50NonpersistentPortDoesNotAdvanceCanonicalSchemas() {
         XCTAssertEqual(IncumbentFileProfileReleaseV1.schemaVersion, 1)

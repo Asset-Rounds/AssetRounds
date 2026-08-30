@@ -71,5 +71,20 @@
 			</dict>
 		</dict>
 	</array>
+	<key>C52ServiceRequestBoundary_InfoPlist</key>
+	<dict>
+		<key>AcceptedRecordsUseCanonicalWorkspaceLifecycle</key>
+		<true/>
+		<key>CloneOrForkInvalidatesActiveCapabilities</key>
+		<true/>
+		<key>DuplicateProjectionIsDerived</key>
+		<true/>
+		<key>RawCapabilityOrUnverifiedAssertionsInReportsDiagnostics</key>
+		<false/>
+		<key>SharedPortableFilesAreRecallable</key>
+		<false/>
+		<key>AutomaticWorkNetworkSLAOrAIClaimsPermitted</key>
+		<false/>
+	</dict>
 </dict>
 </plist>

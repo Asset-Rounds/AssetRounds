@@ -67,3 +67,15 @@ enum C50InspectionReviewIncumbentCoordinatorBoundaryV1 {
         try projection.openChangeRequests.forEach { try $0.validate() }
     }
 }
+
+// MARK: - C52 service-request / C14 review separation
+
+enum C52InspectionReviewServiceRequestBoundaryV1 {
+    static let serviceRequestCoordinatorContract: Any.Type = ServiceRequestCoordinatorV1.self
+    static let serviceCapabilityProofContract: Any.Type = ServiceRequestCapabilityProofV1.self
+    static let reviewCapabilityProofContract: Any.Type = ReviewCapabilityProofV1.self
+    static let existingC14ReviewWriterRemainsSoleReviewMutationRoute = true
+    static let reviewProofAuthorizesServiceImport = false
+    static let serviceDispositionMutatesInspectionReview = false
+    static let serviceWorkLinkIsReviewApproval = false
+}

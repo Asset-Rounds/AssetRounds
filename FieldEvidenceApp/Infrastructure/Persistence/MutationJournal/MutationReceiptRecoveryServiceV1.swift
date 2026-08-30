@@ -81,6 +81,14 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverWorkResourceEffectsBeforeWriterActivation()throws{
         try recoverBeforeWriterActivation()
     }
+    /// C52 revalidates all three append-only row families and their exact
+    /// receipt before activation; derived duplicate/state projections remain disposable.
+    func recoverServiceRequestEffectsBeforeWriterActivation()throws{
+        guard C52ServiceRequestReceiptRecoveryBoundaryV1.validate() else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try recoverBeforeWriterActivation()
+    }
 }
 
 enum LightingMutationReceiptRecoveryPolicyV1 { static func validateRecovered(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)} }
@@ -180,4 +188,22 @@ enum C34SceneNavigationMutationRecoveryBoundaryV1 {
     static let recoversRouteMutationCount = 0
     static let restorationCreatesMutation = false
     static func validate() -> Bool { recoversRouteMutationCount == 0 && !restorationCreatesMutation && C34SceneNavigationMutationReceiptBoundaryV1.validate() }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-recovery
+enum C52ServiceRequestReceiptRecoveryBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyServiceRequest
+    static let recoveryUsesCanonicalPostImages = true
+    static let allAbsentMeansSafeToApply = true
+    static let allMatchingMeansPublishMissingReceipt = true
+    static let partialOrDivergentEffectIsQuarantined = true
+    static let recoveryMayNeverAppendASecondWorkLinkOrReversal = true
+
+    static func validate() -> Bool {
+        commandKind == .applyServiceRequest
+            && recoveryUsesCanonicalPostImages
+            && allAbsentMeansSafeToApply
+            && allMatchingMeansPublishMissingReceipt
+            && partialOrDivergentEffectIsQuarantined
+            && recoveryMayNeverAppendASecondWorkLinkOrReversal
+    }
 }

@@ -357,6 +357,7 @@ final class MutationJournalStoreV1 {
         if case let .applyActivityContract(value)=envelope.command{try value.validateForCanonicalMutation();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyPortableReview(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyWorkResource(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyServiceRequest(value)=envelope.command{try value.validateForCanonicalWriter();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command{try plan.validate();try validateAssetPlacementPoseReferences(plan);guard let expected=try envelope.command.canonicalLocationAffectedIdentities(),affectedEntities==expected else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command{for plan in change.placementChanges{try plan.validate();try validateAssetPlacementPoseReferences(plan)}}
         let state = try requireState()
@@ -433,6 +434,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyActivityContract(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyPortableReview(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyWorkResource(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
+            }else if case let .applyServiceRequest(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             } else {
@@ -446,6 +448,8 @@ final class MutationJournalStoreV1 {
             } else if case let .applyPortableReview(mutation) = envelope.command {
                 expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
             } else if case let .applyWorkResource(mutation) = envelope.command {
+                expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
+            } else if case let .applyServiceRequest(mutation) = envelope.command {
                 expectedRevision = try mutation.expectedRevision(for: concurrencyIdentity)
             } else {
                 throw WorkspaceMutationFailureV1.invalidCommand
@@ -506,6 +510,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyActivityContract(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyPortableReview(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyWorkResource(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
+                }else if case let .applyServiceRequest(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 } else {
@@ -567,6 +572,7 @@ final class MutationJournalStoreV1 {
         if case let .applyActivityContract(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyPortableReview(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyWorkResource(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyServiceRequest(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let after = try currentRevision(writerInstanceID: writerInstanceID)
@@ -1833,6 +1839,7 @@ final class MutationJournalStoreV1 {
         if case let .applyActivityContract(mutation)=envelope.command{try mutation.validateForCanonicalMutation()}
         if case let .applyPortableReview(mutation)=envelope.command{try mutation.validate()}
         if case let .applyWorkResource(mutation)=envelope.command{try mutation.validate()}
+        if case let .applyServiceRequest(mutation)=envelope.command{try mutation.validateForCanonicalWriter()}
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
         guard row.mutationID == envelope.mutationID.rawValue,
               row.workspaceID == envelope.workspaceID.rawValue,
@@ -1881,6 +1888,9 @@ final class MutationJournalStoreV1 {
         }
         if case let .applyWorkResource(mutation)=envelope.command{
             _ = try WorkResourceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)
+        }
+        if case let .applyServiceRequest(mutation)=envelope.command{
+            _ = try ServiceRequestMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)
         }
         if let basisData = row.reversalBasisData {
             let basis = try ReversalBasisV1.decodeCanonical(from: basisData)
@@ -2112,6 +2122,12 @@ final class MutationJournalStoreV1 {
             let id=identity.id,workspace=self.identity.workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<PunchReviewBasisSnapshotRow>(predicate:#Predicate{$0.basisID==id&&$0.workspaceID==workspace}));guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let value=try row.value();guard value.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .punchReviewBasisSnapshot(id:id,concurrencyIdentity:try .init(kind:.punchReviewBasisSnapshot,id:id),revision:revision,semanticSHA256:value.basisSHA256)
         case .workResourceEntry:
             let id=identity.id,workspace=self.identity.workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<ManualWorkResourceRecordRow>(predicate:#Predicate{$0.entryID==id&&$0.workspaceID==workspace}));guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let value=try row.value();guard value.revision==revision,value.entrySHA256==row.entrySHA256 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};let concurrency=try WorkspaceEntityIdentityV1(kind:.workResourceEntry,id:value.supersedesEntryID ?? value.entryID);return .workResourceEntry(id:id,concurrencyIdentity:concurrency,revision:revision,semanticSHA256:value.entrySHA256)
+        case .serviceRequestRecord:
+            let id=identity.id,workspace=self.identity.workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>(predicate:#Predicate{$0.recordID==id&&$0.workspaceID==workspace})).filter{$0.revision==revision};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let value=try row.value();guard value.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .serviceRequestRecord(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:value.recordSHA256)
+        case .serviceRequestDispositionEvent:
+            let id=identity.id,workspace=self.identity.workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>(predicate:#Predicate{$0.eventID==id&&$0.workspaceID==workspace}));guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let value=try row.value();guard value.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};let concurrency=try WorkspaceEntityIdentityV1(kind:.serviceRequestDispositionEvent,id:value.predecessorEventID ?? value.eventID);return .serviceRequestDispositionEvent(id:id,concurrencyIdentity:concurrency,revision:revision,semanticSHA256:value.eventSHA256)
+        case .serviceRequestWorkLinkEvent:
+            let id=identity.id,workspace=self.identity.workspaceID.rawValue,rows=try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>(predicate:#Predicate{$0.eventID==id&&$0.workspaceID==workspace}));guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let value=try row.value();guard value.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};let concurrency=try WorkspaceEntityIdentityV1(kind:.serviceRequestWorkLinkEvent,id:value.predecessorEventID ?? value.eventID);return .serviceRequestWorkLinkEvent(id:id,concurrencyIdentity:concurrency,revision:revision,semanticSHA256:value.eventSHA256)
         case .workflowRecord:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == id }))
@@ -2536,6 +2552,9 @@ final class MutationJournalStoreV1 {
         case .installationAsBuiltSnapshot:return .installationAsBuiltSnapshot(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .punchReviewBasisSnapshot:return .punchReviewBasisSnapshot(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .workResourceEntry:return .workResourceEntry(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .serviceRequestRecord:return .serviceRequestRecord(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .serviceRequestDispositionEvent:return .serviceRequestDispositionEvent(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .serviceRequestWorkLinkEvent:return .serviceRequestWorkLinkEvent(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .workflowRecord: return .workflowRecord(id: identity.id, revision: revision, semanticSHA256: digest)
         case .evidenceFile: return .evidenceFile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .issue: return .issue(id: identity.id, revision: revision, semanticSHA256: digest)
@@ -2640,4 +2659,21 @@ enum C34SceneNavigationMutationJournalStoreBoundaryV1 {
     static let storedRouteRowCount = 0
     static let appendsRestorationMutation = false
     static func validate() -> Bool { storedRouteRowCount == 0 && !appendsRestorationMutation && C34SceneNavigationChangeJournalBoundaryV1.validate() }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-journal
+extension MutationJournalStoreV1 {
+    func serviceRequestReceipt(
+        mutation: ServiceRequestMutationV1
+    ) throws -> ServiceRequestMutationReceiptV1? {
+        guard let receipt = try receipt(mutationID: mutation.mutationID) else { return nil }
+        return try .init(mutation: mutation, mutationReceipt: receipt)
+    }
+}
+
+enum C52ServiceRequestJournalBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyServiceRequest
+    static let effectBeforeReceiptRecoveryIsRequired = true
+    static let sameMutationSameBytesReturnsExistingReceipt = true
+    static let sameMutationDivergentBytesIsQuarantined = true
+    static let workLinkAndReversalAreExactlyOnceEvents = true
 }

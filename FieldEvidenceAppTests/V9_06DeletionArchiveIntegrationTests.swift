@@ -4,6 +4,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_06DeletionArchiveIntegrationTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C50DeletionArchiveIntegrationTests: XCTestCase {
     func testV23P03C50ArchiveExcludesAdapterStateScratchQuarantineAndExternalAuthority() {
         XCTAssertFalse(C50IncumbentFileExchangeBackupEncoderBoundaryV1.encodesProfileSelectionOrSession)

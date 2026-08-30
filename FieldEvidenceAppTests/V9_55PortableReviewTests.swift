@@ -4,6 +4,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_55PortableReviewTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private struct C48PortableReviewProtocolFixture: Decodable {
     let releaseDigestHex: String
     let hmacAlgorithm: String

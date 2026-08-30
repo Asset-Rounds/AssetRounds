@@ -623,3 +623,55 @@ enum C49WorkResourceStreamingArchiveBoundaryV1 {
         catch { throw StreamingArchiveFailureV1.invalidArchive }
     }
 }
+
+/// C52 streams canonical service-request rows as records-envelope members.
+/// The archive never streams a search/state/duplicate projection or raw
+/// capability bytes; those are rebuilt or remain protected operation state.
+enum C52ServiceRequestStreamingArchiveBoundaryV1 {
+    static let recordsSchemaVersion = C52ServiceRequestBackupEnrollmentV1.recordsSchemaVersion
+    static let recordKinds = [
+        "ServiceRequestRecordV1",
+        "ServiceRequestDispositionEventV1",
+        "ServiceRequestWorkLinkEventV1"
+    ]
+    static let canonicalRowsShareRecordsEnvelope = true
+    static let immutableAcceptedSourceBytesAreStreamed = true
+    static let appendOnlyHistoryIsStreamed = true
+    static let rawCapabilityBytesAreStreamed = false
+    static let derivedProjectionsAreStreamed = false
+    static let automaticWorkOrDuplicateActionIsStreamed = false
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard recordsSchemaVersion == 38,
+              recordKinds.count == 3,
+              canonicalRowsShareRecordsEnvelope,
+              immutableAcceptedSourceBytesAreStreamed,
+              appendOnlyHistoryIsStreamed,
+              !rawCapabilityBytesAreStreamed,
+              !derivedProjectionsAreStreamed,
+              !automaticWorkOrDuplicateActionIsStreamed else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        do {
+            try C52ServiceRequestBackupEnrollmentV1.validate(records: records)
+        } catch {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+    }
+}
+
+enum C52ServiceRequestBoundary_StreamingArchiveContracts {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}

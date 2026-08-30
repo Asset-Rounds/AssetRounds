@@ -1,5 +1,6 @@
 {
   "schema": "V22P03C29PlanRebaseCorpusV1",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V22Plans", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "schemaVersion": 1,
   "cardID": "V23-P03-C29",
   "persistentSchemaVersion": 28,

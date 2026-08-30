@@ -1419,3 +1419,4 @@ enum C48PortableExchangeEraseIntentStoreEnrollmentV2 {
         try PortableExchangeProtectedFilePolicyV2.validate()
     }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-erase

@@ -3,6 +3,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_07CompatibilityPolicyTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C50CompatibilityPolicyTests: XCTestCase {
     func testV23P03C50SuccessorIsForwardFixAndExactOldReleaseRemainsReadable() throws {
         let mapping = try IncumbentMappingManifestV1(mappings: [

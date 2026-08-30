@@ -1,5 +1,6 @@
 {
   "cardID": "V23-P03-C14",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V21ReviewAndCorrectiveAction", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
   "ordinal": 51,
   "phase": "P03",
   "reviewStates": [

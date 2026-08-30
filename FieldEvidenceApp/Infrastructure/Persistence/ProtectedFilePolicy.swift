@@ -685,3 +685,10 @@ enum C49WorkResourceProtectedFileBoundaryV1 {
         try C49WorkResourcePersistenceBoundaryV1.validate()
     }
 }
+// C52_BOUNDARY_ANCHOR: accepted-source-protection
+enum C52ServiceRequestProtectedFileBoundaryV1 {
+    static let acceptedPortableSourceBytesUseCompleteProtection = true
+    static let acceptedSanitizedMediaUsesCanonicalContentStore = true
+    static let rawCapabilityBytesMayEnterWorkspaceFiles = false
+    static let unsanitizedMediaMayEnterCanonicalContent = false
+}

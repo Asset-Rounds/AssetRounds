@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_53OperationalContactTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 @MainActor
 final class V9_53OperationalContactTests: XCTestCase {
     func testV23P03C46G01CanonicalOperationalContactAndExplicitHandoffUseOneWorkspaceMutation() throws {

@@ -275,3 +275,10 @@ enum C34SceneNavigationIntegrationConsumerBoundaryV1 {
     static let consumesSceneState = false
     static func validate() -> Bool { consumedRouteEventKindCount == 0 && !consumesSceneState && C34SceneNavigationIntegrationEventBoundaryV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-conformance
+enum C52ServiceRequestIntegrationConformanceBoundaryV1 {
+    static let requiredFamilies = ServiceRequestPersistenceEnrollmentV1.durableFamilies
+    static let rawCapabilitySubjectCount = 0
+    static let duplicateProjectionSubjectCount = 0
+    static let requiresExactlyOnceWorkLinkAndReversal = true
+}

@@ -594,3 +594,12 @@ enum C34RouteAdoptionBoundary_LocalContentStoreContractsV1 {
     static let routeStateIsContentTruth = false
     static let backupIncluded = false
 }
+// C52_BOUNDARY_ANCHOR: accepted-source-media-only
+enum C52ServiceRequestContentStoreBoundaryV1 {
+    static let canonicalSourceBytesOwner = "ServiceRequestRecordV1"
+    static let acceptedSanitizedMediaMayBeStored = true
+    static let rawCapabilityMayBeStored = false
+    static let unsanitizedMediaMayBeStored = false
+    static let duplicateProjectionOwnsContent = false
+    static let eraseClearsWorkspaceOwnedAcceptedMedia = true
+}

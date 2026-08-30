@@ -2,6 +2,10 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_45EvidenceContextTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45EvidenceContextCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityMakesDisclosurePurposeExplicit() {
         XCTAssertEqual(Set(LabelDisclosureProfileV1.allCases), [.shortCodeOnly, .assetAndShortCode, .assetLocationAndShortCode])

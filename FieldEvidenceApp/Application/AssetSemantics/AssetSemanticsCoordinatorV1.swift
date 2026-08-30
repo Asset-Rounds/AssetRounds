@@ -410,3 +410,23 @@ enum C34RouteAdoptionBoundary_AssetSemanticsCoordinatorV1 {
     static let semanticIDAdapter = C34AssetSemanticRouteAdapterV1.self
     static let restorationIsReadOnly = true
 }
+
+// MARK: - C52 lifecycle and privacy boundary
+enum C52ServiceRequestBoundary_FieldEvidenceApp_Application_AssetSemantics_AssetSemanticsCoordinatorV1_swift {
+    static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let acceptedEventPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let duplicateProjectionPersistence: ServiceRequestPersistenceClassV1 = .nonpersistentDerived
+    static let rawCapabilityPersistence: ServiceRequestPersistenceClassV1 = .prohibitedPersistent
+    static let acceptedLifecycleEnrollment: ServiceRequestPersistenceEnrollmentV1.Type = ServiceRequestPersistenceEnrollmentV1.self
+    static let cloneOrForkInvalidatesActiveCapabilities: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities
+    static let duplicateProjectionIsRebuildable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.derivedProjectionIsRebuildable &&
+        !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityIsExcludedFromReportsAndDiagnostics: Bool =
+        !ServiceRequestLifecycleRegistrationBoundaryV1.rawCapabilityAppearsInReportsOrDiagnostics
+    static let sharedPortableFilesAreRecallable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
+    static let unverifiedAssertionsAreVerified: Bool = false
+    static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}

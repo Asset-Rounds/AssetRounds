@@ -148,3 +148,4 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_WorkPacketM
     static let contactExportExcludedByDefault = true
     static let siteRoleOwnershipForbidden = true
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-persistence

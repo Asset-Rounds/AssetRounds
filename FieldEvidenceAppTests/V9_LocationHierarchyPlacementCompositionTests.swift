@@ -2,6 +2,10 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_LocationHierarchyPlacementCompositionTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45LocationPlacementCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDisclosesLocationOnlyInExplicitProfile() {
         XCTAssertNotEqual(LabelDisclosureProfileV1.assetAndShortCode, .assetLocationAndShortCode)

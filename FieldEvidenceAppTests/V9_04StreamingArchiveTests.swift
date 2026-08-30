@@ -4,6 +4,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_04StreamingArchiveTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45StreamingArchiveCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityBoundsCanonicalSnapshotBytes() {
         XCTAssertEqual(AssetLabelCanonicalCodecV1.maximumCanonicalByteCount, 16 * 1_024 * 1_024)

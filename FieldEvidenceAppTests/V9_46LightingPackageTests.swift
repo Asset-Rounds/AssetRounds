@@ -3,6 +3,10 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_46LightingPackageTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C45LightingPackageCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityForbidsInterpolationAndOverlayInQRRendering() {
         XCTAssertFalse(DeterministicPDFRendererV1.assetLabelInterpolationEnabled)

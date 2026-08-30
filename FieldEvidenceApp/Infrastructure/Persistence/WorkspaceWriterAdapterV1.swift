@@ -50,6 +50,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyActivityContract,
             .applyPortableReview,
             .applyWorkResource,
+            .applyServiceRequest,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -218,6 +219,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             )
         case let .applyWorkResource(value):
             return try applyWorkResource(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyServiceRequest(value):
+            return try applyServiceRequest(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -279,6 +282,142 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         } catch {
             modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
         }
+    }
+
+    private func applyServiceRequest(
+        _ mutation: ServiceRequestMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validateForCanonicalWriter()
+            for payload in mutation.payloads {
+                switch payload {
+                case let .appendRecord(value):
+                    let id = value.recordID
+                    let workspaceID = value.workspaceID.rawValue
+                    let rows = try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>(predicate: #Predicate { $0.recordID == id && $0.workspaceID == workspaceID }))
+                    guard !rows.contains(where: { $0.revision == value.revision }) else {
+                        throw WorkspaceMutationFailureV1.sequenceCollision
+                    }
+                    if let predecessorReference = value.supersedes {
+                        let predecessors = try rows.filter { $0.revision == predecessorReference.revision }.map { try $0.value() }
+                        guard predecessors.count == 1 else { throw WorkspaceMutationFailureV1.staleEntityRevision(try payload.concurrencyIdentity) }
+                        try value.validateSuccessor(of: predecessors[0])
+                        guard !rows.contains(where: { $0.revision > predecessorReference.revision }) else {
+                            throw WorkspaceMutationFailureV1.staleEntityRevision(try payload.concurrencyIdentity)
+                        }
+                    } else {
+                        guard rows.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                    }
+                    modelContext.insert(try ServiceRequestRecordRow(value))
+                case let .appendDisposition(value):
+                    let id = value.eventID
+                    guard try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>(predicate: #Predicate { $0.eventID == id })).isEmpty else {
+                        throw WorkspaceMutationFailureV1.sequenceCollision
+                    }
+                    if let predecessorID = value.predecessorEventID {
+                        let rows = try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>(predicate: #Predicate { $0.eventID == predecessorID }))
+                        guard rows.count == 1 else { throw WorkspaceMutationFailureV1.staleEntityRevision(try payload.concurrencyIdentity) }
+                        let predecessor = try rows[0].value()
+                        try value.validateSuccessor(of: predecessor)
+                        let successors = try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>())
+                            .filter { $0.predecessorEventID == predecessorID }
+                        guard successors.isEmpty else { throw WorkspaceMutationFailureV1.staleEntityRevision(try payload.concurrencyIdentity) }
+                    } else {
+                        let requestID = value.request.recordID
+                        let existing = try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>())
+                            .filter { $0.requestRecordID == requestID }
+                        guard existing.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                    }
+                    let requestID = value.request.recordID
+                    let requestRevision = value.request.revision
+                    let workspaceID = value.workspaceID.rawValue
+                    let requestRows = try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>(predicate: #Predicate { $0.recordID == requestID && $0.workspaceID == workspaceID }))
+                    let matchingRequests = try requestRows.filter { $0.revision == requestRevision }.map { try $0.value() }
+                    guard matchingRequests.count == 1,
+                          try matchingRequests[0].reference == value.request else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                    modelContext.insert(try ServiceRequestDispositionEventRow(value))
+                case let .appendWorkLink(value), let .appendWorkLinkReversal(value):
+                    let id = value.eventID
+                    guard try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>(predicate: #Predicate { $0.eventID == id })).isEmpty else {
+                        throw WorkspaceMutationFailureV1.sequenceCollision
+                    }
+                    if let predecessorID = value.predecessorEventID {
+                        let rows = try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>(predicate: #Predicate { $0.eventID == predecessorID }))
+                        guard rows.count == 1 else { throw WorkspaceMutationFailureV1.staleEntityRevision(try payload.concurrencyIdentity) }
+                        let predecessor = try rows[0].value()
+                        try value.validateSuccessor(of: predecessor)
+                        guard predecessor.kind == .link,
+                              value.target == predecessor.target,
+                              value.choice == predecessor.choice,
+                              value.canonicalWorkRevision == predecessor.canonicalWorkRevision,
+                              value.canonicalWorkSHA256 == predecessor.canonicalWorkSHA256 else {
+                            throw WorkspaceMutationFailureV1.invalidCommand
+                        }
+                        let successors = try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>())
+                            .filter { $0.predecessorEventID == predecessorID }
+                        guard successors.isEmpty else { throw WorkspaceMutationFailureV1.staleEntityRevision(try payload.concurrencyIdentity) }
+                    } else {
+                        let requestID = value.request.recordID
+                        let existing = try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>())
+                            .filter { $0.requestRecordID == requestID }
+                        guard value.kind == .link, existing.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                    }
+                    let requestID = value.request.recordID
+                    let requestRevision = value.request.revision
+                    let workspaceID = value.workspaceID.rawValue
+                    let requestRows = try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>(predicate: #Predicate { $0.recordID == requestID && $0.workspaceID == workspaceID }))
+                    let matchingRequests = try requestRows.filter { $0.revision == requestRevision }.map { try $0.value() }
+                    guard matchingRequests.count == 1,
+                          try matchingRequests[0].reference == value.request else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                    modelContext.insert(try ServiceRequestWorkLinkEventRow(value))
+                }
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: mutation.affectedIdentities,
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback(); throw failure
+        } catch {
+            modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    func persistedServiceRequestEffectMatches(_ mutation: ServiceRequestMutationV1) throws -> Bool {
+        try mutation.validateForCanonicalWriter()
+        var matches = 0
+        for payload in mutation.payloads {
+            let exact: Bool
+            switch payload {
+            case let .appendRecord(value):
+                let id = value.recordID
+                let workspaceID = value.workspaceID.rawValue
+                let revision = value.revision
+                let rows = try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>(predicate: #Predicate { $0.recordID == id && $0.workspaceID == workspaceID && $0.revision == revision }))
+                guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exact = try rows.first.map { try $0.value() == value } ?? false
+            case let .appendDisposition(value):
+                let id = value.eventID
+                let rows = try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>(predicate: #Predicate { $0.eventID == id }))
+                guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exact = try rows.first.map { try $0.value() == value } ?? false
+            case let .appendWorkLink(value), let .appendWorkLinkReversal(value):
+                let id = value.eventID
+                let rows = try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>(predicate: #Predicate { $0.eventID == id }))
+                guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                exact = try rows.first.map { try $0.value() == value } ?? false
+            }
+            if exact { matches += 1 }
+        }
+        guard matches == 0 || matches == mutation.payloads.count else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return matches == mutation.payloads.count
     }
 
     /// Read-only C47 recovery preflight.  Returning `false` is reserved for
@@ -2240,6 +2379,15 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                     }
                 } catch { throw WorkspaceMutationFailureV1.persistenceFailed }
                 exists = values.count == 1
+            case .serviceRequestRecord:
+                let values = try modelContext.fetch(FetchDescriptor<ServiceRequestRecordRow>(predicate: #Predicate { $0.recordID == id }))
+                exists = !values.isEmpty
+            case .serviceRequestDispositionEvent:
+                let values = try modelContext.fetch(FetchDescriptor<ServiceRequestDispositionEventRow>(predicate: #Predicate { $0.eventID == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
+            case .serviceRequestWorkLinkEvent:
+                let values = try modelContext.fetch(FetchDescriptor<ServiceRequestWorkLinkEventRow>(predicate: #Predicate { $0.eventID == id }))
+                guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
             case .sitePartyRoleEvent:
                 let values = try modelContext.fetch(FetchDescriptor<SitePartyRoleEventRow>(predicate: #Predicate { $0.eventID == id }))
                 guard values.count <= 1 else { throw WorkspaceMutationFailureV1.persistenceFailed }; exists = values.count == 1
@@ -3332,3 +3480,4 @@ enum C34SceneNavigationWorkspaceWriterAdapterBoundaryV1 {
     static let resolvesOrRestoresRoutes = false
     static func validate() -> Bool { adapterWriteCount == 0 && !resolvesOrRestoresRoutes && C34SceneNavigationWorkspaceWriterBoundaryV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-apply-recover

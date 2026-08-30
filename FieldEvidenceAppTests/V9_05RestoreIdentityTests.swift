@@ -4,6 +4,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_05RestoreIdentityTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C50RestoreIdentityTests: XCTestCase {
     func testV23P03C50ReplaceCloneAndForkNeverActivateOrReinterpretAdapterState() {
         for mode in BackupRestoreMode.allCases {

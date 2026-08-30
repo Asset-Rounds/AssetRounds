@@ -15,6 +15,10 @@ private final class C45CameraRecoveryCompatibilityTests: XCTestCase {
     }
 }
 
+private enum C52ServiceRequestBoundary_S3_6CameraRecoveryTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C51S36CameraRecoveryAnchorTests: XCTestCase {
     func testV23P03C51ScheduleNeverStartsWorkOrRequestsCameraPermission() {
         XCTAssertTrue(C51ScheduleCameraBoundaryV1.cameraCaptureDoesNotStartOccurrence)

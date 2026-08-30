@@ -30,6 +30,17 @@ enum C48PortableReviewC14PersistenceBoundaryV1 {
     }
 }
 
+// MARK: - C52 service-request / review persistence separation
+
+enum C52ReviewAndCorrectiveActionPersistenceSeparationV1 {
+    static let serviceRecordContract: Any.Type = ServiceRequestRecordV1.self
+    static let serviceWorkLinkContract: Any.Type = ServiceRequestWorkLinkEventV1.self
+    static let reviewRowsRemainC14Owned = true
+    static let serviceDispositionCreatesReviewDispositionRow = false
+    static let serviceWorkLinkCreatesCorrectiveActionRow = false
+    static let serviceRequestRowsAreSeparatelyEnrolled = true
+}
+
 /// C49 reuses the existing C14 review/corrective-action history as the
 /// canonical subject authority.  Work-resource rows bind to a stable subject
 /// identity and do not create parallel review or corrective-action rows.

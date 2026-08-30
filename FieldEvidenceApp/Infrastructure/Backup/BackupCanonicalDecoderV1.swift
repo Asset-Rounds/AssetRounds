@@ -248,6 +248,7 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validateC46OperationalContacts(value)
             try Self.validateC47ActivityContracts(value)
             try Self.validateC49WorkResources(value)
+            try Self.validateC52ServiceRequests(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -278,6 +279,11 @@ private extension BackupCanonicalDecoderV1 {
         catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
     }
 
+    static func validateC52ServiceRequests(_ records: V4BackupRecordsV1) throws {
+        do { try C52ServiceRequestBackupDecodingBoundaryV1.validate(records) }
+        catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+    }
+
     static func validateC30EvidenceContext(_ records: V4BackupRecordsV1) throws {
         do {
             try records.validateC30EvidenceContextClosure()
@@ -293,11 +299,8 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31
-                || records.recordsSchemaVersion == 32
-                || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
-                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
-                || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion else {
+        guard (30...C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion) else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         do {
@@ -335,7 +338,7 @@ private extension BackupCanonicalDecoderV1 {
 
     static func validateGuidedSurveys(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=24 else{guard records.guidedSurveys.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (24...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (24...C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         if records.mutationHistory == nil {
             guard records.guidedSurveys.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
             return
@@ -397,7 +400,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion <= C49BackupEnrollmentV1.recordsSchemaVersion else {
+        guard records.recordsSchemaVersion <= C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         var locators: [UUID: AssetLocatorV1] = [:]
@@ -458,7 +461,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard (26...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else {
+        guard (26...C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         guard records.schedules.count <= 200_000 else {
@@ -637,7 +640,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard (27...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (27...C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
@@ -656,7 +659,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard (28...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (28...C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
@@ -670,7 +673,7 @@ private extension BackupCanonicalDecoderV1 {
 
     static func validateSurveyDefinitions(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=23 else{guard records.surveyDefinitions.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (23...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),let history=records.mutationHistory else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (23...C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),let history=records.mutationHistory else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         var releases:[UUID:SurveyDefinitionReleaseV1]=[:],identities:[UUID:SurveyDefinitionIdentityV1]=[:],keys=Set<String>()
         for record in records.surveyDefinitions where record.kind == .release{let value=try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self,from:record.canonicalData);try value.validate();guard record.id==value.releaseID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,keys.insert("release|\(record.id.uuidString)").inserted,releases.updateValue(value,forKey:value.releaseID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
         for record in records.surveyDefinitions where record.kind == .identity {
@@ -690,7 +693,7 @@ private extension BackupCanonicalDecoderV1 {
     }
     static func validateAccessibleDocumentAssessments(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=22 else{guard records.accessibleDocumentAssessments.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        guard (22...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
+        guard (22...C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
         var values:[UUID:AccessibleDocumentAssessmentReceiptV1]=[:],children:[UUID:Int]=[:]
         for record in records.accessibleDocumentAssessments{let value=try AccessibleDocumentCanonicalCodecV1.decode(AccessibleDocumentAssessmentReceiptV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.receiptID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,values.updateValue(value,forKey:value.receiptID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
         for value in values.values{if let predecessorID=value.supersedesReceiptID{guard let predecessor=values[predecessorID],predecessor.workspaceID==value.workspaceID,predecessor.treeSHA256==value.treeSHA256,predecessor.outputSHA256==value.outputSHA256,predecessor.revision<UInt64.max,value.revision==predecessor.revision+1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords};children[predecessorID,default:0]+=1;guard children[predecessorID]==1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}else if value.revision != 1{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
@@ -1256,5 +1259,64 @@ enum C48PortableExchangeBackupDecoderV2 {
             from: data,
             validate: { try C48PortableExchangeImportBoundaryV2.validate($0) }
         )
+    }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-backup
+enum C52ServiceRequestBackupDecodingBoundaryV1 {
+    static let recordsSchemaVersion = 38
+    static let requiresAllThreeCanonicalFamilies = true
+    static let validatesAppendOnlyPredecessorChains = true
+    static let validatesExactlyOnceWorkLinkReversal = true
+    static let rejectsCapabilityBytes = true
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion >= recordsSchemaVersion else {
+            guard records.serviceRequests.isEmpty,
+                  records.serviceRequestDispositionEvents.isEmpty,
+                  records.serviceRequestWorkLinkEvents.isEmpty else {
+                throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
+            }
+            return
+        }
+        guard records.recordsSchemaVersion == recordsSchemaVersion,
+              records.mutationHistory != nil else {
+            throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
+        }
+        let requestValues=try records.serviceRequests.map{$0.value()}
+        let dispositionValues=try records.serviceRequestDispositionEvents.map{$0.value()}
+        let linkValues=try records.serviceRequestWorkLinkEvents.map{$0.value()}
+        let requestKeys=requestValues.map{"\($0.workspaceID.rawValue.uuidString)|\($0.recordID.uuidString)|\($0.revision)"}
+        guard Set(requestKeys).count==requestKeys.count,
+              Set(dispositionValues.map(\.eventID)).count==dispositionValues.count,
+              Set(linkValues.map(\.eventID)).count==linkValues.count else {
+            throw ServiceRequestBackupContractFailureV1.invalidHistory
+        }
+        for value in requestValues {
+            if let predecessor=value.supersedes {
+                let matches=requestValues.filter{$0.workspaceID==value.workspaceID&&$0.recordID==value.recordID&&$0.revision==predecessor.revision&&$0.recordSHA256==predecessor.recordSHA256}
+                guard matches.count==1 else{throw ServiceRequestBackupContractFailureV1.invalidHistory}
+                try value.validateSuccessor(of:matches[0])
+            } else if value.revision != 1 { throw ServiceRequestBackupContractFailureV1.invalidHistory }
+            guard requestValues.filter{$0.supersedes?.recordID==value.recordID&&$0.supersedes?.revision==value.revision&&$0.supersedes?.recordSHA256==value.recordSHA256}.count<=1 else{throw ServiceRequestBackupContractFailureV1.invalidHistory}
+        }
+        for value in dispositionValues {
+            guard requestValues.filter{$0.workspaceID==value.workspaceID&&$0.recordID==value.request.recordID&&$0.revision==value.request.revision&&$0.recordSHA256==value.request.recordSHA256}.count==1 else{throw ServiceRequestBackupContractFailureV1.invalidWorkspaceBinding}
+            if let predecessorID=value.predecessorEventID {
+                let matches=dispositionValues.filter{$0.workspaceID==value.workspaceID&&$0.eventID==predecessorID}
+                guard matches.count==1 else{throw ServiceRequestBackupContractFailureV1.invalidHistory}
+                try value.validateSuccessor(of:matches[0])
+            } else if value.revision != 1 { throw ServiceRequestBackupContractFailureV1.invalidHistory }
+            guard dispositionValues.filter{$0.workspaceID==value.workspaceID&&$0.predecessorEventID==value.eventID}.count<=1 else{throw ServiceRequestBackupContractFailureV1.invalidHistory}
+        }
+        for value in linkValues {
+            guard requestValues.filter{$0.workspaceID==value.workspaceID&&$0.recordID==value.request.recordID&&$0.revision==value.request.revision&&$0.recordSHA256==value.request.recordSHA256}.count==1 else{throw ServiceRequestBackupContractFailureV1.invalidWorkspaceBinding}
+            if let predecessorID=value.predecessorEventID {
+                let matches=linkValues.filter{$0.workspaceID==value.workspaceID&&$0.eventID==predecessorID}
+                guard matches.count==1,matches[0].kind == .link else{throw ServiceRequestBackupContractFailureV1.invalidHistory}
+                try value.validateSuccessor(of:matches[0])
+                guard value.target==matches[0].target,value.choice==matches[0].choice,value.canonicalWorkRevision==matches[0].canonicalWorkRevision,value.canonicalWorkSHA256==matches[0].canonicalWorkSHA256 else{throw ServiceRequestBackupContractFailureV1.invalidHistory}
+            } else if value.revision != 1 || value.kind != .link { throw ServiceRequestBackupContractFailureV1.invalidHistory }
+            guard linkValues.filter{$0.workspaceID==value.workspaceID&&$0.predecessorEventID==value.eventID}.count<=1 else{throw ServiceRequestBackupContractFailureV1.invalidHistory}
+        }
     }
 }

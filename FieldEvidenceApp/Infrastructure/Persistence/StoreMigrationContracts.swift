@@ -1638,3 +1638,13 @@ enum C34SceneNavigationStoreMigrationBoundaryV1 {
     static let migratesSceneSnapshot = false
     static func validate() -> Bool { migrationStageCount == 0 && !migratesSceneSnapshot && C34SceneNavigationPersistentSchemaBoundaryV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: v38-to-v39-service-request-migration
+enum C52ServiceRequestMigrationBoundaryV1 {
+    static let sourceVersion = 38
+    static let targetVersion = 39
+    static let recordsSchemaVersion = 38
+    static let newlyAddedRowCount = 3
+    static let sourceRowsMustBeEmpty = true
+    static let migrationPreservesAllV38Bytes = true
+    static let downgradeDisposition = "READ_ONLY_OR_FORWARD_FIX"
+}

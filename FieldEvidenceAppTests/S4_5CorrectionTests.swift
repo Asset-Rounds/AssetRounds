@@ -8,6 +8,10 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_S4_5CorrectionTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 final class S4_5CorrectionTests: XCTestCase {
     private let fileManager = FileManager.default
 

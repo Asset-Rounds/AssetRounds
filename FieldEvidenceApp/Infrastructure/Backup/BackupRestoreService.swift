@@ -1980,7 +1980,10 @@ private extension BackupRestoreService {
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
             operationalContacts: records.operationalContacts,
             activityContracts: records.activityContracts,
-            workResources: records.workResources
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -2053,7 +2056,10 @@ private extension BackupRestoreService {
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
             operationalContacts: records.operationalContacts,
             activityContracts: records.activityContracts,
-            workResources: records.workResources
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -2072,6 +2078,33 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion >= C49BackupEnrollmentV1.recordsSchemaVersion {
             _ = try records.validateC49WorkResources()
         } else if !records.workResources.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
+            do {
+                if let identityDecision {
+                    try C52ServiceRequestRestoreIdentityPolicyV1.validate(records, identity: identityDecision)
+                }
+                let expectedWorkspaceID: UUID?
+                if let decision=identityDecision {
+                    expectedWorkspaceID=C52ServiceRequestRestoreIdentityPolicyV1.preservesCanonicalWorkspaceBinding(for:decision.mode)
+                        ? decision.targetPointer.workspaceID : decision.source.workspaceID
+                } else {
+                    expectedWorkspaceID=legacyDestinationIdentity.workspaceID.rawValue
+                }
+                let values = try C52ServiceRequestBackupEnrollmentV1.canonicalRows(
+                    from: records, workspaceID: expectedWorkspaceID
+                )
+                guard values.records.count == records.serviceRequests.count,
+                      values.dispositions.count == records.serviceRequestDispositionEvents.count,
+                      values.workLinks.count == records.serviceRequestWorkLinkEvents.count else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.serviceRequests.isEmpty
+                    || !records.serviceRequestDispositionEvents.isEmpty
+                    || !records.serviceRequestWorkLinkEvents.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
         if records.recordsSchemaVersion >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
@@ -2455,7 +2488,10 @@ private extension BackupRestoreService {
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
             operationalContacts: records.operationalContacts,
             activityContracts: records.activityContracts,
-            workResources: records.workResources
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -2772,7 +2808,10 @@ private extension BackupRestoreService {
                 acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
                 operationalContacts: operationalContacts,
                 activityContracts: records.activityContracts,
-                workResources: records.workResources
+                workResources: records.workResources,
+                serviceRequests: records.serviceRequests,
+                serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -2859,7 +2898,10 @@ private extension BackupRestoreService {
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
             operationalContacts: operationalContacts,
             activityContracts: records.activityContracts,
-            workResources: records.workResources
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -6819,7 +6861,10 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: workflowRecords,
             activityContracts: records.activityContracts,
-            workResources: records.workResources
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -8327,6 +8372,44 @@ private extension BackupRestoreService {
         } else if !records.workResources.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
+        if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
+            do {
+                if let identityDecision {
+                    try C52ServiceRequestRestoreIdentityPolicyV1.validate(
+                        records, identity: identityDecision
+                    )
+                }
+                let expectedWorkspaceID: UUID?
+                if let identityDecision {
+                    expectedWorkspaceID = C52ServiceRequestRestoreIdentityPolicyV1
+                        .preservesCanonicalWorkspaceBinding(for: identityDecision.mode)
+                        ? identityDecision.targetPointer.workspaceID
+                        : identityDecision.source.workspaceID
+                } else {
+                    expectedWorkspaceID = legacyDestinationIdentity.workspaceID.rawValue
+                }
+                let values = try C52ServiceRequestBackupEnrollmentV1.canonicalRows(
+                    from: records, workspaceID: expectedWorkspaceID
+                )
+                for value in values.records {
+                    context.insert(try ServiceRequestRecordRow(value))
+                }
+                for value in values.dispositions {
+                    context.insert(try ServiceRequestDispositionEventRow(value))
+                }
+                for value in values.workLinks {
+                    context.insert(try ServiceRequestWorkLinkEventRow(value))
+                }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else if !records.serviceRequests.isEmpty
+                    || !records.serviceRequestDispositionEvents.isEmpty
+                    || !records.serviceRequestWorkLinkEvents.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         if let mutationHistory = records.mutationHistory {
             guard records.recordsSchemaVersion == 3
                     || records.recordsSchemaVersion == 4
@@ -8361,7 +8444,9 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == 33
                     || records.recordsSchemaVersion == 34
                     || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
-                    || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion else {
+                    || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
+                    || records.recordsSchemaVersion == 37
+                    || records.recordsSchemaVersion == C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -9707,7 +9792,10 @@ private extension BackupRestoreService {
             workflowRecords: records.workflowRecords,
             lighting: schemaVersion >= 30 ? records.lighting : [],
             activityContracts: records.activityContracts,
-            workResources: records.workResources
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents
         )
     }
 
@@ -9746,7 +9834,10 @@ private extension BackupRestoreService {
             lighting: expected.recordsSchemaVersion >= 30
                 ? expected.lighting : [],
             activityContracts: expected.activityContracts,
-            workResources: expected.workResources
+            workResources: expected.workResources,
+            serviceRequests: expected.serviceRequests,
+            serviceRequestDispositionEvents: expected.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: expected.serviceRequestWorkLinkEvents
         )
         guard predecessor == expected,
               actual.locationNodes.isEmpty,
@@ -9876,6 +9967,13 @@ private extension BackupRestoreService {
         let reports = try context.fetch(FetchDescriptor<Report>())
         let workResourceRows = try context.fetch(
             FetchDescriptor<ManualWorkResourceRecordRow>()
+        )
+        let serviceRequestRows = try context.fetch(FetchDescriptor<ServiceRequestRecordRow>())
+        let serviceRequestDispositionRows = try context.fetch(
+            FetchDescriptor<ServiceRequestDispositionEventRow>()
+        )
+        let serviceRequestWorkLinkRows = try context.fetch(
+            FetchDescriptor<ServiceRequestWorkLinkEventRow>()
         )
         let requirementAssurance = try context.fetch(
             FetchDescriptor<RequirementAssuranceRow>()
@@ -10252,6 +10350,23 @@ private extension BackupRestoreService {
             .map { try V37BackupWorkResourceRecordV1($0.value()) }
             .sorted { ($0.workspaceID.uuidString, $0.entryID.uuidString)
                 < ($1.workspaceID.uuidString, $1.entryID.uuidString) }
+        let serviceRequestRecords = try serviceRequestRows
+            .map { try V38BackupServiceRequestRecordV1($0.value()) }
+            .sorted { ($0.workspaceID.uuidString, $0.recordID.uuidString, $0.revision)
+                < ($1.workspaceID.uuidString, $1.recordID.uuidString, $1.revision) }
+        let serviceRequestDispositionRecords = try serviceRequestDispositionRows
+            .map { try V38BackupServiceRequestDispositionEventV1($0.value()) }
+            .sorted { ($0.workspaceID.uuidString, $0.eventID.uuidString)
+                < ($1.workspaceID.uuidString, $1.eventID.uuidString) }
+        let serviceRequestWorkLinkRecords = try serviceRequestWorkLinkRows
+            .map { try V38BackupServiceRequestWorkLinkEventV1($0.value()) }
+            .sorted { ($0.workspaceID.uuidString, $0.eventID.uuidString)
+                < ($1.workspaceID.uuidString, $1.eventID.uuidString) }
+        let hasServiceRequestHistory = try mutationHistory?.receipts.contains { record in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            if case .applyServiceRequest = envelope.command { return true }
+            return false
+        } ?? false
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
@@ -10458,7 +10573,12 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: (!workResourceRecords.isEmpty
+            recordsSchemaVersion: (!serviceRequestRecords.isEmpty
+                || !serviceRequestDispositionRecords.isEmpty
+                || !serviceRequestWorkLinkRecords.isEmpty
+                || hasServiceRequestHistory)
+                ? C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion
+                : (!workResourceRecords.isEmpty
                 || hasWorkResourceHistory)
                 ? C49BackupEnrollmentV1.recordsSchemaVersion
                 : (!activityContractRecords.isEmpty
@@ -10506,7 +10626,7 @@ private extension BackupRestoreService {
                     : 11)
                 : 12)
                 : 13)
-                : 14,
+                : 14),
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -10548,7 +10668,10 @@ private extension BackupRestoreService {
             acceptedLabelGenerationSnapshots: acceptedLabelSnapshotRecords,
             operationalContacts: operationalContactRecords,
             activityContracts: activityContractRecords,
-            workResources: workResourceRecords
+            workResources: workResourceRecords,
+            serviceRequests: serviceRequestRecords,
+            serviceRequestDispositionEvents: serviceRequestDispositionRecords,
+            serviceRequestWorkLinkEvents: serviceRequestWorkLinkRecords
         )
     }
 
@@ -10870,3 +10993,11 @@ private extension BackupRestoreService {
 }
 
 enum C45AcceptedLabelRestoreMaterializationBoundaryV1 { static let exactReleaseMissingBlocks=true;static let cloneForkDisposition:AcceptedLabelSnapshotDispositionV1 = .historicCloneOrFork;static let outputBytesAreMaterialized=false }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-restore
+enum C52ServiceRequestReplaceRestoreBoundaryV1 {
+    static let recordsSchemaVersion = 38
+    static let replacesAllThreeCanonicalFamiliesAtomically = true
+    static let preservesImmutableAcceptedSourceBytes = true
+    static let invalidatesOutstandingCapabilities = true
+    static let rebuildsSearchAndDuplicateProjections = true
+}

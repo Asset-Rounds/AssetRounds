@@ -81,3 +81,18 @@ enum C50InspectionReviewIncumbentLifecycleBoundaryV1 {
         try projection.openChangeRequests.forEach { try $0.validate() }
     }
 }
+
+// MARK: - C52 service-request lifecycle adapter separation
+
+/// InspectionReviewLifecycleAdapterV1 continues to fetch only C14 review and
+/// corrective-action rows. Service request projections are rebuilt by their
+/// separately enrolled rows and never smuggled through this adapter.
+enum C52InspectionReviewServiceRequestLifecycleBoundaryV1 {
+    static let serviceRecordRowContract: Any.Type = ServiceRequestRecordRow.self
+    static let serviceDispositionRowContract: Any.Type = ServiceRequestDispositionEventRow.self
+    static let serviceWorkLinkRowContract: Any.Type = ServiceRequestWorkLinkEventRow.self
+    static let fetchesServiceRequestRows = false
+    static let serviceRowsCanSatisfyReviewProjection = false
+    static let c14ReviewBehaviorIsPreserved = true
+    static let createsSecondStoreOrWriter = false
+}

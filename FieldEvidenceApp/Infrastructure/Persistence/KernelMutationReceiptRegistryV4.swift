@@ -492,3 +492,10 @@ enum C34SceneNavigationKernelReceiptRegistryBoundaryV1 {
     static let registersRouteMutation = false
     static func validate() -> Bool { registeredReceiptKindCount == 0 && !registersRouteMutation && C34SceneNavigationMutationReceiptBoundaryV1.validate() }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-receipt
+enum C52ServiceRequestMutationReceiptEnrollmentV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyServiceRequest
+    static let typedReceipt = ServiceRequestMutationReceiptV1.self
+    static let postImageKinds: [WorkspaceEntityKindV1] = [.serviceRequestRecord, .serviceRequestDispositionEvent, .serviceRequestWorkLinkEvent]
+    static let durableReceiptRecoveryRequired = true
+}

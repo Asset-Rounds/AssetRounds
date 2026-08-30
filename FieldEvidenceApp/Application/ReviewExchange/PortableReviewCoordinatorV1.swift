@@ -173,6 +173,22 @@ enum C49WorkResourcePortableReviewCoordinatorBoundaryV1 {
     static let canonicalWriterIsNotReplaced = true
 }
 
+// MARK: - C52 portable service-request exchange delegation
+
+/// C52 may reuse the existing protected operation/session lifecycle, but its
+/// capability, proof, artifact kinds, and receipts stay type-separated from
+/// portable review request/response authority.
+enum C52PortableReviewServiceRequestExchangeBoundaryV1 {
+    static let serviceReleaseContract: Any.Type = PortableServiceRequestProtocolReleaseV1.self
+    static let serviceProofContract: Any.Type = ServiceRequestCapabilityProofV1.self
+    static let serviceImportReceiptContract: Any.Type = ServiceRequestImportReceiptV1.self
+    static let exchangeSessionStoreContract: Any.Type = PortableExchangeSessionStoreV2.self
+    static let serviceProofCanBeReplacedByReviewProof = false
+    static let serviceSubmissionCanBecomeReviewResponse = false
+    static let canonicalWriterIsNotReplaced = true
+    static let exchangeCreatesPortalOrNetwork = false
+}
+
 extension PortableReviewCoordinatorV1 {
     nonisolated static func c50AdapterProjection(
         _ source: ReviewRequestStateProjectionV1,

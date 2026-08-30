@@ -769,3 +769,24 @@ enum C48PortableExchangeKernelDeletionEnrollmentV2 {
         }
     }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-lifecycle
+enum C52ServiceRequestKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = ServiceRequestPersistenceEnrollmentV1.durableFamilies
+    static let ordinaryDeleteDisposition = "PRESERVE_ACCEPTED_HISTORY"
+    static let explicitUnlinkUsesAppendOnlyReversal = true
+    static let workspaceEraseClearsAllThreeFamilies = true
+    static let eraseClearsProtectedInvitationMappings = true
+    static let escapedPortableFilesAreRecallable = false
+
+    static func validate() throws {
+        try ServiceRequestPersistenceEnrollmentV1.validate()
+        guard durableFamilies.count == 3,
+              ordinaryDeleteDisposition == "PRESERVE_ACCEPTED_HISTORY",
+              explicitUnlinkUsesAppendOnlyReversal,
+              workspaceEraseClearsAllThreeFamilies,
+              eraseClearsProtectedInvitationMappings,
+              !escapedPortableFilesAreRecallable else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}

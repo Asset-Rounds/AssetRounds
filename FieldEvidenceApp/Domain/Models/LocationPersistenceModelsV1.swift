@@ -289,3 +289,4 @@ enum C46LocationPersistenceBoundaryV1 {
         _ = try value.preferredDestination()
     }
 }
+// C52_BOUNDARY_ANCHOR: canonical-service-request-persistence

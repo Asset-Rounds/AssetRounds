@@ -3910,6 +3910,46 @@
       "comment" : "C50 truthful callback-loss result; external file availability is unknown.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The app could not confirm whether the file was saved" } } }
     },
+    "service_request.contact.unverified" : {
+      "comment" : "C52 requester contact is a self-asserted, unverified value.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Contact information is unverified" } } }
+    },
+    "service_request.duplicate.suggestion" : {
+      "comment" : "C52 duplicate projection is suggestion-only and requires explicit review.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Possible duplicate — review required" } } }
+    },
+    "service_request.intake.manual" : {
+      "comment" : "C52 local manual intake label; it does not claim delivery or emergency handling.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Service request recorded manually" } } }
+    },
+    "service_request.intake.portable" : {
+      "comment" : "C52 cleartext portable intake label; it does not claim delivery or authentication.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Portable service request" } } }
+    },
+    "service_request.state.accepted" : {
+      "comment" : "C52 local disposition state after explicit acceptance.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Service request accepted" } } }
+    },
+    "service_request.state.declined" : {
+      "comment" : "C52 local disposition state after an explicit decline reason.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Service request declined" } } }
+    },
+    "service_request.state.history_only" : {
+      "comment" : "C52 history-only state; it does not imply current work or delivery.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "History only" } } }
+    },
+    "service_request.state.untriaged" : {
+      "comment" : "C52 local state awaiting explicit review and disposition.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Awaiting review" } } }
+    },
+    "service_request.status.no_delivery_claim" : {
+      "comment" : "C52 status wording records local state without claiming delivery confirmation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded locally; delivery was not confirmed" } } }
+    },
+    "service_request.urgency.self_asserted" : {
+      "comment" : "C52 urgency is supplied by the requester and is not verified by AssetRounds.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Urgency is self-asserted" } } }
+    },
     "navigation.route.fallback.action" : {
       "comment" : "C34 action that opens the validated safe route destination.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Go to safe destination" } } }

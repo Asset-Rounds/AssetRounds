@@ -4,6 +4,10 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+private enum C52ServiceRequestBoundary_V9_06DeletionRightsTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
 private final class C50DeletionRightsTests: XCTestCase {
     func testV23P03C50DeletionPreservesCanonicalHistoryAndEraseClearsOnlyAppOwnedExchangeBytes() {
         XCTAssertFalse(C50IncumbentFileExchangeDeletionIntentBoundaryV1.ordinaryDeletionTargetsAdapterState)
