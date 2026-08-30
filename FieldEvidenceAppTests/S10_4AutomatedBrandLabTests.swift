@@ -1910,7 +1910,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 staleOrInferredClassifier
             )
         }
-        let unidentifiedLabelStart = pseudolanguageClassifierEnd.upperBound
+        let unidentifiedLabelStart = try XCTUnwrap(
+            uiSource.range(
+                of: "    @MainActor\n    private func assertUnidentifiedLocalizedLabel(",
+                range: pseudolanguageClassifierStart.upperBound..<uiSource.endIndex
+            )
+        ).lowerBound
         let unidentifiedLabelEnd = try XCTUnwrap(
             uiSource.range(
                 of: "\n\n    @MainActor\n    private func assertLocalizedLabel(",
@@ -1919,6 +1924,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let unidentifiedLabelSource = String(
             uiSource[unidentifiedLabelStart..<unidentifiedLabelEnd.lowerBound]
+        )
+        XCTAssertEqual(unidentifiedLabelSource.utf8.count, 733)
+        XCTAssertEqual(
+            Data(unidentifiedLabelSource.utf8).sha256,
+            "168D434A3672C85BDF06B0192A0AE34AD65CEEE610FA723CD222A4110915E60C"
         )
         let exactLabelQuery =
             "labelledElement(releaseLabel, in: app).waitForExistence(timeout: timeout)"
@@ -1940,20 +1950,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             unidentifiedLabelSource.components(
                 separatedBy: "app.descendants(matching: .any).allElementsBoundByIndex.contains"
             ).count - 1,
-            1
+            0
         )
         XCTAssertLessThan(
             try XCTUnwrap(unidentifiedLabelSource.range(of: exactLabelQuery)).lowerBound,
             try XCTUnwrap(unidentifiedLabelSource.range(of: "            return")).lowerBound
         )
-        XCTAssertLessThan(
-            try XCTUnwrap(unidentifiedLabelSource.range(of: "pseudoLabelSentinelValidated")).lowerBound,
-            try XCTUnwrap(
-                unidentifiedLabelSource.range(
-                    of: "app.descendants(matching: .any).allElementsBoundByIndex.contains"
-                )
-            ).lowerBound
-        )
+        XCTAssertFalse(unidentifiedLabelSource.contains("app.descendants(matching: .any)"))
+        XCTAssertFalse(unidentifiedLabelSource.contains("allElementsBoundByIndex"))
         let realRTLShard =
             "locale: \"ar-RTL\", layoutDirection: \"right_to_left\""
         let stringRTLShard =
@@ -20846,11 +20850,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 782_335)
+        XCTAssertEqual(uiSource.utf8.count, 782_131)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "3F09426F3EE8313658CFF666874AE04B9C7852E8C53ECD4BD677700B2FED0E84"
+            "97761DE193AC80843160B35A0146A6DB1235704E650D288048F3DFE364934484"
         )
+        let accessibilityTreeDigestSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func accessibilityTreeDigest(",
+            before: "\n\n    private func printJSONLine("
+        )
+        XCTAssertEqual(accessibilityTreeDigestSource.utf8.count, 1_046)
+        XCTAssertEqual(
+            Data(accessibilityTreeDigestSource.utf8).sha256,
+            "EEF5DC88EC068DC34BE3AC285842728FA71D21433A5395904AA32E2F99931980"
+        )
+        for exact in [
+            "let tree = app.debugDescription",
+            #".split(whereSeparator: { $0 == "\n" || $0 == "\r" })"#,
+            #"line.range(of: "identifier: '")"#,
+            #"suffix.firstIndex(of: "'")"#,
+            "return !suffix[..<end].isEmpty",
+            "!tree.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty",
+            "hasStableIdentifier",
+            "SHA256.hash(data: Data(tree.utf8))",
+        ] {
+            XCTAssertTrue(accessibilityTreeDigestSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            accessibilityTreeDigestSource.components(
+                separatedBy: "let tree = app.debugDescription"
+            ).count - 1,
+            1
+        )
+        for removedBroadQuery in [
+            "app.descendants(matching: .any)",
+            #"NSPredicate(format: "identifier != ''")"#,
+            "allElementsBoundByIndex",
+        ] {
+            XCTAssertFalse(
+                accessibilityTreeDigestSource.contains(removedBroadQuery),
+                removedBroadQuery
+            )
+        }
         let assertControlSource = try boundedSource(
             uiSource,
             from: "    @MainActor\n    private func assertControl(",

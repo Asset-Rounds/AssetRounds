@@ -14749,19 +14749,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     private func accessibilityTreeDigest(in app: XCUIApplication) throws -> String {
-        let stableElement = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier != ''"))
-            .firstMatch
-        guard stableElement.exists, !stableElement.identifier.isEmpty else {
-            throw AutomationConfigurationError.invalid(
-                "The state accessibility tree contains no stable identifiers"
-            )
-        }
         let tree = app.debugDescription
+        let hasStableIdentifier = tree
+            .split(whereSeparator: { $0 == "\n" || $0 == "\r" })
+            .contains { line in
+                guard let marker = line.range(of: "identifier: '") else {
+                    return false
+                }
+                let suffix = line[marker.upperBound...]
+                guard let end = suffix.firstIndex(of: "'") else {
+                    return false
+                }
+                return !suffix[..<end].isEmpty
+            }
         guard !tree.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              tree.contains(stableElement.identifier) else {
+              hasStableIdentifier else {
             throw AutomationConfigurationError.invalid(
-                "The raw accessibility tree is empty or omits its stable sentinel"
+                "The raw accessibility tree is empty or contains no stable identifiers"
             )
         }
         return SHA256.hash(data: Data(tree.utf8))
@@ -15582,14 +15586,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(
             pseudoLabelSentinelValidated,
             "A stable-ID label must prove the active pseudolanguage before querying an unidentified label",
-            file: file,
-            line: line
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any).allElementsBoundByIndex.contains {
-                !$0.identifier.isEmpty
-                    && !$0.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            },
             file: file,
             line: line
         )
