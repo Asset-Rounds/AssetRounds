@@ -8730,17 +8730,32 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let topClearance: CGFloat = 24
         let bottomClearance: CGFloat = 16
         let usesSegment3AXTextFeedbackCorrection =
-            automationSegment == .segment3
-                && automationShard?.shardID == "s10.4.current.ax-text"
-                && automationSegment.replayCount == 22
-                && automationSegment.ownedStartOrdinal == 51
-                && automationSegment.ownedCount == 17
-                && automationSegment.finalOrdinal == 67
-                && segmentedRouteStateCursor == 57
-                && migratedStateIDs
-                    == Array(Self.segmentedRouteStateIDs[50..<57])
-                && !automatedSegmentFinished
-                && app.state == .runningForeground
+            (
+                automationSegment == .segment3
+                    && automationShard?.shardID == "s10.4.current.ax-text"
+                    && automationSegment.replayCount == 22
+                    && automationSegment.ownedStartOrdinal == 51
+                    && automationSegment.ownedCount == 17
+                    && automationSegment.finalOrdinal == 67
+                    && segmentedRouteStateCursor == 57
+                    && migratedStateIDs
+                        == Array(Self.segmentedRouteStateIDs[50..<57])
+                    && !automatedSegmentFinished
+                    && app.state == .runningForeground
+            )
+            || (
+                automationSegment == .none
+                    && automationShard?.shardID == "s10.4.current.ax-text"
+                    && automationSegment.replayCount == 0
+                    && automationSegment.ownedStartOrdinal == 1
+                    && automationSegment.ownedCount == 67
+                    && automationSegment.finalOrdinal == 67
+                    && segmentedRouteStateCursor == 0
+                    && migratedStateIDs
+                        == Array(Self.segmentedRouteStateIDs[0..<57])
+                    && !automatedSegmentFinished
+                    && app.state == .runningForeground
+            )
         var measuredUndertravel: CGFloat = 0
         var compensatedDirection: CGFloat = 0
         var usedSegment3DisjointFeedbackCorrection = false

@@ -20850,10 +20850,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 782_131)
+        XCTAssertEqual(uiSource.utf8.count, 782_860)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "97761DE193AC80843160B35A0146A6DB1235704E650D288048F3DFE364934484"
+            "0F646508D633E76C6C77B5FE44E68E11A77114A546398C4E4A722AE35034715A"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -21493,23 +21493,30 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func captureAvailablePaywallAndPurchase("
         )
-        XCTAssertEqual(k153FeedbackReviewSource.utf8.count, 7_526)
+        XCTAssertEqual(k153FeedbackReviewSource.utf8.count, 8_255)
         XCTAssertEqual(
             Data(k153FeedbackReviewSource.utf8).sha256,
-            "37C1067EC08DC6FD3EEC8300F58E620AAD554BBEF593695FC5C606A4C146F327"
+            "22F15A1780F344CD9EF0A149570398B0DB14619B93D352C86114AE573A7339CC"
         )
         let k153FeedbackCorrectionSource = try boundedSource(
             k153FeedbackReviewSource,
             from: "        let topClearance: CGFloat = 24",
             before: #"        captureBaseline("state.feedback.review-ready", in: app)"#
         )
-        XCTAssertEqual(k153FeedbackCorrectionSource.utf8.count, 4_288)
+        XCTAssertEqual(k153FeedbackCorrectionSource.utf8.count, 5_017)
         XCTAssertEqual(
             Data(k153FeedbackCorrectionSource.utf8).sha256,
-            "E9CF0A018148352B59C78764ACD4974A2F3EFEC49C77D53B7105C73702F7CEA8"
+            "83C1AA6B696524C765A9AC36C624E8EA3277FC978226463307148465C79D43B2"
         )
         for exact in [
             "automationSegment == .segment3",
+            "automationSegment == .none",
+            "automationSegment.replayCount == 0",
+            "automationSegment.ownedStartOrdinal == 1",
+            "automationSegment.ownedCount == 67",
+            "automationSegment.finalOrdinal == 67",
+            "segmentedRouteStateCursor == 0",
+            "Array(Self.segmentedRouteStateIDs[0..<57])",
             #"automationShard?.shardID == "s10.4.current.ax-text""#,
             "automationSegment.replayCount == 22",
             "automationSegment.ownedStartOrdinal == 51",
