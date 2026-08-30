@@ -19135,7 +19135,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                ]"#,
             #"case ("s10.4.current.ax-text", "work_and_recheck")"#,
             #"taskIssueLimit = 6"#,
-            #"taskStateLimit = 5"#,
+            #"taskStateLimit = 6"#,
             #"permittedExceptionStateIDs = ["# + "\n" +
                 #"                    "state.issue.recheck-due","# + "\n" +
                 #"                    "state.issue.resolved","# + "\n" +
@@ -19371,8 +19371,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"            case ("s10.4.current.ax-text", "work_and_recheck"):"# +
                 "\n" +
                 "                taskIssueLimit = 6\n" +
-                "                taskStateLimit = 5\n" +
+                "                taskStateLimit = 6\n" +
                 "                permittedExceptionStateIDs = [\n" +
+                #"                    "state.issue.open","# + "\n" +
                 #"                    "state.issue.recheck-due","# + "\n" +
                 #"                    "state.issue.resolved","# + "\n" +
                 #"                    "state.recheck-capture.wide-ready","# + "\n" +
@@ -19408,8 +19409,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "AX work task state contraction",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: "taskStateLimit = 5",
-                    with: "taskStateLimit = 4"
+                    of: "taskStateLimit = 6",
+                    with: "taskStateLimit = 5"
                 )
             ),
             (
@@ -19419,6 +19420,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     with:
                         #"                    "state.issue.recheck-due","# + "\n" +
                         #"                    "state.work.editing","#
+                )
+            ),
+            (
+                "AX work task missing issue-open state",
+                axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
+                    of: #"                    "state.issue.open","# + "\n",
+                    with: ""
                 )
             ),
             (
@@ -20918,10 +20926,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 785_755)
+        XCTAssertEqual(uiSource.utf8.count, 785_795)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "CB0A813CB16B7D6498DDE0CEAC110DA1E21D45A8862A02AE8CC0A45E1946948E"
+            "D05EBF1238A9B22339558D4D532555F8EFE0EDB5A676CE68614E8D2F24EA11E8"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

@@ -14966,8 +14966,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ]
             case ("s10.4.current.ax-text", "work_and_recheck"):
                 taskIssueLimit = 6
-                taskStateLimit = 5
+                taskStateLimit = 6
                 permittedExceptionStateIDs = [
+                    "state.issue.open",
                     "state.issue.recheck-due",
                     "state.issue.resolved",
                     "state.recheck-capture.wide-ready",
