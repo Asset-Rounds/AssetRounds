@@ -322,7 +322,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             elementFrame: CGRect(
                 x: 29.333333333333332,
                 y: 36.666666666666686,
-                width: 333.66666666666669,
+                width: 333.66666666666663,
                 height: 51.333333333333314
             ),
             applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)

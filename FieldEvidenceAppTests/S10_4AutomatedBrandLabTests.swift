@@ -121,7 +121,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             workflowPath,
             byteCount: 234_135,
-            sha256: "D6BBA94014C9291E24AE163C0E9EE2538B3C499208128C3FB5FEA4A6A1658629"
+            sha256: "86246E1D62CB583D3B42D2E158ED7DBD0E987E22DDC6C1BFF006B96F43FF71EF"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 1920, 4500]"
@@ -16704,7 +16704,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            elementFrame: CGRect(\n" +
                 "                x: 29.333333333333332,\n" +
                 "                y: 36.666666666666686,\n" +
-                "                width: 333.66666666666669,\n" +
+                "                width: 333.66666666666663,\n" +
                 "                height: 51.333333333333314\n" +
                 "            ),\n" +
                 "            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)\n" +
@@ -16729,7 +16729,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    elementFrame: {\n" +
                 "                      x: 29.333333333333332,\n" +
                 "                      y: 36.666666666666686,\n" +
-                "                      width: 333.66666666666669,\n" +
+                "                      width: 333.66666666666663,\n" +
                 "                      height: 51.333333333333314\n" +
                 "                    },\n" +
                 "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}\n" +
@@ -16827,7 +16827,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong width",
-                "                width: 333.66666666666669,",
+                "                width: 333.66666666666663,",
                 "                width: 333.66666666666668,"
             ),
             (
@@ -16899,7 +16899,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "wrong width",
-                "                      width: 333.66666666666669,",
+                "                      width: 333.66666666666663,",
                 "                      width: 333.66666666666668,"
             ),
             (
@@ -20849,7 +20849,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(uiSource.utf8.count, 782_335)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "2ACE28DFB85A5F99DA455A235D77CB8DEB11FE7AD5A436AFAC6ABA1D0777C295"
+            "3F09426F3EE8313658CFF666874AE04B9C7852E8C53ECD4BD677700B2FED0E84"
         )
         let assertControlSource = try boundedSource(
             uiSource,
