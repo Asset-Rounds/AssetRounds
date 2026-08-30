@@ -141,6 +141,142 @@ protocol DraftContentPromotionPortV1: Sendable {
 }
 
 extension FieldDraftCoordinatorV1 {
+    /// C56 composes the registered C36 payload codec with the existing
+    /// checkpoint CAS. The voice layer supplies only a typed reviewed value;
+    /// it never decodes or serializes the draft's opaque payload itself.
+    func existingReviewedVoiceFieldEffect(
+        _ update: VoiceProposalDraftCheckpointUpdateV1,
+        application: VoiceReviewedFieldDraftPayloadApplicationV1
+    ) throws -> VoiceReviewedFieldDraftCheckpointEffectV1? {
+        try validateReviewedVoiceUpdate(update, application: application)
+        guard let current = try writer.currentCheckpoint(
+            workspaceID: update.workspaceID,
+            draftID: update.draftID
+        ), current.mutationID == update.mutationID else {
+            return nil
+        }
+        try validate(application: application, update: update)
+        guard current.payloadData == application.successorPayloadData else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let mutation = try FieldDraftMutationV1(
+            workspaceID: update.workspaceID,
+            expectedRevision: update.expectedDraftRevision,
+            expectedBaseCanonicalRevision: update.expectedBaseCanonicalRevision,
+            mutationID: update.mutationID,
+            postImage: .reviseCheckpoint(current)
+        )
+        guard let receiptReader = writer as? any VoiceReviewedFieldDraftReceiptReadingV1,
+              let receipt = try receiptReader.reviewedVoiceFieldReceipt(
+                mutationID: update.mutationID
+              ) else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        return try VoiceReviewedFieldDraftCheckpointEffectV1(
+            predecessor: update.predecessor,
+            mutation: mutation,
+            mutationReceipt: receipt,
+            successor: current,
+            application: application
+        )
+    }
+
+    func applyReviewedVoiceFieldEffect(
+        _ update: VoiceProposalDraftCheckpointUpdateV1,
+        application: VoiceReviewedFieldDraftPayloadApplicationV1
+    ) throws -> VoiceReviewedFieldDraftCheckpointEffectV1 {
+        try validateReviewedVoiceUpdate(update, application: application)
+        guard let current = try writer.currentCheckpoint(
+            workspaceID: update.workspaceID,
+            draftID: update.draftID
+        ), current.checkpointSHA256 == update.expectedCheckpointSHA256 else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        try validate(application: application, update: update)
+        guard application.successorPayloadData != current.payloadData else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        let successor = try FieldDraftCheckpointV1(
+            draftID: current.draftID,
+            workspaceID: current.workspaceID,
+            scope: current.scope,
+            purpose: current.purpose,
+            codec: current.codec,
+            baseCanonicalRevision: current.baseCanonicalRevision,
+            draftRevision: try nextRevision(after: current.draftRevision),
+            payloadData: application.successorPayloadData,
+            stageIDs: current.stageIDs,
+            resumeAnchor: current.resumeAnchor,
+            state: .active,
+            lastDurableMutationID: current.lastDurableMutationID,
+            lastReceiptSHA256: current.lastReceiptSHA256,
+            updatedAt: update.reviewedAt,
+            mutationID: update.mutationID
+        )
+        let mutation = try FieldDraftMutationV1(
+            workspaceID: update.workspaceID,
+            expectedRevision: update.expectedDraftRevision,
+            expectedBaseCanonicalRevision: update.expectedBaseCanonicalRevision,
+            mutationID: update.mutationID,
+            postImage: .reviseCheckpoint(successor)
+        )
+        let receipt = try checkpoint(
+            successor,
+            expectedDraftRevision: update.expectedDraftRevision,
+            expectedBaseRevision: update.expectedBaseCanonicalRevision
+        )
+        guard let readBack = try writer.currentCheckpoint(
+            workspaceID: update.workspaceID,
+            draftID: update.draftID
+        ), readBack.checkpointSHA256 == successor.checkpointSHA256 else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        return try VoiceReviewedFieldDraftCheckpointEffectV1(
+            predecessor: update.predecessor,
+            mutation: mutation,
+            mutationReceipt: receipt,
+            successor: readBack,
+            application: application
+        )
+    }
+
+    private func validateReviewedVoiceUpdate(
+        _ update: VoiceProposalDraftCheckpointUpdateV1,
+        application: VoiceReviewedFieldDraftPayloadApplicationV1
+    ) throws {
+        try update.predecessor.validate(registry: registry)
+        try application.validate(predecessor: update.predecessor)
+        guard update.predecessor.state == .active,
+              update.workspaceID == update.predecessor.workspaceID,
+              update.draftID == update.predecessor.draftID,
+              update.scope == update.predecessor.scope,
+              update.expectedDraftRevision == update.predecessor.draftRevision,
+              update.expectedBaseCanonicalRevision == update.predecessor.baseCanonicalRevision,
+              update.expectedCheckpointSHA256 == update.predecessor.checkpointSHA256,
+              application.codec == update.predecessor.codec else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+    }
+
+    private func validate(
+        application: VoiceReviewedFieldDraftPayloadApplicationV1,
+        update: VoiceProposalDraftCheckpointUpdateV1
+    ) throws {
+        guard application.fieldID == update.fieldID,
+              application.fieldKind == update.fieldKind,
+              application.value == update.value else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+    }
+
+    private func nextRevision(after value: UInt64) throws -> UInt64 {
+        let next = value.addingReportingOverflow(1)
+        guard !next.overflow else { throw FieldDraftFailureV1.staleDraftRevision }
+        return next.partialValue
+    }
+}
+
+extension FieldDraftCoordinatorV1 {
     /// C23-aware checkpoint entry point. The reference tuple is checked before
     /// the existing checkpoint CAS and is never copied into the draft row.
     @MainActor

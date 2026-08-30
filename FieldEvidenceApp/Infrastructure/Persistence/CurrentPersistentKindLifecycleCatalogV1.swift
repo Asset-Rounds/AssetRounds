@@ -26,6 +26,7 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
         try TemporalEvidencePersistentKindPolicyV1.validateDeclaration()
         try AssetLabelPersistentKindPolicyV1.validateDeclaration()
         try OperationalContactPersistentKindPolicyV1.validateDeclaration()
+        try C56VoiceStructuringNonpersistentLifecyclePolicyV1.validateDeclaration()
         let compatibility = ReleasedDataCompatibilityPolicyV1.exactHead(
             candidateHead: candidateHead
         )

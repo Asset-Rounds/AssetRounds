@@ -1,0 +1,155 @@
+{
+  "artifactDigest": "d16a886732eff29e4ec5065fa5b1b45c958276d1628679635d4dd5235decc6ac",
+  "authority": {
+    "appBaseHead": "dc59c04251eef2d6574a152b846c0cade2ab2caf",
+    "appBaseTree": "308c809d842a54bbfaf8fa3dfce6d5cd520ab54a",
+    "authorizedOverlapCount": 4810,
+    "contextDigest": "c5b5b2c95e6f0cd01e7b9a716f67b5a3af5506699d838adbea7ebb1227e7f6b5",
+    "contractProviderCards": [
+      "V23-P03-C32",
+      "V23-P03-C36"
+    ],
+    "coordinationCASSequence": 368,
+    "coordinationHead": "3226a4cf509a04ee62671f2f7f9db15141c7687a",
+    "coordinationLedgerDigest": "e95613ccc5c4874ef71dcf9e7f6190eff63aa764132742c77f3fb9e9762e8f86",
+    "coordinationProjectionDigest": "96fb3474975d3aab33f3f898ab620e88920564c1dc4bf39b9f42eb91532ee491",
+    "coordinationTree": "043ab79fdddf74b5e1b1929fdeb22951da40be7e",
+    "directPrerequisiteCards": [
+      "V23-P03-C32"
+    ],
+    "dossierByteCount": 7178,
+    "dossierSHA256": "9da5798bf145b7d987c46457aaa872662959bba0aed1011e7d09701e4a059305",
+    "expectedExistingPathCount": 226,
+    "expectedFencePathCount": 240,
+    "expectedNewPathCount": 14,
+    "hydrationTransitionDigest": "e1c6ec725371d7b8ea694f7675aba3d96dfb8ef02e8e42deda34beb7324fdf04",
+    "pathFenceDigest": "e20dc754e933f82200f12aa5db7cb13d9322e71d0cdabbf6fb0320b77d40d5d3",
+    "priorFenceCount": 85,
+    "priorOwnedPathCount": 1384,
+    "provisionalPrerequisiteDigest": "779fe8e8f0397e91b833d6f8dee95de2686bd6c5cad23f8cf5b08b86e8b92deb",
+    "registerOrdinal": 87,
+    "registerRowByteCount": 300,
+    "registerRowSHA256": "3edcf21659d666dcf32c1dada382c7e2744c94e205bd8973e49e96b2f1e498e0",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P03-C56",
+  "cases": [
+    {
+      "evidenceID": "V23-P03-C56-G01",
+      "focus": [
+        "exact grammar",
+        "bounded fields",
+        "source spans",
+        "C36 draft checkpoint handoff"
+      ],
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P03-C56-A01",
+      "focus": [
+        "locale",
+        "number/unit",
+        "duration",
+        "manual fallback"
+      ],
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P03-C56-H01",
+      "focus": [
+        "ambiguity",
+        "unsupported capability",
+        "forbidden inference",
+        "stale target"
+      ],
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P03-C56-I01",
+      "focus": [
+        "cancel callback",
+        "process kill",
+        "scratch cleanup",
+        "P04-C45 audio route boundary"
+      ],
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P03-C56-R01",
+      "focus": [
+        "expiry",
+        "relaunch",
+        "Erase",
+        "C36 checkpoint and writer recovery"
+      ],
+      "kind": "RECOVERY"
+    }
+  ],
+  "evidenceIDs": [
+    "V23-P03-C56-G01",
+    "V23-P03-C56-A01",
+    "V23-P03-C56-H01",
+    "V23-P03-C56-I01",
+    "V23-P03-C56-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "journey": "FJ14",
+  "nativeCompileRan": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "provisional": false,
+  "schema": "V23P03C56StructuredVoiceProposalEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/VoiceStructuring/VoiceStructuringContractsV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceProposalReviewCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/VoiceStructuring/VoiceStructuringLifecycleAdapterV1.swift",
+      "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/StructuredVoice/V22P03C56StructuredVoiceProposalCorpusV1.json"
+    ],
+    "missingPaths": [],
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/VoiceStructuring/VoiceStructuringContractsV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceProposalReviewCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/VoiceStructuring/VoiceStructuringLifecycleAdapterV1.swift",
+      "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/StructuredVoice/V22P03C56StructuredVoiceProposalCorpusV1.json"
+    ],
+    "selectors": [
+      "testV23P03C56G01DeterministicGrammarSpansAndTypedC36Acceptance",
+      "testV23P03C56A01AmbiguityLocaleAndManualFallbackUseExplicitReview",
+      "testV23P03C56H01HostileRegistrySpansValuesReplayAndGenerationFailClosed",
+      "testV23P03C56I01InterruptionAdmissionEraseAndNonpersistentLifecycleRemainClosed",
+      "testV23P03C56R01CanonicalRecoveryAndPersistenceClosureRemainDeterministic"
+    ],
+    "sourceSemanticsInspected": true
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P03C56G01DeterministicGrammarSpansAndTypedC36Acceptance",
+    "testV23P03C56A01AmbiguityLocaleAndManualFallbackUseExplicitReview",
+    "testV23P03C56H01HostileRegistrySpansValuesReplayAndGenerationFailClosed",
+    "testV23P03C56I01InterruptionAdmissionEraseAndNonpersistentLifecycleRemainClosed",
+    "testV23P03C56R01CanonicalRecoveryAndPersistenceClosureRemainDeterministic"
+  ],
+  "title": "On-device StructuredVoiceProposalV1, deterministic grammar, source spans, ambiguity, expiry, and explicit field acceptance"
+}

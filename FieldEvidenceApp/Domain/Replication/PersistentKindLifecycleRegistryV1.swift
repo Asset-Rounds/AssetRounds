@@ -1182,6 +1182,28 @@ enum PlacementPosePersistentKindPolicyV1{static let durableKindIDs=Set(["PERSIST
 enum EvidenceContextPersistentKindPolicyV1{static let durableKindIDs=Set(["PERSISTENT_MODEL:EvidenceContextRow","PERSISTENT_MODEL:PairedObservationLinkRow"]);static let derivedKindIDs=Set(["PROJECTION:EvidenceContextV1","PROJECTION:PairedObservationLinkV1","PROJECTION:StoreSemanticEnvelopeV30"]);static func validateDeclaration()throws{guard durableKindIDs.count==2,derivedKindIDs.count==3,durableKindIDs.isDisjoint(with:derivedKindIDs),(durableKindIDs.union(derivedKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}}
 enum LightingPersistentKindPolicyV1{static let durableKindIDs=Set(["PERSISTENT_MODEL:LightingSystemRow","PERSISTENT_MODEL:LightingObservationRow","PERSISTENT_MODEL:LightingIssueRow","PERSISTENT_MODEL:MeasurementPlanRow","PERSISTENT_MODEL:LightingClaimStateRow"]);static let derivedKindIDs=Set(["PROJECTION:LightingTopologyV1","PROJECTION:LightingDuePreviewV1","PROJECTION:StoreSemanticEnvelopeV31"]);static func validateDeclaration()throws{guard durableKindIDs.count==5,durableKindIDs.isDisjoint(with:derivedKindIDs)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}}
 enum AssistancePersistentKindPolicyV1{static let durableKindIDs=Set(["PERSISTENT_MODEL:AssistanceAcceptanceReceiptRow"]);static let nonpersistentKindIDs=Set(["PROJECTION:AssistanceProposalV1","PROJECTION:AssistanceCapabilityScratchV1"]);static let derivedKindIDs=Set(["PROJECTION:StoreSemanticEnvelopeV32"]);static let rejectedOrCancelledCorpusKindIDs:Set<String>=[];static func validateDeclaration()throws{guard durableKindIDs.count==1,nonpersistentKindIDs==Set(["PROJECTION:AssistanceProposalV1","PROJECTION:AssistanceCapabilityScratchV1"]),rejectedOrCancelledCorpusKindIDs.isEmpty,durableKindIDs.isDisjoint(with:nonpersistentKindIDs),durableKindIDs.isDisjoint(with:derivedKindIDs)else{throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy}}}
+
+/// C56's structured voice proposal is a typed, operation-scoped view under
+/// the existing C32 assistance proposal authority. It deliberately does not
+/// add a sync subject, durable family, journal kind, or canonical write.
+enum C56VoiceStructuringNonpersistentLifecyclePolicyV1 {
+    static let reusedAssistanceKindID = "PROJECTION:AssistanceProposalV1"
+    static let durableFamilyCount = 0
+    static let declaresIndependentSyncSubject = false
+    static let canonicalWritePermitted = false
+
+    static func validateDeclaration() throws {
+        guard AssistancePersistentKindPolicyV1.nonpersistentKindIDs
+                .contains(reusedAssistanceKindID),
+              !AssistancePersistentKindPolicyV1.durableKindIDs
+                .contains(reusedAssistanceKindID),
+              durableFamilyCount == 0,
+              !declaresIndependentSyncSubject,
+              !canonicalWritePermitted else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+}
 enum TemporalEvidencePersistentKindPolicyV1 {
     static let durableKindIDs = Set([
         "PERSISTENT_MODEL:TemporalEvidenceClipRow",

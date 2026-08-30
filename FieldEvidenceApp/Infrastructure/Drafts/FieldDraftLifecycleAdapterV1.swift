@@ -16,7 +16,17 @@ import SwiftData
     private func execute(_ mutation:FieldDraftMutationV1)throws->MutationReceiptV1{_ = try writer.execute(.applyFieldDraft(mutation),mutationID:mutation.mutationID);guard let receipt=try journal.receipt(mutationID:mutation.mutationID)else{throw FieldDraftFailureV1.missingReceipt};_ = try FieldDraftMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
 }
 
+extension FieldDraftLifecycleAdapterV1: VoiceReviewedFieldDraftReceiptReadingV1 {}
+
 extension FieldDraftLifecycleAdapterV1 {
+    /// C56 reuses the existing C36 journal read-back; no parallel receipt
+    /// cache or writer is introduced for reviewed field checkpoints.
+    func reviewedVoiceFieldReceipt(
+        mutationID: MutationIDV1
+    ) throws -> MutationReceiptV1? {
+        try journal.receipt(mutationID: mutationID)
+    }
+
     func validatePackageUpgradeSource(_ checkpoint: FieldDraftCheckpointV1) throws {
         try PackageEvolutionDraftBoundaryV1.validateSource(checkpoint)
         guard let durable = try currentCheckpoint(

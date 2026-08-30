@@ -232,6 +232,151 @@ private protocol FieldDraftValidatableV1{func validate()throws}
 extension FieldDraftCheckpointV1:FieldDraftValidatableV1{};extension AttachmentStagingItemV1:FieldDraftValidatableV1{};extension DraftCommitSagaV1:FieldDraftValidatableV1{};extension DraftContentReservationV1:FieldDraftValidatableV1{};extension DraftCommitReceiptV1:FieldDraftValidatableV1{};extension DraftDiscardReceiptV1:FieldDraftValidatableV1{};extension DraftCommitTerminalBundleV1:FieldDraftValidatableV1{};extension DraftDiscardTerminalBundleV1:FieldDraftValidatableV1{}
 enum FieldDraftCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)}static func sha256(_ data:Data)->String{SHA256.hash(data:data).map{String(format:"%02x",$0)}.joined()}static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=FieldDraftLimitsV1.maximumCanonicalBytes else{throw FieldDraftFailureV1.limitExceeded};let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970;let value=try decoder.decode(type,from:data);if let v=value as? any FieldDraftValidatableV1{try v.validate()};guard try encode(value)==data else{throw FieldDraftFailureV1.digestMismatch};return value}}
 
+/// C56 may change an existing C36 draft only through the registered payload
+/// codec. The opaque payload bytes never cross the voice proposal boundary.
+struct VoiceReviewedFieldDraftPayloadApplicationV1: Equatable, Sendable {
+    let codec: DraftPayloadCodecReleaseV1
+    let predecessorPayloadSHA256: String
+    let fieldID: String
+    let fieldKind: VoiceStructuredFieldKindV1
+    let value: VoiceStructuredFieldValueV1
+    let successorPayloadData: Data
+    let successorPayloadSHA256: String
+    let applicationSHA256: String
+
+    init(
+        predecessor: FieldDraftCheckpointV1,
+        fieldID: String,
+        fieldKind: VoiceStructuredFieldKindV1,
+        value: VoiceStructuredFieldValueV1,
+        successorPayloadData: Data
+    ) throws {
+        try predecessor.validate()
+        guard !fieldID.isEmpty, fieldID.utf8.count <= 128 else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        try value.validate(for: fieldKind)
+        guard successorPayloadData.count <= FieldDraftLimitsV1.maximumPayloadBytes else {
+            throw FieldDraftFailureV1.limitExceeded
+        }
+        let successorPayloadSHA256 = FieldDraftCanonicalCodecV1.sha256(successorPayloadData)
+        guard successorPayloadSHA256 != predecessor.payloadSHA256 else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        codec = predecessor.codec
+        predecessorPayloadSHA256 = predecessor.payloadSHA256
+        self.fieldID = fieldID
+        self.fieldKind = fieldKind
+        self.value = value
+        self.successorPayloadData = successorPayloadData
+        self.successorPayloadSHA256 = successorPayloadSHA256
+        applicationSHA256 = try FieldDraftCanonicalCodecV1.sha256(Basis(
+            codecID: predecessor.codec.codecID,
+            codecVersion: predecessor.codec.codecVersion,
+            codecReleaseSHA256: predecessor.codec.releaseSHA256,
+            predecessorPayloadSHA256: predecessor.payloadSHA256,
+            successorPayloadSHA256: successorPayloadSHA256,
+            fieldID: fieldID,
+            fieldKind: fieldKind,
+            value: value
+        ))
+    }
+
+    /// Available to registered production and hostile-test codecs to prove the
+    /// claimed review value is bound to a changed successor payload.
+    func validate(predecessor: FieldDraftCheckpointV1) throws {
+        try predecessor.validate()
+        try value.validate(for: fieldKind)
+        guard codec == predecessor.codec,
+              predecessorPayloadSHA256 == predecessor.payloadSHA256,
+              successorPayloadSHA256 == FieldDraftCanonicalCodecV1.sha256(successorPayloadData),
+              successorPayloadSHA256 != predecessorPayloadSHA256,
+              applicationSHA256 == (try FieldDraftCanonicalCodecV1.sha256(Basis(
+                codecID: codec.codecID,
+                codecVersion: codec.codecVersion,
+                codecReleaseSHA256: codec.releaseSHA256,
+                predecessorPayloadSHA256: predecessorPayloadSHA256,
+                successorPayloadSHA256: successorPayloadSHA256,
+                fieldID: fieldID,
+                fieldKind: fieldKind,
+                value: value
+              ))) else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+    }
+
+    private struct Basis: Codable {
+        let codecID: String
+        let codecVersion: UInt64
+        let codecReleaseSHA256: String
+        let predecessorPayloadSHA256: String
+        let successorPayloadSHA256: String
+        let fieldID: String
+        let fieldKind: VoiceStructuredFieldKindV1
+        let value: VoiceStructuredFieldValueV1
+    }
+}
+
+/// Each concrete C36 codec owns its payload grammar and therefore must supply
+/// this transformation. C56 cannot decode, serialize, or invent draft bytes.
+@MainActor
+protocol VoiceReviewedFieldDraftPayloadApplyingV1: AnyObject {
+    var registeredCodec: DraftPayloadCodecReleaseV1 { get }
+
+    func applyReviewedVoiceField(
+        to predecessor: FieldDraftCheckpointV1,
+        fieldID: String,
+        fieldKind: VoiceStructuredFieldKindV1,
+        value: VoiceStructuredFieldValueV1
+    ) throws -> VoiceReviewedFieldDraftPayloadApplicationV1
+
+    /// The codec must decode/validate its own successor payload before C36
+    /// accepts the application proof; C56 has no fallback payload grammar.
+    func validateReviewedVoiceFieldApplication(
+        _ application: VoiceReviewedFieldDraftPayloadApplicationV1,
+        predecessor: FieldDraftCheckpointV1
+    ) throws
+}
+
+struct VoiceReviewedFieldDraftCheckpointEffectV1: Equatable, Sendable {
+    let mutation: FieldDraftMutationV1
+    let mutationReceipt: MutationReceiptV1
+    let successor: FieldDraftCheckpointV1
+    let application: VoiceReviewedFieldDraftPayloadApplicationV1
+
+    init(
+        predecessor: FieldDraftCheckpointV1,
+        mutation: FieldDraftMutationV1,
+        mutationReceipt: MutationReceiptV1,
+        successor: FieldDraftCheckpointV1,
+        application: VoiceReviewedFieldDraftPayloadApplicationV1
+    ) throws {
+        _ = try FieldDraftMutationReceiptV1(mutation: mutation, mutationReceipt: mutationReceipt)
+        try application.validate(predecessor: predecessor)
+        let nextRevision = predecessor.draftRevision.addingReportingOverflow(1)
+        guard mutation.postImage == .reviseCheckpoint(successor),
+              mutation.expectedRevision == predecessor.draftRevision,
+              mutation.expectedBaseCanonicalRevision == predecessor.baseCanonicalRevision,
+              !nextRevision.overflow,
+              successor.draftRevision == nextRevision.partialValue,
+              application.successorPayloadData == successor.payloadData,
+              application.successorPayloadSHA256 == successor.payloadSHA256 else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        self.mutation = mutation
+        self.mutationReceipt = mutationReceipt
+        self.successor = successor
+        self.application = application
+    }
+}
+
+/// Read-back is deliberately separate from the broad C36 writer so existing
+/// mocks and draft consumers do not gain a new mutation surface.
+@MainActor
+protocol VoiceReviewedFieldDraftReceiptReadingV1: AnyObject {
+    func reviewedVoiceFieldReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1?
+}
+
 // MARK: - C23 field-reference binding at the round-session boundary
 
 /// A draft carries only a derived reference projection. The durable release
