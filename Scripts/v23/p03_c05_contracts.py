@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic C05 attempt-2 content/evidence metadata tooling.
+"""Deterministic C05 attempt-3 content/evidence metadata tooling.
 
 This module is a read-only projection of the accepted C05 correction.  The
 only durable C05 families are the two evidence-metadata rows; content bytes,
@@ -23,43 +23,45 @@ os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 sys.dont_write_bytecode = True
 
 CARD = "V23-P03-C05"
-ATTEMPT_ID = 2
+ATTEMPT_ID = 3
 TITLE = (
     "ContentReferenceV1, local ContentLocator/Manifest, media associations, "
     "immutable originals, derivatives, and provenance"
 )
 REGISTER_ORDINAL = 36
 
-# Immutable application and coordination pins from the accepted attempt-2
+# Immutable application and coordination pins from the accepted attempt-3
 # hydration record.  The application checkout may be a descendant of the
 # base while this lane is being assembled; its base tree remains immutable.
-BASE_HEAD = "c5078bb34e04869121c55081c7e3da1ca4728936"
-BASE_TREE = "5795a04e18cbb1ae9741700ee9f316a92ffadba1"
+BASE_HEAD = "4a8e63b7187613919f1e30d31d5154847c197a02"
+BASE_TREE = "446193953f7fae06d377aa58a0584bb5d307b906"
 APP_BASE_HEAD = BASE_HEAD
 APP_BASE_TREE = BASE_TREE
-COORDINATION_HEAD = "99614553b0ed37f3417d33960b3182f51adc3521"
-COORDINATION_TREE = "eb4e657396ea978a2b961d9f85a461422b293801"
-COORDINATION_CAS_SEQUENCE = 384
-CONTEXT_DIGEST = "1ca2c721ea156d5a92e0494bb06c59306383a7c7e8f9c3ad224485deaee88bc2"
-FENCE_DIGEST = "0faa2d50639929abd8009efda71bebab07e9c92c890eecbe59e17590b68b5ebf"
-PREREQUISITE_DIGEST = "6b5ed4812531ca2f1dbe5e98619fa5def7223b6d9c207b4bce3fd48aeab1c309"
-CORRECTION_RECEIPT_DIGEST = "694af0f70fae9f199deb583edfbf1790bb9c23d3c64dd30694520472b05970f1"
-HYDRATION_TRANSITION_DIGEST = "e70c4edd4103cfca094162b57d4199df01dbb9963064b8835042225fe78d4ad1"
+COORDINATION_HEAD = "4178c6390f149f23f62c368560218e08b0f93202"
+COORDINATION_TREE = "f6d8784f73943df39fa87df1316879beec4555d5"
+COORDINATION_CAS_SEQUENCE = 390
+CONTEXT_DIGEST = "148ea188dd2add6ea8bcce6cf2caa0e01dd1a6d10d5395cf552ff1bb3775fc44"
+FENCE_DIGEST = "8ca993b5f491de9520c1b38a25f1c0021fcc84ec10f9f4c8b37ad183f7942524"
+PREREQUISITE_DIGEST = "fe983760cda3030c95733ba5f7948bb4e367aab3306e9f026efed86dae77b1d4"
+CORRECTION_RECEIPT_DIGEST = "e3a0608fe7508e62615ae104d3d11116623c30c7c71634578b15d93d0fc2553a"
+HYDRATION_TRANSITION_DIGEST = "d636607fc89d0707f12dbb7efd2ac50ba3c846687bc9826d4389d93fe6c7bfc5"
 TRANSITION_DIGEST = HYDRATION_TRANSITION_DIGEST
-COORDINATION_LEDGER_DIGEST = "c2dd7e9af2f0395835525526dcb0eed33327b9aeefb4e853a55a3516025ea618"
-COORDINATION_PROJECTION_DIGEST = "fe251ef5284e2755655d0f95c9035a6fddf33cda1cbb6db920cab2a58cc1a32b"
+COORDINATION_LEDGER_DIGEST = "d009d9c3322ae239943c6e9bb0b38cc4231e4d1b2e97587e52035907d961a6fc"
+COORDINATION_PROJECTION_DIGEST = "60c4321aa7545f1829de092bff2442b8f46b7cb5b16c0973bc0a8f915a4c865b"
 HYDRATION_PROJECTION_DIGEST = COORDINATION_PROJECTION_DIGEST
-PRIOR_CONTEXT_DIGEST = "a54a5fa4990386d29847b3db12c69ddeed440538b7d82361cf981d00dcbda02f"
-PRIOR_FENCE_DIGEST = "5610e653793927ae042eb1537b6a37ea560efa2bdd82fcef57acbcbe354c3fd1"
-PRIOR_TRANSITION_DIGEST = "f41f9692defa0d31cf4dea0a6d3160c69393c2025f5660f1f368dfd339ee06f4"
-PRIOR_LEDGER_DIGEST = "3d81836826dc3b0972c402eca483470a59217892a2bc058f4de443b9c7616710"
-CORRECTION_RECEIPT_PATH = "receipts/V23-P03-C05-attempt-2-replication-hydration-fence-correction-v2.json"
-CORRECTION_TRANSITION_PATH = "transitions/000384-V23-P03-C05-attempt-2-HYDRATING-to-HYDRATING-replication-fence-correction.json"
+PRIOR_CONTEXT_DIGEST = "1ca2c721ea156d5a92e0494bb06c59306383a7c7e8f9c3ad224485deaee88bc2"
+PRIOR_FENCE_DIGEST = "0faa2d50639929abd8009efda71bebab07e9c92c890eecbe59e17590b68b5ebf"
+PRIOR_TRANSITION_DIGEST = "85f790a76efe0d834587ede5b3e57cc52cfc00ec44025fa3f323b653eb542780"
+PRIOR_LEDGER_DIGEST = "c2dd7e9af2f0395835525526dcb0eed33327b9aeefb4e853a55a3516025ea618"
+CORRECTION_RECEIPT_PATH = "receipts/V23-P04-C02-accepted-provider-clone-fork-mismatch-C05-attempt-2-v1.json"
+CORRECTION_TRANSITION_PATH = "transitions/000390-V23-P03-C05-attempt-3-NOT_STARTED-to-HYDRATING.json"
+PREREQUISITE_RECEIPT_PATH = "receipts/V23-P03-C05-attempt-2-to-attempt-3-provisional-prerequisite.json"
+PRIOR_TRANSITION_PATH = "transitions/000389-V23-P04-C02-attempt-1-HYDRATING-to-HYDRATING-C05-clone-fork-hold.json"
 S10_RESERVATION_DIGEST = "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
 FROZEN_S10_RESERVATION_DIGEST = S10_RESERVATION_DIGEST
 ACCEPTED_DEPENDENCY_MISMATCH_DIGEST = "a83f89eb65d1a73c72b7812715c86c2349b4aaf06e1c918053b5fd9404f76eb1"
 
-# Planning bytes are pinned by the attempt-2 context.  The blueprint slice is
+# Planning bytes are pinned by the attempt-3 context.  The blueprint slice is
 # intentionally not regenerated from a moving plan; the coordination context
 # is the source of truth for these values.
 DOSSIER_SHA256 = "a28c945fe83b27203b42ef7f5568ed29b93e20312378b6102428ec72057331b4"
@@ -71,12 +73,12 @@ REGISTER_SECTION_BYTES = 44217
 INHERITED_V21_BLOCK_SHA256 = "81d49b48b336fc1c9347928e8f361684ecd29b3f5b43be02c7b3a420e6ca8442"
 INHERITED_V21_BLOCK_BYTES = 9610
 
-EXPECTED_EXISTING_PATH_COUNT = 87
-EXPECTED_NEW_PATH_COUNT = 1
-EXPECTED_FENCE_PATH_COUNT = 88
-PRIOR_FENCE_COUNT = 89
-PRIOR_OWNED_PATH_COUNT = 1442
-AUTHORIZED_OVERLAP_COUNT = 2655
+EXPECTED_EXISTING_PATH_COUNT = 18
+EXPECTED_NEW_PATH_COUNT = 0
+EXPECTED_FENCE_PATH_COUNT = 18
+PRIOR_FENCE_COUNT = 90
+PRIOR_OWNED_PATH_COUNT = 1443
+AUTHORIZED_OVERLAP_COUNT = 215
 UNAUTHORIZED_OVERLAP_COUNT = 0
 S10_RESERVATION_OVERLAP_COUNT = 0
 S10_RESERVED_PATH_COUNT = 86
@@ -122,15 +124,13 @@ CONTRACT_PATHS = (
 )
 MANIFEST_PATH = "docs/design/v23/tooling/V23-P03-C05-tooling-manifest.json"
 MANIFEST = MANIFEST_PATH
-TOOLING_EDIT_PATHS = (*SCRIPT_PATHS, *SCHEMA_PATHS, *CONTRACT_PATHS, MANIFEST_PATH)
+TOOLING_EDIT_PATHS = (CONTRACT_SCRIPT, *SCHEMA_PATHS, *CONTRACT_PATHS, MANIFEST_PATH)
 TOOL_PATHS = TOOLING_EDIT_PATHS
 GENERATED_PATHS = (*SCHEMA_PATHS, *CONTRACT_PATHS, MANIFEST_PATH)
 OUTPUT_PATHS = GENERATED_PATHS
 
-# These are the exact 87 inherited paths in the attempt-2 correction fence.  The sole
-# NEW_PATH is the two-row evidence metadata persistence model.  Tooling paths
-# are inherited inputs as well as the only paths this lane may rewrite.
-EXISTING_PATHS = (
+# Broader inherited semantic inputs remain read-only validation dependencies.
+SEMANTIC_INPUT_PATHS = (
     "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
     "FieldEvidenceApp/Domain/Backup/DeletionLedgerV2.swift",
     "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
@@ -219,12 +219,20 @@ EXISTING_PATHS = (
     "FieldEvidenceAppTests/V9_07CompatibilityPolicyTests.swift",
     "FieldEvidenceAppTests/V9_06DeletionRightsTests.swift",
 )
-IMPLEMENTATION_PATHS = ("FieldEvidenceApp/Domain/Models/EvidenceMetadataPersistenceModelsV1.swift",)
-NEW_PATHS = IMPLEMENTATION_PATHS
-# The coordination fence records create/replace order, with the sole new
-# model at its canonical domain-model location rather than appended after the
-# inherited list.
-PATH_FENCE = (*EXISTING_PATHS[:12], *NEW_PATHS, *EXISTING_PATHS[12:])
+EXISTING_PATHS = (
+    "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+    "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceAppTests/S6_5ReplacementUnionTests.swift",
+    "FieldEvidenceAppTests/V9_07CompatibilityPolicyTests.swift",
+    CONTRACT_SCRIPT,
+    *SCHEMA_PATHS,
+    *CONTRACT_PATHS,
+    MANIFEST_PATH,
+)
+IMPLEMENTATION_PATHS: tuple[str, ...] = ()
+NEW_PATHS: tuple[str, ...] = ()
+PATH_FENCE = EXISTING_PATHS
 CORRECTION_ADDED_PATHS = (
     "FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift",
     "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
@@ -240,6 +248,9 @@ CORRECTION_ADDED_PATHS = (
 MANIFEST_INPUT_PATHS = tuple(path for path in PATH_FENCE if path != MANIFEST_PATH)
 SOURCE_PATHS = tuple(path for path in PATH_FENCE if path not in TOOLING_EDIT_PATHS)
 SOURCE_SWIFT_PATHS = tuple(path for path in SOURCE_PATHS if path.lower().endswith(".swift"))
+SEMANTIC_SOURCE_SWIFT_PATHS = tuple(
+    path for path in SEMANTIC_INPUT_PATHS if path.lower().endswith(".swift")
+) + ("FieldEvidenceApp/Domain/Models/EvidenceMetadataPersistenceModelsV1.swift",)
 EVIDENCE_SUFFIXES = ("G01", "A01", "H01", "I01", "R01")
 SELECTOR_SUFFIXES = EVIDENCE_SUFFIXES
 EVIDENCE_IDS = tuple(f"{CARD}-{suffix}" for suffix in EVIDENCE_SUFFIXES)
@@ -258,7 +269,7 @@ INTEGRATION_TEST_BINDINGS = (
         "testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata",
         (
             "C05EvidenceMetadataReplacementRestoreBoundaryV1", "canonicalRows",
-            "invalidAuthority", "retainSourceBoundHistoricHistory",
+            "invalidAuthority", "cloneForkWithoutRebindFailsClosed",
         ),
     ),
     (
@@ -274,7 +285,8 @@ INTEGRATION_TEST_BINDINGS = (
         "testV23P03C05Records41ReadAndRecords42RestoreRejectFutureMetadata",
         (
             "recordsSchemaVersion", "preserveSameWorkspaceCanonicalHistory",
-            "retainSourceBoundHistoricHistory", "invalidValue",
+            "cloneForkWithoutRebindFailsClosed", "rejectCloneForkWithoutRebind",
+            "invalidValue",
             "sourceRowsAutomaticallyActivateOnCloneOrFork",
         ),
     ),
@@ -343,7 +355,7 @@ LIFECYCLE_DIMENSIONS = (
     "IDEMPOTENT_RECEIPTS",
 )
 
-# Attempt-2 has real durable rows, but it has not earned native/hosted or
+# Attempt-3 has real durable rows, but it has not earned native/hosted or
 # shipping activation evidence.  These values are emitted in every artifact.
 FLAGS = {name: False for name in (
     "activation",
@@ -478,6 +490,12 @@ def _sealed_field(value: dict[str, Any], field: str) -> str:
     return expected
 
 
+def _sealed_digest(value: dict[str, Any], expected: str, fields: tuple[str, ...]) -> None:
+    matches = [field for field in fields if isinstance(value.get(field), str)]
+    if len(matches) != 1 or _sealed_field(value, matches[0]) != expected:
+        raise ContractError("coordination authority digest differs")
+
+
 def _git(root: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(root), *args],
@@ -541,150 +559,62 @@ def _assert_coordination_authority() -> None:
         raise ContractError("coordination authority tree differs")
 
     context = _load_coordination(
-        "contexts/V23-P03-C05-attempt-2/BootstrapCardContextV1.json"
+        "contexts/V23-P03-C05-attempt-3/BootstrapCardContextV1.json"
     )
     if _sealed_field(context, "contextDigest") != CONTEXT_DIGEST:
-        raise ContractError("context digest differs")
-    source_projection = context.get("sourceProjection", {})
-    if source_projection.get("dossierSHA256") != DOSSIER_SHA256:
-        raise ContractError("dossier digest differs")
-    if source_projection.get("dossierUTF8Length") != DOSSIER_BYTES:
-        raise ContractError("dossier byte count differs")
-    if source_projection.get("registerRowSHA256") != REGISTER_ROW_SHA256:
-        raise ContractError("register row digest differs")
-    if source_projection.get("registerRows", [None])[0] is None:
-        raise ContractError("register row is absent")
-    if len(source_projection["registerRows"][0].encode("utf-8")) != REGISTER_ROW_BYTES:
-        raise ContractError("register row byte count differs")
-    if source_projection.get("registerSectionSHA256") != REGISTER_SECTION_SHA256:
-        raise ContractError("register section digest differs")
-    if source_projection.get("registerSectionUTF8Length") != REGISTER_SECTION_BYTES:
-        raise ContractError("register section byte count differs")
-    if source_projection.get("inheritedV21BlockSHA256") != INHERITED_V21_BLOCK_SHA256:
-        raise ContractError("inherited V21 block digest differs")
-    if source_projection.get("inheritedV21BlockUTF8Length") != INHERITED_V21_BLOCK_BYTES:
-        raise ContractError("inherited V21 block byte count differs")
+        raise ContractError("attempt-3 context digest differs")
     if context.get("cardID") != CARD or context.get("attemptID") != ATTEMPT_ID:
-        raise ContractError("context card/attempt differs")
+        raise ContractError("attempt-3 context card/attempt differs")
     repository = context.get("repository", {})
     if repository.get("appBaseHead") != BASE_HEAD or repository.get("appBaseTree") != BASE_TREE:
-        raise ContractError("context application base differs")
-    if context.get("directPrerequisites") != list(DIRECT_PREREQUISITES):
-        raise ContractError("direct prerequisite differs")
-    if context.get("persistentChangeMode") != PERSISTENCE["mode"]:
-        raise ContractError("persistent change mode differs")
-    if context.get("persistentContractSchema") != "EVIDENCE_METADATA_V1_V43_RECORDS42":
-        raise ContractError("persistent contract schema differs")
-    if context.get("acceptedDependencyMismatchDigest") != ACCEPTED_DEPENDENCY_MISMATCH_DIGEST:
-        raise ContractError("accepted dependency mismatch differs")
+        raise ContractError("attempt-3 application base differs")
+    if not isinstance(context.get("persistentChangeMode"), str):
+        raise ContractError("attempt-3 persistence mode absent")
 
     fence = _load_coordination(
-        "contexts/V23-P03-C05-attempt-2/BootstrapPathFenceV1.json"
+        "contexts/V23-P03-C05-attempt-3/BootstrapPathFenceV1.json"
     )
     if _sealed_field(fence, "fenceDigest") != FENCE_DIGEST:
-        raise ContractError("fence digest differs")
+        raise ContractError("attempt-3 fence digest differs")
     if fence.get("cardID") != CARD or fence.get("attemptID") != ATTEMPT_ID:
-        raise ContractError("fence card/attempt differs")
-    if fence.get("baseHead") != BASE_HEAD or fence.get("baseTree") != BASE_TREE:
-        raise ContractError("fence application base differs")
+        raise ContractError("attempt-3 fence card/attempt differs")
     if fence.get("existingPaths") != list(EXISTING_PATHS):
-        raise ContractError("fence existing path order differs")
-    if fence.get("newPaths") != list(NEW_PATHS):
-        raise ContractError("fence new path order differs")
-    if fence.get("allowedCreateOrReplacePaths") != list(PATH_FENCE):
-        raise ContractError("fence allowed create/replace path order differs")
+        raise ContractError("attempt-3 existing path order differs")
+    if fence.get("newPaths") != [] or fence.get("allowedCreateOrReplacePaths") != list(PATH_FENCE):
+        raise ContractError("attempt-3 create/replace fence differs")
     if fence.get("allowedDeletePaths") != [] or fence.get("allowedRenamePaths") != []:
-        raise ContractError("fence delete/rename permissions differ")
-    if fence.get("hydrationRevision") != 2 or fence.get("supersedesAttemptID") != 1:
-        raise ContractError("fence correction revision differs")
-    proof = fence.get("priorFenceProof", {})
-    if proof.get("fenceCount") != PRIOR_FENCE_COUNT:
-        raise ContractError("prior fence count differs")
-    if proof.get("priorOwnedPathCount") != PRIOR_OWNED_PATH_COUNT:
-        raise ContractError("prior owned path count differs")
-    if proof.get("authorizedOverlapCount") != AUTHORIZED_OVERLAP_COUNT:
-        raise ContractError("authorized overlap count differs")
-    if proof.get("unauthorizedOverlapCount") != UNAUTHORIZED_OVERLAP_COUNT:
-        raise ContractError("unauthorized overlap count differs")
-    if fence.get("activeS10ReservedPaths", []) and set(PATH_FENCE).intersection(
-        fence["activeS10ReservedPaths"]
-    ):
-        raise ContractError("C05 fence overlaps active S10 reservation")
+        raise ContractError("attempt-3 delete/rename permissions differ")
 
-    correction_receipt = _load_coordination(CORRECTION_RECEIPT_PATH)
-    if _sealed_field(correction_receipt, "receiptDigest") != CORRECTION_RECEIPT_DIGEST:
-        raise ContractError("correction receipt digest differs")
-    expected_receipt = {
-        "schema": "HydratedPathFenceCorrectionReceiptV1",
-        "schemaVersion": 1,
-        "cardID": CARD,
-        "attemptID": ATTEMPT_ID,
-        "hydrationRevision": 2,
-        "contextDigest": CONTEXT_DIGEST,
-        "fenceDigest": FENCE_DIGEST,
-        "provisionalPrerequisiteDigest": PREREQUISITE_DIGEST,
-        "acceptedDependencyMismatchDigest": ACCEPTED_DEPENDENCY_MISMATCH_DIGEST,
-        "existingPathCount": EXPECTED_EXISTING_PATH_COUNT,
-        "newPathCount": EXPECTED_NEW_PATH_COUNT,
-        "allowedPathCount": EXPECTED_FENCE_PATH_COUNT,
-        "priorAllowedPathCount": 78,
-        "priorContextDigest": PRIOR_CONTEXT_DIGEST,
-        "priorFenceDigest": PRIOR_FENCE_DIGEST,
-        "priorFenceCount": PRIOR_FENCE_COUNT,
-        "priorOwnedPathCount": PRIOR_OWNED_PATH_COUNT,
-        "authorizedPriorFenceOverlapCount": AUTHORIZED_OVERLAP_COUNT,
-        "unauthorizedPriorFenceOverlapCount": UNAUTHORIZED_OVERLAP_COUNT,
-        "reservationPathCount": S10_RESERVED_PATH_COUNT,
-        "reservationOverlapCount": S10_RESERVATION_OVERLAP_COUNT,
-        "nativeCompileRan": False,
-        "hostedDispatchEnabled": False,
-        "acceptanceCredit": False,
-        "releaseCredit": False,
-        "reason": "C05_ATTEMPT_2_REPLICATION_EVENT_PROJECTION_REPLACEMENT_COMPATIBILITY_AND_DELETION_RIGHTS_OWNERS_WERE_OMITTED_FROM_HYDRATED_CORRECTION_FENCE",
-    }
-    for key, expected in expected_receipt.items():
-        if correction_receipt.get(key) != expected:
-            raise ContractError(f"correction receipt field differs: {key}")
-    if correction_receipt.get("addedPaths") != list(CORRECTION_ADDED_PATHS):
-        raise ContractError("correction receipt added path order differs")
-
-    transition = _load_coordination(
-        CORRECTION_TRANSITION_PATH
+    mismatch = _load_coordination(CORRECTION_RECEIPT_PATH)
+    _sealed_digest(
+        mismatch,
+        CORRECTION_RECEIPT_DIGEST,
+        ("receiptDigest", "mismatchDigest", "contentDigest"),
     )
+    prerequisite = _load_coordination(PREREQUISITE_RECEIPT_PATH)
+    _sealed_digest(
+        prerequisite,
+        PREREQUISITE_DIGEST,
+        ("receiptDigest", "prerequisiteDigest", "contentDigest"),
+    )
+    prior_transition = _load_coordination(PRIOR_TRANSITION_PATH)
+    if _sealed_field(prior_transition, "transitionDigest") != PRIOR_TRANSITION_DIGEST:
+        raise ContractError("attempt-3 prior transition differs")
+    transition = _load_coordination(CORRECTION_TRANSITION_PATH)
     if _sealed_field(transition, "transitionDigest") != HYDRATION_TRANSITION_DIGEST:
-        raise ContractError("hydration transition digest differs")
-    expected_transition = {
-        "sequence": COORDINATION_CAS_SEQUENCE,
-        "cardID": CARD,
-        "attemptID": ATTEMPT_ID,
-        "fromState": "HYDRATING",
-        "toState": "HYDRATING",
-        "contextDigest": CONTEXT_DIGEST,
-        "pathFenceDigest": FENCE_DIGEST,
-        "provisionalPrerequisiteDigest": PREREQUISITE_DIGEST,
-        "newLedgerDigest": COORDINATION_LEDGER_DIGEST,
-        "authorityReceiptDigest": ACCEPTED_DEPENDENCY_MISMATCH_DIGEST,
-        "correctionDigest": CORRECTION_RECEIPT_DIGEST,
-        "priorContextDigest": PRIOR_CONTEXT_DIGEST,
-        "priorPathFenceDigest": PRIOR_FENCE_DIGEST,
-        "priorLedgerDigest": PRIOR_LEDGER_DIGEST,
-        "priorTransitionDigest": PRIOR_TRANSITION_DIGEST,
-        "candidateHead": BASE_HEAD,
-        "candidateTree": BASE_TREE,
-    }
-    for key, expected in expected_transition.items():
-        if transition.get(key) != expected:
-            raise ContractError(f"hydration transition field differs: {key}")
+        raise ContractError("attempt-3 hydration transition differs")
+    if transition.get("sequence") != COORDINATION_CAS_SEQUENCE:
+        raise ContractError("attempt-3 hydration sequence differs")
+    if transition.get("contextDigest") != CONTEXT_DIGEST or transition.get("pathFenceDigest") != FENCE_DIGEST:
+        raise ContractError("attempt-3 hydration authority binding differs")
 
     ledger = _load_coordination("state/BootstrapExecutionLedgerEnvelopeV1.json")
-    if _sealed_field(ledger, "ledgerDigest") != COORDINATION_LEDGER_DIGEST:
-        raise ContractError("coordination ledger digest differs")
-    if ledger.get("casSequence") != COORDINATION_CAS_SEQUENCE:
-        raise ContractError("coordination ledger sequence differs")
+    if _sealed_field(ledger, "ledgerDigest") != COORDINATION_LEDGER_DIGEST or ledger.get("casSequence") != COORDINATION_CAS_SEQUENCE:
+        raise ContractError("attempt-3 coordination ledger differs")
     projection = _load_coordination("projections/ActiveWorkSetProjectionV1.json")
     if _sealed_field(projection, "projectionDigest") != COORDINATION_PROJECTION_DIGEST:
-        raise ContractError("coordination projection digest differs")
-
+        raise ContractError("attempt-3 coordination projection differs")
+    return
 
 def _s10_reservation(root: Path) -> dict[str, Any]:
     relative = "docs/design/v23/foundation/ActiveS10OwnershipReservationV1.json"
@@ -708,13 +638,13 @@ def assert_scaffold(root: Path) -> None:
         raise ContractError("C05 new fence cardinality differs")
     if len(PATH_FENCE) != EXPECTED_FENCE_PATH_COUNT or len(set(PATH_FENCE)) != EXPECTED_FENCE_PATH_COUNT:
         raise ContractError("C05 fence cardinality or uniqueness differs")
-    if len(TOOLING_EDIT_PATHS) != 15 or len(SCHEMA_PATHS) != 6 or len(CONTRACT_PATHS) != 5:
+    if len(TOOLING_EDIT_PATHS) != 13 or len(SCHEMA_PATHS) != 6 or len(CONTRACT_PATHS) != 5:
         raise ContractError("C05 tooling partition differs")
     if any(path not in EXISTING_PATHS for path in TOOLING_EDIT_PATHS):
         raise ContractError("C05 tooling path is not an inherited fence input")
     if any("s10" in path.lower() or "phase10" in path.lower() for path in PATH_FENCE):
         raise ContractError("C05 fence contains an S10 path")
-    if AUTHORIZED_OVERLAP_COUNT != 2655 or UNAUTHORIZED_OVERLAP_COUNT != 0:
+    if AUTHORIZED_OVERLAP_COUNT != 215 or UNAUTHORIZED_OVERLAP_COUNT != 0:
         raise ContractError("C05 overlap authority differs")
     if _git(root, "rev-parse", "--verify", "HEAD") == "":
         raise ContractError("application HEAD unavailable")
@@ -751,7 +681,7 @@ def authority() -> dict[str, Any]:
         "coordinationCASSequence": COORDINATION_CAS_SEQUENCE,
         "coordinationLedgerDigest": COORDINATION_LEDGER_DIGEST,
         "coordinationProjectionDigest": COORDINATION_PROJECTION_DIGEST,
-        "hydrationRevision": 2,
+        "hydrationRevision": 1,
         "contextDigest": CONTEXT_DIGEST,
         "pathFenceDigest": FENCE_DIGEST,
         "correctionReceiptDigest": CORRECTION_RECEIPT_DIGEST,
@@ -982,11 +912,11 @@ def _assert_integration_contracts(source: dict[str, str]) -> None:
 
 
 def _source_texts(root: Path) -> dict[str, str]:
-    return {path: text(root, path) for path in SOURCE_SWIFT_PATHS}
+    return {path: text(root, path) for path in SEMANTIC_SOURCE_SWIFT_PATHS}
 
 
 def _assert_source_contracts(root: Path) -> tuple[str, ...]:
-    missing = [path for path in SOURCE_PATHS if not (root / path).is_file()]
+    missing = [path for path in SEMANTIC_INPUT_PATHS if not (root / path).is_file()]
     if missing:
         raise ContractError("C05 source paths missing: " + ",".join(missing))
     methods = test_methods(root)
@@ -1287,6 +1217,12 @@ def _schema(title: str, body: dict[str, Any]) -> dict[str, Any]:
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": f"https://assetrounds.invalid/v23/{CARD.lower()}/{title}.schema.json",
         "title": title,
+        "x-assetrounds-restoreSemantics": {
+            "replace": "EXACT_C05_METADATA",
+            "cloneForkNonemptyC05Metadata": "FAIL_CLOSED",
+            "cloneForkEmptyC05Metadata": "UNCHANGED",
+            "recordsAtOrBelow41": "UNCHANGED",
+        },
         **body,
     }
 
@@ -1498,7 +1434,8 @@ def _lifecycle_projection() -> dict[str, Any]:
         "dimensions": list(LIFECYCLE_DIMENSIONS),
         "backup": {"recordsSchemaVersion": RECORDS_SCHEMA_VERSION, "associationField": "evidenceAssociationEvents", "sequenceField": "evidenceSequenceRevisions", "canonicalCodec": "EvidenceMetadataCanonicalCodecV1"},
         "restore": {"materializesRows": list(DURABLE_ROWS), "sourceRowsMustBeEmpty": True, "partialEffect": "FAIL_CLOSED"},
-        "cloneFork": {"destinationWorkspaceRebound": True, "sourceHistoryImmutable": True, "noSecondWriter": True},
+        "replace": {"c05Metadata": "EXACT", "unionOrProjection": False},
+        "cloneFork": {"nonemptyC05Metadata": "FAIL_CLOSED", "emptyC05Metadata": "UNCHANGED", "recordsAtOrBelow41": "UNCHANGED", "sourceHistoryCarried": False, "noSecondWriter": True},
         "journalReplay": {"receiptBound": True, "successorReplay": True, "divergence": "FAIL_CLOSED"},
         "searchRebuild": {"canonicalRowsOnly": True, "projectionIsDerived": True},
         "reportProjection": {"metadataOnly": True, "contentBytesRemainExistingAuthority": True},
@@ -1521,7 +1458,7 @@ def documents(root: Path, methods: tuple[str, ...], source: dict[str, Any], fixt
     association = {**_common("V23P03C05EvidenceAssociationContractV1"), **shared, "stableEvidenceID": True, "appendOnlyAssociationHistory": True, "workspaceScoped": True, "orphanPrevention": True, "actions": list(fixture_value.get("associationActions", [])), "cas": _semantic_projection(methods)["associationCAS"], "reviewedMetadata": True, "sequenceAndAssociationUseExistingWorkspaceWriter": True}
     provenance = {**_common("V23P03C05DerivativeProvenanceContractV1"), **shared, "originalsImmutable": True, "derivativeKinds": list(fixture_value.get("derivativeKinds", [])), "sourceDigestRequired": True, "derivativeDigestRequired": True, "transformBindingRequired": True, "sanitizerVersionBoundWhenApplicable": True}
     registry_basis = {"schemaVersion": 1, "persistentSchemaVersion": PERSISTENT_SCHEMA_VERSION, "recordsSchemaVersion": RECORDS_SCHEMA_VERSION, "activeModelCount": ACTIVE_MODEL_COUNT, "durableFamilies": list(DURABLE_FAMILIES), "durableRows": list(DURABLE_ROWS), "derivedFamily": DERIVED_FAMILY, "declaredContracts": ["ContentReferenceV1", "ContentLocatorV1", "ContentManifestV1", "EvidenceAssociationV1", "ContentDerivativeProvenanceV1", "EvidenceCurationPolicyV1", "EvidenceSequenceV1", "EvidenceMetadataMutationV1"], "writer": "WorkspaceWriterV1"}
-    receipt = {**_common("V23P03C05ContentEvidenceReceiptV1"), **shared, "receiptID": "v23-p03-c05-attempt-2-static-receipt", "registrySHA256": sha256_bytes(canonical(registry_basis)), "fixtureSHA256": sha256_bytes(read(root, "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json")), "persistentSchemaVersion": PERSISTENT_SCHEMA_VERSION, "recordsSchemaVersion": RECORDS_SCHEMA_VERSION, "durableFamilyCount": DURABLE_FAMILY_COUNT, "durableFamilies": list(DURABLE_FAMILIES), "sourceArtifacts": [{"path": path, "byteCount": len(read(root, path)), "sha256": sha256_bytes(read(root, path))} for path in SOURCE_PATHS], "integrationSourcePathCount": len(INTEGRATION_SOURCE_PATHS), "integrationTestCount": len(INTEGRATION_TEST_METHODS), "integrationTestMethods": list(INTEGRATION_TEST_METHODS), "integrationEventKinds": list(INTEGRATION_EVENT_KINDS), "integrationOrderingBasis": INTEGRATION_EVENT_ORDERING_BASIS, "integrationLifecycle": INTEGRATION_EVENT_LIFECYCLE, "integrationReplayLimit": INTEGRATION_REPLAY_LIMIT, "result": "PASS", "verificationStatus": "PASS_STATIC_PROVISIONAL"}
+    receipt = {**_common("V23P03C05ContentEvidenceReceiptV1"), **shared, "receiptID": "v23-p03-c05-attempt-3-static-receipt", "registrySHA256": sha256_bytes(canonical(registry_basis)), "fixtureSHA256": sha256_bytes(read(root, "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json")), "persistentSchemaVersion": PERSISTENT_SCHEMA_VERSION, "recordsSchemaVersion": RECORDS_SCHEMA_VERSION, "durableFamilyCount": DURABLE_FAMILY_COUNT, "durableFamilies": list(DURABLE_FAMILIES), "sourceArtifacts": [{"path": path, "byteCount": len(read(root, path)), "sha256": sha256_bytes(read(root, path))} for path in SOURCE_PATHS], "integrationSourcePathCount": len(INTEGRATION_SOURCE_PATHS), "integrationTestCount": len(INTEGRATION_TEST_METHODS), "integrationTestMethods": list(INTEGRATION_TEST_METHODS), "integrationEventKinds": list(INTEGRATION_EVENT_KINDS), "integrationOrderingBasis": INTEGRATION_EVENT_ORDERING_BASIS, "integrationLifecycle": INTEGRATION_EVENT_LIFECYCLE, "integrationReplayLimit": INTEGRATION_REPLAY_LIMIT, "result": "PASS", "verificationStatus": "PASS_STATIC_PROVISIONAL"}
     return {CONTRACT_PATHS[0]: seal(reference), CONTRACT_PATHS[1]: seal(locator), CONTRACT_PATHS[2]: seal(association), CONTRACT_PATHS[3]: seal(provenance), CONTRACT_PATHS[4]: seal(receipt)}
 
 

@@ -121,8 +121,8 @@
         ],
         "type": "object"
       },
-      "maxItems": 73,
-      "minItems": 73,
+      "maxItems": 5,
+      "minItems": 5,
       "type": "array",
       "uniqueItems": true
     },
@@ -157,5 +157,11 @@
     "requiresAcceptedS10_6Reconciliation"
   ],
   "title": "ContentEvidenceReceiptV1",
-  "type": "object"
+  "type": "object",
+  "x-assetrounds-restoreSemantics": {
+    "cloneForkEmptyC05Metadata": "UNCHANGED",
+    "cloneForkNonemptyC05Metadata": "FAIL_CLOSED",
+    "recordsAtOrBelow41": "UNCHANGED",
+    "replace": "EXACT_C05_METADATA"
+  }
 }

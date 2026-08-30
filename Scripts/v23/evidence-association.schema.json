@@ -255,6 +255,12 @@
   ],
   "title": "EvidenceAssociationV1",
   "type": "object",
+  "x-assetrounds-restoreSemantics": {
+    "cloneForkEmptyC05Metadata": "UNCHANGED",
+    "cloneForkNonemptyC05Metadata": "FAIL_CLOSED",
+    "recordsAtOrBelow41": "UNCHANGED",
+    "replace": "EXACT_C05_METADATA"
+  },
   "x-assetrounds-runtimeSemanticConstraints": [
     "RESULTING_REVISION_EQUALS_EXPECTED_PLUS_ONE",
     "ACTION_REVISION_MATRIX",

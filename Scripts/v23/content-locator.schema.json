@@ -106,6 +106,12 @@
   ],
   "title": "ContentLocatorV1",
   "type": "object",
+  "x-assetrounds-restoreSemantics": {
+    "cloneForkEmptyC05Metadata": "UNCHANGED",
+    "cloneForkNonemptyC05Metadata": "FAIL_CLOSED",
+    "recordsAtOrBelow41": "UNCHANGED",
+    "replace": "EXACT_C05_METADATA"
+  },
   "x-assetrounds-runtimeSemanticConstraints": [
     "LOCATOR_REPLACEMENT_USES_EXPECTED_REVISION",
     "LOCATOR_RESOLUTION_IS_OWNED_STORE_ONLY",

@@ -62,17 +62,18 @@ enum C57MyDayRestoreIdentityBoundaryV1 {
 
 enum C05EvidenceMetadataRestoreDispositionV1: String, Codable, Equatable, Sendable {
     case preserveSameWorkspaceCanonicalHistory = "PRESERVE_SAME_WORKSPACE_CANONICAL_HISTORY"
-    case retainSourceBoundHistoricHistory = "RETAIN_SOURCE_BOUND_HISTORIC_HISTORY"
+    case rejectCloneForkWithoutRebind = "REJECT_CLONE_FORK_WITHOUT_REBIND"
 }
 
 enum C05EvidenceMetadataRestoreIdentityBoundaryV1 {
     static let derivativeContentUsesIncumbentContentLifecycle = true
     static let sourceRowsAutomaticallyActivateOnCloneOrFork = false
+    static let cloneForkWithoutRebindFailsClosed = true
 
     static func disposition(for mode: BackupRestoreMode) -> C05EvidenceMetadataRestoreDispositionV1 {
         switch mode {
         case .emptyInstall, .replaceExisting: return .preserveSameWorkspaceCanonicalHistory
-        case .clone, .fork: return .retainSourceBoundHistoricHistory
+        case .clone, .fork: return .rejectCloneForkWithoutRebind
         }
     }
 
@@ -81,21 +82,24 @@ enum C05EvidenceMetadataRestoreIdentityBoundaryV1 {
         legacyDestination: UUID
     ) -> UUID {
         guard let identity else { return legacyDestination }
-        switch disposition(for: identity.mode) {
-        case .preserveSameWorkspaceCanonicalHistory:
-            return identity.targetPointer.workspaceID
-        case .retainSourceBoundHistoricHistory:
-            return identity.source.workspaceID ?? identity.targetPointer.workspaceID
-        }
+        return identity.targetPointer.workspaceID
     }
 
     static func validate(_ records: V4BackupRecordsV1, identity: RestoreIdentityV1?) throws {
         guard derivativeContentUsesIncumbentContentLifecycle,
-              !sourceRowsAutomaticallyActivateOnCloneOrFork else {
+              !sourceRowsAutomaticallyActivateOnCloneOrFork,
+              cloneForkWithoutRebindFailsClosed else {
             throw RestoreIdentityDecisionErrorV1.invalidMode
         }
         try C05EvidenceMetadataBackupEnrollmentV1.validate(records)
         guard let identity else { return }
+        if identity.mode == .clone || identity.mode == .fork {
+            guard records.evidenceAssociationEvents.isEmpty,
+                  records.evidenceSequenceRevisions.isEmpty else {
+                throw RestoreIdentityDecisionErrorV1.invalidMode
+            }
+            return
+        }
         let expected = expectedWorkspaceID(identity: identity, legacyDestination: identity.targetPointer.workspaceID)
         guard records.evidenceAssociationEvents.allSatisfy({
             $0.workspaceID == expected.uuidString.lowercased()

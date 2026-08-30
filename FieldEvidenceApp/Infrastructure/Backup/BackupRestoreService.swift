@@ -2344,13 +2344,13 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion >= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion {
             do {
                 try C05EvidenceMetadataBackupEnrollmentV1.validate(records)
-                let workspaceID = C05EvidenceMetadataRestoreIdentityBoundaryV1.expectedWorkspaceID(
-                    identity: identityDecision,
-                    legacyDestination: legacyDestinationIdentity.workspaceID.rawValue
-                )
                 try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(
                     records,
                     identity: identityDecision
+                )
+                let workspaceID = C05EvidenceMetadataRestoreIdentityBoundaryV1.expectedWorkspaceID(
+                    identity: identityDecision,
+                    legacyDestination: legacyDestinationIdentity.workspaceID.rawValue
                 )
                 guard records.evidenceAssociationEvents.allSatisfy({
                     $0.workspaceID == workspaceID.uuidString.lowercased()

@@ -1552,7 +1552,7 @@ enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
 
 enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
     static let appendOnlyFamiliesAreUnionedOnReplacement = true
-    static let cloneForkRowsRemainSourceBoundHistoricEvidence = true
+    static let cloneForkWithoutRebindFailsClosed = true
     static let derivedContentUsesIncumbentContentLifecycle = true
 
     static func canonicalRows(
@@ -1563,7 +1563,7 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
         targetWorkspaceID: UUID?
     ) throws -> (associations: [EvidenceAssociationV1], sequences: [EvidenceSequenceV1]) {
         guard appendOnlyFamiliesAreUnionedOnReplacement,
-              cloneForkRowsRemainSourceBoundHistoricEvidence,
+              cloneForkWithoutRebindFailsClosed,
               derivedContentUsesIncumbentContentLifecycle else {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
@@ -1577,14 +1577,11 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
                 }
                 return (incoming.evidenceAssociationEvents, incoming.evidenceSequenceRevisions)
             case .clone, .fork:
-                guard let sourceWorkspaceID, let targetWorkspaceID,
-                      sourceWorkspaceID != targetWorkspaceID,
-                      incoming.evidenceAssociationEvents.allSatisfy({
-                        $0.workspaceID == sourceWorkspaceID.uuidString.lowercased()
-                      }), incoming.evidenceSequenceRevisions.allSatisfy({
-                        $0.workspaceID.rawValue == sourceWorkspaceID
-                      }) else { throw ReplacementRestoreRuleError.invalidAuthority }
-                return (incoming.evidenceAssociationEvents, incoming.evidenceSequenceRevisions)
+                guard incoming.evidenceAssociationEvents.isEmpty,
+                      incoming.evidenceSequenceRevisions.isEmpty else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                return ([], [])
             case .replaceExisting:
                 try C05EvidenceMetadataBackupEnrollmentV1.validate(current)
                 let associations = try merge(

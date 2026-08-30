@@ -426,19 +426,64 @@ extension S6_5ReplacementUnionTests {
             c05Records(sequences: union.sequences)
         )
 
-        let clone = try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(
-            current: c05Records(),
-            incoming: incoming,
-            mode: .clone,
-            sourceWorkspaceID: sourceWorkspace.rawValue,
-            targetWorkspaceID: targetWorkspace.rawValue
-        )
-        XCTAssertEqual(clone.sequences, [first, second])
+        for mode in [BackupRestoreMode.clone, .fork] {
+            XCTAssertThrowsError(try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(
+                current: c05Records(),
+                incoming: incoming,
+                mode: mode,
+                sourceWorkspaceID: sourceWorkspace.rawValue,
+                targetWorkspaceID: targetWorkspace.rawValue
+            )) { error in
+                XCTAssertEqual(error as? ReplacementRestoreRuleError, .invalidAuthority)
+            }
+            let empty = try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(
+                current: c05Records(),
+                incoming: c05Records(),
+                mode: mode,
+                sourceWorkspaceID: sourceWorkspace.rawValue,
+                targetWorkspaceID: targetWorkspace.rawValue
+            )
+            XCTAssertEqual(empty.associations, [])
+            XCTAssertEqual(empty.sequences, [])
+        }
         XCTAssertEqual(
             C05EvidenceMetadataRestoreIdentityBoundaryV1.disposition(for: .clone),
-            .retainSourceBoundHistoricHistory
+            .rejectCloneForkWithoutRebind
         )
         XCTAssertFalse(C05EvidenceMetadataRestoreIdentityBoundaryV1.sourceRowsAutomaticallyActivateOnCloneOrFork)
+        XCTAssertTrue(C05EvidenceMetadataRestoreIdentityBoundaryV1.cloneForkWithoutRebindFailsClosed)
+
+        let sourcePointer = RestorePointerIdentityV1(
+            generationID: uuid(508),
+            generationManifestSHA256: String(repeating: "a", count: 64),
+            workspaceID: sourceWorkspace.rawValue,
+            replicaID: uuid(509)
+        )
+        let targetPointer = RestorePointerIdentityV1(
+            generationID: uuid(510),
+            generationManifestSHA256: String(repeating: "b", count: 64),
+            workspaceID: targetWorkspace.rawValue,
+            replicaID: uuid(511)
+        )
+        for mode in [BackupRestoreMode.clone, .fork] {
+            let identity = RestoreIdentityV1(
+                mode: mode,
+                source: .init(workspaceID: sourceWorkspace.rawValue, replicaID: sourcePointer.replicaID),
+                oldPointer: sourcePointer,
+                targetPointer: targetPointer,
+                recordIdentityDisposition: .preserve
+            )
+            XCTAssertThrowsError(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(
+                incoming,
+                identity: identity
+            )) { error in
+                XCTAssertEqual(error as? RestoreIdentityDecisionErrorV1, .invalidMode)
+            }
+            XCTAssertNoThrow(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(
+                c05Records(),
+                identity: identity
+            ))
+        }
 
         let orphan = c05Records(sequences: [second])
         XCTAssertThrowsError(try C05EvidenceMetadataReplacementRestoreBoundaryV1.canonicalRows(

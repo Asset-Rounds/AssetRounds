@@ -224,6 +224,12 @@
   ],
   "title": "ContentReferenceV1",
   "type": "object",
+  "x-assetrounds-restoreSemantics": {
+    "cloneForkEmptyC05Metadata": "UNCHANGED",
+    "cloneForkNonemptyC05Metadata": "FAIL_CLOSED",
+    "recordsAtOrBelow41": "UNCHANGED",
+    "replace": "EXACT_C05_METADATA"
+  },
   "x-assetrounds-runtimeSemanticConstraints": [
     "WORKSPACE_AND_CONTENT_ID_STABLE",
     "IMMUTABLE_ORIGINAL_BYTES_NEVER_REWRITTEN",

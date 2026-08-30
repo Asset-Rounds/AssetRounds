@@ -136,6 +136,12 @@
   ],
   "title": "ContentManifestV1",
   "type": "object",
+  "x-assetrounds-restoreSemantics": {
+    "cloneForkEmptyC05Metadata": "UNCHANGED",
+    "cloneForkNonemptyC05Metadata": "FAIL_CLOSED",
+    "recordsAtOrBelow41": "UNCHANGED",
+    "replace": "EXACT_C05_METADATA"
+  },
   "x-assetrounds-runtimeSemanticConstraints": [
     "ENTRIES_SORTED_BY_CONTENT_ID",
     "CONTENT_ID_UNIQUE",

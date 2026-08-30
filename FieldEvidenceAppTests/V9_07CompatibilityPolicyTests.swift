@@ -716,16 +716,46 @@ extension V9_07CompatibilityPolicyTests {
         let records42 = emptyRecords(C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
         XCTAssertNoThrow(try C05EvidenceMetadataBackupEnrollmentV1.validate(records42))
         XCTAssertNoThrow(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(records42, identity: nil))
+        let sourcePointer = RestorePointerIdentityV1(
+            generationID: UUID(),
+            generationManifestSHA256: String(repeating: "a", count: 64),
+            workspaceID: UUID(),
+            replicaID: UUID()
+        )
+        let targetPointer = RestorePointerIdentityV1(
+            generationID: UUID(),
+            generationManifestSHA256: String(repeating: "b", count: 64),
+            workspaceID: UUID(),
+            replicaID: UUID()
+        )
+        for mode in [BackupRestoreMode.clone, .fork] {
+            let identity = RestoreIdentityV1(
+                mode: mode,
+                source: .init(workspaceID: sourcePointer.workspaceID, replicaID: sourcePointer.replicaID),
+                oldPointer: sourcePointer,
+                targetPointer: targetPointer,
+                recordIdentityDisposition: .preserve
+            )
+            XCTAssertNoThrow(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(
+                records41,
+                identity: identity
+            ))
+            XCTAssertNoThrow(try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(
+                records42,
+                identity: identity
+            ))
+        }
         XCTAssertEqual(
             C05EvidenceMetadataRestoreIdentityBoundaryV1.disposition(for: .replaceExisting),
             .preserveSameWorkspaceCanonicalHistory
         )
         XCTAssertEqual(
             C05EvidenceMetadataRestoreIdentityBoundaryV1.disposition(for: .fork),
-            .retainSourceBoundHistoricHistory
+            .rejectCloneForkWithoutRebind
         )
         XCTAssertTrue(C05EvidenceMetadataRestoreIdentityBoundaryV1.derivativeContentUsesIncumbentContentLifecycle)
         XCTAssertFalse(C05EvidenceMetadataRestoreIdentityBoundaryV1.sourceRowsAutomaticallyActivateOnCloneOrFork)
+        XCTAssertTrue(C05EvidenceMetadataRestoreIdentityBoundaryV1.cloneForkWithoutRebindFailsClosed)
 
         let future = emptyRecords(C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion + 1)
         XCTAssertThrowsError(try C05EvidenceMetadataBackupEnrollmentV1.validate(future)) { error in
