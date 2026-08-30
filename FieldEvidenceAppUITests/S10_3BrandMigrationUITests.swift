@@ -9841,6 +9841,49 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     usesProvenAXTextZeroIssueComposition = true
                     break
                 }
+                if let shard = automationShard,
+                   shard.shardID == "s10.4.current.ax-text",
+                   automationSegment == .none {
+                    let stateID = "state.diagnostics.ready"
+                    let expectedMigratedStateIDs = Array(
+                        Self.segmentedRouteStateIDs.prefix(60)
+                    )
+                    let expectedContrastExceptionStateIDs = [
+                        "state.check-preflight.ready",
+                        "state.issue.open",
+                        "state.issue.recheck-due",
+                        "state.issue.resolved",
+                        "state.new-sign.editing",
+                        "state.paywall.purchase-complete",
+                        "state.recheck-capture.wide-ready",
+                        "state.recheck-preflight.ready",
+                        "state.report-correction.validation-error",
+                        "state.report-history.ready",
+                        "state.reports-index.ready",
+                        "state.work.validation-error",
+                    ]
+                    guard automationSegment.replayCount == 0,
+                          automationSegment.ownedStartOrdinal == 1,
+                          automationSegment.ownedCount == 67,
+                          automationSegment.finalOrdinal == 67,
+                          Self.segmentedRouteStateIDs.count == 67,
+                          Set(Self.segmentedRouteStateIDs).count == 67,
+                          Self.segmentedRouteStateIDs[60] == stateID,
+                          segmentedRouteStateCursor == 0,
+                          migratedStateIDs == expectedMigratedStateIDs,
+                          automationAXTreeDigests.keys.sorted()
+                            == expectedMigratedStateIDs.sorted(),
+                          automationContrastExceptions.keys.sorted()
+                            == expectedContrastExceptionStateIDs,
+                          !automatedSegmentFinished,
+                          app.state == .runningForeground else {
+                        throw AutomationConfigurationError.invalid(
+                            "S10.4 AX-text full-route diagnostics-ready zero-issue composition gate is invalid"
+                        )
+                    }
+                    usesProvenAXTextZeroIssueComposition = true
+                    break
+                }
                 XCTFail("Diagnostics positioning interval is impossible.")
                 return
             }

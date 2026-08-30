@@ -12239,7 +12239,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("XCUIScreen.main.screenshot()", 0),
             ("XCTAttachment(string: app.debugDescription)", 0),
             (".lifetime = .keepAlways", 0),
-            ("throw AutomationConfigurationError.invalid(", 1),
+            ("throw AutomationConfigurationError.invalid(", 2),
             ("S10.4 increased-contrast Diagnostics positioning diagnostic", 0),
         ] {
             XCTAssertEqual(
@@ -12407,10 +12407,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     ..< diagnosticsReadyZeroIssueGateEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(diagnosticsReadyZeroIssueGateSource.utf8.count, 1_820)
+        XCTAssertEqual(diagnosticsReadyZeroIssueGateSource.utf8.count, 4_232)
         XCTAssertEqual(
             Data(diagnosticsReadyZeroIssueGateSource.utf8).sha256,
-            "05459D3CF033A229418B708E310A16638B0971248415EC69AF2838DD7535B8AE"
+            "0F6726AFD71E5F49DF415B8F73F6AA2C48B2A3D763CCB6480224A6C8B45F411C"
         )
         for exact in [
             #"shard.shardID == "s10.4.current.ax-text""#,
@@ -12431,6 +12431,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"app.state == .runningForeground"#,
             #"usesProvenAXTextZeroIssueComposition = true"#,
             #"S10.4 AX-text diagnostics-ready zero-issue composition gate is invalid"#,
+            #"automationSegment == .none"#,
+            #"Self.segmentedRouteStateIDs.prefix(60)"#,
+            #"automationSegment.replayCount == 0"#,
+            #"automationSegment.ownedStartOrdinal == 1"#,
+            #"automationSegment.ownedCount == 67"#,
+            #"segmentedRouteStateCursor == 0"#,
+            #""state.check-preflight.ready""#,
+            #""state.issue.open""#,
+            #""state.issue.recheck-due""#,
+            #""state.issue.resolved""#,
+            #""state.new-sign.editing""#,
+            #""state.paywall.purchase-complete""#,
+            #""state.recheck-capture.wide-ready""#,
+            #""state.recheck-preflight.ready""#,
+            #""state.report-correction.validation-error""#,
+            #""state.report-history.ready""#,
+            #""state.reports-index.ready""#,
+            #""state.work.validation-error""#,
+            #"S10.4 AX-text full-route diagnostics-ready zero-issue composition gate is invalid"#,
         ] {
             XCTAssertTrue(
                 diagnosticsReadyZeroIssueGateSource.contains(exact),
@@ -12444,6 +12463,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for orderedToken in [
             #"shard.shardID == "s10.4.current.ax-text""#,
             #"segmentedRouteStateCursor == 60"#,
+            #"usesProvenAXTextZeroIssueComposition = true"#,
+            "break",
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .none"#,
+            #"Self.segmentedRouteStateIDs.prefix(60)"#,
+            #"segmentedRouteStateCursor == 0"#,
             #"usesProvenAXTextZeroIssueComposition = true"#,
             "break",
         ] {
@@ -20850,10 +20875,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 783_343)
+        XCTAssertEqual(uiSource.utf8.count, 785_755)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "DEB822763121F5396A074073F083EB6ECECD1673F6609BFBBEB48AACA00DFD8E"
+            "CB0A813CB16B7D6498DDE0CEAC110DA1E21D45A8862A02AE8CC0A45E1946948E"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
