@@ -4844,11 +4844,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             in: app
         )
 
+        let workHelperLabel = "Add one optional photo showing the work performed."
         let importPhoto = element("s5.1.work.import-fixture", in: app)
         scroll(importPhoto, in: app)
         assertControl(
             importPhoto,
-            label: "Add one optional photo showing the work performed."
+            label: workHelperLabel
         )
         importPhoto.tap()
         let workPreview = element("s5.1.work.photo", in: app)
@@ -4858,9 +4859,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             for: "state.work.editing",
             in: app
         )
-        let workHelperLabel = "Add one optional photo showing the work performed."
+        let observedWorkHelperLabel = workPreview.label
         let workHelperTexts = app.staticTexts.matching(
-            NSPredicate(format: "label == %@", workHelperLabel)
+            NSPredicate(format: "label == %@", observedWorkHelperLabel)
         )
         let minimumOSWorkHelperDuplicateExpected =
             automationShard?.deviceProfileID
@@ -4915,10 +4916,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let nestedLabelFrame = minimumOSWorkImportFixtureLabel.frame
             return importPhoto.elementType == .button
                 && importPhoto.identifier == "s5.1.work.import-fixture"
-                && importPhoto.label == workHelperLabel
+                && importPhoto.label == observedWorkHelperLabel
                 && minimumOSWorkImportFixtureLabel.elementType == .staticText
                 && minimumOSWorkImportFixtureLabel.identifier.isEmpty
-                && minimumOSWorkImportFixtureLabel.label == workHelperLabel
+                && minimumOSWorkImportFixtureLabel.label == observedWorkHelperLabel
                 && (minimumOSWorkImportFixtureLabel.value as? String) == ""
                 && workEditingFrameIsValid(helperFrame)
                 && workEditingFrameIsValid(importFixtureFrame)
@@ -4941,11 +4942,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && workEditingTabBar.exists
                 && workHelper.elementType == .staticText
                 && workHelper.identifier.isEmpty
-                && workHelper.label == workHelperLabel
+                && workHelper.label == observedWorkHelperLabel
                 && (workHelper.value as? String) == ""
                 && workPreviewImage.elementType == .image
                 && workPreviewImage.identifier == "s5.1.work.photo"
-                && workPreviewImage.label == workHelperLabel
+                && workPreviewImage.label == observedWorkHelperLabel
                 && (workPreviewImage.value as? String) == ""
                 && workScrollView.elementType == .scrollView
                 && workScrollView.identifier == "s5.1.work.screen"
@@ -5309,7 +5310,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             return workHelper.elementType == .staticText
                 && workHelper.identifier.isEmpty
-                && workHelper.label == workHelperLabel
+                && workHelper.label == observedWorkHelperLabel
                 && (workHelper.value as? String) == ""
                 && workEditingFrameIsValid(workHelper.frame)
         }
@@ -5326,7 +5327,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && workImportFixtureButton?.elementType == .button
                     && workImportFixtureButton?.identifier
                         == "s5.1.work.import-fixture"
-                    && workImportFixtureButton?.label == workHelperLabel
+                    && workImportFixtureButton?.label == observedWorkHelperLabel
                     && (workImportFixtureButton?.value as? String) == ""
                     && workImportFixtureButton?.isEnabled == false
                     && workEditingAXTextFallbackAccepted
@@ -5383,7 +5384,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     || (workImportFixtureButton?.elementType == .button
                         && workImportFixtureButton?.identifier
                             == "s5.1.work.import-fixture"
-                        && workImportFixtureButton?.label == workHelperLabel
+                        && workImportFixtureButton?.label == observedWorkHelperLabel
                         && (workImportFixtureButton?.value as? String) == ""
                         && workImportFixtureButton?.isEnabled == false)),
                   progress.exists else {
@@ -5628,7 +5629,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     || (workImportFixtureButton?.elementType == .button
                         && workImportFixtureButton?.identifier
                             == "s5.1.work.import-fixture"
-                        && workImportFixtureButton?.label == workHelperLabel
+                        && workImportFixtureButton?.label == observedWorkHelperLabel
                         && (workImportFixtureButton?.value as? String) == ""
                         && workImportFixtureButton?.isEnabled == false)),
                   progress.exists else {
@@ -5760,7 +5761,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && workImportFixtureButton?.elementType == .button
                 && workImportFixtureButton?.identifier
                     == "s5.1.work.import-fixture"
-                && workImportFixtureButton?.label == workHelperLabel
+                && workImportFixtureButton?.label == observedWorkHelperLabel
                 && (workImportFixtureButton?.value as? String) == ""
                 && workImportFixtureButton?.isEnabled == false
                 && workImportFixtureButton?.isHittable == true

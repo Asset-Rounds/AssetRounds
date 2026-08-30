@@ -8377,10 +8377,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workEditingPositioningSource.utf8.count, 19_790)
+        XCTAssertEqual(workEditingPositioningSource.utf8.count, 19_803)
         XCTAssertEqual(
             Data(workEditingPositioningSource.utf8).sha256,
-            "3A4EEEACC60CC7C7886A9D1044AF2ED5165099FFF0D18162F425B64999FB431E"
+            "0E05EB39D69FE3342CEF60B2514346543F32560ED4CB6C6875CC9744D06F56A4"
         )
         let workEditingRouteBeforeEvidence =
             #"        let workPreview = element("s5.1.work.photo", in: app)"# + "\n" +
@@ -8391,6 +8391,24 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: workEditingRouteBeforeEvidence).count - 1,
             1
         )
+        for (workEditingLocalizedLabelBinding, count) in [
+            (
+                #"let workHelperLabel = "Add one optional photo showing the work performed.""#,
+                1
+            ),
+            ("label: workHelperLabel", 1),
+            ("let observedWorkHelperLabel = workPreview.label", 1),
+            (#"NSPredicate(format: "label == %@", observedWorkHelperLabel)"#, 1),
+            (#"NSPredicate(format: "label == %@", workHelperLabel)"#, 0),
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: workEditingLocalizedLabelBinding
+                ).count - 1,
+                count,
+                workEditingLocalizedLabelBinding
+            )
+        }
         for workEditingDiagnosticResidue in [
             "workEditingDiagnostic",
             "emitWorkEditingPositioningDiagnostic",
@@ -8420,7 +8438,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            for: "state.work.editing","# + "\n" +
                 "            in: app\n" +
                 "        )\n" +
-                "        let workHelperLabel = \"Add one optional photo showing the work performed.\""
+                "        let observedWorkHelperLabel = workPreview.label"
         XCTAssertEqual(
             workEditingPositioningSource.components(
                 separatedBy: workEditingAXTextGate
@@ -8449,7 +8467,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let workEditingPassiveBindings =
             "        let workHelperTexts = app.staticTexts.matching(\n" +
-                #"            NSPredicate(format: "label == %@", workHelperLabel)"# + "\n" +
+                #"            NSPredicate(format: "label == %@", observedWorkHelperLabel)"# + "\n" +
                 "        )\n" +
                 "        let minimumOSWorkHelperDuplicateExpected =\n" +
                 "            automationShard?.deviceProfileID\n" +
@@ -8501,10 +8519,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            let nestedLabelFrame = minimumOSWorkImportFixtureLabel.frame\n" +
                 "            return importPhoto.elementType == .button\n" +
                 #"                && importPhoto.identifier == "s5.1.work.import-fixture""# + "\n" +
-                "                && importPhoto.label == workHelperLabel\n" +
+                "                && importPhoto.label == observedWorkHelperLabel\n" +
                 "                && minimumOSWorkImportFixtureLabel.elementType == .staticText\n" +
                 "                && minimumOSWorkImportFixtureLabel.identifier.isEmpty\n" +
-                "                && minimumOSWorkImportFixtureLabel.label == workHelperLabel\n" +
+                "                && minimumOSWorkImportFixtureLabel.label == observedWorkHelperLabel\n" +
                 #"                && (minimumOSWorkImportFixtureLabel.value as? String) == """# + "\n" +
                 "                && workEditingFrameIsValid(helperFrame)\n" +
                 "                && workEditingFrameIsValid(importFixtureFrame)\n" +
@@ -8548,11 +8566,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("app.state == .runningForeground", 3),
             ("workHelper.elementType == .staticText", 1),
             ("workHelper.identifier.isEmpty", 1),
-            ("workHelper.label == workHelperLabel", 1),
+            ("workHelper.label == observedWorkHelperLabel", 1),
             (#"(workHelper.value as? String) == """#, 1),
             ("workPreviewImage.elementType == .image", 1),
             (#"workPreviewImage.identifier == "s5.1.work.photo""#, 1),
-            ("workPreviewImage.label == workHelperLabel", 1),
+            ("workPreviewImage.label == observedWorkHelperLabel", 1),
             (#"(workPreviewImage.value as? String) == """#, 1),
             ("workScrollView.elementType == .scrollView", 1),
             (#"workScrollView.identifier == "s5.1.work.screen""#, 1),
@@ -9104,10 +9122,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workSavingPositioningSource.utf8.count, 25_606)
+        XCTAssertEqual(workSavingPositioningSource.utf8.count, 25_646)
         XCTAssertEqual(
             Data(workSavingPositioningSource.utf8).sha256,
-            "17FABCB43899C656FF72A9378AB8F1ABF41FFEB0978C42D231AB2D9DC854538D"
+            "99E15DC67C1C4ABDE1266E1FE23848AB0E8D196C360283AA11F94BC752D72CB2"
         )
         let workSavingRouteBeforeEvidence =
             "        scroll(saveWork, in: app)\n" +
@@ -9176,7 +9194,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            }\n" +
                 "            return workHelper.elementType == .staticText\n" +
                 "                && workHelper.identifier.isEmpty\n" +
-                "                && workHelper.label == workHelperLabel\n" +
+                "                && workHelper.label == observedWorkHelperLabel\n" +
                 #"                && (workHelper.value as? String) == """# + "\n" +
                 "                && workEditingFrameIsValid(workHelper.frame)\n" +
                 "        }"
@@ -9190,7 +9208,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                    && workImportFixtureButton?.elementType == .button\n" +
                 "                    && workImportFixtureButton?.identifier\n" +
                 #"                        == "s5.1.work.import-fixture""# + "\n" +
-                "                    && workImportFixtureButton?.label == workHelperLabel\n" +
+                "                    && workImportFixtureButton?.label == observedWorkHelperLabel\n" +
                 #"                    && (workImportFixtureButton?.value as? String) == """# + "\n" +
                 "                    && workImportFixtureButton?.isEnabled == false"
         XCTAssertEqual(
@@ -9419,7 +9437,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("workImportFixtureButton?.exists == true", 4),
             ("workImportFixtureButton?.elementType == .button", 4),
             ("workImportFixtureButton?.identifier", 4),
-            ("workImportFixtureButton?.label == workHelperLabel", 4),
+            ("workImportFixtureButton?.label == observedWorkHelperLabel", 4),
             (#"(workImportFixtureButton?.value as? String) == """#, 4),
             ("workImportFixtureButton?.isEnabled == false", 4),
             ("workEditingComposition()", 2),
@@ -20798,10 +20816,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 781_252)
+        XCTAssertEqual(uiSource.utf8.count, 781_351)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "4E920767BA306F638EF1A01FD6480A288A870DC323FAE053D1DA19D96222D99A"
+            "523BDD0DD3C6F440F488ACCDB2D1BDFC59AE5F366BA89260AF2A434D71E7FF12"
         )
         let assertControlSource = try boundedSource(
             uiSource,
