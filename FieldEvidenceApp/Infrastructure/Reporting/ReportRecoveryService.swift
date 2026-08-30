@@ -1000,6 +1000,31 @@ enum ScheduleReportRecoveryPolicyV1 {
     }
 }
 
+enum AdvancedScheduleReportRecoveryPolicyV1 {
+    static let rebuildSource = "FROZEN_SCHEDULE_CALENDAR_OVERRIDE_AND_OCCURRENCE_LINEAGE"
+    static let derivedProjectionIsDropAndRebuild = true
+    static let finalizedHistoryIsNotRewritten = true
+    static func validateRecovered(_ value: AdvancedScheduleReportProjectionV1) throws
+        -> AdvancedScheduleReportProjectionV1 {
+        guard derivedProjectionIsDropAndRebuild, finalizedHistoryIsNotRewritten else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        return try AdvancedScheduleReportProjectionPolicyV1.validate(value)
+    }
+
+    static func rebuild(frontier: ScheduleChangeFrontierV1,
+                        occurrenceInputs: [ScheduleChangeOccurrenceInputV1],
+                        overrideEvents: [ScheduleOverrideEventV1],
+                        preview: ScheduleChangePreviewV1? = nil,
+                        receipt: ScheduleChangeReceiptV1? = nil) throws
+        -> AdvancedScheduleReportProjectionV1 {
+        let value = try AdvancedScheduleReportProjectionV1(
+            frontier: frontier, occurrenceInputs: occurrenceInputs,
+            overrideEvents: overrideEvents, preview: preview, receipt: receipt)
+        return try validateRecovered(value)
+    }
+}
+
 // MARK: - C29 plan/rebase recovery boundary
 
 enum PlanReportRecoveryPolicyV1 {

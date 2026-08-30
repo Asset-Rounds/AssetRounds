@@ -103,10 +103,12 @@ enum AccessibleDocumentEraseIntentStorePolicyV1{static func validate()throws{gua
 enum SurveyDefinitionEraseIntentStorePolicyV1{static func validate()throws{guard SurveyDefinitionEraseBoundaryV1.atomicFamilyCount==2,SurveyDefinitionEraseBoundaryV1.lifecycleEventsAreMutationHistoryOnly,SurveyDefinitionEraseBoundaryV1.workspaceEraseClearsIdentityAndReleaseRows,SurveyDefinitionEraseBoundaryV1.quarantinedImportsAreNoncanonical else{throw EraseIntentStoreError.invalidAuthority}}}
 enum ScheduleEraseIntentStorePolicyV1 {
     static func validate() throws {
-        guard ScheduleEraseBoundaryV1.atomicFamilyCount == 2,
+        guard ScheduleEraseBoundaryV1.atomicFamilyCount == 4,
+              ScheduleEraseBoundaryV1.embeddedClosureComponentCount == 6,
               ScheduleEraseBoundaryV1.lifecycleHistoryIsMutationJournalBacked,
               ScheduleEraseBoundaryV1.ordinaryDeletionPreservesReleaseAndOccurrenceHistory,
               ScheduleEraseBoundaryV1.workspaceEraseClearsEntireLifecycleClosure,
+              ScheduleEraseBoundaryV1.erasePublishesNoPartialCalendarOverrideOrBasisClosure,
               ScheduleEraseBoundaryV1.dueAndReminderProjectionsAreNonpersistent,
               !ScheduleEraseBoundaryV1.notificationStateIsTruth else {
             throw EraseIntentStoreError.invalidAuthority

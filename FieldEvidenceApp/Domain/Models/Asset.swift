@@ -3,6 +3,12 @@ enum EvidenceContextAssetBoundaryV1{static let evidenceContextsReferenceAssetIde
 enum PlacementPoseAssetPersistenceBoundaryV1{static let assetIdentityIsReferenced=true;static let poseHistoryIsStoredSeparately=true}
 
 enum AssetScheduleOwnershipBoundaryV1 { static let assetRowsStoreScheduleState = false }
+
+enum C51AssetScheduleBoundaryV1 {
+    static let assetRowsCarryScheduleClosure = false
+    static let assetIdentityIsOccurrenceIdentity = false
+    static let canonicalAssetWriterRemainsUnchanged = true
+}
 import SwiftData
 
 enum PlanAssetIdentityBindingV1 { static let assetIdentityIsReferencedNotCopied = true; static let planSchemaVersion = 28 }

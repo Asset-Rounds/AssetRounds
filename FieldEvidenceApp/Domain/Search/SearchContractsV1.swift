@@ -3005,6 +3005,121 @@ enum ScheduleOccurrenceSearchProjectionPolicyV1 {
     }
 }
 
+// MARK: - C51 advanced schedule derived search projection
+
+enum AdvancedScheduleOccurrenceSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case occurrenceID = "advanced_schedule_occurrence_id"
+    case occurrenceState = "advanced_schedule_occurrence_state"
+    case nominalDate = "advanced_schedule_nominal_date"
+    case effectiveDate = "advanced_schedule_effective_date"
+    case adjustmentReason = "advanced_schedule_adjustment_reason"
+    case precedenceLevel = "advanced_schedule_precedence_level"
+    case overrideScope = "advanced_schedule_override_scope"
+    case overrideKind = "advanced_schedule_override_kind"
+    case localTimeDisposition = "advanced_schedule_local_time_disposition"
+    case historyImmutable = "advanced_schedule_history_immutable"
+    case requiresManualResolution = "advanced_schedule_requires_manual_resolution"
+    case calendarReleaseSHA256 = "advanced_schedule_calendar_release_sha256"
+    case basisSHA256 = "advanced_schedule_basis_sha256"
+}
+
+struct AdvancedScheduleOccurrenceSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let occurrenceID: OccurrenceIDV1
+    let occurrenceState: OccurrenceStateV1
+    let nominalDate: String
+    let effectiveDate: String?
+    let adjustmentReason: ScheduleBasisAdjustmentReasonV1
+    let precedenceLevel: ScheduleOverridePrecedenceLevelV1
+    let overrideScope: ScheduleOverrideScopeV1?
+    let overrideKind: ScheduleOccurrenceOverrideKindV1?
+    let localTimeDisposition: LocalTimeDispositionV1
+    let historyImmutable: Bool
+    let requiresManualResolution: Bool
+    let calendarReleaseSHA256: String
+    let basisSHA256: String
+    let normalizedTokens: [String]
+
+    init(projection: AdvancedScheduleReportProjectionV1,
+         occurrence: AdvancedScheduleOccurrenceReportProjectionV1) throws {
+        try projection.validate(); try occurrence.validate()
+        guard projection.occurrences.contains(occurrence),
+              occurrence.basis.calendarRelease == projection.calendarRelease else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        schemaVersion = Self.schemaVersion; occurrenceID = occurrence.occurrenceID
+        occurrenceState = occurrence.state; nominalDate = occurrence.basis.nominalDate.canonicalString
+        effectiveDate = occurrence.basis.effectiveDate?.canonicalString
+        adjustmentReason = occurrence.basis.adjustmentReason
+        precedenceLevel = occurrence.precedenceLevel; overrideScope = occurrence.overrideScope
+        overrideKind = occurrence.overrideKind; localTimeDisposition = occurrence.basis.localTimeDisposition
+        historyImmutable = occurrence.historyImmutable
+        requiresManualResolution = occurrence.requiresManualResolution
+        calendarReleaseSHA256 = occurrence.basis.calendarRelease.releaseSHA256
+        basisSHA256 = occurrence.basis.basisSHA256
+        normalizedTokens = Self.tokens(occurrenceID.rawValue, occurrenceState.rawValue,
+            nominalDate, effectiveDate ?? "none", adjustmentReason.rawValue,
+            String(precedenceLevel.rawValue), overrideScope?.rawValue ?? "none",
+            overrideKind?.rawValue ?? "none", localTimeDisposition.rawValue,
+            historyImmutable ? "immutable" : "mutable",
+            requiresManualResolution ? "manual" : "resolved")
+        try validate()
+    }
+
+    var projectionIdentity: String { "advanced-schedule-occurrence:\(occurrenceID.rawValue):\(basisSHA256)" }
+    var boundedFieldValues: [AdvancedScheduleOccurrenceSearchFieldV1: String] { [
+        .occurrenceID: occurrenceID.rawValue, .occurrenceState: occurrenceState.rawValue,
+        .nominalDate: nominalDate, .effectiveDate: effectiveDate ?? "none",
+        .adjustmentReason: adjustmentReason.rawValue,
+        .precedenceLevel: String(precedenceLevel.rawValue),
+        .overrideScope: overrideScope?.rawValue ?? "none",
+        .overrideKind: overrideKind?.rawValue ?? "none",
+        .localTimeDisposition: localTimeDisposition.rawValue,
+        .historyImmutable: historyImmutable ? "true" : "false",
+        .requiresManualResolution: requiresManualResolution ? "true" : "false",
+        .calendarReleaseSHA256: calendarReleaseSHA256, .basisSHA256: basisSHA256,
+    ] }
+
+    func validate() throws {
+        try occurrenceID.validate(); try ScheduleLimitsV1.digest(calendarReleaseSHA256)
+        try ScheduleLimitsV1.digest(basisSHA256)
+        guard schemaVersion == Self.schemaVersion,
+              (try? ScheduleLocalDateV1(nominalDate)) != nil,
+              effectiveDate.map({ (try? ScheduleLocalDateV1($0)) != nil }) ?? true,
+              requiresManualResolution == (adjustmentReason == .manualResolution),
+              boundedFieldValues.count == AdvancedScheduleOccurrenceSearchFieldV1.allCases.count,
+              normalizedTokens == normalizedTokens.sorted(),
+              normalizedTokens.count <= SearchContractLimitsV1.maximumQueryTokens,
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    private static func tokens(_ values: String...) -> [String] {
+        Array(Set(values.flatMap { SearchContractValidationV1.normalizeSearchText($0)
+            .split { !CharacterSet.alphanumerics.contains($0) }.map(String.init) })).sorted()
+    }
+}
+
+enum AdvancedScheduleOccurrenceSearchProjectionPolicyV1 {
+    static let semanticLabel = "ADVANCED_SCHEDULE_OCCURRENCE_METADATA_V1"
+    static let fieldIDs = AdvancedScheduleOccurrenceSearchFieldV1.allCases.map(\.rawValue).sorted()
+    static let derivedOnly = true
+    static let dropAndRebuildFromFrozenTruth = true
+    static let excludesFreeText = true
+    static let excludesActorIdentity = true
+    static let excludesWorkIdentity = true
+    static let excludesNotificationPayload = true
+    static let excludesCalendarBytes = true
+    static func validate(_ value: AdvancedScheduleOccurrenceSearchRecordV1) throws {
+        guard derivedOnly, dropAndRebuildFromFrozenTruth, excludesFreeText,
+              excludesActorIdentity, excludesWorkIdentity, excludesNotificationPayload,
+              excludesCalendarBytes else { throw SearchContractFailureV1.forbiddenField }
+        try value.validate()
+    }
+}
+
 // MARK: - C29 versioned plan placement search projection
 
 /// Search receives only bounded plan identity, normalized placement values,

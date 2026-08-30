@@ -1380,6 +1380,21 @@ extension ReportRenderService {
     }
 }
 
+extension ReportRenderService {
+    static func renderAdvancedScheduleOpenJSON(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> ReportProjectionOutputV1 {
+        try AdvancedScheduleReportProjectionPolicyV1.validate(projection)
+        return try DeterministicOpenJSONRendererV1.renderAdvancedSchedule(projection)
+    }
+
+    static func advancedSchedulePDFMetadataLines(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> [String] {
+        try DeterministicPDFRendererV1.advancedScheduleTextLines(projection)
+    }
+}
+
 enum C48PortableReviewReportRenderBoundaryV1 {
     static let existingReportRenderServiceIsSoleRoute = true
     static let rendersDerivedMetadataOnly = true

@@ -17,6 +17,17 @@ private final class C50LocalSearchTests: XCTestCase {
     }
 }
 
+private final class C51V919LocalSearchAnchorTests: XCTestCase {
+    func testV23P03C51AdvancedScheduleSearchIsDerivedAndRebuildable() throws {
+        let policy = AdvancedScheduleOccurrenceSearchPersistencePolicyV1()
+        try policy.validate()
+        XCTAssertTrue(AdvancedScheduleOccurrenceSearchProjectionPolicyV1.derivedOnly)
+        XCTAssertTrue(AdvancedScheduleOccurrenceSearchProjectionPolicyV1.dropAndRebuildFromFrozenTruth)
+        XCTAssertTrue(AdvancedScheduleOccurrenceSearchProjectionPolicyV1.excludesFreeText)
+        XCTAssertTrue(SearchIndexRebuildCoordinatorV1.advancedScheduleRebuildParityRequired)
+    }
+}
+
 private final class C45LocalSearchCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityIndexesAcceptedSnapshotTruthNotScratchArtifacts() {
         XCTAssertTrue(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AcceptedLabelGenerationSnapshotRow"))

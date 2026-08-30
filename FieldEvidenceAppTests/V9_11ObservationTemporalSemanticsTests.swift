@@ -12,6 +12,15 @@ private final class C45TemporalSemanticsCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51V911TemporalSemanticsAnchorTests: XCTestCase {
+    func testV23P03C51FrozenScheduleTimeNeverRebindsToDeviceWallClock() {
+        XCTAssertFalse(ScheduleDeviceClockBoundaryV1.wallClockRollbackMutatesOccurrenceHistory)
+        XCTAssertFalse(ScheduleDeviceClockBoundaryV1.travelOrCurrentZoneChangeRebindsFrozenBasis)
+        XCTAssertFalse(ScheduleDeviceClockBoundaryV1.timeZoneDatabaseChangeReinterpretsRecordedOffset)
+        XCTAssertFalse(ScheduleDeviceClockBoundaryV1.scheduleCausalOrderUsesDeviceWallClock)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_11ObservationTemporalSemantics: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

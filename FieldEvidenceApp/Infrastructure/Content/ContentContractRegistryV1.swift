@@ -2,6 +2,12 @@ import Foundation
 
 enum ScheduleContentContractRegistryBoundaryV1 { static let scheduleIsContentContract = false }
 
+enum C51ScheduleContentContractRegistryBoundaryV1 {
+    static let scheduleIsContentContract = false
+    static let scheduleUsesNoParallelByteStore = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+}
+
 enum AssetLocatorContentContractBoundaryV1 {
     static let locatorContractIsRegisteredAsContent = false
     static let locatorContractOwnsSeparateByteStore = false

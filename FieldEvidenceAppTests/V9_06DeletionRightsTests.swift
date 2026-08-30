@@ -733,3 +733,17 @@ private final class C48PortableReviewV906DeletionRightsTests: XCTestCase {
 private final class C49WorkResourceDeletionRightsBoundaryTests: XCTestCase {
     func testNoIndependentInventoryDeletionAuthority() { XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference) }
 }
+
+extension C50DeletionRightsTests {
+    func testV23P03C51DeletionPreservesCalendarOverrideClosureUntilErase() throws {
+        try ScheduleDeletionLedgerPolicyV1.validate()
+        XCTAssertTrue(
+            ScheduleDeletionLedgerPolicyV1.ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure
+                && ScheduleDeletionLedgerPolicyV1.workspaceEraseRemovesAll
+                && ScheduleDeletionLedgerPolicyV1.durableKinds
+                    .contains("ExceptionCalendarReleaseV1")
+                && ScheduleDeletionLedgerPolicyV1.durableKinds
+                    .contains("ScheduleOverrideEventV1")
+        )
+    }
+}

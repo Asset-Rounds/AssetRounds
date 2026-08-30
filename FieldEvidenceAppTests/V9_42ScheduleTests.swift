@@ -93,6 +93,15 @@ private struct C28ScheduleCorpus: Decodable {
     let persistentKindLifecycleModelCount: Int
     let durableFamilies: [String]
     let occurrenceStates: [String]
+    let compatibility: C28ScheduleCompatibility
+}
+
+private struct C28ScheduleCompatibility: Decodable {
+    let legacyFixedCalendarAndCompletionRelativeRemainCanonical: Bool
+    let advancedRecurrenceIsAdditive: Bool
+    let allDaysCompatibilityPreservesOccurrenceIdentityAndDate: Bool
+    let persistentSchemaVersion: Int
+    let recordsSchemaVersion: Int
 }
 
 final class V9_42ScheduleTests: XCTestCase {
@@ -295,5 +304,73 @@ final class V9_42ScheduleTests: XCTestCase {
         XCTAssertEqual(rebuilt, reminder)
         XCTAssertTrue(ScheduleLocalJobBoundaryV1.derivedProjectionsAreRebuildable)
         XCTAssertFalse(ScheduleNotificationCapabilityBoundaryV1.permissionIsCanonicalScheduleTruth)
+    }
+
+    func testV23P03C28CompatibilityKeepsLegacyRecurrencesAndAddsAdvancedAllDaysBinding() throws {
+        let bundle = Bundle(for: Self.self)
+        let corpusURL = try XCTUnwrap(bundle.url(
+            forResource: "V22P03C28ScheduleCorpusV1", withExtension: "json",
+            subdirectory: "Fixtures/V22/Schedules"
+        ) ?? bundle.url(forResource: "V22P03C28ScheduleCorpusV1", withExtension: "json"))
+        let corpus = try JSONDecoder().decode(C28ScheduleCorpus.self, from: Data(contentsOf: corpusURL))
+        XCTAssertTrue(corpus.compatibility.legacyFixedCalendarAndCompletionRelativeRemainCanonical)
+        XCTAssertTrue(corpus.compatibility.advancedRecurrenceIsAdditive)
+        XCTAssertTrue(corpus.compatibility.allDaysCompatibilityPreservesOccurrenceIdentityAndDate)
+        XCTAssertEqual(corpus.compatibility.persistentSchemaVersion, corpus.persistentSchemaVersion)
+        XCTAssertEqual(corpus.compatibility.recordsSchemaVersion, corpus.recordsSchemaVersion)
+
+        let anchor = ScheduleLocalAnchorV1(year: nil, month: nil, day: nil, weekday: nil,
+                                           weekdayOrdinal: nil, hour: 9, minute: 0, second: 0)
+        let fixed = try C28ScheduleTestSupport.release(
+            recurrence: .fixedCalendar(.init(cadence: .daily, interval: 1, anchor: anchor)), slot: 900
+        )
+        let relative = try C28ScheduleTestSupport.release(
+            recurrence: .completionRelative(.init(interval: 1, unit: .calendarDays, firstAnchor: anchor)), slot: 901
+        )
+        if case .fixedCalendar = fixed.recurrence {} else { XCTFail("C28 fixed recurrence changed") }
+        if case .completionRelative = relative.recurrence {} else { XCTFail("C28 relative recurrence changed") }
+        XCTAssertEqual(
+            try ScheduleCanonicalCodecV1.decode(
+                ScheduleDefinitionReleaseV1.self, from: ScheduleCanonicalCodecV1.data(fixed)
+            ), fixed
+        )
+        XCTAssertEqual(
+            try ScheduleCanonicalCodecV1.decode(
+                ScheduleDefinitionReleaseV1.self, from: ScheduleCanonicalCodecV1.data(relative)
+            ), relative
+        )
+
+        let allDays = AllDaysCompatibilityCalendarV1.reference(workspaceID: fixed.workspaceID)
+        let configuration = AdvancedScheduleConfigurationV1(
+            recurrence: .monthlyWeekday(interval: 1, ordinal: .last, weekday: .friday),
+            calendarRelease: allDays, businessDayAdjustmentPolicy: .nextIncludedDay
+        )
+        let allDaysTimeBasis = try FrozenScheduleTimeBasisV1(
+            ianaTimeZoneIdentifier: fixed.timeBasis.ianaTimeZoneIdentifier,
+            timeZoneRuleSetVersion: fixed.timeBasis.timeZoneRuleSetVersion,
+            timeZoneRuleSetSHA256: fixed.timeBasis.timeZoneRuleSetSHA256,
+            ambiguousTimePolicy: fixed.timeBasis.ambiguousTimePolicy,
+            nonexistentTimePolicy: fixed.timeBasis.nonexistentTimePolicy,
+            calendarBasisID: allDays.calendarID.uuidString.lowercased(),
+            calendarBasisRevision: allDays.revision,
+            calendarBasisSHA256: allDays.releaseSHA256
+        )
+        let advanced = try ScheduleDefinitionReleaseV1(
+            scheduleDefinitionID: fixed.scheduleDefinitionID, releaseID: fixed.releaseID,
+            workspaceID: fixed.workspaceID, occurrenceIdentityNamespaceID: fixed.occurrenceIdentityNamespaceID,
+            action: fixed.action, lifecycleState: fixed.lifecycleState, recurrence: .advanced(configuration),
+            timeBasis: allDaysTimeBasis, startsAtUTC: fixed.startsAtUTC, endsAtUTC: fixed.endsAtUTC,
+            generationHorizonDays: fixed.generationHorizonDays,
+            maximumGeneratedOccurrences: fixed.maximumGeneratedOccurrences,
+            readyLeadSeconds: fixed.readyLeadSeconds, overdueGraceSeconds: fixed.overdueGraceSeconds,
+            subject: fixed.subject, workDefinition: fixed.workDefinition, assignee: fixed.assignee,
+            revision: fixed.revision, mutationID: fixed.mutationID,
+            authoredBy: fixed.authoredBy, authoredAt: fixed.authoredAt
+        )
+        let binding = try AdvancedScheduleReleaseBindingV1(advanced)
+        XCTAssertEqual(binding.calendarRelease, allDays)
+        XCTAssertEqual(binding.recurrence, configuration.recurrence)
+        XCTAssertFalse(AllDaysCompatibilityCalendarV1.changesExistingOccurrenceIDsOrDates)
+        XCTAssertNoThrow(try AllDaysCompatibilityCalendarV1.validate(reference: allDays))
     }
 }

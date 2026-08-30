@@ -1,6 +1,12 @@
 import Foundation
 enum EvidenceContextSurveyDefinitionBoundaryV1{static let controlExpectationsRemainFrozenDefinitionInputs=true;static let capturedContextHistoryIsSeparate=true}
 enum PlacementPoseSurveyDefinitionPersistenceBoundaryV1{static let definitionsOwnAxisRequirementsNotPoseEvents=true}
+
+enum C51SurveyDefinitionSchedulePersistenceBoundaryV1 {
+    static let definitionRowsCarryNoOccurrenceHistory = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let scheduleRowsRemainOutsideDefinitionStore = true
+}
 import SwiftData
 
 enum PlanSurveyDefinitionBindingV1 { static let normalizedPlanPlacementRemainsDefinitionSemantic = true; static let planPlacementIsSeparateHistory = true }

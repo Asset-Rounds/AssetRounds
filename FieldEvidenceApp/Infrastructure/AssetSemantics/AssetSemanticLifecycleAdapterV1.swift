@@ -2,6 +2,15 @@ import Foundation
 
 enum AssetSemanticsScheduleLifecycleBoundaryV1 { static let noSecondScheduleWriter = true }
 
+enum C51AssetSemanticsScheduleLifecycleBoundaryV1 {
+    static let adapterDoesNotPersistScheduleState = true
+    static let closureMetadataIsDerivedOnly = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 extension AssetSemanticLifecycleAdapterV1 {
     func validateLocatorLifecycle(_ closure: AssetLocatorLifecycleClosureV1) throws {
         try closure.validate()

@@ -1853,6 +1853,32 @@ extension SearchIndexRebuildCoordinatorV1 {
         "DROP_AND_REBUILD_FROM_FROZEN_FIELD_REFERENCE_BINDING"
 }
 
+extension SearchIndexRebuildCoordinatorV1 {
+    static func advancedScheduleOccurrenceSearchRecords(
+        from projections: [AdvancedScheduleReportProjectionV1]
+    ) throws -> [AdvancedScheduleOccurrenceSearchRecordV1] {
+        try AdvancedScheduleOccurrenceSearchPersistencePolicyV1().validate()
+        guard projections.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        var values: [AdvancedScheduleOccurrenceSearchRecordV1] = []
+        for projection in projections.sorted(by: { $0.projectionSHA256 < $1.projectionSHA256 }) {
+            try projection.validate()
+            for occurrence in projection.occurrences {
+                values.append(try LocalSearchIndexStoreV1.advancedScheduleOccurrenceSearchRecord(
+                    from: projection, occurrence: occurrence))
+            }
+        }
+        values.sort { $0.projectionIdentity < $1.projectionIdentity }
+        guard values.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              Set(values.map(\.projectionIdentity)).count == values.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        return values
+    }
+    static let advancedScheduleRebuildParityRequired = true
+}
+
 // MARK: - C30 operating-context rebuild
 
 extension SearchIndexRebuildCoordinatorV1 {

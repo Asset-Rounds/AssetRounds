@@ -469,13 +469,17 @@ struct V26BackupAssetLocatorRecordV1: Codable, Equatable, Sendable {
     let canonicalData: Data
 }
 
-/// C28 transports the two durable schedule families.  Due/reminder queues
+/// C28 transports the original two durable schedule families. C51 extends
+/// this same record family with immutable exception-calendar releases while
+/// preserving the canonical representation of both original record kinds. Due/reminder queues
 /// and generation plans are derived projections and are intentionally absent
 /// from the package record model.
 struct V27BackupScheduleRecordV1: Codable, Equatable, Sendable {
     enum Kind: String, Codable, CaseIterable, Hashable, Sendable {
         case scheduleRelease = "SCHEDULE_DEFINITION_RELEASE"
         case occurrenceHistory = "OCCURRENCE_HISTORY_EVENT"
+        case exceptionCalendarRelease = "EXCEPTION_CALENDAR_RELEASE"
+        case scheduleOverrideEvent = "SCHEDULE_OVERRIDE_EVENT"
     }
 
     let kind: Kind
@@ -483,6 +487,81 @@ struct V27BackupScheduleRecordV1: Codable, Equatable, Sendable {
     let workspaceID: UUID
     let revision: UInt64
     let canonicalData: Data
+}
+
+/// C51 extends the existing V27 schedule record family rather than creating a
+/// parallel archive family. Existing release/history bytes remain unchanged;
+/// calendar releases and effective-dated override events use additional kinds,
+/// while resolved V2 bases and change receipts remain the canonical closure
+/// carried by occurrence/override records and mutation history.
+enum C51ScheduleBackupClosureV1 {
+    static let persistentSchemaVersion = 27
+    static let recordsSchemaVersion = 26
+    static let persistedRecordKindCount = 4
+    static let preservedV27RecordBytes = true
+    static let embeddedCanonicalComponents = [
+        "AdvancedRecurrenceRuleV1",
+        "ExceptionCalendarReleaseV1",
+        "ScheduleOverrideEventV1",
+        "OccurrenceScheduleBasisV2",
+        "ScheduleChangeReceiptV1",
+        "AllDaysCompatibilityCalendarV1",
+    ]
+    static let canonicalComponentOrder = [
+        "SCHEDULE_RELEASE",
+        "CALENDAR_RELEASE",
+        "OVERRIDE_EFFECTIVE_INTERVAL",
+        "OCCURRENCE_NOMINAL_DATE",
+        "OCCURRENCE_ID",
+        "CHANGE_RECEIPT",
+    ]
+    static let allDaysMigrationPreservesOccurrenceIdentityAndDate = true
+    static let sourceScheduleAutomaticallyActiveAfterCloneOrFork = false
+    static let derivedDueReminderAndPreviewStateIsArchived = false
+
+    static func validatesEnvelope(_ records: [V27BackupScheduleRecordV1]) -> Bool {
+        let keys = records.map {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+        }
+        return persistedRecordKindCount == V27BackupScheduleRecordV1.Kind.allCases.count
+            && embeddedCanonicalComponents.count == 6
+            && Set(embeddedCanonicalComponents).count == embeddedCanonicalComponents.count
+            && canonicalComponentOrder.count == 6
+            && Set(keys).count == keys.count
+            && keys == keys.sorted()
+            && records.allSatisfy { $0.revision > 0 && !$0.canonicalData.isEmpty }
+            && preservedV27RecordBytes
+            && allDaysMigrationPreservesOccurrenceIdentityAndDate
+            && !sourceScheduleAutomaticallyActiveAfterCloneOrFork
+            && !derivedDueReminderAndPreviewStateIsArchived
+    }
+
+    static func validatesAdvancedCalendarReferences(
+        definitions: [ScheduleDefinitionReleaseV1],
+        calendars: [ExceptionCalendarReleaseV1]
+    ) -> Bool {
+        do {
+            try definitions.forEach { try $0.validate() }
+            try calendars.forEach { try $0.validate() }
+        } catch {
+            return false
+        }
+        let calendarsByReleaseID = Dictionary(
+            grouping: calendars, by: \.releaseID
+        )
+        return definitions.allSatisfy { definition in
+            switch definition.recurrence {
+            case .fixedCalendar, .completionRelative:
+                return true
+            case .advanced(let configuration):
+                guard let matches = calendarsByReleaseID[configuration.calendarRelease.releaseID],
+                      matches.count == 1,
+                      let calendar = matches.first else { return false }
+                return calendar.workspaceID == definition.workspaceID
+                    && calendar.reference == configuration.calendarRelease
+            }
+        }
+    }
 }
 
 /// C29 transports the immutable plan families as canonical value records.

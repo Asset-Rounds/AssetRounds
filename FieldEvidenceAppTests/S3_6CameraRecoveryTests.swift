@@ -15,6 +15,14 @@ private final class C45CameraRecoveryCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51S36CameraRecoveryAnchorTests: XCTestCase {
+    func testV23P03C51ScheduleNeverStartsWorkOrRequestsCameraPermission() {
+        XCTAssertTrue(C51ScheduleCameraBoundaryV1.cameraCaptureDoesNotStartOccurrence)
+        XCTAssertTrue(C51ScheduleCameraBoundaryV1.scheduleGenerationRequestsNoCameraPermission)
+        XCTAssertTrue(C51ScheduleCameraBoundaryV1.cameraAdapterRemainsCaptureAuthority)
+    }
+}
+
 private final class C30EvidenceContextAnchorS3_6CameraRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

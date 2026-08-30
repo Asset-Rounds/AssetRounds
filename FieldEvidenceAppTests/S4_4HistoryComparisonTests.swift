@@ -14,6 +14,14 @@ private final class C45HistoryComparisonCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51S44HistoryComparisonAnchorTests: XCTestCase {
+    func testV23P03C51AdvancedScheduleHistoryNeverReinterpretsFrozenBasis() {
+        XCTAssertTrue(AdvancedScheduleReportHistoryPolicyV1.historicBasisIsFrozen)
+        XCTAssertTrue(AdvancedScheduleReportHistoryPolicyV1.laterCalendarOrOverrideDoesNotRewriteHistory)
+        XCTAssertTrue(SnapshotValidatorV1.advancedScheduleHistoryIsFrozen)
+    }
+}
+
 private final class C30EvidenceContextAnchorS4_4HistoryComparison: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

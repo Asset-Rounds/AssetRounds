@@ -4,6 +4,12 @@ import UIKit
 
 enum CameraScheduleBoundaryV1 { static let cameraResolutionMayStartOccurrence = false }
 
+enum C51ScheduleCameraBoundaryV1 {
+    static let cameraCaptureDoesNotStartOccurrence = true
+    static let scheduleGenerationRequestsNoCameraPermission = true
+    static let cameraAdapterRemainsCaptureAuthority = true
+}
+
 enum CameraAuthorizationStatus: Equatable, Sendable {
     case notDetermined
     case authorized

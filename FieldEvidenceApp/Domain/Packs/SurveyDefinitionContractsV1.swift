@@ -2,6 +2,17 @@ import Foundation
 
 enum SurveyDefinitionScheduleBoundaryV1 { static let bindingRequiresExactRelease = true }
 
+enum C51SurveyDefinitionScheduleBoundaryV1 {
+    static let publicationCreatesSchedule = false
+    static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let definitionReleaseOwnsNoOccurrenceHistory = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 enum SurveyDefinitionFailureV1: Error, Equatable, Sendable {
     case invalidValue, invalidDigest, incompatibleVersion, invalidSuccessor
     case invalidTransition, stalePreview, hostileArchive, limitExceeded, wrongWorkspace

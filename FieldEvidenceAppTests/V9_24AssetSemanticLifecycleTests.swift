@@ -11,6 +11,15 @@ private final class C45AssetSemanticLifecycleCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51V924AssetSemanticLifecycleAnchorTests: XCTestCase {
+    func testV23P03C51AssetSemanticsCarryNoScheduleOrOccurrenceTruth() {
+        XCTAssertFalse(C51AssetScheduleBoundaryV1.assetRowsCarryScheduleClosure)
+        XCTAssertFalse(C51AssetScheduleBoundaryV1.assetIdentityIsOccurrenceIdentity)
+        XCTAssertTrue(C51AssetScheduleBoundaryV1.canonicalAssetWriterRemainsUnchanged)
+        XCTAssertTrue(C51AssetSemanticsScheduleLifecycleBoundaryV1.closureMetadataIsDerivedOnly)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_24AssetSemanticLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

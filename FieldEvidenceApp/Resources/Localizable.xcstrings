@@ -3006,6 +3006,70 @@
       "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review recorded schedule facts" } } }
     },
+    "schedule.recurrence.advanced" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Advanced recurrence" } } }
+    },
+    "schedule.exception_calendar" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Exception calendar" } } }
+    },
+    "schedule.exception_calendar.release" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Frozen calendar release" } } }
+    },
+    "schedule.business_day_adjustment" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Business-day adjustment" } } }
+    },
+    "schedule.completion_gap" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Completion gap" } } }
+    },
+    "schedule.occurrence.nominal_basis" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Nominal occurrence" } } }
+    },
+    "schedule.occurrence.effective_basis" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Effective occurrence" } } }
+    },
+    "schedule.occurrence.lineage" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Occurrence lineage" } } }
+    },
+    "schedule.override" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Schedule override" } } }
+    },
+    "schedule.override.precedence" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Override precedence" } } }
+    },
+    "schedule.change.preview" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Schedule change preview" } } }
+    },
+    "schedule.change.preview.not_applied" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview only; no schedule change is recorded" } } }
+    },
+    "schedule.change.conflict" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recorded values conflict" } } }
+    },
+    "schedule.change.conflict.manual_resolution_required" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual resolution required" } } }
+    },
+    "schedule.recovery" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Schedule recovery" } } }
+    },
+    "schedule.recovery.rebuilt" : {
+      "comment" : "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Derived schedule view rebuilt from recorded facts" } } }
+    },
     "schedule.occurrence.state.upcoming" : {
       "comment" : "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Upcoming" } } }

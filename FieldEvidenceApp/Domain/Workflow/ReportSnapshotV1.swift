@@ -1,5 +1,16 @@
 import Foundation
 
+enum C51ReportSnapshotScheduleBoundaryV1 {
+    static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self
+    static let scheduleClosureMetadataType = C51ScheduleClosureMetadataV1.self
+    static let scheduleClosureIsDerivedMetadataOnly = true
+    static let reportCanonicalBytesRemainScheduleIndependent = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 extension ReportSnapshotV1 {
     /// Report construction may copy a capture-time interpretation but must
     /// never resolve it again against a later locator head.

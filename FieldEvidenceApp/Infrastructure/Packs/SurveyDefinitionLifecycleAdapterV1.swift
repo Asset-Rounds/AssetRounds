@@ -2,6 +2,12 @@ import Foundation
 
 enum SurveyDefinitionScheduleLifecycleBoundaryV1 { static let schedulesBindPublishedReleaseExactly = true }
 
+enum C51SurveyDefinitionScheduleLifecycleBoundaryV1 {
+    static let adapterWritesNoOccurrenceHistory = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let canonicalDefinitionWriterRemainsUnchanged = true
+}
+
 /// Bridges the survey coordinator to the sole workspace writer. Lifecycle
 /// events remain inside the canonical mutation envelope and are never rows.
 @MainActor

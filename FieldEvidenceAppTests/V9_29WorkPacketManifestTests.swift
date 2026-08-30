@@ -11,6 +11,15 @@ private final class C45WorkPacketManifestCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51V929WorkPacketAnchorTests: XCTestCase {
+    func testV23P03C51WorkPacketScheduleAdoptionIsDerivedAndExplicit() {
+        XCTAssertTrue(C51WorkPacketScheduleBoundaryV1.scheduleClosureIsDerivedMetadataOnly)
+        XCTAssertTrue(C51WorkPacketScheduleBoundaryV1.workPacketOwnsNoOccurrenceHistory)
+        XCTAssertTrue(C51WorkPacketScheduleCoordinatorBoundaryV1.canonicalScheduleStartRemainsExplicit)
+        XCTAssertTrue(C51WorkPacketScheduleLifecycleBoundaryV1.adapterIsNotOccurrenceWriter)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_29WorkPacketManifest: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

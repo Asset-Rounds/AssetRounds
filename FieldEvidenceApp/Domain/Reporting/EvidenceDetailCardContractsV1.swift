@@ -1915,6 +1915,14 @@ enum EvidenceDetailScheduleProjectionGuardV1 {
     }
 }
 
+enum EvidenceDetailAdvancedScheduleProjectionGuardV1 {
+    static func validate(_ projection: AdvancedScheduleReportProjectionV1) throws
+        -> AdvancedScheduleReportProjectionV1 {
+        do { return try AdvancedScheduleReportProjectionPolicyV1.validate(projection) }
+        catch { throw SnapshotProjectionFailureV1.privacyViolation }
+    }
+}
+
 // MARK: - C29 plan/rebase projection guard
 
 enum EvidenceDetailPlanProjectionGuardV1 {

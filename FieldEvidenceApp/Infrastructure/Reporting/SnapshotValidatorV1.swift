@@ -1646,6 +1646,16 @@ extension SnapshotValidatorV1 {
     }
 }
 
+extension SnapshotValidatorV1 {
+    static func validateAdvancedScheduleProjection(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> AdvancedScheduleReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateAdvancedScheduleProjection(projection)
+    }
+    static let advancedScheduleHistoryIsFrozen = true
+    static let advancedSchedulePreviewFailsClosedOnFrontierMismatch = true
+}
+
 // MARK: - C25 survey-definition validation
 
 extension SnapshotValidatorV1 {

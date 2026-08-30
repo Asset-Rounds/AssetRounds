@@ -2,6 +2,13 @@ import Foundation
 
 enum WorkflowGrammarScheduleBoundaryV1 { static let recurrenceIsPackageScriptable = false }
 
+enum C51WorkflowGrammarScheduleBoundaryV1 {
+    static let advancedRecurrenceIsClosed = true
+    static let freeFormRecurrenceRuleIsAllowed = false
+    static let packageGrammarCreatesNoOccurrenceWriter = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+}
+
 enum InspectionKernelFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case unknownKind

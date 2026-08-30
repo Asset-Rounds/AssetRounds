@@ -10,6 +10,17 @@ struct FrozenScheduleCompletionReferenceV1: Codable, Equatable, Sendable {
     }
 }
 
+enum C51CompletedActivitySnapshotScheduleBoundaryV1 {
+    static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self
+    static let scheduleClosureMetadataType = C51ScheduleClosureMetadataV1.self
+    static let scheduleClosureIsDerivedMetadataOnly = true
+    static let snapshotCanonicalBytesRemainUnchanged = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 enum C50IncumbentCompletedActivityBoundaryV1 {
     static let exportReadsFrozenSnapshotBytes = true
     static let adapterCannotRewriteFinalizedActivity = true

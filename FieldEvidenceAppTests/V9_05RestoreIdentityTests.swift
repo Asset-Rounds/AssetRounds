@@ -1231,3 +1231,18 @@ private final class C49WorkResourceRestoreIdentityBoundaryTests: XCTestCase {
         XCTAssertEqual(Set(WorkResourceSubjectKindV1.allCases), [.workPacket, .correctiveWork])
     }
 }
+
+extension C50RestoreIdentityTests {
+    func testV23P03C51RestoreRebindsCalendarClosureWithoutActivation() throws {
+        try ScheduleRestoreIdentityPolicyV1.validate()
+        XCTAssertTrue(
+            ScheduleRestoreIdentityPolicyV1.calendarOverrideAndBasisClosureReboundAtomically
+                && !ScheduleRestoreIdentityPolicyV1.cloneForkSourceScheduleAutomaticallyActive
+                && !ScheduleRestoreIdentityPolicyV1.notificationStateRestoredAsTruth
+                && C51ScheduleBackupClosureV1.embeddedCanonicalComponents
+                    .contains("AdvancedRecurrenceRuleV1")
+                && C51ScheduleBackupClosureV1.embeddedCanonicalComponents
+                    .contains("ExceptionCalendarReleaseV1")
+        )
+    }
+}

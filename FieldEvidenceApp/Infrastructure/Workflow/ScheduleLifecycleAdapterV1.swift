@@ -22,6 +22,24 @@ import Foundation
         if let accepted = try acceptedScheduleMutation(mutation) { return accepted }
         return try .init(mutation: mutation, mutationReceipt: writer.commitSchedule(mutation))
     }
+
+    /// Relaunch-safe C51 reconciliation derives the same preview from durable
+    /// C28/C51 inputs. No preview, timer, or recovery checkpoint is persisted.
+    func recoverAdvancedProjection(definition: ScheduleDefinitionReleaseV1,
+                                   binding: AdvancedScheduleReleaseBindingV1,
+                                   calendar: ExceptionCalendarReleaseV1,
+                                   overrideEvents: [ScheduleOverrideEventV1],
+                                   occurrences: [ScheduleChangeOccurrenceInputV1],
+                                   evaluatedRange: ScheduleLocalDateRangeV1,
+                                   activeUpcomingWorkspaceCount: Int) throws -> ScheduleChangePreviewV1 {
+        try ScheduleExceptionProjectionEngineV1.preview(definition: definition, binding: binding,
+            calendar: calendar, existingOverrideEvents: overrideEvents, proposedOverride: nil,
+            occurrences: occurrences, evaluatedRange: evaluatedRange,
+            activeUpcomingWorkspaceCount: activeUpcomingWorkspaceCount)
+    }
+
+    static let c51RecoveryPersistsNoProjectionState = true
+    static let c51UsesExistingCanonicalWriterOnly = true
 }
 
 /// Disposable reminder state. Permission or scheduling failure is surfaced and

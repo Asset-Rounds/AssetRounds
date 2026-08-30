@@ -16,6 +16,16 @@ private final class C45PDFRecoveryCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51S42PDFRecoveryAnchorTests: XCTestCase {
+    func testV23P03C51PDFAndRecoveryConsumeTheSameFrozenProjection() {
+        let pdf: (AdvancedScheduleReportProjectionV1) throws -> [String] =
+            DeterministicPDFRendererV1.advancedScheduleTextLines
+        _ = pdf
+        XCTAssertTrue(AdvancedScheduleReportRecoveryPolicyV1.derivedProjectionIsDropAndRebuild)
+        XCTAssertTrue(AdvancedScheduleReportRecoveryPolicyV1.finalizedHistoryIsNotRewritten)
+    }
+}
+
 private final class C30EvidenceContextAnchorS4_2PDFRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -3,6 +3,19 @@ import Foundation
 
 enum ScheduleGenerationRunnerBoundaryV1 { static let retriesAreIdempotent = true }
 
+enum C51ScheduleReconciliationRunnerBoundaryV1 {
+    static let exactSourceFrontierIsRequired = true
+    static let partialCompletionClaimAllowed = false
+    static let reconciliationRemainsLocalOnly = true
+
+    static func validate(
+        job: ResumableLocalJobV1,
+        input: C51ScheduleReconciliationJobInputV1
+    ) throws {
+        try C51ScheduleReconciliationJobBoundaryV1.validate(job: job, input: input)
+    }
+}
+
 enum ResumableLocalJobRunnerFailureV1: Error, Equatable, Sendable {
     case operationNotRegistered
     case publisherNotRegistered

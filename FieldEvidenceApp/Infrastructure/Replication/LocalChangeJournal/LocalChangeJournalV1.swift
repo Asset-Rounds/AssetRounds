@@ -583,6 +583,7 @@ final class LocalChangeJournalV1 {
             try SurveySessionJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try AssetLocatorJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try ScheduleJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
+            try Self.validateC51ScheduleExceptionChange(change)
             try PlanJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try PlacementPoseJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try EvidenceContextJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
@@ -1662,6 +1663,21 @@ final class LocalChangeJournalV1 {
     private static func validateInspectionReviewChange(_ change:JournalChangeV1)throws{do{try InspectionReviewJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
     private static func validatePortableReviewChange(_ change:JournalChangeV1)throws{do{try PortableReviewJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
     private static func validateWorkResourceChange(_ change:JournalChangeV1)throws{do{try WorkResourceJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)}catch let f as ChangeJournalFailureV1{throw f}catch{throw ChangeJournalFailureV1.tamperedBatch}}
+    private static func validateC51ScheduleExceptionChange(_ change: JournalChangeV1) throws {
+        guard case let .applySchedule(mutation) = change.envelope.command else { return }
+        switch mutation.payload {
+        case .appendExceptionCalendarRelease:
+            guard change.entityChanges.map(\.identity.kind) == [.exceptionCalendarRelease] else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        case .appendOverrideEvent:
+            guard change.entityChanges.map(\.identity.kind) == [.scheduleOverrideEvent] else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        default:
+            return
+        }
+    }
 
     private static let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 }

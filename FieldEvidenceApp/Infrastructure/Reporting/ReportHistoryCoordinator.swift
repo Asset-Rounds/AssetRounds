@@ -738,6 +738,24 @@ extension ReportHistoryCoordinator {
     }
 }
 
+enum AdvancedScheduleReportHistoryPolicyV1 {
+    static let historicBasisIsFrozen = true
+    static let laterCalendarOrOverrideDoesNotRewriteHistory = true
+    static func validate(_ value: AdvancedScheduleReportProjectionV1) throws {
+        guard historicBasisIsFrozen, laterCalendarOrOverrideDoesNotRewriteHistory else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        try value.validate()
+    }
+}
+
+extension ReportHistoryCoordinator {
+    static func validateAdvancedScheduleHistory(_ value: AdvancedScheduleReportProjectionV1) throws
+        -> AdvancedScheduleReportProjectionV1 {
+        try AdvancedScheduleReportHistoryPolicyV1.validate(value); return value
+    }
+}
+
 // MARK: - C28 frozen schedule history
 
 enum ScheduleReportHistoryPolicyV1 {

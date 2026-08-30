@@ -14,62 +14,67 @@ enum GuidedSurveyStreamingArchiveDispositionV1 {
         guard records.recordsSchemaVersion < 24 ||
                 ((24...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) &&
                  records.guidedSurveys.count <= 200_000) else {
-            throw StreamingArchiveErrorV1.invalidArchive
+            throw StreamingArchiveFailureV1.invalidArchive
         }
         if records.recordsSchemaVersion >= AssetLocatorStreamingArchivePolicyV1.recordsSchemaVersion {
             do {
                 try AssetLocatorStreamingArchivePolicyV1.validate(records: records)
             } catch {
-                throw StreamingArchiveErrorV1.invalidArchive
+                throw StreamingArchiveFailureV1.invalidArchive
             }
         }
         if records.recordsSchemaVersion >= ScheduleStreamingArchivePolicyV1.recordsSchemaVersion {
             do {
                 try ScheduleStreamingArchivePolicyV1.validate(records: records)
+                guard C51ScheduleBackupClosureV1.validatesEnvelope(records.schedules),
+                      ScheduleStreamingArchivePolicyV1.interruptionResumesAtCanonicalRecordBoundary,
+                      !ScheduleStreamingArchivePolicyV1.partialClosureMayPublish else {
+                    throw StreamingArchiveFailureV1.invalidArchive
+                }
             } catch {
-                throw StreamingArchiveErrorV1.invalidArchive
+                throw StreamingArchiveFailureV1.invalidArchive
             }
         }
         if records.recordsSchemaVersion >= PlanStreamingArchivePolicyV1.recordsSchemaVersion {
             do {
                 try PlanStreamingArchivePolicyV1.validate(records: records)
             } catch {
-                throw StreamingArchiveErrorV1.invalidArchive
+                throw StreamingArchiveFailureV1.invalidArchive
             }
         }
         if records.recordsSchemaVersion >= PlacementPoseStreamingArchivePolicyV1.recordsSchemaVersion {
             do {
                 try PlacementPoseStreamingArchivePolicyV1.validate(records: records)
             } catch {
-                throw StreamingArchiveErrorV1.invalidArchive
+                throw StreamingArchiveFailureV1.invalidArchive
             }
         }
         if records.recordsSchemaVersion >= 30 {
             do {
                 try C31LightingStreamingArchivePolicyV1.validate(records: records)
             } catch {
-                throw StreamingArchiveErrorV1.invalidArchive
+                throw StreamingArchiveFailureV1.invalidArchive
             }
         }
         if records.recordsSchemaVersion >= C32AssistanceStreamingArchivePolicyV1.recordsSchemaVersion {
             do {
                 try C32AssistanceStreamingArchivePolicyV1.validate(records: records)
             } catch {
-                throw StreamingArchiveErrorV1.invalidArchive
+                throw StreamingArchiveFailureV1.invalidArchive
             }
         }
         if records.recordsSchemaVersion >= C47ActivityContractStreamingArchiveBoundaryV2.recordsSchemaVersion {
             do {
                 try C47ActivityContractStreamingArchiveBoundaryV2.validate(records: records)
             } catch {
-                throw StreamingArchiveErrorV1.invalidArchive
+                throw StreamingArchiveFailureV1.invalidArchive
             }
         }
         if records.recordsSchemaVersion >= C49WorkResourceStreamingArchiveBoundaryV1.recordsSchemaVersion {
             do {
                 try C49WorkResourceStreamingArchiveBoundaryV1.validate(records: records)
             } catch {
-                throw StreamingArchiveErrorV1.invalidArchive
+                throw StreamingArchiveFailureV1.invalidArchive
             }
         }
     }

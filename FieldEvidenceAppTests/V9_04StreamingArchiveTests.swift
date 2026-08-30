@@ -548,3 +548,16 @@ private final class C50IncumbentFileExchangeV904StreamingArchiveTests: XCTestCas
         XCTAssertTrue(C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1.unknownAdapterShapedArchiveMembersFailClosed)
     }
 }
+
+extension C45StreamingArchiveCompatibilityTests {
+    func testV23P03C51StreamingArchiveResumesAtRecordBoundaries() {
+        XCTAssertTrue(
+            ScheduleStreamingArchivePolicyV1.recordsSchemaVersion == 26
+                && ScheduleStreamingArchivePolicyV1.interruptionResumesAtCanonicalRecordBoundary
+                && ScheduleStreamingArchivePolicyV1
+                    .calendarOverrideBasisClosureUsesExistingRecordKinds
+                && !ScheduleStreamingArchivePolicyV1.notificationStateIsTruth
+                && !ScheduleStreamingArchivePolicyV1.partialClosureMayPublish
+        )
+    }
+}

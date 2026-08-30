@@ -2,6 +2,16 @@ import Foundation
 
 enum WorkPacketScheduleLifecycleBoundaryV1 { static let dueQueueCreatesRows = false }
 
+enum C51WorkPacketScheduleLifecycleBoundaryV1 {
+    static let adapterIsNotOccurrenceWriter = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let canonicalWorkPacketWriterRemainsUnchanged = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 /// Read-only bridge to the canonical V15 rows. Implementations must read the
 /// one workspace store; this protocol is not a persistence or writer owner.
 @MainActor protocol WorkPacketManifestRecordSourceV1: AnyObject {

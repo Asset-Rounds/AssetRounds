@@ -42,5 +42,12 @@
     "phase10PollingDuringParallelExecution": false,
     "release": false,
     "releaseReadiness": false
+  },
+  "compatibility": {
+    "legacyFixedCalendarAndCompletionRelativeRemainCanonical": true,
+    "advancedRecurrenceIsAdditive": true,
+    "allDaysCompatibilityPreservesOccurrenceIdentityAndDate": true,
+    "persistentSchemaVersion": 27,
+    "recordsSchemaVersion": 26
   }
 }

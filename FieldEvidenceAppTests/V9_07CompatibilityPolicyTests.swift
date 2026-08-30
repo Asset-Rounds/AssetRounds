@@ -657,3 +657,16 @@ private final class C49WorkResourceCompatibilityBoundaryTests: XCTestCase {
         XCTAssertEqual(WorkResourceDispositionV1.reversed.rawValue, "REVERSED")
     }
 }
+
+extension C50CompatibilityPolicyTests {
+    func testV23P03C51CompatibilityFailsClosedForNewerSchedulePayloads() throws {
+        try ScheduleCompatibilityPolicyV1.current.validate()
+        XCTAssertTrue(
+            ScheduleCompatibilityPolicyV1.persistentSchemaVersion == 27
+                && ScheduleCompatibilityPolicyV1.recordsSchemaVersion == 26
+                && ScheduleCompatibilityPolicyV1.current.allDaysCompatibilityParity
+                && ScheduleCompatibilityPolicyV1.current
+                    .unknownNewerSchedulePayloadDisposition == "FAIL_CLOSED"
+        )
+    }
+}

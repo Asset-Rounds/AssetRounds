@@ -1303,3 +1303,16 @@ private final class C46JournalReplayCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension C45JournalReplayCompatibilityTests {
+    func testV23P03C51ReplayRevalidatesPersistedOverrideFrontier() {
+        XCTAssertTrue(
+            C51ScheduleOverrideRecoveryBoundaryV1.commandKind == .applySchedule
+                && C51ScheduleOverrideRecoveryBoundaryV1
+                    .effectBeforeReceiptRecoveryUsesCanonicalPostimages
+                && C51ScheduleOverrideRecoveryBoundaryV1
+                    .overrideFrontierIsRevalidatedFromPersistedRows
+                && !C51ScheduleOverrideRecoveryBoundaryV1.createsParallelWriter
+        )
+    }
+}

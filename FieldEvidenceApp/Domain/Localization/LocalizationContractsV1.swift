@@ -3950,6 +3950,22 @@ enum ScheduleLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
     case reminderNotTruth = "schedule.reminder.not_truth"
     case claimBoundary = "schedule.claim_boundary"
     case nextStep = "schedule.next_step"
+    case advancedRecurrence = "schedule.recurrence.advanced"
+    case exceptionCalendar = "schedule.exception_calendar"
+    case calendarRelease = "schedule.exception_calendar.release"
+    case businessDayAdjustment = "schedule.business_day_adjustment"
+    case completionGap = "schedule.completion_gap"
+    case nominalBasis = "schedule.occurrence.nominal_basis"
+    case effectiveBasis = "schedule.occurrence.effective_basis"
+    case occurrenceLineage = "schedule.occurrence.lineage"
+    case scheduleOverride = "schedule.override"
+    case overridePrecedence = "schedule.override.precedence"
+    case changePreview = "schedule.change.preview"
+    case previewNotApplied = "schedule.change.preview.not_applied"
+    case changeConflict = "schedule.change.conflict"
+    case manualResolutionRequired = "schedule.change.conflict.manual_resolution_required"
+    case recovery = "schedule.recovery"
+    case recoveryRebuilt = "schedule.recovery.rebuilt"
     case stateUpcoming = "schedule.occurrence.state.upcoming"
     case stateReady = "schedule.occurrence.state.ready"
     case stateDue = "schedule.occurrence.state.due"
@@ -3982,6 +3998,22 @@ enum ScheduleLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
         case .reminderNotTruth: return "Reminder is a preview; it does not change occurrence state"
         case .claimBoundary: return "Recorded schedule metadata only"
         case .nextStep: return "Review recorded schedule facts"
+        case .advancedRecurrence: return "Advanced recurrence"
+        case .exceptionCalendar: return "Exception calendar"
+        case .calendarRelease: return "Frozen calendar release"
+        case .businessDayAdjustment: return "Business-day adjustment"
+        case .completionGap: return "Completion gap"
+        case .nominalBasis: return "Nominal occurrence"
+        case .effectiveBasis: return "Effective occurrence"
+        case .occurrenceLineage: return "Occurrence lineage"
+        case .scheduleOverride: return "Schedule override"
+        case .overridePrecedence: return "Override precedence"
+        case .changePreview: return "Schedule change preview"
+        case .previewNotApplied: return "Preview only; no schedule change is recorded"
+        case .changeConflict: return "Recorded values conflict"
+        case .manualResolutionRequired: return "Manual resolution required"
+        case .recovery: return "Schedule recovery"
+        case .recoveryRebuilt: return "Derived schedule view rebuilt from recorded facts"
         case .stateUpcoming: return "Upcoming"
         case .stateReady: return "Ready"
         case .stateDue: return "Due"
@@ -3996,7 +4028,17 @@ enum ScheduleLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
     }
 
     var translatorComment: String {
-        "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state."
+        switch self {
+        case .advancedRecurrence, .exceptionCalendar, .calendarRelease,
+             .businessDayAdjustment, .completionGap, .nominalBasis,
+             .effectiveBasis, .occurrenceLineage, .scheduleOverride,
+             .overridePrecedence, .changePreview, .previewNotApplied,
+             .changeConflict, .manualResolutionRequired, .recovery,
+             .recoveryRebuilt:
+            return "English-only C51 label for frozen recurrence, calendar, override, preview, conflict, recovery, and occurrence-lineage facts; canonical semantics remain locale-independent."
+        default:
+            return "English-only C28 label for frozen schedule and occurrence facts; notification delivery is disposable and never changes canonical occurrence state."
+        }
     }
 
     static func key(for state: OccurrenceStateV1) -> Self {
@@ -4018,6 +4060,7 @@ enum ScheduleLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
         switch recurrence {
         case .fixedCalendar: return .fixedCalendar
         case .completionRelative: return .completionRelative
+        case .advanced: return .advancedRecurrence
         }
     }
 }
@@ -4034,6 +4077,12 @@ enum ScheduleLocalizationPolicyV1 {
     static let englishOnly = true
     static let notificationDeliveryIsTruth = false
     static let historyDisplayIsFrozen = true
+    static let canonicalSemanticsAreLocaleIndependent = true
+    static let dateAndTimeFormattingUsesPresentationLocaleOnly = true
+    static let identifiersAreNeverLocalized = true
+    static let timeZoneIdentifiersAreNeverLocalized = true
+    static let exceptionReasonsAreNeverLocalizationKeys = true
+    static let calendarPayloadIsNeverLocalized = true
     static let denyByDefault = true
     static let prohibitedClaimPhrases = [
         "approval", "authorization", "permission", "verified identity", "authorship",
@@ -4063,6 +4112,12 @@ enum ScheduleLocalizationPolicyV1 {
               englishOnly,
               !notificationDeliveryIsTruth,
               historyDisplayIsFrozen,
+              canonicalSemanticsAreLocaleIndependent,
+              dateAndTimeFormattingUsesPresentationLocaleOnly,
+              identifiersAreNeverLocalized,
+              timeZoneIdentifiersAreNeverLocalized,
+              exceptionReasonsAreNeverLocalizationKeys,
+              calendarPayloadIsNeverLocalized,
               denyByDefault,
               ScheduleLocalizationKeyV1.allCases.allSatisfy({
                   !$0.englishDefaultValue.isEmpty

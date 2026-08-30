@@ -1437,3 +1437,15 @@ private final class C46V912SystemHealthCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension C45SystemHealthCompatibilityTests {
+    func testV23P03C51RecoveryHasNoSecondWriter() {
+        XCTAssertTrue(
+            !C51ScheduleOverrideRecoveryBoundaryV1.createsParallelWriter
+                && C51ScheduleOverrideRecoveryBoundaryV1
+                    .overrideFrontierIsRevalidatedFromPersistedRows
+                && C51ScheduleOverrideRecoveryBoundaryV1
+                    .effectBeforeReceiptRecoveryUsesCanonicalPostimages
+        )
+    }
+}

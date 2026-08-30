@@ -1805,3 +1805,15 @@ private final class C50IncumbentAdapterS64AtomicRestoreBoundaryTests: XCTestCase
         XCTAssertFalse(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.replacementRestoresProfileActivation)
     }
 }
+
+extension C45AtomicRestoreCompatibilityTests {
+    func testV23P03C51RestoreRebindsCalendarBasisAtomically() throws {
+        try ScheduleRestoreIdentityPolicyV1.validate()
+        XCTAssertTrue(
+            ScheduleRestoreIdentityPolicyV1.calendarOverrideAndBasisClosureReboundAtomically
+                && ScheduleRestoreIdentityPolicyV1
+                    .allDaysCompatibilityPreservesOccurrenceIdentityAndDate
+                && !ScheduleReplacementRestorePolicyV1.derivedProjectionsRestored
+        )
+    }
+}

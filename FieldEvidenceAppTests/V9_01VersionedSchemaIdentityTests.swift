@@ -1246,3 +1246,18 @@ private final class C49WorkResourceSchemaIdentityBoundaryTests: XCTestCase {
         XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.newlyEnrolledRows, ["ManualWorkResourceRecordRow"])
     }
 }
+
+extension C50VersionedSchemaIdentityTests {
+    func testV23P03C51AdvancesToV38WithTwoScheduleRows() {
+        XCTAssertTrue(
+            C51ScheduleExceptionMigrationBoundaryV1.validate()
+                && PersistentSchemaV38.versionIdentifier == Schema.Version(38, 0, 0)
+                && C51ScheduleExceptionMigrationBoundaryV1.recordsVersion == 37
+                && PersistentSchemaV38.models.suffix(2).map { ObjectIdentifier($0) }
+                    == [
+                        ObjectIdentifier(ExceptionCalendarReleaseRow.self),
+                        ObjectIdentifier(ScheduleOverrideEventRow.self),
+                    ]
+        )
+    }
+}

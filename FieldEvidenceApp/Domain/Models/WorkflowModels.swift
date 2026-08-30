@@ -501,8 +501,11 @@ enum WorkflowSchedulePersistenceEnrollmentV1 {
     static func validate() throws {
         let v26 = PersistentSchemaV26.models.map { ObjectIdentifier($0) }
         let v27 = PersistentSchemaV27.models.map { ObjectIdentifier($0) }
+        let v38 = PersistentSchemaV38.models.map { ObjectIdentifier($0) }
         guard Array(v27.dropLast(2)) == v26,
               Array(v27.suffix(2)) == [ObjectIdentifier(ScheduleDefinitionReleaseRow.self), ObjectIdentifier(OccurrenceHistoryEventRow.self)],
+              Array(v38.dropLast(2)) == PersistentSchemaV37.models.map({ ObjectIdentifier($0) }),
+              Array(v38.suffix(2)) == [ObjectIdentifier(ExceptionCalendarReleaseRow.self), ObjectIdentifier(ScheduleOverrideEventRow.self)],
               v27.contains(ObjectIdentifier(WorkflowRecord.self)) else {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }

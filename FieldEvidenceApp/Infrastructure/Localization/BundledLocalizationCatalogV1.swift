@@ -3819,11 +3819,17 @@ extension BundledLocalizationCatalogV1 {
             switch id {
             case .screen: role = .screen
             case .heading, .definition, .occurrenceState, .timeBasis,
-                 .history, .dueQueue, .reminder: role = .heading
+                 .history, .dueQueue, .reminder, .advancedRecurrence,
+                 .exceptionCalendar, .calendarRelease, .businessDayAdjustment,
+                 .completionGap, .nominalBasis, .effectiveBasis,
+                 .occurrenceLineage, .scheduleOverride, .overridePrecedence,
+                 .changePreview, .recovery: role = .heading
             case .nextStep: role = .button
             case .stateUpcoming, .stateReady, .stateDue, .stateOverdue,
                  .stateDeferred, .stateMissed, .stateSkipped, .stateCancelled,
-                 .stateStarted, .stateCompleted: role = .status
+                 .stateStarted, .stateCompleted, .previewNotApplied,
+                 .changeConflict, .manualResolutionRequired,
+                 .recoveryRebuilt: role = .status
             case .occurrence, .claimBoundary: role = .group
             }
             return AccessibilityContractV1(

@@ -1617,3 +1617,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_10
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
     }
 }
+
+extension C45LifecycleBoundaryCompatibilityTests {
+    func testV23P03C51LifecycleKeepsProjectionAndRecoveryDerived() {
+        XCTAssertTrue(
+            !C51WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow
+                && C51WorkflowScheduleBoundaryV1
+                    .occurrenceHistoryRemainsCanonicalWorkflowInput
+                && !C51ScheduleOverrideRecoveryBoundaryV1.createsParallelWriter
+        )
+    }
+}

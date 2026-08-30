@@ -2,6 +2,14 @@ import Foundation
 
 protocol ScheduleProjectionClockV1: Sendable { func nowUTC() -> Date }
 
+enum C51ScheduleRuntimeBoundaryV1 {
+    static let injectedClockType = ScheduleProjectionClockV1.self
+    static let localOnly = true
+    static let eventKitPermissionRequested = false
+    static let backgroundScheduleDaemon = false
+    static let frozenTimeBasisIsReused = true
+}
+
 protocol ApplicationClock: Sendable {
     /// Wall time for durable records and user-visible calendar context only.
     /// It must never be used to order causal mutations or measure durations.

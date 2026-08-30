@@ -1,0 +1,86 @@
+{
+  "cardID": "V23-P03-C51",
+  "schema": "V22P03C51ScheduleExceptionCalendarCorpusV1",
+  "schemaVersion": 1,
+  "evidenceIDs": [
+    "G01_GRAMMAR_DST_LEAP_MONTH_NTH_LAST",
+    "A01_CALENDAR_PRECEDENCE_OVERRIDE_SCOPE_KIND",
+    "H01_BOUNDS_FRONTIER_DIGEST_ZONE_RANGE_ROLLBACK_CORRUPTION",
+    "I01_EFFECT_BEFORE_RECEIPT_PARTIAL_RETRY_BACKUP_REPLAY",
+    "R01_RESTORE_DERIVED_EQUALITY_ALL_DAYS_FORBIDDEN_CAPABILITIES"
+  ],
+  "recurrenceKinds": [
+    "DAILY",
+    "WEEKLY",
+    "MONTHLY_DAY",
+    "MONTHLY_WEEKDAY",
+    "YEARLY",
+    "COMPLETION_RELATIVE"
+  ],
+  "dstCases": [
+    "SPRING_NONEXISTENT_GAP",
+    "FALL_AMBIGUOUS_FOLD"
+  ],
+  "monthBoundaryDates": [
+    "2024-02-29",
+    "2025-01-31",
+    "2025-02-28",
+    "2025-04-30",
+    "2025-06-30",
+    "2025-09-30",
+    "2025-11-30"
+  ],
+  "weekdayOrdinals": [
+    "FIRST",
+    "SECOND",
+    "THIRD",
+    "FOURTH",
+    "LAST"
+  ],
+  "calendarDispositions": [
+    "INCLUDED_OVERRIDE",
+    "EXCLUDED_DATE",
+    "EXCLUDED_RANGE",
+    "BASE_INCLUDED_WEEKDAY",
+    "BASE_EXCLUDED_WEEKDAY"
+  ],
+  "overrideScopes": [
+    "THIS_OCCURRENCE",
+    "THIS_AND_FUTURE",
+    "ENTIRE_SERIES"
+  ],
+  "overrideKinds": [
+    "SKIP",
+    "MOVE",
+    "ADD_ONE"
+  ],
+  "precedenceLevels": [
+    "BASE_RECURRENCE",
+    "EXCEPTION_CALENDAR",
+    "EFFECTIVE_SERIES_OVERRIDE",
+    "EXPLICIT_OCCURRENCE_OVERRIDE"
+  ],
+  "immutableHistoryStates": [
+    "STARTED",
+    "COMPLETED",
+    "MISSED"
+  ],
+  "bounds": {
+    "lookaheadDays": 400,
+    "reconciliationBackfillDays": 90,
+    "maximumGeneratedPerSchedule": 512,
+    "maximumActiveUpcomingPerWorkspace": 10000
+  },
+  "forbiddenCapabilities": [
+    "EVENTKIT_PERMISSION",
+    "NETWORK_CALENDAR_FEED",
+    "NOTIFICATION_DELIVERY_AS_SCHEDULE_TRUTH"
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "release": false
+  }
+}

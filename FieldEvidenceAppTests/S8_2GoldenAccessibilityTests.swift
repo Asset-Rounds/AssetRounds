@@ -9,6 +9,16 @@ private final class C45GoldenAccessibilityCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51S82GoldenAccessibilityAnchorTests: XCTestCase {
+    func testV23P03C51AccessibilityRequirementsDoNotClaimAnImplementedUI() {
+        XCTAssertTrue(ScheduleAccessibilityPolicyV1.accessibilityContractDeclared)
+        XCTAssertTrue(ScheduleAccessibilityPolicyV1.voiceControlStableNameRequired)
+        XCTAssertTrue(ScheduleAccessibilityPolicyV1.switchControlReachabilityRequired)
+        XCTAssertTrue(ScheduleAccessibilityPolicyV1.rtlReadingOrderRequired)
+        XCTAssertFalse(ScheduleAccessibilityPolicyV1.uiConformanceClaimed)
+    }
+}
+
 private final class C30EvidenceContextAnchorS8_2GoldenAccessibility: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

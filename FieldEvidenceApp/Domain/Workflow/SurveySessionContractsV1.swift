@@ -2,6 +2,17 @@ import Foundation
 
 enum SurveySessionScheduleBoundaryV1 { static let dueProjectionMayCreateSession = false }
 
+enum C51SurveySessionScheduleBoundaryV1 {
+    static let dueProjectionMayCreateSession = false
+    static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let sessionDoesNotRewriteOccurrenceHistory = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 enum SurveySessionFailureV1: Error, Equatable {
     case invalidValue, invalidDigest, wrongWorkspace, wrongDefinition, invalidTransition
     case staleRevision, unresolvedConflict, incompleteSurvey, unsafePromotion, passFailClaimForbidden

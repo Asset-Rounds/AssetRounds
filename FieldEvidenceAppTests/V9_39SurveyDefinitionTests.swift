@@ -15,6 +15,15 @@ private final class C45SurveyDefinitionCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51V939SurveyDefinitionAnchorTests: XCTestCase {
+    func testV23P03C51SurveyDefinitionDoesNotCreateOrWriteSchedules() {
+        XCTAssertFalse(C51SurveyDefinitionScheduleBoundaryV1.publicationCreatesSchedule)
+        XCTAssertTrue(C51SurveyDefinitionScheduleBoundaryV1.scheduleClosureMetadataIsDerivedOnly)
+        XCTAssertTrue(C51SurveyDefinitionScheduleCoordinatorBoundaryV1.coordinatorOwnsNoOccurrenceWriter)
+        XCTAssertTrue(C51SurveyDefinitionScheduleLifecycleBoundaryV1.adapterWritesNoOccurrenceHistory)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_39SurveyDefinition: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

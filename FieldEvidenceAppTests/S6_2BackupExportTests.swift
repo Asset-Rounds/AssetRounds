@@ -885,3 +885,17 @@ private final class C50IncumbentAdapterS62BackupExportBoundaryTests: XCTestCase 
         XCTAssertFalse(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.restoresSourceScratchOrQuarantine)
     }
 }
+
+extension C45BackupExportCompatibilityTests {
+    func testV23P03C51BackupExportIncludesCalendarAndOverrideClosure() {
+        XCTAssertTrue(
+            C51ScheduleBackupClosureV1.persistedRecordKindCount == 4
+                && C51ScheduleBackupClosureV1.embeddedCanonicalComponents
+                    .contains("ExceptionCalendarReleaseV1")
+                && C51ScheduleBackupClosureV1.embeddedCanonicalComponents
+                    .contains("ScheduleOverrideEventV1")
+                && !C51ScheduleBackupClosureV1
+                    .sourceScheduleAutomaticallyActiveAfterCloneOrFork
+        )
+    }
+}

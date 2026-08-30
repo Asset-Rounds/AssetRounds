@@ -2,6 +2,16 @@ import Foundation
 
 enum CheckRunnerScheduleCoordinatorBoundaryV1 { static let checkRunnerMayAutoStartOccurrence = false }
 
+enum C51CheckRunnerScheduleCoordinatorBoundaryV1 {
+    static let checkRunnerMayAutoStartOccurrence = false
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let coordinatorOwnsNoOccurrenceWriter = true
+
+    static func validate(_ metadata: C51CheckRunnerScheduleMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 extension CheckRunnerCoordinator {
     /// Produces capture context only. The existing explicit draft/start path
     /// remains the sole authority to start work.

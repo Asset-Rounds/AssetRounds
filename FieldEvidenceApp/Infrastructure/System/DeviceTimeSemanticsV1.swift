@@ -3,6 +3,13 @@ import Foundation
 enum ScheduleDeviceClockBoundaryV1 {
     static let wallClockRollbackMutatesOccurrenceHistory = false
     static func validateEvaluationInstant(_ value: Date) throws { try ScheduleLimitsV1.instant(value) }
+    static func validateFrozenOccurrenceBasis(_ value: OccurrenceScheduleBasisV2) throws {
+        try value.validate()
+        guard value.localTimeDisposition != .unknown else { throw ScheduleFailureV1.invalidValue }
+    }
+    static let travelOrCurrentZoneChangeRebindsFrozenBasis = false
+    static let timeZoneDatabaseChangeReinterpretsRecordedOffset = false
+    static let scheduleCausalOrderUsesDeviceWallClock = false
 }
 
 enum DeviceTimeSemanticsFailureV1: Error, Equatable, Sendable {

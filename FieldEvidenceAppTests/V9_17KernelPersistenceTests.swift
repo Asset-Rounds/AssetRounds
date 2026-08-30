@@ -587,3 +587,14 @@ private final class C49WorkResourceKernelPersistenceBoundaryTests: XCTestCase {
         try C49WorkResourcePersistenceBoundaryV1.validate()
     }
 }
+
+extension C50KernelPersistenceTests {
+    func testV23P03C51PersistenceAddsTwoRowsAtV38() {
+        XCTAssertTrue(
+            C51ScheduleExceptionMigrationBoundaryV1.persistentSchemaVersion == 38
+                && C51ScheduleExceptionMigrationBoundaryV1.recordsVersion == 37
+                && C51ScheduleExceptionMigrationBoundaryV1.newDurableRows
+                    == ["ExceptionCalendarReleaseRow", "ScheduleOverrideEventRow"]
+        )
+    }
+}

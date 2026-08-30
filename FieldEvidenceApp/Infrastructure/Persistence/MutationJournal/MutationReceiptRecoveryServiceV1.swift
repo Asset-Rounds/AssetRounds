@@ -47,6 +47,10 @@ final class MutationReceiptRecoveryServiceV1 {
     /// C27 locator and binding-receipt effects are recovered exclusively from
     /// the canonical mutation journal; derived resolution previews are rebuilt.
     func recoverAssetLocatorEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    /// Calendar releases and override events are recovered with the original
+    /// `.applySchedule` effect/receipt pair. A recovered stream is revalidated
+    /// against its persisted frontier; preview and due/reminder state remain
+    /// disposable projections.
     func recoverScheduleEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
     /// C29 repairs the four plan histories and their generic receipt together;
     /// spatial frames stay embedded and rebase previews are rebuilt.
@@ -151,6 +155,7 @@ enum C46OperationalContactBoundary_20{static let persistentFamilies=OperationalC
 enum C47ActivityContractRecoveryBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let effectBeforeReceiptRecoveryIsIdempotent=true;static let completedSnapshotBytesAreNeverReencoded=true }
 enum C48PortableReviewRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyPortableReview;static let canonicalEffectUsesExistingC14Rows=true;static let sessionEvidenceFinalizesOnlyAfterExactReceipt=true;static let historyOnlyNeverEntersWorkspaceJournal=true }
 enum C49WorkResourceRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applyWorkResource;static let effectBeforeReceiptRecoveryUsesCanonicalPostimage=true;static let divergentSameMutationIsQuarantined=true;static let noSecondCostLedger=true }
+enum C51ScheduleOverrideRecoveryBoundaryV1 { static let commandKind:WorkspaceCommandKindV1 = .applySchedule;static let effectBeforeReceiptRecoveryUsesCanonicalPostimages=true;static let divergentSameMutationIsQuarantined=true;static let overrideFrontierIsRevalidatedFromPersistedRows=true;static let createsParallelWriter=false }
 
 enum C50IncumbentFileExchangeRecoveryBoundaryV1 {
     static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"

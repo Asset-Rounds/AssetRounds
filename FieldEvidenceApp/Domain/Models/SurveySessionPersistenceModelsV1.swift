@@ -1,6 +1,12 @@
 import Foundation
 enum EvidenceContextSurveySessionBoundaryV1{static let factsReferenceEvidenceWithoutDuplicatingContextRows=true;static let pairingUsesCanonicalEvidenceRevision=true}
 enum PlacementPoseSurveySessionPersistenceBoundaryV1{static let promotionUsesTheCanonicalPoseWriter=true;static let sessionsOwnNoDuplicatePoseReceipt=true}
+
+enum C51SurveySessionSchedulePersistenceBoundaryV1 {
+    static let sessionRowsCarryNoOccurrenceHistory = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let scheduleRowsRemainOutsideSessionStore = true
+}
 import SwiftData
 
 enum PlanSurveySessionBindingV1 { static let placementMayReferenceObservationIdentity = true; static let sessionRowsDoNotOwnPlanBytes = true }

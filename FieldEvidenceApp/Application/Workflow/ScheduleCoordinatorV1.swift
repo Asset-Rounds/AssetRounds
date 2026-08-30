@@ -39,10 +39,12 @@ import Foundation
                   completionHistory: [OccurrenceHistoryEventV1],
                   window: OccurrenceGenerationWindowV1,
                   resolver: any ScheduleCalendarResolvingV1,
+                  releaseHistory: [ScheduleDefinitionReleaseV1] = [],
                   event: (OccurrenceGenerationCandidateV1) throws -> OccurrenceHistoryEventV1) throws -> ScheduleMutationReceiptV1? {
         let plan = try ScheduleOccurrenceGeneratorV1.generate(definition: definition, history: history,
                                                                completionHistory: completionHistory,
-                                                               window: window, resolver: resolver)
+                                                               window: window, resolver: resolver,
+                                                               releaseHistory: releaseHistory)
         guard !plan.candidates.isEmpty else { return nil }
         let events = try plan.candidates.map(event)
         guard let mutationID = events.first?.mutationID,
@@ -81,6 +83,29 @@ import Foundation
             throw ScheduleFailureV1.staleBasis
         }
         return try .init(dueQueue: dueQueue, localizationKey: localizationKey)
+    }
+
+    /// C51 remains projection-only here. Canonical calendar/override mutation
+    /// envelopes are committed by the existing WorkspaceWriter lanes.
+    func previewAdvancedChange(definition: ScheduleDefinitionReleaseV1,
+                               binding: AdvancedScheduleReleaseBindingV1,
+                               calendar: ExceptionCalendarReleaseV1,
+                               existingOverrideEvents: [ScheduleOverrideEventV1],
+                               proposedOverride: ScheduleOverrideEventV1?,
+                               occurrences: [ScheduleChangeOccurrenceInputV1],
+                               evaluatedRange: ScheduleLocalDateRangeV1,
+                               activeUpcomingWorkspaceCount: Int) throws -> ScheduleChangePreviewV1 {
+        try ScheduleExceptionProjectionEngineV1.preview(definition: definition, binding: binding,
+            calendar: calendar, existingOverrideEvents: existingOverrideEvents,
+            proposedOverride: proposedOverride, occurrences: occurrences,
+            evaluatedRange: evaluatedRange,
+            activeUpcomingWorkspaceCount: activeUpcomingWorkspaceCount)
+    }
+
+    func validateAdvancedCommit(preview: ScheduleChangePreviewV1,
+                                currentFrontier: ScheduleChangeFrontierV1) throws {
+        try ScheduleExceptionProjectionEngineV1.validateCommit(preview: preview,
+                                                                currentFrontier: currentFrontier)
     }
 
     private func commit(_ mutation: ScheduleMutationV1) throws -> ScheduleMutationReceiptV1 {

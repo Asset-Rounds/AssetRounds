@@ -72,9 +72,11 @@ enum SurveyDefinitionDeletionLedgerStorePolicyV1{static func validate()throws{tr
 enum ScheduleDeletionLedgerStorePolicyV1 {
     static func validate() throws {
         try ScheduleDeletionLedgerPolicyV1.validate()
-        guard ScheduleDeletionLedgerPolicyV1.durableKinds.count == 2,
+        guard ScheduleDeletionLedgerPolicyV1.durableKinds.count == 4,
               ScheduleDeletionLedgerPolicyV1.lifecycleEventsRemainInMutationHistory,
               ScheduleDeletionLedgerPolicyV1.ordinaryDeletionPreservesReleaseAndOccurrenceHistory,
+              ScheduleDeletionLedgerPolicyV1.ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure,
+              ScheduleDeletionLedgerPolicyV1.embeddedC51Kinds.count == 6,
               ScheduleDeletionLedgerPolicyV1.workspaceEraseRemovesAll else {
             throw DeletionLedgerFailureV2.invalidIdentity
         }

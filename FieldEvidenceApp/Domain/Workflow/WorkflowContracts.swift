@@ -2,6 +2,17 @@ import Foundation
 
 enum WorkflowScheduleBoundaryV1 { static let dueProjectionMayStartWorkflow = false }
 
+enum C51WorkflowScheduleBoundaryV1 {
+    static let dueProjectionMayStartWorkflow = false
+    static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let occurrenceHistoryRemainsCanonicalWorkflowInput = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 enum WorkflowAssetLocatorBoundaryV1 {
     static let resolutionStartsWorkflow = false
     static let captureStoresFrozenInterpretation = true

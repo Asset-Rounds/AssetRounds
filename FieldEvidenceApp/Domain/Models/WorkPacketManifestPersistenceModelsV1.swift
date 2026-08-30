@@ -1,6 +1,12 @@
 import Foundation
 enum EvidenceContextWorkPacketBoundaryV1{static let manifestsMayReferenceEvidenceRevisionButDoNotEmbedContextRows=true}
 enum PlacementPoseWorkPacketPersistenceBoundaryV1{static let packetsReferencePoseResultsWithoutOwningTips=true}
+
+enum C51WorkPacketSchedulePersistenceBoundaryV1 {
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let workPacketRowsCarryNoOccurrenceHistory = true
+    static let scheduleRowsRemainOutsideWorkPacketStore = true
+}
 import SwiftData
 
 enum PlanWorkPacketBoundaryV1 { static let planRebaseDoesNotCreateWorkPackets = true; static let planRevisionHistoryIsImmutable = true }

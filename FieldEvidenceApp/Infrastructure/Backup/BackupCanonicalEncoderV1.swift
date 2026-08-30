@@ -751,7 +751,25 @@ private extension BackupCanonicalEncoderV1 {
               records.schedules.count <= 200_000 else { return false }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
         let keys = records.schedules.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }
-        return keys == keys.sorted()
+        let definitionRecords = records.schedules.filter { $0.kind == .scheduleRelease }
+        let calendarRecords = records.schedules.filter { $0.kind == .exceptionCalendarRelease }
+        let definitions = definitionRecords.compactMap {
+            try? ScheduleCanonicalCodecV1.decode(
+                ScheduleDefinitionReleaseV1.self, from: $0.canonicalData
+            )
+        }
+        let calendars = calendarRecords.compactMap {
+            try? ScheduleCanonicalCodecV1.decode(
+                ExceptionCalendarReleaseV1.self, from: $0.canonicalData
+            )
+        }
+        return C51ScheduleBackupClosureV1.validatesEnvelope(records.schedules)
+            && definitions.count == definitionRecords.count
+            && calendars.count == calendarRecords.count
+            && C51ScheduleBackupClosureV1.validatesAdvancedCalendarReferences(
+                definitions: definitions, calendars: calendars
+            )
+            && keys == keys.sorted()
             && Set(keys).count == keys.count
             && records.schedules.allSatisfy {
                 $0.id != zero && $0.workspaceID != zero

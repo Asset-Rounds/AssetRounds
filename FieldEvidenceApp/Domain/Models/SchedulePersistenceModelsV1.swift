@@ -95,3 +95,117 @@ enum SchedulePersistenceFailureV1: Error { case corruptRow }
         let value=try self.value();try value.validate(predecessor:predecessor);return value
     }
 }
+
+/// Immutable C51 calendar-release authority.  The indexed columns are only
+/// lookup/integrity mirrors; the canonical payload remains the source of
+/// truth and is decoded and revalidated before use.
+@Model final class ExceptionCalendarReleaseRow {
+    @Attribute(.unique) var releaseID: UUID
+    var calendarID: UUID
+    var workspaceID: UUID
+    var supersedesReleaseID: UUID?
+    var revision: UInt64
+    var mutationID: UUID
+    var releaseSHA256: String
+    var canonicalData: Data
+
+    init(_ value: ExceptionCalendarReleaseV1) throws {
+        try value.validate()
+        releaseID = value.releaseID
+        calendarID = value.calendarID
+        workspaceID = value.workspaceID.rawValue
+        supersedesReleaseID = value.supersedesReleaseID
+        revision = value.revision
+        mutationID = value.mutationID.rawValue
+        releaseSHA256 = value.releaseSHA256
+        canonicalData = try ScheduleCanonicalCodecV1.data(value)
+        let decoded = try ScheduleCanonicalCodecV1.decode(
+            ExceptionCalendarReleaseV1.self,
+            from: canonicalData
+        )
+        guard decoded == value else { throw SchedulePersistenceFailureV1.corruptRow }
+    }
+
+    func value() throws -> ExceptionCalendarReleaseV1 {
+        let value = try ScheduleCanonicalCodecV1.decode(
+            ExceptionCalendarReleaseV1.self,
+            from: canonicalData
+        )
+        try value.validate()
+        guard value.releaseID == releaseID,
+              value.calendarID == calendarID,
+              value.workspaceID.rawValue == workspaceID,
+              value.supersedesReleaseID == supersedesReleaseID,
+              value.revision == revision,
+              value.mutationID.rawValue == mutationID,
+              value.releaseSHA256 == releaseSHA256 else {
+            throw SchedulePersistenceFailureV1.corruptRow
+        }
+        return value
+    }
+
+    func value(predecessor: ExceptionCalendarReleaseV1?) throws -> ExceptionCalendarReleaseV1 {
+        let value = try self.value()
+        if let predecessor { try value.validateSuccessor(of: predecessor) }
+        else if value.revision != 1 { throw SchedulePersistenceFailureV1.corruptRow }
+        return value
+    }
+}
+
+/// Append-only C51 override authority.  Supersession is represented by a new
+/// immutable row; the predecessor remains available for replay/audit.
+@Model final class ScheduleOverrideEventRow {
+    @Attribute(.unique) var eventID: UUID
+    var workspaceID: UUID
+    var scheduleDefinitionID: UUID
+    var scheduleReleaseID: UUID
+    var supersedesEventID: UUID?
+    var revision: UInt64
+    var mutationID: UUID
+    var eventSHA256: String
+    var canonicalData: Data
+
+    init(_ value: ScheduleOverrideEventV1) throws {
+        try value.validate()
+        eventID = value.eventID
+        workspaceID = value.workspaceID.rawValue
+        scheduleDefinitionID = value.scheduleRelease.scheduleDefinitionID
+        scheduleReleaseID = value.scheduleRelease.releaseID
+        supersedesEventID = value.supersedesEventID
+        revision = value.revision
+        mutationID = value.mutationID.rawValue
+        eventSHA256 = value.eventSHA256
+        canonicalData = try ScheduleCanonicalCodecV1.data(value)
+        let decoded = try ScheduleCanonicalCodecV1.decode(
+            ScheduleOverrideEventV1.self,
+            from: canonicalData
+        )
+        guard decoded == value else { throw SchedulePersistenceFailureV1.corruptRow }
+    }
+
+    func value() throws -> ScheduleOverrideEventV1 {
+        let value = try ScheduleCanonicalCodecV1.decode(
+            ScheduleOverrideEventV1.self,
+            from: canonicalData
+        )
+        try value.validate()
+        guard value.eventID == eventID,
+              value.workspaceID.rawValue == workspaceID,
+              value.scheduleRelease.scheduleDefinitionID == scheduleDefinitionID,
+              value.scheduleRelease.releaseID == scheduleReleaseID,
+              value.supersedesEventID == supersedesEventID,
+              value.revision == revision,
+              value.mutationID.rawValue == mutationID,
+              value.eventSHA256 == eventSHA256 else {
+            throw SchedulePersistenceFailureV1.corruptRow
+        }
+        return value
+    }
+
+    func value(predecessor: ScheduleOverrideEventV1?) throws -> ScheduleOverrideEventV1 {
+        let value = try self.value()
+        if let predecessor { try value.validateSuccessor(of: predecessor) }
+        else if value.revision != 1 { throw SchedulePersistenceFailureV1.corruptRow }
+        return value
+    }
+}

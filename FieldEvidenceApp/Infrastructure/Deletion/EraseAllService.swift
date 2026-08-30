@@ -181,18 +181,23 @@ enum AssetLocatorEraseAllPolicyV1 {
 enum ScheduleEraseAllPolicyV1 {
     static let persistentSchemaVersion = 27
     static let recordsSchemaVersion = 26
-    static let durableFamilyCount = 2
+    static let durableFamilyCount = 4
+    static let embeddedClosureComponentCount = 6
     static let projectionsAreDerived = true
     static let notificationStateIsTruth = false
 
     static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
         guard persistentSchemaVersion == 27,
               recordsSchemaVersion == 26,
-              durableFamilyCount == 2,
+              durableFamilyCount == 4,
+              embeddedClosureComponentCount == C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count,
+              ScheduleEraseBoundaryV1.erasePublishesNoPartialCalendarOverrideOrBasisClosure,
               projectionsAreDerived,
               !notificationStateIsTruth,
               try context.fetchCount(FetchDescriptor<ScheduleDefinitionReleaseRow>()) == 0,
-              try context.fetchCount(FetchDescriptor<OccurrenceHistoryEventRow>()) == 0 else {
+              try context.fetchCount(FetchDescriptor<OccurrenceHistoryEventRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ExceptionCalendarReleaseRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ScheduleOverrideEventRow>()) == 0 else {
             throw EraseAllServiceError.invalidAuthority
         }
     }

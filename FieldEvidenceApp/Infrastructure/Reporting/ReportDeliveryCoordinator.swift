@@ -1255,6 +1255,15 @@ extension ReportDeliveryCoordinator {
     }
 }
 
+extension ReportDeliveryCoordinator {
+    static func localAdvancedScheduleExport(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> Data {
+        try AdvancedScheduleReportProjectionPolicyV1.validate(projection)
+        return try DeterministicOpenJSONRendererV1.renderAdvancedSchedule(projection).data
+    }
+}
+
 // MARK: - C23 version-bound field-reference delivery
 
 enum FieldReferenceReportDeliveryPolicyV1 {

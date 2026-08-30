@@ -2,6 +2,12 @@ import Foundation
 
 enum ScheduleContentProvenanceBoundaryV1 { static let dueStateIsAuthorityClaim = false }
 
+enum C51ScheduleContentProvenanceBoundaryV1 {
+    static let scheduleProvenanceIsContentProvenance = false
+    static let scheduleCarriesNoCaptureOrImportProvenance = true
+    static let canonicalContentProvenanceOwnerRemainsUnchanged = true
+}
+
 enum AssetLocatorProvenanceBoundaryV1 {
     static let signedPayloadProvesAuthorship = false
     static let signedPayloadProvesAuthorization = false

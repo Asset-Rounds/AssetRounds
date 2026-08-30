@@ -32,6 +32,26 @@ extension DeterministicPDFRendererV1 {
     }
 }
 
+extension DeterministicPDFRendererV1 {
+    static func advancedScheduleTextLines(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> [String] {
+        try AdvancedScheduleReportProjectionPolicyV1.validate(projection)
+        let occurrenceLines = projection.occurrences.map { value in
+            let effective = value.basis.effectiveDate?.canonicalString ?? "none"
+            return "\(BundledLocalizationCatalogV1.localized(.occurrence)): \(value.occurrenceID.rawValue); \(BundledLocalizationCatalogV1.localized(.nominalBasis)): \(value.basis.nominalDate.canonicalString); \(BundledLocalizationCatalogV1.localized(.effectiveBasis)): \(effective); \(BundledLocalizationCatalogV1.localized(.businessDayAdjustment)): \(value.basis.adjustmentReason.rawValue)"
+        }
+        return [
+            BundledLocalizationCatalogV1.localized(.advancedRecurrence),
+            "\(BundledLocalizationCatalogV1.localized(.calendarRelease)): \(projection.calendarRelease.revision)",
+            "\(BundledLocalizationCatalogV1.localized(.scheduleOverride)): \(projection.orderedOverrideEventSHA256s.count)",
+            projection.previewIsUncommitted
+                ? BundledLocalizationCatalogV1.localized(.previewNotApplied)
+                : BundledLocalizationCatalogV1.localized(.historyImmutable),
+        ] + occurrenceLines
+    }
+}
+
 // MARK: - C29 plan and rebase PDF metadata
 
 enum PlanReportPDFBoundaryV1 {
@@ -643,10 +663,13 @@ extension DeterministicPDFRendererV1 {
         _ projection: ScheduleReportProjectionV1
     ) throws -> [String] {
         try ScheduleReportPDFBoundaryV1.validate(projection)
-        let recurrenceKey: ScheduleLocalizationKeyV1 =
-            projection.recurrenceKind == "FIXED_CALENDAR"
-                ? .fixedCalendar
-                : .completionRelative
+        let recurrenceKey: ScheduleLocalizationKeyV1
+        switch projection.recurrenceKind {
+        case "FIXED_CALENDAR": recurrenceKey = .fixedCalendar
+        case "COMPLETION_RELATIVE": recurrenceKey = .completionRelative
+        case "ADVANCED": recurrenceKey = .advancedRecurrence
+        default: recurrenceKey = .claimBoundary
+        }
         let recurrence = BundledLocalizationCatalogV1.localized(recurrenceKey)
         let stateLines = projection.occurrences.map { occurrence in
             let label = BundledLocalizationCatalogV1.scheduleDisplayLabel(

@@ -10,6 +10,38 @@ struct CheckRunnerScheduleContextV1: Equatable, Sendable {
     }
 }
 
+/// CheckRunner may carry the schedule closure beside capture context for
+/// display/reconciliation.  It is a validated derived reference and never a
+/// start, completion, occurrence, or content authority.
+struct C51CheckRunnerScheduleMetadataV1: Codable, Equatable, Sendable {
+    let scheduleClosureReference: C51ScheduleClosureReferenceV1
+    let derivedMetadataOnly: Bool
+
+    init(reference: C51ScheduleClosureReferenceV1) throws {
+        try reference.validate()
+        scheduleClosureReference = reference
+        derivedMetadataOnly = true
+        try validate()
+    }
+
+    func validate() throws {
+        try scheduleClosureReference.validate()
+        guard derivedMetadataOnly else { throw ScheduleFailureV1.divergentReplay }
+    }
+}
+
+enum C51CheckRunnerScheduleBoundaryV1 {
+    static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self
+    static let scheduleClosureMetadataType = C51CheckRunnerScheduleMetadataV1.self
+    static let scheduleClosureIsDerivedMetadataOnly = true
+    static let checkRunnerMayAutoStartOccurrence = false
+    static let checkRunnerOwnsNoOccurrenceWriter = true
+
+    static func validate(_ metadata: C51CheckRunnerScheduleMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 struct CheckRunnerAssetLocatorContextV1: Equatable, Sendable {
     let resolution: LocatorResolutionV1
     let frozenInterpretation: FrozenAssetLocatorInterpretationV1

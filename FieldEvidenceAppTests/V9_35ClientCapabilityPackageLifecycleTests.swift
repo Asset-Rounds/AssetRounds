@@ -11,6 +11,16 @@ private final class C45PackageLifecycleCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51V935ClientCapabilityJobAnchorTests: XCTestCase {
+    func testV23P03C51CapabilityJobsRequireExactLocalFrontierWithoutPartialTruth() {
+        XCTAssertEqual(C51ScheduleReconciliationJobBoundaryV1.jobKind, .scheduleGeneration)
+        XCTAssertTrue(C51ScheduleReconciliationJobBoundaryV1.exactSourceFrontierIsRequired)
+        XCTAssertFalse(C51ScheduleReconciliationJobBoundaryV1.partialCompletionClaimAllowed)
+        XCTAssertTrue(C51ScheduleReconciliationRunnerBoundaryV1.reconciliationRemainsLocalOnly)
+        XCTAssertTrue(C51ScheduleCrossCuttingPolicyV1.derivedClosureReferencesAreNoncanonical)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_35ClientCapabilityPackageLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

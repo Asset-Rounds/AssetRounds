@@ -2,6 +2,57 @@ import Foundation
 
 enum ScheduleLocalJobBoundaryV1 { static let derivedProjectionsAreRebuildable = true }
 
+/// The C51 reconciliation input is an immutable source frontier, not a
+/// mutable progress claim.  A resumable retry must use the same frontier
+/// digest and may not publish a partial schedule as complete.
+struct C51ScheduleReconciliationJobInputV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let sourceFrontier: ScheduleChangeFrontierV1
+    let sourceFrontierSHA256: String
+    let partialCompletionClaimed: Bool
+
+    init(sourceFrontier: ScheduleChangeFrontierV1) throws {
+        try sourceFrontier.validate()
+        schemaVersion = Self.schemaVersion
+        self.sourceFrontier = sourceFrontier
+        sourceFrontierSHA256 = sourceFrontier.frontierSHA256
+        partialCompletionClaimed = false
+        try validate()
+    }
+
+    func validate() throws {
+        try sourceFrontier.validate()
+        try ScheduleLimitsV1.digest(sourceFrontierSHA256)
+        guard schemaVersion == Self.schemaVersion,
+              sourceFrontierSHA256 == sourceFrontier.frontierSHA256,
+              !partialCompletionClaimed else {
+            throw ScheduleFailureV1.divergentReplay
+        }
+    }
+}
+
+enum C51ScheduleReconciliationJobBoundaryV1 {
+    static let jobKind: ResumableLocalJobKindV1 = .scheduleGeneration
+    static let exactSourceFrontierIsRequired = true
+    static let partialCompletionClaimAllowed = false
+    static let localOnly = true
+
+    static func validate(
+        job: ResumableLocalJobV1,
+        input: C51ScheduleReconciliationJobInputV1
+    ) throws {
+        try job.validate()
+        try input.validate()
+        guard job.kind == jobKind,
+              job.workspaceID == input.sourceFrontier.workspaceID.rawValue,
+              job.immutableInputSHA256 == input.sourceFrontierSHA256 else {
+            throw ScheduleFailureV1.divergentReplay
+        }
+    }
+}
+
 /// Narrow application boundary for the device-local operational job ledger.
 ///
 /// The ledger is not canonical workspace truth. Callers enqueue work only

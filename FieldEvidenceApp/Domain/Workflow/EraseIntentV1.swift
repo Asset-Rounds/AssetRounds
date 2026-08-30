@@ -49,18 +49,22 @@ enum AccessibleDocumentEraseBoundaryV1{static let atomicFamilyCount=1;static let
 enum SurveyDefinitionEraseBoundaryV1{static let atomicFamilyCount=2;static let lifecycleEventsAreMutationHistoryOnly=true;static let workspaceEraseClearsIdentityAndReleaseRows=true;static let quarantinedImportsAreNoncanonical=true}
 enum SurveySessionEraseBoundaryV1{static let atomicFamilyCount=5;static let ordinaryDeletionPreservesPublicationAndCaptureHistory=true;static let workspaceEraseClearsEntireLifecycleClosure=true;static let previewsAndCurrentProjectionsAreNonpersistent=true}
 enum ScheduleEraseBoundaryV1 {
-    static let atomicFamilyCount = 2
+    static let atomicFamilyCount = 4
+    static let embeddedClosureComponentCount = 6
     static let lifecycleHistoryIsMutationJournalBacked = true
     static let ordinaryDeletionPreservesReleaseAndOccurrenceHistory = true
     static let workspaceEraseClearsEntireLifecycleClosure = true
+    static let erasePublishesNoPartialCalendarOverrideOrBasisClosure = true
     static let dueAndReminderProjectionsAreNonpersistent = true
     static let notificationStateIsTruth = false
 
     static func validate() -> Bool {
-        atomicFamilyCount == 2
+        atomicFamilyCount == 4
+            && embeddedClosureComponentCount == C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count
             && lifecycleHistoryIsMutationJournalBacked
             && ordinaryDeletionPreservesReleaseAndOccurrenceHistory
             && workspaceEraseClearsEntireLifecycleClosure
+            && erasePublishesNoPartialCalendarOverrideOrBasisClosure
             && dueAndReminderProjectionsAreNonpersistent
             && !notificationStateIsTruth
     }

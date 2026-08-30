@@ -1952,6 +1952,8 @@ private extension WholeSignDeletionService {
         let surveySessions:[SurveySessionRow];let factCaptures:[FactCaptureRow];let provisionalSubjects:[ProvisionalSubjectRow];let subjectPromotionReceipts:[SubjectPromotionReceiptRow];let surveyPublicationSnapshots:[SurveyPublicationSnapshotRow]
         let scheduleDefinitionReleases: [ScheduleDefinitionReleaseRow]
         let occurrenceHistoryEvents: [OccurrenceHistoryEventRow]
+        let exceptionCalendarReleases: [ExceptionCalendarReleaseRow]
+        let scheduleOverrideEvents: [ScheduleOverrideEventRow]
         let assetLocators: [AssetLocatorRow]
         let locatorBindingReceipts: [LocatorBindingReceiptRow]
         let planDocuments: [PlanDocumentRow]
@@ -2028,6 +2030,8 @@ private extension WholeSignDeletionService {
                  surveySessions:try boundedFetch(SurveySessionRow.self),factCaptures:try boundedFetch(FactCaptureRow.self),provisionalSubjects:try boundedFetch(ProvisionalSubjectRow.self),subjectPromotionReceipts:try boundedFetch(SubjectPromotionReceiptRow.self),surveyPublicationSnapshots:try boundedFetch(SurveyPublicationSnapshotRow.self),
                  scheduleDefinitionReleases: try boundedFetch(ScheduleDefinitionReleaseRow.self),
                  occurrenceHistoryEvents: try boundedFetch(OccurrenceHistoryEventRow.self),
+                 exceptionCalendarReleases: try boundedFetch(ExceptionCalendarReleaseRow.self),
+                 scheduleOverrideEvents: try boundedFetch(ScheduleOverrideEventRow.self),
                  assetLocators: try boundedFetch(AssetLocatorRow.self),
                  locatorBindingReceipts: try boundedFetch(LocatorBindingReceiptRow.self),
                  planDocuments: try boundedFetch(PlanDocumentRow.self),
@@ -2113,9 +2117,17 @@ private extension WholeSignDeletionService {
         try rows.surveySessions.forEach{_ = try $0.value()};try rows.factCaptures.forEach{_ = try $0.value()};try rows.provisionalSubjects.forEach{_ = try $0.value()};try rows.subjectPromotionReceipts.forEach{_ = try $0.value()};try rows.surveyPublicationSnapshots.forEach{_ = try $0.value()};let sessionInventory=SurveySessionDeletionInventoryV1(sessionIDs:Set(rows.surveySessions.map(\.sessionID)),captureIDs:Set(rows.factCaptures.map(\.captureID)),provisionalSubjectIDs:Set(rows.provisionalSubjects.map(\.provisionalSubjectID)),promotionReceiptIDs:Set(rows.subjectPromotionReceipts.map(\.receiptID)),publicationSnapshotIDs:Set(rows.surveyPublicationSnapshots.map(\.snapshotID)));try WholeSignDeletionRule.validateSurveySessionLifecycle(before:sessionInventory,after:sessionInventory,workspaceErase:false);try SurveySessionDeletionLedgerPolicyV1.validate()
         let scheduleDefinitions = try rows.scheduleDefinitionReleases.map { try $0.value() }
         let scheduleHistory = try rows.occurrenceHistoryEvents.map { try $0.value() }
+        let scheduleCalendars = try rows.exceptionCalendarReleases.map { try $0.value() }
+        let scheduleOverrides = try rows.scheduleOverrideEvents.map { try $0.value() }
+        guard ScheduleDeletionIntentBoundaryV1.validate(),
+              C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count == 6 else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
         let scheduleInventory = try ScheduleDeletionInventoryV1(
             definitions: scheduleDefinitions,
-            history: scheduleHistory
+            history: scheduleHistory,
+            calendars: scheduleCalendars,
+            overrides: scheduleOverrides
         )
         try WholeSignDeletionRule.validateScheduleLifecycle(
             before: scheduleInventory,

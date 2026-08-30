@@ -17,6 +17,102 @@ enum TimeContextRuleError: Error, Equatable {
 }
 
 enum TimeContextRule {
+    struct ScheduleCivilTimeResolutionV1: Equatable, Sendable {
+        let resolvedAtUTC: Date?
+        let utcOffsetSeconds: Int?
+        let disposition: LocalTimeDispositionV1
+    }
+
+    /// Resolves one frozen Gregorian/IANA civil time without consulting the
+    /// device's current zone. The selected offset and gap/fold disposition are
+    /// subsequently carried by OccurrenceScheduleBasisV2 and never recomputed.
+    static func resolveScheduleCivilTime(
+        date: ScheduleLocalDateV1,
+        window: ScheduleLocalAnchorV1,
+        timeBasis: FrozenScheduleTimeBasisV1
+    ) throws -> ScheduleCivilTimeResolutionV1 {
+        try date.validate(); try window.validate(); try timeBasis.validate()
+        guard TimeZone.knownTimeZoneIdentifiers.contains(timeBasis.ianaTimeZoneIdentifier),
+              let timeZone = TimeZone(identifier: timeBasis.ianaTimeZoneIdentifier) else {
+            throw TimeContextRuleError.invalidTimeZoneID
+        }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = timeZone
+        var match = DateComponents()
+        match.year = date.year; match.month = date.month; match.day = date.day
+        match.hour = window.hour; match.minute = window.minute; match.second = window.second
+        let priorDay = try scheduleDate(date, addingDays: -1, calendar: calendar)
+        let first = calendar.nextDate(after: priorDay, matching: match, matchingPolicy: .strict,
+                                      repeatedTimePolicy: .first, direction: .forward)
+        let last = calendar.nextDate(after: priorDay, matching: match, matchingPolicy: .strict,
+                                     repeatedTimePolicy: .last, direction: .forward)
+        let exactFirst = first.flatMap { scheduleComponentsMatch($0, match: match, calendar: calendar) ? $0 : nil }
+        let exactLast = last.flatMap { scheduleComponentsMatch($0, match: match, calendar: calendar) ? $0 : nil }
+        if let exactFirst, let exactLast {
+            let ambiguous = exactFirst != exactLast
+            let selected = ambiguous && timeBasis.ambiguousTimePolicy == .laterOffset ? exactLast : exactFirst
+            return .init(resolvedAtUTC: selected,
+                         utcOffsetSeconds: timeZone.secondsFromGMT(for: selected),
+                         disposition: ambiguous ? .ambiguousFold : .unambiguous)
+        }
+        guard timeBasis.nonexistentTimePolicy == .shiftForwardByGap else {
+            return .init(resolvedAtUTC: nil, utcOffsetSeconds: nil, disposition: .nonexistentGap)
+        }
+        guard let shifted = calendar.nextDate(after: priorDay, matching: match, matchingPolicy: .nextTime,
+                                              repeatedTimePolicy: .first, direction: .forward) else {
+            throw ScheduleFailureV1.nonexistentLocalTime
+        }
+        return .init(resolvedAtUTC: shifted,
+                     utcOffsetSeconds: timeZone.secondsFromGMT(for: shifted),
+                     disposition: .nonexistentGap)
+    }
+
+    static func freezeScheduleBasisV2(
+        nominalDate: ScheduleLocalDateV1,
+        effectiveDate: ScheduleLocalDateV1?,
+        nominalWindow: ScheduleLocalAnchorV1,
+        effectiveWindow: ScheduleLocalAnchorV1?,
+        calendarRelease: ExceptionCalendarReleaseReferenceV1,
+        timeBasis: FrozenScheduleTimeBasisV1,
+        adjustmentReason: ScheduleBasisAdjustmentReasonV1,
+        sourceOverrideEventSHA256: String? = nil,
+        predecessorBasisSHA256: String? = nil
+    ) throws -> OccurrenceScheduleBasisV2 {
+        let resolution: ScheduleCivilTimeResolutionV1
+        if let effectiveDate, let effectiveWindow {
+            resolution = try resolveScheduleCivilTime(date: effectiveDate, window: effectiveWindow,
+                                                      timeBasis: timeBasis)
+        } else {
+            resolution = .init(resolvedAtUTC: nil, utcOffsetSeconds: nil, disposition: .nonexistentGap)
+        }
+        return try .init(nominalDate: nominalDate, effectiveDate: effectiveDate,
+                         nominalWindow: nominalWindow, effectiveWindow: effectiveWindow,
+                         calendarRelease: calendarRelease, timeBasis: timeBasis,
+                         resolvedAtUTC: resolution.resolvedAtUTC,
+                         resolvedUTCOffsetSeconds: resolution.utcOffsetSeconds,
+                         localTimeDisposition: resolution.disposition,
+                         adjustmentReason: adjustmentReason,
+                         sourceOverrideEventSHA256: sourceOverrideEventSHA256,
+                         predecessorBasisSHA256: predecessorBasisSHA256)
+    }
+
+    private static func scheduleDate(_ value: ScheduleLocalDateV1, addingDays: Int,
+                                     calendar: Calendar) throws -> Date {
+        guard let source = calendar.date(from: DateComponents(year: value.year, month: value.month, day: value.day)),
+              let result = calendar.date(byAdding: .day, value: addingDays, to: source) else {
+            throw ScheduleFailureV1.invalidValue
+        }
+        return result
+    }
+
+    private static func scheduleComponentsMatch(_ value: Date, match: DateComponents,
+                                                calendar: Calendar) -> Bool {
+        let actual = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: value)
+        return actual.year == match.year && actual.month == match.month && actual.day == match.day
+            && actual.hour == match.hour && actual.minute == match.minute && actual.second == match.second
+    }
+
     static func freezeTemporalContext(
         occurredAtUTC: Date,
         recordedAtUTC: Date,

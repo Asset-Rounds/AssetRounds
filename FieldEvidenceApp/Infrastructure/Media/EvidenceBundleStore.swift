@@ -4,6 +4,12 @@ import Foundation
 
 enum EvidenceBundleScheduleBoundaryV1 { static let reminderProjectionWritesEvidence = false }
 
+enum C51ScheduleEvidenceBundleBoundaryV1 {
+    static let scheduleGenerationWritesNoEvidence = true
+    static let scheduleCarriesNoMediaBytes = true
+    static let evidenceBundleStoreRemainsSoleMediaAuthority = true
+}
+
 enum AssetLocatorEvidenceBundleBoundaryV1 {
     static let locatorPayloadIsEvidenceMember = false
     static let resolutionWritesEvidence = false

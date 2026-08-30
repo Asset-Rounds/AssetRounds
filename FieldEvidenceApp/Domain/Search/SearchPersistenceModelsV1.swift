@@ -1077,6 +1077,38 @@ extension SearchPersistenceReleaseV1 {
     static let scheduleOccurrencePolicy = ScheduleOccurrenceSearchPersistencePolicyV1()
 }
 
+struct AdvancedScheduleOccurrenceSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let backupDisposition: String
+    let replayDisposition: String
+    let excludesFreeText: Bool
+    let excludesActorWorkAndNotificationPayload: Bool
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = AdvancedScheduleOccurrenceSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = AdvancedScheduleOccurrenceSearchProjectionPolicyV1.fieldIDs
+        backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+        replayDisposition = "DROP_AND_REBUILD_FROM_FROZEN_SCHEDULE_CALENDAR_OVERRIDE_LINEAGE"
+        excludesFreeText = true
+        excludesActorWorkAndNotificationPayload = true
+    }
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == AdvancedScheduleOccurrenceSearchProjectionPolicyV1.semanticLabel,
+              fieldIDs == AdvancedScheduleOccurrenceSearchProjectionPolicyV1.fieldIDs,
+              searchPersistenceRelease == .v7, backupDisposition == "EXCLUDED_DERIVED_REBUILD",
+              replayDisposition == "DROP_AND_REBUILD_FROM_FROZEN_SCHEDULE_CALENDAR_OVERRIDE_LINEAGE",
+              excludesFreeText, excludesActorWorkAndNotificationPayload else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
 // MARK: - C29 plan placement search persistence boundary
 
 /// Plan placement rows are disposable metadata derivatives. They are rebuilt

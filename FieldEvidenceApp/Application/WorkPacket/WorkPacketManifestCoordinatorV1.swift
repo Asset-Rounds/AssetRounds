@@ -2,6 +2,16 @@ import Foundation
 
 enum WorkPacketScheduleCoordinatorBoundaryV1 { static let startRequiresScheduleMutation = true }
 
+enum C51WorkPacketScheduleCoordinatorBoundaryV1 {
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let coordinatorOwnsNoOccurrenceWriter = true
+    static let canonicalScheduleStartRemainsExplicit = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 /// Application bridge to the sole WorkspaceWriter. A conformer must route
 /// these values through its canonical expected-revision mutation command and
 /// return the durable workspace receipt; it may not persist independently.

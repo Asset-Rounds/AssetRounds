@@ -218,6 +218,9 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
     /// occurrence identities, actor snapshots, and due/reminder identifiers
     /// are never diagnostic material.
     var schedule: ScheduleDiagnosticMetadataV1? = nil
+    /// Optional C51 aggregate-only schedule/calendar health. Names, dates,
+    /// zones, reasons, identifiers, digests, and calendar bytes are excluded.
+    var advancedSchedule: AdvancedScheduleDiagnosticMetadataV1? = nil
     /// Optional C29 aggregate-only plan health. Immutable plan bytes and
     /// component-registry/rebase payloads are excluded from diagnostics.
     var plan: PlanDiagnosticMetadataV1? = nil
@@ -258,6 +261,7 @@ struct DiagnosticExportV1: Codable, Equatable, Sendable {
             && (fieldReference?.isValid ?? true)
             && (accessibleDocument?.isValid ?? true)
             && (schedule?.isValid ?? true)
+            && (advancedSchedule?.isValid ?? true)
             && (plan?.isValid ?? true)
             && (placementPose?.isValid ?? true)
             && (assistance?.isValid ?? true)
@@ -374,6 +378,7 @@ struct DiagnosticExportService {
     typealias FieldReferenceProvider = () -> FieldReferenceDiagnosticMetadataV1?
     typealias AccessibleDocumentProvider = () -> AccessibleDocumentDiagnosticMetadataV1?
     typealias ScheduleProvider = () -> ScheduleDiagnosticMetadataV1?
+    typealias AdvancedScheduleProvider = () -> AdvancedScheduleDiagnosticMetadataV1?
     typealias PlanProvider = () -> PlanDiagnosticMetadataV1?
     typealias PlacementPoseProvider = () -> PlacementPoseDiagnosticMetadataV1?
     typealias AssistanceProvider = () -> AssistanceDiagnosticMetadataV1?
@@ -389,6 +394,7 @@ struct DiagnosticExportService {
     private let fieldReferenceProvider: FieldReferenceProvider
     private let accessibleDocumentProvider: AccessibleDocumentProvider
     private let scheduleProvider: ScheduleProvider
+    private let advancedScheduleProvider: AdvancedScheduleProvider
     private let planProvider: PlanProvider
     private let placementPoseProvider: PlacementPoseProvider
     private let assistanceProvider: AssistanceProvider
@@ -409,6 +415,7 @@ struct DiagnosticExportService {
         fieldReference: @escaping FieldReferenceProvider = { nil },
         accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
         schedule: @escaping ScheduleProvider = { nil },
+        advancedSchedule: @escaping AdvancedScheduleProvider = { nil },
         plan: @escaping PlanProvider = { nil },
         placementPose: @escaping PlacementPoseProvider = { nil },
         assistance: @escaping AssistanceProvider = { nil }
@@ -422,6 +429,7 @@ struct DiagnosticExportService {
         fieldReferenceProvider = fieldReference
         accessibleDocumentProvider = accessibleDocument
         scheduleProvider = schedule
+        advancedScheduleProvider = advancedSchedule
         planProvider = plan
         placementPoseProvider = placementPose
         assistanceProvider = assistance
@@ -441,6 +449,7 @@ struct DiagnosticExportService {
         fieldReference: @escaping FieldReferenceProvider = { nil },
         accessibleDocument: @escaping AccessibleDocumentProvider = { nil },
         schedule: @escaping ScheduleProvider = { nil },
+        advancedSchedule: @escaping AdvancedScheduleProvider = { nil },
         plan: @escaping PlanProvider = { nil },
         placementPose: @escaping PlacementPoseProvider = { nil },
         assistance: @escaping AssistanceProvider = { nil },
@@ -473,6 +482,7 @@ struct DiagnosticExportService {
             fieldReference: fieldReference,
             accessibleDocument: accessibleDocument,
             schedule: schedule,
+            advancedSchedule: advancedSchedule,
             plan: plan,
             placementPose: placementPose,
             assistance: assistance
@@ -494,6 +504,7 @@ struct DiagnosticExportService {
             fieldReference: fieldReferenceProvider(),
             accessibleDocument: accessibleDocumentProvider(),
             schedule: scheduleProvider(),
+            advancedSchedule: advancedScheduleProvider(),
             plan: planProvider(),
             placementPose: placementPoseProvider(),
             assistance: assistanceProvider()
@@ -554,6 +565,9 @@ enum DiagnosticExportCanonicalEncoderV1 {
         }
         if let schedule = value.schedule {
             object["schedule"] = scheduleValue(schedule)
+        }
+        if let advancedSchedule = value.advancedSchedule {
+            object["advancedSchedule"] = advancedScheduleValue(advancedSchedule)
         }
         if let plan = value.plan {
             object["plan"] = planValue(plan)
@@ -792,6 +806,26 @@ enum DiagnosticExportCanonicalEncoderV1 {
             "excludesOccurrenceIdentity": .bool(value.excludesOccurrenceIdentity),
             "excludesActorIdentity": .bool(value.excludesActorIdentity),
             "excludesNotificationState": .bool(value.excludesNotificationState),
+        ])
+    }
+
+    private static func advancedScheduleValue(
+        _ value: AdvancedScheduleDiagnosticMetadataV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "calendarReleaseCount": .integer(value.calendarReleaseCount),
+            "overrideEventCount": .integer(value.overrideEventCount),
+            "activeOverrideCount": .integer(value.activeOverrideCount),
+            "occurrenceBasisCount": .integer(value.occurrenceBasisCount),
+            "previewCount": .integer(value.previewCount),
+            "receiptCount": .integer(value.receiptCount),
+            "manualResolutionCount": .integer(value.manualResolutionCount),
+            "immutableHistoryCount": .integer(value.immutableHistoryCount),
+            "aggregateOnly": .bool(value.aggregateOnly),
+            "namesDatesZonesReasonsIDsAndCalendarBytesExcluded": .bool(
+                value.namesDatesZonesReasonsIDsAndCalendarBytesExcluded),
+            "digestsExcluded": .bool(value.digestsExcluded),
         ])
     }
 
@@ -2046,6 +2080,90 @@ extension DiagnosticExportV1 {
             dueProjectionEntryCount: dueProjectionEntryCount,
             reminderProjectionEntryCount: reminderProjectionEntryCount
         )
+    }
+}
+
+// MARK: - C51 advanced schedule aggregate-only diagnostics
+
+struct AdvancedScheduleDiagnosticMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let maximumValues = 200_000
+    let schemaVersion: Int
+    let calendarReleaseCount: Int
+    let overrideEventCount: Int
+    let activeOverrideCount: Int
+    let occurrenceBasisCount: Int
+    let previewCount: Int
+    let receiptCount: Int
+    let manualResolutionCount: Int
+    let immutableHistoryCount: Int
+    let aggregateOnly: Bool
+    let namesDatesZonesReasonsIDsAndCalendarBytesExcluded: Bool
+    let digestsExcluded: Bool
+
+    init(calendars: [ExceptionCalendarReleaseV1] = [],
+         overrideEvents: [ScheduleOverrideEventV1] = [],
+         occurrences: [ScheduleChangeOccurrenceInputV1] = [],
+         previews: [ScheduleChangePreviewV1] = [],
+         receipts: [ScheduleChangeReceiptV1] = []) throws {
+        guard [calendars.count, overrideEvents.count, occurrences.count,
+               previews.count, receipts.count].allSatisfy({ $0 <= Self.maximumValues }) else {
+            throw DiagnosticExportError.invalidValue
+        }
+        do {
+            try calendars.forEach { try $0.validate() }
+            try overrideEvents.forEach { try $0.validate() }
+            try occurrences.forEach { try $0.validate() }
+            try previews.forEach { try $0.validate() }
+            for receipt in receipts {
+                guard let preview = previews.first(where: { $0.previewSHA256 == receipt.previewSHA256 }) else {
+                    throw DiagnosticExportError.invalidValue
+                }
+                try receipt.validate(preview: preview)
+            }
+        } catch { throw DiagnosticExportError.invalidValue }
+        schemaVersion = Self.schemaVersion
+        calendarReleaseCount = calendars.count
+        overrideEventCount = overrideEvents.count
+        activeOverrideCount = (try? ScheduleOverridePrecedenceV1.activeEvents(overrideEvents).count) ?? 0
+        occurrenceBasisCount = occurrences.count
+        previewCount = previews.count; receiptCount = receipts.count
+        manualResolutionCount = occurrences.filter {
+            $0.basis.adjustmentReason == .manualResolution
+        }.count
+        immutableHistoryCount = occurrences.filter(\.isImmutableHistory).count
+        aggregateOnly = true
+        namesDatesZonesReasonsIDsAndCalendarBytesExcluded = true
+        digestsExcluded = true
+        try validate()
+    }
+
+    var isValid: Bool { (try? validate()) != nil }
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              [calendarReleaseCount, overrideEventCount, activeOverrideCount,
+               occurrenceBasisCount, previewCount, receiptCount,
+               manualResolutionCount, immutableHistoryCount]
+                .allSatisfy({ (0...Self.maximumValues).contains($0) }),
+              activeOverrideCount <= overrideEventCount,
+              manualResolutionCount <= occurrenceBasisCount,
+              immutableHistoryCount <= occurrenceBasisCount,
+              receiptCount <= previewCount,
+              aggregateOnly, namesDatesZonesReasonsIDsAndCalendarBytesExcluded,
+              digestsExcluded else { throw DiagnosticExportError.invalidValue }
+    }
+}
+
+extension DiagnosticExportV1 {
+    static func advancedScheduleDiagnosticMetadata(
+        calendars: [ExceptionCalendarReleaseV1] = [],
+        overrideEvents: [ScheduleOverrideEventV1] = [],
+        occurrences: [ScheduleChangeOccurrenceInputV1] = [],
+        previews: [ScheduleChangePreviewV1] = [],
+        receipts: [ScheduleChangeReceiptV1] = []
+    ) throws -> AdvancedScheduleDiagnosticMetadataV1 {
+        try .init(calendars: calendars, overrideEvents: overrideEvents,
+                  occurrences: occurrences, previews: previews, receipts: receipts)
     }
 }
 

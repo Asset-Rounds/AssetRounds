@@ -3,6 +3,12 @@ import CryptoKit
 
 enum ScheduleContentIntegrityBoundaryV1 { static let occurrenceDigestUsesCanonicalDomainCodec = true }
 
+enum C51ScheduleContentIntegrityBoundaryV1 {
+    static let scheduleDigestsUseScheduleCanonicalCodec = true
+    static let contentBytesAreNotScheduleInputs = true
+    static let contentIntegrityCannotPublishOccurrenceState = true
+}
+
 enum AssetLocatorIntegrityBoundaryV1 {
     static func validateCanonicalDigest(_ digest: String) throws {
         guard KernelCanonicalHashV1.validSHA256(digest) else {

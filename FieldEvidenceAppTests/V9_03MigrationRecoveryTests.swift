@@ -1761,3 +1761,15 @@ private final class C49WorkResourceMigrationBoundaryTests: XCTestCase {
         XCTAssertTrue(C49WorkResourcePersistenceBoundaryV1.acceptedBytesAreCanonical)
     }
 }
+
+extension C50MigrationRecoveryTests {
+    func testV23P03C51MigrationUsesV37RecordsWithoutBackfillTruth() {
+        XCTAssertTrue(
+            C51ScheduleExceptionMigrationBoundaryV1.validate()
+                && C51ScheduleExceptionMigrationBoundaryV1.newDurableRows
+                    == ["ExceptionCalendarReleaseRow", "ScheduleOverrideEventRow"]
+                && !C51ScheduleExceptionMigrationBoundaryV1.backfillCreatesScheduleTruth
+                && C51ScheduleExceptionMigrationBoundaryV1.existingScheduleRowsRemainByteStable
+        )
+    }
+}

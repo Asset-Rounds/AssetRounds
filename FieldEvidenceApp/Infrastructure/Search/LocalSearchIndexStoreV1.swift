@@ -933,6 +933,19 @@ extension LocalSearchIndexStoreV1 {
     }
 }
 
+extension LocalSearchIndexStoreV1 {
+    static func advancedScheduleOccurrenceSearchRecord(
+        from projection: AdvancedScheduleReportProjectionV1,
+        occurrence: AdvancedScheduleOccurrenceReportProjectionV1
+    ) throws -> AdvancedScheduleOccurrenceSearchRecordV1 {
+        let value = try AdvancedScheduleOccurrenceSearchRecordV1(
+            projection: projection, occurrence: occurrence)
+        try AdvancedScheduleOccurrenceSearchProjectionPolicyV1.validate(value)
+        try AdvancedScheduleOccurrenceSearchPersistencePolicyV1().validate()
+        return value
+    }
+}
+
 
 enum C50IncumbentFileExchangeLocalSearchBoundaryV1 {
     static let existingIndexRemainsSoleSearchStore = true

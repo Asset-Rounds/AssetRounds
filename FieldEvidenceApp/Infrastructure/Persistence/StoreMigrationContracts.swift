@@ -1610,3 +1610,25 @@ enum C50IncumbentFileExchangeMigrationBoundaryV1 {
             && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
     }
 }
+
+enum C51ScheduleExceptionMigrationBoundaryV1 {
+    static let sourceVersion = 37
+    static let targetVersion = 38
+    static let recordsVersion = 37
+    static let persistentSchemaVersion = 38
+    static let newDurableRows = ["ExceptionCalendarReleaseRow", "ScheduleOverrideEventRow"]
+    static let backfillCreatesScheduleTruth = false
+    static let downgradeRequiresRestoreCompatibleV37Export = true
+    static let existingScheduleRowsRemainByteStable = true
+
+    static func validate() -> Bool {
+        sourceVersion == 37
+            && targetVersion == 38
+            && recordsVersion == 37
+            && persistentSchemaVersion == 38
+            && newDurableRows == ["ExceptionCalendarReleaseRow", "ScheduleOverrideEventRow"]
+            && !backfillCreatesScheduleTruth
+            && downgradeRequiresRestoreCompatibleV37Export
+            && existingScheduleRowsRemainByteStable
+    }
+}

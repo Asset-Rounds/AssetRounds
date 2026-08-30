@@ -2,6 +2,16 @@ import Foundation
 
 enum SurveyDefinitionScheduleCoordinatorBoundaryV1 { static let publicationCreatesSchedule = false }
 
+enum C51SurveyDefinitionScheduleCoordinatorBoundaryV1 {
+    static let publicationCreatesSchedule = false
+    static let coordinatorOwnsNoOccurrenceWriter = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 struct SurveyDefinitionPreparedMutationV1: Equatable, Sendable {
     let identity: SurveyDefinitionIdentityV1
     let release: SurveyDefinitionReleaseV1

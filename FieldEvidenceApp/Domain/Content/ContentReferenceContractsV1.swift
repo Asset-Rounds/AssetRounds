@@ -2,6 +2,12 @@ import Foundation
 
 enum ScheduleContentReferenceBoundaryV1 { static let scheduleContainsContentBytes = false }
 
+enum C51ScheduleContentReferenceBoundaryV1 {
+    static let scheduleContainsContentBytes = false
+    static let scheduleContainsContentReferences = false
+    static let existingContentAuthorityRemainsSoleOwner = true
+}
+
 enum AssetLocatorContentReferenceBoundaryV1 {
     static let locatorPayloadIsContentReference = false
     static let rawExternalKeyMayBePersisted = false

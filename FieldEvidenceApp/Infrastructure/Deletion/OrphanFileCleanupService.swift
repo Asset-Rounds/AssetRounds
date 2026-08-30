@@ -135,12 +135,14 @@ enum ScheduleOrphanCleanupPolicyV1 {
     static let rowsOwnNoFilesystemPayload = true
     static let projectionsAreDerived = true
     static let missingFileCannotDeleteCanonicalRows = true
+    static let missingFileCannotPruneEmbeddedCalendarOverrideOrBasisClosure = true
     static let notificationStateIsTruth = false
 
     static func validate() throws {
         guard rowsOwnNoFilesystemPayload,
               projectionsAreDerived,
               missingFileCannotDeleteCanonicalRows,
+              missingFileCannotPruneEmbeddedCalendarOverrideOrBasisClosure,
               !notificationStateIsTruth else {
             throw OrphanFileCleanupServiceError.invalidOwnedLayout
         }

@@ -16,7 +16,8 @@ enum SurveySessionOrdinaryDeletionDispositionV1:Equatable,Sendable{case preserve
 /// closure; only a workspace Erase removes these rows.
 enum ScheduleOrdinaryDeletionDispositionV1: Equatable, Sendable {
     case preserveImmutableReleaseAndOccurrenceHistory(
-        releaseIDs: Set<UUID>, occurrenceEventIDs: Set<UUID>
+        releaseIDs: Set<UUID>, occurrenceEventIDs: Set<UUID>,
+        exceptionCalendarReleaseIDs: Set<UUID>, scheduleOverrideEventIDs: Set<UUID>
     )
 }
 
@@ -28,14 +29,18 @@ enum C49WorkResourceDeletionIntentPolicyV1 {
 
 enum ScheduleDeletionIntentBoundaryV1 {
     static let ordinaryAssetOrSiteDeletePreservesScheduleHistory = true
+    static let ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure = true
     static let workspaceEraseRemovesScheduleRows = true
+    static let workspaceEraseRemovesEmbeddedCalendarOverrideAndBasisClosure = true
     static let dueAndReminderProjectionsAreDerived = true
     static let notificationStateIsTruth = false
     static let cloneForkSourceScheduleAutomaticallyActive = false
 
     static func validate() -> Bool {
         ordinaryAssetOrSiteDeletePreservesScheduleHistory
+            && ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure
             && workspaceEraseRemovesScheduleRows
+            && workspaceEraseRemovesEmbeddedCalendarOverrideAndBasisClosure
             && dueAndReminderProjectionsAreDerived
             && !notificationStateIsTruth
             && !cloneForkSourceScheduleAutomaticallyActive

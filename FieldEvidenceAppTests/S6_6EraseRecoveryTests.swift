@@ -1396,3 +1396,14 @@ private final class C50IncumbentAdapterS66EraseBoundaryTests: XCTestCase {
         XCTAssertTrue(C50IncumbentFileExchangeEraseIntentStoreBoundaryV1.appOwnedQuarantineParticipatesInEraseInventory)
     }
 }
+
+extension C45EraseRecoveryCompatibilityTests {
+    func testV23P03C51EraseClearsFourScheduleFamiliesAsOneClosure() {
+        XCTAssertTrue(
+            ScheduleEraseBoundaryV1.validate()
+                && ScheduleEraseBoundaryV1.atomicFamilyCount == 4
+                && ScheduleEraseBoundaryV1.embeddedClosureComponentCount == 6
+                && !ScheduleEraseBoundaryV1.notificationStateIsTruth
+        )
+    }
+}

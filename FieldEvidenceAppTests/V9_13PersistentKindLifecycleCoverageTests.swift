@@ -1589,3 +1589,15 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_13
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
     }
 }
+
+extension C45PersistentKindCompatibilityTests {
+    func testV23P03C51RegistersBothScheduleExceptionRowsAsDurable() throws {
+        try SchedulePersistentKindPolicyV1.validateDeclaration()
+        XCTAssertTrue(
+            SchedulePersistentKindPolicyV1.durableKindIDs
+                .contains("PERSISTENT_MODEL:ExceptionCalendarReleaseRow")
+                && SchedulePersistentKindPolicyV1.durableKindIDs
+                    .contains("PERSISTENT_MODEL:ScheduleOverrideEventRow")
+        )
+    }
+}

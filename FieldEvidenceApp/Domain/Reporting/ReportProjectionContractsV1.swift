@@ -262,6 +262,7 @@ struct ScheduleReportProjectionV1: Codable, Equatable, Sendable {
         switch definition.recurrence {
         case .fixedCalendar: recurrenceKind = "FIXED_CALENDAR"
         case .completionRelative: recurrenceKind = "COMPLETION_RELATIVE"
+        case .advanced: recurrenceKind = "ADVANCED"
         }
         timeBasis = definition.timeBasis
         self.evaluatedAt = evaluatedAt ?? dueQueue.evaluatedAt
@@ -299,7 +300,7 @@ struct ScheduleReportProjectionV1: Codable, Equatable, Sendable {
               projectionVersion == Self.projectionVersion,
               workspaceID != zero,
               scheduleDefinitionID != zero,
-              recurrenceKind == "FIXED_CALENDAR" || recurrenceKind == "COMPLETION_RELATIVE",
+              ["FIXED_CALENDAR", "COMPLETION_RELATIVE", "ADVANCED"].contains(recurrenceKind),
               historyFrozen,
               !notificationDeliveryIsTruth,
               evaluatedAt.timeIntervalSinceReferenceDate.isFinite,
@@ -369,6 +370,231 @@ enum ScheduleReportProjectionPolicyV1 {
         }
         try projection.validate()
         return projection
+    }
+}
+
+// MARK: - C51 advanced schedule/calendar/override report projection
+
+/// Privacy-bounded occurrence truth. The exact frozen basis is retained, but
+/// override reason text, actors, work identity, and notification state are not.
+struct AdvancedScheduleOccurrenceReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let occurrenceID: OccurrenceIDV1
+    let state: OccurrenceStateV1
+    let basis: OccurrenceScheduleBasisV2
+    let precedenceLevel: ScheduleOverridePrecedenceLevelV1
+    let overrideScope: ScheduleOverrideScopeV1?
+    let overrideKind: ScheduleOccurrenceOverrideKindV1?
+    let historyImmutable: Bool
+    let requiresManualResolution: Bool
+
+    init(input: ScheduleChangeOccurrenceInputV1,
+         activeOverrideEvents: [ScheduleOverrideEventV1]) throws {
+        try input.validate()
+        let active = try ScheduleOverridePrecedenceV1.activeEvents(activeOverrideEvents)
+        let source = try input.basis.sourceOverrideEventSHA256.map { digest in
+            guard let event = active.first(where: { $0.eventSHA256 == digest }) else {
+                throw ScheduleReportProjectionFailureV1.missingHistory
+            }
+            return event
+        }
+        schemaVersion = Self.schemaVersion
+        occurrenceID = input.occurrenceID
+        state = input.state
+        basis = input.basis
+        precedenceLevel = source?.scope == .thisOccurrence
+            ? .explicitOccurrenceOverride
+            : (source == nil ? .exceptionCalendar : .effectiveSeriesOverride)
+        overrideScope = source?.scope
+        overrideKind = source?.kind
+        historyImmutable = input.isImmutableHistory
+        requiresManualResolution = input.basis.adjustmentReason == .manualResolution
+        try validate()
+    }
+
+    func validate() throws {
+        try occurrenceID.validate(); try basis.validate()
+        let expectedPrecedence: ScheduleOverridePrecedenceLevelV1 = overrideScope == .thisOccurrence
+            ? .explicitOccurrenceOverride
+            : (overrideScope == nil ? .exceptionCalendar : .effectiveSeriesOverride)
+        guard schemaVersion == Self.schemaVersion,
+              (basis.sourceOverrideEventSHA256 == nil)
+                == (overrideScope == nil && overrideKind == nil),
+              precedenceLevel == expectedPrecedence,
+              requiresManualResolution == (basis.adjustmentReason == .manualResolution),
+              historyImmutable == (state == .started || state == .completed || state == .missed) else {
+            throw ScheduleReportProjectionFailureV1.invalidValue
+        }
+    }
+}
+
+struct ScheduleChangeEffectReportProjectionV1: Codable, Equatable, Sendable {
+    let occurrenceID: OccurrenceIDV1
+    let successorOccurrenceID: OccurrenceIDV1?
+    let disposition: ScheduleChangeDispositionV1
+    let priorBasisSHA256: String?
+    let resultingBasis: OccurrenceScheduleBasisV2?
+    let sourceOverrideEventSHA256: String?
+
+    init(_ value: ScheduleChangeEffectV1) throws {
+        occurrenceID = value.occurrenceID
+        successorOccurrenceID = value.successorOccurrenceID
+        disposition = value.disposition
+        priorBasisSHA256 = value.priorBasisSHA256
+        resultingBasis = value.resultingBasis
+        sourceOverrideEventSHA256 = value.sourceOverrideEventSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        try occurrenceID.validate(); try successorOccurrenceID?.validate()
+        try priorBasisSHA256.map(ScheduleLimitsV1.digest)
+        try resultingBasis?.validate()
+        try sourceOverrideEventSHA256.map(ScheduleLimitsV1.digest)
+    }
+}
+
+struct AdvancedScheduleReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "ADVANCED_SCHEDULE_REPORT_PROJECTION_V1"
+    let schemaVersion: Int
+    let projectionVersion: String
+    let workspaceID: UUID
+    let scheduleRelease: ScheduleDefinitionReleaseReferenceV1
+    let calendarRelease: ExceptionCalendarReleaseReferenceV1
+    let frontierSHA256: String
+    let orderedOverrideEventSHA256s: [String]
+    let occurrences: [AdvancedScheduleOccurrenceReportProjectionV1]
+    let previewSHA256: String?
+    let previewEffects: [ScheduleChangeEffectReportProjectionV1]
+    let receiptSHA256: String?
+    let previewIsUncommitted: Bool
+    let historyFrozen: Bool
+    let projectionSHA256: String
+
+    init(frontier: ScheduleChangeFrontierV1,
+         occurrenceInputs: [ScheduleChangeOccurrenceInputV1],
+         overrideEvents: [ScheduleOverrideEventV1],
+         preview: ScheduleChangePreviewV1? = nil,
+         receipt: ScheduleChangeReceiptV1? = nil) throws {
+        try frontier.validate()
+        let active = try ScheduleOverridePrecedenceV1.activeEvents(overrideEvents)
+        guard active.map(\.eventSHA256).sorted() == frontier.orderedOverrideEventSHA256s,
+              preview.map({ $0.frontier == frontier }) ?? true,
+              receipt == nil || preview != nil else {
+            throw ScheduleReportProjectionFailureV1.invalidValue
+        }
+        try preview?.validate()
+        if let preview {
+            try ScheduleOccurrenceLineageV1.validateHistoryImmutability(
+                inputs: occurrenceInputs, effects: preview.effects)
+        }
+        if let receipt, let preview { try receipt.validate(preview: preview) }
+        let projected = try occurrenceInputs.map {
+            let value = try AdvancedScheduleOccurrenceReportProjectionV1(
+                input: $0, activeOverrideEvents: active)
+            guard value.basis.calendarRelease == frontier.calendarRelease else {
+                throw ScheduleReportProjectionFailureV1.invalidValue
+            }
+            return value
+        }.sorted { $0.occurrenceID < $1.occurrenceID }
+        guard Set(projected.map(\.occurrenceID)).count == projected.count else {
+            throw ScheduleReportProjectionFailureV1.duplicateOccurrence
+        }
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        workspaceID = frontier.workspaceID.rawValue
+        scheduleRelease = frontier.scheduleRelease
+        calendarRelease = frontier.calendarRelease
+        frontierSHA256 = frontier.frontierSHA256
+        orderedOverrideEventSHA256s = frontier.orderedOverrideEventSHA256s
+        occurrences = projected
+        previewSHA256 = preview?.previewSHA256
+        previewEffects = try (preview?.effects ?? []).map(ScheduleChangeEffectReportProjectionV1.init)
+        receiptSHA256 = receipt?.receiptSHA256
+        previewIsUncommitted = preview != nil && receipt == nil
+        historyFrozen = true
+        projectionSHA256 = try ScheduleCanonicalCodecV1.sha256(DigestBasis(
+            schemaVersion: Self.schemaVersion, projectionVersion: Self.projectionVersion,
+            workspaceID: workspaceID, scheduleRelease: scheduleRelease,
+            calendarRelease: calendarRelease, frontierSHA256: frontierSHA256,
+            orderedOverrideEventSHA256s: orderedOverrideEventSHA256s,
+            occurrences: occurrences, previewSHA256: previewSHA256,
+            previewEffects: previewEffects, receiptSHA256: receiptSHA256,
+            previewIsUncommitted: previewIsUncommitted, historyFrozen: historyFrozen))
+        try validate()
+    }
+
+    func validate() throws {
+        try scheduleRelease.validate(); try calendarRelease.validate()
+        try ScheduleLimitsV1.digest(frontierSHA256)
+        try orderedOverrideEventSHA256s.forEach(ScheduleLimitsV1.digest)
+        try occurrences.forEach { try $0.validate() }
+        try previewSHA256.map(ScheduleLimitsV1.digest)
+        try previewEffects.forEach { try $0.validate() }
+        try receiptSHA256.map(ScheduleLimitsV1.digest)
+        let previewEffectIDsUnique = Set(previewEffects.map(\.occurrenceID)).count
+            == previewEffects.count
+        let immutableLineageIsFrozen = occurrences.filter(\.historyImmutable).allSatisfy { value in
+            guard previewSHA256 != nil else { return true }
+            guard let effect = previewEffects.first(where: { $0.occurrenceID == value.occurrenceID }) else {
+                return false
+            }
+            return effect.disposition == .unchanged
+                && effect.priorBasisSHA256 == value.basis.basisSHA256
+                && effect.resultingBasis?.basisSHA256 == value.basis.basisSHA256
+        }
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              workspaceID == scheduleRelease.workspaceID.rawValue,
+              workspaceID == calendarRelease.workspaceID.rawValue,
+              orderedOverrideEventSHA256s == orderedOverrideEventSHA256s.sorted(),
+              Set(orderedOverrideEventSHA256s).count == orderedOverrideEventSHA256s.count,
+              occurrences == occurrences.sorted(by: { $0.occurrenceID < $1.occurrenceID }),
+              Set(occurrences.map(\.occurrenceID)).count == occurrences.count,
+              previewSHA256 != nil || previewEffects.isEmpty,
+              previewEffectIDsUnique,
+              immutableLineageIsFrozen,
+              receiptSHA256 == nil || previewSHA256 != nil,
+              previewIsUncommitted == (previewSHA256 != nil && receiptSHA256 == nil),
+              historyFrozen,
+              projectionSHA256 == (try ScheduleCanonicalCodecV1.sha256(digestBasis)) else {
+            throw ScheduleReportProjectionFailureV1.invalidDigest
+        }
+    }
+
+    private var digestBasis: DigestBasis { .init(schemaVersion: schemaVersion,
+        projectionVersion: projectionVersion, workspaceID: workspaceID,
+        scheduleRelease: scheduleRelease, calendarRelease: calendarRelease,
+        frontierSHA256: frontierSHA256, orderedOverrideEventSHA256s: orderedOverrideEventSHA256s,
+        occurrences: occurrences, previewSHA256: previewSHA256, previewEffects: previewEffects,
+        receiptSHA256: receiptSHA256, previewIsUncommitted: previewIsUncommitted,
+        historyFrozen: historyFrozen) }
+    private struct DigestBasis: Codable { let schemaVersion: Int; let projectionVersion: String
+        let workspaceID: UUID; let scheduleRelease: ScheduleDefinitionReleaseReferenceV1
+        let calendarRelease: ExceptionCalendarReleaseReferenceV1; let frontierSHA256: String
+        let orderedOverrideEventSHA256s: [String]
+        let occurrences: [AdvancedScheduleOccurrenceReportProjectionV1]
+        let previewSHA256: String?; let previewEffects: [ScheduleChangeEffectReportProjectionV1]
+        let receiptSHA256: String?; let previewIsUncommitted: Bool; let historyFrozen: Bool }
+}
+
+enum AdvancedScheduleReportProjectionPolicyV1 {
+    static let sectionID = "advanced_schedule"
+    static let metadataOnly = true
+    static let derivedOnly = true
+    static let sourceTruthIsFrozen = true
+    static let excludesCalendarNameAndBytes = true
+    static let excludesOverrideReason = true
+    static let excludesActorIdentity = true
+    static let excludesWorkIdentity = true
+    static let excludesNotificationPayload = true
+    static func validate(_ value: AdvancedScheduleReportProjectionV1) throws -> AdvancedScheduleReportProjectionV1 {
+        guard metadataOnly, derivedOnly, sourceTruthIsFrozen, excludesCalendarNameAndBytes,
+              excludesOverrideReason, excludesActorIdentity, excludesWorkIdentity,
+              excludesNotificationPayload else { throw ScheduleReportProjectionFailureV1.unsupportedFormat }
+        try value.validate(); return value
     }
 }
 

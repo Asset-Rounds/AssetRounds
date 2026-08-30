@@ -96,11 +96,14 @@ enum AssetLocatorStreamingArchivePolicyV1 {
 enum ScheduleStreamingArchivePolicyV1 {
     static let recordsSchemaVersion = 26
     static let persistentSchemaVersion = 27
-    static let durableFamilyCount = 2
+    static let durableFamilyCount = 4
     static let lifecycleEventsRemainInMutationHistory = true
     static let derivedProjectionsAreExcluded = true
     static let notificationStateIsTruth = false
     static let cloneForkSourceScheduleAutomaticallyActive = false
+    static let interruptionResumesAtCanonicalRecordBoundary = true
+    static let partialClosureMayPublish = false
+    static let calendarOverrideBasisClosureUsesExistingRecordKinds = true
 
     static func validate(records: V4BackupRecordsV1) throws {
         guard (recordsSchemaVersion...C49BackupEnrollmentV1.recordsSchemaVersion)
@@ -108,7 +111,11 @@ enum ScheduleStreamingArchivePolicyV1 {
             throw StreamingArchiveFailureV1.invalidArchive
         }
         guard records.schedules.count <= 200_000,
+              C51ScheduleBackupClosureV1.validatesEnvelope(records.schedules) || records.schedules.isEmpty,
               derivedProjectionsAreExcluded,
+              interruptionResumesAtCanonicalRecordBoundary,
+              !partialClosureMayPublish,
+              calendarOverrideBasisClosureUsesExistingRecordKinds,
               !notificationStateIsTruth,
               !cloneForkSourceScheduleAutomaticallyActive else {
             throw StreamingArchiveFailureV1.entryLimitExceeded

@@ -2,6 +2,15 @@ import Foundation
 
 enum AssetSemanticsScheduleCoordinatorBoundaryV1 { static let scheduleProjectionIsReadOnly = true }
 
+enum C51AssetSemanticsScheduleCoordinatorBoundaryV1 {
+    static let closureReferenceIsDerivedMetadataOnly = true
+    static let canonicalOccurrenceWriterIsNotCalled = true
+
+    static func validate(_ reference: C51ScheduleClosureReferenceV1) throws {
+        try reference.validate()
+    }
+}
+
 extension AssetSemanticsCoordinatorV1 {
     /// Resolution is deliberately read-only and shares no semantic mutation
     /// plan with the C39 coordinator.

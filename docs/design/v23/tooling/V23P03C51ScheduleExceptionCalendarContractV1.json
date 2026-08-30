@@ -1,0 +1,138 @@
+{
+  "authority": {
+    "appBaseHead": "e13296a874eb3c8cedc3fec6a91e4d2e7a8d4af7",
+    "appBaseTree": "7eee693887d8a1943a91876ab2589f6c992b29ab",
+    "contextDigest": "d60a6326b5da8e563f5069e5af5e93b174044693afedb274a2fa5e1036beabeb",
+    "coordinationCASSequence": 343,
+    "coordinationHead": "39eb63ff380a9c0036495e56e9efa3958d49471b",
+    "coordinationLedgerDigest": "693f51a56743420cae2a60364104ea95811263e7f02d118b0ddd26e4835b1f1b",
+    "coordinationProjectionDigest": "7e6278a2928328d2387f018748e640e224493f8f1c85fe496325e6d3852691d7",
+    "coordinationTree": "d1b5364b8833728b1417fd5fec12478c1867f1a0",
+    "directPrerequisites": [
+      "V23-P03-C28",
+      "V23-P03-C50"
+    ],
+    "hydrationTransitionDigest": "3496010a25438a36ec4b065e7ac72afbe99144719c2055b34c307cb9ac0ded92",
+    "pathFenceDigest": "8937c7d17e699db09925ad0deeeae769b7a677b2b796599dcf21b2aa34423094",
+    "provisionalPrerequisiteDigest": "c5445c9408d5a8e41ebf196b1646fb528dc67103b3b56cd066ca3c5f7d4b5ca0"
+  },
+  "calendar": {
+    "calendar": "GREGORIAN_V1",
+    "immutableReleases": true,
+    "inclusionPrecedence": [
+      "INCLUDED_OVERRIDE",
+      "EXCLUDED",
+      "BASE_WEEKDAY"
+    ],
+    "maxExcludedDates": 366,
+    "maxExcludedRanges": 32,
+    "maxIncludedOverrideDates": 366
+  },
+  "cardID": "V23-P03-C51",
+  "evidenceIDs": [
+    "V23-P03-C51-G01",
+    "V23-P03-C51-A01",
+    "V23-P03-C51-H01",
+    "V23-P03-C51-I01",
+    "V23-P03-C51-R01"
+  ],
+  "forbidden": {
+    "cron": false,
+    "eventKit": false,
+    "historyRewrite": false,
+    "network": false,
+    "remoteTruth": false,
+    "rrule": false,
+    "unboundedGeneration": false
+  },
+  "lifecycle": {
+    "backup": true,
+    "clone": true,
+    "erase": true,
+    "fork": true,
+    "historicalBytesRewritten": false,
+    "journalReplay": true,
+    "restore": true
+  },
+  "overrides": {
+    "appendOnly": true,
+    "expectedRevision": true,
+    "immutableHistory": true,
+    "precedence": [
+      "OCCURRENCE_OVERRIDE",
+      "LATEST_NONOVERLAPPING_SERIES_OVERRIDE",
+      "EXCEPTION_CALENDAR",
+      "BASE_RECURRENCE"
+    ]
+  },
+  "priorC50Acceptance": {
+    "candidateHead": "e13296a874eb3c8cedc3fec6a91e4d2e7a8d4af7",
+    "candidateTree": "7eee693887d8a1943a91876ab2589f6c992b29ab",
+    "cardID": "V23-P03-C50",
+    "contextDigest": "04061e30aaf4968b271b9657af03e71152ae446bdf84f24730d06e1b8cf129e1",
+    "immediateSequencingCheckpoint": "e89b1e98c209cb621e4103f11e2ee7a110250d16baa8612db33a7a81e1231c3e",
+    "pathFenceDigest": "43add5f59574b0686a74dd09f9379e6dc4b07cb93ad6578d8e0910d6947e6800",
+    "verificationReceiptDigest": "bd9d20904dad4e89a3453e9d7a946026ce107886298d06599fe28ce7c94e211b"
+  },
+  "priorFenceProof": {
+    "authorizedOverlapCount": 0,
+    "immediateSequencingCheckpoint": {
+      "checkpointDigest": "e89b1e98c209cb621e4103f11e2ee7a110250d16baa8612db33a7a81e1231c3e",
+      "verificationReceiptDigest": "bd9d20904dad4e89a3453e9d7a946026ce107886298d06599fe28ce7c94e211b"
+    },
+    "overlapCount": 0,
+    "semanticPrerequisiteCardID": "V23-P03-C28",
+    "semanticPrerequisiteExistingPathCount": 146,
+    "semanticPrerequisiteFenceDigest": "59de5cf7743a73e39d7d2bab3097f0ac71104737b2436122d17333a82bf69c15",
+    "semanticPrerequisiteFullFencePathCount": 160,
+    "semanticPrerequisiteNewPathCount": 14,
+    "unauthorizedOverlapCount": 0
+  },
+  "priorFenceProofSHA256": "800acb2bf90db43522d852f988fa823cdb615c4f5875285777a1fe0215b99b7e",
+  "recurrence": {
+    "bounded": true,
+    "explicitGapPolicy": true,
+    "maxBackfillDays": 90,
+    "maxLookaheadDays": 400,
+    "maxOccurrencesPerSchedule": 512,
+    "maxWorkspaceActiveUpcoming": 10000,
+    "silentTruncation": false
+  },
+  "registerOrdinal": 81,
+  "schema": "V23P03C51ScheduleExceptionCalendarContractV1",
+  "schemaVersion": 1,
+  "sourceAuthority": {
+    "dossier": {
+      "byteCount": 7263,
+      "sha256": "3aca94cfcb1c000ca8fc2227b08763348aa7a420bb0b41e82cf0d0222531c6e3"
+    },
+    "inheritedV21": {
+      "byteCount": 6917,
+      "sha256": "48f60ca08a859154cf07bd5fe102687ec85bbd55aad24ff52d816b59940f84c6"
+    },
+    "registerRow": {
+      "byteCount": 302,
+      "sha256": "009d437b38eda596b7e795e9146a7aa14355b50907ae0a5f8a3f4d5db26bfefd"
+    },
+    "registerSection": {
+      "byteCount": 44217,
+      "sha256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5"
+    }
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "title": "Advanced recurrence, immutable exception calendar releases, and append-only schedule overrides"
+}

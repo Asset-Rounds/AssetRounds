@@ -87,6 +87,8 @@ final class BackupExportService {
         let locatorBindingReceipts: [LocatorBindingReceiptRow]
         let scheduleDefinitionReleases: [ScheduleDefinitionReleaseRow]
         let occurrenceHistoryEvents: [OccurrenceHistoryEventRow]
+        let exceptionCalendarReleases: [ExceptionCalendarReleaseRow]
+        let scheduleOverrideEvents: [ScheduleOverrideEventRow]
         let planDocuments: [PlanDocumentRow]
         let planRevisions: [PlanRevisionRow]
         let planPlacements: [PlanPlacementRow]
@@ -1662,6 +1664,8 @@ private extension BackupExportService {
                  locatorBindingReceipts: try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>()),
                  scheduleDefinitionReleases: try modelContext.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>()),
                  occurrenceHistoryEvents: try modelContext.fetch(FetchDescriptor<OccurrenceHistoryEventRow>()),
+                 exceptionCalendarReleases: try modelContext.fetch(FetchDescriptor<ExceptionCalendarReleaseRow>()),
+                 scheduleOverrideEvents: try modelContext.fetch(FetchDescriptor<ScheduleOverrideEventRow>()),
                  planDocuments: try modelContext.fetch(FetchDescriptor<PlanDocumentRow>()),
                  planRevisions: try modelContext.fetch(FetchDescriptor<PlanRevisionRow>()),
                  planPlacements: try modelContext.fetch(FetchDescriptor<PlanPlacementRow>()),
@@ -2588,12 +2592,19 @@ private extension BackupExportService {
     }
 
     private func scheduleRecords(_ rows: Rows) throws -> [V27BackupScheduleRecordV1] {
+        guard C51ScheduleBackupClosureV1.preservedV27RecordBytes,
+              C51ScheduleBackupClosureV1.persistedRecordKindCount == 4
+        else { throw BackupExportServiceError.invalidAuthority }
         let definitions = try rows.scheduleDefinitionReleases.map { try $0.value() }
         let history = try rows.occurrenceHistoryEvents.map { try $0.value() }
-        guard !definitions.isEmpty || !history.isEmpty else { return [] }
+        let calendars = try rows.exceptionCalendarReleases.map { try $0.value() }
+        let overrides = try rows.scheduleOverrideEvents.map { try $0.value() }
+        guard !definitions.isEmpty || !history.isEmpty || !calendars.isEmpty || !overrides.isEmpty else { return [] }
         let workspaceID = try currentStreamingWorkspaceIdentity().workspaceID
         guard definitions.allSatisfy({ $0.workspaceID == workspaceID }),
-              history.allSatisfy({ $0.workspaceID == workspaceID }) else {
+              history.allSatisfy({ $0.workspaceID == workspaceID }),
+              calendars.allSatisfy({ $0.workspaceID == workspaceID }),
+              overrides.allSatisfy({ $0.workspaceID == workspaceID }) else {
             throw BackupExportServiceError.invalidAuthority
         }
         do {
@@ -2601,6 +2612,11 @@ private extension BackupExportService {
                 definitions: definitions, history: history
             ).validate()
         } catch {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        guard C51ScheduleBackupClosureV1.validatesAdvancedCalendarReferences(
+            definitions: definitions, calendars: calendars
+        ) else {
             throw BackupExportServiceError.invalidAuthority
         }
         let releaseRows = try definitions.map { value in
@@ -2617,10 +2633,28 @@ private extension BackupExportService {
                 canonicalData: try ScheduleCanonicalCodecV1.data(value)
             )
         }
-        return (releaseRows + historyRows).sorted {
+        let calendarRows = try calendars.map { value in
+            V27BackupScheduleRecordV1(
+                kind: .exceptionCalendarRelease, id: value.releaseID,
+                workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                canonicalData: try ScheduleCanonicalCodecV1.data(value)
+            )
+        }
+        let overrideRows = try overrides.map { value in
+            V27BackupScheduleRecordV1(
+                kind: .scheduleOverrideEvent, id: value.eventID,
+                workspaceID: value.workspaceID.rawValue, revision: value.revision,
+                canonicalData: try ScheduleCanonicalCodecV1.data(value)
+            )
+        }
+        let records = (releaseRows + historyRows + calendarRows + overrideRows).sorted {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
         }
+        guard C51ScheduleBackupClosureV1.validatesEnvelope(records) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        return records
     }
 
     private func planRecords(_ rows: Rows) throws -> [V28BackupPlanRecordV1] {

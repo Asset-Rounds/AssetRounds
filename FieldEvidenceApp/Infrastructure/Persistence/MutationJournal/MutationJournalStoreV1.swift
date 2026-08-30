@@ -1063,7 +1063,21 @@ final class MutationJournalStoreV1 {
     }
     func validateScheduleReferences(_ mutation:ScheduleMutationV1)throws{
         let requiredRelease:ScheduleDefinitionReleaseV1,requiresPersistedRelease:Bool
-        switch mutation.payload{case let .appendRelease(value,_):requiredRelease=value;requiresPersistedRelease=false;case let .appendOccurrenceEvent(_,_,release),let .startOccurrence(_,_,release),let .generateOccurrences(release,_,_):requiredRelease=release;requiresPersistedRelease=true}
+        switch mutation.payload{
+        case let .appendExceptionCalendarRelease(value,_):
+            try value.validate()
+            return
+        case let .appendRelease(value,_):requiredRelease=value;requiresPersistedRelease=false
+        case let .appendOverrideEvent(_,_,release),let .appendOccurrenceEvent(_,_,release),let .startOccurrence(_,_,release),let .generateOccurrences(release,_,_):requiredRelease=release;requiresPersistedRelease=true
+        }
+        if case let .advanced(configuration) = requiredRelease.recurrence {
+            let reference = configuration.calendarRelease
+            let releaseID = reference.releaseID
+            let rows = try modelContext.fetch(FetchDescriptor<ExceptionCalendarReleaseRow>(predicate: #Predicate { $0.releaseID == releaseID }))
+            guard rows.count == 1, try rows.first?.value().reference == reference else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
         if requiresPersistedRelease{let releaseID=requiredRelease.releaseID,rows=try modelContext.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>(predicate:#Predicate{$0.releaseID==releaseID}));guard rows.count==1,try rows.first?.value()==requiredRelease else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}}
         let definitionReference=requiredRelease.workDefinition.definitionRelease,definitionID=definitionReference.releaseID
         let definitionRows=try modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>(predicate:#Predicate{$0.releaseID==definitionID}))

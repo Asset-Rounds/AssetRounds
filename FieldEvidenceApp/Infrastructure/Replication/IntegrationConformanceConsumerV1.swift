@@ -23,7 +23,8 @@ struct IntegrationConformanceConsumerV1: Sendable {
         store: any IntegrationProjectionOperationalStoreV1,
         interruptionPoint: @escaping @Sendable () -> InterruptionPointV1 = { .none }
     ) throws {
-        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate() else {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate(),
+              C51ScheduleExceptionIntegrationConsumerBoundaryV1.validate() else {
             throw IntegrationEventFailureV1.invalidValue
         }
         try registry.validate(limits: limits)
@@ -45,7 +46,8 @@ struct IntegrationConformanceConsumerV1: Sendable {
         workspaceID: WorkspaceID,
         acceptedReceipts: [MutationReceiptV1]
     ) async throws -> IntegrationEventConsumerResultV1 {
-        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate() else {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate(),
+              C51ScheduleExceptionIntegrationConsumerBoundaryV1.validate() else {
             throw IntegrationEventFailureV1.invalidValue
         }
         guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
@@ -108,7 +110,8 @@ struct IntegrationConformanceConsumerV1: Sendable {
         workspaceID: WorkspaceID,
         acceptedReceipts: [MutationReceiptV1]
     ) async throws -> IntegrationEventConsumerResultV1 {
-        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate() else {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate(),
+              C51ScheduleExceptionIntegrationConsumerBoundaryV1.validate() else {
             throw IntegrationEventFailureV1.invalidValue
         }
         guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
@@ -248,5 +251,21 @@ enum C50IncumbentFileExchangeIntegrationConsumerBoundaryV1 {
             && syncDisposition == "NOT_APPLICABLE"
             && backupRestoreDisposition == "NOT_APPLICABLE"
             && C50IncumbentFileExchangeIntegrationEventBoundaryV1.validate()
+    }
+}
+
+enum C51ScheduleExceptionIntegrationConsumerBoundaryV1 {
+    static let canonicalKinds: Set<WorkspaceEntityKindV1> = [
+        .exceptionCalendarRelease, .scheduleOverrideEvent
+    ]
+    static let consumesOnlyCanonicalReceiptPostImages = true
+    static let derivedConsumerCreatesNoCalendarOrOverrideWriter = true
+    static let checkpointRecoveryReplaysImmutableReceiptHistory = true
+
+    static func validate() -> Bool {
+        canonicalKinds == [.exceptionCalendarRelease, .scheduleOverrideEvent]
+            && consumesOnlyCanonicalReceiptPostImages
+            && derivedConsumerCreatesNoCalendarOrOverrideWriter
+            && checkpointRecoveryReplaysImmutableReceiptHistory
     }
 }

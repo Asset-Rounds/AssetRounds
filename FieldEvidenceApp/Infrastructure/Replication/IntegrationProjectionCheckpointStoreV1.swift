@@ -167,7 +167,8 @@ actor IntegrationProjectionCheckpointStoreV1: IntegrationProjectionOperationalSt
     init(generationRootURL: URL, generationID: UUID, workspaceID: WorkspaceID,
          limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),
          fileManager: FileManager = .default) throws {
-        guard C50IncumbentFileExchangeProjectionCheckpointBoundaryV1.validate() else {
+        guard C50IncumbentFileExchangeProjectionCheckpointBoundaryV1.validate(),
+              C51ScheduleExceptionProjectionCheckpointBoundaryV1.validate() else {
             throw IntegrationEventFailureV1.invalidValue
         }
         try limits.validate()
@@ -453,5 +454,21 @@ enum C50IncumbentFileExchangeProjectionCheckpointBoundaryV1 {
             && backupRestoreDisposition == "NOT_APPLICABLE"
             && eraseDisposition == "NOT_APPLICABLE"
             && C50IncumbentFileExchangeIntegrationEventBoundaryV1.validate()
+    }
+}
+
+enum C51ScheduleExceptionProjectionCheckpointBoundaryV1 {
+    static let canonicalKinds: Set<WorkspaceEntityKindV1> = [
+        .exceptionCalendarRelease, .scheduleOverrideEvent
+    ]
+    static let checkpointIsDisposable = true
+    static let checkpointIsNotScheduleTruth = true
+    static let createsCalendarOrOverrideWriter = false
+
+    static func validate() -> Bool {
+        canonicalKinds == [.exceptionCalendarRelease, .scheduleOverrideEvent]
+            && checkpointIsDisposable
+            && checkpointIsNotScheduleTruth
+            && !createsCalendarOrOverrideWriter
     }
 }

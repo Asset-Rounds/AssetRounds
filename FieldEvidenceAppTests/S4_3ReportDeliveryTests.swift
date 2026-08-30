@@ -16,6 +16,16 @@ private final class C45ReportDeliveryCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51S43ReportDeliveryAnchorTests: XCTestCase {
+    func testV23P03C51AdvancedScheduleDeliveryIsLocalDerivedOutput() {
+        let export: (AdvancedScheduleReportProjectionV1) throws -> Data =
+            ReportDeliveryCoordinator.localAdvancedScheduleExport
+        _ = export
+        XCTAssertTrue(AdvancedScheduleReportProjectionPolicyV1.derivedOnly)
+        XCTAssertTrue(AdvancedScheduleReportProjectionPolicyV1.excludesNotificationPayload)
+    }
+}
+
 private final class C30EvidenceContextAnchorS4_3ReportDelivery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

@@ -2,6 +2,16 @@ import Foundation
 
 enum SurveySessionScheduleCoordinatorBoundaryV1 { static let scheduledStartUsesExplicitAtomicLink = true }
 
+enum C51SurveySessionScheduleCoordinatorBoundaryV1 {
+    static let scheduledStartUsesExplicitAtomicLink = true
+    static let coordinatorOwnsNoOccurrenceWriter = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 /// Application boundary for C26 survey-session writes. Implementations must
 /// route every value through the sole workspace writer and its durable journal;
 /// this protocol does not authorize a second store or receipt stream.

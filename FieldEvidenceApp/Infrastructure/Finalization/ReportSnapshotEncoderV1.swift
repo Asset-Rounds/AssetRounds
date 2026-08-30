@@ -602,6 +602,22 @@ struct ReportSnapshotEncoderV1: Sendable {
     }()
 }
 
+extension ReportSnapshotEncoderV1 {
+    /// Canonical standalone encoding for the additive C51 projection. It is
+    /// deliberately not a new writer in `ReportSnapshotV1`.
+    static func encodeAdvancedScheduleProjection(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> Data {
+        try AdvancedScheduleReportProjectionPolicyV1.validate(projection)
+        let data = try ScheduleCanonicalCodecV1.data(projection)
+        guard try ScheduleCanonicalCodecV1.decode(
+            AdvancedScheduleReportProjectionV1.self, from: data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return data
+    }
+}
+
 extension CanonicalJSONV1 {
     static func reportSnapshot(_ value: ReportSnapshotV1) -> CanonicalJSONValueV1 {
         var object: [String: CanonicalJSONValueV1] = [

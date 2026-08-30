@@ -69,18 +69,51 @@ struct AssetLocatorDeletionInventoryV1: Equatable, Sendable {
 struct ScheduleDeletionInventoryV1: Equatable, Sendable {
     let releaseIDs: Set<UUID>
     let occurrenceEventIDs: Set<UUID>
+    let exceptionCalendarReleaseIDs: Set<UUID>
+    let scheduleOverrideEventIDs: Set<UUID>
 
-    static let empty = Self(releaseIDs: [], occurrenceEventIDs: [])
+    static let empty = Self(
+        releaseIDs: [], occurrenceEventIDs: [], exceptionCalendarReleaseIDs: [],
+        scheduleOverrideEventIDs: []
+    )
 
     init(
         definitions: [ScheduleDefinitionReleaseV1],
-        history: [OccurrenceHistoryEventV1]
+        history: [OccurrenceHistoryEventV1],
+        calendars: [ExceptionCalendarReleaseV1],
+        overrides: [ScheduleOverrideEventV1]
     ) throws {
         try ScheduleLifecycleClosureV1(
             definitions: definitions, history: history
         ).validate()
+        for group in Dictionary(grouping: calendars, by: \.calendarID).values {
+            let ordered = group.sorted { $0.revision < $1.revision }
+            guard ordered.first?.revision == 1 else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+            if ordered.count > 1 {
+                for index in 1..<ordered.count {
+                    try ordered[index].validateSuccessor(of: ordered[index - 1])
+                }
+            }
+        }
+        let definitionsByID = Dictionary(uniqueKeysWithValues: definitions.map { ($0.releaseID, $0) })
+        for value in overrides {
+            guard let release = definitionsByID[value.scheduleRelease.releaseID],
+                  release.releaseSHA256 == value.scheduleRelease.releaseSHA256 else {
+                throw WholeSignDeletionRuleError.invalidGraph
+            }
+        }
+        guard C51ScheduleBackupClosureV1.validatesAdvancedCalendarReferences(
+            definitions: definitions, calendars: calendars
+        ) else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
+        _ = try ScheduleOverridePrecedenceV1.activeEvents(overrides)
         releaseIDs = Set(definitions.map(\.releaseID))
         occurrenceEventIDs = Set(history.map(\.eventID))
+        exceptionCalendarReleaseIDs = Set(calendars.map(\.releaseID))
+        scheduleOverrideEventIDs = Set(overrides.map(\.eventID))
     }
 }
 
@@ -91,6 +124,11 @@ extension WholeSignDeletionRule {
         workspaceErase: Bool
     ) throws {
         try ScheduleDeletionLedgerPolicyV1.validate()
+        guard C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count == 6,
+              ScheduleDeletionIntentBoundaryV1
+                .ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure else {
+            throw WholeSignDeletionRuleError.invalidGraph
+        }
         if workspaceErase {
             guard after == .empty else {
                 throw WholeSignDeletionRuleError.invalidGraph

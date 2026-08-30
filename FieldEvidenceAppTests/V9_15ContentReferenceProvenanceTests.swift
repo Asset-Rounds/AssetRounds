@@ -10,6 +10,15 @@ private final class C45ContentProvenanceCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51V915ContentReferenceAnchorTests: XCTestCase {
+    func testV23P03C51ScheduleMetadataNeverBecomesContentTruth() {
+        XCTAssertFalse(C51ScheduleContentContractRegistryBoundaryV1.scheduleIsContentContract)
+        XCTAssertTrue(C51ScheduleContentContractRegistryBoundaryV1.scheduleUsesNoParallelByteStore)
+        XCTAssertTrue(C51ScheduleContentContractRegistryBoundaryV1.scheduleClosureMetadataIsDerivedOnly)
+        XCTAssertTrue(C51ScheduleContentIntegrityBoundaryV1.contentBytesAreNotScheduleInputs)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_15ContentReferenceProvenance: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

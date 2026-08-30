@@ -3,6 +3,12 @@ enum EvidenceContextObservationTimeBoundaryV1{static let observedAndCalculatedTi
 enum PlacementPoseObservationTimeBoundaryV1{static let poseTimesUseCanonicalMilliseconds=true;static let deviceHeadingProposalsAreNotDurableUntilAccepted=true}
 
 enum ObservationScheduleBoundaryV1 { static let scheduleTimeBasisIsFrozen = true }
+
+enum C51ObservationTimeScheduleBoundaryV1 {
+    static let occurrenceBasisReusesFrozenScheduleTimeBasis = true
+    static let deviceCurrentTimeZoneIsNotReinterpreted = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+}
 import SwiftData
 
 enum PlanObservationPlacementBindingV1 { static let observationSubjectKind = PlanPlacementSubjectKindV1.observation; static let placementOwnsNoObservationBytes = true }

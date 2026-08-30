@@ -1001,6 +1001,8 @@ private extension BackupImportService {
             schemaPairIsValid=(try? V26AssetLocatorImportBoundaryV1.validate(persistent:26,records:25)) != nil
         case (4,27,26):
             schemaPairIsValid=(try? V27ScheduleImportBoundaryV1.validate(persistent:27,records:26)) != nil
+                && C51ScheduleBackupClosureV1.preservedV27RecordBytes
+                && C51ScheduleBackupClosureV1.allDaysMigrationPreservesOccurrenceIdentityAndDate
         case (4,28,27):
             schemaPairIsValid = (try? V28PlanImportBoundaryV1.validate(
                 persistent: 28,

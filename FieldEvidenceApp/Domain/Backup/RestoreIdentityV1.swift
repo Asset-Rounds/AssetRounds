@@ -62,17 +62,23 @@ enum AssetLocatorRestoreIdentityDispositionV1: String, Codable, Equatable, Senda
 enum ScheduleRestoreIdentityPolicyV1 {
     static let persistentSchemaVersion = 27
     static let recordsSchemaVersion = 26
-    static let durableFamilyCount = 2
+    static let durableFamilyCount = 4
     static let sameWorkspacePreservesImmutableBytes = true
     static let cloneForkSourceScheduleAutomaticallyActive = false
     static let dueAndReminderProjectionsRebuilt = true
     static let notificationStateRestoredAsTruth = false
+    static let calendarOverrideAndBasisClosureReboundAtomically = true
+    static let allDaysCompatibilityPreservesOccurrenceIdentityAndDate = true
+    static let sourceActivationRequiresExplicitCurrentSelection = true
 
     static func validate() throws {
         guard persistentSchemaVersion == 27,
               recordsSchemaVersion == 26,
-              durableFamilyCount == 2,
+              durableFamilyCount == 4,
               sameWorkspacePreservesImmutableBytes,
+              calendarOverrideAndBasisClosureReboundAtomically,
+              allDaysCompatibilityPreservesOccurrenceIdentityAndDate,
+              sourceActivationRequiresExplicitCurrentSelection,
               !cloneForkSourceScheduleAutomaticallyActive,
               dueAndReminderProjectionsRebuilt,
               !notificationStateRestoredAsTruth else {

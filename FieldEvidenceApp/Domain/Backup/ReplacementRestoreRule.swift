@@ -238,6 +238,8 @@ enum ScheduleReplacementRestorePolicyV1 {
         }),
         Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count
             == records.count,
+        C51ScheduleBackupClosureV1.validatesEnvelope(records),
+        C51ScheduleBackupClosureV1.allDaysMigrationPreservesOccurrenceIdentityAndDate,
         !cloneForkSourceScheduleAutomaticallyActive,
         !derivedProjectionsRestored,
         !notificationStateRestored else {
@@ -246,6 +248,8 @@ enum ScheduleReplacementRestorePolicyV1 {
         guard !records.isEmpty else { return }
         var definitions: [ScheduleDefinitionReleaseV1] = []
         var history: [OccurrenceHistoryEventV1] = []
+        var calendars: [ExceptionCalendarReleaseV1] = []
+        var overrides: [ScheduleOverrideEventV1] = []
         for record in records {
             guard record.revision > 0, !record.canonicalData.isEmpty else {
                 throw ReplacementRestoreRuleError.invalidAuthority
@@ -274,6 +278,28 @@ enum ScheduleReplacementRestorePolicyV1 {
                         throw ReplacementRestoreRuleError.invalidAuthority
                     }
                     history.append(value)
+                case .exceptionCalendarRelease:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ExceptionCalendarReleaseV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.releaseID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    calendars.append(value)
+                case .scheduleOverrideEvent:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ScheduleOverrideEventV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.eventID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    overrides.append(value)
                 }
             } catch let error as ReplacementRestoreRuleError {
                 throw error
@@ -285,6 +311,23 @@ enum ScheduleReplacementRestorePolicyV1 {
             try ScheduleLifecycleClosureV1(
                 definitions: definitions, history: history
             ).validate()
+            for group in Dictionary(grouping: calendars, by: \.calendarID).values {
+                let ordered = group.sorted { $0.revision < $1.revision }
+                guard ordered.first?.revision == 1 else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                if ordered.count > 1 {
+                    for index in 1..<ordered.count {
+                        try ordered[index].validateSuccessor(of: ordered[index - 1])
+                    }
+                }
+            }
+            guard C51ScheduleBackupClosureV1.validatesAdvancedCalendarReferences(
+                definitions: definitions, calendars: calendars
+            ) else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            _ = try ScheduleOverridePrecedenceV1.activeEvents(overrides)
         } catch {
             throw ReplacementRestoreRuleError.invalidAuthority
         }

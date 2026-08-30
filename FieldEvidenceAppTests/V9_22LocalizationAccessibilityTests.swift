@@ -10,6 +10,24 @@ private final class C45LocalizationAccessibilityCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51V922LocalizationAccessibilityAnchorTests: XCTestCase {
+    func testV23P03C51ScheduleLocalizationAndAccessibilityAreTypedWithoutUIClaim() throws {
+        XCTAssertEqual(ScheduleLocalizationKeyV1.recurrenceKey(for: .advanced(
+            AdvancedScheduleConfigurationV1(
+                recurrence: .daily(interval: 1),
+                calendarRelease: AllDaysCompatibilityCalendarV1.reference(
+                    workspaceID: WorkspaceID(rawValue: UUID(
+                        uuidString: "51000000-0000-4000-8000-000000000922")!)),
+                businessDayAdjustmentPolicy: .nextIncludedDay))), .advancedRecurrence)
+        XCTAssertEqual(ScheduleAccessibilityIDV1.advancedRecurrence.localizationKey,
+                       ScheduleLocalizationKeyV1.advancedRecurrence.localizationKey)
+        XCTAssertTrue(ScheduleAccessibilityPolicyV1.rtlReadingOrderRequired)
+        XCTAssertTrue(ScheduleAccessibilityPolicyV1.dynamicTypeRequired)
+        XCTAssertTrue(ScheduleAccessibilityPolicyV1.voiceOverLabelAndValueRequired)
+        XCTAssertFalse(ScheduleAccessibilityPolicyV1.uiConformanceClaimed)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_22LocalizationAccessibility: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

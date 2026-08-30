@@ -139,13 +139,13 @@ enum C45AcceptedLabelBackupRestoreRegistryV1 {
     }
 }
 
-/// C28 schedule backup/restore is a two-family closure: immutable definition
-/// releases plus append-only occurrence history. Projection queues and
+/// C51 schedule backup/restore is a four-family closure: immutable definition
+/// and calendar releases plus append-only occurrence and override history. Projection queues and
 /// reminders are rebuilt after restore and never enter the kernel archive.
 enum ScheduleBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 27
     static let recordsSchemaVersion = 26
-    static let durableFamilyCount = 2
+    static let durableFamilyCount = 4
     static let lifecycleHistoryStorage = "MUTATION_HISTORY_ONLY"
     static let derivedProjectionDisposition = "DROP_AND_REBUILD"
     static let notificationStateIsTruth = false
@@ -154,7 +154,7 @@ enum ScheduleBackupRestoreRegistryV1 {
     static func validate() throws {
         guard persistentSchemaVersion == 27,
               recordsSchemaVersion == 26,
-              durableFamilyCount == 2,
+              durableFamilyCount == 4,
               lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
               derivedProjectionDisposition == "DROP_AND_REBUILD",
               !notificationStateIsTruth,
@@ -488,8 +488,13 @@ enum KernelBackupRestoreRegistryV4 {
         try ScheduleBackupRestoreRegistryV1.validate()
         guard ScheduleStreamingArchivePolicyV1.recordsSchemaVersion == 26,
               ScheduleStreamingArchivePolicyV1.persistentSchemaVersion == 27,
-              ScheduleStreamingArchivePolicyV1.durableFamilyCount == 2,
+              ScheduleStreamingArchivePolicyV1.durableFamilyCount == 4,
               ScheduleStreamingArchivePolicyV1.lifecycleEventsRemainInMutationHistory,
+              C51ScheduleBackupClosureV1.persistedRecordKindCount == 4,
+              C51ScheduleBackupClosureV1.preservedV27RecordBytes,
+              C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count == 6,
+              ScheduleStreamingArchivePolicyV1.interruptionResumesAtCanonicalRecordBoundary,
+              !ScheduleStreamingArchivePolicyV1.partialClosureMayPublish,
               !ScheduleStreamingArchivePolicyV1.notificationStateIsTruth,
               !ScheduleStreamingArchivePolicyV1.cloneForkSourceScheduleAutomaticallyActive,
               !ScheduleReplacementRestorePolicyV1.cloneForkSourceScheduleAutomaticallyActive,

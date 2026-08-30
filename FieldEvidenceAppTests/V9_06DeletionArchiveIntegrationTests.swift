@@ -689,3 +689,15 @@ private final class C48PortableReviewV906DeletionArchiveTests: XCTestCase {
 private final class C49WorkResourceDeletionArchiveBoundaryTests: XCTestCase {
     func testArchiveTreatsDirectCostAsEmbeddedWithEntry() { XCTAssertTrue(C49WorkResourceContractBoundaryV1.directCostIsEmbedded) }
 }
+
+extension C50DeletionArchiveIntegrationTests {
+    func testV23P03C51ArchiveCarriesSixCanonicalScheduleComponents() {
+        XCTAssertTrue(
+            C51ScheduleBackupClosureV1.preservedV27RecordBytes
+                && C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count == 6
+                && C51ScheduleBackupClosureV1.embeddedCanonicalComponents
+                    .contains("ScheduleOverrideEventV1")
+                && !C51ScheduleBackupClosureV1.derivedDueReminderAndPreviewStateIsArchived
+        )
+    }
+}

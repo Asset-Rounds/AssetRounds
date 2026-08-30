@@ -66,16 +66,23 @@ enum SurveySessionDeletionLedgerPolicyV1{static let durableKinds=["SurveySession
 /// append-only history. Ordinary asset/site deletion cannot prune either
 /// family; workspace Erase is the only operation that removes them.
 enum ScheduleDeletionLedgerPolicyV1 {
-    static let durableKinds = ["ScheduleDefinitionReleaseV1", "OccurrenceHistoryEventV1"]
+    static let durableKinds = [
+        "ScheduleDefinitionReleaseV1", "OccurrenceHistoryEventV1",
+        "ExceptionCalendarReleaseV1", "ScheduleOverrideEventV1"
+    ]
+    static let embeddedC51Kinds = C51ScheduleBackupClosureV1.embeddedCanonicalComponents
     static let lifecycleEventsRemainInMutationHistory = true
     static let ordinaryDeletionPreservesReleaseAndOccurrenceHistory = true
+    static let ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure = true
     static let workspaceEraseRemovesAll = true
 
     static func validate() throws {
-        guard durableKinds.count == 2,
+        guard durableKinds.count == 4,
               Set(durableKinds).count == durableKinds.count,
+              embeddedC51Kinds.count == 6,
               lifecycleEventsRemainInMutationHistory,
               ordinaryDeletionPreservesReleaseAndOccurrenceHistory,
+              ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure,
               workspaceEraseRemovesAll else {
             throw DeletionLedgerFailureV2.invalidSchemaVersion
         }

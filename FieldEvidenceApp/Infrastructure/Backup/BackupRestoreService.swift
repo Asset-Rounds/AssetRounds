@@ -5289,6 +5289,11 @@ private extension BackupRestoreService {
         destinationSurveyDefinitions: [V24BackupSurveyDefinitionRecordV1],
         packageEvolution: [V17BackupPackageEvolutionRecordV1]
     ) throws -> [V27BackupScheduleRecordV1] {
+        guard C51ScheduleBackupClosureV1.validatesEnvelope(records),
+              ScheduleRestoreIdentityPolicyV1.calendarOverrideAndBasisClosureReboundAtomically,
+              !C51ScheduleBackupClosureV1.sourceScheduleAutomaticallyActiveAfterCloneOrFork else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         guard !records.isEmpty else { return [] }
         let sourceWorkspaceUUID = identity.source.workspaceID
             ?? UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
@@ -5341,6 +5346,8 @@ private extension BackupRestoreService {
 
         var sourceDefinitionsByID: [UUID: ScheduleDefinitionReleaseV1] = [:]
         var sourceEventsByID: [UUID: OccurrenceHistoryEventV1] = [:]
+        var sourceCalendarsByID: [UUID: ExceptionCalendarReleaseV1] = [:]
+        var sourceOverridesByID: [UUID: ScheduleOverrideEventV1] = [:]
         for record in records {
             switch record.kind {
             case .scheduleRelease:
@@ -5363,6 +5370,28 @@ private extension BackupRestoreService {
                       value.workspaceID == sourceWorkspaceID,
                       value.revision == record.revision,
                       sourceEventsByID.updateValue(value, forKey: value.eventID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+            case .exceptionCalendarRelease:
+                let value = try ScheduleCanonicalCodecV1.decode(
+                    ExceptionCalendarReleaseV1.self, from: record.canonicalData
+                )
+                try value.validate()
+                guard value.releaseID == record.id,
+                      value.workspaceID == sourceWorkspaceID,
+                      value.revision == record.revision,
+                      sourceCalendarsByID.updateValue(value, forKey: value.releaseID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+            case .scheduleOverrideEvent:
+                let value = try ScheduleCanonicalCodecV1.decode(
+                    ScheduleOverrideEventV1.self, from: record.canonicalData
+                )
+                try value.validate()
+                guard value.eventID == record.id,
+                      value.workspaceID == sourceWorkspaceID,
+                      value.revision == record.revision,
+                      sourceOverridesByID.updateValue(value, forKey: value.eventID) == nil else {
                     throw BackupRestoreServiceError.invalidPackage
                 }
             }
@@ -5423,7 +5452,57 @@ private extension BackupRestoreService {
             )
         }
 
+        var reboundCalendars: [UUID: ExceptionCalendarReleaseV1] = [:]
+        for group in Dictionary(grouping: sourceCalendarsByID.values, by: \.calendarID).values {
+            var predecessor: ExceptionCalendarReleaseV1?
+            for source in group.sorted(by: { $0.revision < $1.revision }) {
+                let rebound = try ExceptionCalendarReleaseV1(
+                    workspaceID: workspaceID,
+                    calendarID: source.calendarID,
+                    releaseID: source.releaseID,
+                    name: source.name,
+                    ianaTimeZoneIdentifier: source.ianaTimeZoneIdentifier,
+                    effectiveRange: source.effectiveRange,
+                    baseIncludedWeekdays: source.baseIncludedWeekdays,
+                    excludedDates: source.excludedDates,
+                    excludedRanges: source.excludedRanges,
+                    includedOverrideDates: source.includedOverrideDates,
+                    supersedesReleaseID: predecessor?.releaseID,
+                    predecessorReleaseSHA256: predecessor?.releaseSHA256,
+                    revision: source.revision,
+                    mutationID: source.mutationID,
+                    authoredBy: actor(source.authoredBy),
+                    authoredAt: source.authoredAt
+                )
+                if let predecessor { try rebound.validateSuccessor(of: predecessor) }
+                guard reboundCalendars.updateValue(rebound, forKey: rebound.releaseID) == nil else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                predecessor = rebound
+            }
+        }
+
         var reboundDefinitions: [UUID: ScheduleDefinitionReleaseV1] = [:]
+        func reboundRecurrence(_ source: ScheduleRecurrenceV1) throws -> ScheduleRecurrenceV1 {
+            switch source {
+            case .fixedCalendar, .completionRelative:
+                return source
+            case .advanced(let configuration):
+                guard let sourceCalendar = sourceCalendarsByID[
+                    configuration.calendarRelease.releaseID
+                ], sourceCalendar.reference == configuration.calendarRelease,
+                let reboundCalendar = reboundCalendars[
+                    configuration.calendarRelease.releaseID
+                ] else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                return .advanced(AdvancedScheduleConfigurationV1(
+                    recurrence: configuration.recurrence,
+                    calendarRelease: reboundCalendar.reference,
+                    businessDayAdjustmentPolicy: configuration.businessDayAdjustmentPolicy
+                ))
+            }
+        }
         for group in Dictionary(grouping: sourceDefinitionsList, by: \.scheduleDefinitionID).values {
             var predecessor: ScheduleDefinitionReleaseV1?
             for source in group.sorted(by: { $0.revision < $1.revision }) {
@@ -5448,7 +5527,7 @@ private extension BackupRestoreService {
                     occurrenceIdentityNamespaceID: source.occurrenceIdentityNamespaceID,
                     action: source.action,
                     lifecycleState: source.lifecycleState,
-                    recurrence: source.recurrence,
+                    recurrence: try reboundRecurrence(source.recurrence),
                     timeBasis: source.timeBasis,
                     startsAtUTC: source.startsAtUTC,
                     endsAtUTC: source.endsAtUTC,
@@ -5501,6 +5580,56 @@ private extension BackupRestoreService {
                 predecessor = rebound
             }
         }
+        var admittedSourceOverrides: [ScheduleOverrideEventV1] = []
+        var admittedReboundOverrides: [ScheduleOverrideEventV1] = []
+        var remainingOverrides = Array(sourceOverridesByID.values)
+        while !remainingOverrides.isEmpty {
+            let sourceFrontier = try ScheduleOverridePrecedenceV1.closureSHA256(
+                admittedSourceOverrides
+            )
+            let candidates = remainingOverrides.filter {
+                $0.expectedOverrideFrontierSHA256 == sourceFrontier
+            }
+            guard candidates.count == 1, let source = candidates.first,
+                  let sourceRelease = sourceDefinitionsByID[source.scheduleRelease.releaseID],
+                  sourceRelease.releaseSHA256 == source.scheduleRelease.releaseSHA256,
+                  let release = reboundDefinitions[source.scheduleRelease.releaseID] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let predecessor = source.supersedesEventID.flatMap { predecessorID in
+                admittedReboundOverrides.first(where: { $0.eventID == predecessorID })
+            }
+            if source.supersedesEventID != nil && predecessor == nil {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            let reboundFrontier = try ScheduleOverridePrecedenceV1.closureSHA256(
+                admittedReboundOverrides
+            )
+            let rebound = try ScheduleOverrideEventV1(
+                eventID: source.eventID,
+                workspaceID: workspaceID,
+                scheduleRelease: try ScheduleDefinitionReleaseReferenceV1(release),
+                target: source.target,
+                scope: source.scope,
+                kind: source.kind,
+                effectiveRange: source.effectiveRange,
+                replacementDate: source.replacementDate,
+                replacementWindow: source.replacementWindow,
+                reasonCode: source.reasonCode,
+                expectedScheduleRevision: release.revision,
+                expectedOverrideFrontierSHA256: reboundFrontier,
+                supersedesEventID: predecessor?.eventID,
+                predecessorEventSHA256: predecessor?.eventSHA256,
+                revision: source.revision,
+                mutationID: source.mutationID,
+                recordedBy: actor(source.recordedBy),
+                recordedAt: source.recordedAt
+            )
+            admittedSourceOverrides.append(source)
+            admittedReboundOverrides.append(rebound)
+            remainingOverrides.removeAll { $0.eventID == source.eventID }
+        }
+        _ = try ScheduleOverridePrecedenceV1.activeEvents(admittedReboundOverrides)
         try ScheduleLifecycleClosureV1(
             definitions: Array(reboundDefinitions.values),
             history: Array(reboundEvents.values)
@@ -5523,10 +5652,32 @@ private extension BackupRestoreService {
                 canonicalData: try ScheduleCanonicalCodecV1.data(value)
             )
         }
-        return (releaseRecords + eventRecords).sorted {
+        let calendarRecords = try reboundCalendars.values.map { value in
+            V27BackupScheduleRecordV1(
+                kind: .exceptionCalendarRelease,
+                id: value.releaseID,
+                workspaceID: workspaceID.rawValue,
+                revision: value.revision,
+                canonicalData: try ScheduleCanonicalCodecV1.data(value)
+            )
+        }
+        let overrideRecords = try admittedReboundOverrides.map { value in
+            V27BackupScheduleRecordV1(
+                kind: .scheduleOverrideEvent,
+                id: value.eventID,
+                workspaceID: workspaceID.rawValue,
+                revision: value.revision,
+                canonicalData: try ScheduleCanonicalCodecV1.data(value)
+            )
+        }
+        let reboundRecords = (releaseRecords + eventRecords + calendarRecords + overrideRecords).sorted {
             "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
         }
+        guard C51ScheduleBackupClosureV1.validatesEnvelope(reboundRecords) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        return reboundRecords
     }
 
     /// Rebinds plan document/revision/placement history for a clone or fork.
@@ -7866,6 +8017,8 @@ private extension BackupRestoreService {
                 } ?? legacyDestinationIdentity.workspaceID
                 var releases: [ScheduleDefinitionReleaseV1] = []
                 var events: [OccurrenceHistoryEventV1] = []
+                var calendars: [ExceptionCalendarReleaseV1] = []
+                var overrides: [ScheduleOverrideEventV1] = []
                 for record in records.schedules {
                     guard record.workspaceID == expectedWorkspaceID.rawValue,
                           record.revision > 0,
@@ -7897,17 +8050,52 @@ private extension BackupRestoreService {
                             throw BackupRestoreServiceError.invalidPackage
                         }
                         events.append(value)
+                    case .exceptionCalendarRelease:
+                        let value = try ScheduleCanonicalCodecV1.decode(
+                            ExceptionCalendarReleaseV1.self,
+                            from: record.canonicalData
+                        )
+                        try value.validate()
+                        guard value.releaseID == record.id,
+                              value.workspaceID == expectedWorkspaceID,
+                              value.revision == record.revision else {
+                            throw BackupRestoreServiceError.invalidPackage
+                        }
+                        calendars.append(value)
+                    case .scheduleOverrideEvent:
+                        let value = try ScheduleCanonicalCodecV1.decode(
+                            ScheduleOverrideEventV1.self,
+                            from: record.canonicalData
+                        )
+                        try value.validate()
+                        guard value.eventID == record.id,
+                              value.workspaceID == expectedWorkspaceID,
+                              value.revision == record.revision else {
+                            throw BackupRestoreServiceError.invalidPackage
+                        }
+                        overrides.append(value)
                     }
                 }
                 try ScheduleLifecycleClosureV1(
                     definitions: releases,
                     history: events
                 ).validate()
+                guard C51ScheduleBackupClosureV1.validatesAdvancedCalendarReferences(
+                    definitions: releases, calendars: calendars
+                ) else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
                 for value in releases.sorted(by: { $0.releaseID.uuidString < $1.releaseID.uuidString }) {
                     context.insert(try ScheduleDefinitionReleaseRow(value))
                 }
                 for value in events.sorted(by: { $0.eventID.uuidString < $1.eventID.uuidString }) {
                     context.insert(try OccurrenceHistoryEventRow(value))
+                }
+                for value in calendars.sorted(by: { $0.releaseID.uuidString < $1.releaseID.uuidString }) {
+                    context.insert(try ExceptionCalendarReleaseRow(value))
+                }
+                for value in overrides.sorted(by: { $0.eventID.uuidString < $1.eventID.uuidString }) {
+                    context.insert(try ScheduleOverrideEventRow(value))
                 }
             } catch let error as BackupRestoreServiceError {
                 throw error
@@ -9836,10 +10024,14 @@ private extension BackupRestoreService {
         var scheduleRecords: [V27BackupScheduleRecordV1] = []
         let scheduleReleaseRows = try context.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>())
         let occurrenceHistoryRows = try context.fetch(FetchDescriptor<OccurrenceHistoryEventRow>())
+        let exceptionCalendarRows = try context.fetch(FetchDescriptor<ExceptionCalendarReleaseRow>())
+        let scheduleOverrideRows = try context.fetch(FetchDescriptor<ScheduleOverrideEventRow>())
         if mutationHistory != nil {
             let definitions = try scheduleReleaseRows.map { try $0.value() }
             let history = try occurrenceHistoryRows.map { try $0.value() }
-            if !definitions.isEmpty || !history.isEmpty {
+            let calendars = try exceptionCalendarRows.map { try $0.value() }
+            let overrides = try scheduleOverrideRows.map { try $0.value() }
+            if !definitions.isEmpty || !history.isEmpty || !calendars.isEmpty || !overrides.isEmpty {
                 do {
                     try ScheduleLifecycleClosureV1(
                         definitions: definitions, history: history
@@ -9854,6 +10046,16 @@ private extension BackupRestoreService {
                           canonicalData: try ScheduleCanonicalCodecV1.data($0))
                 } + history.map {
                     .init(kind: .occurrenceHistory, id: $0.eventID,
+                          workspaceID: $0.workspaceID.rawValue,
+                          revision: $0.revision,
+                           canonicalData: try ScheduleCanonicalCodecV1.data($0))
+                } + calendars.map {
+                    .init(kind: .exceptionCalendarRelease, id: $0.releaseID,
+                          workspaceID: $0.workspaceID.rawValue,
+                          revision: $0.revision,
+                          canonicalData: try ScheduleCanonicalCodecV1.data($0))
+                } + overrides.map {
+                    .init(kind: .scheduleOverrideEvent, id: $0.eventID,
                           workspaceID: $0.workspaceID.rawValue,
                           revision: $0.revision,
                           canonicalData: try ScheduleCanonicalCodecV1.data($0))

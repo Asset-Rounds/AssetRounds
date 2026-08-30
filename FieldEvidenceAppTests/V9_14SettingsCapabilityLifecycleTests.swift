@@ -11,6 +11,16 @@ private final class C45SettingsCapabilityCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51V914SettingsCapabilityAnchorTests: XCTestCase {
+    func testV23P03C51RuntimeAndCheckRunnerStayLocalExplicitAndDerived() {
+        XCTAssertTrue(C51ScheduleRuntimeBoundaryV1.localOnly)
+        XCTAssertFalse(C51ScheduleRuntimeBoundaryV1.eventKitPermissionRequested)
+        XCTAssertFalse(C51ScheduleRuntimeBoundaryV1.backgroundScheduleDaemon)
+        XCTAssertTrue(C51CheckRunnerScheduleBoundaryV1.scheduleClosureIsDerivedMetadataOnly)
+        XCTAssertFalse(C51CheckRunnerScheduleBoundaryV1.checkRunnerMayAutoStartOccurrence)
+    }
+}
+
 private final class C30EvidenceContextAnchorV9_14SettingsCapabilityLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

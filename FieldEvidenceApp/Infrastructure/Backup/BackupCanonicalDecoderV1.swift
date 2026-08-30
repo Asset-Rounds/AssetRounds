@@ -454,6 +454,9 @@ private extension BackupCanonicalDecoderV1 {
         guard records.schedules.count <= 200_000 else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
+        guard C51ScheduleBackupClosureV1.validatesEnvelope(records.schedules) else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
         if !records.schedules.isEmpty {
             guard records.mutationHistory != nil else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -470,6 +473,8 @@ private extension BackupCanonicalDecoderV1 {
         var rowKeys = Set<String>()
         var definitions: [UUID: ScheduleDefinitionReleaseV1] = [:]
         var history: [UUID: OccurrenceHistoryEventV1] = [:]
+        var calendars: [UUID: ExceptionCalendarReleaseV1] = [:]
+        var overrides: [UUID: ScheduleOverrideEventV1] = [:]
         for record in records.schedules {
             guard record.id != zero, record.workspaceID != zero,
                   record.revision > 0, record.revision <= UInt64(Int.max),
@@ -499,6 +504,28 @@ private extension BackupCanonicalDecoderV1 {
                           value.workspaceID.rawValue == record.workspaceID,
                           value.revision == record.revision,
                           history.updateValue(value, forKey: value.eventID) == nil else {
+                        throw BackupCanonicalDecodingErrorV1.invalidRecords
+                    }
+                case .exceptionCalendarRelease:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ExceptionCalendarReleaseV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.releaseID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision,
+                          calendars.updateValue(value, forKey: value.releaseID) == nil else {
+                        throw BackupCanonicalDecodingErrorV1.invalidRecords
+                    }
+                case .scheduleOverrideEvent:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ScheduleOverrideEventV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.eventID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision,
+                          overrides.updateValue(value, forKey: value.eventID) == nil else {
                         throw BackupCanonicalDecodingErrorV1.invalidRecords
                     }
                 }
@@ -534,6 +561,41 @@ private extension BackupCanonicalDecoderV1 {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
             }
         }
+        for group in Dictionary(grouping: calendars.values, by: \.calendarID).values {
+            let ordered = group.sorted { $0.revision < $1.revision }
+            guard let first = ordered.first, first.revision == 1,
+                  first.supersedesReleaseID == nil else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            if ordered.count > 1 {
+                for index in 1..<ordered.count {
+                    try ordered[index].validateSuccessor(of: ordered[index - 1])
+                }
+            }
+        }
+        guard C51ScheduleBackupClosureV1.validatesAdvancedCalendarReferences(
+            definitions: Array(definitions.values),
+            calendars: Array(calendars.values)
+        ) else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        var admittedOverrides: [ScheduleOverrideEventV1] = []
+        var remainingOverrides = Array(overrides.values)
+        while !remainingOverrides.isEmpty {
+            let frontier = try ScheduleOverridePrecedenceV1.closureSHA256(admittedOverrides)
+            let candidates = remainingOverrides.filter {
+                $0.expectedOverrideFrontierSHA256 == frontier
+            }
+            guard candidates.count == 1, let next = candidates.first,
+                  let release = definitions[next.scheduleRelease.releaseID],
+                  release.releaseSHA256 == next.scheduleRelease.releaseSHA256,
+                  release.revision == next.scheduleRelease.revision else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+            admittedOverrides.append(next)
+            remainingOverrides.removeAll { $0.eventID == next.eventID }
+        }
+        _ = try ScheduleOverridePrecedenceV1.activeEvents(admittedOverrides)
         for group in Dictionary(grouping: history.values, by: \.occurrenceID).values {
             let ordered = group.sorted { $0.revision < $1.revision }
             guard let first = ordered.first, first.revision == 1,

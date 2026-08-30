@@ -1316,7 +1316,138 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try WorkspaceMutationEffectV1(affectedEntities:mutation.affectedIdentities,temporaryRelativePath:temporaryRelativePath)
         }catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}
     }
-    private func applySchedule(_ mutation:ScheduleMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let releaseRows=try modelContext.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>()),eventRows=try modelContext.fetch(FetchDescriptor<OccurrenceHistoryEventRow>()),releases=try releaseRows.map{$0.value()},events=try eventRows.map{$0.value()};func requireRelease(_ value:ScheduleDefinitionReleaseV1)throws{let matches=releases.filter{$0.releaseID==value.releaseID};guard matches.count==1,matches[0]==value else{throw WorkspaceMutationFailureV1.invalidCommand}};func requireWork(_ value:ScheduledWorkInstanceReferenceV1?)throws{guard let value else{return};switch value{case let .workPacket(reference):let id=reference.manifestID,rows=try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>(predicate:#Predicate{$0.manifestID==id}));guard rows.count==1,let stored=try rows.first?.value(),try WorkPacketManifestReferenceV1(stored)==reference else{throw WorkspaceMutationFailureV1.invalidCommand};case let .roundSession(sessionID,revision,digest):let id=sessionID,rows=try modelContext.fetch(FetchDescriptor<SurveySessionRow>(predicate:#Predicate{$0.sessionID==id}));guard rows.count==1,let stored=try rows.first?.value(),stored.revision==revision,stored.sessionSHA256==digest else{throw WorkspaceMutationFailureV1.invalidCommand}}};func appendEvent(_ value:OccurrenceHistoryEventV1,_ predecessor:OccurrenceHistoryEventV1?,_ release:ScheduleDefinitionReleaseV1)throws{try requireRelease(release);try requireWork(value.workInstance);guard events.filter({$0.eventID==value.eventID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{let matches=events.filter{$0.eventID==predecessor.eventID},successors=events.filter{$0.predecessorEventID==predecessor.eventID};guard matches.count==1,matches[0]==predecessor,successors.isEmpty else{throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind:.occurrenceHistoryEvent,id:predecessor.eventID))}}else{guard events.filter({$0.occurrenceID==value.occurrenceID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision}};try value.validate(predecessor:predecessor);modelContext.insert(try OccurrenceHistoryEventRow(value))};switch mutation.payload{case let .appendRelease(value,predecessor):guard releases.filter({$0.releaseID==value.releaseID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{let matches=releases.filter{$0.releaseID==predecessor.releaseID},successors=releases.filter{$0.supersedesReleaseID==predecessor.releaseID};guard matches.count==1,matches[0]==predecessor,successors.isEmpty else{throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind:.scheduleDefinitionRelease,id:predecessor.releaseID))};try value.validateSuccessor(of:predecessor)};modelContext.insert(try ScheduleDefinitionReleaseRow(value));case let .appendOccurrenceEvent(value,predecessor,release):try appendEvent(value,predecessor,release);case let .startOccurrence(value,predecessor,release):try appendEvent(value,predecessor,release);case let .generateOccurrences(release,plan,values):try requireRelease(release);try plan.validate(definition:release);let existingIDs=Set(events.filter{$0.scheduleRelease.releaseID==release.releaseID}.map(\.occurrenceID));guard existingIDs==Set(plan.existingOccurrenceIDs)else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};for value in values{try appendEvent(value,nil,release)}};return try WorkspaceMutationEffectV1(affectedEntities:mutation.affectedIdentities,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
+    private func applySchedule(_ mutation: ScheduleMutationV1, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let releaseRows = try modelContext.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>())
+            let eventRows = try modelContext.fetch(FetchDescriptor<OccurrenceHistoryEventRow>())
+            let calendarRows = try modelContext.fetch(FetchDescriptor<ExceptionCalendarReleaseRow>())
+            let overrideRows = try modelContext.fetch(FetchDescriptor<ScheduleOverrideEventRow>())
+            let releases = try releaseRows.map { try $0.value() }
+            let events = try eventRows.map { try $0.value() }
+            let calendars = try calendarRows.map { try $0.value() }
+            let overrides = try overrideRows.map { try $0.value() }
+
+            func requireRelease(_ value: ScheduleDefinitionReleaseV1) throws {
+                let matches = releases.filter { $0.releaseID == value.releaseID }
+                guard matches.count == 1, matches[0] == value else { throw WorkspaceMutationFailureV1.invalidCommand }
+            }
+            func requireCalendar(_ reference: ExceptionCalendarReleaseReferenceV1) throws {
+                let matches = calendars.filter { $0.releaseID == reference.releaseID }
+                guard matches.count == 1, matches[0].reference == reference else { throw WorkspaceMutationFailureV1.invalidCommand }
+            }
+            func validateAdvancedCalendarBinding(_ release: ScheduleDefinitionReleaseV1) throws {
+                if case let .advanced(configuration) = release.recurrence {
+                    try requireCalendar(configuration.calendarRelease)
+                }
+            }
+            func requireWork(_ value: ScheduledWorkInstanceReferenceV1?) throws {
+                guard let value else { return }
+                switch value {
+                case let .workPacket(reference):
+                    let id = reference.manifestID
+                    let rows = try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>(predicate: #Predicate { $0.manifestID == id }))
+                    guard rows.count == 1, let stored = try rows.first?.value(), try WorkPacketManifestReferenceV1(stored) == reference else { throw WorkspaceMutationFailureV1.invalidCommand }
+                case let .roundSession(sessionID, revision, digest):
+                    let rows = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(predicate: #Predicate { $0.sessionID == sessionID }))
+                    guard rows.count == 1, let stored = try rows.first?.value(), stored.revision == revision, stored.sessionSHA256 == digest else { throw WorkspaceMutationFailureV1.invalidCommand }
+                }
+            }
+            func appendEvent(_ value: OccurrenceHistoryEventV1, _ predecessor: OccurrenceHistoryEventV1?, _ release: ScheduleDefinitionReleaseV1) throws {
+                try requireRelease(release); try requireWork(value.workInstance)
+                guard !events.contains(where: { $0.eventID == value.eventID }) else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                if let predecessor {
+                    let matches = events.filter { $0.eventID == predecessor.eventID }
+                    let successors = events.filter { $0.predecessorEventID == predecessor.eventID }
+                    guard matches.count == 1, matches[0] == predecessor, successors.isEmpty else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .occurrenceHistoryEvent, id: predecessor.eventID)) }
+                } else {
+                    guard !events.contains(where: { $0.occurrenceID == value.occurrenceID }) else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                }
+                try value.validate(predecessor: predecessor)
+                modelContext.insert(try OccurrenceHistoryEventRow(value))
+            }
+            func sameNamespaceReleaseReferences(_ release: ScheduleDefinitionReleaseV1) throws -> Set<ScheduleDefinitionReleaseReferenceV1> {
+                try requireRelease(release)
+                let candidates = releases.filter {
+                    $0.workspaceID == release.workspaceID
+                        && $0.scheduleDefinitionID == release.scheduleDefinitionID
+                        && $0.occurrenceIdentityNamespaceID == release.occurrenceIdentityNamespaceID
+                }
+                var references: Set<ScheduleDefinitionReleaseReferenceV1> = []
+                var current = release
+                while true {
+                    guard candidates.contains(current) else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                    guard references.insert(try ScheduleDefinitionReleaseReferenceV1(current)).inserted else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                    guard let predecessorID = current.supersedesReleaseID else { break }
+                    let predecessors = candidates.filter { $0.releaseID == predecessorID }
+                    guard predecessors.count == 1 else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                    try current.validateSuccessor(of: predecessors[0])
+                    current = predecessors[0]
+                }
+                return references
+            }
+            func overrideClosure(_ release: ScheduleDefinitionReleaseV1) throws -> [ScheduleOverrideEventV1] {
+                let references = try sameNamespaceReleaseReferences(release)
+                return overrides.filter { references.contains($0.scheduleRelease) }
+            }
+            func appendOverride(_ value: ScheduleOverrideEventV1, _ predecessor: ScheduleOverrideEventV1?, _ release: ScheduleDefinitionReleaseV1) throws {
+                try requireRelease(release)
+                try ScheduleOverridePrecedenceV1.validateExpectedFrontier(value, against: try overrideClosure(release))
+                guard !overrides.contains(where: { $0.eventID == value.eventID }) else { throw WorkspaceMutationFailureV1.staleWorkspaceRevision }
+                if let predecessor {
+                    let matches = overrides.filter { $0.eventID == predecessor.eventID }
+                    let successors = overrides.filter { $0.supersedesEventID == predecessor.eventID }
+                    guard matches.count == 1, matches[0] == predecessor, successors.isEmpty else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .scheduleOverrideEvent, id: predecessor.eventID)) }
+                    try value.validateSuccessor(of: predecessor)
+                } else { try value.validate() }
+                _ = try ScheduleOverridePrecedenceV1.activeEvents(overrides + [value])
+                modelContext.insert(try ScheduleOverrideEventRow(value))
+            }
+
+            switch mutation.payload {
+            case let .appendRelease(value, predecessor):
+                guard !releases.contains(where: { $0.releaseID == value.releaseID }) else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                try validateAdvancedCalendarBinding(value)
+                if let predecessor {
+                    let matches = releases.filter { $0.releaseID == predecessor.releaseID }
+                    let successors = releases.filter { $0.supersedesReleaseID == predecessor.releaseID }
+                    guard matches.count == 1, matches[0] == predecessor, successors.isEmpty else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .scheduleDefinitionRelease, id: predecessor.releaseID)) }
+                    try value.validateSuccessor(of: predecessor)
+                }
+                modelContext.insert(try ScheduleDefinitionReleaseRow(value))
+            case let .appendExceptionCalendarRelease(value, predecessor):
+                guard !calendars.contains(where: { $0.releaseID == value.releaseID }) else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                if let predecessor {
+                    let matches = calendars.filter { $0.releaseID == predecessor.releaseID }
+                    let successors = calendars.filter { $0.supersedesReleaseID == predecessor.releaseID }
+                    guard matches.count == 1, matches[0] == predecessor, successors.isEmpty else { throw WorkspaceMutationFailureV1.staleEntityRevision(try .init(kind: .exceptionCalendarRelease, id: predecessor.releaseID)) }
+                    try value.validateSuccessor(of: predecessor)
+                }
+                modelContext.insert(try ExceptionCalendarReleaseRow(value))
+            case let .appendOverrideEvent(value, predecessor, release):
+                try appendOverride(value, predecessor, release)
+            case let .appendOccurrenceEvent(value, predecessor, release), let .startOccurrence(value, predecessor, release):
+                try appendEvent(value, predecessor, release)
+            case let .generateOccurrences(release, plan, values):
+                try requireRelease(release); try plan.validate(definition: release)
+                let references = try sameNamespaceReleaseReferences(release)
+                let existingIDs = Set(events.filter { references.contains($0.scheduleRelease) }.map(\.occurrenceID))
+                guard existingIDs == Set(plan.existingOccurrenceIDs) else { throw WorkspaceMutationFailureV1.staleWorkspaceRevision }
+                for value in values { try appendEvent(value, nil, release) }
+            }
+            return try WorkspaceMutationEffectV1(affectedEntities: mutation.affectedIdentities, temporaryRelativePath: temporaryRelativePath)
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback(); throw failure
+        } catch {
+            modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
     private func applyPlan(_ mutation:PlanMutationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try mutation.validate();let documents=try modelContext.fetch(FetchDescriptor<PlanDocumentRow>()).map{try $0.value()},revisions=try modelContext.fetch(FetchDescriptor<PlanRevisionRow>()).map{try $0.value()},placements=try modelContext.fetch(FetchDescriptor<PlanPlacementRow>()).map{try $0.value()},receipts=try modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()).map{try $0.value()};func noSuccessor<T>(_ all:[T],_ count:(T)->Bool)throws{let n=all.filter(count).count;guard n==0 else{throw n>1 ? WorkspaceMutationFailureV1.persistenceFailed:.staleWorkspaceRevision}};func requireRevisionReferences(_ value:PlanRevisionV1)throws{let releaseID=value.contentBinding.fieldReferenceReleaseID,releaseRows=try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>(predicate:#Predicate{$0.releaseID==releaseID}));guard releaseRows.count==1,let release=try releaseRows.first?.value(),release.workspaceID==value.workspaceID,release.revision==value.contentBinding.fieldReferenceReleaseRevision,release.releaseSHA256==value.contentBinding.fieldReferenceReleaseSHA256,release.manifestSHA256==value.contentBinding.fieldReferenceManifestSHA256 else{throw WorkspaceMutationFailureV1.invalidCommand};let documentMatches=documents.filter{$0.planDocumentID==value.planDocument.planDocumentID&&$0.revision==value.planDocument.revision&&$0.documentSHA256==value.planDocument.documentSHA256};guard documentMatches.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand}};func requirePlacementReferences(_ value:PlanPlacementV1)throws{let revisionMatches=revisions.filter{$0.planRevisionID==value.planRevision.planRevisionID&&$0.revision==value.planRevision.revision&&$0.revisionSHA256==value.planRevision.revisionSHA256};guard revisionMatches.count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};if let binding=value.assetLocatorBinding{let receiptID=binding.bindingReceiptID,rows=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate:#Predicate{$0.receiptID==receiptID}));guard rows.count==1,let stored=try rows.first?.value(),stored.revision==binding.bindingReceiptRevision,stored.receiptSHA256==binding.bindingReceiptSHA256,stored.after==binding.locator,stored.after.assetID==binding.assetID else{throw WorkspaceMutationFailureV1.invalidCommand}}};switch mutation.payload{case let .appendDocument(value,predecessor):guard documents.filter({$0.mutationID==value.mutationID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard documents.filter({$0.documentSHA256==predecessor.documentSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(documents){$0.supersedesDocumentSHA256==predecessor.documentSHA256}};modelContext.insert(try PlanDocumentRow(value));case let .appendRevision(value,predecessor,_):try requireRevisionReferences(value);guard revisions.filter({$0.planRevisionID==value.planRevisionID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard revisions.filter({$0.planRevisionID==predecessor.planRevisionID&&$0==predecessor}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(revisions){$0.supersedesPlanRevisionID==predecessor.planRevisionID}};modelContext.insert(try PlanRevisionRow(value));case let .appendPlacement(value,predecessor,_):try requirePlacementReferences(value);if let predecessor{guard placements.filter({$0.placementSHA256==predecessor.placementSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(placements){$0.supersedesPlacementSHA256==predecessor.placementSHA256}};modelContext.insert(try PlanPlacementRow(value));case let .applyRebase(newRevision,priorRevision,values,priors,receipt,predecessorReceipt,poseEffects):guard revisions.filter({$0.planRevisionID==priorRevision.planRevisionID&&$0==priorRevision}).count==1,revisions.filter({$0.planRevisionID==newRevision.planRevisionID}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};try noSuccessor(revisions){$0.supersedesPlanRevisionID==priorRevision.planRevisionID};try requireRevisionReferences(newRevision);for prior in priors{guard placements.filter({$0.placementSHA256==prior.placementSHA256}).count==1 else{throw WorkspaceMutationFailureV1.invalidCommand};try noSuccessor(placements){$0.supersedesPlacementSHA256==prior.placementSHA256}};for value in values{try requirePlacementReferencesAgainst(value,newRevision)};try requireReceiptPredecessor(predecessorReceipt,receipts);if let poseEffects{_ = try applyPlacementPose(poseEffects,temporaryRelativePath:temporaryRelativePath)};modelContext.insert(try PlanRevisionRow(newRevision));for value in values{modelContext.insert(try PlanPlacementRow(value))};modelContext.insert(try RebaseReceiptRow(receipt));case let .recordRebaseRejection(receipt,predecessorReceipt):try requireReceiptPredecessor(predecessorReceipt,receipts);modelContext.insert(try RebaseReceiptRow(receipt))};return try WorkspaceMutationEffectV1(affectedEntities:mutation.affectedIdentities,temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
 
     private func applyEvidenceContext(_ operation:EvidenceContextWriteOperationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try operation.validate();switch operation{case let .appendContext(value,predecessor):let rows=try modelContext.fetch(FetchDescriptor<EvidenceContextRow>()).map{try $0.value()};guard rows.filter({$0.contextID==value.contextID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard rows.filter({$0==predecessor}).count==1,rows.filter({$0.predecessorContextSHA256==predecessor.contextSHA256}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}else{guard rows.filter({$0.workspaceID==value.workspaceID&&$0.evidenceID==value.evidenceID}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}};modelContext.insert(try EvidenceContextRow(value));case let .appendPair(value,predecessor):let rows=try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()).map{try $0.value()};try validateEvidencePairPurpose(value,existing:rows);guard rows.filter({$0.linkID==value.linkID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard rows.filter({$0==predecessor}).count==1,rows.filter({$0.predecessorLinkSHA256==predecessor.linkSHA256}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}else{guard rows.filter({$0.workspaceID==value.workspaceID&&Set([$0.first.evidenceID,$0.second.evidenceID])==Set([value.first.evidenceID,value.second.evidenceID])}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}};modelContext.insert(try PairedObservationLinkRow(value))};return try WorkspaceMutationEffectV1(affectedEntities:[operation.affectedIdentity],temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}

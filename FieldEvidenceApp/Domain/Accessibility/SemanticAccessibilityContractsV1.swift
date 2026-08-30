@@ -1704,6 +1704,22 @@ enum ScheduleAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
     case reminder = "schedule.reminder"
     case claimBoundary = "schedule.claim_boundary"
     case nextStep = "schedule.next_step"
+    case advancedRecurrence = "schedule.recurrence.advanced"
+    case exceptionCalendar = "schedule.exception_calendar"
+    case calendarRelease = "schedule.exception_calendar.release"
+    case businessDayAdjustment = "schedule.business_day_adjustment"
+    case completionGap = "schedule.completion_gap"
+    case nominalBasis = "schedule.occurrence.nominal_basis"
+    case effectiveBasis = "schedule.occurrence.effective_basis"
+    case occurrenceLineage = "schedule.occurrence.lineage"
+    case scheduleOverride = "schedule.override"
+    case overridePrecedence = "schedule.override.precedence"
+    case changePreview = "schedule.change.preview"
+    case previewNotApplied = "schedule.change.preview.not_applied"
+    case changeConflict = "schedule.change.conflict"
+    case manualResolutionRequired = "schedule.change.conflict.manual_resolution_required"
+    case recovery = "schedule.recovery"
+    case recoveryRebuilt = "schedule.recovery.rebuilt"
     case stateUpcoming = "schedule.occurrence.state.upcoming"
     case stateReady = "schedule.occurrence.state.ready"
     case stateDue = "schedule.occurrence.state.due"
@@ -1729,6 +1745,22 @@ enum ScheduleAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
         case .reminder: key = .reminder
         case .claimBoundary: key = .claimBoundary
         case .nextStep: key = .nextStep
+        case .advancedRecurrence: key = .advancedRecurrence
+        case .exceptionCalendar: key = .exceptionCalendar
+        case .calendarRelease: key = .calendarRelease
+        case .businessDayAdjustment: key = .businessDayAdjustment
+        case .completionGap: key = .completionGap
+        case .nominalBasis: key = .nominalBasis
+        case .effectiveBasis: key = .effectiveBasis
+        case .occurrenceLineage: key = .occurrenceLineage
+        case .scheduleOverride: key = .scheduleOverride
+        case .overridePrecedence: key = .overridePrecedence
+        case .changePreview: key = .changePreview
+        case .previewNotApplied: key = .previewNotApplied
+        case .changeConflict: key = .changeConflict
+        case .manualResolutionRequired: key = .manualResolutionRequired
+        case .recovery: key = .recovery
+        case .recoveryRebuilt: key = .recoveryRebuilt
         case .stateUpcoming: key = .stateUpcoming
         case .stateReady: key = .stateReady
         case .stateDue: key = .stateDue
@@ -1771,6 +1803,15 @@ enum ScheduleAccessibilityPolicyV1 {
     static let colorOnlyStateAllowed = false
     static let iconOnlyStateAllowed = false
     static let motionOnlyStateAllowed = false
+    /// These are typed consumer requirements for a later UI implementation;
+    /// C51 does not claim that an FJ07 screen exists or has been exercised.
+    static let accessibilityContractDeclared = true
+    static let rtlReadingOrderRequired = true
+    static let dynamicTypeRequired = true
+    static let voiceOverLabelAndValueRequired = true
+    static let voiceControlStableNameRequired = true
+    static let switchControlReachabilityRequired = true
+    static let uiConformanceClaimed = false
 
     static func requiresTextAndIcon(for semanticID: String) -> Bool {
         indeterminateSemanticIDs.contains(semanticID)

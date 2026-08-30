@@ -1841,6 +1841,30 @@ extension ReportProjectionRegistryV1 {
     }
 }
 
+// MARK: - C51 advanced schedule projection
+
+extension ReportProjectionRegistryV1 {
+    static func advancedScheduleProjection(
+        frontier: ScheduleChangeFrontierV1,
+        occurrenceInputs: [ScheduleChangeOccurrenceInputV1],
+        overrideEvents: [ScheduleOverrideEventV1],
+        preview: ScheduleChangePreviewV1? = nil,
+        receipt: ScheduleChangeReceiptV1? = nil
+    ) throws -> AdvancedScheduleReportProjectionV1 {
+        try AdvancedScheduleReportProjectionPolicyV1.validate(
+            AdvancedScheduleReportProjectionV1(frontier: frontier,
+                occurrenceInputs: occurrenceInputs, overrideEvents: overrideEvents,
+                preview: preview, receipt: receipt))
+    }
+
+    static func validateAdvancedScheduleProjection(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> AdvancedScheduleReportProjectionV1 {
+        try AdvancedScheduleContractManifestBoundaryV1.validate()
+        return try AdvancedScheduleReportProjectionPolicyV1.validate(projection)
+    }
+}
+
 // MARK: - C29 versioned plan/rebase projection
 
 extension ReportProjectionRegistryV1 {

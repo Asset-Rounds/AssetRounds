@@ -111,7 +111,8 @@ enum AssetLocatorKernelDeletionEnrollmentV1 {
 /// closure, while due/reminder projections are rebuilt from it.
 enum ScheduleKernelDeletionEnrollmentV1 {
     static let persistentRowNames: Set<String> = [
-        "ScheduleDefinitionReleaseRow", "OccurrenceHistoryEventRow"
+        "ScheduleDefinitionReleaseRow", "OccurrenceHistoryEventRow",
+        "ExceptionCalendarReleaseRow", "ScheduleOverrideEventRow"
     ]
     static let derivedProjectionNames: Set<String> = [
         "DueQueueProjectionV1", "ReminderProjectionV1", "OccurrenceGenerationPlanV1"
@@ -119,14 +120,16 @@ enum ScheduleKernelDeletionEnrollmentV1 {
     static let ordinaryAssetOrSiteDeletePreservesRows = true
     static let workspaceEraseClearsRows = true
     static let rowsOwnNoFilesystemPayload = true
+    static let embeddedCalendarOverrideBasisClosureCount = 6
 
     static func validate() throws {
-        guard persistentRowNames.count == 2,
+        guard persistentRowNames.count == 4,
               derivedProjectionNames.count == 3,
               persistentRowNames.isDisjoint(with: derivedProjectionNames),
               ordinaryAssetOrSiteDeletePreservesRows,
               workspaceEraseClearsRows,
               rowsOwnNoFilesystemPayload,
+              embeddedCalendarOverrideBasisClosureCount == C51ScheduleBackupClosureV1.embeddedCanonicalComponents.count,
               ScheduleEraseBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
@@ -485,6 +488,7 @@ enum KernelDeletionEraseRegistryV4 {
               ScheduleOrphanCleanupPolicyV1.rowsOwnNoFilesystemPayload,
               ScheduleOrphanCleanupPolicyV1.projectionsAreDerived,
               ScheduleOrphanCleanupPolicyV1.missingFileCannotDeleteCanonicalRows,
+              ScheduleOrphanCleanupPolicyV1.missingFileCannotPruneEmbeddedCalendarOverrideOrBasisClosure,
               !ScheduleOrphanCleanupPolicyV1.notificationStateIsTruth else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }

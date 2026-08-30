@@ -2,6 +2,97 @@ import Foundation
 
 enum AssetSemanticScheduleBoundaryV1 { static let assetSemanticsInferDueState = false }
 
+/// C51 consumes the existing C28 occurrence authority as a read-only
+/// cross-cutting reference.  The reference contains release/frontier
+/// digests only; occurrence bytes, content bytes, and reminder state remain
+/// owned by their existing authorities.
+struct C51ScheduleClosureReferenceV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let scheduleRelease: ScheduleDefinitionReleaseReferenceV1
+    let calendarRelease: ExceptionCalendarReleaseReferenceV1
+    let occurrenceClosureSHA256: String
+    let sourceFrontierSHA256: String
+    let derivedOnly: Bool
+
+    init(frontier: ScheduleChangeFrontierV1) throws {
+        try frontier.validate()
+        schemaVersion = Self.schemaVersion
+        workspaceID = frontier.workspaceID
+        scheduleRelease = frontier.scheduleRelease
+        calendarRelease = frontier.calendarRelease
+        occurrenceClosureSHA256 = frontier.occurrenceClosureSHA256
+        sourceFrontierSHA256 = frontier.frontierSHA256
+        derivedOnly = true
+        try validate()
+    }
+
+    func validate() throws {
+        try scheduleRelease.validate()
+        try calendarRelease.validate()
+        try ScheduleLimitsV1.digest(occurrenceClosureSHA256)
+        try ScheduleLimitsV1.digest(sourceFrontierSHA256)
+        guard schemaVersion == Self.schemaVersion,
+              scheduleRelease.workspaceID == workspaceID,
+              calendarRelease.workspaceID == workspaceID,
+              derivedOnly else {
+            throw ScheduleFailureV1.divergentReplay
+        }
+    }
+}
+
+/// A consumer may carry this reference beside a snapshot, packet, survey, or
+/// check context as derived metadata.  It is intentionally not a field of any
+/// canonical payload and therefore cannot become an alternate schedule store.
+struct C51ScheduleClosureMetadataV1: Codable, Equatable, Sendable {
+    let scheduleClosureReference: C51ScheduleClosureReferenceV1
+    let derivedMetadataOnly: Bool
+
+    init(reference: C51ScheduleClosureReferenceV1) throws {
+        try reference.validate()
+        scheduleClosureReference = reference
+        derivedMetadataOnly = true
+        try validate()
+    }
+
+    func validate() throws {
+        try scheduleClosureReference.validate()
+        guard derivedMetadataOnly else { throw ScheduleFailureV1.divergentReplay }
+    }
+}
+
+/// Shared adoption declaration used by snapshot, work-packet, survey, and
+/// check surfaces.  It names the existing C28 authorities without introducing
+/// a second occurrence writer, schedule store, or notification truth source.
+enum C51ScheduleCrossCuttingPolicyV1 {
+    static let closureReferenceType = C51ScheduleClosureReferenceV1.self
+    static let closureMetadataType = C51ScheduleClosureMetadataV1.self
+    static let frozenScheduleBasisType = OccurrenceScheduleBasisV2.self
+    static let frozenTimeBasisType = FrozenScheduleTimeBasisV1.self
+    static let recordedActorSnapshotType = ActorSnapshotV1.self
+    static let scheduledWorkReferenceType = ScheduledWorkInstanceReferenceV1.self
+
+    static let canonicalOccurrenceWriterOwner = "ScheduleCoordinatorV1"
+    static let canonicalOccurrenceWriterProtocol = "ScheduleCanonicalWritingV1"
+    static let canonicalOccurrenceStoreOwner = "WorkspaceWriterV1"
+    static let canonicalOccurrenceHistoryOwner = "OccurrenceHistoryEventV1"
+    static let canonicalScheduleReleaseOwner = "ScheduleDefinitionReleaseV1"
+
+    static let noParallelOccurrenceWriter = true
+    static let noParallelScheduleStore = true
+    static let noParallelContentByteStore = true
+    static let noParallelMediaStore = true
+    static let derivedClosureReferencesAreNoncanonical = true
+    static let scheduleIsLocalOnly = true
+    static let eventKitPermissionIsRequested = false
+    static let scheduleCarriesContentBytes = false
+    static let scheduleCarriesMediaBytes = false
+    static let partialCompletionClaimIsAllowed = false
+    static let frozenTimeActorAndWorkReferencesAreReused = true
+}
+
 enum AssetLocatorSemanticBoundaryV1 {
     static let locatorMayInferProductIdentity = false
     static let locatorMayInferLifecycleState = false

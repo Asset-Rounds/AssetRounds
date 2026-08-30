@@ -1,0 +1,31 @@
+{
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C51",
+  "presentation": "LOCAL_DETERMINISTIC_SCHEDULE_EXCEPTION_CALENDAR",
+  "prohibitedClaims": [
+    "calendar sync",
+    "EventKit integration",
+    "remote holiday feed",
+    "automation service"
+  ],
+  "providerClaim": null,
+  "schema": "V23P03C51BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "truthfulDisclosure": "Scheduling remains local, bounded, and release-pinned.",
+  "uiSurfaceDelta": false
+}

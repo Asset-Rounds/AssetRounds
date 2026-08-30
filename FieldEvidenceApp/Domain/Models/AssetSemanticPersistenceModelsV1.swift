@@ -257,9 +257,13 @@ enum AssetSemanticSchedulePersistencePartitionV1 {
     static func validate() throws {
         let semantic = Set(PersistentSchemaV10.models.map { ObjectIdentifier($0) })
         let v27Tail = PersistentSchemaV27.models.suffix(2).map { ObjectIdentifier($0) }
+        let v38Tail = PersistentSchemaV38.models.suffix(2).map { ObjectIdentifier($0) }
         guard !semantic.contains(ObjectIdentifier(ScheduleDefinitionReleaseRow.self)),
               !semantic.contains(ObjectIdentifier(OccurrenceHistoryEventRow.self)),
-              v27Tail == [ObjectIdentifier(ScheduleDefinitionReleaseRow.self), ObjectIdentifier(OccurrenceHistoryEventRow.self)] else {
+              !semantic.contains(ObjectIdentifier(ExceptionCalendarReleaseRow.self)),
+              !semantic.contains(ObjectIdentifier(ScheduleOverrideEventRow.self)),
+              v27Tail == [ObjectIdentifier(ScheduleDefinitionReleaseRow.self), ObjectIdentifier(OccurrenceHistoryEventRow.self)],
+              v38Tail == [ObjectIdentifier(ExceptionCalendarReleaseRow.self), ObjectIdentifier(ScheduleOverrideEventRow.self)] else {
             throw AssetSemanticContractFailureV1.nonCanonicalData
         }
     }

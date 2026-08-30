@@ -970,3 +970,17 @@ private final class C49WorkResourceCompatibilityCorpusBoundaryTests: XCTestCase 
         XCTAssertThrowsError(try ExactDecimalQuantityV1(mantissa: 1, scale: 4))
     }
 }
+
+extension C50CompatibilityCorpusIntegrationTests {
+    func testV23P03C51CompatibilityCorpusKeepsDurableRowsClosed() throws {
+        try SchedulePersistentKindPolicyV1.validateDeclaration()
+        XCTAssertTrue(
+            SchedulePersistentKindPolicyV1.durableKindIDs.count == 4
+                && SchedulePersistentKindPolicyV1.durableKindIDs
+                    .contains("PERSISTENT_MODEL:ExceptionCalendarReleaseRow")
+                && SchedulePersistentKindPolicyV1.durableKindIDs
+                    .contains("PERSISTENT_MODEL:ScheduleOverrideEventRow")
+                && ScheduleCompatibilityPolicyV1.current.unknownVersionsFailClosed
+        )
+    }
+}

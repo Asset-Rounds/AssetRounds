@@ -36,6 +36,71 @@ extension DeterministicOpenJSONRendererV1 {
     }
 }
 
+// MARK: - C51 advanced schedule Open JSON
+
+private struct AdvancedScheduleReportOpenJSONEnvelopeV1: Codable, Equatable, Sendable {
+    static let schema = "ADVANCED_SCHEDULE_REPORT_OPEN_JSON_V1"
+    let schema: String
+    let locale: String
+    let projection: AdvancedScheduleReportProjectionV1
+    let labels: [String: String]
+
+    init(_ projection: AdvancedScheduleReportProjectionV1, locale: String) throws {
+        guard locale == "en" else { throw SnapshotProjectionFailureV1.incompatibleVersion }
+        self.schema = Self.schema; self.locale = locale; self.projection = projection
+        labels = Self.expectedLabels
+        try validate()
+    }
+    func validate() throws {
+        guard schema == Self.schema, locale == "en", labels == Self.expectedLabels else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
+        try AdvancedScheduleReportProjectionPolicyV1.validate(projection)
+    }
+    private static var expectedLabels: [String: String] { [
+        "recurrence": BundledLocalizationCatalogV1.localized(.advancedRecurrence),
+        "calendar": BundledLocalizationCatalogV1.localized(.exceptionCalendar),
+        "adjustment": BundledLocalizationCatalogV1.localized(.businessDayAdjustment),
+        "lineage": BundledLocalizationCatalogV1.localized(.occurrenceLineage),
+        "override": BundledLocalizationCatalogV1.localized(.scheduleOverride),
+        "precedence": BundledLocalizationCatalogV1.localized(.overridePrecedence),
+        "preview": BundledLocalizationCatalogV1.localized(.changePreview),
+        "conflict": BundledLocalizationCatalogV1.localized(.changeConflict),
+        "recovery": BundledLocalizationCatalogV1.localized(.recovery),
+    ] }
+}
+
+extension DeterministicOpenJSONRendererV1 {
+    static func renderAdvancedSchedule(
+        _ projection: AdvancedScheduleReportProjectionV1,
+        locale: String = "en"
+    ) throws -> ReportProjectionOutputV1 {
+        let envelope = try AdvancedScheduleReportOpenJSONEnvelopeV1(projection, locale: locale)
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(envelope)
+        guard data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              try reopenAdvancedSchedule(data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return .init(format: .openJSON, data: data,
+            sha256: KernelCanonicalHashV1.sha256(data),
+            semanticSHA256: projection.projectionSHA256,
+            orderedSemanticIDs: ScheduleAccessibilityIDV1.allCases.map(\.rawValue),
+            taggedPDFAccessibilityEvidence: false)
+    }
+
+    static func reopenAdvancedSchedule(_ data: Data) throws -> AdvancedScheduleReportProjectionV1 {
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        let value = try JSONDecoder().decode(AdvancedScheduleReportOpenJSONEnvelopeV1.self, from: data)
+        try value.validate()
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard try encoder.encode(value) == data else { throw SnapshotProjectionFailureV1.projectionDisagreement }
+        return value.projection
+    }
+}
+
 struct ReportSemanticNodeV1: Codable, Equatable, Hashable, Comparable, Sendable {
     let semanticID: String
     let sectionID: String
@@ -2785,11 +2850,14 @@ struct ScheduleReportOpenJSONLabelsV1: Codable, Equatable, Sendable {
     init(projection: ScheduleReportProjectionV1) {
         heading = BundledLocalizationCatalogV1.localized(.heading)
         definition = BundledLocalizationCatalogV1.localized(.definition)
-        recurrence = BundledLocalizationCatalogV1.localized(
-            projection.recurrenceKind == "FIXED_CALENDAR"
-                ? .fixedCalendar
-                : .completionRelative
-        )
+        let recurrenceKey: ScheduleLocalizationKeyV1
+        switch projection.recurrenceKind {
+        case "FIXED_CALENDAR": recurrenceKey = .fixedCalendar
+        case "COMPLETION_RELATIVE": recurrenceKey = .completionRelative
+        case "ADVANCED": recurrenceKey = .advancedRecurrence
+        default: recurrenceKey = .claimBoundary
+        }
+        recurrence = BundledLocalizationCatalogV1.localized(recurrenceKey)
         occurrence = BundledLocalizationCatalogV1.localized(.occurrence)
         occurrenceState = BundledLocalizationCatalogV1.localized(.occurrenceState)
         timeBasis = BundledLocalizationCatalogV1.localized(.timeBasis)

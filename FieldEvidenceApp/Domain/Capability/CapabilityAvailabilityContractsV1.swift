@@ -2,6 +2,15 @@ import Foundation
 
 enum ScheduleNotificationCapabilityBoundaryV1 { static let permissionIsCanonicalScheduleTruth = false }
 
+enum C51ScheduleCapabilityBoundaryV1 {
+    static let localOnly = true
+    static let eventKitPermissionRequested = false
+    static let externalCalendarIntegration = false
+    static let reminderCapabilityForSchedule: CapabilityIDV1 = .notifications
+    static let permissionRequestTiming: PermissionRequestTimingV1 = .neverRequested
+    static let scheduleClosureMetadataIsDerivedOnly = true
+}
+
 enum CapabilityContractFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case duplicateCapability

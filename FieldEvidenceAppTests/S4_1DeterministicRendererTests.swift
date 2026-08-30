@@ -17,6 +17,17 @@ private final class C45DeterministicRendererCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51S41DeterministicRendererAnchorTests: XCTestCase {
+    func testV23P03C51AdvancedScheduleRendererUsesTypedFrozenProjection() {
+        let render: (AdvancedScheduleReportProjectionV1, String) throws -> ReportProjectionOutputV1 =
+            DeterministicOpenJSONRendererV1.renderAdvancedSchedule
+        _ = render
+        XCTAssertEqual(AdvancedScheduleReportProjectionV1.projectionVersion,
+                       "ADVANCED_SCHEDULE_REPORT_PROJECTION_V1")
+        XCTAssertTrue(AdvancedScheduleReportProjectionPolicyV1.sourceTruthIsFrozen)
+    }
+}
+
 private final class C30EvidenceContextAnchorS4_1DeterministicRenderer: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

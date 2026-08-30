@@ -2,6 +2,12 @@ import Foundation
 
 enum SurveySessionScheduleLifecycleBoundaryV1 { static let occurrenceHistoryMayRewritePublication = false }
 
+enum C51SurveySessionScheduleLifecycleBoundaryV1 {
+    static let occurrenceHistoryMayRewritePublication = false
+    static let adapterWritesNoScheduleRows = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+}
+
 /// C26 lifecycle bridge. The journal is the idempotency authority and the
 /// existing workspace writer remains the sole mutation transaction boundary.
 @MainActor final class SurveySessionLifecycleAdapterV1: SurveySessionWritingV1 {

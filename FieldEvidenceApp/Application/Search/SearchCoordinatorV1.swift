@@ -385,6 +385,24 @@ extension SearchCoordinatorV1 {
     }
 }
 
+extension SearchCoordinatorV1 {
+    static func searchAdvancedScheduleOccurrenceMetadata(
+        query: String,
+        records: [AdvancedScheduleOccurrenceSearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [AdvancedScheduleOccurrenceSearchRecordV1] {
+        guard maximumResults > 0, maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        try records.forEach(AdvancedScheduleOccurrenceSearchProjectionPolicyV1.validate)
+        return Array(records.filter { record in tokens.allSatisfy { query in
+            record.normalizedTokens.contains { $0 == query || $0.hasPrefix(query) }
+        }}.sorted { $0.projectionIdentity < $1.projectionIdentity }.prefix(maximumResults))
+    }
+}
+
 // MARK: - C30 operating-context search
 
 extension SearchCoordinatorV1 {

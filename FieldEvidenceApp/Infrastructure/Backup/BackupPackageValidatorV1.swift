@@ -2819,7 +2819,8 @@ private extension BackupPackageValidatorV1 {
         guard (26...C49BackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               let workspaceID = manifest.source.workspaceID,
-              records.schedules.allSatisfy({ $0.workspaceID == workspaceID }) else {
+              records.schedules.allSatisfy({ $0.workspaceID == workspaceID }),
+              C51ScheduleBackupClosureV1.validatesEnvelope(records.schedules) else {
             throw invalid()
         }
         do {

@@ -12,6 +12,15 @@ private final class C45DeletionGraphCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51S61DeletionGraphAnchorTests: XCTestCase {
+    func testV23P03C51DeletionPreservesOrErasesTheCompleteScheduleClosure() {
+        XCTAssertTrue(ScheduleDeletionIntentBoundaryV1.validate())
+        XCTAssertTrue(ScheduleDeletionIntentBoundaryV1.ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure)
+        XCTAssertTrue(ScheduleDeletionIntentBoundaryV1.workspaceEraseRemovesEmbeddedCalendarOverrideAndBasisClosure)
+        XCTAssertFalse(ScheduleDeletionIntentBoundaryV1.notificationStateIsTruth)
+    }
+}
+
 private final class C30EvidenceContextAnchorS6_1DeletionGraph: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

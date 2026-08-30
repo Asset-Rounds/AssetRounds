@@ -3,6 +3,20 @@ import Foundation
 
 enum ScheduleGenerationJobBoundaryV1 { static let outputIsDerivedPlan = true }
 
+enum C51ScheduleReconciliationJobModelBoundaryV1 {
+    static let exactSourceFrontierIsImmutableInput = true
+    static let partialCompletionClaimAllowed = false
+    static let jobKind: ResumableLocalJobKindV1 = .scheduleGeneration
+    static let localOnly = true
+
+    static func validate(
+        job: ResumableLocalJobV1,
+        input: C51ScheduleReconciliationJobInputV1
+    ) throws {
+        try C51ScheduleReconciliationJobBoundaryV1.validate(job: job, input: input)
+    }
+}
+
 struct LocalJobIDV1: RawRepresentable, Codable, Equatable, Hashable, Sendable {
     let rawValue: UUID
 

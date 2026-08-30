@@ -7,6 +7,13 @@ enum ScheduleWorkStartRuleV1 {
     }
 }
 
+enum C51WorkRuleScheduleBoundaryV1 {
+    static let recordedActorSnapshotIsReused = true
+    static let scheduledWorkReferenceIsReused = true
+    static let completionRequiresCanonicalOccurrenceEvent = true
+    static let workRuleCreatesNoOccurrenceWriter = true
+}
+
 enum C33TemporalEvidenceWorkRuleBoundaryV1 { static let temporalEvidenceIsEvidenceContent=true;static let reportProjectionEmbedsLargeMedia=false;static let accessibleDescriptionIsManual=true;static let canonicalMutationKind:WorkspaceCommandKindV1 = .applyTemporalEvidence }
 
 struct WorkRuleSubmission: Equatable, Sendable {

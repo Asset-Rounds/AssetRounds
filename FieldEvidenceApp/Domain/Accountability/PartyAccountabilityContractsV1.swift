@@ -1,5 +1,11 @@
 import Foundation
 
+enum C51PartyAccountabilityScheduleBoundaryV1 {
+    static let recordedActorSnapshotIsReused = true
+    static let scheduleDoesNotCreateActorIdentity = true
+    static let scheduleDoesNotInferAuthorizationFromActor = true
+}
+
 /// C46 operational contacts bind to Party authority only. Site roles, subscriber
 /// consent, marketing audiences, and measurement identities are separate domains.
 enum OperationalContactPartySeparationV1 {

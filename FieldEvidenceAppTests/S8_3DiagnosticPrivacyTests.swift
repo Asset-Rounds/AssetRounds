@@ -10,6 +10,17 @@ private final class C45DiagnosticPrivacyCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C51S83DiagnosticPrivacyAnchorTests: XCTestCase {
+    func testV23P03C51AdvancedScheduleDiagnosticsAreAggregateOnly() throws {
+        let value = try AdvancedScheduleDiagnosticMetadataV1()
+        XCTAssertTrue(value.isValid)
+        XCTAssertEqual(value.calendarReleaseCount, 0)
+        XCTAssertEqual(value.overrideEventCount, 0)
+        XCTAssertTrue(value.namesDatesZonesReasonsIDsAndCalendarBytesExcluded)
+        XCTAssertTrue(value.digestsExcluded)
+    }
+}
+
 private final class C30EvidenceContextAnchorS8_3DiagnosticPrivacy: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)

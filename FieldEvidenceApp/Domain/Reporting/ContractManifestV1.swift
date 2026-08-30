@@ -752,6 +752,31 @@ enum ScheduleContractManifestBoundaryV1 {
     }
 }
 
+enum AdvancedScheduleContractManifestBoundaryV1 {
+    static let durableFamilies = [
+        "ExceptionCalendarReleaseV1", "ScheduleOverrideEventV1",
+        "ScheduleChangeReceiptV1",
+    ]
+    static let derivedFamilies = [
+        "OccurrenceScheduleBasisV2", "ScheduleChangePreviewV1",
+        "AdvancedScheduleReportProjectionV1",
+        "AdvancedScheduleOccurrenceSearchRecordV1",
+    ]
+    static let noSecondWriter = true
+    static let reportProjectionVersion = AdvancedScheduleReportProjectionV1.projectionVersion
+    static func validate() throws {
+        guard durableFamilies == ["ExceptionCalendarReleaseV1", "ScheduleOverrideEventV1",
+                                  "ScheduleChangeReceiptV1"],
+              derivedFamilies == ["OccurrenceScheduleBasisV2", "ScheduleChangePreviewV1",
+                                  "AdvancedScheduleReportProjectionV1",
+                                  "AdvancedScheduleOccurrenceSearchRecordV1"],
+              noSecondWriter,
+              reportProjectionVersion == "ADVANCED_SCHEDULE_REPORT_PROJECTION_V1" else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+    }
+}
+
 extension ContractManifestV1 {
     func validateScheduleConsumerContract() throws -> Self {
         try validate()

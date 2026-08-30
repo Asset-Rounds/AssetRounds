@@ -42,6 +42,16 @@ private final class C50SnapshotProjectionTests: XCTestCase {
     }
 }
 
+private final class C51V916SnapshotProjectionAnchorTests: XCTestCase {
+    func testV23P03C51SnapshotAdoptsOnlyDerivedScheduleClosureMetadata() {
+        let _: C51ScheduleClosureMetadataV1.Type =
+            C51CompletedActivitySnapshotScheduleBoundaryV1.scheduleClosureMetadataType
+        let _: AdvancedScheduleReportProjectionV1.Type = AdvancedScheduleReportProjectionV1.self
+        XCTAssertTrue(C51CompletedActivitySnapshotScheduleBoundaryV1.scheduleClosureIsDerivedMetadataOnly)
+        XCTAssertTrue(C51CompletedActivitySnapshotScheduleBoundaryV1.snapshotCanonicalBytesRemainUnchanged)
+    }
+}
+
 private final class C45SnapshotProjectionCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityProjectsExactlyPDFFormulaSafeCSVAndText() {
         XCTAssertEqual(LabelArtifactKindV1.allCases, [.pdf, .formulaSafeCSV, .structuredText])

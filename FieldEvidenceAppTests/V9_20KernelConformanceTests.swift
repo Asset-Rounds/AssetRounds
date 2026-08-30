@@ -884,3 +884,16 @@ private final class C49WorkResourceKernelConformanceBoundaryTests: XCTestCase {
         XCTAssertEqual(WorkspaceCommandKindV1.applyWorkResource.rawValue, "apply_work_resource_v1")
     }
 }
+
+extension C50KernelConformanceTests {
+    func testV23P03C51KernelEnrollsBothScheduleExceptionRows() throws {
+        try WorkflowSchedulePersistenceEnrollmentV1.validate()
+        try SchedulePersistentKindPolicyV1.validateDeclaration()
+        XCTAssertTrue(
+            SchedulePersistentKindPolicyV1.durableKindIDs
+                .contains("PERSISTENT_MODEL:ExceptionCalendarReleaseRow")
+                && SchedulePersistentKindPolicyV1.durableKindIDs
+                    .contains("PERSISTENT_MODEL:ScheduleOverrideEventRow")
+        )
+    }
+}

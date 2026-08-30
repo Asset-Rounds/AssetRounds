@@ -2,6 +2,18 @@ import Foundation
 
 enum WorkPacketScheduleBoundaryV1 { static let occurrenceLinkRequiresExplicitStart = true }
 
+enum C51WorkPacketScheduleBoundaryV1 {
+    static let scheduleClosureReferenceType = C51ScheduleClosureReferenceV1.self
+    static let scheduleClosureMetadataType = C51ScheduleClosureMetadataV1.self
+    static let scheduleClosureIsDerivedMetadataOnly = true
+    static let workPacketOwnsNoOccurrenceHistory = true
+    static let explicitOccurrenceStartRemainsCanonical = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
 enum WorkPacketFailureV1: Error, Equatable, Sendable {
     case incompatibleVersion, invalidValue, wrongWorkspace, digestMismatch
     case staleRevision, reorderedEvent, leaseExpired, holderMismatch

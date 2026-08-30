@@ -2378,3 +2378,15 @@ private final class C50IncumbentAdapterS63BackupValidationBoundaryTests: XCTestC
         XCTAssertFalse(C50IncumbentFileExchangeBackupDecoderBoundaryV1.acceptsSourceScratchOrQuarantine)
     }
 }
+
+extension C45BackupValidationCompatibilityTests {
+    func testV23P03C51BackupValidationDropsDerivedScheduleProjections() throws {
+        try ScheduleBackupRestoreRegistryV1.validate()
+        XCTAssertTrue(
+            ScheduleBackupRestoreRegistryV1.derivedProjectionDisposition == "DROP_AND_REBUILD"
+                && !ScheduleBackupRestoreRegistryV1.notificationStateIsTruth
+                && !ScheduleBackupRestoreRegistryV1
+                    .cloneForkSourceScheduleAutomaticallyActive
+        )
+    }
+}

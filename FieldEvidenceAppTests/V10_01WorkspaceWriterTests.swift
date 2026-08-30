@@ -950,3 +950,15 @@ private final class C46V1001WriterCompatibilityTests: XCTestCase {
         )
     }
 }
+
+extension C45WorkspaceWriterCompatibilityTests {
+    func testV23P03C51WorkspaceWriterUsesScheduleCommandAndFrontier() {
+        XCTAssertTrue(
+            C51ScheduleOverrideRecoveryBoundaryV1.commandKind == .applySchedule
+                && WorkspaceCommandKindV1.applySchedule.rawValue == "apply_schedule"
+                && C51ScheduleOverrideRecoveryBoundaryV1
+                    .overrideFrontierIsRevalidatedFromPersistedRows
+                && !C51ScheduleOverrideRecoveryBoundaryV1.createsParallelWriter
+        )
+    }
+}
