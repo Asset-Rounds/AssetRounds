@@ -3885,6 +3885,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         reportsTab.tap()
         XCTAssertTrue(element("s4.4.reports.screen", in: app)
             .waitForExistence(timeout: 30))
+        if automationShard?.shardID == "s10.4.minimum.rtl" {
+            let viewReport = element("s4.4.reports.view-report", in: app)
+            scroll(viewReport, in: app)
+        }
         captureBaseline("state.reports-index.ready", in: app)
 
         let signsTab = element("s1.tab.signs", in: app)

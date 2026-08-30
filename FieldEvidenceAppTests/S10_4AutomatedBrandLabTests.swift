@@ -3480,6 +3480,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
             ]
         )
+        XCTAssertEqual(reportsIndexSource.utf8.count, 1_825)
+        XCTAssertEqual(
+            Data(reportsIndexSource.utf8).sha256,
+            "DF338BC6E4E207E544B9E88E7228D386A49660FBFD5AD0B628661F5461A2586A"
+        )
         let reportHistoryPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
                 "           shouldPrepareNormalEvidence(\n" +
@@ -3533,13 +3538,58 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            .waitForExistence(timeout: 30))"
         let reportsBaseline =
             #"        captureBaseline("state.reports-index.ready", in: app)"#
+        let minimumRTLReportsIndexPositioningGate =
+            #"        if automationShard?.shardID == "s10.4.minimum.rtl" {"# + "\n" +
+                #"            let viewReport = element("s4.4.reports.view-report", in: app)"# + "\n" +
+                "            scroll(viewReport, in: app)\n" +
+                "        }"
         let restoredReportsAcceptance =
-            restoredReportsScreenWait + "\n" + reportsBaseline
+            restoredReportsScreenWait + "\n" +
+                minimumRTLReportsIndexPositioningGate + "\n" +
+                reportsBaseline
         XCTAssertEqual(
             reportsIndexSource.components(
                 separatedBy: restoredReportsAcceptance
             ).count - 1,
             1
+        )
+        XCTAssertEqual(
+            reportsIndexSource.components(
+                separatedBy: minimumRTLReportsIndexPositioningGate
+            ).count - 1,
+            1
+        )
+        for prohibitedReportsIndexPositioning in [
+            minimumRTLReportsIndexPositioningGate.replacingOccurrences(
+                of: "s10.4.minimum.rtl",
+                with: "s10.4.current.ax-text"
+            ),
+            minimumRTLReportsIndexPositioningGate.replacingOccurrences(
+                of: "s10.4.minimum.rtl",
+                with: "s10.4.current.default-light"
+            ),
+            minimumRTLReportsIndexPositioningGate.replacingOccurrences(
+                of: "s4.4.reports.view-report",
+                with: "s4.4.reports.screen"
+            ),
+            minimumRTLReportsIndexPositioningGate.replacingOccurrences(
+                of: "scroll(viewReport, in: app)",
+                with: "scrollDown(viewReport, in: app)"
+            ),
+        ] {
+            XCTAssertEqual(
+                reportsIndexSource.components(
+                    separatedBy: prohibitedReportsIndexPositioning
+                ).count - 1,
+                0,
+                prohibitedReportsIndexPositioning
+            )
+        }
+        XCTAssertEqual(
+            reportsIndexSource.components(
+                separatedBy: "            viewReport.tap()"
+            ).count - 1,
+            0
         )
         for removedReportsIndexDiagnosticForm in [
             "S10_4_REPORTS_INDEX_CONTRAST_DIAGNOSTIC",
@@ -21279,10 +21329,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 803_817)
+        XCTAssertEqual(uiSource.utf8.count, 804_002)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "289A832A8E56512B57FDFF9676303018213A9F8F866911D26C3794F58468A4F4"
+            "4B1DC749E417AC3D5667BA3FDEE75AF9129098E926112F47E432770BEA27FFF9"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
