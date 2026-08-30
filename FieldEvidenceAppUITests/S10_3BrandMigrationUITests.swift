@@ -9599,7 +9599,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(element("s1.settings.screen", in: app)
             .waitForExistence(timeout: 20))
         if automationShard?.shardID == "s10.4.current.ax-text",
-           automationSegment == .segment3,
+           (automationSegment == .segment3 || automationSegment == .none),
            shouldPrepareNormalEvidence(
                for: "state.settings.hub",
                in: app
@@ -11300,16 +11300,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             file: file,
             line: line
         )
-        if shard.shardID == "s10.4.current.ax-text",
-           automationSegment == .none,
-           stateID == "state.settings.hub" {
-            do {
-                try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)
-            } catch {
-                XCTFail(String(describing: error), file: file, line: line)
-            }
-            return
-        }
         do {
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID

@@ -20850,10 +20850,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 783_682)
+        XCTAssertEqual(uiSource.utf8.count, 783_343)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "875F40F5398DEDB36C4C85ACE2E2401AFCB3C1B7E687EFA6225C59BF545FD04D"
+            "DEB822763121F5396A074073F083EB6ECECD1673F6609BFBBEB48AACA00DFD8E"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -23175,15 +23175,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func captureSettingsDataSurfaces("
         )
-        XCTAssertEqual(monthlyPaywallSource.utf8.count, 6_287)
+        XCTAssertEqual(monthlyPaywallSource.utf8.count, 6_319)
         XCTAssertEqual(
             Data(monthlyPaywallSource.utf8).sha256,
-            "96A0596779C4745A3A96336BDF1F3442E41D6EED8ED7FA7C3D5EE874B9CA5C69"
+            "8FC8853597A077C0C808950F9F5022CC15C307E146662F434611ED8B82A8FDD2"
         )
         var settingsHubCallerTail =
             monthlyPaywallSource[monthlyPaywallSource.startIndex...]
         for token in [
             #"waitForExistence(timeout: 20)"#,
+            #"(automationSegment == .segment3 || automationSegment == .none)"#,
             #"shouldPrepareNormalEvidence("#,
             #"for: "state.settings.hub""#,
             #"try positionSettingsHubDiagnosticsEntryForAXText(in: app)"#,
@@ -23199,10 +23200,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_495)
+        XCTAssertEqual(captureSource.utf8.count, 8_124)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "76A954FEA47A704E34D588C5DA08BCC535A974C27A4A4D15EEA5B21528F1A443"
+            "78070B06CBBFA8F6063BE8E4DB6FCC74AFFD1F3A0BCC0B146AEEFF2C0DFCC427"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -23229,12 +23230,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 range: normalMarker.upperBound..<captureSource.endIndex
             )
         )
-        let settingsHubDiagnosticCall = try XCTUnwrap(
-            captureSource.range(
-                of: "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)",
-                range: hostedNotificationCleanup.upperBound..<captureSource.endIndex
-            )
-        )
         let normalExceptionLookup = try XCTUnwrap(
             captureSource.range(of: "let eligibleExceptions =")
         )
@@ -23243,10 +23238,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(normalMarker.lowerBound, hostedNotificationCleanup.lowerBound)
         XCTAssertLessThan(
             hostedNotificationCleanup.lowerBound,
-            settingsHubDiagnosticCall.lowerBound
-        )
-        XCTAssertLessThan(
-            settingsHubDiagnosticCall.lowerBound,
             normalExceptionLookup.lowerBound
         )
         XCTAssertEqual(
@@ -23279,16 +23270,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             captureSource.components(
                 separatedBy: "try diagnoseSegment3AXTextSettingsHubNativeContrast(in: app)"
             ).count - 1,
-            1
+            0
         )
-        for exact in [
-            #"shard.shardID == "s10.4.current.ax-text""#,
-            #"automationSegment == .none"#,
-            #"stateID == "state.settings.hub""#,
-            #"XCTFail(String(describing: error), file: file, line: line)"#,
-        ] {
-            XCTAssertTrue(captureSource.contains(exact), exact)
-        }
         XCTAssertFalse(captureSource.contains("segmentedRouteStateCursor += 1"))
 
         let preparationPredicateSource = try boundedSource(
