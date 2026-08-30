@@ -14452,20 +14452,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: postPurchaseAXHelperStart,
             before: "    @MainActor\n    private func assertMonthlyPaywallAtXXXL"
         )
-        XCTAssertEqual(postPurchaseAXHelperSource.utf8.count, 17_094)
+        XCTAssertEqual(postPurchaseAXHelperSource.utf8.count, 17_989)
         XCTAssertEqual(
             Data(postPurchaseAXHelperSource.utf8).sha256,
-            "6B4FDADFB03FD4A9EBC7FFAE823916735C4CCC368C85D2077C2DCF0CB4D97F02"
+            "3246770B4A179654BE3C72B1D7C171FCD2290DBB8432DF32F896502D493E519B"
         )
         let postPurchaseAXRouteSource = try boundedSource(
             postPurchaseAXHelperSource,
             from: postPurchaseAXHelperStart,
             before: "        let receiverInset: CGFloat = 24"
         )
-        XCTAssertEqual(postPurchaseAXRouteSource.utf8.count, 4_732)
+        XCTAssertEqual(postPurchaseAXRouteSource.utf8.count, 4_835)
         XCTAssertEqual(
             Data(postPurchaseAXRouteSource.utf8).sha256,
-            "6BD9AA50FDD61EFBD66A257F2ED6BA91B25D8347D6D515470FD7AFAAF963AE87"
+            "77C1D2590E754556BD8618C5F90D179D97FCAAFFF66E8B83804FA76AEC0975AB"
         )
         let postPurchaseAXStableRouteSource = try boundedSource(
             postPurchaseAXHelperSource,
@@ -14492,6 +14492,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"identifier: "s7.2.paywall.support""#,
             "let purchaseButtons = app.buttons.matching(purchasePredicate)",
             "purchase.identifier.isEmpty",
+            "let usesMinimumOSViewport =",
+            #"automationShard?.shardID == "s10.4.minimum.minimum-os""#,
         ] {
             XCTAssertTrue(postPurchaseAXRouteSource.contains(exactRouteLock), exactRouteLock)
         }
@@ -14514,10 +14516,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "        func positionViewport(",
             before: "\n\n        let legalInterval:"
         )
-        XCTAssertEqual(postPurchaseAXPositioningSource.utf8.count, 5_169)
+        XCTAssertEqual(postPurchaseAXPositioningSource.utf8.count, 5_510)
         XCTAssertEqual(
             Data(postPurchaseAXPositioningSource.utf8).sha256,
-            "1751ED1F045945A9D6DAC83B5027D7452848DA16ED0F54DC36C085F86CFF3A76"
+            "02F9E13CBD8CC06765067872BE2AA66E2E27E5BC1ADF7CFCFFBEE9E82F268F7B"
         )
         for structuralLock in [
             "while true", "guard let geometry = interval()",
@@ -14530,6 +14532,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let targetDistance = geometry.minimumShift > 0",
             "let dragDistance = targetDistance > 0",
             "let storeOrigin = store.coordinate(",
+            "let dragStart = usesMinimumOSViewport",
+            "withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)",
+            "let dragEnd = usesMinimumOSViewport",
+            "dragStart.withOffset(CGVector(dx: 0, dy: dragDistance))",
             "dy: dragStartOffsetY + dragDistance",
             "completedGestureCount += 1", "guard hasStableRoute() else",
             "purchaseStateShift * dragDistance > 0",
@@ -14544,10 +14550,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "        let legalInterval:",
             before: "\n        let verifiedInterval:"
         )
-        XCTAssertEqual(postPurchaseAXLegalSource.utf8.count, 3_519)
+        XCTAssertEqual(postPurchaseAXLegalSource.utf8.count, 3_970)
         XCTAssertEqual(
             Data(postPurchaseAXLegalSource.utf8).sha256,
-            "4E6379067A19C7A3C3EC4608E2C807D0C0D43C3E1C2D15F6C4820003A432912E"
+            "8BCE1ABDD5D04EC991043C424B22733F0FE367A6FC58CAFBB338E8907812FCCC"
         )
         for legalLock in [
             "named: \"legal viewport\"", "interval: legalInterval",
@@ -14569,10 +14575,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "legalPurchaseFrame.minY >= legalStoreFrame.maxY",
             "terms.isHittable", "privacy.isHittable", "support.isHittable",
             "!purchase.isHittable", "legalControlsMeetMinimumSize",
+            "if usesMinimumOSViewport",
+            "let minimumPurchaseStateFrame = purchaseState.frame",
+            "legalStoreFrame.contains(minimumPurchaseStateFrame)",
+            "purchaseState.isHittable",
+            "Minimum-OS purchase-complete legal viewport is unsafe.",
         ] {
             XCTAssertTrue(postPurchaseAXLegalSource.contains(legalLock), legalLock)
         }
-        XCTAssertFalse(postPurchaseAXLegalSource.contains("purchaseState.isHittable"))
 
         let postPurchaseAXVerifiedStart = try XCTUnwrap(
             postPurchaseAXHelperSource.range(of: "        let verifiedInterval:")
@@ -20836,10 +20846,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 781_424)
+        XCTAssertEqual(uiSource.utf8.count, 782_319)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "DFBB89D59809377BFD014578EA764139075F62604496CF29C83549B31DC23746"
+            "9A67EC939E20BCB39BA94A72464ABF88267A77F8DD17CDA2AF69702F8E62365F"
         )
         let assertControlSource = try boundedSource(
             uiSource,

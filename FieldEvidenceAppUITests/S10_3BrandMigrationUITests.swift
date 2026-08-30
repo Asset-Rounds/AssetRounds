@@ -9247,6 +9247,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return fail("AX-text purchase-complete route is ambiguous.")
         }
 
+        let usesMinimumOSViewport =
+            automationShard?.shardID == "s10.4.minimum.minimum-os"
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
         var completedGestureCount = 0
@@ -9319,18 +9321,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let dragStartOffsetY = dragDistance > 0
                     ? receiverInset
                     : geometry.storeFrame.height - receiverInset
-                let dragStart = storeOrigin.withOffset(
-                    CGVector(
-                        dx: geometry.storeFrame.width / 2,
-                        dy: dragStartOffsetY
+                let dragStart = usesMinimumOSViewport
+                    ? store.coordinate(
+                        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
                     )
-                )
-                let dragEnd = storeOrigin.withOffset(
-                    CGVector(
-                        dx: geometry.storeFrame.width / 2,
-                        dy: dragStartOffsetY + dragDistance
+                    : storeOrigin.withOffset(
+                        CGVector(
+                            dx: geometry.storeFrame.width / 2,
+                            dy: dragStartOffsetY
+                        )
                     )
-                )
+                let dragEnd = usesMinimumOSViewport
+                    ? dragStart.withOffset(CGVector(dx: 0, dy: dragDistance))
+                    : storeOrigin.withOffset(
+                        CGVector(
+                            dx: geometry.storeFrame.width / 2,
+                            dy: dragStartOffsetY + dragDistance
+                        )
+                    )
                 let purchaseStateBeforeDrag = purchaseState.frame.minY
                 let supportBeforeDrag = support.frame.minY
                 guard purchaseStateBeforeDrag.isFinite,
@@ -9467,6 +9475,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return fail(
                 "AX-text purchase-complete legal viewport is unsafe."
             )
+        }
+        if usesMinimumOSViewport {
+            let minimumPurchaseStateFrame = purchaseState.frame
+            guard isValidFrame(minimumPurchaseStateFrame),
+                  legalStoreFrame.contains(minimumPurchaseStateFrame),
+                  purchaseState.isHittable else {
+                return fail(
+                    "Minimum-OS purchase-complete legal viewport is unsafe."
+                )
+            }
+            return true
         }
         let verifiedInterval: () -> (
             storeFrame: CGRect,
