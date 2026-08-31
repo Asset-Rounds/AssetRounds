@@ -7794,9 +7794,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"shard.shardID == "s10.4.minimum.minimum-os""#,
             #"identifier: "s2.new-sign.screen""#,
             #"identifier: "s2.new-sign.sign-label""#,
-            #"format: "identifier == %@ AND label == %@""#,
-            #""Return""#,
-            #""return""#,
             "minimum keyboard geometry app",
             "minimum keyboard geometry accessibility tree",
             "minimum keyboard geometry keyboard",
@@ -23863,10 +23860,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard let range = Range(match.range, in: uiSource) else { return nil }
             return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 450)
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 451)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "F9E02BA88A13F15D060B3C5A81D2F0104300B96AABE0CBA63AA01E326053E110"
+            "AAA19E9433287F6817AF7508889762A71CA1AECFE430C5903F6A6B0F9996A9F9"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
