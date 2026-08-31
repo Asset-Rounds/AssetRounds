@@ -7206,7 +7206,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             3
         )
         let multilineKeyboardCallerLocks = [
-            #"description.typeText("Replaced failed power supply")"# + "\n" +
+            "scroll(description, in: app)\n" +
+                "        assertMinimumGeometry(description)\n" +
+                "        description.tap()\n" +
+                #"        description.typeText("Replaced failed power supply")"# + "\n" +
                 "        dismissMultilineKeyboard(\n" +
                 "            afterEditing: description,\n" +
                 #"            on: element("s5.1.work.screen", in: app),"# + "\n" +
@@ -19999,10 +20002,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 730_586)
+        XCTAssertEqual(uiSource.utf8.count, 730_612)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "EE2ED28981DE938B86E68A8F1E9EC4DE21E991BE2245F0A5C44C1B09D57DFBE7"
+            "A3C2008C8BEE3DC53AAC5A9E4194732F36604715A2DEF2378B523BA78C6F6C50"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -22575,10 +22578,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard let range = Range(match.range, in: uiSource) else { return nil }
             return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 451)
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 452)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "6D4C161F67D21B27E7C8A3A9CC163D86D474B1B72A827933F5F2E9124E9C8747"
+            "3B7C0F3390F8CEB751696FA68AC09951C8C5FB8C237CDF486DF1098A6070C458"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#

@@ -4924,6 +4924,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
         assertMinimumGeometry(description)
+        description.tap()
         description.typeText("Replaced failed power supply")
         dismissMultilineKeyboard(
             afterEditing: description,
