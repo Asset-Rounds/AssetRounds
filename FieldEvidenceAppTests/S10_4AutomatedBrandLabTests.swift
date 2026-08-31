@@ -4367,35 +4367,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "preKeyboards.count == 1",
             "preInputViews.count == 1",
             "preGlobalDoneButtons.count == 1",
+            "preDescriptionValue == \"Short description\"",
             "globalDoneButton.identifier == \"s5.1.work.keyboard-done\"",
             "globalDoneButton.label == \"Done\"",
             "globalDoneButton.tap()",
             "preKeyboards.firstMatch.waitForNonExistence(timeout: 10)",
-            "postDescriptionValue == preDescriptionValue",
+            "postDescriptionValue == \"\"",
             "postFocusedDescriptionCount == 0",
             "postValidationIdentifier == preValidationIdentifier",
             "postValidationLabelText == preValidationLabelText",
             "postKeyboardCount == 0",
         ]
         for lock in workValidationDoneRouteLocks {
-            XCTAssertTrue(workValidationGateSource.contains(lock), lock)
-        }
-        let workValidationDoneDiagnosticLocks = [
-            "S10_4_AX_TEXT_WORK_VALIDATION_DONE_POSTCONDITION_DIAGNOSTIC",
-            "postDescriptionValue.map { $0 as Any } ?? NSNull()",
-            "preDescriptionValue.map { $0 as Any } ?? NSNull()",
-            "let postFocusedDescriptionCount = postFocusedDescriptionFields.count",
-            "\"postFocusedDescriptionCount\": postFocusedDescriptionCount",
-            "\"postValidationIdentifier\": postValidationIdentifier",
-            "\"postValidationLabel\": postValidationLabelText",
-            "\"postWorkScreenHittable\": postWorkScreenHittable",
-            "\"keyboardCount\": postKeyboardCount",
-            "S10.4 K306 AX-text work-validation Done postcondition app",
-            "S10.4 K306 AX-text work-validation Done postcondition tree",
-            "S10.4 K306 AX-text work-validation Done postcondition context",
-            "options: [.prettyPrinted, .sortedKeys]",
-        ]
-        for lock in workValidationDoneDiagnosticLocks {
             XCTAssertTrue(workValidationGateSource.contains(lock), lock)
         }
         let workValidationDoneCachedFactLocks = [
@@ -4420,32 +4403,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
-        XCTAssertEqual(
-            workValidationGateSource.components(
-                separatedBy:
-                    "S10_4_AX_TEXT_WORK_VALIDATION_DONE_POSTCONDITION_DIAGNOSTIC"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            workValidationGateSource.components(separatedBy: "XCTAttachment(").count - 1,
-            3
-        )
-        XCTAssertEqual(
-            workValidationGateSource.components(separatedBy: ".lifetime = .keepAlways").count - 1,
-            3
-        )
-        let diagnosticRange = try XCTUnwrap(
-            workValidationRouteSource.range(
-                of: "S10_4_AX_TEXT_WORK_VALIDATION_DONE_POSTCONDITION_DIAGNOSTIC"
+        XCTAssertFalse(
+            workValidationGateSource.contains(
+                "S10_4_AX_TEXT_WORK_VALIDATION_DONE_POSTCONDITION_DIAGNOSTIC"
             )
         )
-        let postconditionGuardRange = try XCTUnwrap(
-            workValidationRouteSource.range(
-                of: "            guard postAppState == .runningForeground,"
+        XCTAssertFalse(workValidationGateSource.contains("S10.4 K306 AX-text"))
+        XCTAssertFalse(
+            workValidationGateSource.contains(
+                "postDescriptionValue == preDescriptionValue"
             )
         )
-        XCTAssertLessThan(diagnosticRange.lowerBound, postconditionGuardRange.lowerBound)
         let doneTapRange = try XCTUnwrap(
             workValidationRouteSource.range(of: "            globalDoneButton.tap()")
         )
