@@ -38,6 +38,16 @@ enum ContentContractFailureV1: Error, Equatable, Sendable {
     case incompatibleVersion
 }
 
+enum PrivateSystemDiscoveryContentReferenceBoundaryV1 {
+    static let permitsRawBytes = false
+    static let permitsPublicURL = false
+    static let permitsNetworkLookup = false
+    static func validateLocalDerivative(_ value: ContentReferenceV1, workspaceID: WorkspaceID) throws {
+        guard value.workspaceID == workspaceID.rawValue.uuidString.lowercased(), value.byteRole == .derivative,
+              value.digests.digest(for: .sha256) != nil else { throw ContentContractFailureV1.wrongWorkspace }
+    }
+}
+
 enum FieldReferenceContentBoundaryV1 {
     static func validateImmutableOriginals(_ references: [ContentReferenceV1], workspaceID: WorkspaceID) throws {
         let expected = workspaceID.rawValue.uuidString.lowercased()

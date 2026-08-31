@@ -660,3 +660,35 @@ enum C57MyDaySearchCoordinatorBoundaryV1 {
     static let queryCannotMutatePlanOrSourceWork = true
     static let workspaceScopeIsRequired = true
 }
+
+// MARK: - C14 private system-discovery lifecycle
+
+/// Application-level adapter used by the incumbent composition root. It owns
+/// no index and forwards only validated lifecycle inputs to the one actor.
+struct PrivateSystemDiscoverySearchLifecycleV1: Sendable {
+    private let index: any PrivateSystemDiscoveryIndexLifecyclePortV1
+
+    init(index: any PrivateSystemDiscoveryIndexLifecyclePortV1) {
+        self.index = index
+    }
+
+    func removeDeletedWorkspace(
+        operationID: PrivateSystemDiscoveryOperationIDV1,
+        workspaceID: WorkspaceID,
+        now: Date
+    ) async throws {
+        try await index.remove(operationID: operationID, workspaceID: workspaceID, now: now)
+    }
+
+    func eraseAll(operationID: PrivateSystemDiscoveryOperationIDV1, now: Date) async throws {
+        try await index.eraseAll(operationID: operationID, now: now)
+    }
+
+    func restoreOrReplayCompleted() async throws {
+        try await index.dropAndRebuild()
+    }
+
+    func reportState() async throws -> PrivateSystemDiscoveryStateMapV1 {
+        try await index.state()
+    }
+}

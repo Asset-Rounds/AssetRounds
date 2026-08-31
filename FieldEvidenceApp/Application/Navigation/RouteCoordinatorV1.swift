@@ -52,6 +52,18 @@ struct RouteCoordinatorV1: Sendable {
     }
 }
 
+extension RouteCoordinatorV1 {
+    func resolvePrivateSystemDiscovery(_ target: NavigationTargetV1,
+                                       context: RouteResolutionContextV1) throws -> RouteResolutionResultV1 {
+        try PrivateSystemDiscoveryRouteBoundaryV1.validate(target)
+        let result = try registry.resolve(target, context: context)
+        guard result.canonicalMutationCount == 0, !result.startsAutomaticWork else {
+            throw RouteCoordinatorFailureV1.invalidPriorityTarget
+        }
+        return result
+    }
+}
+
 enum RouteCoordinatorFailureV1: Error, Equatable {
     case invalidPriorityTarget
 }

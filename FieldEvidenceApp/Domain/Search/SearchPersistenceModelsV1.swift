@@ -1599,3 +1599,148 @@ enum C05RoundSessionSearchPersistenceBoundaryV1 {
         try SearchPersistenceCodecV1.encode(envelope(projection))
     }
 }
+
+
+enum PrivateSystemDiscoverySearchPersistenceBoundaryV1 {
+    static let persistenceMode = "DERIVED_ONLY"
+    static let canonicalRowCount = 0
+    static let backupPayloadCount = 0
+    static let exportPayloadCount = 0
+    static let restoreDisposition = "DROP_AND_REBUILD"
+
+    static func validate() throws {
+        guard persistenceMode == "DERIVED_ONLY",
+              canonicalRowCount == 0,
+              backupPayloadCount == 0,
+              exportPayloadCount == 0,
+              restoreDisposition == "DROP_AND_REBUILD",
+              PrivateSystemDiscoveryLifecycleV1.dropAndRebuildOnRestore else {
+            throw SearchContractFailureV1.unsupportedSchemaVersion
+        }
+    }
+}
+
+struct PrivateSystemDiscoveryIndexRebuildPayloadV1: Codable, Equatable, Sendable {
+    let request: PrivateSystemDiscoveryRebuildRequestV1
+    let descriptors: [PrivateSystemDiscoveryProjectionDescriptorV1]
+    let manifest: PrivateSystemDiscoveryManifestV1
+    let optIn: PrivateSystemDiscoveryOptInV1
+    let availability: [AppIntentAvailabilityV1]
+    let requestedAt: Date
+}
+
+struct PrivateSystemDiscoveryPendingOperationV1: Codable, Equatable, Sendable {
+    let operationID: PrivateSystemDiscoveryOperationIDV1
+    let operation: PrivateSystemDiscoveryJournalOperationV1
+    let workspaceID: WorkspaceID
+    let expectedPriorStateSHA256: String
+    let resultingStateSHA256: String
+    let rebuild: PrivateSystemDiscoveryIndexRebuildPayloadV1?
+    let preparedAt: Date
+}
+
+struct PrivateSystemDiscoveryWorkspaceInventoryV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let deletionFrontier: UInt64
+}
+
+struct PrivateSystemDiscoveryClientStateV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    var stateMap: PrivateSystemDiscoveryStateMapV1
+    var knownWorkspaceIDs: [WorkspaceID]
+    var workspaceInventory: [PrivateSystemDiscoveryWorkspaceInventoryV1]
+    var journal: [PrivateSystemDiscoveryJournalEntryV1]
+    var pendingOperation: PrivateSystemDiscoveryPendingOperationV1?
+
+    init(
+        stateMap: PrivateSystemDiscoveryStateMapV1,
+        knownWorkspaceIDs: [WorkspaceID],
+        workspaceInventory: [PrivateSystemDiscoveryWorkspaceInventoryV1],
+        journal: [PrivateSystemDiscoveryJournalEntryV1],
+        pendingOperation: PrivateSystemDiscoveryPendingOperationV1?
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.stateMap = stateMap
+        self.knownWorkspaceIDs = knownWorkspaceIDs
+        self.workspaceInventory = workspaceInventory
+        self.journal = journal
+        self.pendingOperation = pendingOperation
+        try validate()
+    }
+
+    static var empty: Self {
+        try! Self(
+            stateMap: PrivateSystemDiscoveryStateMapV1(workspaces: []),
+            knownWorkspaceIDs: [], workspaceInventory: [], journal: [], pendingOperation: nil
+        )
+    }
+
+    func validate() throws {
+        try stateMap.validate()
+        try journal.forEach { try $0.validate() }
+        if let pendingOperation {
+            try pendingOperation.operationID.validate()
+            guard pendingOperation.operationID.operation == pendingOperation.operation,
+                  pendingOperation.operationID.workspaceID == pendingOperation.workspaceID,
+                  CompatibilityCanonicalV1.validSHA256(pendingOperation.expectedPriorStateSHA256),
+                  CompatibilityCanonicalV1.validSHA256(pendingOperation.resultingStateSHA256) else {
+                throw PrivateSystemDiscoveryFailureV1.invalidValue
+            }
+            if let rebuild = pendingOperation.rebuild {
+                try rebuild.request.validate(); try rebuild.manifest.validate(); try rebuild.optIn.validate()
+                try rebuild.descriptors.forEach { try $0.validate() }
+                try rebuild.availability.forEach { try $0.validate() }
+                guard rebuild.request.operationID == pendingOperation.operationID,
+                      rebuild.requestedAt == rebuild.request.requestedAt else {
+                    throw PrivateSystemDiscoveryFailureV1.invalidValue
+                }
+            }
+        }
+        let sortedKnown = knownWorkspaceIDs.sorted {
+            $0.rawValue.uuidString < $1.rawValue.uuidString
+        }
+        let sortedInventory = workspaceInventory.sorted {
+            $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString
+        }
+        guard schemaVersion == Self.schemaVersion,
+              knownWorkspaceIDs == sortedKnown,
+              Set(knownWorkspaceIDs).count == knownWorkspaceIDs.count,
+              workspaceInventory == sortedInventory,
+              workspaceInventory.map(\.workspaceID) == knownWorkspaceIDs,
+              Set(stateMap.workspaces.map(\.workspaceID)).isSubset(of: Set(knownWorkspaceIDs)) else {
+            throw PrivateSystemDiscoveryFailureV1.invalidValue
+        }
+        let groups = Dictionary(grouping: journal, by: \.operationID)
+        for entries in groups.values {
+            guard let first = entries.first,
+                  entries.allSatisfy({
+                      $0.workspaceID == first.workspaceID
+                          && $0.operation == first.operation
+                          && $0.expectedPriorStateSHA256 == first.expectedPriorStateSHA256
+                  }),
+                  entries.map(\.state) == Array(PrivateSystemDiscoveryJournalStateV1.allCases.prefix(entries.count)),
+                  entries.count <= PrivateSystemDiscoveryJournalStateV1.allCases.count,
+                  Set(entries.map(\.state)).count == entries.count else {
+                throw PrivateSystemDiscoveryFailureV1.invalidValue
+            }
+        }
+        if let pendingOperation {
+            let entries = groups[pendingOperation.operationID.rawValue] ?? []
+            guard entries.count == 1 || entries.count == 2,
+                  entries.first?.state == .prepared,
+                  entries.first?.operation == pendingOperation.operation,
+                  entries.first?.workspaceID == pendingOperation.workspaceID,
+                  entries.first?.expectedPriorStateSHA256 == pendingOperation.expectedPriorStateSHA256,
+                  entries.first?.resultingStateSHA256 == nil,
+                  (entries.count == 1 || entries.last?.state == .effectApplied),
+                  (pendingOperation.operation == .rebuild) == (pendingOperation.rebuild != nil) else {
+                throw PrivateSystemDiscoveryFailureV1.invalidValue
+            }
+        } else {
+            guard groups.values.allSatisfy({ $0.last?.state == .committed }) else {
+                throw PrivateSystemDiscoveryFailureV1.invalidValue
+            }
+        }
+    }
+}

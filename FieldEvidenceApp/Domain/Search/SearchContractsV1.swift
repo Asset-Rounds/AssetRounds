@@ -1,5 +1,56 @@
 import Foundation
 
+/// Typed composition seam for the single protected, disposable system index.
+/// The incumbent search/deletion/report owners may depend on this port without
+/// gaining access to CoreSpotlight or to private query/route parameters.
+protocol PrivateSystemDiscoveryIndexLifecyclePortV1: Sendable {
+    func rebuild(
+        operationID: PrivateSystemDiscoveryOperationIDV1,
+        workspaceID: WorkspaceID,
+        workspaceRevision: UInt64,
+        deletionFrontier: UInt64,
+        descriptors: [PrivateSystemDiscoveryProjectionDescriptorV1],
+        manifest: PrivateSystemDiscoveryManifestV1,
+        optIn: PrivateSystemDiscoveryOptInV1,
+        availability: [AppIntentAvailabilityV1],
+        now: Date
+    ) async throws
+    func remove(operationID: PrivateSystemDiscoveryOperationIDV1, workspaceID: WorkspaceID, now: Date) async throws
+    func eraseAll(operationID: PrivateSystemDiscoveryOperationIDV1, now: Date) async throws
+    func dropAndRebuild() async throws
+    func state() async throws -> PrivateSystemDiscoveryStateMapV1
+    func journalEntries() async throws -> [PrivateSystemDiscoveryJournalEntryV1]
+}
+
+protocol PrivateSystemDiscoveryClientStateStoreV1: Sendable {
+    func load() throws -> PrivateSystemDiscoveryClientStateV1?
+    func save(_ state: PrivateSystemDiscoveryClientStateV1) throws
+    func clear() throws
+}
+
+struct PrivateSystemDiscoveryIndexItemV1: Equatable, Sendable {
+    let uniqueIdentifier: String
+    let domainIdentifier: String
+    let titleKey: String
+    let actionToken: String
+}
+
+protocol PrivateSystemDiscoveryProtectedIndexClientV1: Sendable {
+    func replaceItems(
+        deleting identifiers: [String],
+        with items: [PrivateSystemDiscoveryIndexItemV1]
+    ) async throws
+    func deleteItems(withIdentifiers identifiers: [String]) async throws
+    func deleteAllItems() async throws
+}
+
+protocol PrivateSystemDiscoveryRebuildRequestProvidingV1: Sendable {
+    func privateSystemDiscoveryRebuildRequest(
+        source: SearchSourceRevisionV1,
+        operationID: PrivateSystemDiscoveryOperationIDV1
+    ) async throws -> PrivateSystemDiscoveryIndexRebuildPayloadV1?
+}
+
 enum SearchContractFailureV1: Error, Equatable, Sendable {
     case unsupportedSchemaVersion
     case invalidIdentifier

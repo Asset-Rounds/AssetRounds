@@ -1295,12 +1295,16 @@ final class BackupRestoreService {
                 currentID: newGenerationID,
                 authority: generationAuthority
             )
-            try intentStore.remove(expected: validated)
-            try removeDraftPublicationBinding(validated)
-            try cleanupEmptyRestoreDirectories()
             try await searchIndexLifecycle.dropProjection(
                 workspaceID: session.workspaceID.rawValue
             )
+            try await dropPrivateSystemDiscoveryAfterRestore(
+                restoreID: restoreID,
+                session: session
+            )
+            try intentStore.remove(expected: validated)
+            try removeDraftPublicationBinding(validated)
+            try cleanupEmptyRestoreDirectories()
             return session
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
@@ -1310,10 +1314,7 @@ final class BackupRestoreService {
             throw error
         } catch {
             do {
-                if let recovered = try reconcileAtStartup() {
-                    try await searchIndexLifecycle.dropProjection(
-                        workspaceID: recovered.workspaceID.rawValue
-                    )
+                if let recovered = try await reconcileRestoreAndPrivateSystemDiscoveryAtStartup() {
                     return recovered
                 }
             } catch let failure as ProtectedFilePolicyError
@@ -1325,6 +1326,65 @@ final class BackupRestoreService {
             }
             throw error
         }
+    }
+
+    private struct PrivateSystemDiscoveryRestoreBindingV1: Codable {
+        let schemaVersion: Int
+        let operation: String
+        let restoreID: UUID
+        let workspaceID: WorkspaceID
+        let generationID: UUID
+    }
+
+    private func dropPrivateSystemDiscoveryAfterRestore(
+        restoreID: UUID,
+        session: StoreGenerationSession
+    ) async throws {
+        let inputSHA256 = CompatibilityCanonicalV1.sha256(
+            try CompatibilityCanonicalV1.encode(PrivateSystemDiscoveryRestoreBindingV1(
+                schemaVersion: 1,
+                operation: "REPLACE_RESTORE_DERIVED_INDEX_DROP_V1",
+                restoreID: restoreID,
+                workspaceID: session.workspaceID,
+                generationID: session.generationID
+            ))
+        )
+        let operationID = try PrivateSystemDiscoveryOperationIDV1(
+            rawValue: restoreID,
+            operation: .removal,
+            workspaceID: session.workspaceID,
+            inputSHA256: inputSHA256
+        )
+        try await PrivateSystemDiscoveryEraseAllServiceBoundaryV1
+            .dropAfterRestoreOrReplay(
+                operationID: operationID,
+                index: PrivateSystemDiscoveryIndexRuntimeV1.shared
+            )
+    }
+
+    /// Reconciles a durable replace-restore intent, validates the recovered
+    /// canonical generation, drops derived search projections using the
+    /// restore-bound operation ID, and only then retires the cleanup intent.
+    /// StartupRouter must call this async entry point instead of the synchronous
+    /// `reconcileAtStartup()` bridge.
+    func reconcileRestoreAndPrivateSystemDiscoveryAtStartup() async throws -> StoreGenerationSession? {
+        guard let session = try reconcileAtStartup() else { return nil }
+        guard let intent = try intentStore.load(),
+              intent.phase == .newGenerationValidated,
+              intent.newGenerationID == session.generationID else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if let identity = intent.identity {
+            guard try workspaceIdentity(identity.targetPointer).workspaceID == session.workspaceID else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        try await searchIndexLifecycle.dropProjection(workspaceID: session.workspaceID.rawValue)
+        try await dropPrivateSystemDiscoveryAfterRestore(restoreID: intent.restoreID, session: session)
+        try intentStore.remove(expected: intent)
+        try removeDraftPublicationBinding(intent)
+        try cleanupEmptyRestoreDirectories()
+        return session
     }
 
     /// Runs before ordinary pointer maintenance. A returned session is the
@@ -1685,9 +1745,6 @@ final class BackupRestoreService {
                 currentID: intent.newGenerationID,
                 authority: generationAuthority
             )
-            try intentStore.remove(expected: intent)
-            try removeDraftPublicationBinding(intent)
-            try cleanupEmptyRestoreDirectories()
             return newSession
         }
     }
@@ -2261,9 +2318,6 @@ private extension BackupRestoreService {
             currentID: intent.newGenerationID,
             authority: generationAuthority
         )
-        try intentStore.remove(expected: validated)
-        try removeDraftPublicationBinding(validated)
-        try cleanupEmptyRestoreDirectories()
         return session
     }
 

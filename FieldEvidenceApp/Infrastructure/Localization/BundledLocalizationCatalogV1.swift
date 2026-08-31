@@ -3514,6 +3514,48 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+// MARK: - C14 private system discovery catalog
+
+extension BundledLocalizationCatalogV1 {
+    static func privateSystemDiscoveryEnglish(
+        _ key: PrivateSystemDiscoveryLocalizationKeyV1
+    ) -> String {
+        PrivateSystemDiscoveryLocalizationPolicyV1.english(key)
+    }
+
+    static func privateSystemDiscoveryLocalized(
+        _ key: PrivateSystemDiscoveryLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: privateSystemDiscoveryEnglish(key),
+            bundle: bundle,
+            locale: locale,
+            comment: "C14 private on-device discovery state; generic protected outcomes do not disclose private record existence."
+        )
+    }
+
+    static func privateSystemDiscoveryRegistry() throws -> LocalizationKeyRegistryV1 {
+        try PrivateSystemDiscoveryLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = try PrivateSystemDiscoveryLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C14 private on-device discovery state; generic protected outcomes do not disclose private record existence.",
+                englishDefaultValue: privateSystemDiscoveryEnglish(key),
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 extension BundledLocalizationCatalogV1 { static func fastSurveyInboxLocalized(_ key: FastSurveyInboxLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C11 contained local inbox presentation; no completion, truth, route, or acceptance claim.") } }
 extension BundledLocalizationCatalogV1 { static func c12Localized(_ key: C12LocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C12 contained local reinspection and exception-queue presentation; no source-resolution, evidence-freshness, adoption, acceptance, or release claim.") } }
 extension BundledLocalizationCatalogV1 { static func c13Localized(_ key: C13LocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C13 contained identity review; no automatic mutation, route, root, adoption, acceptance, or release claim.") } }

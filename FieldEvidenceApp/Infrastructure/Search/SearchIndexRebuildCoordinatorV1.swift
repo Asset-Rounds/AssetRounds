@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 struct SearchCanonicalProjectionPageV1: Equatable, Sendable {
     let requestedCanonicalOffset: Int
@@ -1633,6 +1634,68 @@ enum SearchIndexRebuildFailureV1: Error, Equatable, Sendable {
     case recordLimitExceeded
 }
 
+struct PrivateSystemDiscoveryProductionRebuildSourceV1: PrivateSystemDiscoveryRebuildRequestProvidingV1 {
+    private let optIn: @Sendable () async throws -> PrivateSystemDiscoveryOptInV1
+    private let protectedDataAvailable: @Sendable () async -> Bool
+    private let now: @Sendable () -> Date
+
+    init(
+        optIn: @escaping @Sendable () async throws -> PrivateSystemDiscoveryOptInV1 = {
+            try PreferencesAdapterV1().readPrivateSystemDiscoveryOptIn()
+        },
+        protectedDataAvailable: @escaping @Sendable () async -> Bool = {
+            await MainActor.run { UIApplication.shared.isProtectedDataAvailable }
+        },
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
+        self.optIn = optIn
+        self.protectedDataAvailable = protectedDataAvailable
+        self.now = now
+    }
+
+    func privateSystemDiscoveryRebuildRequest(
+        source: SearchSourceRevisionV1,
+        operationID: PrivateSystemDiscoveryOperationIDV1
+    ) async throws -> PrivateSystemDiscoveryIndexRebuildPayloadV1? {
+        try operationID.validate()
+        let workspaceID = WorkspaceID(rawValue: source.workspaceID)
+        guard operationID.operation == .rebuild,
+              operationID.workspaceID == workspaceID else {
+            throw PrivateSystemDiscoveryFailureV1.invalidValue
+        }
+        let manifest = try PrivateSystemDiscoveryManifestV1()
+        let setting = try await optIn()
+        let requestedAt = now()
+        let protected = await protectedDataAvailable()
+        let availability = try PrivateSystemDiscoveryActionV1.allCases.map {
+            try AppIntentAvailabilityV1(
+                workspaceID: workspaceID, action: $0,
+                optedIn: setting.contains(workspaceID),
+                featureReason: setting.contains(workspaceID) ? .available : .workspacePolicyDisabled,
+                appAccessPermitsContent: setting.contains(workspaceID),
+                protectedDataAvailable: protected, evaluatedAt: requestedAt
+            )
+        }
+        let descriptors = try PrivateSystemDiscoveryProjectionDomainV1.allCases.map {
+            try PrivateSystemDiscoveryProjectionDescriptorV1(
+                domain: $0, projectionVersion: 1,
+                allowlistSHA256: manifest.manifestSHA256,
+                policySHA256: manifest.manifestSHA256,
+                indexDefinitionSHA256: manifest.manifestSHA256
+            )
+        }.sorted { $0.stableKey < $1.stableKey }
+        let request = try PrivateSystemDiscoveryRebuildRequestV1(
+            operationRawID: operationID.rawValue, workspaceID: workspaceID,
+            workspaceRevision: source.commitRevision, deletionFrontier: 0,
+            sourceStateSHA256: operationID.inputSHA256, requestedAt: requestedAt
+        )
+        return PrivateSystemDiscoveryIndexRebuildPayloadV1(
+            request: request, descriptors: descriptors, manifest: manifest,
+            optIn: setting, availability: availability, requestedAt: requestedAt
+        )
+    }
+}
+
 struct SearchIndexRebuildResultV1: Equatable, Sendable {
     let disposition: SearchIndexReconciliationV1
     let source: SearchSourceRevisionV1
@@ -1653,12 +1716,16 @@ actor SearchIndexRebuildCoordinatorV1 {
     private let source: any SearchCanonicalProjectionSourceV1
     private let registry: SearchableFieldRegistryV1
     private let makeOperationID: @Sendable () -> UUID
+    private let privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)?
+    private let privateSystemDiscoverySource: (any PrivateSystemDiscoveryRebuildRequestProvidingV1)?
 
     init(
         store: LocalSearchIndexStoreV1,
         source: any SearchCanonicalProjectionSourceV1,
         registry: SearchableFieldRegistryV1,
-        makeOperationID: @escaping @Sendable () -> UUID = { UUID() }
+        makeOperationID: @escaping @Sendable () -> UUID = { UUID() },
+        privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)? = PrivateSystemDiscoveryIndexRuntimeV1.shared,
+        privateSystemDiscoverySource: (any PrivateSystemDiscoveryRebuildRequestProvidingV1)? = PrivateSystemDiscoveryProductionRebuildSourceV1()
     ) throws {
         try registry.validate()
         guard C08ImportBulkSearchRebuildBoundaryV1.validate(),
@@ -1669,6 +1736,8 @@ actor SearchIndexRebuildCoordinatorV1 {
         self.source = source
         self.registry = registry
         self.makeOperationID = makeOperationID
+        self.privateSystemDiscoveryIndex = privateSystemDiscoveryIndex
+        self.privateSystemDiscoverySource = privateSystemDiscoverySource
     }
 
     func rebuildIfNeeded() async throws -> SearchIndexRebuildResultV1 {
@@ -1690,6 +1759,7 @@ actor SearchIndexRebuildCoordinatorV1 {
         )
         if disposition == .current {
             let projection = try await store.projection(for: target, registry: registry)
+            try await rebuildPrivateSystemDiscovery(source: target, operationRawID: nil)
             return SearchIndexRebuildResultV1(
                 disposition: disposition,
                 source: target,
@@ -1808,12 +1878,56 @@ actor SearchIndexRebuildCoordinatorV1 {
             registry: registry,
             publicationToken: publicationToken
         )
+        try await rebuildPrivateSystemDiscovery(
+            source: target, operationRawID: active.checkpoint.operationID
+        )
         return SearchIndexRebuildResultV1(
             disposition: disposition,
             source: target,
             indexedRecordCount: records.count,
             resumedFromCheckpoint: resumed
         )
+    }
+
+    private func rebuildPrivateSystemDiscovery(
+        source: SearchSourceRevisionV1,
+        operationRawID: UUID?
+    ) async throws {
+        guard let privateSystemDiscoveryIndex, let privateSystemDiscoverySource else { return }
+        let inputSHA256 = CompatibilityCanonicalV1.sha256(
+            try CompatibilityCanonicalV1.encode(source)
+        )
+        let rawID: UUID
+        if let operationRawID { rawID = operationRawID }
+        else { rawID = try deterministicDiscoveryOperationID(inputSHA256: inputSHA256) }
+        let operationID = try PrivateSystemDiscoveryOperationIDV1(
+            rawValue: rawID, operation: .rebuild,
+            workspaceID: WorkspaceID(rawValue: source.workspaceID),
+            inputSHA256: inputSHA256
+        )
+        guard let payload = try await privateSystemDiscoverySource
+            .privateSystemDiscoveryRebuildRequest(source: source, operationID: operationID) else { return }
+        try await PrivateSystemDiscoverySearchRebuildBoundaryV1.rebuild(
+            operationID: payload.request.operationID, index: privateSystemDiscoveryIndex,
+            workspaceID: payload.request.workspaceID,
+            workspaceRevision: payload.request.workspaceRevision,
+            deletionFrontier: payload.request.deletionFrontier,
+            descriptors: payload.descriptors, manifest: payload.manifest,
+            optIn: payload.optIn, availability: payload.availability,
+            now: payload.requestedAt
+        )
+    }
+
+    private func deterministicDiscoveryOperationID(inputSHA256: String) throws -> UUID {
+        let digest = CompatibilityCanonicalV1.sha256(
+            Data(("PRIVATE_SYSTEM_DISCOVERY_REBUILD_V1|" + inputSHA256).utf8)
+        )
+        let compact = String(digest.prefix(32))
+        let uuidText = "\(compact.prefix(8))-\(compact.dropFirst(8).prefix(4))-\(compact.dropFirst(12).prefix(4))-\(compact.dropFirst(16).prefix(4))-\(compact.dropFirst(20).prefix(12))"
+        guard let value = UUID(uuidString: uuidText) else {
+            throw PrivateSystemDiscoveryFailureV1.corruptDigest
+        }
+        return value
     }
 
     func cancelAndRetainCheckpoint() {
@@ -2767,5 +2881,49 @@ enum C05RoundSessionSearchRebuildBoundaryV1 {
             throw SearchContractFailureV1.duplicateProjection
         }
         return values
+    }
+}
+
+
+// MARK: - C14 private system-discovery rebuild enrollment
+
+enum PrivateSystemDiscoverySearchRebuildBoundaryV1 {
+    static let namedIndex = PrivateSystemDiscoveryLifecycleV1.namedIndex
+    static let usesDefaultIndex = false
+    static let sourceIsSelectedRealWorkspaceOnly = true
+    static let projectionIsDerivedOnly = true
+
+    static func rebuild(
+        operationID: PrivateSystemDiscoveryOperationIDV1,
+        index: any PrivateSystemDiscoveryIndexLifecyclePortV1,
+        workspaceID: WorkspaceID,
+        workspaceRevision: UInt64,
+        deletionFrontier: UInt64,
+        descriptors: [PrivateSystemDiscoveryProjectionDescriptorV1],
+        manifest: PrivateSystemDiscoveryManifestV1,
+        optIn: PrivateSystemDiscoveryOptInV1,
+        availability: [AppIntentAvailabilityV1],
+        now: Date
+    ) async throws {
+        try operationID.validate()
+        guard namedIndex == "PRIVATE_SYSTEM_DISCOVERY_INDEX_V1",
+              !usesDefaultIndex,
+              sourceIsSelectedRealWorkspaceOnly,
+              projectionIsDerivedOnly,
+              operationID.operation == .rebuild,
+              operationID.workspaceID == workspaceID else {
+            throw PrivateSystemDiscoveryFailureV1.invalidValue
+        }
+        try await index.rebuild(
+            operationID: operationID,
+            workspaceID: workspaceID,
+            workspaceRevision: workspaceRevision,
+            deletionFrontier: deletionFrontier,
+            descriptors: descriptors,
+            manifest: manifest,
+            optIn: optIn,
+            availability: availability,
+            now: now
+        )
     }
 }

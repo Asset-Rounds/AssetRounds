@@ -159,10 +159,10 @@ final class StartupRouter: ObservableObject {
             didBeginStep(.restore)
             let restoredSession: StoreGenerationSession?
             do {
-                restoredSession = try BackupRestoreService(
+                restoredSession = try await BackupRestoreService(
                     applicationSupportURL: applicationSupportURL,
                     fileManager: fileManager
-                ).reconcileAtStartup()
+                ).reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
             } catch {
                 throw StartupMaintenanceReason.restoreInconsistent
             }

@@ -34,6 +34,15 @@ enum NavigationRequestedModeV1: String, Codable, Hashable, Sendable {
     case resume = "RESUME"
 }
 
+enum PrivateSystemDiscoveryRouteBoundaryV1 {
+    static let allowedDestinations: Set<NavigationDestinationV1> = [.today, .assets, .reports]
+    static func validate(_ target: NavigationTargetV1) throws {
+        try target.validate()
+        guard allowedDestinations.contains(target.destination), target.requestedMode == .read,
+              target.packageSurfaceID == nil else { throw RouteContractFailureV1.missingSemanticIdentity }
+    }
+}
+
 struct FieldPositionAnchorV1: Codable, Equatable, Hashable, Sendable {
     let sectionID: String?
     let fieldID: String?

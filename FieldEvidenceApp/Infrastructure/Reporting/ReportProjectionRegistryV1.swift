@@ -1884,6 +1884,34 @@ extension ReportProjectionRegistryV1 {
     }
 }
 
+
+enum PrivateSystemDiscoveryReportProjectionRegistryV1 {
+    static let exposesWorkspaceIdentifiers = false
+    static let exposesPrivateParameters = false
+    static let exposesRoutesOrCustomerContent = false
+    static let participatesInBackupExport = false
+
+    static func projection(
+        from state: PrivateSystemDiscoveryStateMapV1
+    ) throws -> PrivateSystemDiscoveryReportProjectionV1 {
+        guard !exposesWorkspaceIdentifiers,
+              !exposesPrivateParameters,
+              !exposesRoutesOrCustomerContent,
+              !participatesInBackupExport else {
+            throw PrivateSystemDiscoveryFailureV1.unsafeShare
+        }
+        let projection = try PrivateSystemDiscoveryReportProjectionV1(state: state)
+        try projection.validate()
+        return projection
+    }
+
+    static func projection(
+        from index: any PrivateSystemDiscoveryIndexLifecyclePortV1
+    ) async throws -> PrivateSystemDiscoveryReportProjectionV1 {
+        try await projection(from: index.state())
+    }
+}
+
 enum EntityIdentityResolutionReportProjectionRegistryV1 {
     static let relationshipsAreConsolidationAuthority = false
     static let mutablePlansAreReportTruth = false

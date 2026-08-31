@@ -9,6 +9,31 @@ enum C50IncumbentFileExchangeEraseAllBoundaryV1 {
     static let disablesOrRewritesInstalledProfileRelease = false
 }
 
+enum PrivateSystemDiscoveryEraseAllServiceBoundaryV1 {
+    static func erase(
+        operationID: PrivateSystemDiscoveryOperationIDV1,
+        index: any PrivateSystemDiscoveryIndexLifecyclePortV1,
+        now: Date
+    ) async throws {
+        try PrivateSystemDiscoveryEraseIntentBoundaryV1.validate()
+        try await index.eraseAll(operationID: operationID, now: now)
+    }
+
+    static func dropAfterRestoreOrReplay(
+        operationID: PrivateSystemDiscoveryOperationIDV1,
+        index: any PrivateSystemDiscoveryIndexLifecyclePortV1
+    ) async throws {
+        try operationID.validate()
+        guard operationID.operation == .removal else {
+            throw PrivateSystemDiscoveryFailureV1.invalidValue
+        }
+        // Restore/replay uses the same durable, idempotent global-removal
+        // state machine as Erase, while remaining derived-only and creating no
+        // canonical deletion or backup rows.
+        try await index.eraseAll(operationID: operationID, now: Date())
+    }
+}
+
 protocol EncryptedPortableEnvelopeEraseScratchV1: Sendable {
     func eraseEncryptedPortableEnvelopeScratch() async throws
 }
@@ -484,6 +509,7 @@ final class EraseAllService {
     private let sleeper: any ApplicationSleeper
     private let failureInjection: EraseAllFailureInjection?
     private let sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)?
+    private let privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)?
 
     init(
         applicationSupportURL: URL,
@@ -496,7 +522,8 @@ final class EraseAllService {
         makeUUID: @escaping () -> UUID = UUID.init,
         sleeper: any ApplicationSleeper = SystemApplicationSleeper(),
         failureInjection: EraseAllFailureInjection? = nil,
-        sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)? = nil
+        sceneNavigationStatePort: (any SceneNavigationDeviceStatePortV1)? = nil,
+        privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)? = PrivateSystemDiscoveryIndexRuntimeV1.shared
     ) {
         let support = applicationSupportURL.standardizedFileURL
         self.applicationSupportURL = support
@@ -519,6 +546,7 @@ final class EraseAllService {
         self.sleeper = sleeper
         self.failureInjection = failureInjection
         self.sceneNavigationStatePort = sceneNavigationStatePort
+        self.privateSystemDiscoveryIndex = privateSystemDiscoveryIndex
     }
 
     func erase(
@@ -785,6 +813,13 @@ final class EraseAllService {
                 axes: [.shared, .installation, .punch],
                 event: .erase
             ))
+            if let privateSystemDiscoveryIndex {
+                let operationID = try privateSystemDiscoveryOperationID(intent)
+                try await privateSystemDiscoveryIndex.eraseAll(
+                    operationID: operationID,
+                    now: Date()
+                )
+            }
             guard try await waitForDrain(drainProof) else {
                 return EraseAllOutcome(
                     session: session,
@@ -941,6 +976,12 @@ final class EraseAllService {
         let activated = intent.phase == .cleanupComplete
             ? intent
             : intent.advancing(to: .sessionActivated)
+        if let privateSystemDiscoveryIndex {
+            try await privateSystemDiscoveryIndex.eraseAll(
+                operationID: try privateSystemDiscoveryOperationID(intent),
+                now: Date()
+            )
+        }
         return try await completeCleanup(
             activated,
             session: session,
@@ -976,6 +1017,40 @@ final class EraseAllService {
 }
 
 private extension EraseAllService {
+    struct PrivateSystemDiscoveryEraseBindingV1: Codable {
+        let schemaVersion: Int
+        let operation: String
+        let eraseID: UUID
+        let workspaceID: WorkspaceID
+        let oldGenerationID: UUID
+        let newGenerationID: UUID
+    }
+
+    func privateSystemDiscoveryOperationID(
+        _ intent: EraseIntentV1
+    ) throws -> PrivateSystemDiscoveryOperationIDV1 {
+        guard let oldPointer = intent.oldPointer else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let workspaceID = WorkspaceID(rawValue: oldPointer.workspaceID)
+        let inputSHA256 = CompatibilityCanonicalV1.sha256(
+            try CompatibilityCanonicalV1.encode(PrivateSystemDiscoveryEraseBindingV1(
+                schemaVersion: 1,
+                operation: "GLOBAL_ERASE_DERIVED_INDEX_DROP_V1",
+                eraseID: intent.eraseID,
+                workspaceID: workspaceID,
+                oldGenerationID: intent.oldGenerationID,
+                newGenerationID: intent.newGenerationID
+            ))
+        )
+        return try PrivateSystemDiscoveryOperationIDV1(
+            rawValue: intent.eraseID,
+            operation: .removal,
+            workspaceID: workspaceID,
+            inputSHA256: inputSHA256
+        )
+    }
+
     func validatePackageLifecycleScope(
         dependencies: WorkspacePackageLifecycleDependenciesV1,
         coordinator: StoreSessionCoordinator

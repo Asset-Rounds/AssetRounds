@@ -328,3 +328,9 @@ protocol AppAccessGatePortV1: Sendable {
         -> LocalAuthenticationOutcomeV1
     func requireContentAccess() async throws
 }
+
+extension AppAccessGatePortV1 {
+    func requirePrivateSystemDiscoveryAccess() async throws {
+        try await requireContentAccess()
+    }
+}

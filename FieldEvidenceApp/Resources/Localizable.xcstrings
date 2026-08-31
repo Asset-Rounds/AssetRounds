@@ -4935,7 +4935,19 @@
     "c13.identity.no_automatic_mutation" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Automatic mutation is disabled." } } } },
     "c13.identity.confirm_consolidation" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm consolidation" } } } },
     "c13.identity.handoff" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review identity resolution" } } } },
-    "c13.identity.reduced_motion" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced." } } } }
+    "c13.identity.reduced_motion" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced." } } } },
+    "private.system.discovery.settings.heading" : { "comment" : "C14 private on-device system discovery settings heading.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Private system discovery" } } } },
+    "private.system.discovery.settings.disclosure" : { "comment" : "C14 disclosure that discovery is private, opt-in, and restricted to selected real workspaces.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "When enabled for selected real workspaces, private on-device discovery can make approved read-only shortcuts available." } } } },
+    "private.system.discovery.settings.indexing-toggle" : { "comment" : "C14 opt-in private on-device discovery setting.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Allow private on-device discovery" } } } },
+    "private.system.discovery.settings.disabled" : { "comment" : "C14 default-off discovery state.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Private system discovery is off." } } } },
+    "private.system.discovery.settings.unavailable" : { "comment" : "C14 capability-unavailable discovery state.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Private system discovery is unavailable." } } } },
+    "private.system.discovery.settings.practice-excluded" : { "comment" : "C14 policy disclosure that Practice is excluded.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Practice workspaces are not included." } } } },
+    "private.system.discovery.intent.unlock-required" : { "comment" : "Generic C14 protected-data outcome that intentionally reveals no record existence.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock the app to continue." } } } },
+    "private.system.discovery.intent.unavailable" : { "comment" : "Generic C14 unavailable outcome that intentionally reveals no record existence.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This action is unavailable." } } } },
+    "private.system.discovery.intent.manual-fallback" : { "comment" : "Generic C14 manual fallback without record disclosure.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open the app and use the available manual path." } } } },
+    "private.system.discovery.intent.open-today" : { "comment" : "C14 read-only foreground App Intent title.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Today" } } } },
+    "private.system.discovery.intent.open-assets" : { "comment" : "C14 read-only foreground App Intent title.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Assets" } } } },
+    "private.system.discovery.intent.open-reports" : { "comment" : "C14 read-only foreground App Intent title.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Reports" } } } }
   },
   "version" : "1.0"
 }

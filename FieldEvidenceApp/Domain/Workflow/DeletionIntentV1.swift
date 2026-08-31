@@ -704,3 +704,19 @@ enum C52ServiceRequestBoundary_DeletionIntentV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+
+enum PrivateSystemDiscoveryDeletionIntentBoundaryV1 {
+    static let blockResolutionBeforeProtectedIndexIO = true
+    static let disposition = "REMOVAL_JOURNALED"
+    static let removesOnlyMatchingWorkspace = true
+
+    static func validate() throws {
+        try PrivateSystemDiscoveryDeletionLedgerPolicyV1.validate()
+        guard blockResolutionBeforeProtectedIndexIO,
+              disposition == PrivateSystemDiscoveryDeletionLedgerPolicyV1.deletionDisposition,
+              removesOnlyMatchingWorkspace else {
+            throw PrivateSystemDiscoveryFailureV1.invalidValue
+        }
+    }
+}

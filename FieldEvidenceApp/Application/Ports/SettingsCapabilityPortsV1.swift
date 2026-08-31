@@ -22,6 +22,14 @@ protocol DevicePreferencesPortV1: Sendable {
     func erase(descriptors: [SettingDescriptorV1], operationID: UUID) throws
 }
 
+protocol PrivateSystemDiscoveryPreferencePortV1: Sendable {
+    func readPrivateSystemDiscoveryOptIn() throws -> PrivateSystemDiscoveryOptInV1
+    func writePrivateSystemDiscoveryOptIn(_ value: PrivateSystemDiscoveryOptInV1, operationID: UUID) throws
+    func migratePrivateSystemDiscoveryOptIn(operationID: UUID) throws -> PrivateSystemDiscoveryOptInV1
+}
+
+extension PreferencesAdapterV1: PrivateSystemDiscoveryPreferencePortV1 {}
+
 struct WorkspaceSettingWriteCommandV1: Sendable {
     let workspaceID: UUID
     let key: String

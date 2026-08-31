@@ -224,6 +224,21 @@
     "sourcePath": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift"
   },
   "requiresAcceptedS10_6Reconciliation": true,
+  "systemDiscoveryProjection": {
+    "activationEnabled": false,
+    "adoptionEnabled": false,
+    "appAccessGateBeforePrivateResolution": true,
+    "backup": "DROP_AND_REBUILD",
+    "canonicalPersistence": false,
+    "defaultOptIn": false,
+    "indexName": "PRIVATE_SYSTEM_DISCOVERY_INDEX_V1",
+    "networkAccess": false,
+    "practiceWorkspaceAllowed": false,
+    "publicRoutes": false,
+    "removalJournaled": true,
+    "selectedRealWorkspaceOnly": true,
+    "shareRequiresLocalAudiencePrivacyDerivative": true
+  },
   "schema": "V23P01C02OwnedFilePrivacyInventoryV1",
   "schemaVersion": 1,
   "secretInventory": [],

@@ -368,6 +368,19 @@ enum PrivacyProjectionV1{
     }
 }
 
+enum PrivateSystemDiscoveryPrivacyTransformBoundaryV1 {
+    static func validateLocalShare(manifest: PrivacyTransformManifestV1, review: PrivacyReviewReceiptV1,
+                                   policy: PrivacyTransformPolicyV1, audience: EvidenceAudienceV1,
+                                   now: Date) throws -> ContentReferenceV1 {
+        let decision = try PrivacyProjectionV1.decide(manifest: manifest, review: review, policy: policy,
+            requestedAudience: audience, currentSourceRevision: manifest.sourceRevision,
+            currentSourceSHA256: manifest.sourceSHA256, at: now)
+        guard let derivative = decision.derivative, decision.denial == nil else { throw PrivacyTransformFailureV1.reviewRequired }
+        try PrivateSystemDiscoveryContentReferenceBoundaryV1.validateLocalDerivative(derivative, workspaceID: manifest.workspaceID)
+        return derivative
+    }
+}
+
 struct PrivacyTransformLifecycleClosureV1: Sendable {
     let policy: PrivacyTransformPolicyV1
     let regions: [PrivacyRegionV1]

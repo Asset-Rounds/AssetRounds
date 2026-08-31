@@ -3135,3 +3135,37 @@ enum C12AccessibilityIDV1: String, CaseIterable, Sendable { case reinspectionScr
 enum C12AccessibilityPolicyV1 { static let flags = (voiceOver: true, voiceControl: true, switchControl: true, ax5: true, nonColor: true, rtl: true, reduceMotion: true, adopted: false, acceptance: false, release: false) }
 enum C13AccessibilityIDV1: String, CaseIterable, Sendable { case screen = "v23.p04.c13.identity.screen", state = "v23.p04.c13.identity.state", reason = "v23.p04.c13.identity.reason", confirm = "v23.p04.c13.identity.confirm", handoff = "v23.p04.c13.identity.handoff" }
 enum C13AccessibilityPolicyV1 { static let automaticMutation = false, adopted = false, acceptance = false, release = false }
+
+/// Stable C14 identifiers for the unadopted settings surface and generic
+/// system-entry outcomes. They do not encode a workspace or record identity.
+enum PrivateSystemDiscoveryAccessibilityIDV1: String, CaseIterable, Sendable {
+    case settingsScreen = "private.system.discovery.settings.screen"
+    case settingsHeading = "private.system.discovery.settings.heading"
+    case indexingToggle = "private.system.discovery.settings.indexing-toggle"
+    case indexingState = "private.system.discovery.settings.indexing-state"
+    case practiceExclusion = "private.system.discovery.settings.practice-exclusion"
+    case unlockRequired = "private.system.discovery.intent.unlock-required"
+    case unavailable = "private.system.discovery.intent.unavailable"
+    case manualFallback = "private.system.discovery.intent.manual-fallback"
+}
+
+enum PrivateSystemDiscoveryAccessibilityPolicyV1 {
+    static let semanticIDs = PrivateSystemDiscoveryAccessibilityIDV1.allCases.map(\.rawValue)
+    static let stateIsNotColorOnly = true
+    static let genericProtectedOutcomeRequired = true
+    static let dynamicTypeAX5Required = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+    static let rtlRequired = true
+    static let appShellAdopted = false
+
+    static func validate() throws {
+        guard semanticIDs.count == Set(semanticIDs).count,
+              stateIsNotColorOnly, genericProtectedOutcomeRequired,
+              dynamicTypeAX5Required, voiceOverRequired, voiceControlRequired,
+              switchControlRequired, rtlRequired, !appShellAdopted else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

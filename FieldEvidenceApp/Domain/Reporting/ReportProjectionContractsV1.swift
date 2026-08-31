@@ -6643,3 +6643,44 @@ struct EntityIdentityResolutionReportProjectionV1: Codable, Equatable, Sendable 
         let snapshot: EntityIdentityResolutionBackupSnapshotV1
     }
 }
+
+
+/// Aggregate-only lifecycle projection for report/export diagnostics. It
+/// proves the disposable index state without emitting workspace identifiers,
+/// action identifiers, private query parameters, routes, titles, or digests.
+struct PrivateSystemDiscoveryReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "PRIVATE_SYSTEM_DISCOVERY_REPORT_V1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let indexName: String
+    let indexedRealWorkspaceCount: Int
+    let persistenceDisposition: String
+    let deletionDisposition: String
+
+    init(state: PrivateSystemDiscoveryStateMapV1) throws {
+        try state.validate()
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        indexName = PrivateSystemDiscoveryLifecycleV1.namedIndex
+        indexedRealWorkspaceCount = state.workspaces.count
+        persistenceDisposition = "DERIVED_ONLY"
+        deletionDisposition = "REMOVAL_JOURNALED"
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              indexName == PrivateSystemDiscoveryLifecycleV1.namedIndex,
+              indexedRealWorkspaceCount >= 0,
+              indexedRealWorkspaceCount <= SearchContractLimitsV1.maximumCanonicalRecords,
+              persistenceDisposition == "DERIVED_ONLY",
+              deletionDisposition == "REMOVAL_JOURNALED",
+              !PrivateSystemDiscoveryLifecycleV1.canonicalPersistence,
+              PrivateSystemDiscoveryLifecycleV1.removalIsJournaled else {
+            throw PrivateSystemDiscoveryFailureV1.invalidValue
+        }
+    }
+}

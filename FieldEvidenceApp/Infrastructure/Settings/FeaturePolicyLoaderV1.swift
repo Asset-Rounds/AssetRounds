@@ -12,7 +12,7 @@ final class BundleFeaturePolicyDataProviderV1: BundledFeaturePolicyDataPortV1, @
     static let resourceName = "FeaturePolicyV1"
     static let resourceExtension = "json"
     static let releasedResourceDigest =
-        "5f6f781a3a8ead62cb7d108de688cf801a01d58802cc909e4ee118c09c029fa6"
+        "98a205edc22421ec4a4f2a5494628f4f40be7117a95cdd3cc94e2d6eab7c98ef"
 
     private let bundle: Bundle
     private let expectedDigest: String
@@ -44,6 +44,18 @@ final class BundleFeaturePolicyDataProviderV1: BundledFeaturePolicyDataPortV1, @
 
     func buildArtifactDigest() throws -> String {
         CompatibilityCanonicalV1.sha256(try canonicalFeaturePolicyData())
+    }
+}
+
+enum PrivateSystemDiscoveryFeaturePolicyBoundaryV1 {
+    static let featureID = "privateSystemDiscovery"
+    static func resolve(using loader: FeaturePolicyLoaderV1) throws -> FeaturePolicyResolutionV1 {
+        let value = try loader.resolve(featureID: featureID)
+        guard value.policyState == .preparedDisabled, value.requiredCapabilities.isEmpty,
+              value.requiredPackageIDs.isEmpty, value.safeFallback == .noFallback else {
+            throw CapabilityContractFailureV1.invalidValue
+        }
+        return value
     }
 }
 

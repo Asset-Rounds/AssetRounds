@@ -691,6 +691,9 @@ struct SettingsRegistryV1: Sendable {
         let recentSurveyDefinitions = try CompatibilityCanonicalV1.encode(
             [SurveyDefinitionPreferenceReferenceV1]()
         )
+        let privateSystemDiscovery = try CompatibilityCanonicalV1.encode(
+            PrivateSystemDiscoveryOptInV1.offToken
+        )
         return try SettingsRegistryV1(descriptors: [
             try SettingDescriptorV1(
                 key: DeviceLocalAppLockSettingV1.key,
@@ -749,6 +752,21 @@ struct SettingsRegistryV1: Sendable {
                 erase: .restoreDefault,
                 privacy: .devicePreferenceNoCustomerData,
                 localizationKey: "settings.recentInputMemory"
+            ),
+            try SettingDescriptorV1(
+                key: PrivateSystemDiscoveryOptInV1.settingKey,
+                valueKind: .boundedString,
+                scope: .deviceLocal,
+                storage: .soleDevicePreferencesAdapter,
+                defaultCanonicalValue: privateSystemDiscovery,
+                maximumCanonicalBytes: 1_024,
+                migrationVersion: PrivateSystemDiscoveryOptInV1.schemaVersion,
+                backup: .excludedDeviceLocal,
+                reset: .restoreDefault,
+                erase: .restoreDefault,
+                privacy: .devicePreferenceNoCustomerData,
+                localizationKey: "settings.privateSystemDiscovery",
+                changesHistoricOutput: false
             ),
             try SettingDescriptorV1(
                 key: SurveyDefinitionDeviceMemoryV1.favoriteKey,

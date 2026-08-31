@@ -18,6 +18,27 @@ enum C50IncumbentFileExchangeDeletionLedgerBoundaryV1 {
     }
 }
 
+/// The system index is derived-only. Its REMOVAL_JOURNALED operation belongs
+/// to the protected index actor and never introduces a canonical tombstone
+/// kind into the backup/deletion ledger.
+enum PrivateSystemDiscoveryDeletionLedgerPolicyV1 {
+    static let deletionDisposition = "REMOVAL_JOURNALED"
+    static let createsCanonicalLedgerKind = false
+    static let includedInBackup = false
+    static let workspaceRemovalPreservesOtherWorkspaceState = true
+
+    static func validate() throws {
+        guard deletionDisposition == "REMOVAL_JOURNALED",
+              !createsCanonicalLedgerKind,
+              !includedInBackup,
+              workspaceRemovalPreservesOtherWorkspaceState,
+              PrivateSystemDiscoveryLifecycleV1.removalIsJournaled,
+              !PrivateSystemDiscoveryLifecycleV1.canonicalPersistence else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
+
 enum DeletionLedgerFailureV2: Error, Equatable, Sendable {
     case invalidSchemaVersion
     case invalidIdentity

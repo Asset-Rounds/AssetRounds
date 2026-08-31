@@ -819,6 +819,12 @@ final class WholeSignDeletionService {
         ) else {
             throw WholeSignDeletionServiceError.journalInvalid
         }
+        try await removePrivateSystemDiscovery(
+            deletionID: plan.intent.deletionID,
+            subjectKind: "ASSET",
+            subjectID: plan.intent.assetID,
+            generationID: plan.intent.generationID
+        )
         try await purgeSearchProjectionAfterDeletion()
         try await purgeIntegrationProjectionAfterDeletion()
         do {
@@ -1015,6 +1021,12 @@ final class WholeSignDeletionService {
         ) else {
             throw WholeSignDeletionServiceError.journalInvalid
         }
+        try await removePrivateSystemDiscovery(
+            deletionID: preview.deletionID,
+            subjectKind: "SITE",
+            subjectID: preview.siteID,
+            generationID: preview.generationID
+        )
         try await purgeSearchProjectionAfterDeletion()
         try await purgeIntegrationProjectionAfterDeletion()
         do {
@@ -1066,6 +1078,46 @@ final class WholeSignDeletionService {
         } catch {
             throw WholeSignDeletionServiceError.cleanupFailed
         }
+    }
+
+    private struct PrivateSystemDiscoveryDeletionBindingV1: Codable {
+        let schemaVersion: Int
+        let operation: String
+        let workspaceID: WorkspaceID
+        let generationID: UUID
+        let deletionID: UUID
+        let subjectKind: String
+        let subjectID: UUID
+    }
+
+    private func removePrivateSystemDiscovery(
+        deletionID: UUID,
+        subjectKind: String,
+        subjectID: UUID,
+        generationID: UUID
+    ) async throws {
+        let workspaceID: WorkspaceID?
+        switch lifecycleRoute {
+        case .live(let dependencies): workspaceID = dependencies.workspaceID
+        case .expiringCompatibility:
+            let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+            guard states.count <= 1 else { throw WholeSignDeletionServiceError.journalInvalid }
+            workspaceID = states.first.map { WorkspaceID(rawValue: $0.workspaceID) }
+        }
+        guard let workspaceID else { return }
+        let inputSHA256 = CompatibilityCanonicalV1.sha256(
+            try CompatibilityCanonicalV1.encode(PrivateSystemDiscoveryDeletionBindingV1(
+                schemaVersion: 1, operation: "WHOLE_SIGN_DELETION_V1",
+                workspaceID: workspaceID, generationID: generationID,
+                deletionID: deletionID, subjectKind: subjectKind, subjectID: subjectID
+            ))
+        )
+        let request = try PrivateSystemDiscoveryRemovalRequestV1(
+            operationRawID: deletionID, workspaceID: workspaceID,
+            priorStateSHA256: inputSHA256, requestedAt: now()
+        )
+        do { try await ledgerStore.removePrivateSystemDiscovery(request: request) }
+        catch { throw WholeSignDeletionServiceError.cleanupFailed }
     }
 
     private func purgeIntegrationProjectionAfterDeletion() async throws {
@@ -1182,6 +1234,10 @@ final class WholeSignDeletionService {
                 try inject(.committedPhase)
                 try journal.replace(intent.withPhase(.databaseCommitted))
                 try await cleanup(intent.withPhase(.databaseCommitted))
+                try await removePrivateSystemDiscovery(
+                    deletionID: intent.deletionID, subjectKind: "ASSET",
+                    subjectID: intent.assetID, generationID: intent.generationID
+                )
                 try await purgeSearchProjectionAfterDeletion()
                 try await purgeIntegrationProjectionAfterDeletion()
                 try inject(.journalRemoval)
@@ -1196,6 +1252,10 @@ final class WholeSignDeletionService {
                 try journal.replace(intent.withPhase(.databaseCommitted))
             }
             try await cleanup(intent.withPhase(.databaseCommitted))
+            try await removePrivateSystemDiscovery(
+                deletionID: intent.deletionID, subjectKind: "ASSET",
+                subjectID: intent.assetID, generationID: intent.generationID
+            )
             try await purgeSearchProjectionAfterDeletion()
             try await purgeIntegrationProjectionAfterDeletion()
             try journal.remove(intent.withPhase(.databaseCommitted))
@@ -1219,6 +1279,10 @@ final class WholeSignDeletionService {
                     marker.withPhase(.databaseCommitted)
                 )
             }
+            try await removePrivateSystemDiscovery(
+                deletionID: marker.deletionID, subjectKind: "SITE",
+                subjectID: marker.siteID, generationID: marker.generationID
+            )
             try await purgeSearchProjectionAfterDeletion()
             try await purgeIntegrationProjectionAfterDeletion()
             try journal.removeSiteSearchPurgeMarker(

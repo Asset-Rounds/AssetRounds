@@ -588,6 +588,30 @@ struct FeaturePolicyDescriptorV1: Codable, Equatable, Sendable {
     let minimumPlatformMajorVersion: Int
     let safeFallback: ManualFallbackActionV1
     let consumers: [String]
+    let policyEntrySHA256: String?
+
+    init(featureID: String, state: FeaturePolicyStateV1, requiredPackageIDs: [String],
+         requiredCapabilities: [CapabilityIDV1], minimumPlatformMajorVersion: Int,
+         safeFallback: ManualFallbackActionV1, consumers: [String], policyEntrySHA256: String? = nil) {
+        self.featureID = featureID; self.state = state; self.requiredPackageIDs = requiredPackageIDs
+        self.requiredCapabilities = requiredCapabilities; self.minimumPlatformMajorVersion = minimumPlatformMajorVersion
+        self.safeFallback = safeFallback; self.consumers = consumers; self.policyEntrySHA256 = policyEntrySHA256
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case featureID, state, requiredPackageIDs, requiredCapabilities
+        case minimumPlatformMajorVersion, safeFallback, consumers, policyEntrySHA256
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(featureID, forKey: .featureID); try container.encode(state, forKey: .state)
+        try container.encode(requiredPackageIDs, forKey: .requiredPackageIDs)
+        try container.encode(requiredCapabilities, forKey: .requiredCapabilities)
+        try container.encode(minimumPlatformMajorVersion, forKey: .minimumPlatformMajorVersion)
+        try container.encode(safeFallback, forKey: .safeFallback); try container.encode(consumers, forKey: .consumers)
+        try container.encode(policyEntrySHA256, forKey: .policyEntrySHA256)
+    }
 
     func validate() throws {
         guard SettingsValidationV1.validToken(featureID, maximumBytes: 160),
@@ -603,7 +627,33 @@ struct FeaturePolicyDescriptorV1: Codable, Equatable, Sendable {
               consumers.allSatisfy({ SettingsValidationV1.validToken($0, maximumBytes: 160) }) else {
             throw CapabilityContractFailureV1.invalidValue
         }
+        if featureID == "privateSystemDiscovery" {
+            let basis = PrivateSystemDiscoveryFeaturePolicySignatureBasisV1(
+                consumers: consumers, featureID: featureID,
+                minimumPlatformMajorVersion: minimumPlatformMajorVersion,
+                requiredCapabilities: requiredCapabilities, requiredPackageIDs: requiredPackageIDs,
+                safeFallback: safeFallback, state: state
+            )
+            guard let policyEntrySHA256,
+                  policyEntrySHA256 == CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(basis)),
+                  state == .preparedDisabled, requiredCapabilities.isEmpty,
+                  requiredPackageIDs.isEmpty, safeFallback == .noFallback else {
+                throw CapabilityContractFailureV1.invalidValue
+            }
+        } else if policyEntrySHA256 != nil {
+            throw CapabilityContractFailureV1.invalidValue
+        }
     }
+}
+
+private struct PrivateSystemDiscoveryFeaturePolicySignatureBasisV1: Codable {
+    let consumers: [String]
+    let featureID: String
+    let minimumPlatformMajorVersion: Int
+    let requiredCapabilities: [CapabilityIDV1]
+    let requiredPackageIDs: [String]
+    let safeFallback: ManualFallbackActionV1
+    let state: FeaturePolicyStateV1
 }
 
 struct FeaturePolicyRegistryV1: Codable, Equatable, Sendable {

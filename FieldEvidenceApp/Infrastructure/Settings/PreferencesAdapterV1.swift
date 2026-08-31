@@ -359,6 +359,28 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, @unchecked Sendable {
     }
 }
 
+extension PreferencesAdapterV1 {
+    func readPrivateSystemDiscoveryOptIn() throws -> PrivateSystemDiscoveryOptInV1 {
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: PrivateSystemDiscoveryOptInV1.settingKey)
+        let token = try CompatibilityCanonicalV1.decode(String.self, from: readCanonicalValue(for: descriptor))
+        return try PrivateSystemDiscoveryOptInV1(canonicalSettingToken: token,
+            workspaceKind: token == PrivateSystemDiscoveryOptInV1.offToken ? nil : .real)
+    }
+
+    func writePrivateSystemDiscoveryOptIn(_ value: PrivateSystemDiscoveryOptInV1, operationID: UUID) throws {
+        try value.validate()
+        let descriptor = try SettingsRegistryV1.current().descriptor(for: PrivateSystemDiscoveryOptInV1.settingKey)
+        try writeCanonicalValue(CompatibilityCanonicalV1.encode(value.canonicalSettingToken),
+            descriptor: descriptor, operationID: operationID)
+    }
+
+    func migratePrivateSystemDiscoveryOptIn(operationID: UUID) throws -> PrivateSystemDiscoveryOptInV1 {
+        let value = try readPrivateSystemDiscoveryOptIn()
+        try writePrivateSystemDiscoveryOptIn(value, operationID: operationID)
+        return value
+    }
+}
+
 // MARK: - C25 device-local survey-definition memory
 
 extension PreferencesAdapterV1 {

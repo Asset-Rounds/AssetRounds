@@ -166,12 +166,18 @@ enum PlacementPoseDeletionLedgerStorePolicyV1 {
 @MainActor
 final class DeletionLedgerStore {
     private let context: ModelContext
+    private let privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)?
 
-    init(context: ModelContext) {
+    init(
+        context: ModelContext,
+        privateSystemDiscoveryIndex: (any PrivateSystemDiscoveryIndexLifecyclePortV1)? = PrivateSystemDiscoveryIndexRuntimeV1.shared
+    ) {
         self.context = context
+        self.privateSystemDiscoveryIndex = privateSystemDiscoveryIndex
     }
 
     func snapshot() throws -> DeletionLedgerV2 {
+        try PrivateSystemDiscoveryDeletionLedgerPolicyV1.validate()
         try EvidenceMetadataDeletionLedgerStorePolicyV1.validate()
         try AssetLocatorDeletionLedgerStorePolicyV1.validate()
         try FieldReferenceDeletionLedgerStorePolicyV1.validate()
@@ -240,6 +246,33 @@ final class DeletionLedgerStore {
         guard identities.isSubset(of: actual) else {
             throw DeletionLedgerFailureV2.invalidIdentity
         }
+    }
+
+    func removePrivateSystemDiscovery(
+        request: PrivateSystemDiscoveryRemovalRequestV1
+    ) async throws {
+        try request.validate()
+        guard let privateSystemDiscoveryIndex else { return }
+        try await privateSystemDiscoveryIndex.remove(
+            operationID: request.operationID,
+            workspaceID: request.workspaceID,
+            now: request.requestedAt
+        )
+    }
+}
+
+enum PrivateSystemDiscoveryDeletionLedgerStoreBoundaryV1 {
+    static let canonicalRowCount = 0
+    static let journalOwner = "PRIVATE_SYSTEM_DISCOVERY_INDEX_ACTOR_V1"
+
+    static func remove(
+        operationID: PrivateSystemDiscoveryOperationIDV1,
+        workspaceID: WorkspaceID,
+        from index: any PrivateSystemDiscoveryIndexLifecyclePortV1,
+        now: Date
+    ) async throws {
+        try PrivateSystemDiscoveryDeletionIntentBoundaryV1.validate()
+        try await index.remove(operationID: operationID, workspaceID: workspaceID, now: now)
     }
 }
 

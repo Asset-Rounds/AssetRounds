@@ -149,3 +149,16 @@ struct PrivacyTransformCoordinatorV1: Sendable {
                                        currentSourceRevision: sourceRevision, currentSourceSHA256: sourceSHA256, at: now)
     }
 }
+
+extension PrivacyTransformCoordinatorV1 {
+    func privateSystemDiscoveryShareDescriptor(workspaceID: WorkspaceID, audience: EvidenceAudienceV1,
+                                               manifest: PrivacyTransformManifestV1, review: PrivacyReviewReceiptV1,
+                                               policy: PrivacyTransformPolicyV1, now: Date) throws
+        -> PrivateSystemDiscoveryShareDescriptorV1 {
+        let derivative = try PrivateSystemDiscoveryPrivacyTransformBoundaryV1.validateLocalShare(
+            manifest: manifest, review: review, policy: policy, audience: audience, now: now
+        )
+        return try PrivateSystemDiscoveryShareDescriptorV1(workspaceID: workspaceID, audience: audience,
+            content: derivative, privacyManifest: manifest, policy: policy, review: review, now: now)
+    }
+}

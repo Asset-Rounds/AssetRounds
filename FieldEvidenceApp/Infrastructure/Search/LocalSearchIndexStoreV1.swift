@@ -1705,6 +1705,25 @@ enum C08ImportBulkLocalSearchIndexBoundaryV1 {
             && rowsAreDerivedAndRebuildable
     }
 }
+
+
+/// C14 does not add rows to the incumbent file-backed search envelope. The
+/// protected named index actor is the sole system-discovery store.
+enum PrivateSystemDiscoveryLocalSearchBoundaryV1 {
+    static let usesLocalSearchIndexStore = false
+    static let usesDefaultSystemIndex = false
+    static let protectedNamedIndex = PrivateSystemDiscoveryLifecycleV1.namedIndex
+    static let actorType: Any.Type = PrivateSystemDiscoveryIndexStoreV1.self
+
+    static func validate() throws {
+        try PrivateSystemDiscoverySearchPersistenceBoundaryV1.validate()
+        guard !usesLocalSearchIndexStore,
+              !usesDefaultSystemIndex,
+              protectedNamedIndex == "PRIVATE_SYSTEM_DISCOVERY_INDEX_V1" else {
+            throw SearchContractFailureV1.invalidContext
+        }
+    }
+}
 enum EntityIdentityResolutionLocalSearchEnrollmentV1 {
     static let aliasAwareRebuildUsesCanonicalRows = true
     static let staleIndexRowsAreDropped = true

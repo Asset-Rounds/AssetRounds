@@ -1,0 +1,248 @@
+{
+  "schema": "V23P04C14PrivateSystemDiscoveryCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C14",
+  "ordinal": 102,
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "selectors": [
+    {
+      "id": "G01",
+      "selector": "testV23P04C14G01OptedInAvailableUnlockedDiscoveryInvokesReusableReadAndRouteOnlyIntents",
+      "tier": "GOLDEN"
+    },
+    {
+      "id": "A01",
+      "selector": "testV23P04C14A01UnavailableOrOptedOutDiscoveryPublishesNoPrivateSystemProjection",
+      "tier": "ALTERNATE"
+    },
+    {
+      "id": "H01",
+      "selector": "testV23P04C14H01LockedIngressResolvesNothingAndReturnsOnlyGenericUnlockRequired",
+      "tier": "HOSTILE"
+    },
+    {
+      "id": "I01",
+      "selector": "testV23P04C14I01InterruptedRebuildOrRemovalJournalReplaysWithoutDuplicateSystemProjection",
+      "tier": "INTERRUPTION"
+    },
+    {
+      "id": "R01",
+      "selector": "testV23P04C14R01DeleteEraseExportAndReportDropAndRebuildDerivedDiscoveryProjection",
+      "tier": "RECOVERY"
+    }
+  ],
+  "actions": [
+    "OPEN_TODAY",
+    "OPEN_ASSETS",
+    "SEARCH_WORKSPACE",
+    "OPEN_REPORTS"
+  ],
+  "authority": {
+    "contextDigest": "4e9857da3b23ec25afc3ab7128f8172cac7ee7c289866d6104fe12f0f390a58e",
+    "pathFenceDigest": "d47c15210bbe46e69581acf3db438401f57a77d21604101801a7ebeb4ffe3a73",
+    "sequence": 442,
+    "finalHashesSealed": false
+  },
+  "semantics": {
+    "persistentContractMode": "DERIVED_ONLY",
+    "persistentContractSchema": "SYSTEM_DISCOVERY_PROJECTION_V1",
+    "namedIndex": "PRIVATE_SYSTEM_DISCOVERY_INDEX_V1",
+    "canonicalPersistence": false,
+    "defaultOff": true,
+    "selectedWorkspaceOnly": true,
+    "realWorkspaceOnly": true,
+    "practiceExcluded": true,
+    "appAccessBeforeResolution": true,
+    "removalDisposition": "REMOVAL_JOURNALED",
+    "restoreDisposition": "DROP_AND_REBUILD",
+    "publicRoute": false,
+    "networkAccess": false,
+    "telemetry": false
+  },
+  "sourceHandoff": {
+    "cardID": "V23-P04-C13",
+    "previewFirst": true,
+    "usesExistingAvailabilityPolicy": true,
+    "usesExistingAccessGate": true,
+    "usesExistingRouteRegistry": true,
+    "secondIndex": false,
+    "secondSettingsSchema": false,
+    "canonicalWriter": false
+  },
+  "workspaces": [
+    {
+      "workspaceID": "c1400000-0000-4000-8000-000000000001",
+      "kind": "REAL",
+      "selected": true,
+      "sourceRevision": 7,
+      "projectionRevision": 7,
+      "projectionSHA256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "workspaceID": "c1400000-0000-4000-8000-000000000002",
+      "kind": "REAL",
+      "selected": false,
+      "sourceRevision": 9,
+      "projectionRevision": 0,
+      "projectionSHA256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "workspaceID": "c1400000-0000-4000-8000-000000000003",
+      "kind": "PRACTICE",
+      "selected": false,
+      "sourceRevision": 5,
+      "projectionRevision": 0,
+      "projectionSHA256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "allowlist": {
+    "fields": [
+      "opaqueRouteID",
+      "opaqueWorkspaceID",
+      "boundedDisplayIdentity",
+      "safeStatus",
+      "safeTimestamp"
+    ],
+    "excludedFields": [
+      "notes",
+      "media",
+      "address",
+      "preciseLocation",
+      "person",
+      "customerIdentifier",
+      "secret",
+      "hiddenEvidence"
+    ],
+    "allowlistSHA256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "projectionDescriptors": [
+    {
+      "domain": "NAVIGATION",
+      "projectionVersion": 1,
+      "allowlistSHA256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "policySHA256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "indexDefinitionSHA256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "domain": "WORKSPACE_SEARCH",
+      "projectionVersion": 1,
+      "allowlistSHA256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "policySHA256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "indexDefinitionSHA256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ],
+  "expectedDispositions": [
+    {
+      "case": "OPTED_IN_AVAILABLE_UNLOCKED",
+      "openToday": "NAVIGATION(TODAY,READ,0,AUTOMATIC_WORK_FALSE)",
+      "openAssets": "NAVIGATION(ASSETS,READ,0,AUTOMATIC_WORK_FALSE)",
+      "searchWorkspace": "READ(OPAQUE_WORKSPACE_RESULTS_ONLY)",
+      "openReports": "NAVIGATION(REPORTS,READ,0,AUTOMATIC_WORK_FALSE)"
+    },
+    {
+      "case": "OPTED_OUT_OR_UNAVAILABLE",
+      "all": "UNAVAILABLE_NO_PRIVATE_PROJECTION"
+    },
+    {
+      "case": "LOCKED_OR_PROTECTED_DATA_UNAVAILABLE",
+      "all": "UNLOCK_REQUIRED_NO_EXISTENCE_DISCLOSURE"
+    },
+    {
+      "case": "TOMBSTONED_OR_ERASED",
+      "all": "UNAVAILABLE_AFTER_REMOVAL_JOURNALED"
+    },
+    {
+      "case": "STALE_OR_WRONG_WORKSPACE",
+      "all": "SAFE_FALLBACK_OR_WRONG_WORKSPACE"
+    }
+  ],
+  "journal": {
+    "schemaVersion": 1,
+    "operations": ["REBUILD", "REMOVAL"],
+    "states": ["PREPARED", "EFFECT_APPLIED", "COMMITTED"],
+    "boundaries": [
+      "BEFORE_EFFECT",
+      "AFTER_EFFECT_BEFORE_COMMIT",
+      "AFTER_COMMIT_BEFORE_RETURN"
+    ],
+    "durableReplay": "REOPEN_ACTOR_LOADS_PREPARED_OR_EFFECT_APPLIED_THEN_COMMITS_ONCE",
+    "noDuplicateIndexing": true,
+    "noDuplicateDeletion": true,
+    "acceptedStateRule": "ZERO_PARTIAL_OR_ONE_COMPLETE_RECEIPT",
+    "idempotency": "OPERATION_ID_AND_RESULTING_STATE_SHA256"
+  },
+  "lifecycle": [
+    "DISABLE",
+    "TOMBSTONE",
+    "ERASE_ONE_WORKSPACE",
+    "ERASE_ALL",
+    "DROP",
+    "REBUILD",
+    "EXPORT",
+    "REPORT",
+    "RETRY_REMOVAL_JOURNAL"
+  ],
+  "safeShare": {
+    "audience": "CUSTOMER_REPORT",
+    "byteRole": "DERIVATIVE",
+    "requiresPrivacyManifest": true,
+    "requiresApprovedReview": true,
+    "originalBytesNeverShared": true,
+    "workspaceBinding": true,
+    "privacyManifestSHA256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "hostileCases": [
+    "EXPECTED_REVISION_BYPASS",
+    "SENSITIVE_FIELD_ALLOWLIST_BYPASS",
+    "PRACTICE_WORKSPACE",
+    "CROSS_WORKSPACE_COLLISION",
+    "STALE_PROJECTION",
+    "PUBLIC_ROUTE",
+    "DEFAULT_INDEX",
+    "DIRECT_API_SCANNER",
+    "CONCURRENT_SCANNER",
+    "LOCKED_INGRESS",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "TOMBSTONED_RECORD",
+    "ERASED_RECORD",
+    "UNSAFE_ORIGINAL_SHARE",
+    "UNAVAILABLE_ROUTE_ENDPOINT",
+    "UNKNOWN_ACTION",
+    "OVERFLOWED_STATE",
+    "CORRUPT_JOURNAL",
+    "DUPLICATE_REMOVAL_RETRY"
+  ],
+  "recovery": {
+    "backup": "NOT_APPLICABLE_DERIVED_ONLY",
+    "restore": "DROP_AND_REBUILD",
+    "delete": "REMOVE_DERIVED_ONLY",
+    "erase": "REMOVE_SELECTED_WORKSPACE_OR_ALL",
+    "rebuild": "SORTED_CANONICAL_INPUTS",
+    "retry": "SAME_OPERATION_ID_IS_IDEMPOTENT",
+    "preservesCanonicalRecords": true,
+    "preservesImmutableReceipts": true,
+    "localShareArtifactsPurged": true,
+    "eraseOnePreservesOtherWorkspace": true,
+    "globalEraseClearsAllKnownDomains": true,
+    "stateBlobLifecycle": "PRESENT_AFTER_COMMIT_CLEARED_BY_GLOBAL_ERASE_OR_DROP",
+    "reportDisposition": "AGGREGATE_ONLY_DERIVED_REMOVAL_JOURNALED"
+  },
+  "statusFlags": {
+    "activation": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "nativeAcceptance": false,
+    "hostedAcceptance": false,
+    "physicalEvidence": false,
+    "phase10PollingDuringParallelExecution": false,
+    "uiAcceptanceCredit": false
+  },
+  "uiAdoptionSkipped": true
+}

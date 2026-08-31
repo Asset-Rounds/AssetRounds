@@ -6263,3 +6263,58 @@ enum C12LocalizationKeyV1: String, CaseIterable, Sendable { case reinspectionHea
 extension C12LocalizationKeyV1 { var english: String { switch self { case .reinspectionHeading: return "Reinspection plan"; case .reinspectionDisclosure: return "Selection reasons are shown for review. Unchanged attestations are not fresh evidence."; case .freshEvidence: return "Fresh evidence recorded"; case .unchangedAttestation: return "Unchanged attestation; not new evidence"; case .empty: return "No local items need review."; case .protected: return "Protected local data is unavailable until the device is unlocked."; case .storage: return "Local storage needs attention."; case .offline: return "This local review is unavailable while offline."; case .interrupted: return "Review was interrupted; resume from the recorded local state."; case .error: return "The local review could not be prepared."; case .queueHeading: return "Exception review queue"; case .queueDisclosure: return "Acknowledgement records review only. It does not resolve the source or make prior evidence new."; case .severity: return "Severity"; case .deduplicated: return "Related records"; case .preview: return "Preview local detail"; case .acknowledge: return "Acknowledge review"; case .acknowledged: return "Acknowledged; source remains unresolved"; case .notAcknowledged: return "Not acknowledged"; case .queueUnavailable: return "The local queue is unavailable."; case .reducedMotion: return "Motion is reduced." } } }
 enum C13LocalizationKeyV1: String, CaseIterable, Sendable { case heading = "c13.identity.heading", accepted = "c13.identity.accepted", ambiguity = "c13.identity.ambiguity", staleConflict = "c13.identity.stale_conflict", confirmation = "c13.identity.confirmation", interrupted = "c13.identity.interrupted", historicAlias = "c13.identity.historic_alias", automaticMutationFalse = "c13.identity.no_automatic_mutation", confirmConsolidation = "c13.identity.confirm_consolidation", handoff = "c13.identity.handoff", reducedMotion = "c13.identity.reduced_motion" }
 extension C13LocalizationKeyV1 { var english: String { switch self { case .heading: return "Entity identity review"; case .accepted: return "Deterministic preview accepted for review"; case .ambiguity: return "Ambiguity requires review"; case .staleConflict: return "Preview is stale or conflicts"; case .confirmation: return "Explicit consolidation confirmation required"; case .interrupted: return "Review was interrupted; recover the recorded local state."; case .historicAlias: return "Historic alias or successor disclosure"; case .automaticMutationFalse: return "Automatic mutation is disabled."; case .confirmConsolidation: return "Confirm consolidation"; case .handoff: return "Review identity resolution"; case .reducedMotion: return "Motion is reduced." } } }
+
+/// C14 system-discovery text is intentionally generic: it must never expose
+/// whether a private workspace or record exists before the app access gate.
+enum PrivateSystemDiscoveryLocalizationKeyV1: String, CaseIterable, Sendable {
+    case settingsHeading = "private.system.discovery.settings.heading"
+    case settingsDisclosure = "private.system.discovery.settings.disclosure"
+    case indexingToggle = "private.system.discovery.settings.indexing-toggle"
+    case indexingDisabled = "private.system.discovery.settings.disabled"
+    case indexingUnavailable = "private.system.discovery.settings.unavailable"
+    case practiceExcluded = "private.system.discovery.settings.practice-excluded"
+    case unlockRequired = "private.system.discovery.intent.unlock-required"
+    case unavailable = "private.system.discovery.intent.unavailable"
+    case manualFallback = "private.system.discovery.intent.manual-fallback"
+    case openToday = "private.system.discovery.intent.open-today"
+    case openAssets = "private.system.discovery.intent.open-assets"
+    case openReports = "private.system.discovery.intent.open-reports"
+
+    var localizationKey: LocalizationKeyV1 { try! LocalizationKeyV1(rawValue) }
+}
+
+enum PrivateSystemDiscoveryLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let defaultOff = true
+    static let selectedRealWorkspacesOnly = true
+    static let practiceExcluded = true
+    static let noExistenceDisclosure = true
+    static let appShellAdopted = false
+
+    static func english(_ key: PrivateSystemDiscoveryLocalizationKeyV1) -> String {
+        switch key {
+        case .settingsHeading: return "Private system discovery"
+        case .settingsDisclosure: return "When enabled for selected real workspaces, private on-device discovery can make approved read-only shortcuts available."
+        case .indexingToggle: return "Allow private on-device discovery"
+        case .indexingDisabled: return "Private system discovery is off."
+        case .indexingUnavailable: return "Private system discovery is unavailable."
+        case .practiceExcluded: return "Practice workspaces are not included."
+        case .unlockRequired: return "Unlock the app to continue."
+        case .unavailable: return "This action is unavailable."
+        case .manualFallback: return "Open the app and use the available manual path."
+        case .openToday: return "Open Today"
+        case .openAssets: return "Open Assets"
+        case .openReports: return "Open Reports"
+        }
+    }
+
+    static func validate() throws {
+        guard sourceLocale == "en", defaultOff, selectedRealWorkspacesOnly,
+              practiceExcluded, noExistenceDisclosure, !appShellAdopted,
+              PrivateSystemDiscoveryLocalizationKeyV1.allCases.allSatisfy({
+                  !$0.rawValue.isEmpty && !english($0).isEmpty
+              }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

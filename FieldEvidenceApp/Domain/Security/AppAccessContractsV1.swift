@@ -13,6 +13,14 @@ enum AppAccessContractFailureV1: Error, Equatable, Sendable {
     case effectMismatch
 }
 
+enum PrivateSystemDiscoveryAccessBoundaryV1 {
+    static let gatePrecedesAvailability = true
+    static let gatePrecedesParameterResolution = true
+    static let gatePrecedesPreviewAndSpeech = true
+    static let lockedResponseContainsPrivateData = false
+    static let lockedRequestMayBeReplayed = false
+}
+
 struct DeviceLocalAppLockSettingV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     static let key = "device.appLock.enabled"

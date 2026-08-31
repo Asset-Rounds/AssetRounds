@@ -1,5 +1,12 @@
 import Foundation
 
+enum PrivateSystemDiscoveryIngressBoundaryV1 {
+    static let supportedKind: LockedIngressKindV1 = .appIntent
+    static let stagesResolvedParametersWhileLocked = false
+    static let returnsGenericUnlockRequired = true
+    static let requiresFreshAuthorizedRetry = true
+}
+
 /// Production state machine over an injected descriptor-pinned durable effect.
 /// It adds boundedness, exact-value adoption, and collision rejection without
 /// introducing a newly adopted store or durable kind in this card.

@@ -252,3 +252,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         }
     }
 }
+
+extension AppAccessGateV1 {
+    func permitsPrivateSystemDiscovery() -> Bool { state.permitsContentAccess }
+}

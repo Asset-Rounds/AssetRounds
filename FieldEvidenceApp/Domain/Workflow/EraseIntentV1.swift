@@ -693,3 +693,19 @@ enum C53AssetServiceReliabilityEraseIntentBoundaryV1 {
             && !AssetServiceReliabilityPersistenceEnrollmentV1.derivedProjectionIsPersistent
     }
 }
+
+
+enum PrivateSystemDiscoveryEraseIntentBoundaryV1 {
+    static let clearsAllProtectedIndexItems = true
+    static let clearsDisposableStateAndJournal = true
+    static let createsBackupPayload = false
+
+    static func validate() throws {
+        try PrivateSystemDiscoveryDeletionLedgerPolicyV1.validate()
+        guard clearsAllProtectedIndexItems,
+              clearsDisposableStateAndJournal,
+              !createsBackupPayload else {
+            throw PrivateSystemDiscoveryFailureV1.invalidValue
+        }
+    }
+}
