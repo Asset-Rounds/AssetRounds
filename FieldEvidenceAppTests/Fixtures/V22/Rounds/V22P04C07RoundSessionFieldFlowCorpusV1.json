@@ -1,0 +1,39 @@
+{
+  "cardID": "V23-P04-C07",
+  "claims": {
+    "accessibilityTruthRequired": true,
+    "batchHandoffAndLocalCloseoutReconcile": true,
+    "deleteRequiresInformedAction": true,
+    "noFalseCompleteForOutOfOrderWork": true,
+    "resumePreservesDurablePosition": true,
+    "uiNeverLeadsCanonicalState": true
+  },
+  "coverage": {
+    "G01": ["multi-asset-happy-path", "selection-order", "complete-incomplete-flagged-parity", "jump-controls", "batch-handoff", "local-closeout-manifest"],
+    "A01": ["applicable-pose-axis", "exact-c36-anchor", "back-kill-resume", "durable-ui-position", "out-of-order-permitted", "no-false-complete"],
+    "H01": ["ui-source-disagreement", "inaccessible-blocks-closeout", "protected-data", "storage", "cancellation", "accessibility-truth"],
+    "I01": ["effect-before-receipt", "journal-replay", "search-rebuild", "bounded-export", "no-orphans", "interruption-idempotence"],
+    "R01": ["backup", "replace-restore", "clone", "fork", "import", "export", "report", "delete", "erase", "retention", "compatibility", "forward-fix", "recovery" ]
+  },
+  "forbidden": ["NETWORK", "QR", "RECURRENCE", "REMOTE_SYNC", "ROUTE_AUTOMATION"],
+  "hostileCases": ["inaccessible-item-blocks-closeout", "protected-data-unavailable", "storage-pressure", "ui-source-disagreement"],
+  "lifecycle": ["BACKUP", "REPLACE_RESTORE", "CLONE", "FORK", "IMPORT", "EXPORT", "REPORT", "JOURNAL", "REPLAY", "SEARCH", "REBUILD", "DELETE", "ERASE", "RETENTION", "COMPATIBILITY", "FORWARD_FIX"],
+  "ordinal": 95,
+  "schema": "V22P04C07RoundSessionFieldFlowCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    { "id": "G01", "selector": "V23-P04-C07-G01", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "V23-P04-C07-A01", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "V23-P04-C07-H01", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "V23-P04-C07-I01", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "V23-P04-C07-R01", "tier": "RECOVERY" }
+  ],
+  "statusFlags": {
+    "acceptanceCredit": false,
+    "adoptionEnabled": false,
+    "hosted": false,
+    "network": false,
+    "release": false,
+    "ui": false
+  }
+}

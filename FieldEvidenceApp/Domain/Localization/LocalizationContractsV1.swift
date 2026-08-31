@@ -6010,3 +6010,27 @@ enum OfflineReadinessPreflightLocalizationPolicyV1 {
         }
     }
 }
+
+enum RoundSessionLocalizationKeyV1: String, CaseIterable, Sendable {
+    case heading = "round.session.heading", manualPathDisclosure = "round.session.manual_path", progressHeading = "round.session.progress"
+    case completedCount = "round.session.completed_count", incompleteCount = "round.session.incomplete_count", flaggedCount = "round.session.flagged_count"
+    case closeoutComplete = "round.session.closeout.complete", closeoutIncomplete = "round.session.closeout.incomplete"
+    case readinessReady = "round.session.readiness.ready", readinessWarning = "round.session.readiness.warning", readinessBlocked = "round.session.readiness.blocked", readinessStale = "round.session.readiness.stale", readinessUnavailable = "round.session.readiness.unavailable", readinessBlockedDisclosure = "round.session.readiness.blocked_disclosure"
+    case itemsHeading = "round.session.items", moveEarlier = "round.session.move_earlier", moveLater = "round.session.move_later", outOfOrderPermitted = "round.session.out_of_order", terminalState = "round.session.terminal", completed = "round.session.completed", incomplete = "round.session.incomplete"
+    case jumpIncomplete = "round.session.jump_incomplete", jumpFlagged = "round.session.jump_flagged", batchHandoff = "round.session.batch_handoff", recovery = "round.session.recovery", positionPreserved = "round.session.position_preserved", saveFailure = "round.session.save_failure", saving = "round.session.saving", back = "round.session.back", orderedOnly = "round.session.ordered_only", projectionUnavailable = "round.session.projection_unavailable"
+    case handoffUnavailable = "round.session.handoff.unavailable", handoffPending = "round.session.handoff.pending", handoffReady = "round.session.handoff.ready", handoffCompleted = "round.session.handoff.completed"
+    var localizationKey: LocalizationKeyV1 { try! LocalizationKeyV1(rawValue) }
+}
+
+enum RoundSessionLocalizationPolicyV1 {
+    static func english(_ key: RoundSessionLocalizationKeyV1) -> String { switch key {
+    case .heading: return "Round session"; case .manualPathDisclosure: return "Manual work is available without permissions."
+    case .progressHeading: return "Progress"; case .completedCount: return "Completed"; case .incompleteCount: return "Incomplete"; case .flaggedCount: return "Flagged"
+    case .closeoutComplete: return "Local closeout is complete."; case .closeoutIncomplete: return "Local closeout is incomplete."
+    case .readinessReady: return "Local readiness is ready"; case .readinessWarning: return "Local readiness has a warning"; case .readinessBlocked: return "Local readiness is blocked"; case .readinessStale: return "Local readiness is stale"; case .readinessUnavailable: return "Local readiness is unavailable"; case .readinessBlockedDisclosure: return "Resolve the listed local readiness reasons before starting field work."
+    case .itemsHeading: return "Selected assets"; case .moveEarlier: return "Move earlier"; case .moveLater: return "Move later"; case .outOfOrderPermitted: return "Out-of-order work is permitted by this package."; case .terminalState: return "This item has a terminal local disposition."; case .completed: return "Completed"; case .incomplete: return "Incomplete"
+    case .jumpIncomplete: return "Next incomplete"; case .jumpFlagged: return "Next flagged"; case .batchHandoff: return "Prepare local batch handoff"; case .recovery: return "Review recovery"; case .positionPreserved: return "Your field position is preserved for resume."; case .saveFailure: return "Changes could not be saved. Stay here and try again."; case .saving: return "Saving…"; case .back: return "Back"; case .orderedOnly: return "This package requires the listed order."; case .projectionUnavailable: return "Order permissions are unavailable; reordering is disabled."
+    case .handoffUnavailable: return "Local batch handoff is unavailable."; case .handoffPending: return "Local batch handoff is pending."; case .handoffReady: return "Local batch handoff is ready for review."; case .handoffCompleted: return "Local batch handoff is complete." } }
+    static func reason(_ reason: RoundItemReasonV1) -> String { switch reason {
+    case .physicalAccessUnavailable: return "Physical access is unavailable."; case .permissionUnavailable: return "Required permission is unavailable."; case .protectedDataUnavailable: return "Protected data is unavailable while the device is locked."; case .requiredPackageUnavailable: return "The required package is unavailable."; case .requiredContentUnavailable: return "Required local content is unavailable."; case .assetDeletedDuringSession: return "This asset was deleted during the session."; case .assetRetiredOrReplaced: return "This asset was retired or replaced."; case .explicitlyOutOfScope: return "This item is explicitly out of scope."; case .duplicateSelection: return "This is a duplicate selection."; case .notRequired: return "This item is not required."; case .userDeferred: return "This item was deferred."; case .interruption: return "Work was interrupted."; case .followUpRequired: return "Follow-up is required." } }
+}

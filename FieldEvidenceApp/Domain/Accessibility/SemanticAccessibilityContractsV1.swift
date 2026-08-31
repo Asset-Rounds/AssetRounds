@@ -3010,3 +3010,5 @@ enum OfflineReadinessPreflightAccessibilityPolicyV1 {
         }
     }
 }
+
+enum RoundSessionAccessibilityIDV1: String, CaseIterable, Sendable { case screen = "v23.p04.c07.round-session.screen", progress = "v23.p04.c07.round-session.progress", readiness = "v23.p04.c07.round-session.readiness", items = "v23.p04.c07.round-session.items", item = "v23.p04.c07.round-session.item", jumpIncomplete = "v23.p04.c07.round-session.jump-incomplete", jumpFlagged = "v23.p04.c07.round-session.jump-flagged", handoff = "v23.p04.c07.round-session.handoff", recovery = "v23.p04.c07.round-session.recovery", position = "v23.p04.c07.round-session.position", closeout = "v23.p04.c07.round-session.closeout", saveFailure = "v23.p04.c07.round-session.save-failure", back = "v23.p04.c07.round-session.back" }

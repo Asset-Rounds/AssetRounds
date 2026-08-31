@@ -1,0 +1,489 @@
+{
+  "acceptanceEnabled": false,
+  "accessibilityAndLocalizationRequired": true,
+  "accessibilitySourceDisposition": "SOURCE_INSPECTED",
+  "adoptionEnabled": false,
+  "adoptionSkipped": true,
+  "artifactDigest": "a9b2a63d904672e78831880db5113518644b41c8fa594182c14303ec1606ed1a",
+  "authority": {
+    "appBaseHead": "0d26ac2daf11333fb7e16c3156a58f30885fafde",
+    "appBaseTree": "2e5cd268cbc791ecaff7c66073e3424dd427f79a",
+    "attemptID": 1,
+    "authorizedOverlapCount": 7266,
+    "candidateHead": "0d26ac2daf11333fb7e16c3156a58f30885fafde",
+    "candidateTree": "2e5cd268cbc791ecaff7c66073e3424dd427f79a",
+    "cardID": "V23-P04-C07",
+    "contextDigest": "674e959f3b8f8a5221e44223d3fbd8daba233d1d1f428e9b513b7c66a73702fd",
+    "coordinationCASSequence": 414,
+    "coordinationHead": "14f44e5fde1970b28f136783d3ccf56d063660de",
+    "coordinationLedgerDigest": "748d1297b3c0255e4254929b9855b3af9d8fdbe77ce72955af7f621e3dfb8096",
+    "coordinationOriginHead": "14f44e5fde1970b28f136783d3ccf56d063660de",
+    "coordinationProjectionDigest": "4487c289604b238f668befbd21c64617018da4edf4309aaa2c2bda9dca83dab4",
+    "coordinationSequence": 414,
+    "coordinationTree": "08ab523c4298ec78649568af4cbaa8964cb792dd",
+    "directPrerequisiteCards": [
+      "V23-P04-C06"
+    ],
+    "existingPathCount": 362,
+    "expectedExistingPathCount": 362,
+    "expectedFencePathCount": 375,
+    "expectedNewPathCount": 13,
+    "fencePathCount": 375,
+    "finalHashesSealed": true,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationTransitionDigest": "772ddb8fd0c11e87a6255c997fa8ee217dd3e3a5ab507cabb14b17000972437a",
+    "newPathCount": 13,
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "pathFenceDigest": "f4501ae3ef048d5ddb8b73fc2dca1b63144d2611fd7a26a64eb118ad24ae44df",
+    "prerequisiteDigest": "42b6f11692a2ded37790681b9d40c1b9aeaf12979990c078040d9fef85553f4e",
+    "priorFenceCount": 95,
+    "priorLedgerDigest": "f9785477fe531263fa44cb59812df0b249fae837ba932a5eb288ee43297dffe3",
+    "priorOwnedPathCount": 1502,
+    "registerOrdinal": 95,
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "sourcePins": {
+      "dependencyRowCount": 12,
+      "dependencyRowsSHA256": "e3d0a523a422907580730cc6994c7a28346fb0a78310d53ee6261ad886a8bb17",
+      "dependencyRowsUTF8Length": 2093,
+      "dossierSHA256": "d404a41be3c7cfb3e2d2293276a93826f5cb69f7ed9e732fdb6e61f7c236c448",
+      "dossierUTF8Length": 7307,
+      "impactRowSHA256": "8bf587b455a0f855e1644a5946238c3c2a192a01bc499a64d1685837663e2c09",
+      "impactRowUTF8Length": 327,
+      "inheritedV21BlockSHA256": "2d567f9b7055eb9f46f36e796953fe0a8f89b77a54d6cbdb30b3f1b6143ab4c3",
+      "inheritedV21BlockUTF8Length": 8705,
+      "registerRowSHA256": "254425c5085c13886652cfe79256a511b20bd42c5ec56ce86be494c270a57605",
+      "registerRowUTF8Length": 278,
+      "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+      "registerSectionUTF8Length": 44217,
+      "relationRowCount": 14,
+      "relationRowsSHA256": "75224b5b8270aaa318963f2076939f5f9e74730a0179ff59675b8be090168824",
+      "relationRowsUTF8Length": 5139
+    },
+    "title": "RoundSession UI, search/export/delete/recovery, batch handoff, and local closeout",
+    "unauthorizedOverlapCount": 0
+  },
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P04-C07",
+  "changedStates": [
+    "DRAFT",
+    "ACTIVE",
+    "PAUSED",
+    "COMPLETED",
+    "ARCHIVED"
+  ],
+  "changedSurfaces": [
+    "ROUND_SESSION",
+    "FIELD_SECTION_INDEX",
+    "BATCH_HANDOFF",
+    "LOCAL_CLOSEOUT",
+    "DELETE_RECOVERY"
+  ],
+  "evidenceIDs": [
+    "V23-P04-C07-G01",
+    "V23-P04-C07-A01",
+    "V23-P04-C07-H01",
+    "V23-P04-C07-I01",
+    "V23-P04-C07-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "iPhoneNativeOnly": true,
+  "localizationSourceDisposition": "SOURCE_INSPECTED",
+  "nativeCompileRan": false,
+  "nativeIPadSurface": false,
+  "networkOrTelemetryFlow": false,
+  "onDeviceOnly": true,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "providerOrNotificationFlow": false,
+  "provisional": false,
+  "recurrenceOrQRFlow": false,
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P04C07BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "accessibilityAndLocalization": {
+      "contrastAndNonColor": true,
+      "dynamicType": true,
+      "keyboardAndErrorFocus": true,
+      "localeAndRTL": true,
+      "offlineAndPermissionOutcomesTruthful": true,
+      "reduceMotion": true,
+      "switchControl": true,
+      "voiceControl": true,
+      "voiceOver": true
+    },
+    "anchorStates": [
+      "CURRENT",
+      "STALE_REQUIREMENT_FALLBACK"
+    ],
+    "backupRestoreRequired": true,
+    "canonicalPersistenceOwner": "V23-P04-C05_ROUND_SESSION_V1",
+    "closeout": {
+      "completedRecordsAndExportsReconcile": true,
+      "inaccessibleBlocksUntilExplicitDisposition": true,
+      "requiresEveryExpectedItemDispositioned": true
+    },
+    "counts": [
+      "EXPECTED",
+      "VISITED",
+      "COMPLETED",
+      "INACCESSIBLE",
+      "SKIPPED",
+      "DEFERRED"
+    ],
+    "countsAndJump": {
+      "complete": "COMPLETED+INACCESSIBLE+SKIPPED+DEFERRED",
+      "flagged": "INACCESSIBLE+DEFERRED",
+      "incomplete": "EXPECTED-COMPLETE",
+      "jumpToNextFlagged": true,
+      "jumpToNextIncomplete": true
+    },
+    "deleteEraseRequired": true,
+    "derivedLifecycle": {
+      "FieldPositionAnchorV1": "DEVICE_OPERATIONAL_STABLE_IDS_AND_BOUNDED_POSITION_ONLY",
+      "FieldSectionIndexProjectionV1": "DETERMINISTIC_REBUILD_FROM_CANONICAL_ROUND_DRAFT_REQUIREMENT_AND_PACKAGE_INPUTS"
+    },
+    "derivedOwners": [
+      "FieldSectionIndexProjectionV1",
+      "FieldPositionAnchorV1"
+    ],
+    "dispositions": [
+      "PENDING",
+      "VISITED",
+      "COMPLETED",
+      "INACCESSIBLE",
+      "SKIPPED",
+      "DEFERRED"
+    ],
+    "downgradePolicy": "FORWARD_FIX_ONLY",
+    "evidenceIDs": [
+      "V23-P04-C07-G01",
+      "V23-P04-C07-A01",
+      "V23-P04-C07-H01",
+      "V23-P04-C07-I01",
+      "V23-P04-C07-R01"
+    ],
+    "exportReportRequired": true,
+    "forbidden": [
+      "ACCOUNT",
+      "AUTHENTICATION",
+      "TENANCY",
+      "REMOTE_SYNC",
+      "BACKEND",
+      "NETWORK_TRANSPORT",
+      "QR_OR_NETWORK_TAG_RESOLUTION",
+      "RECURRENCE",
+      "DUE_QUEUE",
+      "NOTIFICATION",
+      "TEAM_DISPATCH",
+      "PROVIDER_OUTBOX_INBOX_ACK_UPLOAD_STATE",
+      "REMOTE_EMAIL_OR_LINK",
+      "ANALYTICS",
+      "NATIVE_IPAD",
+      "S10_ROUTE_WIRING",
+      "DISCARD_INCOMPLETE_WITHOUT_INFORMED_ACTION"
+    ],
+    "forbiddenCapabilities": [
+      "ACCOUNT",
+      "AUTHENTICATION",
+      "TENANCY",
+      "REMOTE_SYNC",
+      "BACKEND",
+      "NETWORK_TRANSPORT",
+      "QR_OR_NETWORK_TAG_RESOLUTION",
+      "RECURRENCE",
+      "DUE_QUEUE",
+      "NOTIFICATION",
+      "TEAM_DISPATCH",
+      "PROVIDER_OUTBOX_INBOX_ACK_UPLOAD_STATE",
+      "REMOTE_EMAIL_OR_LINK",
+      "ANALYTICS",
+      "NATIVE_IPAD",
+      "S10_ROUTE_WIRING",
+      "DISCARD_INCOMPLETE_WITHOUT_INFORMED_ACTION"
+    ],
+    "included": [
+      "MANUAL_MULTI_ASSET_SELECTION_AND_ORDERING_UI",
+      "DURABLE_PROGRESS_RESUME_AND_INACCESSIBLE_REASONS",
+      "BOUNDED_SEARCH_INDEX_EXTENSION_AND_REBUILD",
+      "BATCH_EXPORT_HANDOFF_AND_LOCAL_CLOSEOUT_RECONCILIATION",
+      "DELETE_RECOVERY_UX",
+      "COMMON_TASK_ACCESSIBILITY",
+      "POSE_AXIS_EDITOR_STATE_AND_C36_DRAFT_POSITION_PRESERVATION",
+      "COMPLETE_INCOMPLETE_FLAGGED_COUNTS_AND_JUMP",
+      "PACKAGE_PERMITTED_OUT_OF_ORDER_WORK"
+    ],
+    "invariants": [
+      "UI_NEVER_ADVANCES_AHEAD_OF_DURABLE_STATE",
+      "MANUAL_FLOW_REQUIRES_NO_PERMISSION",
+      "COMPLETED_RECORDS_AND_EXPORTS_RECONCILE_TO_CLOSEOUT",
+      "BACK_NAVIGATION_FLUSHES_C36_BEFORE_LEAVING",
+      "ROUTE_CONTAINS_NO_USER_TEXT_OR_VALUE",
+      "UI_ADOPTION_AND_ACCEPTANCE_DEFERRED_PENDING_S10_6"
+    ],
+    "lifecycle": [
+      "BACKUP",
+      "REPLACE_RESTORE",
+      "CLONE",
+      "FORK",
+      "IMPORT",
+      "EXPORT",
+      "REPORT",
+      "JOURNAL",
+      "REPLAY",
+      "SEARCH",
+      "REBUILD",
+      "DELETE",
+      "ERASE",
+      "RETENTION",
+      "COMPATIBILITY",
+      "DOWNGRADE",
+      "FORWARD_FIX",
+      "INTERRUPTION",
+      "IDEMPOTENT_RECEIPT"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "migrationRequired": false,
+    "noNativeIPad": true,
+    "noProviderOrNotificationClaim": true,
+    "noRecurrenceOrQRClaim": true,
+    "noS10RouteWiring": true,
+    "persistentContractMode": "CONTENT_ONLY",
+    "schemaVersion": "NOT_APPLICABLE",
+    "searchExportDeleteRecovery": {
+      "delete": "EXPLICIT_RECOVERY_UX_PRESERVES_IMMUTABLE_HISTORY",
+      "export": "BATCH_HANDOFF_RECONCILES_TO_CLOSEOUT",
+      "orphanFree": true,
+      "recovery": "DISABLE_NEW_ENTRY_PRESERVE_READ_EXPORT_RECOVERY",
+      "searchIndex": "BOUNDED_EXTENSION_AND_DETERMINISTIC_REBUILD"
+    },
+    "sectionPosition": {
+      "anchor": "FieldPositionAnchorV1",
+      "changedRequirement": "STALE_REQUIREMENT_FALLBACK",
+      "draftAnchor": "DraftResumeAnchorV1",
+      "preserveAcrossBackKillResume": true,
+      "projection": "FieldSectionIndexProjectionV1",
+      "requirementBinding": "REQUIREMENT_SHA256",
+      "routeContainsNoUserTextOrValue": true
+    },
+    "selectors": [
+      "testV23P04C07G01MultiAssetSelectionOrderParityJumpAndCloseoutHandoff",
+      "testV23P04C07A01PoseAnchorPositionResumeAndOutOfOrderRemainExplicit",
+      "testV23P04C07H01DisagreementInaccessibleAndResourceFailuresRemainFailClosed",
+      "testV23P04C07I01InterruptionJournalReplaySearchExportAndReceiptsAreBounded",
+      "testV23P04C07R01RecoveryLifecycleDeleteEraseCompatibilityAndForwardFixStayCanonical"
+    ],
+    "sessionStates": [
+      "DRAFT",
+      "ACTIVE",
+      "PAUSED",
+      "COMPLETED",
+      "ARCHIVED"
+    ],
+    "sourceContractProof": {
+      "currentFrontierValidation": "ALL_SEARCH_CLOSEOUT_HANDOFF_DELETE_RECOVERY_LIFECYCLE_DERIVATIVES",
+      "digestPerturbationEvidence": true,
+      "fieldSectionIndexPersistence": "NONPERSISTENT_NON_CODABLE_DERIVED_ONLY",
+      "fieldSectionIndexValidation": "validate(session: RoundSessionV1)",
+      "packageWorkflowPermissionGating": "EXACT_RELEASE_PACKAGE_AND_WORKFLOW_HASHES_PER_ITEM",
+      "packageWorkflowPermissionRows": [
+        "itemID",
+        "packageReleaseID",
+        "packageSHA256",
+        "workflowSHA256",
+        "permitsOutOfOrderNavigation"
+      ],
+      "postCommitSearchFailure": "CANONICAL_RECEIPT_PRESERVED_REBUILD_REQUIRED",
+      "projectionDigest": "EXHAUSTIVE_WORKSPACE_MUTATION_CANONICAL_V1_BASIS",
+      "projectionDigestInputs": [
+        "session",
+        "requirementBindings",
+        "draftAnchors",
+        "packagePermissions",
+        "sections",
+        "completeCount",
+        "incompleteCount",
+        "flaggedCount"
+      ],
+      "uiBackFlow": "FLUSH_THEN_CONDITIONAL_REQUIRED_ANCHOR_READBACK"
+    },
+    "stateMachine": {
+      "closeoutRequiresAllExpectedItemsDispositioned": true,
+      "inaccessibleReasonsAreVisible": true,
+      "orderedItems": true,
+      "packagePermittedOutOfOrder": true,
+      "terminalDispositions": [
+        "COMPLETED",
+        "INACCESSIBLE",
+        "SKIPPED",
+        "DEFERRED"
+      ],
+      "uiNeverAdvancesAheadOfDurableState": true
+    },
+    "transitions": [
+      "CREATE",
+      "REVISE_SELECTION",
+      "START",
+      "VISIT_ITEM",
+      "COMPLETE_ITEM",
+      "MARK_INACCESSIBLE",
+      "SKIP_ITEM",
+      "DEFER_ITEM",
+      "RETRY_ITEM",
+      "PAUSE",
+      "RESUME",
+      "CLOSE",
+      "ARCHIVE"
+    ],
+    "ui": "POST_S10_6_ADOPTION_SKIP_NO_RESERVED_COMPOSITION_EDIT"
+  },
+  "sourceProjection": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1",
+      "P04ShippingSurfaceSetV1",
+      "P04BrandClosureSetV1"
+    ],
+    "canonicalSuccessor": {
+      "cardID": "V23-P04-C08",
+      "registerOrdinal": 96
+    },
+    "conformanceSubjects": [
+      "P04ShippingSurfaceSetV1",
+      "CommonTaskJourneyReleaseV2"
+    ],
+    "dependencyRowCount": 12,
+    "dependencyRowsSHA256": "e3d0a523a422907580730cc6994c7a28346fb0a78310d53ee6261ad886a8bb17",
+    "dependencyRowsUTF8Length": 2093,
+    "deterministicEvidenceIDs": [
+      "V23-P04-C07-G01",
+      "V23-P04-C07-A01",
+      "V23-P04-C07-H01",
+      "V23-P04-C07-I01",
+      "V23-P04-C07-R01"
+    ],
+    "dossierSHA256": "d404a41be3c7cfb3e2d2293276a93826f5cb69f7ed9e732fdb6e61f7c236c448",
+    "dossierUTF8Length": 7307,
+    "impactRowSHA256": "8bf587b455a0f855e1644a5946238c3c2a192a01bc499a64d1685837663e2c09",
+    "impactRowUTF8Length": 327,
+    "implementationPaths": [
+      "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift",
+      "FieldEvidenceApp/Infrastructure/Rounds/FieldSectionIndexProjectionV1.swift",
+      "FieldEvidenceAppUITests/V9_26RoundSessionUITests.swift",
+      "FieldEvidenceAppTests/V9_26RoundSessionIntegrationTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/Rounds/V22P04C07RoundSessionFieldFlowCorpusV1.json"
+    ],
+    "inheritedV21BlockSHA256": "2d567f9b7055eb9f46f36e796953fe0a8f89b77a54d6cbdb30b3f1b6143ab4c3",
+    "inheritedV21BlockUTF8Length": 8705,
+    "invalidationConsumers": [
+      "V23-P04-C12",
+      "V23-P04-C21",
+      "V23-P04-C22",
+      "V23-P06-C03",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "missingPaths": [],
+    "presentPaths": [
+      "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift",
+      "FieldEvidenceApp/Infrastructure/Rounds/FieldSectionIndexProjectionV1.swift",
+      "FieldEvidenceAppUITests/V9_26RoundSessionUITests.swift",
+      "FieldEvidenceAppTests/V9_26RoundSessionIntegrationTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/Rounds/V22P04C07RoundSessionFieldFlowCorpusV1.json"
+    ],
+    "registerRowSHA256": "254425c5085c13886652cfe79256a511b20bd42c5ec56ce86be494c270a57605",
+    "registerRowUTF8Length": 278,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionUTF8Length": 44217,
+    "relationRowCount": 14,
+    "relationRowsSHA256": "75224b5b8270aaa318963f2076939f5f9e74730a0179ff59675b8be090168824",
+    "relationRowsUTF8Length": 5139,
+    "selectors": [
+      "testV23P04C07G01MultiAssetSelectionOrderParityJumpAndCloseoutHandoff",
+      "testV23P04C07A01PoseAnchorPositionResumeAndOutOfOrderRemainExplicit",
+      "testV23P04C07H01DisagreementInaccessibleAndResourceFailuresRemainFailClosed",
+      "testV23P04C07I01InterruptionJournalReplaySearchExportAndReceiptsAreBounded",
+      "testV23P04C07R01RecoveryLifecycleDeleteEraseCompatibilityAndForwardFixStayCanonical"
+    ],
+    "sourceReady": true,
+    "sourceReason": "ALL_IMPLEMENTATION_SOURCE_LANES_PRESENT",
+    "sourceRows": [
+      {
+        "byteCount": 11903,
+        "path": "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift",
+        "sha256": "15b47b3bd21e0eb4d797bdc33867c44ffe441b433a6ac5ec1bf1725e4c9e0c8c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 13484,
+        "path": "FieldEvidenceApp/Infrastructure/Rounds/FieldSectionIndexProjectionV1.swift",
+        "sha256": "c7c8329cc7191cae9d89cceb0130196502c685fadd66f555a884b22ce2a9e8b5",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 1772,
+        "path": "FieldEvidenceAppUITests/V9_26RoundSessionUITests.swift",
+        "sha256": "3194fd1bcb1ead5e64a1703fc99f8e285b205a446350d763ed08fdf43554786b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 16396,
+        "path": "FieldEvidenceAppTests/V9_26RoundSessionIntegrationTests.swift",
+        "sha256": "f10b0bfce66b0f04b9bc354779b966b8aa7879472647a927b6fe41abc7a5085a",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 2131,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/Rounds/V22P04C07RoundSessionFieldFlowCorpusV1.json",
+        "sha256": "458ddd9437f14cb2e05347f3d4961145689e2c74c26668b72f53b8466c9f5a31",
+        "status": "SOURCE_PRESENT"
+      }
+    ],
+    "sourceSemanticsInspected": true,
+    "sourceStatus": "SOURCE_READY",
+    "supportingSourcePaths": [
+      "FieldEvidenceApp/Infrastructure/Rounds/RoundSessionLifecycleAdapterV1.swift",
+      "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift"
+    ],
+    "supportingSourceRows": [
+      {
+        "byteCount": 23043,
+        "path": "FieldEvidenceApp/Infrastructure/Rounds/RoundSessionLifecycleAdapterV1.swift",
+        "sha256": "eb63f050382e15b030a60d01cb5b6db140fb4ead78f7d5dc602421046720a73d",
+        "status": "PRESENT_SUPPORTING_SOURCE"
+      },
+      {
+        "byteCount": 249429,
+        "path": "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+        "sha256": "437f10672272fc6857731230e5ab899b87aae3668b1f87d1d19f1db6c7023d33",
+        "status": "PRESENT_SUPPORTING_SOURCE"
+      }
+    ]
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "syncStatusClaimed": false,
+  "title": "RoundSession UI, search/export/delete/recovery, batch handoff, and local closeout",
+  "uiAcceptanceCredit": false,
+  "uiAdoptionSkipped": true,
+  "uiSourceExists": true,
+  "uiSurfaceDelta": true,
+  "uiTestDisposition": "EXPLICIT_POST_S10_6_ADOPTION_SKIP_NO_RESERVED_COMPOSITION_AUTHORITY",
+  "uiTestSourceExists": true
+}

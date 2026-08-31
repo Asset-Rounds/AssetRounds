@@ -3514,6 +3514,16 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+extension BundledLocalizationCatalogV1 {
+    static func roundSessionLocalized(_ key: RoundSessionLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String {
+        String(localized: key.rawValue, defaultValue: RoundSessionLocalizationPolicyV1.english(key), bundle: bundle, locale: locale, comment: "C07 local RoundSession presentation; no sync, upload, account, or delivery claim.")
+    }
+    static func roundSessionRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try registry(); let additions = try RoundSessionLocalizationKeyV1.allCases.map { key in LocalizationKeyDefinitionV1(key: key.localizationKey, meaningID: key.rawValue, translatorComment: "C07 local RoundSession presentation; no sync, upload, account, or delivery claim.", englishDefaultValue: RoundSessionLocalizationPolicyV1.english(key), arguments: [], requiredEnglishPluralCategories: [], state: .active, deprecatedFallbackKey: nil) }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 // MARK: - C06 round offline-readiness preflight catalog
 
 extension BundledLocalizationCatalogV1 {
