@@ -3779,8 +3779,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 466,
-             "2902A778908209C97C3B4F1508040331BB439B49C5D8187E47D46CFE79D18453"),
+            (workValidationGateSource, 543,
+             "C7748373196C6E5FC796A98984FD3F1142D19D966969A4FF15A41FEE584DD65C"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4378,6 +4378,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workValidationPositioningAdjacency =
             workValidationPositioningGate + "\n" +
                 workValidationPositioningGuard + "\n" +
+                "            try diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)\n" +
                 "        }\n" +
                 workValidationBaseline
         XCTAssertEqual(
@@ -5290,13 +5291,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 AX-text work-validation route diagnostic context",
             "shouldDiagnoseAXTextWorkValidationNativeContrastEvidence",
             "diagnoseAXTextWorkValidationNativeContrastEvidence",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-            "S10.4 AX-text work-validation native contrast diagnostic app",
-            "S10.4 AX-text work-validation native contrast diagnostic tree",
-            "S10.4 AX-text work-validation native contrast diagnostic context",
-            "S10.4 AX-text work-validation native contrast diagnostic audited element",
             "S10.4 AX-text work-validation native contrast diagnostic is nonaccepting",
             "capturesWorkValidationNativeContrastDiagnostic",
             "automationDiagnosticTerminationRequested",
@@ -5322,6 +5316,30 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 0,
                 consumedWorkValidationDiagnosticForm
+            )
+        }
+        for authorizedWorkValidationDiagnosticForm in [
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "S10.4 AX-text work-validation native contrast diagnostic app",
+            "S10.4 AX-text work-validation native contrast diagnostic tree",
+            "S10.4 AX-text work-validation native contrast diagnostic context",
+            "S10.4 AX-text work-validation native contrast diagnostic audited element",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(
+                    separatedBy: authorizedWorkValidationDiagnosticForm
+                ).count - 1,
+                1,
+                authorizedWorkValidationDiagnosticForm
+            )
+            XCTAssertEqual(
+                workflowSource.components(
+                    separatedBy: authorizedWorkValidationDiagnosticForm
+                ).count - 1,
+                0,
+                authorizedWorkValidationDiagnosticForm
             )
         }
         let preflightReturnAbsenceDiscriminator =
@@ -22250,7 +22268,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    private func diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast(",
             before:
                 "\n\n    @MainActor\n" +
-                    "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast("
+                    "    private func diagnoseFullRouteAXTextWorkValidationNativeContrast("
         )
         XCTAssertEqual(purchaseCompleteDiagnosticSource.utf8.count, 12_204)
         XCTAssertEqual(
