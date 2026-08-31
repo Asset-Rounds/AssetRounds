@@ -15851,7 +15851,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"stateID: "state.sign-selection.ready""#,
             #"elementIdentifier: "s4.5.correction.header""#,
             #"elementLabel: "Correct report""#,
-            #"elementLabel: "Short description""#,
             #"elementIdentifier: "s3.capture.cannot-complete""#,
             #"elementLabel: "Cannot complete""#,
             #"elementLabel: "Monument Sign""#,
@@ -20271,10 +20270,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval("
         )
-        XCTAssertEqual(alternativeRecheckSource.utf8.count, 19_266)
+        XCTAssertEqual(alternativeRecheckSource.utf8.count, 19_164)
         XCTAssertEqual(
             Data(alternativeRecheckSource.utf8).sha256,
-            "D9DDAD7E72D690815C9935CEA4817E277136A5164082D00B91A37CDA509F0CF5"
+            "4E3A52061082328296F30E2C8E4D07D36B4CFAAB2160FB8879D742CC105A2EA4"
         )
         for exact in [
             "emitsEvidence: Bool = true",
@@ -22279,10 +22278,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_124)
+        XCTAssertEqual(captureSource.utf8.count, 8_056)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "78070B06CBBFA8F6063BE8E4DB6FCC74AFFD1F3A0BCC0B146AEEFF2C0DFCC427"
+            "8EACDB3319DD0672D4A9414B8A9F0E0ECD9FD1CA3E0F2AC6C2E68A2CE6367D16"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
@@ -22512,7 +22511,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 451)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "4F480F5DF1BE41575874F6704D9785AF12F9EEE399DFB91AC780E37345A8E364"
+            "6D4C161F67D21B27E7C8A3A9CC163D86D474B1B72A827933F5F2E9124E9C8747"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
