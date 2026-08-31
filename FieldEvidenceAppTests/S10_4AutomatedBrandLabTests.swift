@@ -2471,6 +2471,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"        let preflight = element("s3.preflight.screen", in: app)"#
         let preflightQuickPathCapture =
             #"        captureBaseline("state.check-preflight.ready", in: app)"#
+        let minimumTallPreflightDiagnosticCaller =
+            #"        if automationShard?.shardID == "s10.4.minimum.tall" {"#
+                + "\n"
+                + "            try diagnoseMinimumTallPreflightAuditTimeout(in: app)\n"
+                + "        }"
         XCTAssertEqual(
             uiSource.components(separatedBy: preflightQuickPathStart).count - 1,
             1
@@ -2526,6 +2531,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: currentProfilePreflightQuickPathGate,
                 range:
                     preflightMinimumStartRange.upperBound..<preflightQuickPathSource.endIndex
+            ), let minimumTallPreflightDiagnosticCallerRange =
+            preflightQuickPathSource.range(
+                of: minimumTallPreflightDiagnosticCaller,
+                range:
+                    currentProfilePreflightQuickPathStartRange.upperBound..<
+                        preflightQuickPathSource.endIndex
             )
         else {
             XCTFail("Missing the isolated minimum/current preflight source slices")
@@ -2540,7 +2551,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let currentProfilePreflightQuickPathSource = String(
             preflightQuickPathSource[
                 currentProfilePreflightQuickPathStartRange.lowerBound ..<
-                    preflightQuickPathSource.endIndex
+                    minimumTallPreflightDiagnosticCallerRange.lowerBound
             ]
         )
         XCTAssertEqual(preflightMinimumSource.utf8.count, 67_332)
@@ -2548,10 +2559,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(preflightMinimumSource.utf8).sha256,
             "9DBF882BAC56E24A0558EC075B1037F171CDF4156FBFD2BDE8F8C61F30559000"
         )
-        XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 30_014)
+        XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 29_876)
         XCTAssertEqual(
             Data(currentProfilePreflightQuickPathSource.utf8).sha256,
-            "8A0C907EA970AC1A9C138441CA73A95410830A7B165AE4EA0F711827D0CA505F"
+            "0F0B1CEB5A80D8DA541B032DE0716317B48739B7D599715AE091AFF00BC30FA7"
         )
         let minimumDoubleLengthPreflightDiagnosticCaller =
             #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#
@@ -2674,11 +2685,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
-        let minimumTallPreflightDiagnosticCaller =
-            #"        if automationShard?.shardID == "s10.4.minimum.tall" {"#
-                + "\n"
-                + "            try diagnoseMinimumTallPreflightAuditTimeout(in: app)\n"
-                + "        }"
         let minimumTallPreflightDiagnosticCallThenBaseline =
             minimumTallPreflightDiagnosticCaller
                 + "\n"
@@ -3538,6 +3544,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let currentProfileRestorationBeforeCapture =
             currentProfileRestorationFailure +
                 "\n            }\n        }\n" +
+                minimumTallPreflightDiagnosticCaller + "\n" +
                 preflightQuickPathCapture
         XCTAssertEqual(
             uiSource.components(
@@ -15720,7 +15727,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "state.sign-detail.delete-confirmation"
             ).count - 1,
-            5
+            6
         )
         let doubleLengthGateStart =
             "        let runsMinimumDoubleLengthDeleteComposition ="
