@@ -2756,3 +2756,97 @@ enum RecoveryCenterAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C02 evidence curation accessibility
+
+/// Stable semantic selectors for the unadopted C02 presentation. These are
+/// presentation-only identifiers; none is a media, derivative, or canonical
+/// association identity.
+enum EvidenceCurationAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "v23.p04.c02.evidence-curation.screen"
+    case detailPreview = "v23.p04.c02.evidence-curation.detail-preview"
+    case original = "v23.p04.c02.evidence-curation.original"
+    case reference = "v23.p04.c02.evidence-curation.reference"
+    case comparison = "v23.p04.c02.evidence-curation.comparison"
+    case overlayAdvisory = "v23.p04.c02.evidence-curation.overlay-advisory"
+    case markupControls = "v23.p04.c02.evidence-curation.markup-controls"
+    case removeMarkup = "v23.p04.c02.evidence-curation.remove-markup"
+    case retake = "v23.p04.c02.evidence-curation.retake"
+    case removeFromWork = "v23.p04.c02.evidence-curation.remove-from-work"
+    case moveEarlier = "v23.p04.c02.evidence-curation.move-earlier"
+    case moveLater = "v23.p04.c02.evidence-curation.move-later"
+    case sequence = "v23.p04.c02.evidence-curation.sequence"
+    case contactSheet = "v23.p04.c02.evidence-curation.contact-sheet"
+    case reducedMotion = "v23.p04.c02.evidence-curation.reduced-motion"
+    case reviewOrder = "v23.p04.c02.evidence-curation.review-order"
+    case role = "v23.p04.c02.evidence-curation.role"
+    case caption = "v23.p04.c02.evidence-curation.caption"
+    case accessibilityDescription = "v23.p04.c02.evidence-curation.accessibility-description"
+    case visualDerivativeReadiness = "v23.p04.c02.evidence-curation.visual-derivative-readiness"
+}
+
+enum EvidenceCurationAccessibilityPolicyV1 {
+    static let semanticIDs = EvidenceCurationAccessibilityIDV1.allCases.map(\.rawValue)
+    static let originalAndReferenceAreTextuallyDistinguished = true
+    static let overlayIsAdvisoryAndNotCausal = true
+    static let markupRemovalIsAvailable = true
+    static let retakeAndRemovalEffectsAreDisclosed = true
+    static let accessibleMoveControlsAreAvailable = true
+    static let reviewOrderAndCaptionsAreSpoken = true
+    static let sequenceRoleAndDescriptionAreSpoken = true
+    static let reducedMotionReplacesFlicker = true
+    static let dynamicTypeAndRTLRequired = true
+    static let statusIsNotColorOnly = true
+    static let derivativeReadinessIsTyped = true
+    static let uiConformanceClaimed = false
+    static let uiAdoptionClaimed = false
+
+    static func localizationKey(
+        for id: EvidenceCurationAccessibilityIDV1
+    ) -> EvidenceCurationLocalizationKeyV1 {
+        switch id {
+        case .screen: return .heading
+        case .detailPreview: return .detailPreviewHeading
+        case .original: return .originalHeading
+        case .reference: return .referenceHeading
+        case .comparison: return .comparisonHeading
+        case .overlayAdvisory: return .overlayAdvisory
+        case .markupControls: return .markupHeading
+        case .removeMarkup: return .removeMarkup
+        case .retake: return .retake
+        case .removeFromWork: return .removeFromWork
+        case .moveEarlier: return .moveEarlier
+        case .moveLater: return .moveLater
+        case .sequence: return .sequenceHeading
+        case .contactSheet: return .contactSheetHeading
+        case .reducedMotion: return .reducedMotion
+        case .reviewOrder: return .reviewOrderHeading
+        case .role: return .roleHeading
+        case .caption: return .captionHeading
+        case .accessibilityDescription: return .accessibilityDescriptionHeading
+        case .visualDerivativeReadiness: return .visualDerivativeUnavailable
+        }
+    }
+
+    static func validate() throws {
+        let ids = EvidenceCurationAccessibilityIDV1.allCases
+        let keys = ids.map { localizationKey(for: $0).rawValue }
+        guard ids.map(\.rawValue).count == Set(ids.map(\.rawValue)).count,
+              keys.count == Set(keys).count,
+              originalAndReferenceAreTextuallyDistinguished,
+              overlayIsAdvisoryAndNotCausal,
+              markupRemovalIsAvailable,
+              retakeAndRemovalEffectsAreDisclosed,
+              accessibleMoveControlsAreAvailable,
+              reviewOrderAndCaptionsAreSpoken,
+              sequenceRoleAndDescriptionAreSpoken,
+              reducedMotionReplacesFlicker,
+              dynamicTypeAndRTLRequired,
+              statusIsNotColorOnly,
+              derivativeReadinessIsTyped,
+              !uiConformanceClaimed,
+              !uiAdoptionClaimed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

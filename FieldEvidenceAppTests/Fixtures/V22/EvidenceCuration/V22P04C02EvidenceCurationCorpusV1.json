@@ -1,0 +1,109 @@
+{
+  "schema": "V22P04C02EvidenceCurationCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C02",
+  "ordinal": 90,
+  "contentMode": "CONTENT_ONLY",
+  "selectors": [
+    { "id": "G01", "selector": "V23-P04-C02-G01", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "V23-P04-C02-A01", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "V23-P04-C02-H01", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "V23-P04-C02-I01", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "V23-P04-C02-R01", "tier": "RECOVERY" }
+  ],
+  "limits": {
+    "maximumSelectionCount": 32,
+    "maximumComparisonCount": 2,
+    "maximumAnnotations": 64,
+    "maximumAnnotationTextBytes": 1024,
+    "maximumSequenceFrames": 16,
+    "maximumContactSheetColumns": 4,
+    "maximumSourceBytes": 1073741824,
+    "maximumTotalSourceBytes": 2147483648
+  },
+  "eligibleStates": [ "ELIGIBLE" ],
+  "previewStates": [ "AVAILABLE", "MISSING" ],
+  "comparison": {
+    "modes": [ "SIDE_BY_SIDE", "ADVISORY_OVERLAY" ],
+    "advisoryText": "Comparison is not proof of cause, compliance, or delivery.",
+    "comparisonIsProof": false
+  },
+  "privacy": {
+    "originalRole": "IMMUTABLE_ORIGINAL",
+    "derivativeRole": "DERIVATIVE",
+    "transformBeforeMarkup": true,
+    "confirmationRequiresExactBytes": true,
+    "detectorPass": "PASS",
+    "detectorBlock": "BLOCKED",
+    "forbiddenAudienceFields": [ "CONTACT_DATA", "DIRECT_COST", "CAPABILITY_SECRET", "LOCAL_IDENTIFIER", "DIAGNOSTIC" ]
+  },
+  "visual": {
+    "sourceMediaType": "image/png",
+    "derivativeMediaType": "image/png",
+    "flickerWidth": 512,
+    "flickerHeight": 512,
+    "contactSheetWidth": 1024,
+    "contactSheetHeight": 512,
+    "contactSheetColumns": 2,
+    "flickerFrameCount": 2,
+    "maximumDerivativeBytes": 25165824,
+    "orientationAndColorCanonicalized": true
+  },
+  "hostileCases": [
+    "wrong-workspace",
+    "removed-association",
+    "duplicate-reference",
+    "missing-content",
+    "derivative-source",
+    "stale-reference",
+    "privacy-before-markup",
+    "markup-changes-source",
+    "sequence-over-limit",
+    "contact-sheet-column-overflow",
+    "flicker-duration-underflow",
+    "path-traversal",
+    "digest-mismatch",
+    "divergent-replay",
+    "blocked-audience-field"
+  ],
+  "interruptionBoundaries": [
+    "before-publication",
+    "after-staging",
+    "before-canonical-commit",
+    "relaunch-no-partial-accepted-state"
+  ],
+  "recoveryCases": [
+    "delete-derived-artifact",
+    "regenerate-derived-artifact",
+    "retain-immutable-original",
+    "retain-accepted-annotation",
+    "retain-provenance",
+    "backup-replace-clone-fork-content-authority",
+    "search-report-rebuild-no-new-store"
+  ],
+  "lifecycle": {
+    "persistence": "CONTENT_ONLY",
+    "plansAndProjectionsAreNonpersistent": true,
+    "schema": "INCUMBENT_CONTENT_AUTHORITY_AND_C05_V43_METADATA",
+    "migration": "C05_METADATA_AUTHORITY",
+    "backupRestore": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "cloneFork": "INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "journalReplay": "C05_METADATA_WRITER_REPLAY_AND_DETERMINISTIC_REPROJECTION",
+    "searchRebuild": "NOT_APPLICABLE",
+    "deleteErase": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "exportReport": "REQUIRED_VIA_INCUMBENT_CONTENT_C05_METADATA_AND_REPORT_AUTHORITIES",
+    "comparisonIsProof": false,
+    "createsContentStore": false
+  },
+  "forbidden": [
+    "AI_DIAGNOSIS",
+    "AUTO_CAPTION_TRUTH",
+    "DESTRUCTIVE_ORIGINAL_EDIT",
+    "UNBOUNDED_VIDEO",
+    "HIDDEN_UPLOAD",
+    "NETWORK_TRANSPORT",
+    "SECOND_CONTENT_STORE",
+    "CUSTOMER_OR_WORK_DATA_TELEMETRY"
+  ],
+  "uiAdoptionEnabled": false
+}

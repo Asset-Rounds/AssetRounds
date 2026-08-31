@@ -4345,6 +4345,150 @@
     "recovery.center.support.preview.unavailable" : {
       "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Support export preview is unavailable." } } }
+    },
+    "evidence.curation.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence curation" } } }
+    },
+    "evidence.curation.detail_preview.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence detail preview" } } }
+    },
+    "evidence.curation.original.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Original evidence" } } }
+    },
+    "evidence.curation.reference.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference evidence" } } }
+    },
+    "evidence.curation.comparison.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Side-by-side comparison" } } }
+    },
+    "evidence.curation.overlay.advisory" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Overlay is an advisory viewing aid; it does not establish cause or compliance." } } }
+    },
+    "evidence.curation.markup.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reviewed markup" } } }
+    },
+    "evidence.curation.markup.add_arrow" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add arrow" } } }
+    },
+    "evidence.curation.markup.add_circle" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add circle" } } }
+    },
+    "evidence.curation.markup.add_text" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add text note" } } }
+    },
+    "evidence.curation.markup.remove" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove markup" } } }
+    },
+    "evidence.curation.item.retake" : {
+      "comment" : "C02 reviewed evidence retake action; stages a new immutable original and never overwrites history.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retake evidence" } } }
+    },
+    "evidence.curation.item.retake.review_required" : {
+      "comment" : "C02 retake disclosure requiring renewed review for media-dependent descriptive text.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retake stages a new original and requires review of the caption and accessibility description for the new pixels." } } }
+    },
+    "evidence.curation.item.remove_from_work" : {
+      "comment" : "C02 successor-sequence action; it removes an item from current work/report use without deleting evidence history.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove from this work/report" } } }
+    },
+    "evidence.curation.item.remove_history_disclosure" : {
+      "comment" : "C02 truthful disclosure for removal from current work/report use.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Immutable evidence history remains. If this evidence is required, completion returns to incomplete." } } }
+    },
+    "evidence.curation.item.move_earlier" : {
+      "comment" : "C02 accessible explicit-order control.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Move earlier" } } }
+    },
+    "evidence.curation.item.move_later" : {
+      "comment" : "C02 accessible explicit-order control.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Move later" } } }
+    },
+    "evidence.curation.sequence.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence sequence" } } }
+    },
+    "evidence.curation.contact_sheet.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Contact sheet" } } }
+    },
+    "evidence.curation.sequence.reduced_motion" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced; sequence frames are shown as still images." } } }
+    },
+    "evidence.curation.review_order.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review order" } } }
+    },
+    "evidence.curation.role.heading" : {
+      "comment" : "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Role" } } }
+    },
+    "evidence.curation.role.context" : {
+      "comment" : "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Context" } } }
+    },
+    "evidence.curation.role.detail" : {
+      "comment" : "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Detail" } } }
+    },
+    "evidence.curation.role.before" : {
+      "comment" : "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Before" } } }
+    },
+    "evidence.curation.role.after" : {
+      "comment" : "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "After" } } }
+    },
+    "evidence.curation.role.other" : {
+      "comment" : "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Other" } } }
+    },
+    "evidence.curation.caption.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Caption" } } }
+    },
+    "evidence.curation.accessibility_description.heading" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Accessibility description" } } }
+    },
+    "evidence.curation.metadata.unavailable" : {
+      "comment" : "C02 evidence curation presentation text; fail-closed when no validated C05 metadata sequence binds this preview.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reviewed evidence metadata is unavailable." } } }
+    },
+    "evidence.curation.derivative.visual_ready" : {
+      "comment" : "C02 evidence curation presentation text; only a completed typed visual derivative receipt may use this state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reviewed visual derivative is ready." } } }
+    },
+    "evidence.curation.derivative.manifest_ready" : {
+      "comment" : "C02 evidence curation presentation text; a manifest is not presented as visual output.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reviewed derivative manifest is ready; visual output is not available in this surface." } } }
+    },
+    "evidence.curation.derivative.visual_unavailable" : {
+      "comment" : "C02 evidence curation presentation text; no completed typed visual derivative is available.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No completed visual derivative is available." } } }
+    },
+    "evidence.curation.reference.missing" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference content is unavailable." } } }
+    },
+    "evidence.curation.original.immutable" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Original evidence is unchanged." } } }
+    },
+    "evidence.curation.markup.none" : {
+      "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No reviewed markup is shown." } } }
     }
   },
   "version" : "1.0"

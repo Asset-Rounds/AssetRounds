@@ -96,6 +96,8 @@ enum EvidenceBundleStoreFailurePoint: Equatable, Sendable {
     case stagingWrite
     case atomicPromotionMove
     case assetLabelPublicationBeforeMarkerCommit
+    case derivativeStagingWrite
+    case derivativeAtomicPublicationMove
 }
 
 final class EvidenceBundleStoreFailureInjection: @unchecked Sendable {
@@ -760,6 +762,319 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             throw failure
         } catch {
             throw EvidenceBundleStoreError.fileOperationFailed
+        }
+    }
+
+    func resolveContentReference(
+        _ reference: ContentReferenceV1
+    ) throws -> ContentReferenceV1? {
+        guard reference.byteLength >= 0,
+              reference.byteLength <= EvidenceCurationLimitsV1.maximumSourceBytes else {
+            throw EvidenceDerivativeServiceFailureV1.limitExceeded
+        }
+        try validateGenerationRoot()
+        let workspace = reference.workspaceID
+        let target = generationRootURL
+            .appendingPathComponent("content", isDirectory: true)
+            .appendingPathComponent(workspace, isDirectory: true)
+            .appendingPathComponent(reference.contentID, isDirectory: true)
+            .appendingPathComponent("original.bin", isDirectory: false)
+        guard let type = try itemType(at: target) else { return nil }
+        guard type == .typeRegular else { throw EvidenceBundleStoreError.fileTypeInvalid }
+        guard let expected = reference.digests.digest(for: .sha256) else {
+            throw EvidenceDerivativeServiceFailureV1.missingSource
+        }
+        let observed = try withParentDescriptor(of: target) { parent, leaf in
+            try verifyProtectedRegularFile(
+                .mediaOriginal,
+                at: target,
+                parent: parent,
+                name: leaf,
+                expectedByteCount: reference.byteLength
+            )
+        }
+        guard observed == expected.hexadecimalValue else {
+            throw EvidenceDerivativeServiceFailureV1.missingSource
+        }
+        return reference
+    }
+
+    /// Reads only a digest-verified, descriptor-owned still-image source for
+    /// the bounded C02 renderer. The encoded-byte ceiling is checked before
+    /// any Data allocation; decoded pixel bounds are enforced by the renderer
+    /// before ImageIO is allowed to materialize pixels.
+    func readEvidenceDerivativeSource(
+        _ reference: ContentReferenceV1
+    ) throws -> Data {
+        guard reference.byteLength > 0,
+              reference.byteLength <= Int64(MediaContractV1.sourceByteCountMaximum),
+              let expected = reference.digests.digest(for: .sha256) else {
+            throw EvidenceDerivativeServiceFailureV1.limitExceeded
+        }
+        try validateGenerationRoot()
+        let target = generationRootURL
+            .appendingPathComponent("content", isDirectory: true)
+            .appendingPathComponent(reference.workspaceID, isDirectory: true)
+            .appendingPathComponent(reference.contentID, isDirectory: true)
+            .appendingPathComponent("original.bin", isDirectory: false)
+        guard try itemType(at: target) == .typeRegular else {
+            throw EvidenceDerivativeServiceFailureV1.missingSource
+        }
+        let bytes = try withParentDescriptor(of: target) { parent, leaf in
+            try readProtectedRegularFile(
+                .mediaOriginal,
+                at: target,
+                parent: parent,
+                name: leaf,
+                maximumBytes: reference.byteLength
+            )
+        }
+        guard Int64(bytes.count) == reference.byteLength,
+              KernelCanonicalHashV1.sha256(bytes) == expected.hexadecimalValue else {
+            throw EvidenceDerivativeServiceFailureV1.missingSource
+        }
+        return bytes
+    }
+
+    func publishOrAdoptEvidenceDerivative(
+        _ package: EvidenceDerivativeStorePackageV1,
+        cancellation: EvidenceDerivativeCancellationV1
+    ) throws -> EvidenceDerivativeContentPublicationReceiptV1 {
+        let workspace = package.workspaceID.rawValue.uuidString.lowercased()
+        let derivative = package.result.derivative
+        guard derivative.workspaceID == workspace,
+              package.orderedSources.count <= ContentContractLimitsV1.maximumProvenanceSources,
+              Int64(package.derivativeBytes.count) == derivative.byteLength,
+              derivative.byteLength <= Int64(EvidenceDerivativeMediaBoundsV1.maximumDerivativeBytes),
+              package.derivativeBytes.count <= EvidenceDerivativeMediaBoundsV1.maximumDerivativeBytes else {
+            throw EvidenceDerivativeServiceFailureV1.invalidRequest
+        }
+        let marker = try EvidenceDerivativePublicationMarkerV1(package: package)
+        let markerData = try EvidenceCurationCanonicalCodecV1.encode(marker)
+        guard markerData.count <= ContentContractLimitsV1.maximumCanonicalBytes else {
+            throw EvidenceDerivativeServiceFailureV1.limitExceeded
+        }
+        try validateGenerationRoot()
+        let stagingComponents = [
+            ".staging", "evidence-derivatives", workspace, package.operationID
+        ]
+        let finalComponents = ["content", workspace, derivative.contentID]
+        let staging = stagingComponents.reduce(generationRootURL) {
+            $0.appendingPathComponent($1, isDirectory: true)
+        }
+        let final = finalComponents.reduce(generationRootURL) {
+            $0.appendingPathComponent($1, isDirectory: true)
+        }
+
+        if try itemType(at: final) != nil {
+            return try adoptEvidenceDerivative(
+                marker: marker,
+                markerData: markerData,
+                derivativeBytes: package.derivativeBytes,
+                finalDirectory: final,
+                disposition: .adopted
+            )
+        }
+        try cleanupMatchingDerivativeStaging(
+            at: staging,
+            markerData: markerData,
+            derivativeBytes: package.derivativeBytes
+        )
+        if cancellation.isCancelled {
+            throw EvidenceDerivativeServiceFailureV1.interrupted
+        }
+        try ensureDirectory(relativeComponents: Array(stagingComponents.dropLast()))
+        try ensureDirectory(
+            relativeComponents: stagingComponents,
+            policyKind: .stagingDirectory
+        )
+        let stagedBytes = staging.appendingPathComponent("original.bin")
+        let stagedMarker = staging.appendingPathComponent("derivative-publication.json")
+        var didPublish = false
+        do {
+            guard failureInjection?.consume(.derivativeStagingWrite) != true else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            try writeProtectedStagingFile(package.derivativeBytes, to: stagedBytes)
+            try writeProtectedStagingFile(markerData, to: stagedMarker)
+            guard try withParentDescriptor(of: stagedBytes, { parent, leaf in
+                try readProtectedRegularFile(
+                    .stagingFile,
+                    at: stagedBytes,
+                    parent: parent,
+                    name: leaf,
+                    maximumBytes: derivative.byteLength
+                )
+            }) == package.derivativeBytes,
+                  try withParentDescriptor(of: stagedMarker, { parent, leaf in
+                    try readProtectedRegularFile(
+                        .stagingFile,
+                        at: stagedMarker,
+                        parent: parent,
+                        name: leaf,
+                        maximumBytes: Int64(ContentContractLimitsV1.maximumCanonicalBytes)
+                    )
+                  }) == markerData else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            if cancellation.isCancelled {
+                throw EvidenceDerivativeServiceFailureV1.interrupted
+            }
+            try applyPromotedMediaPolicy(.mediaOriginal, at: stagedBytes)
+            try applyPromotedMediaPolicy(.reportSnapshot, at: stagedMarker)
+            try applyDirectoryPolicy(.durableDirectory, at: staging)
+            try ensureDirectory(relativeComponents: Array(finalComponents.dropLast()))
+            guard failureInjection?.consume(.derivativeAtomicPublicationMove) != true else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            try moveDirectoryNoReplace(from: staging, to: final, didMove: &didPublish)
+            return try adoptEvidenceDerivative(
+                marker: marker,
+                markerData: markerData,
+                derivativeBytes: package.derivativeBytes,
+                finalDirectory: final,
+                disposition: .published
+            )
+        } catch {
+            if !didPublish {
+                do {
+                    try removeExactDirectoryIfPresent(staging)
+                } catch {
+                    throw EvidenceBundleStoreError.fileOperationFailed
+                }
+            }
+            throw error
+        }
+    }
+
+    func evidenceDerivativePublicationExists(
+        workspaceID: WorkspaceID,
+        contentID: String
+    ) throws -> Bool {
+        guard ContentContractValidationV1.validID(contentID) else {
+            throw EvidenceDerivativeServiceFailureV1.invalidRequest
+        }
+        let workspace = workspaceID.rawValue.uuidString.lowercased()
+        let directory = generationRootURL
+            .appendingPathComponent("content", isDirectory: true)
+            .appendingPathComponent(workspace, isDirectory: true)
+            .appendingPathComponent(contentID, isDirectory: true)
+        guard let type = try itemType(at: directory) else { return false }
+        guard type == .typeDirectory else { throw EvidenceBundleStoreError.fileTypeInvalid }
+        let names = try withOwnedDirectory(at: directory, directoryNames)
+        return names.contains("derivative-publication.json")
+    }
+
+    private func adoptEvidenceDerivative(
+        marker: EvidenceDerivativePublicationMarkerV1,
+        markerData: Data,
+        derivativeBytes: Data,
+        finalDirectory: URL,
+        disposition: EvidenceDerivativePublicationDispositionV1
+    ) throws -> EvidenceDerivativeContentPublicationReceiptV1 {
+        guard try itemType(at: finalDirectory) == .typeDirectory else {
+            throw EvidenceDerivativeServiceFailureV1.replayDiverged
+        }
+        let names = try withOwnedDirectory(at: finalDirectory, directoryNames)
+        guard names == ["derivative-publication.json", "original.bin"] else {
+            throw EvidenceDerivativeServiceFailureV1.replayDiverged
+        }
+        let bytesURL = finalDirectory.appendingPathComponent("original.bin")
+        let markerURL = finalDirectory.appendingPathComponent("derivative-publication.json")
+        let observedBytes = try withParentDescriptor(of: bytesURL) { parent, leaf in
+            try readProtectedRegularFile(
+                .mediaOriginal,
+                at: bytesURL,
+                parent: parent,
+                name: leaf,
+                maximumBytes: marker.result.derivative.byteLength
+            )
+        }
+        let observedMarker = try withParentDescriptor(of: markerURL) { parent, leaf in
+            try readProtectedRegularFile(
+                .reportSnapshot,
+                at: markerURL,
+                parent: parent,
+                name: leaf,
+                maximumBytes: Int64(ContentContractLimitsV1.maximumCanonicalBytes)
+            )
+        }
+        guard observedBytes == derivativeBytes, observedMarker == markerData else {
+            throw EvidenceDerivativeServiceFailureV1.replayDiverged
+        }
+        try marker.validate()
+        return EvidenceDerivativeContentPublicationReceiptV1(
+            disposition: disposition,
+            result: marker.result
+        )
+    }
+
+    private func cleanupMatchingDerivativeStaging(
+        at directory: URL,
+        markerData: Data,
+        derivativeBytes: Data
+    ) throws {
+        guard let type = try itemType(at: directory) else { return }
+        guard type == .typeDirectory else {
+            throw EvidenceDerivativeServiceFailureV1.replayDiverged
+        }
+        let names = try withOwnedDirectory(at: directory, directoryNames)
+        guard Set(names).isSubset(of: Set(["derivative-publication.json", "original.bin"])) else {
+            throw EvidenceDerivativeServiceFailureV1.replayDiverged
+        }
+        let bytesURL = directory.appendingPathComponent("original.bin")
+        if names.contains("original.bin") {
+            let observed = try readDerivativeStagingFile(
+                at: bytesURL,
+                temporaryKind: .stagingFile,
+                promotedKind: .mediaOriginal,
+                maximumBytes: Int64(derivativeBytes.count)
+            )
+            guard observed == derivativeBytes else {
+                throw EvidenceDerivativeServiceFailureV1.replayDiverged
+            }
+        }
+        let markerURL = directory.appendingPathComponent("derivative-publication.json")
+        if names.contains("derivative-publication.json") {
+            let observed = try readDerivativeStagingFile(
+                at: markerURL,
+                temporaryKind: .stagingFile,
+                promotedKind: .reportSnapshot,
+                maximumBytes: Int64(ContentContractLimitsV1.maximumCanonicalBytes)
+            )
+            guard observed == markerData else {
+                throw EvidenceDerivativeServiceFailureV1.replayDiverged
+            }
+        }
+        try removeExactDirectoryIfPresent(directory)
+    }
+
+    private func readDerivativeStagingFile(
+        at url: URL,
+        temporaryKind: OwnedFileKindV1,
+        promotedKind: OwnedFileKindV1,
+        maximumBytes: Int64
+    ) throws -> Data {
+        do {
+            return try withParentDescriptor(of: url) { parent, leaf in
+                try readProtectedRegularFile(
+                    temporaryKind,
+                    at: url,
+                    parent: parent,
+                    name: leaf,
+                    maximumBytes: maximumBytes
+                )
+            }
+        } catch {
+            return try withParentDescriptor(of: url) { parent, leaf in
+                try readProtectedRegularFile(
+                    promotedKind,
+                    at: url,
+                    parent: parent,
+                    name: leaf,
+                    maximumBytes: maximumBytes
+                )
+            }
         }
     }
 
@@ -1872,7 +2187,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         _ kind: OwnedFileKindV1,
         at url: URL,
         parent: Int32,
-        name: String
+        name: String,
+        maximumBytes: Int64? = nil
     ) throws -> Data {
         do {
             let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
@@ -1882,8 +2198,10 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             defer { _ = Darwin.close(descriptor) }
             var before = stat()
             guard Darwin.fstat(descriptor, &before) == 0,
-                  (before.st_mode & S_IFMT) == S_IFREG,
-                  before.st_nlink == 1 else {
+                   (before.st_mode & S_IFMT) == S_IFREG,
+                   before.st_nlink == 1,
+                   before.st_size >= 0,
+                   maximumBytes.map({ before.st_size <= $0 }) ?? true else {
                 throw EvidenceBundleStoreError.fileTypeInvalid
             }
             let expected = FileIdentity(device: before.st_dev, inode: before.st_ino)
@@ -1925,6 +2243,65 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         } catch {
             throw EvidenceBundleStoreError.fileOperationFailed
         }
+    }
+
+    /// Descriptor-pinned, fixed-buffer verification used before derivative
+    /// rendering. It proves exact source bytes without allocating the source.
+    private func verifyProtectedRegularFile(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        parent: Int32,
+        name: String,
+        expectedByteCount: Int64
+    ) throws -> String {
+        guard expectedByteCount >= 0,
+              expectedByteCount <= EvidenceCurationLimitsV1.maximumSourceBytes else {
+            throw EvidenceDerivativeServiceFailureV1.limitExceeded
+        }
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+        defer { _ = Darwin.close(descriptor) }
+        var before = stat()
+        guard Darwin.fstat(descriptor, &before) == 0,
+              (before.st_mode & S_IFMT) == S_IFREG,
+              before.st_nlink == 1,
+              before.st_size == expectedByteCount else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        let expectedIdentity = FileIdentity(device: before.st_dev, inode: before.st_ino)
+        let parentIdentity = try directoryIdentity(parent)
+        try ProtectedFilePolicyV1.verify(kind, at: url)
+        var hasher = SHA256()
+        var total: Int64 = 0
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while total < expectedByteCount {
+            let requested = Int(min(Int64(buffer.count), expectedByteCount - total))
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, requested)
+            }
+            if count > 0 {
+                hasher.update(data: Data(buffer.prefix(count)))
+                total += Int64(count)
+            } else if count == 0 {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            } else if errno != EINTR {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+        }
+        var trailing: UInt8 = 0
+        guard Darwin.read(descriptor, &trailing, 1) == 0 else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        var after = stat()
+        guard Darwin.fstat(descriptor, &after) == 0,
+              after.st_size == before.st_size,
+              try regularIdentity(descriptor) == expectedIdentity,
+              try regularIdentity(parent: parent, name: name) == expectedIdentity,
+              try regularIdentity(at: url) == expectedIdentity,
+              try directoryIdentity(parent) == parentIdentity else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        return Data(hasher.finalize()).map { String(format: "%02x", $0) }.joined()
     }
 
     private func withParentDescriptor<T>(

@@ -1,0 +1,201 @@
+{
+  "$id": "https://assetrounds.invalid/v23/evidence-curation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "binaryRendering": {
+      "const": {
+        "contactSheetBytesRequired": true,
+        "jsonOnlyRenderingForbidden": true,
+        "requiredMediaType": "image/png"
+      }
+    },
+    "bundleDecoding": {
+      "const": "EXACT_NO_ADDITIONAL_PROPERTIES"
+    },
+    "c05MetadataPersistence": {
+      "const": {
+        "activeModelCount": 144,
+        "backupRestore": "CANONICAL_V4_RECORDS42_FULL_REPLACE_RESTORE",
+        "canonicalWriterReceipt": "EvidenceMetadataMutationReceiptV1",
+        "deleteErase": "APPEND_ONLY_HISTORY_UNTIL_WORKSPACE_ERASE",
+        "durableFamilies": [
+          "EVIDENCE_ASSOCIATION_EVENT",
+          "EVIDENCE_SEQUENCE_REVISION"
+        ],
+        "durableModelCount": 2,
+        "durableRows": [
+          "EvidenceAssociationEventRowV1",
+          "EvidenceSequenceRevisionRowV1"
+        ],
+        "journalReplay": "MUTATION_RECEIPT_AND_SUCCESSOR_REPLAY",
+        "mode": "PERSISTENT_CANONICAL_EVIDENCE_METADATA_AND_SUCCESSOR_SEQUENCE",
+        "persistentContractSchema": "EVIDENCE_METADATA_V1_V43_RECORDS42",
+        "persistentSchemaVersion": 43,
+        "recordsSchemaVersion": 42,
+        "searchReport": "DERIVED_ONLY_REBUILT_FROM_CANONICAL_ROWS"
+      }
+    },
+    "cardID": {
+      "const": "V23-P04-C02"
+    },
+    "closedRoleCount": {
+      "const": 5
+    },
+    "comparisonIsProof": {
+      "const": false
+    },
+    "contentMode": {
+      "const": "CONTENT_ONLY"
+    },
+    "contractRefs": {
+      "const": [
+        "V21ToV23RequirementRebindingV1(V21-P04-C02).CONTRACTS",
+        "EvidenceDetailCardProfileV1",
+        "EvidenceDetailCardRenderReceiptV1",
+        "FinalAudiencePrivacyConfirmationV1",
+        "CompletedActivitySnapshotV1",
+        "DirectPrerequisiteEvidenceSetV1",
+        "CardAcceptanceInclusionProofV1",
+        "CardAcceptanceInclusionProofRecoveryReceiptV1",
+        "CandidateAcceptanceCompatibilityReceiptV1"
+      ]
+    },
+    "createsContentStore": {
+      "const": false
+    },
+    "derivativeByteMode": {
+      "const": "CONTENT_ONLY"
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P04-C02-G01",
+        "V23-P04-C02-A01",
+        "V23-P04-C02-H01",
+        "V23-P04-C02-I01",
+        "V23-P04-C02-R01"
+      ]
+    },
+    "evidenceRoles": {
+      "const": [
+        "CONTEXT",
+        "DETAIL",
+        "BEFORE",
+        "AFTER",
+        "OTHER"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "hostileCases": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
+    "journeyRefs": {
+      "const": [
+        "FJ15"
+      ]
+    },
+    "lifecycle": {
+      "const": {
+        "backupRestore": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+        "cloneFork": "INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+        "comparisonIsProof": false,
+        "createsContentStore": false,
+        "deleteErase": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+        "exportReport": "REQUIRED_VIA_INCUMBENT_CONTENT_C05_METADATA_AND_REPORT_AUTHORITIES",
+        "journalReplay": "C05_METADATA_WRITER_REPLAY_AND_DETERMINISTIC_REPROJECTION",
+        "migration": "C05_METADATA_AUTHORITY",
+        "persistence": "CONTENT_ONLY",
+        "plansAndProjectionsAreNonpersistent": true,
+        "schema": "INCUMBENT_CONTENT_AUTHORITY_AND_C05_V43_METADATA",
+        "searchRebuild": "NOT_APPLICABLE"
+      }
+    },
+    "nonpersistentTypes": {
+      "const": [
+        "EvidenceCurationSelectionV1",
+        "EvidenceVersionPinnedPreviewV1",
+        "EvidenceComparisonProjectionV1",
+        "EvidenceReviewedMarkupPlanV1",
+        "EvidenceSequencePlanV1",
+        "EvidenceCurationOperationReceiptV1",
+        "COMPARISON_OVERLAY",
+        "PROCESSING_PROGRESS",
+        "PRESENTATION_CLOCK",
+        "CONTACT_SHEET_PREVIEW"
+      ]
+    },
+    "persistentChangeMode": {
+      "const": "CONTENT_ONLY_DERIVATIVES_EXISTING_METADATA_ASSOCIATIONS"
+    },
+    "persistentContractSchema": {
+      "const": "EXISTING_EVIDENCE_METADATA_ASSOCIATION_SCHEMA"
+    },
+    "persistentRowTypes": {
+      "const": [
+        "EvidenceAssociationV1",
+        "ContentDerivativeProvenanceV1",
+        "REVIEWED_EVIDENCE_METADATA_ASSOCIATION"
+      ]
+    },
+    "plansAndProjectionsPersistence": {
+      "const": "NONPERSISTENT"
+    },
+    "provisional": {
+      "const": false
+    },
+    "schema": {
+      "const": "V22P04C02EvidenceCurationCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P04C02G01EligibleSelectionAndAdmissionNegatives",
+        "testV23P04C02A01VersionPinnedComparisonAndMissingFallback",
+        "testV23P04C02H01PrivacyBeforeMarkupAndReversibleAnnotation",
+        "testV23P04C02I01HostileBoundsPathsDigestAndInterruptedReplay",
+        "testV23P04C02R01ImmutableOriginalAndRecoveryClosure"
+      ]
+    },
+    "sequenceBound": {
+      "maximum": 16,
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "evidenceIDs",
+    "selectors",
+    "evidenceRoles",
+    "closedRoleCount",
+    "contractRefs",
+    "journeyRefs",
+    "persistentChangeMode",
+    "persistentContractSchema",
+    "persistentRowTypes",
+    "nonpersistentTypes",
+    "lifecycle",
+    "c05MetadataPersistence",
+    "plansAndProjectionsPersistence",
+    "derivativeByteMode",
+    "bundleDecoding",
+    "binaryRendering",
+    "contentMode",
+    "comparisonIsProof",
+    "createsContentStore",
+    "finalHashesSealed",
+    "provisional"
+  ],
+  "title": "Evidence selection, readable evidence-detail preview, comparison, reversible markup, and bounded sequence",
+  "type": "object"
+}

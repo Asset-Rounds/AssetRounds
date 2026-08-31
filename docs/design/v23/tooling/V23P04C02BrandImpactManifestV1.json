@@ -1,0 +1,317 @@
+{
+  "accessibilityAndLocalizationRequired": true,
+  "adoptionSkipped": true,
+  "artifactDigest": "1680d2a7b37257e2eb49626054997c3f9b9b0e9ad03247b01733671325dfd48c",
+  "authority": {
+    "acceptedDependencyProvider": {
+      "attemptID": 3,
+      "candidateHead": "6ecacf0b00a4a10c5591a41af360209475eb6545",
+      "candidateTree": "90e8b905cc5270b931b562fc24b6e83f85ce33c6",
+      "cardID": "V23-P03-C05",
+      "checkpointDigest": "a8cf15ae39d602b5bdf51b34c616ab963d27dfb639032d90bcbf551da589998f",
+      "contextDigest": "148ea188dd2add6ea8bcce6cf2caa0e01dd1a6d10d5395cf552ff1bb3775fc44",
+      "pathFenceDigest": "8ca993b5f491de9520c1b38a25f1c0021fcc84ec10f9f4c8b37ad183f7942524",
+      "role": "ACCEPTED_DEPENDENCY_CORRECTION_PROVIDER",
+      "verificationReceiptDigest": "4242cbf7a081977fbba91011c32567c2bd187a684800e7ff5a9119dcc6109bf2"
+    },
+    "appBaseHead": "6ecacf0b00a4a10c5591a41af360209475eb6545",
+    "appBaseTree": "90e8b905cc5270b931b562fc24b6e83f85ce33c6",
+    "authorizedOverlapCount": 5279,
+    "candidateHead": "6ecacf0b00a4a10c5591a41af360209475eb6545",
+    "candidateTree": "90e8b905cc5270b931b562fc24b6e83f85ce33c6",
+    "contextDigest": "69b4a6c0aa7c6a30431d28dddc4542d4178bed5f5ba2a5fc36b8925fb7f14f89",
+    "coordinationCASSequence": 394,
+    "coordinationHead": "64111b635de27d52ed8442508bed9f1c68c43ecd",
+    "coordinationLedgerDigest": "98324dee6c224fcce3fa2b81b6db4feb2da9846c810b972a63ffe904a6f24af9",
+    "coordinationOriginHead": "64111b635de27d52ed8442508bed9f1c68c43ecd",
+    "coordinationProjectionDigest": "4ac8cc51743528255fa8e12615b8f4cdd97041d1085b6b9c19035dd6e973d522",
+    "coordinationTree": "610fcd5677844011add15eb207e0ff1afdf4f116",
+    "dependencyCorrectionDigest": "d9b2d1467db9b319962f13a3f93887833b9448e4e5474e0554eb64e6c4685868",
+    "directPrerequisiteCards": [
+      "V23-P03-C24",
+      "V23-P04-C01"
+    ],
+    "dossierByteCount": 7470,
+    "dossierSHA256": "4b8a72b012c813ef5a4c302fdb9114805c396098491f73b857dbcc7dc46a07c1",
+    "expectedExistingPathCount": 243,
+    "expectedFencePathCount": 258,
+    "expectedNewPathCount": 15,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 3,
+    "hydrationTransitionDigest": "7cba14c59073c56e8928fd2a40d289af4f7b040e89beec6a2b458e6d69491489",
+    "inheritedV21BlockByteCount": 10858,
+    "inheritedV21BlockSHA256": "406387e5f3991e5b89a68ac573163ea123b33fa2f2c107f9d212909519281b17",
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "pathFenceDigest": "d978809591e63a7e74235a7e1029d546286aadc0bccdeed8bfb4ce2bb38d5768",
+    "priorFenceCount": 90,
+    "priorOwnedPathCount": 1428,
+    "provisionalPrerequisiteDigest": "91d4406f39d6c4d6c39b1ff954c02e37c704374a6ca0c8146a5685c28e8d3ef6",
+    "registerOrdinal": 90,
+    "registerRowByteCount": 309,
+    "registerRowSHA256": "d5ee6c271caa2ce34b8a891d32bf2a072231d7e298ce724fe5a4ae086bcac11c",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "unauthorizedOverlapCount": 0
+  },
+  "binaryRendering": {
+    "contactSheetBytesRequired": true,
+    "jsonOnlyRenderingForbidden": true,
+    "requiredMediaType": "image/png"
+  },
+  "brandSurfaceDelta": true,
+  "bundleDecoding": "EXACT_NO_ADDITIONAL_PROPERTIES",
+  "c05MetadataPersistence": {
+    "activeModelCount": 144,
+    "backupRestore": "CANONICAL_V4_RECORDS42_FULL_REPLACE_RESTORE",
+    "canonicalWriterReceipt": "EvidenceMetadataMutationReceiptV1",
+    "deleteErase": "APPEND_ONLY_HISTORY_UNTIL_WORKSPACE_ERASE",
+    "durableFamilies": [
+      "EVIDENCE_ASSOCIATION_EVENT",
+      "EVIDENCE_SEQUENCE_REVISION"
+    ],
+    "durableModelCount": 2,
+    "durableRows": [
+      "EvidenceAssociationEventRowV1",
+      "EvidenceSequenceRevisionRowV1"
+    ],
+    "journalReplay": "MUTATION_RECEIPT_AND_SUCCESSOR_REPLAY",
+    "mode": "PERSISTENT_CANONICAL_EVIDENCE_METADATA_AND_SUCCESSOR_SEQUENCE",
+    "persistentContractSchema": "EVIDENCE_METADATA_V1_V43_RECORDS42",
+    "persistentSchemaVersion": 43,
+    "recordsSchemaVersion": 42,
+    "searchReport": "DERIVED_ONLY_REBUILT_FROM_CANONICAL_ROWS"
+  },
+  "cardID": "V23-P04-C02",
+  "customerIdentityVerified": false,
+  "deliveryOrLegalSignatureClaimed": false,
+  "derivativeByteMode": "CONTENT_ONLY",
+  "derivativeMarkupOnly": true,
+  "evidenceIDs": [
+    "V23-P04-C02-G01",
+    "V23-P04-C02-A01",
+    "V23-P04-C02-H01",
+    "V23-P04-C02-I01",
+    "V23-P04-C02-R01"
+  ],
+  "finalHashesSealed": true,
+  "iPhoneNativeOnly": true,
+  "lifecycle": {
+    "backupRestore": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "cloneFork": "INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "comparisonIsProof": false,
+    "createsContentStore": false,
+    "deleteErase": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "exportReport": "REQUIRED_VIA_INCUMBENT_CONTENT_C05_METADATA_AND_REPORT_AUTHORITIES",
+    "journalReplay": "C05_METADATA_WRITER_REPLAY_AND_DETERMINISTIC_REPROJECTION",
+    "migration": "C05_METADATA_AUTHORITY",
+    "persistence": "CONTENT_ONLY",
+    "plansAndProjectionsAreNonpersistent": true,
+    "schema": "INCUMBENT_CONTENT_AUTHORITY_AND_C05_V43_METADATA",
+    "searchRebuild": "NOT_APPLICABLE"
+  },
+  "nativeIPadSurface": false,
+  "networkOrTelemetryFlow": false,
+  "onDeviceOnly": true,
+  "originalBytePreservationRequired": true,
+  "plansAndProjectionsPersistence": "NONPERSISTENT",
+  "privacyRedactionOwnedByC20": true,
+  "provisional": false,
+  "schema": "V23P04C02BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1",
+      "P04ShippingSurfaceSetV1",
+      "P04BrandClosureSetV1"
+    ],
+    "binaryRendering": {
+      "contactSheetBytesRequired": true,
+      "jsonOnlyRenderingForbidden": true,
+      "requiredMediaType": "image/png"
+    },
+    "bundleDecoding": "EXACT_NO_ADDITIONAL_PROPERTIES",
+    "c05MetadataPersistence": {
+      "activeModelCount": 144,
+      "backupRestore": "CANONICAL_V4_RECORDS42_FULL_REPLACE_RESTORE",
+      "canonicalWriterReceipt": "EvidenceMetadataMutationReceiptV1",
+      "deleteErase": "APPEND_ONLY_HISTORY_UNTIL_WORKSPACE_ERASE",
+      "durableFamilies": [
+        "EVIDENCE_ASSOCIATION_EVENT",
+        "EVIDENCE_SEQUENCE_REVISION"
+      ],
+      "durableModelCount": 2,
+      "durableRows": [
+        "EvidenceAssociationEventRowV1",
+        "EvidenceSequenceRevisionRowV1"
+      ],
+      "journalReplay": "MUTATION_RECEIPT_AND_SUCCESSOR_REPLAY",
+      "mode": "PERSISTENT_CANONICAL_EVIDENCE_METADATA_AND_SUCCESSOR_SEQUENCE",
+      "persistentContractSchema": "EVIDENCE_METADATA_V1_V43_RECORDS42",
+      "persistentSchemaVersion": 43,
+      "recordsSchemaVersion": 42,
+      "searchReport": "DERIVED_ONLY_REBUILT_FROM_CANONICAL_ROWS"
+    },
+    "canonicalSuccessor": {
+      "cardID": "V23-P04-C03",
+      "registerOrdinal": 91
+    },
+    "conformanceSubjects": [
+      "P04ShippingSurfaceSetV1",
+      "FJ15"
+    ],
+    "derivativeByteMode": "CONTENT_ONLY",
+    "dossierByteCount": 7470,
+    "dossierSHA256": "4b8a72b012c813ef5a4c302fdb9114805c396098491f73b857dbcc7dc46a07c1",
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/Evidence/EvidenceCurationContractsV1.swift",
+      "FieldEvidenceApp/Application/Evidence/EvidenceCurationCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Media/EvidenceDerivativeServiceV1.swift",
+      "FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C02EvidenceCurationUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/EvidenceCuration/V22P04C02EvidenceCurationCorpusV1.json"
+    ],
+    "inheritedV21BlockByteCount": 10858,
+    "inheritedV21BlockSHA256": "406387e5f3991e5b89a68ac573163ea123b33fa2f2c107f9d212909519281b17",
+    "invalidationConsumers": [
+      "V23-P04-C03",
+      "V23-P04-C10",
+      "V23-P04-C11",
+      "V23-P04-C20",
+      "V23-P04-C25",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lifecycle": {
+      "backupRestore": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+      "cloneFork": "INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+      "comparisonIsProof": false,
+      "createsContentStore": false,
+      "deleteErase": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+      "exportReport": "REQUIRED_VIA_INCUMBENT_CONTENT_C05_METADATA_AND_REPORT_AUTHORITIES",
+      "journalReplay": "C05_METADATA_WRITER_REPLAY_AND_DETERMINISTIC_REPROJECTION",
+      "migration": "C05_METADATA_AUTHORITY",
+      "persistence": "CONTENT_ONLY",
+      "plansAndProjectionsAreNonpersistent": true,
+      "schema": "INCUMBENT_CONTENT_AUTHORITY_AND_C05_V43_METADATA",
+      "searchRebuild": "NOT_APPLICABLE"
+    },
+    "missingPaths": [],
+    "plansAndProjectionsPersistence": "NONPERSISTENT",
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/Evidence/EvidenceCurationContractsV1.swift",
+      "FieldEvidenceApp/Application/Evidence/EvidenceCurationCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Media/EvidenceDerivativeServiceV1.swift",
+      "FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C02EvidenceCurationUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/EvidenceCuration/V22P04C02EvidenceCurationCorpusV1.json"
+    ],
+    "providerContractSlices": [
+      {
+        "contracts": [
+          "EvidenceMetadataPersistenceEnrollmentV1",
+          "EvidenceAssociationEventRowV1",
+          "EvidenceSequenceRevisionRowV1",
+          "EvidenceMetadataMutationV1",
+          "EvidenceMetadataMutationReceiptV1"
+        ],
+        "facet": "EVIDENCE_METADATA_CANONICAL_WRITER_AND_RECEIPT",
+        "pathFenceDigest": "8ca993b5f491de9520c1b38a25f1c0021fcc84ec10f9f4c8b37ad183f7942524",
+        "providerCardID": "V23-P03-C05"
+      },
+      {
+        "contracts": [
+          "EvidenceDetailCardProfileV1",
+          "EvidenceDetailCardRenderReceiptV1",
+          "FinalAudiencePrivacyConfirmationV1",
+          "CompletedActivitySnapshotV1"
+        ],
+        "facet": "EVIDENCE_DETAIL_AUTHORITY",
+        "pathFenceDigest": "cb123dd654137debce2a0b4679dde737645d30af9b57d52a43ee14aad3f997d2",
+        "providerCardID": "V23-P03-C06"
+      }
+    ],
+    "registerRowByteCount": 309,
+    "registerRowSHA256": "d5ee6c271caa2ce34b8a891d32bf2a072231d7e298ce724fe5a4ae086bcac11c",
+    "registerRows": [
+      "| 90 | <a id=\"v23-p04-c02-register\"></a>[`V23-P04-C02`](EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md#v23-p04-c02) | Evidence selection, readable evidence-detail preview, comparison, reversible markup, and bounded sequence | `IMPLEMENT_NOW` | `NOT_STARTED` | `V23-P03-C24`, `V23-P04-C01` | `REFINED_WITHOUT_LOSS` |"
+    ],
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "selectors": [
+      "testV23P04C02G01EligibleSelectionAndAdmissionNegatives",
+      "testV23P04C02A01VersionPinnedComparisonAndMissingFallback",
+      "testV23P04C02H01PrivacyBeforeMarkupAndReversibleAnnotation",
+      "testV23P04C02I01HostileBoundsPathsDigestAndInterruptedReplay",
+      "testV23P04C02R01ImmutableOriginalAndRecoveryClosure"
+    ],
+    "sourceRows": [
+      {
+        "byteCount": 41489,
+        "path": "FieldEvidenceApp/Domain/Evidence/EvidenceCurationContractsV1.swift",
+        "sha256": "5d4393ec07583985004b31404de189e8a8a701178143a794c58f28ea51d38559",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 7627,
+        "path": "FieldEvidenceApp/Application/Evidence/EvidenceCurationCoordinatorV1.swift",
+        "sha256": "92628aaf90152048baee901daf0f65b7fc691bb2d80268443fb14d398ba5ec18",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 42845,
+        "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceDerivativeServiceV1.swift",
+        "sha256": "983f76acc0f919f0c12a925213342f230a6b0a2a256d50e86f1fbbecd1e09c2c",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 26561,
+        "path": "FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift",
+        "sha256": "a33abeeddadd8363ecc70d9762867953c63ed4b0a830b41e42ffbff4ea01b411",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 72640,
+        "path": "FieldEvidenceAppTests/V9_67EvidenceCurationTests.swift",
+        "sha256": "584b7afe1745c8b93d0758fcc56e9d76694f16eade231fea06490f6a9805e741",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 3381,
+        "path": "FieldEvidenceAppUITests/V23_P04_C02EvidenceCurationUITests.swift",
+        "sha256": "8402f6c186ffd61d62c37b66fd7820e34b1977fb66ded80898b611a7b443c9d5",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 3666,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/EvidenceCuration/V22P04C02EvidenceCurationCorpusV1.json",
+        "sha256": "f301fe942de79b7c65609a7e1e4a8df59eb3a23e02d6da3a237107364a23c8ef",
+        "status": "SEALED_SOURCE"
+      }
+    ],
+    "sourceSemanticsInspected": true
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "title": "Evidence selection, readable evidence-detail preview, comparison, reversible markup, and bounded sequence",
+  "uiAdoptionSkipped": true,
+  "uiSurfaceDelta": true,
+  "uiTestDisposition": "EXPLICIT_POST_S10_ADOPTION_SKIP_NO_RESERVED_APP_COMPOSITION_AUTHORITY"
+}

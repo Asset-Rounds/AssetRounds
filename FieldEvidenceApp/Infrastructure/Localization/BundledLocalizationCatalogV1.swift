@@ -4989,3 +4989,45 @@ extension BundledLocalizationCatalogV1 {
         return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
     }
 }
+
+// MARK: - C02 evidence curation catalog
+
+extension BundledLocalizationCatalogV1 {
+    static func evidenceCurationEnglish(
+        _ key: EvidenceCurationLocalizationKeyV1
+    ) -> String {
+        EvidenceCurationLocalizationPolicyV1.english(key)
+    }
+
+    static func evidenceCurationLocalized(
+        _ key: EvidenceCurationLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: evidenceCurationEnglish(key),
+            bundle: bundle,
+            locale: locale,
+            comment: "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim."
+        )
+    }
+
+    static func evidenceCurationRegistry() throws -> LocalizationKeyRegistryV1 {
+        try EvidenceCurationLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = EvidenceCurationLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+                englishDefaultValue: evidenceCurationEnglish(key),
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}

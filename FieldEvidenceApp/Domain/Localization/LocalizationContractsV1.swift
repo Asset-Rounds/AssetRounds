@@ -5520,3 +5520,121 @@ enum RecoveryCenterLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C02 evidence curation localization
+
+/// C02 presentation labels distinguish immutable source material from
+/// reversible derivatives. They never claim cause, compliance, or a changed
+/// original.
+enum EvidenceCurationLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case heading = "evidence.curation.heading"
+    case detailPreviewHeading = "evidence.curation.detail_preview.heading"
+    case originalHeading = "evidence.curation.original.heading"
+    case referenceHeading = "evidence.curation.reference.heading"
+    case comparisonHeading = "evidence.curation.comparison.heading"
+    case overlayAdvisory = "evidence.curation.overlay.advisory"
+    case markupHeading = "evidence.curation.markup.heading"
+    case addArrowMarkup = "evidence.curation.markup.add_arrow"
+    case addCircleMarkup = "evidence.curation.markup.add_circle"
+    case addTextMarkup = "evidence.curation.markup.add_text"
+    case removeMarkup = "evidence.curation.markup.remove"
+    case retake = "evidence.curation.item.retake"
+    case retakeReviewRequired = "evidence.curation.item.retake.review_required"
+    case removeFromWork = "evidence.curation.item.remove_from_work"
+    case removeHistoryDisclosure = "evidence.curation.item.remove_history_disclosure"
+    case moveEarlier = "evidence.curation.item.move_earlier"
+    case moveLater = "evidence.curation.item.move_later"
+    case sequenceHeading = "evidence.curation.sequence.heading"
+    case contactSheetHeading = "evidence.curation.contact_sheet.heading"
+    case reducedMotion = "evidence.curation.sequence.reduced_motion"
+    case reviewOrderHeading = "evidence.curation.review_order.heading"
+    case roleHeading = "evidence.curation.role.heading"
+    case roleContext = "evidence.curation.role.context"
+    case roleDetail = "evidence.curation.role.detail"
+    case roleBefore = "evidence.curation.role.before"
+    case roleAfter = "evidence.curation.role.after"
+    case roleOther = "evidence.curation.role.other"
+    case captionHeading = "evidence.curation.caption.heading"
+    case accessibilityDescriptionHeading = "evidence.curation.accessibility_description.heading"
+    case metadataUnavailable = "evidence.curation.metadata.unavailable"
+    case visualDerivativeReady = "evidence.curation.derivative.visual_ready"
+    case derivativeManifestReady = "evidence.curation.derivative.manifest_ready"
+    case visualDerivativeUnavailable = "evidence.curation.derivative.visual_unavailable"
+    case missingReference = "evidence.curation.reference.missing"
+    case immutableOriginal = "evidence.curation.original.immutable"
+    case noMarkup = "evidence.curation.markup.none"
+
+    var localizationKey: LocalizationKeyV1 {
+        // This closed, repository-owned vocabulary has no dynamic keys.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum EvidenceCurationLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let semanticNamespace = "v23.p04.c02.evidence-curation"
+    static let keys = EvidenceCurationLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let immutableOriginalIsExplicit = true
+    static let comparisonIsNotCausalProof = true
+    static let markupIsReversible = true
+    static let noLegalOrPrivacyClaim = true
+
+    static func english(_ key: EvidenceCurationLocalizationKeyV1) -> String {
+        switch key {
+        case .heading: return "Evidence curation"
+        case .detailPreviewHeading: return "Evidence detail preview"
+        case .originalHeading: return "Original evidence"
+        case .referenceHeading: return "Reference evidence"
+        case .comparisonHeading: return "Side-by-side comparison"
+        case .overlayAdvisory: return "Overlay is an advisory viewing aid; it does not establish cause or compliance."
+        case .markupHeading: return "Reviewed markup"
+        case .addArrowMarkup: return "Add arrow"
+        case .addCircleMarkup: return "Add circle"
+        case .addTextMarkup: return "Add text note"
+        case .removeMarkup: return "Remove markup"
+        case .retake: return "Retake evidence"
+        case .retakeReviewRequired: return "Retake stages a new original and requires review of the caption and accessibility description for the new pixels."
+        case .removeFromWork: return "Remove from this work/report"
+        case .removeHistoryDisclosure: return "Immutable evidence history remains. If this evidence is required, completion returns to incomplete."
+        case .moveEarlier: return "Move earlier"
+        case .moveLater: return "Move later"
+        case .sequenceHeading: return "Evidence sequence"
+        case .contactSheetHeading: return "Contact sheet"
+        case .reducedMotion: return "Motion is reduced; sequence frames are shown as still images."
+        case .reviewOrderHeading: return "Review order"
+        case .roleHeading: return "Role"
+        case .roleContext: return "Context"
+        case .roleDetail: return "Detail"
+        case .roleBefore: return "Before"
+        case .roleAfter: return "After"
+        case .roleOther: return "Other"
+        case .captionHeading: return "Caption"
+        case .accessibilityDescriptionHeading: return "Accessibility description"
+        case .metadataUnavailable: return "Reviewed evidence metadata is unavailable."
+        case .visualDerivativeReady: return "Reviewed visual derivative is ready."
+        case .derivativeManifestReady: return "Reviewed derivative manifest is ready; visual output is not available in this surface."
+        case .visualDerivativeUnavailable: return "No completed visual derivative is available."
+        case .missingReference: return "Reference content is unavailable."
+        case .immutableOriginal: return "Original evidence is unchanged."
+        case .noMarkup: return "No reviewed markup is shown."
+        }
+    }
+
+    static func validate() throws {
+        let values = EvidenceCurationLocalizationKeyV1.allCases
+        let rawValues = values.map(\.rawValue)
+        guard sourceLocale == "en",
+              shippingLocale == "en",
+              rawValues.count == Set(rawValues).count,
+              Set(rawValues) == Set(keys),
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }),
+              immutableOriginalIsExplicit,
+              comparisonIsNotCausalProof,
+              markupIsReversible,
+              noLegalOrPrivacyClaim else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
