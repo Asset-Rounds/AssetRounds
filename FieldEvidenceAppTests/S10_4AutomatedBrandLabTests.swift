@@ -9756,10 +9756,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_071)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_319)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "A769FFC8EA01F8ED562B1D599CF92A1A759782E295F5F2731CCE7D837F2A6252"
+            "96FE94C142F6E1C589476F4995E7FEA0E44950437123C5E2009D9FF083776046"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -9769,11 +9769,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let normalEligibleExceptionsBinding =
             "            let eligibleExceptions = " +
                 "Self.contrastAuditExceptionSignatures.filter {"
-        XCTAssertEqual(
-            restoredCaptureBaselineSource.components(
-                separatedBy: "        do {\n" + normalEligibleExceptionsBinding
-            ).count - 1,
-            1
+        let restoredWorkValidationDiagnosticRange = try XCTUnwrap(
+            restoredCaptureBaselineSource.range(of: workValidationDiagnosticCall)
+        )
+        let restoredNormalEligibleExceptionsRange = try XCTUnwrap(
+            restoredCaptureBaselineSource.range(
+                of: normalEligibleExceptionsBinding,
+                range:
+                    restoredWorkValidationDiagnosticRange.upperBound ..<
+                    restoredCaptureBaselineSource.endIndex
+            )
+        )
+        XCTAssertLessThan(
+            restoredWorkValidationDiagnosticRange.lowerBound,
+            restoredNormalEligibleExceptionsRange.lowerBound
         )
 
         let issueRecheckDueRouteStart =
@@ -20825,7 +20834,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from:
                 "    @MainActor\n" +
                 "    private func positionReportCorrectionCompletedForAXText(",
-            before: "\n    @MainActor\n    private func captureBaseline("
+            before:
+                "\n\n    @MainActor\n" +
+                "    private func diagnoseAXTextWorkValidationNativeContrast("
         )
         let k147State56FirstTargetSource = try boundedSource(
             k134State56HelperSource,
@@ -22398,10 +22409,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_056)
+        XCTAssertEqual(captureSource.utf8.count, 8_304)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "8EACDB3319DD0672D4A9414B8A9F0E0ECD9FD1CA3E0F2AC6C2E68A2CE6367D16"
+            "8D2BB6DF413413782CD2DC864F19C17F0D31C7CC2183062415E60F4363A2E944"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
