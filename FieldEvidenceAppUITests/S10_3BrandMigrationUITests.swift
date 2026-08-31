@@ -4836,12 +4836,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                for: "state.work.validation-error",
                in: app
            ) {
+            try diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)
             guard positionWorkValidationShortDescriptionForAXText(in: app) else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 AX-text work-validation Short description positioning failed"
                 )
             }
-            try diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)
         }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)

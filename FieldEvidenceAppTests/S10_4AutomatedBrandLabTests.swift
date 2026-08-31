@@ -3780,7 +3780,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
             (workValidationGateSource, 543,
-             "C7748373196C6E5FC796A98984FD3F1142D19D966969A4FF15A41FEE584DD65C"),
+             "D1CD393C76E0E16A658BCCEC1E8AD6D3D67076C9F4022EE333416D5D946ACB4D"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4377,8 +4377,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            }"
         let workValidationPositioningAdjacency =
             workValidationPositioningGate + "\n" +
-                workValidationPositioningGuard + "\n" +
                 "            try diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)\n" +
+                workValidationPositioningGuard + "\n" +
                 "        }\n" +
                 workValidationBaseline
         XCTAssertEqual(
@@ -21057,7 +21057,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(uiSource.utf8.count, 798_938)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "1ADFD4A4191EF04F96BE5F230323E77FD118B0A720F442B3268BA6160AA70DF8"
+            "4A2A5D8D23376F9E31B3512E2E2D1BB25EA74F81B14E7C0A32EDEF2223D2D20D"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -22427,7 +22427,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workValidationDiagnosticCallerSource.utf8.count, 543)
         XCTAssertEqual(
             Data(workValidationDiagnosticCallerSource.utf8).sha256,
-            "C7748373196C6E5FC796A98984FD3F1142D19D966969A4FF15A41FEE584DD65C"
+            "D1CD393C76E0E16A658BCCEC1E8AD6D3D67076C9F4022EE333416D5D946ACB4D"
         )
         for exact in [
             #"automationShard?.shardID == "s10.4.current.ax-text""#,
