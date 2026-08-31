@@ -998,6 +998,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         scroll(sign, in: app)
         sign.tap()
+        XCTAssertTrue(
+            wait(for: sign, predicate: "hasKeyboardFocus == true", timeout: 10)
+        )
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
         sign.typeText("Monument Sign")
         dismissKeyboard(in: app)
         captureBaseline("state.new-sign.editing", in: app)

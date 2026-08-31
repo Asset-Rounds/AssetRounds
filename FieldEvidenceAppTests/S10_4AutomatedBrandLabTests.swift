@@ -7786,7 +7786,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(uiSource.contains(removed), removed)
         }
         let restoredMinimumKeyboardCaller =
-            #"        sign.typeText("Monument Sign")"# + "\n" +
+            #"        sign.tap()"# + "\n" +
+                "        XCTAssertTrue(\n" +
+                #"            wait(for: sign, predicate: "hasKeyboardFocus == true", timeout: 10)"# + "\n" +
+                "        )\n" +
+                "        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))\n" +
+                #"        sign.typeText("Monument Sign")"# + "\n" +
                 "        dismissKeyboard(in: app)\n" +
                 #"        captureBaseline("state.new-sign.editing", in: app)"#
         XCTAssertEqual(
@@ -21031,10 +21036,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 785_980)
+        XCTAssertEqual(uiSource.utf8.count, 786_171)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "F641401C91F4F31B52774848CF39CFDB6955091CEC5ED2BDBB362C84CE2ED681"
+            "36CD8EE5B87BEB89D6500432E9C1D33ECA368F534490CF3C0104E01120114F01"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
