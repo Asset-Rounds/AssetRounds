@@ -4538,7 +4538,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workValidationMinimumQuickPathFirstProperty =
             "                      workQuickPathIntroductionView.exists,"
         let workValidationMinimumQuickPathLastFrameValidator =
-            "                      workQuickPathFrameIsValid(workValidationFrame),"
+            "                      workQuickPathFrameIsValid(workValidationFrame) else {"
         let workValidationMinimumQuickPathFirstGeometry =
             "                    && workQuickPathFirstStaticTextFrame.intersects("
         let workValidationMinimumQuickPathAction =
@@ -22861,10 +22861,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard let range = Range(match.range, in: uiSource) else { return nil }
             return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 452)
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 453)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "3B7C0F3390F8CEB751696FA68AC09951C8C5FB8C237CDF486DF1098A6070C458"
+            "910D7BDE9FAEC2AFF49E6CAEAD3C2507A03AF99A30955BD73742E3B1AC0F160A"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
