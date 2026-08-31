@@ -2471,11 +2471,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"        let preflight = element("s3.preflight.screen", in: app)"#
         let preflightQuickPathCapture =
             #"        captureBaseline("state.check-preflight.ready", in: app)"#
-        let minimumTallPreflightDiagnosticCaller =
-            #"        if automationShard?.shardID == "s10.4.minimum.tall" {"#
-                + "\n"
-                + "            try diagnoseMinimumTallPreflightAuditTimeout(in: app)\n"
-                + "        }"
         XCTAssertEqual(
             uiSource.components(separatedBy: preflightQuickPathStart).count - 1,
             1
@@ -2531,11 +2526,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: currentProfilePreflightQuickPathGate,
                 range:
                     preflightMinimumStartRange.upperBound..<preflightQuickPathSource.endIndex
-            ), let minimumTallPreflightDiagnosticCallerRange =
-            preflightQuickPathSource.range(
-                of: minimumTallPreflightDiagnosticCaller,
-                range:
-                    currentProfilePreflightQuickPathStartRange.upperBound..<preflightQuickPathSource.endIndex
             )
         else {
             XCTFail("Missing the isolated minimum/current preflight source slices")
@@ -2550,7 +2540,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let currentProfilePreflightQuickPathSource = String(
             preflightQuickPathSource[
                 currentProfilePreflightQuickPathStartRange.lowerBound ..<
-                    minimumTallPreflightDiagnosticCallerRange.lowerBound
+                    preflightQuickPathSource.endIndex
             ]
         )
         XCTAssertEqual(preflightMinimumSource.utf8.count, 67_332)
@@ -2586,8 +2576,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    @MainActor\n"
                     + "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast(",
             before:
-                "\n\n    @MainActor\n"
-                    + "    private func diagnoseMinimumTallPreflightAuditTimeout("
+                "\n\n    private func publicAuditSignatureObject("
         )
         XCTAssertEqual(
             minimumDoubleLengthPreflightDiagnosticSource.utf8.count,
@@ -2684,188 +2673,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
 
-        let minimumTallPreflightDiagnosticCallThenBaseline =
-            minimumTallPreflightDiagnosticCaller
-                + "\n"
+        for retiredTallDiagnosticSymbol in [
+            "diagnoseMinimumTallPreflightAuditTimeout",
+            "S10_4_MINIMUM_TALL_PREFLIGHT_AUDIT_TIMEOUT_DIAGNOSTIC",
+            "S10.4 minimum-tall preflight audit-timeout diagnostic",
+            #"if automationShard?.shardID == "s10.4.minimum.tall" {"#,
+        ] {
+            XCTAssertFalse(uiSource.contains(retiredTallDiagnosticSymbol), retiredTallDiagnosticSymbol)
+        }
+        let ordinaryPreflightPreparationThenBaseline =
+            "        }\n"
                 + #"        captureBaseline("state.check-preflight.ready", in: app)"#
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: minimumTallPreflightDiagnosticCaller
+                separatedBy: ordinaryPreflightPreparationThenBaseline
             ).count - 1,
             1
         )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: minimumTallPreflightDiagnosticCallThenBaseline
-            ).count - 1,
-            1
-        )
-        let minimumTallPreflightAuditTimeoutSource = try boundedSource(
-            uiSource,
-            from:
-                "    @MainActor\n"
-                    + "    private func diagnoseMinimumTallPreflightAuditTimeout(",
-            before: "\n\n    private func publicAuditSignatureObject("
-        )
-        XCTAssertEqual(
-            minimumTallPreflightAuditTimeoutSource.utf8.count,
-            10_485
-        )
-        XCTAssertEqual(
-            Data(minimumTallPreflightAuditTimeoutSource.utf8).sha256,
-            "8B80D84C3CDA4D44EF8C524EE4CC46E21F9638731E46E333142DC2F828606890"
-        )
-        let minimumTallPreflightAuditTimeoutPrefix =
-            "S10_4_MINIMUM_TALL_PREFLIGHT_AUDIT_TIMEOUT_DIAGNOSTIC"
-        XCTAssertEqual(
-            minimumTallPreflightAuditTimeoutSource.components(
-                separatedBy: minimumTallPreflightAuditTimeoutPrefix
-            ).count - 1,
-            1
-        )
-        for exactCount in [
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
-            ("do {", 1),
-            ("} catch {", 1),
-            ("return true", 1),
-            ("XCTAttachment(", 3),
-            (".lifetime = .keepAlways", 3),
-            ("add(", 3),
-            ("auditCompleted = true", 1),
-            ("auditErrorDomain = auditError.domain", 1),
-            ("auditErrorCode = auditError.code", 1),
-            ("auditErrorDescription = auditError.localizedDescription", 1),
-            ("\"observedIssueCount\": observedIssueObjects.count", 1),
-            ("\"auditedElementCount\": auditedElementCount", 1),
-            ("\"auditCompleted\": auditCompleted", 1),
-            ("\"auditErrorDomain\": auditErrorDomain", 1),
-            ("\"auditErrorCode\": auditErrorCode", 1),
-            ("\"auditErrorDescription\": auditErrorDescription", 1),
-            (
-                "S10.4 minimum-tall preflight audit-timeout diagnostic completed nonaccepting",
-                1
-            ),
-        ] {
-            XCTAssertEqual(
-                minimumTallPreflightAuditTimeoutSource.components(
-                    separatedBy: exactCount.0
-                ).count - 1,
-                exactCount.1,
-                exactCount.0
-            )
-        }
-        var minimumTallDiagnosticSearchStart =
-            minimumTallPreflightAuditTimeoutSource.startIndex
-        for exact in [
-            "shard.ordinal == 12",
-            #"shard.shardID == "s10.4.minimum.tall""#,
-            #"shard.requirementID == "tall""#,
-            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
-            "automationSegment == .none",
-            "Self.segmentedRouteStateIDs.count == 67",
-            "Set(Self.segmentedRouteStateIDs).count == 67",
-            "Self.segmentedRouteStateIDs[8] == stateID",
-            "segmentedRouteStateCursor == 0",
-            "migratedStateIDs == expectedMigratedStateIDs",
-            "automationAXTreeDigests.keys.sorted()",
-            "automationContrastExceptions.isEmpty",
-            "!automatedSegmentFinished",
-            "app.state == .runningForeground",
-            "let diagnosticQueryBindings",
-            "\"preflightScreens\"",
-            "\"preflightScrollViews\"",
-            "\"timeZoneFields\"",
-            "\"confirmationSwitches\"",
-            "\"afterDarkSwitches\"",
-            "\"safePositionSwitches\"",
-            "\"beginButtons\"",
-            "\"navigationBars\"",
-            "\"tabBars\"",
-            "\"keyboards\"",
-            "\"inputViews\"",
-            "let preAuditApplicationState = String(describing: app.state)",
-            "let preAuditApplicationStateRawValue = app.state.rawValue",
-            "let preAuditApplicationForeground = app.state == .runningForeground",
-            "let preAuditApplicationFrame = auditFrameObject(app.frame)",
-            "let preAuditApplicationObject = diagnosticElementObject(app)",
-            "let preAuditAppAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "let preAuditTreeAttachment = XCTAttachment(string: app.debugDescription)",
-            "do {",
-            "try app.performAccessibilityAudit(for: .contrast) { issue in",
-            "observedIssueObjects.append(diagnosticIssue)",
-            "return true",
-            "auditCompleted = true",
-            "} catch {",
-            "let auditError = error as NSError",
-            "let diagnosticContext: [String: Any] = [",
-            "\"stateOrdinal\": 9",
-            #""predecessorStateID": "state.sign-detail.delete-confirmation""#,
-            #""successorStateID": "state.capture.wide-ready""#,
-            "printJSONLine(",
-            "let contextAttachment = XCTAttachment(",
-            "throw AutomationConfigurationError.invalid("
-        ] {
-            let range = try XCTUnwrap(
-                minimumTallPreflightAuditTimeoutSource.range(
-                    of: exact,
-                    range:
-                        minimumTallDiagnosticSearchStart ..<
-                            minimumTallPreflightAuditTimeoutSource.endIndex
-                ),
-                exact
-            )
-            minimumTallDiagnosticSearchStart = range.upperBound
-        }
-        guard let minimumTallAuditStart =
-            minimumTallPreflightAuditTimeoutSource.range(of: "do {")
-        else {
-            XCTFail("Missing the minimum-tall diagnostic audit boundary")
-            return
-        }
-        let minimumTallAfterAuditSource = String(
-            minimumTallPreflightAuditTimeoutSource[
-                minimumTallAuditStart.lowerBound...
-            ]
-        )
-        for prohibited in [
-            "app.state",
-            "app.frame",
-            "diagnosticElementObject(app)",
-        ] {
-            XCTAssertEqual(
-                minimumTallAfterAuditSource.components(
-                    separatedBy: prohibited
-                ).count - 1,
-                0,
-                prohibited
-            )
-        }
-        for prohibited in [
-            "captureBaseline(",
-            "S10_MIGRATION_STATE",
-            "S10_4_AX_STATE",
-            "S10_4_CONTRAST",
-            "candidate attachment",
-            "issueAttachment",
-            "ContrastAuditExceptionSignature(",
-            "eligibleExceptions",
-            ".tap()",
-            ".typeText(",
-            "scroll(",
-            "waitForExistence",
-            "waitForNonExistence",
-            "Thread.sleep",
-            "return false",
-            "XCTFail(",
-        ] {
-            XCTAssertEqual(
-                minimumTallPreflightAuditTimeoutSource.components(
-                    separatedBy: prohibited
-                ).count - 1,
-                0,
-                prohibited
-            )
-        }
         let preflightZoneScroll = "        scroll(zone, in: app)"
         XCTAssertEqual(
             uiSource.components(separatedBy: preflightZoneScroll).count - 1,
@@ -3543,7 +3367,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let currentProfileRestorationBeforeCapture =
             currentProfileRestorationFailure +
                 "\n            }\n        }\n" +
-                minimumTallPreflightDiagnosticCaller + "\n" +
                 preflightQuickPathCapture
         XCTAssertEqual(
             uiSource.components(
