@@ -7925,6 +7925,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    let exactSeparation =\n" +
                 "                        initialPreviewFrame.minY - initialHelperFrame.maxY\n" +
                 "                    initialHelperToPreviewSeparation = exactSeparation\n" +
+                "                    initialHelperToPreviewSeparationFixedPoint =\n" +
+                "                        workEditingGeometryFixedPoint(exactSeparation)\n" +
                 "                    workEditingInitialSeparation =\n" +
                 "                        requiredHelperDownwardMovement > 0\n" +
                 "                            && requiredPreviewBelowViewportMovement > 0\n" +
