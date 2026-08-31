@@ -51,7 +51,7 @@ def _expected_manifest_rows(outputs: dict[str, bytes]) -> list[dict[str, Any]]:
             data = outputs[path]
             rows.append({"path": path, "byteCount": len(data), "sha256": hashlib.sha256(data).hexdigest(), "status": "SEALED_TOOLING"})
         elif (ROOT / path).is_file():
-            data = (ROOT / path).read_bytes()
+            data = contracts.canonical_file_bytes(ROOT / path)
             rows.append({"path": path, "byteCount": len(data), "sha256": hashlib.sha256(data).hexdigest(), "status": "SEALED_TOOLING" if path in contracts.TOOLING_EDIT_PATHS else "SEALED_SOURCE"})
         else:
             rows.append({"path": path, "byteCount": None, "sha256": None, "status": "PENDING_SOURCE"})

@@ -336,6 +336,26 @@ def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+_CANONICAL_TEXT_SUFFIXES = frozenset({
+    ".csv", ".entitlements", ".json", ".md", ".pbxproj", ".plist", ".ps1",
+    ".py", ".sh", ".strings", ".swift", ".toml", ".txt", ".xcstrings",
+    ".xcscheme", ".yaml", ".yml",
+})
+
+
+def canonical_file_bytes(path: Path) -> bytes:
+    """Return checkout-independent bytes for evidence hashing.
+
+    Git may materialize repository text with CRLF on Windows even though the
+    canonical blob uses LF. Evidence hashes bind the textual artifact, not a
+    checkout's line-ending policy. Binary artifacts remain byte-exact.
+    """
+    data = path.read_bytes()
+    if path.suffix.lower() in _CANONICAL_TEXT_SUFFIXES:
+        return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return data
+
+
 def _valid_sha(value: object) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
@@ -910,7 +930,7 @@ def provider_artifacts(root: Path) -> list[dict[str, Any]]:
         for path in metadata["paths"]:
             target = root / path
             if target.is_file():
-                data = target.read_bytes()
+                data = canonical_file_bytes(target)
                 files.append({"path": path, "byteCount": len(data), "sha256": sha256_bytes(data), "status": "SEALED_PROVIDER"})
             else:
                 if FINAL_HASHES_SEALED and metadata["required"]:
@@ -987,7 +1007,7 @@ def _source_rows(root: Path) -> list[dict[str, Any]]:
     for path in IMPLEMENTATION_PATHS:
         target = root / path
         if target.is_file():
-            data = target.read_bytes()
+            data = canonical_file_bytes(target)
             rows.append({"path": path, "byteCount": len(data), "sha256": sha256_bytes(data), "status": "SEALED_SOURCE"})
         else:
             rows.append({"path": path, "byteCount": None, "sha256": None, "status": "PENDING_SOURCE"})
@@ -1108,7 +1128,7 @@ def _manifest_row(root: Path, path: str, rendered: dict[str, bytes]) -> dict[str
         if FINAL_HASHES_SEALED:
             raise ValueError("cannot seal missing fence input:" + path)
         return {"path": path, "byteCount": None, "sha256": None, "status": "PENDING_SOURCE"}
-    data = target.read_bytes()
+    data = canonical_file_bytes(target)
     return {"path": path, "byteCount": len(data), "sha256": sha256_bytes(data), "status": "SEALED_TOOLING" if path in TOOLING_EDIT_PATHS else "SEALED_SOURCE"}
 
 

@@ -1,6 +1,6 @@
 {
-  "artifactDigest": "959e0569f423e13000c14156fbb5423b20d39d5847b6347565e38a3cb1ef6019",
-  "artifactSetDigest": "ccc815dbd64b76ef62fe0dabf07219605d349a50ba48f19622f0df94aa19ca23",
+  "artifactDigest": "69fe562ee12731b7e6823d6fdc901506f82af4f72a69e08e9f54cee5922c5d0d",
+  "artifactSetDigest": "03cb40b6af4459d51dbdd57a403fb7047b2c82106bafdd0c18adb2b595f79a14",
   "authority": {
     "acceptedDependencyProvider": {
       "attemptID": 3,
@@ -1808,9 +1808,9 @@
       "status": "SEALED_SOURCE"
     },
     {
-      "byteCount": 68892,
+      "byteCount": 69656,
       "path": "Scripts/v23/p04_c02_contracts.py",
-      "sha256": "eb87f6f6aca5f30b4258dec55e766c724b583911810ba0b5635b19cfdc8a5294",
+      "sha256": "f520e497b199613aa3b3ba6b94d0219f1edf2923d35ed9607f732fbb156bce25",
       "status": "SEALED_TOOLING"
     },
     {
@@ -1820,9 +1820,9 @@
       "status": "SEALED_TOOLING"
     },
     {
-      "byteCount": 17920,
+      "byteCount": 17937,
       "path": "Scripts/v23/verify_p04_c02_contracts.py",
-      "sha256": "b4c4474d3f73585bcfdd68f99db5f2354bcb8e87f1e3070b0c4e98ae7caa3a4f",
+      "sha256": "f4f82be1cd3aecbe54751c056f5fa2d584e7e222498596d1d42b9edc43750796",
       "status": "SEALED_TOOLING"
     },
     {
