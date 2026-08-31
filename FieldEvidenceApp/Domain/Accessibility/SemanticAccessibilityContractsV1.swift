@@ -2679,6 +2679,44 @@ enum C53AssetServiceReliabilityAccessibilityPolicyV1 {
     }
 }
 
+// MARK: - C09 operations dashboard accessibility
+
+enum C09OperationsDashboardAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "operations_dashboard.screen"
+    case metric = "operations_dashboard.metric"
+    case timeline = "operations_dashboard.timeline"
+    case exposureReview = "operations_dashboard.exposure.review"
+    case exposureCorrection = "operations_dashboard.exposure.correction"
+}
+
+enum C09OperationsDashboardAccessibilityPolicyV1 {
+    static let semanticIDs = C09OperationsDashboardAccessibilityIDV1.allCases.map(\.rawValue)
+    static let qualifiedValueOrUnavailableReasonIsSpoken = true
+    static let definitionVersionIsSpoken = true
+    static let timelineEventKindAndProvenanceAreSpoken = true
+    static let reviewAndCorrectionAreKeyboardActionable = true
+    static let rawIdentityOrInternalReasonIsSpoken = false
+    static let reduceMotionSupported = true
+    static let dynamicTypeThroughAX5Required = true
+    static let rtlReadingOrderRequired = true
+    static let routeAdoptionClaimed = false
+
+    static func validate() throws {
+        guard semanticIDs.count == Set(semanticIDs).count,
+              qualifiedValueOrUnavailableReasonIsSpoken,
+              definitionVersionIsSpoken,
+              timelineEventKindAndProvenanceAreSpoken,
+              reviewAndCorrectionAreKeyboardActionable,
+              !rawIdentityOrInternalReasonIsSpoken,
+              reduceMotionSupported,
+              dynamicTypeThroughAX5Required,
+              rtlReadingOrderRequired,
+              !routeAdoptionClaimed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}
+
 // MARK: - C01 Support & Recovery Center accessibility
 
 /// C01 keeps the six UI selectors stable for VoiceOver, Voice Control, and

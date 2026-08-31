@@ -5272,6 +5272,123 @@ enum C53AssetServiceReliabilityLocalizationPolicyV1 {
     }
 }
 
+// MARK: - C09 operations dashboard localization
+
+enum C09OperationsDashboardLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case assetName = "operations_dashboard.asset_name"
+    case correctExposure = "operations_dashboard.correct_exposure"
+    case correctExposureHint = "operations_dashboard.correct_exposure.hint"
+    case definitionVersion = "operations_dashboard.definition_version"
+    case exposureHeading = "operations_dashboard.exposure.heading"
+    case exposureQualified = "operations_dashboard.exposure.qualified"
+    case exposureUnavailable = "operations_dashboard.exposure.unavailable"
+    case heading = "operations_dashboard.heading"
+    case introduction = "operations_dashboard.introduction"
+    case metricFullInterruptionAvailability = "operations_dashboard.metric.full_interruption_availability"
+    case metricMTBF = "operations_dashboard.metric.mtbf"
+    case metricUnavailable = "operations_dashboard.metric.unavailable"
+    case metricsHeading = "operations_dashboard.metrics.heading"
+    case provenanceCorrected = "operations_dashboard.provenance.corrected"
+    case provenanceRecorded = "operations_dashboard.provenance.recorded"
+    case provenanceSuperseded = "operations_dashboard.provenance.superseded"
+    case reviewExposure = "operations_dashboard.review_exposure"
+    case reviewExposureHint = "operations_dashboard.review_exposure.hint"
+    case reviewMetricDetails = "operations_dashboard.review_metric_details"
+    case reviewMetricDetailsHint = "operations_dashboard.review_metric_details.hint"
+    case timelineCorrectiveWork = "operations_dashboard.timeline.corrective_work"
+    case timelineEmpty = "operations_dashboard.timeline.empty"
+    case timelineEvidenceAssociation = "operations_dashboard.timeline.evidence_association"
+    case timelineExplicitAssetChange = "operations_dashboard.timeline.explicit_asset_change"
+    case timelineFinding = "operations_dashboard.timeline.finding"
+    case timelineHeading = "operations_dashboard.timeline.heading"
+    case timelineImpactSegment = "operations_dashboard.timeline.impact_segment"
+    case timelineIncident = "operations_dashboard.timeline.incident"
+    case timelineInspection = "operations_dashboard.timeline.inspection"
+    case timelinePlacementChange = "operations_dashboard.timeline.placement_change"
+    case timelineQualifiedExposure = "operations_dashboard.timeline.qualified_exposure"
+    case timelineRecheck = "operations_dashboard.timeline.recheck"
+    case timelineReport = "operations_dashboard.timeline.report"
+    case unavailableCancelled = "operations_dashboard.unavailable.cancelled"
+    case unavailableData = "operations_dashboard.unavailable.data"
+    case unavailableMissingCoverage = "operations_dashboard.unavailable.missing_coverage"
+    case unavailableMissingQualifiedExposure = "operations_dashboard.unavailable.missing_qualified_exposure"
+    case unavailableNoQualifyingFailureStart = "operations_dashboard.unavailable.no_qualifying_failure_start"
+    case unavailableNoReason = "operations_dashboard.unavailable.no_reason"
+    case unavailableProtectedData = "operations_dashboard.unavailable.protected_data"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum C09OperationsDashboardLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let englishOnly = true
+    static let displaySafeProjectionOnly = true
+    static let rawInternalIdentityLocalized = false
+    static let rawInternalReasonLocalized = false
+    static let uptimeClaimed = false
+    static let releaseToServiceClaimed = false
+
+    static func english(_ key: C09OperationsDashboardLocalizationKeyV1) -> String {
+        switch key {
+        case .assetName: return "Asset name"
+        case .correctExposure: return "Correct exposure and coverage"
+        case .correctExposureHint: return "Records a correction through the exposure coordinator."
+        case .definitionVersion: return "Definition version"
+        case .exposureHeading: return "Exposure and coverage"
+        case .exposureQualified: return "Recorded exposure and coverage qualify for this projection."
+        case .exposureUnavailable: return "Recorded exposure and coverage do not qualify for this projection."
+        case .heading: return "Operations dashboard"
+        case .introduction: return "Values are shown only when their recorded exposure and source evidence qualify."
+        case .metricUnavailable: return "Reliability metric unavailable"
+        case .metricFullInterruptionAvailability: return "Recorded full-interruption availability"
+        case .metricMTBF: return "Recorded mean time between failures"
+        case .metricsHeading: return "Qualified reliability metrics"
+        case .provenanceCorrected: return "Recorded correction"
+        case .provenanceRecorded: return "Recorded source event"
+        case .provenanceSuperseded: return "Superseded recorded event"
+        case .reviewExposure: return "Review exposure and coverage"
+        case .reviewExposureHint: return "Reviews recorded intervals, exclusions, and coverage without changing them."
+        case .reviewMetricDetails: return "Review metric details"
+        case .reviewMetricDetailsHint: return "Shows the metric definition, included evidence, and exclusions."
+        case .timelineEmpty: return "No service history is available to show."
+        case .timelineExplicitAssetChange: return "Asset change recorded"
+        case .timelineCorrectiveWork: return "Corrective work recorded"
+        case .timelineEvidenceAssociation: return "Evidence association recorded"
+        case .timelineFinding: return "Finding recorded"
+        case .timelineHeading: return "Asset service history"
+        case .timelineImpactSegment: return "Service impact segment recorded"
+        case .timelineIncident: return "Asset service incident recorded"
+        case .timelineInspection: return "Inspection recorded"
+        case .timelinePlacementChange: return "Placement change recorded"
+        case .timelineQualifiedExposure: return "Qualified service exposure recorded"
+        case .timelineRecheck: return "Recheck recorded"
+        case .timelineReport: return "Report recorded"
+        case .unavailableCancelled: return "The projection was cancelled before a qualified value was available."
+        case .unavailableData: return "Recorded data is unavailable for this projection."
+        case .unavailableMissingCoverage: return "Recorded coverage does not qualify for this metric."
+        case .unavailableMissingQualifiedExposure: return "No qualifying recorded service exposure is available."
+        case .unavailableNoQualifyingFailureStart: return "No qualifying recorded failure start is available."
+        case .unavailableNoReason: return "A qualifying reason is not available. Review exposure and coverage."
+        case .unavailableProtectedData: return "Unlock this device to review the recorded data."
+        }
+    }
+
+    static func validate() throws {
+        let keys = C09OperationsDashboardLocalizationKeyV1.allCases
+        let rawValues = keys.map(\.rawValue)
+        guard sourceLocale == "en", englishOnly, displaySafeProjectionOnly,
+              !rawInternalIdentityLocalized, !rawInternalReasonLocalized,
+              !uptimeClaimed, !releaseToServiceClaimed,
+              rawValues == rawValues.sorted(), Set(rawValues).count == rawValues.count,
+              keys.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
 /// Shared C53 boundary constants let inherited surfaces enroll the four
 /// contract refs without introducing a second writer, store, or claim.
 enum C53SharedServiceReliabilitySemanticBoundaryV1 {

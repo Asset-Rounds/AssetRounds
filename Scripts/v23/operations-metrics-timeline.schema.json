@@ -1,0 +1,371 @@
+{
+  "$id": "https://assetrounds.invalid/v23/operations-metrics-timeline.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authorityContracts": {
+      "const": [
+        "AssetServiceIncidentV1",
+        "ServiceImpactSegmentV1",
+        "QualifiedServiceExposureV1",
+        "ReliabilityMetricInputProjectionV1",
+        "MetricDefinitionV1",
+        "ReliabilityMetricProjectionV1",
+        "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+        "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+      ]
+    },
+    "cardID": {
+      "const": "V23-P04-C09"
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "forbidden": {
+      "const": [
+        "MODEL_DECLARATION",
+        "PERSISTENT_SCHEMA_V47",
+        "SCHEMA_MIGRATION",
+        "NEW_STORE",
+        "SECOND_WRITER",
+        "BACKUP_RESTORE_ENROLLMENT",
+        "DELETE_ERASE_OWNERSHIP",
+        "CUSTOMER_LEARNING_METRIC_DEFINITION_BRIDGE",
+        "NETWORK",
+        "TELEMETRY",
+        "ACCOUNT",
+        "AUTHENTICATION",
+        "TENANCY",
+        "REMOTE_SYNC",
+        "BACKEND",
+        "REMOTE_ANALYTICS",
+        "NATIVE_IPAD",
+        "PREDICTIVE_SCORING",
+        "DUE_OR_OVERDUE",
+        "ACTOR_ATTRIBUTION"
+      ]
+    },
+    "lifecycle": {
+      "const": {
+        "BACKUP_REPLACE_RESTORE": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_AFTER_CANONICAL_RESTORE",
+        "CLONE_FORK": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_FROM_CANONICAL_C53_INPUTS",
+        "COMPATIBILITY": "VERSIONED_DEFINITION_AND_PROJECTION_VALIDATION",
+        "DELETE_ERASE": "NOT_APPLICABLE_DERIVED_ONLY_DROP_AND_REBUILD",
+        "DOWNGRADE_FORWARD_FIX": "DROP_AND_REBUILD",
+        "IDEMPOTENT_RECEIPTS": "NO_CARD_LOCAL_RECEIPT_CANONICAL_C53_RECEIPTS_UNCHANGED",
+        "IMPORT_EXPORT": "DETERMINISTIC_OPEN_JSON_HANDOFF_NO_CANONICAL_IMPORT",
+        "INTERRUPTION": "CANCEL_AND_RESTART_OR_RESUME_CALLER_HELD_CONTINUATION",
+        "JOURNAL_REPLAY": "REBUILD_FROM_CANONICAL_C53_INPUTS",
+        "MIGRATION": "NOT_APPLICABLE_DERIVED_ONLY",
+        "REPORT_PROJECTION": "C53_REPORT_PROJECTION_DERIVED_HANDOFF",
+        "RETENTION": "NOT_APPLICABLE_DERIVED_ONLY",
+        "SCHEMA_VERSION": "OPERATIONS_METRICS_V1_VERSION_1",
+        "SEARCH_REBUILD": "DERIVED_INDEX_REBUILD_FROM_CANONICAL_C53_INPUTS",
+        "WRITER_QUERY": "NONPERSISTENT_NO_CARD_LOCAL_WRITER_OR_QUERY"
+      }
+    },
+    "metricDefinitions": {
+      "const": [
+        "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+        "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+      ]
+    },
+    "ordinal": {
+      "const": 97
+    },
+    "persistentKinds": {
+      "const": []
+    },
+    "physicalLockedState": {
+      "const": "REQUIRED_PENDING_OWNER"
+    },
+    "provisional": {
+      "const": false
+    },
+    "qualificationStates": {
+      "const": [
+        "QUALIFIED",
+        "UNAVAILABLE"
+      ]
+    },
+    "schema": {
+      "const": "OPERATIONS_METRICS_TIMELINE_V1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P04C09G01MetricDefinitionAndDashboardJSONReconciliationAreDeterministic",
+        "testV23P04C09A01AssetTimelineOrderAndProvenanceRemainExactAcrossCorrectiveLifecycle",
+        "testV23P04C09H01MetricDefinitionOutputDisagreementDoubleCountAndOwnerBridgeFailClosed",
+        "testV23P04C09I01InterruptedScaleRebuildCancellationAndDerivedIndexCorruptionRemainDeterministic",
+        "testV23P04C09R01DropRebuildAndRecoveryPreserveCanonicalRecordsReceiptsAndArtifacts"
+      ]
+    },
+    "semantics": {
+      "const": {
+        "accessibilityAndLocalization": {
+          "cancellationRecovery": true,
+          "darkContrastNonColor": true,
+          "largerText": true,
+          "localeAndRTL": true,
+          "offline": true,
+          "permissionFallback": true,
+          "reduceMotion": true,
+          "switchControlWhereRelevant": true,
+          "syntheticFixturesOnly": true,
+          "voiceControl": true,
+          "voiceOver": true
+        },
+        "authorityContracts": [
+          "AssetServiceIncidentV1",
+          "ServiceImpactSegmentV1",
+          "QualifiedServiceExposureV1",
+          "ReliabilityMetricInputProjectionV1",
+          "MetricDefinitionV1",
+          "ReliabilityMetricProjectionV1",
+          "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+          "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+        ],
+        "backupRestoreRequired": false,
+        "boundedRebuildMaximumAssets": 10000,
+        "cancellationAndCorruption": "DROP_DERIVED_AND_FAIL_CLOSED_UNTIL_REBUILT",
+        "canonicalIncidentAndExposureWriterOwner": "V23-P03-C53",
+        "deleteEraseRequired": false,
+        "deterministicDashboardJSON": true,
+        "deterministicMetricDefinitionRegistry": true,
+        "deterministicTimelineOrderingAndProvenance": true,
+        "downgradePolicy": "DROP_AND_REBUILD",
+        "evidenceIDs": [
+          "V23-P04-C09-G01",
+          "V23-P04-C09-A01",
+          "V23-P04-C09-H01",
+          "V23-P04-C09-I01",
+          "V23-P04-C09-R01"
+        ],
+        "exportReportRequired": true,
+        "forbidden": [
+          "MODEL_DECLARATION",
+          "PERSISTENT_SCHEMA_V47",
+          "SCHEMA_MIGRATION",
+          "NEW_STORE",
+          "SECOND_WRITER",
+          "BACKUP_RESTORE_ENROLLMENT",
+          "DELETE_ERASE_OWNERSHIP",
+          "CUSTOMER_LEARNING_METRIC_DEFINITION_BRIDGE",
+          "NETWORK",
+          "TELEMETRY",
+          "ACCOUNT",
+          "AUTHENTICATION",
+          "TENANCY",
+          "REMOTE_SYNC",
+          "BACKEND",
+          "REMOTE_ANALYTICS",
+          "NATIVE_IPAD",
+          "PREDICTIVE_SCORING",
+          "DUE_OR_OVERDUE",
+          "ACTOR_ATTRIBUTION"
+        ],
+        "forbiddenCapabilities": [
+          "MODEL_DECLARATION",
+          "PERSISTENT_SCHEMA_V47",
+          "SCHEMA_MIGRATION",
+          "NEW_STORE",
+          "SECOND_WRITER",
+          "BACKUP_RESTORE_ENROLLMENT",
+          "DELETE_ERASE_OWNERSHIP",
+          "CUSTOMER_LEARNING_METRIC_DEFINITION_BRIDGE",
+          "NETWORK",
+          "TELEMETRY",
+          "ACCOUNT",
+          "AUTHENTICATION",
+          "TENANCY",
+          "REMOTE_SYNC",
+          "BACKEND",
+          "REMOTE_ANALYTICS",
+          "NATIVE_IPAD",
+          "PREDICTIVE_SCORING",
+          "DUE_OR_OVERDUE",
+          "ACTOR_ATTRIBUTION"
+        ],
+        "lifecycle": {
+          "BACKUP_REPLACE_RESTORE": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_AFTER_CANONICAL_RESTORE",
+          "CLONE_FORK": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_FROM_CANONICAL_C53_INPUTS",
+          "COMPATIBILITY": "VERSIONED_DEFINITION_AND_PROJECTION_VALIDATION",
+          "DELETE_ERASE": "NOT_APPLICABLE_DERIVED_ONLY_DROP_AND_REBUILD",
+          "DOWNGRADE_FORWARD_FIX": "DROP_AND_REBUILD",
+          "IDEMPOTENT_RECEIPTS": "NO_CARD_LOCAL_RECEIPT_CANONICAL_C53_RECEIPTS_UNCHANGED",
+          "IMPORT_EXPORT": "DETERMINISTIC_OPEN_JSON_HANDOFF_NO_CANONICAL_IMPORT",
+          "INTERRUPTION": "CANCEL_AND_RESTART_OR_RESUME_CALLER_HELD_CONTINUATION",
+          "JOURNAL_REPLAY": "REBUILD_FROM_CANONICAL_C53_INPUTS",
+          "MIGRATION": "NOT_APPLICABLE_DERIVED_ONLY",
+          "REPORT_PROJECTION": "C53_REPORT_PROJECTION_DERIVED_HANDOFF",
+          "RETENTION": "NOT_APPLICABLE_DERIVED_ONLY",
+          "SCHEMA_VERSION": "OPERATIONS_METRICS_V1_VERSION_1",
+          "SEARCH_REBUILD": "DERIVED_INDEX_REBUILD_FROM_CANONICAL_C53_INPUTS",
+          "WRITER_QUERY": "NONPERSISTENT_NO_CARD_LOCAL_WRITER_OR_QUERY"
+        },
+        "lifecycleRules": {
+          "BACKUP_REPLACE_RESTORE": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_AFTER_CANONICAL_RESTORE",
+          "CLONE_FORK": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_FROM_CANONICAL_C53_INPUTS",
+          "COMPATIBILITY": "VERSIONED_DEFINITION_AND_PROJECTION_VALIDATION",
+          "DELETE_ERASE": "NOT_APPLICABLE_DERIVED_ONLY_DROP_AND_REBUILD",
+          "DOWNGRADE_FORWARD_FIX": "DROP_AND_REBUILD",
+          "IDEMPOTENT_RECEIPTS": "NO_CARD_LOCAL_RECEIPT_CANONICAL_C53_RECEIPTS_UNCHANGED",
+          "IMPORT_EXPORT": "DETERMINISTIC_OPEN_JSON_HANDOFF_NO_CANONICAL_IMPORT",
+          "INTERRUPTION": "CANCEL_AND_RESTART_OR_RESUME_CALLER_HELD_CONTINUATION",
+          "JOURNAL_REPLAY": "REBUILD_FROM_CANONICAL_C53_INPUTS",
+          "MIGRATION": "NOT_APPLICABLE_DERIVED_ONLY",
+          "REPORT_PROJECTION": "C53_REPORT_PROJECTION_DERIVED_HANDOFF",
+          "RETENTION": "NOT_APPLICABLE_DERIVED_ONLY",
+          "SCHEMA_VERSION": "OPERATIONS_METRICS_V1_VERSION_1",
+          "SEARCH_REBUILD": "DERIVED_INDEX_REBUILD_FROM_CANONICAL_C53_INPUTS",
+          "WRITER_QUERY": "NONPERSISTENT_NO_CARD_LOCAL_WRITER_OR_QUERY"
+        },
+        "lineage": "REFINED_WITHOUT_LOSS",
+        "metricDefinitionOwner": "V23-P04-C09_SOLE_REGISTRY_AND_PROJECTION_OWNER",
+        "metricDefinitions": [
+          "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+          "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+        ],
+        "metricRules": {
+          "definitionOutputDisagreementFailsClosed": true,
+          "includedAndExcludedSourcesDisclosed": true,
+          "mtbfAndAvailabilityNumeratorReconcile": true,
+          "noUptimeOrExposureFromAbsence": true,
+          "qualifiedRecordedIntervalsOnly": true,
+          "sameDefinitionVersionInDashboardAndOpenJSON": true
+        },
+        "metricTruth": "QUALIFIED_RECORDED_INTERVALS_ONLY_NEVER_INFER_UPTIME_OR_EXPOSURE_FROM_ABSENCE",
+        "migrationRequired": false,
+        "noCanonicalWriter": true,
+        "noCustomerLearningBridge": true,
+        "noInferenceFromAbsence": true,
+        "noNativeIPad": true,
+        "noNetworkOrTelemetry": true,
+        "noPersistentMetricProjection": true,
+        "noS10RouteWiring": true,
+        "persistentContractMode": "DERIVED_ONLY",
+        "persistentContractSchema": "OPERATIONS_METRICS_V1",
+        "persistentKinds": [],
+        "policyProfile": "PERSISTENT_OR_PRODUCT_DELTA",
+        "previewRules": {
+          "repeatBytesDeterministic": true,
+          "sourceClosureChangeRequiresRebuild": true,
+          "zeroCanonicalMutation": true,
+          "zeroPersistentProjectionMutation": true
+        },
+        "projectionOutputs": [
+          "LOCAL_OPERATIONS_DASHBOARD",
+          "ASSET_SERVICE_TIMELINE",
+          "DETERMINISTIC_OPEN_JSON"
+        ],
+        "qualificationStates": [
+          "QUALIFIED",
+          "UNAVAILABLE"
+        ],
+        "qualifiedRecordedIntervalsOnly": true,
+        "rebuildRules": {
+          "boundedMaximumAssets": 10000,
+          "cancellationChecked": true,
+          "corruptDerivedStateDiscarded": true,
+          "dropAndRebuildFromC53": true,
+          "sortedStableSourceIdentity": true,
+          "sourceSetDigestBoundContinuation": true
+        },
+        "selectors": [
+          "testV23P04C09G01MetricDefinitionAndDashboardJSONReconciliationAreDeterministic",
+          "testV23P04C09A01AssetTimelineOrderAndProvenanceRemainExactAcrossCorrectiveLifecycle",
+          "testV23P04C09H01MetricDefinitionOutputDisagreementDoubleCountAndOwnerBridgeFailClosed",
+          "testV23P04C09I01InterruptedScaleRebuildCancellationAndDerivedIndexCorruptionRemainDeterministic",
+          "testV23P04C09R01DropRebuildAndRecoveryPreserveCanonicalRecordsReceiptsAndArtifacts"
+        ],
+        "sourceClosure": "CANONICAL_C53_EVENT_REVISIONS",
+        "timelineKinds": [
+          "ASSET_SERVICE_INCIDENT",
+          "SERVICE_IMPACT_SEGMENT",
+          "QUALIFIED_SERVICE_EXPOSURE",
+          "INSPECTION",
+          "FINDING",
+          "CORRECTIVE_WORK",
+          "RECHECK",
+          "REPORT",
+          "EVIDENCE_ASSOCIATION",
+          "EXPLICIT_ASSET_CHANGE",
+          "C37_PLACEMENT_CHANGE"
+        ],
+        "timelineRules": {
+          "canonicalEventIDsAndRevisions": true,
+          "correctionHistoryAppendOnly": true,
+          "deterministicOrdering": true,
+          "duplicateEventFailsClosed": true,
+          "recordedAtTimeBasis": true
+        },
+        "ui": "POST_S10_6_ADOPTION_SKIP_NO_RESERVED_COMPOSITION_EDIT"
+      }
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "statusFlags": {
+      "const": {
+        "acceptance": false,
+        "activation": false,
+        "adoption": false,
+        "hosted": false,
+        "hostedAcceptance": false,
+        "native": false,
+        "nativeAcceptance": false,
+        "phase10PollingDuringParallelExecution": false,
+        "physicalEvidence": false,
+        "release": false
+      }
+    },
+    "timelineKinds": {
+      "const": [
+        "ASSET_SERVICE_INCIDENT",
+        "SERVICE_IMPACT_SEGMENT",
+        "QUALIFIED_SERVICE_EXPOSURE",
+        "INSPECTION",
+        "FINDING",
+        "CORRECTIVE_WORK",
+        "RECHECK",
+        "REPORT",
+        "EVIDENCE_ASSOCIATION",
+        "EXPLICIT_ASSET_CHANGE",
+        "C37_PLACEMENT_CHANGE"
+      ]
+    },
+    "uiAcceptanceCredit": {
+      "const": false
+    },
+    "uiAdoptionSkipped": {
+      "const": true
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "ordinal",
+    "selectors",
+    "authorityContracts",
+    "persistentKinds",
+    "timelineKinds",
+    "metricDefinitions",
+    "qualificationStates",
+    "lifecycle",
+    "forbidden",
+    "semantics",
+    "sourceReady",
+    "physicalLockedState",
+    "uiAdoptionSkipped",
+    "uiAcceptanceCredit",
+    "statusFlags",
+    "finalHashesSealed",
+    "provisional"
+  ],
+  "title": "V23-P04-C09 operations metrics timeline",
+  "type": "object"
+}

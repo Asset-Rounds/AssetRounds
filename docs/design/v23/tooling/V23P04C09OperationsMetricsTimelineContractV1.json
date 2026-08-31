@@ -1,0 +1,517 @@
+{
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "11b5630f50ecc890fb485d3d85b7cc8a233001466151210b43c7a98ebb95e4d9",
+  "authority": {
+    "appBaseHead": "4f7a0ea5511e9e8f0027f49650eda0994dfa5f44",
+    "appBaseTree": "16263e9430aa6cf7d8511898e7a4c38206a4b9ea",
+    "attemptID": 1,
+    "authorizedOverlapCount": 4198,
+    "candidateHead": "4f7a0ea5511e9e8f0027f49650eda0994dfa5f44",
+    "candidateTree": "16263e9430aa6cf7d8511898e7a4c38206a4b9ea",
+    "cardID": "V23-P04-C09",
+    "contextDigest": "a6427bd41715b3d8b2b28a29d45adba1fd2c6973fc28384bbb674ff69b11dbc6",
+    "coordinationCASSequence": 422,
+    "coordinationHead": "8ae088f015beed8028f98b96dfd8242b966c0a0f",
+    "coordinationLedgerDigest": "35de66d633c7d5333707d0aff053bd34d7d1bb5d36666bdb94996c6cb3617b53",
+    "coordinationOriginHead": "8ae088f015beed8028f98b96dfd8242b966c0a0f",
+    "coordinationProjectionDigest": "02e330678d1922ca52019976236b03b53258718065fb262dc272dae89612217a",
+    "coordinationSequence": 422,
+    "coordinationTree": "007187bf9ca982fde8de723c85fd4b1b0b019b46",
+    "directPrerequisiteCards": [
+      "V23-P03-C37",
+      "V23-P03-C53"
+    ],
+    "existingPathCount": 117,
+    "expectedExistingPathCount": 117,
+    "expectedFencePathCount": 133,
+    "expectedNewPathCount": 16,
+    "fencePathCount": 133,
+    "finalHashesSealed": true,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationTransitionDigest": "82333ceb77d14d7a33c54ed55530ab2ae2f19536f159f5c88878b1a124b6e5f4",
+    "newPathCount": 16,
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "pathFenceDigest": "9065dfcc1459f942d5395369957c8de730ca5e109df470c1275a869b2790e2a2",
+    "prerequisiteDigest": "631978411529b4eac5b0b79518c0896b57963e3323b790700c45bf89300f0929",
+    "priorFenceCount": 97,
+    "priorLedgerDigest": "fb3f42733b7b2cf30f90fa285914605322e31638cf62f9535f20c8114300a151",
+    "priorOwnedPathCount": 1531,
+    "registerOrdinal": 97,
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "sourcePins": {
+      "dossierSHA256": "7010cd064a0c96b61b91e25e4198a582554d0afd6f8712c2ea8a80c8264355b1",
+      "dossierUTF8Length": 8502,
+      "inheritedV21BlockSHA256": "8416a9a4e33b14674c53820f23e5561775b12ba5f50d640bd1249f39806b44b4",
+      "inheritedV21BlockUTF8Length": 9281,
+      "registerRowSHA256": "0566052cc8ecfc0c41ec7475051d4d9058270d13e1ecf4ee5674a9e57049ee55",
+      "registerRowUTF8Length": 304,
+      "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+      "registerSectionUTF8Length": 44217
+    },
+    "title": "Local operations dashboard, asset service history, and qualified rebuildable reliability projections",
+    "unauthorizedOverlapCount": 0
+  },
+  "authorityContracts": [
+    "AssetServiceIncidentV1",
+    "ServiceImpactSegmentV1",
+    "QualifiedServiceExposureV1",
+    "ReliabilityMetricInputProjectionV1",
+    "MetricDefinitionV1",
+    "ReliabilityMetricProjectionV1",
+    "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+    "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+  ],
+  "cardID": "V23-P04-C09",
+  "contractRefs": [
+    "V21ToV23RequirementRebindingV1(V21-P04-C09).CONTRACTS",
+    "AssetServiceIncidentV1",
+    "ServiceImpactSegmentV1",
+    "QualifiedServiceExposureV1",
+    "ReliabilityMetricInputProjectionV1",
+    "MetricDefinitionV1",
+    "ReliabilityMetricProjectionV1",
+    "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+    "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1",
+    "DirectPrerequisiteEvidenceSetV1",
+    "CardAcceptanceInclusionProofV1",
+    "CardAcceptanceInclusionProofRecoveryReceiptV1",
+    "CandidateAcceptanceCompatibilityReceiptV1"
+  ],
+  "directPrerequisites": [
+    "V23-P03-C37",
+    "V23-P03-C53"
+  ],
+  "evidenceIDs": [
+    "V23-P04-C09-G01",
+    "V23-P04-C09-A01",
+    "V23-P04-C09-H01",
+    "V23-P04-C09-I01",
+    "V23-P04-C09-R01"
+  ],
+  "finalHashesSealed": true,
+  "forbidden": [
+    "MODEL_DECLARATION",
+    "PERSISTENT_SCHEMA_V47",
+    "SCHEMA_MIGRATION",
+    "NEW_STORE",
+    "SECOND_WRITER",
+    "BACKUP_RESTORE_ENROLLMENT",
+    "DELETE_ERASE_OWNERSHIP",
+    "CUSTOMER_LEARNING_METRIC_DEFINITION_BRIDGE",
+    "NETWORK",
+    "TELEMETRY",
+    "ACCOUNT",
+    "AUTHENTICATION",
+    "TENANCY",
+    "REMOTE_SYNC",
+    "BACKEND",
+    "REMOTE_ANALYTICS",
+    "NATIVE_IPAD",
+    "PREDICTIVE_SCORING",
+    "DUE_OR_OVERDUE",
+    "ACTOR_ATTRIBUTION"
+  ],
+  "hostedDispatchEnabled": false,
+  "journeyRefs": [
+    "FJ09"
+  ],
+  "lifecycle": {
+    "BACKUP_REPLACE_RESTORE": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_AFTER_CANONICAL_RESTORE",
+    "CLONE_FORK": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_FROM_CANONICAL_C53_INPUTS",
+    "COMPATIBILITY": "VERSIONED_DEFINITION_AND_PROJECTION_VALIDATION",
+    "DELETE_ERASE": "NOT_APPLICABLE_DERIVED_ONLY_DROP_AND_REBUILD",
+    "DOWNGRADE_FORWARD_FIX": "DROP_AND_REBUILD",
+    "IDEMPOTENT_RECEIPTS": "NO_CARD_LOCAL_RECEIPT_CANONICAL_C53_RECEIPTS_UNCHANGED",
+    "IMPORT_EXPORT": "DETERMINISTIC_OPEN_JSON_HANDOFF_NO_CANONICAL_IMPORT",
+    "INTERRUPTION": "CANCEL_AND_RESTART_OR_RESUME_CALLER_HELD_CONTINUATION",
+    "JOURNAL_REPLAY": "REBUILD_FROM_CANONICAL_C53_INPUTS",
+    "MIGRATION": "NOT_APPLICABLE_DERIVED_ONLY",
+    "REPORT_PROJECTION": "C53_REPORT_PROJECTION_DERIVED_HANDOFF",
+    "RETENTION": "NOT_APPLICABLE_DERIVED_ONLY",
+    "SCHEMA_VERSION": "OPERATIONS_METRICS_V1_VERSION_1",
+    "SEARCH_REBUILD": "DERIVED_INDEX_REBUILD_FROM_CANONICAL_C53_INPUTS",
+    "WRITER_QUERY": "NONPERSISTENT_NO_CARD_LOCAL_WRITER_OR_QUERY"
+  },
+  "metricDefinitions": [
+    "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+    "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+  ],
+  "nativeCompileRan": false,
+  "optionalCapabilityProviders": [
+    "NONE"
+  ],
+  "persistentKinds": [],
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "provisional": false,
+  "qualificationStates": [
+    "QUALIFIED",
+    "UNAVAILABLE"
+  ],
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P04C09OperationsMetricsTimelineContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "accessibilityAndLocalization": {
+      "cancellationRecovery": true,
+      "darkContrastNonColor": true,
+      "largerText": true,
+      "localeAndRTL": true,
+      "offline": true,
+      "permissionFallback": true,
+      "reduceMotion": true,
+      "switchControlWhereRelevant": true,
+      "syntheticFixturesOnly": true,
+      "voiceControl": true,
+      "voiceOver": true
+    },
+    "authorityContracts": [
+      "AssetServiceIncidentV1",
+      "ServiceImpactSegmentV1",
+      "QualifiedServiceExposureV1",
+      "ReliabilityMetricInputProjectionV1",
+      "MetricDefinitionV1",
+      "ReliabilityMetricProjectionV1",
+      "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+      "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+    ],
+    "backupRestoreRequired": false,
+    "boundedRebuildMaximumAssets": 10000,
+    "cancellationAndCorruption": "DROP_DERIVED_AND_FAIL_CLOSED_UNTIL_REBUILT",
+    "canonicalIncidentAndExposureWriterOwner": "V23-P03-C53",
+    "deleteEraseRequired": false,
+    "deterministicDashboardJSON": true,
+    "deterministicMetricDefinitionRegistry": true,
+    "deterministicTimelineOrderingAndProvenance": true,
+    "downgradePolicy": "DROP_AND_REBUILD",
+    "evidenceIDs": [
+      "V23-P04-C09-G01",
+      "V23-P04-C09-A01",
+      "V23-P04-C09-H01",
+      "V23-P04-C09-I01",
+      "V23-P04-C09-R01"
+    ],
+    "exportReportRequired": true,
+    "forbidden": [
+      "MODEL_DECLARATION",
+      "PERSISTENT_SCHEMA_V47",
+      "SCHEMA_MIGRATION",
+      "NEW_STORE",
+      "SECOND_WRITER",
+      "BACKUP_RESTORE_ENROLLMENT",
+      "DELETE_ERASE_OWNERSHIP",
+      "CUSTOMER_LEARNING_METRIC_DEFINITION_BRIDGE",
+      "NETWORK",
+      "TELEMETRY",
+      "ACCOUNT",
+      "AUTHENTICATION",
+      "TENANCY",
+      "REMOTE_SYNC",
+      "BACKEND",
+      "REMOTE_ANALYTICS",
+      "NATIVE_IPAD",
+      "PREDICTIVE_SCORING",
+      "DUE_OR_OVERDUE",
+      "ACTOR_ATTRIBUTION"
+    ],
+    "forbiddenCapabilities": [
+      "MODEL_DECLARATION",
+      "PERSISTENT_SCHEMA_V47",
+      "SCHEMA_MIGRATION",
+      "NEW_STORE",
+      "SECOND_WRITER",
+      "BACKUP_RESTORE_ENROLLMENT",
+      "DELETE_ERASE_OWNERSHIP",
+      "CUSTOMER_LEARNING_METRIC_DEFINITION_BRIDGE",
+      "NETWORK",
+      "TELEMETRY",
+      "ACCOUNT",
+      "AUTHENTICATION",
+      "TENANCY",
+      "REMOTE_SYNC",
+      "BACKEND",
+      "REMOTE_ANALYTICS",
+      "NATIVE_IPAD",
+      "PREDICTIVE_SCORING",
+      "DUE_OR_OVERDUE",
+      "ACTOR_ATTRIBUTION"
+    ],
+    "lifecycle": {
+      "BACKUP_REPLACE_RESTORE": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_AFTER_CANONICAL_RESTORE",
+      "CLONE_FORK": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_FROM_CANONICAL_C53_INPUTS",
+      "COMPATIBILITY": "VERSIONED_DEFINITION_AND_PROJECTION_VALIDATION",
+      "DELETE_ERASE": "NOT_APPLICABLE_DERIVED_ONLY_DROP_AND_REBUILD",
+      "DOWNGRADE_FORWARD_FIX": "DROP_AND_REBUILD",
+      "IDEMPOTENT_RECEIPTS": "NO_CARD_LOCAL_RECEIPT_CANONICAL_C53_RECEIPTS_UNCHANGED",
+      "IMPORT_EXPORT": "DETERMINISTIC_OPEN_JSON_HANDOFF_NO_CANONICAL_IMPORT",
+      "INTERRUPTION": "CANCEL_AND_RESTART_OR_RESUME_CALLER_HELD_CONTINUATION",
+      "JOURNAL_REPLAY": "REBUILD_FROM_CANONICAL_C53_INPUTS",
+      "MIGRATION": "NOT_APPLICABLE_DERIVED_ONLY",
+      "REPORT_PROJECTION": "C53_REPORT_PROJECTION_DERIVED_HANDOFF",
+      "RETENTION": "NOT_APPLICABLE_DERIVED_ONLY",
+      "SCHEMA_VERSION": "OPERATIONS_METRICS_V1_VERSION_1",
+      "SEARCH_REBUILD": "DERIVED_INDEX_REBUILD_FROM_CANONICAL_C53_INPUTS",
+      "WRITER_QUERY": "NONPERSISTENT_NO_CARD_LOCAL_WRITER_OR_QUERY"
+    },
+    "lifecycleRules": {
+      "BACKUP_REPLACE_RESTORE": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_AFTER_CANONICAL_RESTORE",
+      "CLONE_FORK": "NOT_APPLICABLE_DERIVED_ONLY_REBUILD_FROM_CANONICAL_C53_INPUTS",
+      "COMPATIBILITY": "VERSIONED_DEFINITION_AND_PROJECTION_VALIDATION",
+      "DELETE_ERASE": "NOT_APPLICABLE_DERIVED_ONLY_DROP_AND_REBUILD",
+      "DOWNGRADE_FORWARD_FIX": "DROP_AND_REBUILD",
+      "IDEMPOTENT_RECEIPTS": "NO_CARD_LOCAL_RECEIPT_CANONICAL_C53_RECEIPTS_UNCHANGED",
+      "IMPORT_EXPORT": "DETERMINISTIC_OPEN_JSON_HANDOFF_NO_CANONICAL_IMPORT",
+      "INTERRUPTION": "CANCEL_AND_RESTART_OR_RESUME_CALLER_HELD_CONTINUATION",
+      "JOURNAL_REPLAY": "REBUILD_FROM_CANONICAL_C53_INPUTS",
+      "MIGRATION": "NOT_APPLICABLE_DERIVED_ONLY",
+      "REPORT_PROJECTION": "C53_REPORT_PROJECTION_DERIVED_HANDOFF",
+      "RETENTION": "NOT_APPLICABLE_DERIVED_ONLY",
+      "SCHEMA_VERSION": "OPERATIONS_METRICS_V1_VERSION_1",
+      "SEARCH_REBUILD": "DERIVED_INDEX_REBUILD_FROM_CANONICAL_C53_INPUTS",
+      "WRITER_QUERY": "NONPERSISTENT_NO_CARD_LOCAL_WRITER_OR_QUERY"
+    },
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "metricDefinitionOwner": "V23-P04-C09_SOLE_REGISTRY_AND_PROJECTION_OWNER",
+    "metricDefinitions": [
+      "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+      "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+    ],
+    "metricRules": {
+      "definitionOutputDisagreementFailsClosed": true,
+      "includedAndExcludedSourcesDisclosed": true,
+      "mtbfAndAvailabilityNumeratorReconcile": true,
+      "noUptimeOrExposureFromAbsence": true,
+      "qualifiedRecordedIntervalsOnly": true,
+      "sameDefinitionVersionInDashboardAndOpenJSON": true
+    },
+    "metricTruth": "QUALIFIED_RECORDED_INTERVALS_ONLY_NEVER_INFER_UPTIME_OR_EXPOSURE_FROM_ABSENCE",
+    "migrationRequired": false,
+    "noCanonicalWriter": true,
+    "noCustomerLearningBridge": true,
+    "noInferenceFromAbsence": true,
+    "noNativeIPad": true,
+    "noNetworkOrTelemetry": true,
+    "noPersistentMetricProjection": true,
+    "noS10RouteWiring": true,
+    "persistentContractMode": "DERIVED_ONLY",
+    "persistentContractSchema": "OPERATIONS_METRICS_V1",
+    "persistentKinds": [],
+    "policyProfile": "PERSISTENT_OR_PRODUCT_DELTA",
+    "previewRules": {
+      "repeatBytesDeterministic": true,
+      "sourceClosureChangeRequiresRebuild": true,
+      "zeroCanonicalMutation": true,
+      "zeroPersistentProjectionMutation": true
+    },
+    "projectionOutputs": [
+      "LOCAL_OPERATIONS_DASHBOARD",
+      "ASSET_SERVICE_TIMELINE",
+      "DETERMINISTIC_OPEN_JSON"
+    ],
+    "qualificationStates": [
+      "QUALIFIED",
+      "UNAVAILABLE"
+    ],
+    "qualifiedRecordedIntervalsOnly": true,
+    "rebuildRules": {
+      "boundedMaximumAssets": 10000,
+      "cancellationChecked": true,
+      "corruptDerivedStateDiscarded": true,
+      "dropAndRebuildFromC53": true,
+      "sortedStableSourceIdentity": true,
+      "sourceSetDigestBoundContinuation": true
+    },
+    "selectors": [
+      "testV23P04C09G01MetricDefinitionAndDashboardJSONReconciliationAreDeterministic",
+      "testV23P04C09A01AssetTimelineOrderAndProvenanceRemainExactAcrossCorrectiveLifecycle",
+      "testV23P04C09H01MetricDefinitionOutputDisagreementDoubleCountAndOwnerBridgeFailClosed",
+      "testV23P04C09I01InterruptedScaleRebuildCancellationAndDerivedIndexCorruptionRemainDeterministic",
+      "testV23P04C09R01DropRebuildAndRecoveryPreserveCanonicalRecordsReceiptsAndArtifacts"
+    ],
+    "sourceClosure": "CANONICAL_C53_EVENT_REVISIONS",
+    "timelineKinds": [
+      "ASSET_SERVICE_INCIDENT",
+      "SERVICE_IMPACT_SEGMENT",
+      "QUALIFIED_SERVICE_EXPOSURE",
+      "INSPECTION",
+      "FINDING",
+      "CORRECTIVE_WORK",
+      "RECHECK",
+      "REPORT",
+      "EVIDENCE_ASSOCIATION",
+      "EXPLICIT_ASSET_CHANGE",
+      "C37_PLACEMENT_CHANGE"
+    ],
+    "timelineRules": {
+      "canonicalEventIDsAndRevisions": true,
+      "correctionHistoryAppendOnly": true,
+      "deterministicOrdering": true,
+      "duplicateEventFailsClosed": true,
+      "recordedAtTimeBasis": true
+    },
+    "ui": "POST_S10_6_ADOPTION_SKIP_NO_RESERVED_COMPOSITION_EDIT"
+  },
+  "sourceProjection": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1",
+      "P04ShippingSurfaceSetV1",
+      "P04BrandClosureSetV1"
+    ],
+    "canonicalSuccessor": {
+      "cardID": "V23-P04-C10",
+      "registerOrdinal": 98
+    },
+    "conformanceSubjects": [
+      "P04ShippingSurfaceSetV1",
+      "FJ09"
+    ],
+    "deterministicEvidenceIDs": [
+      "V23-P04-C09-G01",
+      "V23-P04-C09-A01",
+      "V23-P04-C09-H01",
+      "V23-P04-C09-I01",
+      "V23-P04-C09-R01"
+    ],
+    "dossierSHA256": "7010cd064a0c96b61b91e25e4198a582554d0afd6f8712c2ea8a80c8264355b1",
+    "dossierUTF8Length": 8502,
+    "expectedSelectors": [
+      "testV23P04C09G01MetricDefinitionAndDashboardJSONReconciliationAreDeterministic",
+      "testV23P04C09A01AssetTimelineOrderAndProvenanceRemainExactAcrossCorrectiveLifecycle",
+      "testV23P04C09H01MetricDefinitionOutputDisagreementDoubleCountAndOwnerBridgeFailClosed",
+      "testV23P04C09I01InterruptedScaleRebuildCancellationAndDerivedIndexCorruptionRemainDeterministic",
+      "testV23P04C09R01DropRebuildAndRecoveryPreserveCanonicalRecordsReceiptsAndArtifacts"
+    ],
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/Metrics/OperationsMetricsContractsV1.swift",
+      "FieldEvidenceApp/Domain/Metrics/OperationsMetricsProjectionContractsV1.swift",
+      "FieldEvidenceApp/Application/Metrics/OperationsMetricsCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Metrics/OperationsMetricsRebuildCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Dashboard/OperationsDashboardView.swift",
+      "FieldEvidenceAppTests/V9_73OperationsMetricsTimelineTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C09OperationsDashboardUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/Metrics/V22P04C09OperationsMetricsTimelineCorpusV1.json"
+    ],
+    "inheritedV21BlockSHA256": "8416a9a4e33b14674c53820f23e5561775b12ba5f50d640bd1249f39806b44b4",
+    "inheritedV21BlockUTF8Length": 9281,
+    "invalidationConsumers": [
+      "V23-P04-C12",
+      "V23-P04-C22",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "journeyRefs": [
+      "FJ09"
+    ],
+    "missingPaths": [],
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/Metrics/OperationsMetricsContractsV1.swift",
+      "FieldEvidenceApp/Domain/Metrics/OperationsMetricsProjectionContractsV1.swift",
+      "FieldEvidenceApp/Application/Metrics/OperationsMetricsCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Metrics/OperationsMetricsRebuildCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Dashboard/OperationsDashboardView.swift",
+      "FieldEvidenceAppTests/V9_73OperationsMetricsTimelineTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C09OperationsDashboardUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/Metrics/V22P04C09OperationsMetricsTimelineCorpusV1.json"
+    ],
+    "registerRowSHA256": "0566052cc8ecfc0c41ec7475051d4d9058270d13e1ecf4ee5674a9e57049ee55",
+    "registerRowUTF8Length": 304,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionUTF8Length": 44217,
+    "selectors": [
+      "testV23P04C09G01MetricDefinitionAndDashboardJSONReconciliationAreDeterministic",
+      "testV23P04C09A01AssetTimelineOrderAndProvenanceRemainExactAcrossCorrectiveLifecycle",
+      "testV23P04C09H01MetricDefinitionOutputDisagreementDoubleCountAndOwnerBridgeFailClosed",
+      "testV23P04C09I01InterruptedScaleRebuildCancellationAndDerivedIndexCorruptionRemainDeterministic",
+      "testV23P04C09R01DropRebuildAndRecoveryPreserveCanonicalRecordsReceiptsAndArtifacts"
+    ],
+    "sourceReady": true,
+    "sourceReason": "ALL_IMPLEMENTATION_SOURCE_LANES_PRESENT",
+    "sourceRows": [
+      {
+        "byteCount": 11923,
+        "path": "FieldEvidenceApp/Domain/Metrics/OperationsMetricsContractsV1.swift",
+        "sha256": "8b8c85a5b218912ca0be2ba4f86816782bfb1e42208b75a297abeda7047004ee",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 28060,
+        "path": "FieldEvidenceApp/Domain/Metrics/OperationsMetricsProjectionContractsV1.swift",
+        "sha256": "bc5dfe82a8e7f431b360bd8728ff8a5a942c6810ce75cc8c83d5616cddb6a4b9",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 6252,
+        "path": "FieldEvidenceApp/Application/Metrics/OperationsMetricsCoordinatorV1.swift",
+        "sha256": "9ce00b1780e333b35f9fb29fc5243c0eab1d5d38320e88131be53025e00d4fb6",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 18715,
+        "path": "FieldEvidenceApp/Infrastructure/Metrics/OperationsMetricsRebuildCoordinatorV1.swift",
+        "sha256": "fea4b8f28efb45a0273341e95b90328a1d78e8b2c883969e2a4070e409144984",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 14397,
+        "path": "FieldEvidenceApp/Features/Dashboard/OperationsDashboardView.swift",
+        "sha256": "ed3ecf6828d75a66b0afe9d5e66bc251c50d9f0de962a5e94b38971b31daf564",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 75633,
+        "path": "FieldEvidenceAppTests/V9_73OperationsMetricsTimelineTests.swift",
+        "sha256": "fa3880390c413042d645212194f908f3df6634aefcacde09131c14257f25904b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 680,
+        "path": "FieldEvidenceAppUITests/V23_P04_C09OperationsDashboardUITests.swift",
+        "sha256": "437544e8b8e961e85459f933fb1c20d35fd62654466053089a03d9cf1832c7c0",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 5575,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/Metrics/V22P04C09OperationsMetricsTimelineCorpusV1.json",
+        "sha256": "3ff8ecb9c9599dda0d76e9dc185c0d907324180a07614deb97497380baa54450",
+        "status": "SOURCE_PRESENT"
+      }
+    ],
+    "sourceSemanticsInspected": true,
+    "sourceStatus": "SOURCE_READY"
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "timelineKinds": [
+    "ASSET_SERVICE_INCIDENT",
+    "SERVICE_IMPACT_SEGMENT",
+    "QUALIFIED_SERVICE_EXPOSURE",
+    "INSPECTION",
+    "FINDING",
+    "CORRECTIVE_WORK",
+    "RECHECK",
+    "REPORT",
+    "EVIDENCE_ASSOCIATION",
+    "EXPLICIT_ASSET_CHANGE",
+    "C37_PLACEMENT_CHANGE"
+  ],
+  "title": "Local operations dashboard, asset service history, and qualified rebuildable reliability projections",
+  "uiAcceptanceCredit": false,
+  "uiAdoptionSkipped": true
+}

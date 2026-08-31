@@ -1,0 +1,188 @@
+{
+  "schema": "V22P04C09OperationsMetricsTimelineCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C09",
+  "ordinal": 97,
+  "corpusID": "v23-p04-c09-operations-metrics-timeline-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "contracts": [
+    "MetricDefinitionV1",
+    "OperationsMetricDefinitionIDV1",
+    "OperationsMetricsContractV1",
+    "ReliabilityMetricProjectionV1",
+    "DashboardProjectionV1",
+    "AssetServiceHistoryTimelineV1",
+    "OperationsMetricsOpenJSONV1",
+    "OperationsMetricsDerivedLifecycleV1",
+    "AssetServiceIncidentV1",
+    "ServiceImpactSegmentV1",
+    "QualifiedServiceExposureV1",
+    "ServiceReliabilityProjectionEngineV1",
+    "AssetPoseEventV1",
+    "AssetServiceHistorySupplementalCanonicalEventV1"
+  ],
+  "evidenceIDs": [
+    "V23-P04-C09-G01",
+    "V23-P04-C09-A01",
+    "V23-P04-C09-H01",
+    "V23-P04-C09-I01",
+    "V23-P04-C09-R01"
+  ],
+  "selectors": [
+    {
+      "id": "G01",
+      "selector": "testV23P04C09G01MetricDefinitionAndDashboardJSONReconciliationAreDeterministic",
+      "tier": "GOLDEN"
+    },
+    {
+      "id": "A01",
+      "selector": "testV23P04C09A01AssetTimelineOrderAndProvenanceRemainExactAcrossCorrectiveLifecycle",
+      "tier": "ALTERNATE"
+    },
+    {
+      "id": "H01",
+      "selector": "testV23P04C09H01MetricDefinitionOutputDisagreementDoubleCountAndOwnerBridgeFailClosed",
+      "tier": "HOSTILE"
+    },
+    {
+      "id": "I01",
+      "selector": "testV23P04C09I01InterruptedScaleRebuildCancellationAndDerivedIndexCorruptionRemainDeterministic",
+      "tier": "INTERRUPTION"
+    },
+    {
+      "id": "R01",
+      "selector": "testV23P04C09R01DropRebuildAndRecoveryPreserveCanonicalRecordsReceiptsAndArtifacts",
+      "tier": "RECOVERY"
+    }
+  ],
+  "metricIDs": [
+    "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1",
+    "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1"
+  ],
+  "metricVersions": [1, 1],
+  "metricUnits": {
+    "QUALIFIED_RECORDED_UNPLANNED_MTBF_V1": {
+      "numerator": "MILLISECONDS",
+      "denominator": "MAXIMAL_DOWNTIME_COMPONENT_COUNT"
+    },
+    "QUALIFIED_RECORDED_UNPLANNED_FULL_INTERRUPTION_AVAILABILITY_V1": {
+      "numerator": "MILLISECONDS",
+      "denominator": "QUALIFIED_EXPOSURE_MILLISECONDS"
+    }
+  },
+  "golden": {
+    "qualifiedExposureMilliseconds": 90000,
+    "unplannedFullInterruptionMilliseconds": 30000,
+    "operatingExposureMilliseconds": 60000,
+    "mtbfComponentCount": 1,
+    "availabilitySampleCount": 1,
+    "expectedQualification": "QUALIFIED",
+    "availabilityRatio": "2/3",
+    "mtbfRatio": "60000/1",
+    "onlyC53CanonicalInputs": true
+  },
+  "alternate": {
+    "timelineKinds": [
+      "ASSET_SERVICE_INCIDENT",
+      "SERVICE_IMPACT_SEGMENT",
+      "QUALIFIED_SERVICE_EXPOSURE",
+      "INSPECTION",
+      "FINDING",
+      "CORRECTIVE_WORK",
+      "RECHECK",
+      "REPORT",
+      "EVIDENCE_ASSOCIATION",
+      "EXPLICIT_ASSET_CHANGE",
+      "C37_PLACEMENT_CHANGE"
+    ],
+    "supplementalOwners": [
+      "CANONICAL_INSPECTION",
+      "CANONICAL_FINDING",
+      "CANONICAL_CORRECTIVE_WORK",
+      "CANONICAL_RECHECK",
+      "CANONICAL_REPORT",
+      "CANONICAL_EVIDENCE_ASSOCIATION",
+      "CANONICAL_ASSET_CHANGE"
+    ],
+    "correctionRevisionCount": 2,
+    "recheckAndSupersessionPreserved": true,
+    "chronologyTieBreak": "recordedAt,kind,eventID",
+    "provenanceDigestRequired": true
+  },
+  "hostileCases": [
+    "DEFINITION_OUTPUT_DISAGREEMENT",
+    "REPLAY_DOUBLE_COUNT",
+    "UNKNOWN_METRIC_VERSION",
+    "CORRUPT_CANONICAL_EVENT",
+    "ARITHMETIC_OVERFLOW",
+    "CUSTOMER_LEARNING_OWNER_BRIDGE",
+    "DUPLICATE_SOURCE_EVENT",
+    "NON_CANONICAL_JSON",
+    "MISSING_PREDECESSOR",
+    "WRONG_PREDECESSOR_DIGEST",
+    "OWNER_KIND_MISMATCH",
+    "NON_SUCCESSOR_REVISION",
+    "FORKED_PREDECESSOR",
+    "MULTI_NODE_CYCLE_SUBSUMED_BY_EXACT_REVISION_MONOTONICITY",
+    "CANONICAL_CLOSURE_INCIDENT_STALE",
+    "CANONICAL_CLOSURE_C37_PLACEMENT_STALE",
+    "CANONICAL_CLOSURE_SUPPLEMENTAL_STALE"
+  ],
+  "interruption": {
+    "assetCount": 10000,
+    "cancellationRequested": true,
+    "interruptionIsNonAcceptance": true,
+    "resumeUsesCanonicalInputs": true,
+    "corruptDerivedState": "DISCARD_AND_FAIL_CLOSED_UNTIL_REBUILT",
+    "partialProjectionNotAccepted": true
+  },
+  "recovery": {
+    "dropDerivedState": true,
+    "rebuildFromC53Inputs": true,
+    "canonicalRecordsPreserved": true,
+    "receiptsPreserved": true,
+    "reportsPreserved": true,
+    "exportsPreserved": true,
+    "privacyPreserved": true
+  },
+  "lifecycle": [
+    "SCHEMA_VERSION",
+    "DEFINITION_VERSION",
+    "CANONICAL_C53_INPUTS",
+    "APPEND_ONLY_CORRECTION",
+    "EXACT_REVISION_MONOTONICITY",
+    "RECHECK_AND_SUPERSESSION",
+    "CHRONOLOGICAL_PROVENANCE",
+    "UNIQUE_EVENT_REVISION_REPLAY",
+    "DROP_DERIVED_REBUILD",
+    "CANCELLATION_RESUME",
+    "CORRUPT_DERIVED_FAIL_CLOSED",
+    "BACKUP_EXCLUDES_DERIVED",
+    "REPORT_EXPORT_PRESERVED"
+  ],
+  "claims": {
+    "onlyC53Inputs": true,
+    "noAppAgeInference": true,
+    "noAssetAgeInference": true,
+    "noWorkCountInference": true,
+    "noAbsentFailureUptime": true,
+    "noTelemetry": true,
+    "noCustomerLearningBridge": true,
+    "derivedOnly": true,
+    "canonicalTruthOwner": "C53_SERVICE_RELIABILITY_CANONICAL_EVENTS",
+    "predecessorCyclesSubsumedByExactRevisionMonotonicity": true
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "release": false,
+    "phase10PollingDuringParallelExecution": false
+  }
+}

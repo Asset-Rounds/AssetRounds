@@ -5084,6 +5084,70 @@ enum C53AssetServiceReliabilityLocalizationBoundaryV1 {
     }
 }
 
+// MARK: - C09 operations dashboard localization
+
+extension BundledLocalizationCatalogV1 {
+    static func operationsDashboardEnglish(
+        _ key: C09OperationsDashboardLocalizationKeyV1
+    ) -> String {
+        C09OperationsDashboardLocalizationPolicyV1.english(key)
+    }
+
+    static func operationsDashboardLocalized(
+        _ key: C09OperationsDashboardLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: operationsDashboardEnglish(key),
+            bundle: bundle,
+            locale: locale,
+            comment: "C09 display-safe operations dashboard text; no internal identity, raw reason, uptime, safety, compliance, or release-to-service claim."
+        )
+    }
+
+    static func operationsDashboardRegistry() throws -> LocalizationKeyRegistryV1 {
+        try C09OperationsDashboardLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = C09OperationsDashboardLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C09 display-safe operations dashboard text; no internal identity, raw reason, uptime, safety, compliance, or release-to-service claim.",
+                englishDefaultValue: operationsDashboardEnglish(key),
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
+enum C09OperationsDashboardLocalizationBoundaryV1 {
+    static let sourceLocale = "en"
+    static let usesExistingBundledCatalog = true
+    static let rawIdentityLocalized = false
+    static let rawReasonLocalized = false
+    static let operationalAvailabilityClaimed = false
+    static let routeAdoptionClaimed = false
+
+    static func validate() throws {
+        try C09OperationsDashboardLocalizationPolicyV1.validate()
+        let values = C09OperationsDashboardLocalizationKeyV1.allCases.map {
+            BundledLocalizationCatalogV1.operationsDashboardEnglish($0)
+        }
+        guard sourceLocale == "en", usesExistingBundledCatalog,
+              !rawIdentityLocalized, !rawReasonLocalized,
+              !operationalAvailabilityClaimed, !routeAdoptionClaimed,
+              values.allSatisfy({ !$0.isEmpty }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
 // MARK: - C01 Support & Recovery Center localization
 
 extension BundledLocalizationCatalogV1 {
