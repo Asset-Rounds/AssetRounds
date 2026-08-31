@@ -713,6 +713,7 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
         try EvidenceContextJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try LightingJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try EvidenceQualityJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
+        try FastSurveyInboxJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         let receiptIdentities = try receipt.postImages.map { try $0.identity }
         let locationIdentities = try envelope.command.canonicalLocationAffectedIdentities()
         guard schemaVersion == Self.schemaVersion, envelope.workspaceID == receipt.identity.workspaceID, envelope.replicaID == receipt.identity.replicaID, envelope.mutationID == receipt.mutationID, receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
@@ -847,6 +848,41 @@ enum EvidenceQualityJournalContractV1 {
               receipt.postImages[0].semanticSHA256 == command.payload.semanticSHA256,
               receipt.postImages[0].revision == expectedRevision + 1 else {
             throw ChangeJournalFailureV1.tamperedBatch
+        }
+    }
+}
+
+enum FastSurveyInboxJournalContractV1 {
+    static func validate(
+        envelope: MutationEnvelopeV1,
+        receipt: MutationReceiptV1,
+        entityChanges: [EntityChangeV1]
+    ) throws {
+        guard case let .applyFastSurveyInbox(command) = envelope.command else { return }
+        try command.validate()
+        let targets = try command.affectedIdentitiesForCanonicalWriter()
+        let expectedPairs = command.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) }
+        guard Set(expectedPairs.map(\.0)).count == expectedPairs.count else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
+        let expected = Dictionary(uniqueKeysWithValues: expectedPairs)
+        let receiptIdentities = try receipt.postImages.map { try $0.identity }
+        guard envelope.commandKind == .applyFastSurveyInbox,
+              envelope.mutationID == command.mutationID,
+              receipt.mutationID == command.mutationID,
+              receipt.postImages.count == targets.count,
+              entityChanges.count == targets.count,
+              receiptIdentities == targets,
+              entityChanges.map(\.identity) == targets,
+              entityChanges.map(\.postImage) == receipt.postImages,
+              Set(receipt.postImages.map(\.semanticSHA256)) == Set(command.payload.semanticSHA256s) else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
+        for image in receipt.postImages {
+            let identity = try image.identity
+            guard let prior = expected[identity], image.revision == prior + 1 else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
         }
     }
 }

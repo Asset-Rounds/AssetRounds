@@ -1127,6 +1127,8 @@ private extension BackupPackageValidatorV1 {
         try C05RoundSessionBackupPackageValidationV1.validate(records, manifest: manifest)
         try C08ImportBulkBackupPackageValidationV1.validate(records, manifest: manifest)
         try EvidenceQualityBackupEnrollmentV1.validate(records)
+        try FastSurveyInboxBackupEnrollmentV1.validate(records)
+        try FastSurveyInboxKernelBackupRestoreEnrollmentV1.validate()
         _ = try C48PortableExchangeBackupPackageValidationV2.snapshot(
             manifest: manifest,
             members: members

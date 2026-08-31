@@ -1,0 +1,219 @@
+{
+  "authority": {
+    "appBaseHead": "6951989fde21babfe4b67bec6329de749a116dd2",
+    "cardID": "V23-P04-C11",
+    "contextDigest": "970aefe2d793a497f697c37d78c881f80522761c3f26467ccec5c6ccde35267b",
+    "directPrerequisites": [
+      "V23-P04-C02"
+    ],
+    "executionPredecessor": "V23-P04-C10",
+    "existingPathCount": 97,
+    "fenceCount": 99,
+    "fencePathCount": 113,
+    "finalHashesSealed": true,
+    "hydrationCASSequence": 430,
+    "hydrationCoordinationHead": "a94fdc778c9436e15bdc363281db21ce064cc06d",
+    "hydrationCoordinationTree": "5d7d7661ed6f6e193ba26bc926dacb3493c70ad9",
+    "hydrationLedgerDigest": "2119c7ab220d6c801517cd3ececa0ac319b0a84b7ec26b4c57a44bea41b12eed",
+    "hydrationProjectionDigest": "79d8991574411652b50c84f2676c92601d0e15aa109edbaafc70daed959765fe",
+    "hydrationTransitionDigest": "7d41cff3e448b9d7c10bf0db4d3a1923433ba887030d7473b1c6b33a5a1151eb",
+    "newPathCount": 16,
+    "pathFenceDigest": "adda61090ea7969ae0399c5cab79f6e8a729de4806e8c2a8f38f5b888bc6a08c",
+    "registerOrdinal": 99,
+    "taskStartCoordinationCASSequence": 429,
+    "taskStartCoordinationHead": "1199f853c5ce44e13c2624a9d489b02b528c909d",
+    "taskStartLedgerDigest": "cca9db92fb49a1d9c05cb346350b85665db8fa5fd4d3460c44e83118ad79db33",
+    "taskStartProjectionDigest": "a19eeb64b292ac971c69eb63c46fc0092a23ebd8815fb7ef2b6da04f26de4e53",
+    "title": "Fast Survey Inbox with explicit typed promotion and frozen snippet provenance"
+  },
+  "cardID": "V23-P04-C11",
+  "evidenceIDs": [
+    "V23-P04-C11-G01",
+    "V23-P04-C11-A01",
+    "V23-P04-C11-H01",
+    "V23-P04-C11-I01",
+    "V23-P04-C11-R01"
+  ],
+  "provisional": false,
+  "schema": "V23P04C11FastSurveyInboxContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "activeModelCount": 158,
+    "canonicalOwner": "V23-P04-C11_SOLE_FAST_SURVEY_INBOX_WRITER_OWNER",
+    "canonicalWriterRequirements": [
+      "EXPECTED_REVISION",
+      "MUTATION_ID",
+      "ONE_CANONICAL_WRITER_TRANSACTION",
+      "DURABLE_RECEIPT",
+      "SEMANTIC_REVERSAL_OR_SUPERSESSION",
+      "EFFECT_BEFORE_RECEIPT_RECOVERY"
+    ],
+    "containedUI": "POST_S10_6_ADOPTION_SKIP_NO_CREDIT",
+    "durableFrozenSnippetInsertion": true,
+    "incumbentDestinationResolverValidatedAtomically": true,
+    "lifecycleCoverage": [
+      "MIGRATION",
+      "BACKUP",
+      "REPLACE_RESTORE",
+      "DELETE",
+      "ERASE",
+      "EXPORT",
+      "REPORT",
+      "SEARCH",
+      "REBUILD",
+      "JOURNAL",
+      "REPLAY",
+      "FACTORY",
+      "SYNC",
+      "CLONE",
+      "FORK"
+    ],
+    "mutationPayloadCases": [
+      "putInboxItem",
+      "promote",
+      "putSnippet",
+      "insertSnippet"
+    ],
+    "namedContracts": [
+      "CaptureInboxItemV1",
+      "CapturePromotionV1",
+      "CapturePromotionDestinationV1",
+      "CapturePromotionDestinationResolvingV1",
+      "SnippetV1",
+      "SnippetInsertionV1"
+    ],
+    "oneCanonicalWriter": true,
+    "persistentContractMode": "NEW_SCHEMA_VERSION",
+    "persistentContractSchema": "FastSurveyInboxSchemaV1",
+    "persistentRows": [
+      "CaptureInboxItemRowV1",
+      "CapturePromotionRowV1",
+      "SnippetRowV1",
+      "SnippetInsertionHistoryRowV1",
+      "FastSurveyInboxMutationReceiptRowV1"
+    ],
+    "queryResultCases": [
+      "inboxItem",
+      "inboxItems",
+      "promotion",
+      "snippet",
+      "snippets",
+      "snippetInsertion",
+      "snippetInsertions",
+      "notFound"
+    ],
+    "recoveryParityRequiresGenericTypedBijection": true,
+    "snippetHistoryFrozen": true,
+    "statusFlags": {
+      "acceptance": false,
+      "activation": false,
+      "adoption": false,
+      "hosted": false,
+      "hostedAcceptance": false,
+      "native": false,
+      "nativeAcceptance": false,
+      "phase10PollingDuringParallelExecution": false,
+      "physicalEvidence": false,
+      "release": false
+    },
+    "uiAcceptanceCredit": false,
+    "unpromotedNeverLeaks": true,
+    "workspaceBoundPromotionDestination": true
+  },
+  "sourceProjection": {
+    "evidenceIDs": [
+      "V23-P04-C11-G01",
+      "V23-P04-C11-A01",
+      "V23-P04-C11-H01",
+      "V23-P04-C11-I01",
+      "V23-P04-C11-R01"
+    ],
+    "ownedFenceCounts": {
+      "changedPathCount": 44,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C11G01RapidOfflineCaptureReviewAndTypedPromotionPreserveOriginalProvenance",
+      "testV23P04C11A01UnassignedItemAndEditedSnippetRemainExplicitWithoutChangingFrozenRecords",
+      "testV23P04C11H01DuplicatePromotionStaleDestinationMissingContentAndSnippetSubstitutionFailClosed",
+      "testV23P04C11I01InterruptedCaptureOrPromotionPreservesBytesAndRecoverableInbox",
+      "testV23P04C11R01RestoreReplayRebuildsInboxPromotionLinksSnippetVersionsAndUnresolvedItemsWithoutDoubleInsertion"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "byteCount": 7544,
+        "path": "FieldEvidenceApp/Application/FastSurveyInbox/FastSurveyInboxCoordinatorV1.swift",
+        "sha256": "e7032fced6284e7b1cac83bff132d59805d74ec2ccecd5b93260c2d2a0b51551",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 62897,
+        "path": "FieldEvidenceApp/Domain/FastSurveyInbox/FastSurveyInboxContractsV1.swift",
+        "sha256": "6aa78473237f76a795a7feaf9a9dd39bcff1ce0b603ac9f5d1a93d0e42fb8e18",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 28731,
+        "path": "FieldEvidenceApp/Domain/Models/FastSurveyInboxPersistenceModelsV1.swift",
+        "sha256": "167a93a90969ae1af18b8d37c0da96305b71def102c6e889e18e506f9d7501e1",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 3581,
+        "path": "FieldEvidenceApp/Features/CheckRunner/FastSurveyInboxView.swift",
+        "sha256": "6eae78fd320d49607fb6bd1a4cf9332c1b099898e5294046007cbdc43a538eb4",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 22465,
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/FastSurveyInboxLifecycleAdapterV1.swift",
+        "sha256": "35351bade62c4f47a9e722ab488fd7e34dbfa4b29513bba8954e3e28f57263f3",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 2802,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/FastSurveyInbox/V22P04C11FastSurveyInboxCorpusV1.json",
+        "sha256": "a6ec78e5d2766fc54293bd5fb3e3fa9b4117f4357e2a82c9b46c73b2f6e253fd",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 35515,
+        "path": "FieldEvidenceAppTests/V9_75FastSurveyInboxTests.swift",
+        "sha256": "322c34e6f78b09ffc571e48fa4988e10db0363a4d13ad672973c7dc77cd00f4d",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 364,
+        "path": "FieldEvidenceAppUITests/V23_P04_C11FastSurveyInboxUITests.swift",
+        "sha256": "7d3b6abd812bedca36be74a165f9108ee063e3d2923a92cbf200eed97b13d568",
+        "status": "SOURCE_PRESENT"
+      }
+    ],
+    "sourceSemanticsInspected": true,
+    "sourceStatus": "SOURCE_READY"
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C11G01RapidOfflineCaptureReviewAndTypedPromotionPreserveOriginalProvenance",
+    "testV23P04C11A01UnassignedItemAndEditedSnippetRemainExplicitWithoutChangingFrozenRecords",
+    "testV23P04C11H01DuplicatePromotionStaleDestinationMissingContentAndSnippetSubstitutionFailClosed",
+    "testV23P04C11I01InterruptedCaptureOrPromotionPreservesBytesAndRecoverableInbox",
+    "testV23P04C11R01RestoreReplayRebuildsInboxPromotionLinksSnippetVersionsAndUnresolvedItemsWithoutDoubleInsertion"
+  ],
+  "title": "Fast Survey Inbox with explicit typed promotion and frozen snippet provenance"
+}

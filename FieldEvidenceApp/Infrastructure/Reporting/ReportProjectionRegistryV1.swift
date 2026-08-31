@@ -1,5 +1,17 @@
 import Foundation
 
+/// C11 is reviewable inbox provenance, not an inspection outcome surface.
+/// Its unpromoted captures are explicitly excluded from completed reports and
+/// completeness projections; promoted destination records remain authoritative.
+enum FastSurveyInboxReportProjectionPolicyV1 {
+    static let unpromotedItemsExcluded = true
+    static let promotionsExposeExactLinkOnly = true
+    static let snippetsExcludedFromOutcomeReports = true
+    static func validate() -> Bool {
+        unpromotedItemsExcluded && promotionsExposeExactLinkOnly && snippetsExcludedFromOutcomeReports
+    }
+}
+
 enum ReviewedEvidenceReportProjectionRegistryV1 {
     static func projection(
         snapshot: CompletedActivityEvidenceSequenceSnapshotV1,

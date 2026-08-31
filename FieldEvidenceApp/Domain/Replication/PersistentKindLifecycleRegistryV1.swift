@@ -1369,6 +1369,34 @@ enum C10EvidenceQualityPersistentKindPolicyV1 {
     static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
 }
 
+/// C11 keeps offline inbox capture and frozen snippet revisions as canonical
+/// history. Promotion is explicit and links immutable original evidence; an
+/// unpromoted row never becomes an inspection, finding, or report outcome.
+enum C11FastSurveyInboxPersistentKindPolicyV1 {
+    static let durableKindIDs = Set([
+        "PERSISTENT_MODEL:CaptureInboxItemRowV1",
+        "PERSISTENT_MODEL:CapturePromotionRowV1",
+        "PERSISTENT_MODEL:FastSurveyInboxMutationReceiptRowV1",
+        "PERSISTENT_MODEL:SnippetInsertionHistoryRowV1",
+        "PERSISTENT_MODEL:SnippetRowV1",
+    ])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV48"])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 5, derivedKindIDs.count == 1,
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              durableKindIDs.union(derivedKindIDs)
+                .allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+
+    static let unpromotedItemsExcludedFromInspectionAndReports = true
+    static let promotionPreservesOriginalEvidenceAndExactLinks = true
+    static let frozenSnippetInsertionsAreHistoric = true
+    static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+}
+
 enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let persistentKindCount = 0
     static let lifecycleEnrollmentCount = 0

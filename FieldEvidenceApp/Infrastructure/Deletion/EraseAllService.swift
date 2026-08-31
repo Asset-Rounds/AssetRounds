@@ -1607,6 +1607,9 @@ private extension EraseAllService {
         try EvidenceQualityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        try FastSurveyInboxEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
@@ -2900,6 +2903,19 @@ enum EvidenceQualityEraseAllPolicyV1 {
             throw EraseAllServiceError.invalidAuthority
         }
         try EvidenceQualityKernelDeletionEraseEnrollmentV1.validate()
+    }
+}
+
+enum FastSurveyInboxEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<CaptureInboxItemRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<CapturePromotionRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<SnippetRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<SnippetInsertionHistoryRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try FastSurveyInboxKernelDeletionEraseEnrollmentV1.validate()
     }
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-erase

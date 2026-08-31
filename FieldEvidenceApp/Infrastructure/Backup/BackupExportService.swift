@@ -2563,6 +2563,41 @@ private extension BackupExportService {
                 effectProvenance: ruleSetValues.map(\.1) + assessmentValues.map(\.1) + waiverValues.map(\.1)
             )
         }()
+        let fastSurveyInbox: FastSurveyInboxBackupSnapshotV1? = try {
+            guard mutationHistory != nil else { return nil }
+            let source = FastSurveyInboxLifecycleAdapterV1(
+                modelContext: modelContext, workspaceID: sourceIdentity.workspaceID
+            )
+            let snapshot = try source.snapshot()
+            let itemProvenance = try modelContext.fetch(FetchDescriptor<CaptureInboxItemRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try FastSurveyInboxBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let promotionProvenance = try modelContext.fetch(FetchDescriptor<CapturePromotionRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try FastSurveyInboxBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let snippetProvenance = try modelContext.fetch(FetchDescriptor<SnippetRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try FastSurveyInboxBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let insertionProvenance = try modelContext.fetch(FetchDescriptor<SnippetInsertionHistoryRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try FastSurveyInboxBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            return try .init(inboxItems: snapshot.inboxItems, promotions: snapshot.promotions,
+                             snippets: snapshot.snippets, snippetInsertions: snapshot.snippetInsertions,
+                             receipts: snapshot.receipts,
+                             effectProvenance: itemProvenance + promotionProvenance + snippetProvenance + insertionProvenance)
+        }()
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2632,7 +2667,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : EvidenceQualityBackupEnrollmentV1.recordsSchemaVersion,
+                : FastSurveyInboxBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2692,7 +2727,8 @@ private extension BackupExportService {
              importMappingProfiles: importMappingProfiles,
              bulkSessions: bulkSessions,
              bulkCommitReceipts: bulkCommitReceipts,
-             evidenceQuality: evidenceQuality
+             evidenceQuality: evidenceQuality,
+             fastSurveyInbox: fastSurveyInbox
          )
     }
 

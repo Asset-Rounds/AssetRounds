@@ -32,6 +32,7 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
         try C05RoundSessionPersistentKindPolicyV1.validateDeclaration()
         try C08ImportBulkPersistentKindPolicyV1.validateDeclaration()
         try C10EvidenceQualityPersistentKindPolicyV1.validateDeclaration()
+        try C11FastSurveyInboxPersistentKindPolicyV1.validateDeclaration()
         let compatibility = ReleasedDataCompatibilityPolicyV1.exactHead(
             candidateHead: candidateHead
         )
@@ -48,7 +49,7 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
             $0.stableKindID < $1.stableKindID
         }
         try SurveyDefinitionPersistentKindPolicyV1.validate(descriptors)
-        let descriptorIDs=Set(descriptors.map(\.stableKindID));guard SurveySessionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),SurveySessionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssetLocatorPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),AssetLocatorPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),SchedulePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),SchedulePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.nonpersistentKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.journalSupportingKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.contentKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.nonpersistentKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssetLabelPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),OperationalContactPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05EvidenceCurationPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05EvidenceCurationPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C04ShopReportProfilePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C04ShopReportProfilePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C05RoundSessionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05RoundSessionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C08ImportBulkPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C08ImportBulkPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C10EvidenceQualityPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C10EvidenceQualityPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs)else{throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage}
+        let descriptorIDs=Set(descriptors.map(\.stableKindID));guard SurveySessionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),SurveySessionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssetLocatorPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),AssetLocatorPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),SchedulePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),SchedulePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.nonpersistentKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.journalSupportingKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.contentKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.nonpersistentKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssetLabelPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),OperationalContactPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05EvidenceCurationPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05EvidenceCurationPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C04ShopReportProfilePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C04ShopReportProfilePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C05RoundSessionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05RoundSessionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C08ImportBulkPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C08ImportBulkPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C10EvidenceQualityPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C10EvidenceQualityPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C11FastSurveyInboxPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C11FastSurveyInboxPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs)else{throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage}
         let routes = Dictionary(
             uniqueKeysWithValues: source.lifecycleRoutes.map {
                 ($0.subject, $0)
@@ -471,6 +472,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (c93,["PERSISTENT_MODEL:RoundSessionRevisionRowV1","PROJECTION:StoreSemanticEnvelopeV45"]),
             (TemporalOriginV1(card:"V23_P04_C08",ordinal:96),["PERSISTENT_MODEL:ImportMappingProfileRowV1","PERSISTENT_MODEL:BulkSessionRowV1","PERSISTENT_MODEL:BulkCommitReceiptRowV1","PROJECTION:StoreSemanticEnvelopeV46"]),
             (TemporalOriginV1(card:"V23_P04_C10",ordinal:98),["PERSISTENT_MODEL:EvidenceQualityAssessmentRowV1","PERSISTENT_MODEL:EvidenceQualityRuleSetRowV1","PERSISTENT_MODEL:EvidenceQualityWaiverRowV1","PERSISTENT_MODEL:EvidenceQualityMutationReceiptRowV1","PROJECTION:StoreSemanticEnvelopeV47"]),
+            (TemporalOriginV1(card:"V23_P04_C11",ordinal:99),["PERSISTENT_MODEL:CaptureInboxItemRowV1","PERSISTENT_MODEL:CapturePromotionRowV1","PERSISTENT_MODEL:SnippetRowV1","PERSISTENT_MODEL:SnippetInsertionHistoryRowV1","PERSISTENT_MODEL:FastSurveyInboxMutationReceiptRowV1","PROJECTION:StoreSemanticEnvelopeV48"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -571,6 +573,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c04ShopReportProfileKindIDs=C04ShopReportProfilePersistentKindPolicyV1.durableKindIDs.union(C04ShopReportProfilePersistentKindPolicyV1.derivedKindIDs)
         let c05RoundSessionKindIDs=C05RoundSessionPersistentKindPolicyV1.durableKindIDs.union(C05RoundSessionPersistentKindPolicyV1.derivedKindIDs)
         let c10EvidenceQualityKindIDs=C10EvidenceQualityPersistentKindPolicyV1.durableKindIDs.union(C10EvidenceQualityPersistentKindPolicyV1.derivedKindIDs)
+        let c11FastSurveyInboxKindIDs=C11FastSurveyInboxPersistentKindPolicyV1.durableKindIDs.union(C11FastSurveyInboxPersistentKindPolicyV1.derivedKindIDs)
         let c17KindIDs = Set([
             "PROJECTION:IntegrationConformanceConsumerV1",
             "PROJECTION:IntegrationContractRegistryV1",
@@ -615,6 +618,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
               c04ShopReportProfileKindIDs.isSubset(of:Set(kindIDs)),
               c05RoundSessionKindIDs.isSubset(of:Set(kindIDs)),
               c10EvidenceQualityKindIDs.isSubset(of:Set(kindIDs)),
+              c11FastSurveyInboxKindIDs.isSubset(of:Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }

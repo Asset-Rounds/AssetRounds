@@ -370,6 +370,20 @@ enum KernelMutationReceiptRegistryV4 {
             receipt: receipt
         )
     }
+    static func validateFastSurveyInbox(
+        command: FastSurveyInboxMutationCommandV1,
+        receipt: FastSurveyInboxMutationReceiptV1
+    ) throws {
+        try command.validate()
+        try receipt.validate(command: command)
+        let targets = try command.affectedIdentitiesForCanonicalWriter()
+        guard (1...2).contains(targets.count),
+              targets == targets.sorted { $0.stableKey < $1.stableKey },
+              Set(targets).count == targets.count,
+              receipt.semanticSHA256s == command.payload.semanticSHA256s else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+    }
     static func validateShopReportProfile(
         mutation: ShopReportProfileMutationV1,
         receipt: MutationReceiptV1
@@ -457,7 +471,8 @@ enum KernelMutationReceiptRegistryV4 {
     static func validate() throws {
         guard C50IncumbentFileExchangeKernelMutationReceiptBoundaryV1.validate(),
               C04ShopReportProfileKernelMutationReceiptBoundaryV1.validate(),
-              C05RoundSessionKernelMutationReceiptBoundaryV1.validate() else {
+              C05RoundSessionKernelMutationReceiptBoundaryV1.validate(),
+              C11FastSurveyInboxKernelMutationReceiptBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
         try validate(registrations)
@@ -529,6 +544,20 @@ enum C05RoundSessionKernelMutationReceiptBoundaryV1 {
             && durableReceiptRequired
             && effectBeforeReceiptRecovery
             && postimageCount == 1
+    }
+}
+
+enum C11FastSurveyInboxKernelMutationReceiptBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyFastSurveyInbox
+    static let durableReceiptRequired = true
+    static let effectBeforeReceiptRecovery = true
+    static let maximumPostimageCount = 2
+
+    static func validate() -> Bool {
+        commandKind == .applyFastSurveyInbox
+            && durableReceiptRequired
+            && effectBeforeReceiptRecovery
+            && maximumPostimageCount == 2
     }
 }
 

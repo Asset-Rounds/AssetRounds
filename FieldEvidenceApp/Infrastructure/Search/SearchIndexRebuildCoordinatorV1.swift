@@ -516,6 +516,45 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                            summary: waiver.reason.rawValue,
                            breadcrumb: [], status: waiver.action.rawValue, dueAt: nil, timestamp: waiver.recordedAt)
         }
+        // C11 indexes bounded review metadata only. Inbox text, snippet body,
+        // actor data, and original media references remain unindexed.
+        let fastSurveyInbox = try FastSurveyInboxSwiftDataQuerySourceV1(
+            modelContext: modelContext, workspaceID: workspaceID
+        ).snapshot()
+        values += try fastSurveyInbox.inboxItems.map { item in
+            CanonicalValue(kind: .report,
+                           stableID: try stableKey(kind: .captureInboxItem, id: item.inboxItemID),
+                           display: "Survey inbox capture",
+                           summary: "\(item.mediaKind.rawValue) \(item.itemSHA256)",
+                           breadcrumb: [], status: item.state.rawValue, dueAt: nil,
+                           timestamp: item.temporalContext.recordedAtUTC)
+        }
+        values += try fastSurveyInbox.promotions.map { promotion in
+            CanonicalValue(kind: .report,
+                           stableID: try stableKey(kind: .capturePromotion, id: promotion.promotionID),
+                           display: "Survey inbox promotion",
+                           summary: "\(promotion.destination.kind.rawValue) \(promotion.promotionSHA256)",
+                           breadcrumb: [], status: "promoted", dueAt: nil,
+                           timestamp: promotion.promotedAt)
+        }
+        values += try fastSurveyInbox.snippets.map { snippet in
+            CanonicalValue(kind: .report,
+                           stableID: try stableKey(kind: .snippet, id: snippet.snippetID),
+                           display: snippet.title,
+                           summary: snippet.tags.joined(separator: " "),
+                           breadcrumb: [], status: snippet.state.rawValue, dueAt: nil,
+                           timestamp: snippet.editedAt)
+        }
+        // Frozen insertions must be present for deterministic rebuild/recovery,
+        // but their inserted body and actor snapshot remain private.
+        values += try fastSurveyInbox.snippetInsertions.map { insertion in
+            CanonicalValue(kind: .report,
+                           stableID: try stableKey(kind: .snippetInsertion, id: insertion.insertionEventID),
+                           display: "Frozen snippet insertion",
+                           summary: "snippet \(insertion.snippetID.uuidString.lowercased()) r\(insertion.snippetRevision) \(insertion.insertionSHA256)",
+                           breadcrumb: [], status: "frozen", dueAt: nil,
+                           timestamp: insertion.insertedAt)
+        }
         values += try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>())
             .filter { $0.workspaceID == workspaceID }
             .map { row in

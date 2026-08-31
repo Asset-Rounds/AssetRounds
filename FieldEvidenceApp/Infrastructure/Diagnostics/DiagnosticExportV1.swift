@@ -1,5 +1,21 @@
 import CryptoKit
 import Foundation
+
+/// Diagnostic export may carry only bounded operational counts for C11. It
+/// never includes inbox text, snippet title/body, actor snapshot, or original
+/// content reference, all of which remain workspace-private canonical data.
+enum FastSurveyInboxDiagnosticPrivacyPolicyV1 {
+    static let exportsInboxBodies = false
+    static let exportsSnippetBodies = false
+    static let exportsOriginalContentReferences = false
+    static let exportsActorSnapshots = false
+    static let boundedOperationalCountsOnly = true
+
+    static func validate() -> Bool {
+        !exportsInboxBodies && !exportsSnippetBodies && !exportsOriginalContentReferences
+            && !exportsActorSnapshots && boundedOperationalCountsOnly
+    }
+}
 import UIKit
 
 struct DiagnosticAppContextV1: Codable, Equatable, Sendable {

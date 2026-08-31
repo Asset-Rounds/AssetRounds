@@ -3128,3 +3128,6 @@ enum ImportBulkPreviewAccessibilityPolicyV1 {
         }
     }
 }
+
+enum FastSurveyInboxAccessibilityIDV1: String, CaseIterable, Sendable { case screen = "v23.p04.c11.fast-inbox.screen", status = "v23.p04.c11.fast-inbox.status", inbox = "v23.p04.c11.fast-inbox.inbox", item = "v23.p04.c11.fast-inbox.item", capture = "v23.p04.c11.fast-inbox.capture", snippet = "v23.p04.c11.fast-inbox.snippet", preview = "v23.p04.c11.fast-inbox.preview", noAcceptance = "v23.p04.c11.fast-inbox.no-acceptance" }
+enum FastSurveyInboxAccessibilityPolicyV1 { static let flags = (voiceOver: true, voiceControl: true, ax5: true, nonColor: true, errorFocus: true, reduceMotion: true, rtl: true, adopted: false); static func validate() throws { let ids = FastSurveyInboxAccessibilityIDV1.allCases.map(\.rawValue); guard ids.count == Set(ids).count, flags.voiceOver, flags.voiceControl, flags.ax5, flags.nonColor, flags.errorFocus, flags.reduceMotion, flags.rtl, !flags.adopted else { throw LocalizationContractFailureV1.invalidAccessibilityBinding } } }

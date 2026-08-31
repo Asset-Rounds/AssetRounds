@@ -59,6 +59,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyRoundSession,
             .applyImportBulk,
             .applyEvidenceQuality,
+            .applyFastSurveyInbox,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -79,6 +80,10 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             -> CompletedActivitySnapshotResolutionContextV2)?
     private let activityFindingEvidenceResolver:
         (([PunchFindingLinkV1]) throws -> [FindingLifecycleCanonicalEvidenceV1])?
+    /// The production composition root supplies the incumbent destination
+    /// reader. C11 receives no destination fixture or mutable destination
+    /// store; this transaction verifies only the current canonical target.
+    private let capturePromotionDestinationResolver: (any CapturePromotionDestinationResolvingV1)?
 
     init(
         modelContext: ModelContext,
@@ -87,11 +92,13 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             ((CompletedActivitySnapshotV2CompatibilityReferenceV1) throws
                 -> CompletedActivitySnapshotResolutionContextV2)? = nil,
         activityFindingEvidenceResolver:
-            (([PunchFindingLinkV1]) throws -> [FindingLifecycleCanonicalEvidenceV1])? = nil
+            (([PunchFindingLinkV1]) throws -> [FindingLifecycleCanonicalEvidenceV1])? = nil,
+        capturePromotionDestinationResolver: (any CapturePromotionDestinationResolvingV1)? = nil
     ) {
         self.modelContext = modelContext
         self.completedActivitySnapshotResolver = completedActivitySnapshotResolver
         self.activityFindingEvidenceResolver = activityFindingEvidenceResolver
+        self.capturePromotionDestinationResolver = capturePromotionDestinationResolver
         if let assetSemanticLifecycleAdapter {
             self.assetSemanticLifecycleAdapter = assetSemanticLifecycleAdapter
         } else {
@@ -244,6 +251,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyImportBulk(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyEvidenceQuality(value):
             return try applyEvidenceQuality(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
+        case let .applyFastSurveyInbox(value):
+            return try applyFastSurveyInbox(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -332,6 +341,204 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
         modelContext.insert(try EvidenceQualityMutationReceiptRowV1(receipt))
         return try WorkspaceMutationEffectV1(affectedEntities: [target], temporaryRelativePath: temporaryRelativePath)
+    }
+
+    /// C11 effect rows remain uncommitted until the incumbent journal commits
+    /// its generic receipt in this same model context. A promotion records the
+    /// successor inbox item and typed destination link atomically; original
+    /// content/provenance bytes are referenced, never rewritten or copied.
+    private func applyFastSurveyInbox(
+        _ command: FastSurveyInboxMutationCommandV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try command.validate()
+        let targets = try command.affectedIdentitiesForCanonicalWriter()
+        let (resultingRevision, overflow) = command.expectedRevision.workspaceRevision.addingReportingOverflow(1)
+        guard !overflow else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let receipt = try FastSurveyInboxMutationReceiptV1(
+            receiptID: command.mutationID.rawValue,
+            command: command,
+            resultingWorkspaceRevision: resultingRevision,
+            recoveryState: .receiptCommitted,
+            committedAt: occurredAt
+        )
+        let receiptValues = try modelContext.fetch(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>()).map { try $0.value() }
+        guard Set(receiptValues.map(\.mutationID)).count == receiptValues.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let prior = receiptValues.first(where: { $0.mutationID == command.mutationID }) {
+            try prior.validate(command: command)
+            return try WorkspaceMutationEffectV1(affectedEntities: targets, temporaryRelativePath: temporaryRelativePath)
+        }
+
+        let itemRows = try modelContext.fetch(FetchDescriptor<CaptureInboxItemRowV1>())
+        let items = try itemRows.map { try $0.value() }
+        let snippetRows = try modelContext.fetch(FetchDescriptor<SnippetRowV1>())
+        let snippets = try snippetRows.map { try $0.value() }
+        let insertionRows = try modelContext.fetch(FetchDescriptor<SnippetInsertionHistoryRowV1>())
+        let insertions = try insertionRows.map { row -> SnippetInsertionV1 in
+            let insertion = try row.value()
+            guard let snippet = snippets.first(where: {
+                $0.workspaceID == insertion.workspaceID
+                    && $0.snippetID == insertion.snippetID
+                    && $0.revision == insertion.snippetRevision
+                    && $0.snippetSHA256 == insertion.snippetSHA256
+            }) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return try row.value(snippet: snippet)
+        }
+        guard Set(insertions.map(\.insertionEventID)).count == insertions.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let promotionRows = try modelContext.fetch(FetchDescriptor<CapturePromotionRowV1>())
+        var promotions: [CapturePromotionV1] = []
+        for row in promotionRows {
+            var decoded: CapturePromotionV1?
+            for source in items where source.inboxItemID == row.sourceInboxItemID && source.revision == 1 {
+                for promoted in items where promoted.inboxItemID == source.inboxItemID && promoted.revision == 2 {
+                    if let value = try? row.value(source: source, promotedItem: promoted) {
+                        guard decoded == nil else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                        decoded = value
+                    }
+                }
+            }
+            guard let decoded else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            promotions.append(decoded)
+        }
+
+        switch command.payload {
+        case let .putInboxItem(value):
+            guard value.isUnassigned,
+                  !items.contains(where: { $0.inboxEventID == value.inboxEventID || ($0.inboxItemID == value.inboxItemID && $0.revision == value.revision) }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            try requireFastSurveyInboxOriginal(value)
+            let row = try CaptureInboxItemRowV1(value, command: command, resultingWorkspaceRevision: resultingRevision)
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        case let .promote(promotion, promotedItem):
+            guard let source = items.first(where: {
+                $0.inboxItemID == promotion.sourceInboxItemID
+                    && $0.revision == promotion.sourceInboxRevision
+                    && $0.itemSHA256 == promotion.sourceInboxSHA256
+                    && $0.isUnassigned
+            }),
+            !items.contains(where: { $0.inboxEventID == promotedItem.inboxEventID || ($0.inboxItemID == promotedItem.inboxItemID && $0.revision == promotedItem.revision) }),
+            !promotions.contains(where: { $0.promotionID == promotion.promotionID || $0.idempotencySHA256 == promotion.idempotencySHA256 }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try requireFastSurveyInboxOriginal(source)
+            guard let resolver = capturePromotionDestinationResolver else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try promotion.validate(source: source, promotedItem: promotedItem, resolver: resolver)
+            let itemRow = try CaptureInboxItemRowV1(promotedItem, command: command, resultingWorkspaceRevision: resultingRevision)
+            let promotionRow = try CapturePromotionRowV1(promotion, source: source, promotedItem: promotedItem, command: command, resultingWorkspaceRevision: resultingRevision)
+            try itemRow.markReceiptCommitted(receipt)
+            try promotionRow.markReceiptCommitted(receipt)
+            modelContext.insert(itemRow)
+            modelContext.insert(promotionRow)
+        case let .putSnippet(value):
+            guard !snippets.contains(where: { $0.snippetEventID == value.snippetEventID || ($0.snippetID == value.snippetID && $0.revision == value.revision) }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            if value.revision > 1 {
+                guard let predecessor = snippets.first(where: { $0.snippetID == value.snippetID && $0.revision + 1 == value.revision }) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+                try value.validateSuccessor(of: predecessor)
+            }
+            let row = try SnippetRowV1(value, command: command, resultingWorkspaceRevision: resultingRevision)
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        case let .insertSnippet(insertion, snippet):
+            guard !insertions.contains(where: { $0.insertionEventID == insertion.insertionEventID }),
+                  let persistedSnippet = snippets.first(where: {
+                      $0.workspaceID == insertion.workspaceID
+                          && $0.snippetID == insertion.snippetID
+                          && $0.revision == insertion.snippetRevision
+                          && $0.snippetSHA256 == insertion.snippetSHA256
+                  }),
+                  persistedSnippet == snippet else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            guard let resolver = capturePromotionDestinationResolver else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try validateSnippetInsertionTarget(insertion.target, resolver: resolver)
+            try insertion.validate(snippet: persistedSnippet)
+            let row = try SnippetInsertionHistoryRowV1(
+                insertion,
+                snippet: persistedSnippet,
+                command: command,
+                resultingWorkspaceRevision: resultingRevision
+            )
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        }
+        modelContext.insert(try FastSurveyInboxMutationReceiptRowV1(receipt))
+        return try WorkspaceMutationEffectV1(affectedEntities: targets, temporaryRelativePath: temporaryRelativePath)
+    }
+
+    /// C11 retains the immutable C02 original by reference. A self-consistent
+    /// content reference is insufficient: it must bind to exactly one existing
+    /// immutable evidence byte record before the inbox can retain its digest.
+    private func requireFastSurveyInboxOriginal(_ item: CaptureInboxItemV1) throws {
+        let content = item.content
+        guard let identifier = UUID(uuidString: content.contentID) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let rows = try modelContext.fetch(FetchDescriptor<EvidenceFile>()).filter { $0.id == identifier }
+        guard rows.count == 1, let row = rows.first,
+              content.workspaceID.lowercased() == item.workspaceID.rawValue.uuidString.lowercased(),
+              content.byteRole == .immutableOriginal,
+              content.byteLength == Int64(row.byteCount),
+              content.mediaType == row.mimeType,
+              content.digests.digest(for: .sha256)?.hexadecimalValue == row.sha256 else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard content.createdAt == formatter.string(from: row.createdAt) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    /// Snippet text is saved only against the same current, canonical target
+    /// resolver used by promotions. Mapping is deliberately exhaustive: every
+    /// target kind is independently workspace/revision/digest-bound before an
+    /// immutable insertion history row is staged.
+    private func validateSnippetInsertionTarget(
+        _ target: SnippetInsertionTargetV1,
+        resolver: any CapturePromotionDestinationResolvingV1
+    ) throws {
+        try target.validate()
+        let destinationKind: CapturePromotionDestinationKindV1
+        switch target.kind {
+        case .assetNoteDraft:
+            destinationKind = .assetEvidence
+        case .responseDraft:
+            destinationKind = .responseEvidence
+        case .findingDraft:
+            destinationKind = .findingEvidence
+        case .correctiveWorkDraft:
+            destinationKind = .correctiveWorkEvidence
+        }
+        let resolved = try resolver.resolveCapturePromotionDestination(
+            workspaceID: target.workspaceID,
+            kind: destinationKind,
+            destinationID: target.targetID
+        )
+        try resolved.validate()
+        guard resolved.workspaceID == target.workspaceID,
+              resolved.kind == destinationKind,
+              resolved.destinationID == target.targetID,
+              resolved.destinationRevision == target.targetRevision,
+              resolved.destinationSHA256 == target.targetSHA256 else {
+            throw FastSurveyInboxFailureV1.staleRevision
+        }
     }
 
     /// C08's three lifecycle rows participate in the same uncommitted context

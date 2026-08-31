@@ -507,6 +507,42 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return try journalStore.evidenceQualityReceipt(command)
     }
 
+    /// C11 uses this same writer/journal transaction for every inbox item,
+    /// explicit promotion, and versioned snippet postimage. Repeating a
+    /// MutationID returns the already durable typed receipt only after the
+    /// complete command digest has been revalidated.
+    func commitFastSurveyInbox(
+        _ command: FastSurveyInboxMutationCommandV1
+    ) throws -> FastSurveyInboxMutationReceiptV1 {
+        try command.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let receipt = try journalStore.fastSurveyInboxReceipt(command) { return receipt }
+        let current = try currentRevision()
+        try command.validate(currentRevision: current)
+        _ = try execute(.init(
+            mutationID: command.mutationID,
+            expectedRevision: command.expectedRevision,
+            command: .applyFastSurveyInbox(command)
+        ))
+        guard let receipt = try journalStore.fastSurveyInboxReceipt(command) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try receipt.validate(command: command)
+        return receipt
+    }
+
+    func fastSurveyInboxReceipt(
+        for command: FastSurveyInboxMutationCommandV1
+    ) throws -> FastSurveyInboxMutationReceiptV1? {
+        try command.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.fastSurveyInboxReceipt(command)
+    }
+
     func evidenceMetadataReceipt(
         for mutation: EvidenceMetadataMutationV1
     ) throws -> EvidenceMetadataMutationReceiptV1? {
@@ -922,6 +958,18 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 }
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
               catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyFastSurveyInbox(let value):
+            do {
+                try value.validate()
+                let targets = try value.affectedIdentitiesForCanonicalWriter()
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      value.expectedRevision == request.expectedRevision,
+                      Set(request.expectedRevision.entityRevisions.map(\.identity)).isSuperset(of: targets) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+              catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -1216,6 +1264,11 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             let target = try mutation.affectedIdentityForCanonicalWriter()
             let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision ?? 0
             entityRevisions[target] = expected + 1
+        } else if case let .applyFastSurveyInbox(mutation) = request.command {
+            for target in try mutation.affectedIdentitiesForCanonicalWriter() {
+                let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision ?? 0
+                entityRevisions[target] = expected + 1
+            }
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1740,6 +1793,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate(); values = [try value.affectedIdentity]
         case let .applyEvidenceQuality(value):
             try value.validate(); values = [try value.affectedIdentityForCanonicalWriter()]
+        case let .applyFastSurveyInbox(value):
+            try value.validate(); values = try value.affectedIdentitiesForCanonicalWriter()
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1807,6 +1862,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyRoundSession(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyImportBulk(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyEvidenceQuality(value)=command{try value.validate();return[try value.affectedIdentityForCanonicalWriter()]}
+        if case let .applyFastSurveyInbox(value)=command{try value.validate();return try value.affectedIdentitiesForCanonicalWriter()}
         return try targetIdentities(for: command)
     }
 

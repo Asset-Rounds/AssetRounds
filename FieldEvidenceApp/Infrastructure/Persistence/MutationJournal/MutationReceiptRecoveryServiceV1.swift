@@ -17,6 +17,7 @@ final class MutationReceiptRecoveryServiceV1 {
         }
         try store.withAuthorizedRecovery {
             try store.validateAll()
+            try validateFastSurveyInboxRecoveryParity()
         }
     }
 
@@ -128,6 +129,22 @@ final class MutationReceiptRecoveryServiceV1 {
     func recoverEvidenceQualityEffectsBeforeWriterActivation() throws {
         try recoverBeforeWriterActivation()
     }
+
+    /// C11 recovery is journal-led: it activates only after the inbox effect
+    /// rows, generic receipt, and typed receipt agree on the exact MutationID
+    /// and semantic postimages. It never synthesizes a missing receipt.
+    func recoverFastSurveyInboxEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
+
+    private func validateFastSurveyInboxRecoveryParity() throws {
+        for pair in try store.fastSurveyInboxRecoveryPairs() {
+            try FastSurveyInboxMutationReceiptRecoveryPolicyV1.validateRecovered(
+                command: pair.command,
+                receipt: pair.receipt
+            )
+        }
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -172,6 +189,30 @@ enum EvidenceMetadataMutationReceiptRecoveryPolicyV1 {
             mutation: mutation,
             mutationReceipt: receipt
         )
+    }
+}
+
+enum FastSurveyInboxMutationReceiptRecoveryPolicyV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyFastSurveyInbox
+    static let canonicalPostImageCountRange = 1...2
+    static let effectBeforeReceiptRecoveryRequiresExactRows = true
+    static let divergentSameMutationFailsClosed = true
+    static let createsParallelWriter = false
+
+    static func validateRecovered(
+        command: FastSurveyInboxMutationCommandV1,
+        receipt: FastSurveyInboxMutationReceiptV1
+    ) throws {
+        try command.validate()
+        try receipt.validate(command: command)
+        let count = try command.affectedIdentitiesForCanonicalWriter().count
+        guard canonicalPostImageCountRange.contains(count),
+              receipt.recoveryState == .receiptCommitted,
+              effectBeforeReceiptRecoveryRequiresExactRows,
+              divergentSameMutationFailsClosed,
+              !createsParallelWriter else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
     }
 }
 

@@ -1692,6 +1692,68 @@ struct EvidenceQualityBackupSnapshotV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C11 carries provenance per business effect (rather than merely per
+/// mutation) because one promotion atomically commits the promoted inbox item
+/// and its promotion link under one receipt.
+struct FastSurveyInboxBackupEffectProvenanceV1: Codable, Equatable, Sendable {
+    let mutationID: UUID
+    let semanticSHA256: String
+    let writerInstanceID: UUID
+
+    init(mutationID: UUID, semanticSHA256: String, writerInstanceID: UUID) throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        guard mutationID != zero, writerInstanceID != zero,
+              KernelCanonicalHashV1.validSHA256(semanticSHA256) else {
+            throw FastSurveyInboxPersistenceFailureV1.corruptRow
+        }
+        self.mutationID = mutationID
+        self.semanticSHA256 = semanticSHA256
+        self.writerInstanceID = writerInstanceID
+    }
+}
+
+struct FastSurveyInboxBackupSnapshotV1: Codable, Equatable, Sendable {
+    let inboxItems: [CaptureInboxItemV1]
+    let promotions: [CapturePromotionV1]
+    let snippets: [SnippetV1]
+    let snippetInsertions: [SnippetInsertionV1]
+    let receipts: [FastSurveyInboxMutationReceiptV1]
+    let effectProvenance: [FastSurveyInboxBackupEffectProvenanceV1]
+
+    init(inboxItems: [CaptureInboxItemV1], promotions: [CapturePromotionV1], snippets: [SnippetV1],
+         snippetInsertions: [SnippetInsertionV1],
+         receipts: [FastSurveyInboxMutationReceiptV1],
+         effectProvenance: [FastSurveyInboxBackupEffectProvenanceV1]) throws {
+        let snapshot = FastSurveyInboxLifecycleAdapterV1.Snapshot(
+            inboxItems: inboxItems, promotions: promotions, snippets: snippets,
+            snippetInsertions: snippetInsertions, receipts: receipts
+        )
+        try FastSurveyInboxLifecycleAdapterV1.validate(snapshot)
+        self.inboxItems = snapshot.inboxItems; self.promotions = snapshot.promotions
+        self.snippets = snapshot.snippets; self.receipts = snapshot.receipts
+        self.snippetInsertions = snapshot.snippetInsertions
+        let values = effectProvenance.sorted {
+            ($0.mutationID.uuidString, $0.semanticSHA256) < ($1.mutationID.uuidString, $1.semanticSHA256)
+        }
+        let effects = snapshot.inboxItems.map { ($0.mutationID.rawValue, $0.itemSHA256) }
+            + snapshot.promotions.map { ($0.mutationID.rawValue, $0.promotionSHA256) }
+            + snapshot.snippets.map { ($0.mutationID.rawValue, $0.snippetSHA256) }
+            + snapshot.snippetInsertions.map { ($0.mutationID.rawValue, $0.insertionSHA256) }
+        let provenanceKeys = values.map { "\($0.mutationID.uuidString.lowercased())|\($0.semanticSHA256)" }
+        let effectKeys = effects.map { "\($0.0.uuidString.lowercased())|\($0.1)" }.sorted()
+        guard Set(provenanceKeys).count == values.count,
+              Set(effectKeys).count == effects.count,
+              provenanceKeys == effectKeys else { throw FastSurveyInboxPersistenceFailureV1.receiptMismatch }
+        self.effectProvenance = values
+    }
+
+    func validate() throws {
+        _ = try Self(inboxItems: inboxItems, promotions: promotions, snippets: snippets,
+                     snippetInsertions: snippetInsertions,
+                     receipts: receipts, effectProvenance: effectProvenance)
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -1765,6 +1827,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     /// C10 immutable advisory assessment provenance. It contains no original
     /// media bytes and no derived rebuild/search/report projection.
     var evidenceQuality: EvidenceQualityBackupSnapshotV1?
+    /// C11 canonical inbox history. Original media remains referenced by its
+    /// immutable content/provenance contract, never copied into this envelope.
+    var fastSurveyInbox: FastSurveyInboxBackupSnapshotV1?
     /// C55 is transported as the one canonical snapshot owned by PartsStock.
     /// Its seven durable families must never be split into a parallel archive.
     let partsStockSnapshot: PartsStockBackupSnapshotV1?
@@ -1874,7 +1939,8 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         importMappingProfiles: [ImportMappingProfileV1] = [],
         bulkSessions: [BulkSessionV1] = [],
         bulkCommitReceipts: [BulkCommitReceiptV1] = [],
-        evidenceQuality: EvidenceQualityBackupSnapshotV1? = nil
+        evidenceQuality: EvidenceQualityBackupSnapshotV1? = nil,
+        fastSurveyInbox: FastSurveyInboxBackupSnapshotV1? = nil
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -1913,6 +1979,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.bulkSessions = bulkSessions
         self.bulkCommitReceipts = bulkCommitReceipts
         self.evidenceQuality = evidenceQuality
+        self.fastSurveyInbox = fastSurveyInbox
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -1962,7 +2029,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
           case qualifiedServiceExposures, serviceReliabilityReceipts
           case partsStockSnapshot, myDayPlans, myDayCarryoverReceipts, nonactivePlanReferences
           case evidenceAssociationEvents, evidenceSequenceRevisions, shopReportProfiles, roundSessions
-          case importMappingProfiles, bulkSessions, bulkCommitReceipts, evidenceQuality
+          case importMappingProfiles, bulkSessions, bulkCommitReceipts, evidenceQuality, fastSurveyInbox
     }
 
     init(from decoder: Decoder) throws {
@@ -2148,6 +2215,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             ) ?? [],
             evidenceQuality: try values.decodeIfPresent(
                 EvidenceQualityBackupSnapshotV1.self, forKey: .evidenceQuality
+            ),
+            fastSurveyInbox: try values.decodeIfPresent(
+                FastSurveyInboxBackupSnapshotV1.self, forKey: .fastSurveyInbox
             )
         )
     }
@@ -2356,19 +2426,36 @@ enum C08ImportBulkBackupEnrollmentV1 {
 enum EvidenceQualityBackupEnrollmentV1 {
     static let persistentSchemaVersion = EvidenceQualitySchemaV1.schemaVersion
     static let recordsSchemaVersion = C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
-    static let durableFamilyCount = 4
+    static let durableFamilyCount = 5
     static let cloneAndForkRequireEmptySnapshot = true
     static let retainsHistoricWarningsAndWaivers = true
 
     static func validate(_ records: V4BackupRecordsV1) throws {
         guard persistentSchemaVersion == 47,
-              recordsSchemaVersion == 46,
+              recordsSchemaVersion >= 46,
               durableFamilyCount == EvidenceQualitySchemaV1.durableModelCount,
               cloneAndForkRequireEmptySnapshot,
               retainsHistoricWarningsAndWaivers else {
             throw EvidenceQualityFailureV1.invalidValue
         }
         try records.evidenceQuality?.validate()
+    }
+}
+
+enum FastSurveyInboxBackupEnrollmentV1 {
+    static let persistentSchemaVersion = FastSurveyInboxSchemaV1.schemaVersion
+    static let recordsSchemaVersion = 47
+    static let durableFamilyCount = 5
+    static let cloneAndForkRequireEmptySnapshot = true
+    static let unpromotedExcludedFromCompletedReports = true
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard persistentSchemaVersion == 48, recordsSchemaVersion == 47,
+              durableFamilyCount == FastSurveyInboxSchemaV1.durableModelCount,
+              cloneAndForkRequireEmptySnapshot, unpromotedExcludedFromCompletedReports else {
+            throw FastSurveyInboxFailureV1.invalidValue
+        }
+        try records.fastSurveyInbox?.validate()
     }
 }
 

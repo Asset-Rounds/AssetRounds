@@ -646,6 +646,7 @@ enum KernelDeletionEraseRegistryV4 {
         try C05RoundSessionKernelDeletionEraseEnrollmentV1.validate()
         try C08ImportBulkKernelDeletionEraseEnrollmentV1.validate()
         try EvidenceQualityKernelDeletionEraseEnrollmentV1.validate()
+        try FastSurveyInboxKernelDeletionEraseEnrollmentV1.validate()
         try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
@@ -957,6 +958,21 @@ enum EvidenceQualityKernelDeletionEraseEnrollmentV1 {
               ordinaryDeletePreservesHistoricAssessmentsAndWaivers,
               workspaceEraseClearsAllCanonicalFamilies,
               waiverHistoryIsNeverRewritten else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+/// Ordinary sign deletion retains C11 reviewable inbox/provenance history;
+/// only whole-workspace erase clears its five canonical families.
+enum FastSurveyInboxKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = ["CaptureInboxItemRowV1", "CapturePromotionRowV1", "SnippetRowV1", "SnippetInsertionHistoryRowV1", "FastSurveyInboxMutationReceiptRowV1"]
+    static let ordinaryDeletePreservesReviewableInbox = true
+    static let workspaceEraseClearsAllCanonicalFamilies = true
+
+    static func validate() throws {
+        guard durableFamilies.count == FastSurveyInboxSchemaV1.durableModelCount,
+              ordinaryDeletePreservesReviewableInbox, workspaceEraseClearsAllCanonicalFamilies else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

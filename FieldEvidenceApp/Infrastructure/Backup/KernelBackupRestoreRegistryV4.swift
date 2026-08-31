@@ -83,6 +83,20 @@ enum C57MyDayKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum FastSurveyInboxKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 48
+    static let durableFamilies = ["CaptureInboxItemRowV1", "CapturePromotionRowV1", "SnippetRowV1", "SnippetInsertionHistoryRowV1", "FastSurveyInboxMutationReceiptRowV1"]
+    static let promotionRestoresExactSourceAndPromotedLink = true
+    static let cloneForkRequireEmptySnapshot = true
+    static let originalContentBytesAreNeverCopied = true
+    static func validate() throws {
+        guard persistentSchemaVersion == FastSurveyInboxSchemaV1.schemaVersion,
+              durableFamilies.count == FastSurveyInboxSchemaV1.durableModelCount,
+              promotionRestoresExactSourceAndPromotedLink, cloneForkRequireEmptySnapshot,
+              originalContentBytesAreNeverCopied else { throw KernelPersistenceV4Failure.incompleteCoverage }
+    }
+}
+
 enum C05EvidenceMetadataKernelBackupRestoreEnrollmentV1 {
     static let persistentSchemaVersion = 43
     static let recordsSchemaVersion = 42

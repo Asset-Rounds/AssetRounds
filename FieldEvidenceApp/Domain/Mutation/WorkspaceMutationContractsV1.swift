@@ -166,6 +166,10 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case evidenceQualityRuleSet
     case evidenceQualityAssessment
     case evidenceQualityWaiverEvent
+    case captureInboxItem
+    case capturePromotion
+    case snippet
+    case snippetInsertion
 }
 
 struct WorkspaceEntityIdentityV1: Codable, Hashable, Sendable {
@@ -2636,6 +2640,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyRoundSession(RoundSessionMutationV1)
     case applyImportBulk(ImportBulkWorkspaceMutationV1)
     case applyEvidenceQuality(EvidenceQualityMutationCommandV1)
+    case applyFastSurveyInbox(FastSurveyInboxMutationCommandV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2694,6 +2699,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyRoundSession:.applyRoundSession
         case .applyImportBulk: .applyImportBulk
         case .applyEvidenceQuality: .applyEvidenceQuality
+        case .applyFastSurveyInbox: .applyFastSurveyInbox
         }
     }
 }
@@ -2754,6 +2760,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyRoundSession="apply_round_session_v1"
     case applyImportBulk="apply_import_bulk_v1"
     case applyEvidenceQuality="apply_evidence_quality_v1"
+    case applyFastSurveyInbox="apply_fast_survey_inbox_v1"
 }
 
 extension EvidenceQualityMutationCommandV1 {
@@ -2769,6 +2776,34 @@ extension EvidenceQualityMutationCommandV1 {
         case let .recordWaiver(value):
             return try .init(kind: .evidenceQualityWaiverEvent, id: value.waiverEventID)
         }
+    }
+}
+
+extension FastSurveyInboxMutationCommandV1 {
+    /// C11 is one canonical mutation, even when an explicit promotion records
+    /// both the promoted inbox successor and the typed promotion link.
+    func affectedIdentitiesForCanonicalWriter() throws -> [WorkspaceEntityIdentityV1] {
+        try validate()
+        let values: [WorkspaceEntityIdentityV1]
+        switch payload {
+        case let .putInboxItem(value):
+            values = [try .init(kind: .captureInboxItem, id: value.inboxItemID)]
+        case let .promote(promotion, promotedItem):
+            values = [
+                try .init(kind: .captureInboxItem, id: promotedItem.inboxItemID),
+                try .init(kind: .capturePromotion, id: promotion.promotionID),
+            ]
+        case let .putSnippet(value):
+            values = [try .init(kind: .snippet, id: value.snippetID)]
+        case let .insertSnippet(insertion, _):
+            values = [try .init(kind: .snippetInsertion, id: insertion.insertionEventID)]
+        }
+        let ordered = values.sorted { $0.stableKey < $1.stableKey }
+        guard ordered.count <= MutationReceiptV1.maximumPostImageCount,
+              Set(ordered).count == ordered.count else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return ordered
     }
 }
 
@@ -3579,6 +3614,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyRoundSession,disposition:.compensatable,stableReason:"append_round_session_successor_only"),
         .init(commandKind:.applyImportBulk,disposition:.compensatable,stableReason:"incumbent_import_bulk_append_or_replace_contract"),
         .init(commandKind:.applyEvidenceQuality,disposition:.irreversible,stableReason:"immutable_evidence_quality_assessment_and_waiver_history_forward_fix_only"),
+        .init(commandKind:.applyFastSurveyInbox,disposition:.compensatable,stableReason:"append_inbox_promotion_and_snippet_successors_preserve_original_content_provenance"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

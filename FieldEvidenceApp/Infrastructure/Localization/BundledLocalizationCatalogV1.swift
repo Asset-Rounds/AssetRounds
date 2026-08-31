@@ -3514,6 +3514,8 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+extension BundledLocalizationCatalogV1 { static func fastSurveyInboxLocalized(_ key: FastSurveyInboxLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C11 contained local inbox presentation; no completion, truth, route, or acceptance claim.") } }
+
 // MARK: - C10 evidence quality coach catalog
 
 extension BundledLocalizationCatalogV1 {

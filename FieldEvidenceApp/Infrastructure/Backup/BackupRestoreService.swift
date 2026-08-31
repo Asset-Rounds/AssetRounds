@@ -2732,6 +2732,7 @@ private extension BackupRestoreService {
         // immutable snapshot after those copies; clone/fork admission is
         // deliberately decided by the later C10 materialization branch.
         normalized.evidenceQuality = records.evidenceQuality
+        normalized.fastSurveyInbox = records.fastSurveyInbox
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2758,6 +2759,7 @@ private extension BackupRestoreService {
             )
         )
         reset.evidenceQuality = records.evidenceQuality
+        reset.fastSurveyInbox = records.fastSurveyInbox
         return reset
     }
 
@@ -9839,6 +9841,36 @@ private extension BackupRestoreService {
                 for receipt in evidenceQuality.receipts {
                     context.insert(try EvidenceQualityMutationReceiptRowV1(receipt))
                 }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        }
+        if let fastSurveyInbox = records.fastSurveyInbox {
+            do {
+                try fastSurveyInbox.validate()
+                if let identityDecision {
+                    switch identityDecision.mode {
+                    case .clone, .fork:
+                        guard fastSurveyInbox.inboxItems.isEmpty, fastSurveyInbox.promotions.isEmpty,
+                              fastSurveyInbox.snippets.isEmpty, fastSurveyInbox.receipts.isEmpty,
+                              fastSurveyInbox.snippetInsertions.isEmpty,
+                              fastSurveyInbox.effectProvenance.isEmpty else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                    case .emptyInstall, .replaceExisting: break
+                    }
+                }
+                let workspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                guard fastSurveyInbox.inboxItems.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      fastSurveyInbox.promotions.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      fastSurveyInbox.snippets.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      fastSurveyInbox.snippetInsertions.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      fastSurveyInbox.receipts.allSatisfy({ $0.workspaceID.rawValue == workspaceID }) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                try FastSurveyInboxLifecycleAdapterV1(
+                    modelContext: context, workspaceID: WorkspaceID(rawValue: workspaceID)
+                ).replaceRestore(fastSurveyInbox)
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidPackage }
         }

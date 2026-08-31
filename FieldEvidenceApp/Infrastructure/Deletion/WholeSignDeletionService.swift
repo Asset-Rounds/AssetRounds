@@ -59,6 +59,17 @@ enum EvidenceQualityWholeSignDeletionPolicyV1 {
     }
 }
 
+enum FastSurveyInboxWholeSignDeletionPolicyV1 {
+    static let ordinaryAssetAndSiteDeletionPreservesReviewableInbox = true
+    static let ordinaryDeletionFetchesNoFastSurveyInboxRows = true
+    static func validate() throws {
+        guard ordinaryAssetAndSiteDeletionPreservesReviewableInbox,
+              ordinaryDeletionFetchesNoFastSurveyInboxRows else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+}
+
 enum C31LightingWholeSignDeletionServiceBoundaryV1 {
     static let deletesTopologyAsOneClosure = true
     static let preservesImmutableHistoryForOrdinaryDelete = true
@@ -686,6 +697,7 @@ final class WholeSignDeletionService {
     func delete(assetID: UUID) async throws -> WholeSignDeletionOutcome {
         try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
         try EvidenceQualityWholeSignDeletionPolicyV1.validate()
+        try FastSurveyInboxWholeSignDeletionPolicyV1.validate()
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
@@ -853,6 +865,7 @@ final class WholeSignDeletionService {
     ) async throws -> ExplicitSiteDeletionOutcomeV1 {
         try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
         try EvidenceQualityWholeSignDeletionPolicyV1.validate()
+        try FastSurveyInboxWholeSignDeletionPolicyV1.validate()
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
