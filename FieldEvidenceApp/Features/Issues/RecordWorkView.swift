@@ -13,6 +13,7 @@ struct RecordWorkView: View {
     static let saveAccessibilityIdentifier = "s5.1.work.save"
     static let savingAccessibilityIdentifier = "s5.1.work.saving"
     static let validationAccessibilityIdentifier = "s5.1.work.validation"
+    static let keyboardDoneAccessibilityIdentifier = "s5.1.work.keyboard-done"
     static let failureAccessibilityIdentifier = "s5.1.work.failure"
 
     private enum FocusTarget: Hashable {
@@ -103,6 +104,19 @@ struct RecordWorkView: View {
                                 $accessibilityFocus,
                                 equals: .description
                             )
+                            .toolbar {
+                                if showsDescriptionValidation && fieldFocus {
+                                    ToolbarItemGroup(placement: .keyboard) {
+                                        Spacer()
+                                        Button("Done") {
+                                            fieldFocus = false
+                                        }
+                                        .accessibilityIdentifier(
+                                            Self.keyboardDoneAccessibilityIdentifier
+                                        )
+                                    }
+                                }
+                            }
 
                         if showsDescriptionValidation {
                             Label {
