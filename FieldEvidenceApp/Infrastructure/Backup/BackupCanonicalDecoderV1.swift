@@ -255,6 +255,7 @@ struct BackupCanonicalDecoderV1: Sendable {
               try Self.validateC05EvidenceMetadata(value)
               try Self.validateC04ShopReportProfiles(value)
               try Self.validateC05RoundSessions(value)
+              try Self.validateC08ImportBulk(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -334,6 +335,21 @@ private extension BackupCanonicalDecoderV1 {
         } catch {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
+    }
+
+    static func validateC08ImportBulk(_ records: V4BackupRecordsV1) throws {
+        do {
+            try C08ImportBulkBackupEnrollmentV1.validate(records)
+            for value in records.importMappingProfiles {
+                guard try ImportBulkCanonicalCodecV1.decode(ImportMappingProfileV1.self, from: ImportBulkCanonicalCodecV1.encode(value)) == value else { throw ImportBulkFailureV1.digestMismatch }
+            }
+            for value in records.bulkSessions {
+                guard try ImportBulkCanonicalCodecV1.decode(BulkSessionV1.self, from: ImportBulkCanonicalCodecV1.encode(value)) == value else { throw ImportBulkFailureV1.digestMismatch }
+            }
+            for value in records.bulkCommitReceipts {
+                guard try ImportBulkCanonicalCodecV1.decode(BulkCommitReceiptV1.self, from: ImportBulkCanonicalCodecV1.encode(value)) == value else { throw ImportBulkFailureV1.digestMismatch }
+            }
+        } catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
     }
 
     static func validateC49WorkResources(_ records: V4BackupRecordsV1) throws {

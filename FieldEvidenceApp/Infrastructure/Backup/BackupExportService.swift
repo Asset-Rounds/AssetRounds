@@ -2497,6 +2497,18 @@ private extension BackupExportService {
             .filter { $0.workspaceID == sourceIdentity.workspaceID }
             .sorted { ($0.sessionID.uuidString, $0.revision, $0.mutationID.rawValue.uuidString)
                 < ($1.sessionID.uuidString, $1.revision, $1.mutationID.rawValue.uuidString) }
+        let importMappingProfiles = mutationHistory == nil ? [] : try modelContext
+            .fetch(FetchDescriptor<ImportMappingProfileRowV1>()).map { try $0.value() }
+            .filter { $0.workspaceID == sourceIdentity.workspaceID }
+            .sorted { $0.profileID.uuidString < $1.profileID.uuidString }
+        let bulkSessions = mutationHistory == nil ? [] : try modelContext
+            .fetch(FetchDescriptor<BulkSessionRowV1>()).map { try $0.value() }
+            .filter { $0.workspaceID == sourceIdentity.workspaceID }
+            .sorted { $0.sessionID.uuidString < $1.sessionID.uuidString }
+        let bulkCommitReceipts = mutationHistory == nil ? [] : try modelContext
+            .fetch(FetchDescriptor<BulkCommitReceiptRowV1>()).map { try $0.value() }
+            .filter { $0.workspaceID == sourceIdentity.workspaceID }
+            .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2566,7 +2578,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+                : C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2622,7 +2634,10 @@ private extension BackupExportService {
              evidenceAssociationEvents: evidenceAssociationEvents,
              evidenceSequenceRevisions: evidenceSequenceRevisions,
              shopReportProfiles: shopReportProfiles,
-             roundSessions: roundSessions
+             roundSessions: roundSessions,
+             importMappingProfiles: importMappingProfiles,
+             bulkSessions: bulkSessions,
+             bulkCommitReceipts: bulkCommitReceipts
          )
     }
 

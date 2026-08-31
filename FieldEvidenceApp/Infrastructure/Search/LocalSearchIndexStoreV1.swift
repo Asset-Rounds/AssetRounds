@@ -596,6 +596,9 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         deleting identities: Set<SearchCanonicalRecordIdentityV1>,
         registry: SearchableFieldRegistryV1
     ) throws {
+        guard C08ImportBulkLocalSearchIndexBoundaryV1.validate() else {
+            throw LocalSearchIndexStoreFailureV1.corruptStore
+        }
         try ensureLoaded()
         guard let prior = envelope?.projection,
               prior.source.workspaceID == source.workspaceID,
@@ -663,6 +666,9 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         deletingStableIDs: Set<String>,
         registry: SearchableFieldRegistryV1
     ) throws {
+        guard C08ImportBulkLocalSearchIndexBoundaryV1.validate() else {
+            throw LocalSearchIndexStoreFailureV1.corruptStore
+        }
         try ensureLoaded()
         guard deletingStableIDs.allSatisfy({ SearchContractValidationV1.validID($0) }) else {
             throw LocalSearchIndexStoreFailureV1.staleMutation
@@ -1682,5 +1688,20 @@ enum C05RoundSessionLocalSearchIndexBoundaryV1 {
         try C05RoundSessionSearchPersistenceBoundaryV1.encode(
             record(progress: progress, closeout: closeout)
         )
+    }
+}
+
+/// C08 search enrollment is deliberately metadata-only.  The incumbent local
+/// index owns derived storage; import source/customer columns and row bytes do
+/// not cross this boundary.
+enum C08ImportBulkLocalSearchIndexBoundaryV1 {
+    static let storeType: LocalSearchIndexStoreV1.Type = LocalSearchIndexStoreV1.self
+    static let indexesSavedMappingSessionAndReceiptMetadata = true
+    static let indexesRawSourceOrCustomerFields = false
+    static let rowsAreDerivedAndRebuildable = true
+    static func validate() -> Bool {
+        indexesSavedMappingSessionAndReceiptMetadata
+            && !indexesRawSourceOrCustomerFields
+            && rowsAreDerivedAndRebuildable
     }
 }

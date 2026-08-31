@@ -624,6 +624,8 @@ private extension BackupImportService {
             try C05EvidenceMetadataBackupEnrollmentV1.validate(temporaryValue.records)
             try C04ShopReportProfileBackupEnrollmentV1.validate(temporaryValue.records)
             try C05RoundSessionBackupEnrollmentV1.validate(temporaryValue.records)
+            try C08ImportBulkBackupImportBoundaryV1.validate(temporaryValue.records)
+            try C08ImportBulkBackupImportBoundaryV1.validate(temporaryValue.records)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -671,6 +673,8 @@ private extension BackupImportService {
             try C05EvidenceMetadataBackupEnrollmentV1.validate(value.records)
             try C04ShopReportProfileBackupEnrollmentV1.validate(value.records)
             try C05RoundSessionBackupEnrollmentV1.validate(value.records)
+            try C08ImportBulkBackupImportBoundaryV1.validate(value.records)
+            try C08ImportBulkBackupImportBoundaryV1.validate(value.records)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -1652,7 +1656,7 @@ enum C52ServiceRequestBackupImportServiceBoundaryV1 {
             return
         }
         guard persistent == records.recordsSchemaVersion + 1,
-              (recordsSchemaVersion...C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               importsCanonicalHistoryThroughRestoreAuthority,
               !importedOutstandingCapabilitiesRemainValid,
@@ -1691,7 +1695,7 @@ enum C53ServiceReliabilityBackupImportServiceBoundaryV1 {
             return
         }
         guard persistent == records.recordsSchemaVersion + 1,
-              (recordsSchemaVersion...C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               importsAllSevenSourceFamilies,
               validatesCanonicalHistoryBeforeMaterialization,

@@ -616,3 +616,19 @@ enum C52ServiceRequestMutationReceiptEnrollmentV1 {
 enum C53AssetServiceReliabilityMutationReceiptEnrollmentV1{static let commandKind:WorkspaceCommandKindV1 = .applyServiceReliability;static let typedReceipt=ServiceReliabilityMutationReceiptV1.self;static let postImageKinds:[WorkspaceEntityKindV1]=[.assetServiceIncident,.serviceImpactSegment,.serviceCauseAssertion,.serviceRemedyAssertion,.serviceRepairInterval,.serviceRestorationAssertion,.qualifiedServiceExposure];static let durableReceiptRecoveryRequired=true}
 enum C55PartsStockMutationReceiptEnrollmentV1{static let commandKind:WorkspaceCommandKindV1 = .applyPartsStock;static let typedReceipt=PartsStockMutationReceiptV1.self;static let postImageKinds:[WorkspaceEntityKindV1]=[.localPartDefinition,.stockStorageLocation,.stockMovementEvent,.stockUseReceipt,.stockUseReversalReceipt,.stockReturnReceipt,.stockAbandonment,.workResourceEntry];static let durableReceiptRecoveryRequired=true}
 enum C57MyDayMutationReceiptEnrollmentV1{static let commandKind:WorkspaceCommandKindV1 = .applyMyDay;static let typedReceipt=MyDayWorkspaceMutationReceiptV1.self;static let postImageKinds:[WorkspaceEntityKindV1]=[.myDayPlan,.myDayCarryoverReceipt];static let durableReceiptRecoveryRequired=true}
+/// C08 uses the generic immutable mutation receipt; its three domain rows are
+/// exact post-images and never form a parallel import receipt ledger.
+enum C08ImportBulkMutationReceiptEnrollmentV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyImportBulk
+    static let postImageKinds: [WorkspaceEntityKindV1] = [
+        .importMappingProfile, .bulkSession, .bulkCommitReceipt
+    ]
+    static let durableReceiptRecoveryRequired = true
+    static let createsSecondReceiptAuthority = false
+    static func validate() -> Bool {
+        commandKind == .applyImportBulk
+            && postImageKinds.count == 3
+            && durableReceiptRecoveryRequired
+            && !createsSecondReceiptAuthority
+    }
+}

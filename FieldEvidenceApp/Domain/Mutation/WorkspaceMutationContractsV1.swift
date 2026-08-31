@@ -87,6 +87,9 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case evidenceSequenceRevision
     case shopReportProfile
     case roundSession
+    case importMappingProfile
+    case bulkSession
+    case bulkCommitReceipt
     case assuranceManifest
     case attestation
     case inspectionReviewTransition
@@ -2505,6 +2508,75 @@ struct RoundSessionMutationV1: Codable, Equatable, Sendable {
     }
 }
 
+/// The C08 lifecycle has one canonical writer route.  Import rows are never
+/// independently saved: each request carries exactly one bounded operation,
+/// its caller supplied mutation identity, and the revision scope that fences
+/// the affected durable row.
+enum ImportBulkWorkspaceOperationV1: Codable, Equatable, Sendable {
+    case upsertMappingProfile(profile: ImportMappingProfileV1, expectedProfileSHA256: String?)
+    case advanceSession(session: BulkSessionV1, expectedSessionSHA256: String?)
+    case appendReceipt(BulkCommitReceiptV1)
+
+    var workspaceID: WorkspaceID {
+        switch self {
+        case let .upsertMappingProfile(profile, _): profile.workspaceID
+        case let .advanceSession(session, _): session.workspaceID
+        case let .appendReceipt(value): value.workspaceID
+        }
+    }
+
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .upsertMappingProfile(profile, _):
+                try .init(kind: .importMappingProfile, id: profile.profileID)
+            case let .advanceSession(session, _):
+                try .init(kind: .bulkSession, id: session.sessionID)
+            case let .appendReceipt(value):
+                try .init(kind: .bulkCommitReceipt, id: value.receiptID)
+            }
+        }
+    }
+}
+
+struct ImportBulkWorkspaceMutationV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let expectedRevision: UInt64
+    let mutationID: MutationIDV1
+    let operation: ImportBulkWorkspaceOperationV1
+
+    init(
+        workspaceID: WorkspaceID,
+        expectedRevision: UInt64,
+        mutationID: MutationIDV1,
+        operation: ImportBulkWorkspaceOperationV1
+    ) throws {
+        guard workspaceID == operation.workspaceID, expectedRevision < UInt64.max else {
+            throw WorkspaceMutationContractFailureV1.invalidPlan
+        }
+        switch operation {
+        case let .upsertMappingProfile(profile, expectedProfileSHA256):
+            try profile.validate()
+            try expectedProfileSHA256.map(ImportBulkCanonicalCodecV1.requireDigest)
+        case let .advanceSession(session, expectedSessionSHA256):
+            try session.validate()
+            try expectedSessionSHA256.map(ImportBulkCanonicalCodecV1.requireDigest)
+        case let .appendReceipt(receipt):
+            try receipt.validate()
+        }
+        self.workspaceID = workspaceID
+        self.expectedRevision = expectedRevision
+        self.mutationID = mutationID
+        self.operation = operation
+    }
+
+    var affectedIdentity: WorkspaceEntityIdentityV1 { get throws { try operation.affectedIdentity } }
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 { get throws { try operation.affectedIdentity } }
+    func validate() throws {
+        _ = try Self(workspaceID: workspaceID, expectedRevision: expectedRevision, mutationID: mutationID, operation: operation)
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -2559,6 +2631,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyServiceReliability(ServiceReliabilityAtomicBundleV1)
     case applyShopReportProfile(ShopReportProfileMutationV1)
     case applyRoundSession(RoundSessionMutationV1)
+    case applyImportBulk(ImportBulkWorkspaceMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2615,6 +2688,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyServiceReliability:.applyServiceReliability
         case .applyShopReportProfile:.applyShopReportProfile
         case .applyRoundSession:.applyRoundSession
+        case .applyImportBulk: .applyImportBulk
         }
     }
 }
@@ -2673,6 +2747,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyServiceReliability="apply_service_reliability_v1"
     case applyShopReportProfile="apply_shop_report_profile_v1"
     case applyRoundSession="apply_round_session_v1"
+    case applyImportBulk="apply_import_bulk_v1"
 }
 
 extension WorkspaceCommandV1 {

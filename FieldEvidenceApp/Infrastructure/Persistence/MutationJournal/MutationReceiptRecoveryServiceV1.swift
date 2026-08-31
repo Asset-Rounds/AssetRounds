@@ -114,6 +114,15 @@ final class MutationReceiptRecoveryServiceV1 {
         }
         try recoverBeforeWriterActivation()
     }
+    /// C08 validates the saved mapping/session/immutable receipt rows through
+    /// the incumbent journal before activation; source bytes and previews
+    /// remain scratch and cannot become recovery input.
+    func recoverImportBulkEffectsBeforeWriterActivation() throws {
+        guard C08ImportBulkMutationReceiptEnrollmentV1.validate() else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try recoverBeforeWriterActivation()
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{

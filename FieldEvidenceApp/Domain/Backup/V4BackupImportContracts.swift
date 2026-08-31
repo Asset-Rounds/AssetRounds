@@ -19,6 +19,23 @@ enum C50IncumbentFileExchangeBackupImportBoundaryV1 {
     }
 }
 
+enum C08ImportBulkBackupImportBoundaryV1 {
+    static let persistentSchemaVersion = 46
+    static let recordsSchemaVersion = 45
+    static let durableRowKinds = ["ImportMappingProfileRowV1", "BulkSessionRowV1", "BulkCommitReceiptRowV1"]
+    static let restoresSourceOrPreviewScratch = false
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion <= recordsSchemaVersion,
+              persistentSchemaVersion == recordsSchemaVersion + 1,
+              durableRowKinds == C08ImportBulkBackupEnrollmentV1.canonicalRowKinds,
+              !restoresSourceOrPreviewScratch else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        try C08ImportBulkBackupEnrollmentV1.validate(records)
+    }
+}
+
 enum BackupCanonicalDecodingErrorV1: Error, Equatable {
     case invalidManifest
     case invalidRecords
@@ -31,7 +48,7 @@ enum C49WorkResourceBackupImportBoundaryV1 {
     static let derivedTotalsSearchAndDraftsAreRebuilt = true
 
     static func validate(_ records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
             .contains(records.recordsSchemaVersion) else {
             throw WorkResourceContractFailureV1.invalidValue
         }
@@ -468,7 +485,7 @@ enum C53ServiceReliabilityBackupImportContractBoundaryV1 {
     ) throws {
         guard persistent == records + 1,
               records == backup.recordsSchemaVersion,
-              (recordsSchemaVersion...C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records),
               persistentSchemaVersion == 40,
               durableFamilyCount == 7,

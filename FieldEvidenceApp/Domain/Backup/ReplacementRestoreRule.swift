@@ -486,7 +486,8 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+            importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -547,7 +548,8 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+            importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 
@@ -606,7 +608,8 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+            importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 
@@ -656,7 +659,8 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+            importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 

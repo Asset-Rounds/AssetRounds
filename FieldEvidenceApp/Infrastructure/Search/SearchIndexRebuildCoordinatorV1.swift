@@ -59,6 +59,17 @@ protocol SearchOperationalStatusProvidingV1: Sendable {
     ) async throws -> Set<SearchCanonicalRecordIdentityV1>
 }
 
+enum C08ImportBulkSearchRebuildBoundaryV1 {
+    static let rebuildReadsOnlyCanonicalC08Rows = true
+    static let rebuildWritesNoC08CanonicalState = true
+    static let rawImportSourceOrCustomerFieldsIndexed = false
+    static func validate() -> Bool {
+        rebuildReadsOnlyCanonicalC08Rows
+            && rebuildWritesNoC08CanonicalState
+            && !rawImportSourceOrCustomerFieldsIndexed
+    }
+}
+
 private struct AuthorityCriterionClassificationChainKeyV1: Hashable {
     let activityID: UUID
     let findingID: UUID
@@ -422,6 +433,49 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 display: display, summary: display, breadcrumb: [], status: $0.pdfState,
                 dueAt: nil, timestamp: $0.createdAt)
         }
+        // C08 contributes only bounded canonical metadata. Never index mapped
+        // source/target fields, source bytes, imported row values, or customer
+        // data; the three stable digests and lifecycle states are sufficient
+        // to locate durable operational/audit state.
+        values += try modelContext.fetch(FetchDescriptor<ImportMappingProfileRowV1>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { row in
+                let profile = try row.value()
+                return CanonicalValue(
+                    kind: .report,
+                    stableID: try stableKey(kind: .importMappingProfile, id: profile.profileID),
+                    display: "Saved import mapping",
+                    summary: "schema \(profile.schemaRelease) \(profile.schemaSHA256)",
+                    breadcrumb: [], status: "saved", dueAt: nil,
+                    timestamp: Date(timeIntervalSince1970: 0)
+                )
+            }
+        values += try modelContext.fetch(FetchDescriptor<BulkSessionRowV1>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { row in
+                let session = try row.value()
+                return CanonicalValue(
+                    kind: .report,
+                    stableID: try stableKey(kind: .bulkSession, id: session.sessionID),
+                    display: "Import bulk session",
+                    summary: "\(session.state.rawValue) \(session.bulkPlanSHA256)",
+                    breadcrumb: [], status: session.state.rawValue, dueAt: nil,
+                    timestamp: Date(timeIntervalSince1970: 0)
+                )
+            }
+        values += try modelContext.fetch(FetchDescriptor<BulkCommitReceiptRowV1>())
+            .filter { $0.workspaceID == workspaceID }
+            .map { row in
+                let receipt = try row.value()
+                return CanonicalValue(
+                    kind: .report,
+                    stableID: try stableKey(kind: .bulkCommitReceipt, id: receipt.receiptID),
+                    display: "Import bulk receipt",
+                    summary: "chunk \(receipt.chunkIndex) \(receipt.receiptSHA256)",
+                    breadcrumb: [], status: receipt.disposition.rawValue, dueAt: nil,
+                    timestamp: Date(timeIntervalSince1970: 0)
+                )
+            }
         values += try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>())
             .filter { $0.workspaceID == workspaceID }
             .map { row in
@@ -1501,6 +1555,10 @@ actor SearchIndexRebuildCoordinatorV1 {
         makeOperationID: @escaping @Sendable () -> UUID = { UUID() }
     ) throws {
         try registry.validate()
+        guard C08ImportBulkSearchRebuildBoundaryV1.validate(),
+              C08ImportBulkLocalSearchIndexBoundaryV1.validate() else {
+            throw SearchIndexRebuildFailureV1.recordLimitExceeded
+        }
         self.store = store
         self.source = source
         self.registry = registry

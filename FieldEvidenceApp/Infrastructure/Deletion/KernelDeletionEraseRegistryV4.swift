@@ -644,6 +644,7 @@ enum KernelDeletionEraseRegistryV4 {
         try EvidenceMetadataKernelDeletionEraseEnrollmentV1.validate()
         try C04ShopReportProfileKernelDeletionEraseEnrollmentV1.validate()
         try C05RoundSessionKernelDeletionEraseEnrollmentV1.validate()
+        try C08ImportBulkKernelDeletionEraseEnrollmentV1.validate()
         try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
@@ -914,6 +915,23 @@ enum C05RoundSessionKernelDeletionEraseEnrollmentV1 {
               ordinaryDeleteDisposition == "PRESERVE_SESSION_AND_COMPLETED_ITEM_HISTORY",
               workspaceEraseClearsAllCanonicalFamilies,
               rowsOwnNoFilesystemPayload else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+enum C08ImportBulkKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = ["ImportMappingProfileRowV1", "BulkSessionRowV1", "BulkCommitReceiptRowV1"]
+    static let ordinaryDeleteRemovesSavedMappingsAndSessions = true
+    static let immutableReceiptHistoryIsPreservedOrArchived = true
+    static let committedBatchRollbackIsForbidden = true
+    static let workspaceEraseClearsC08Rows = true
+    static func validate() throws {
+        guard durableFamilies.count == 3,
+              ordinaryDeleteRemovesSavedMappingsAndSessions,
+              immutableReceiptHistoryIsPreservedOrArchived,
+              committedBatchRollbackIsForbidden,
+              workspaceEraseClearsC08Rows else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

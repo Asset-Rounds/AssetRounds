@@ -3514,6 +3514,8 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+extension BundledLocalizationCatalogV1 { static func importBulkPreviewLocalized(_ key: ImportBulkPreviewLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C08 preview-only presentation; no write claim.") } }
+
 extension BundledLocalizationCatalogV1 {
     static func roundSessionLocalized(_ key: RoundSessionLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String {
         String(localized: key.rawValue, defaultValue: RoundSessionLocalizationPolicyV1.english(key), bundle: bundle, locale: locale, comment: "C07 local RoundSession presentation; no sync, upload, account, or delivery claim.")

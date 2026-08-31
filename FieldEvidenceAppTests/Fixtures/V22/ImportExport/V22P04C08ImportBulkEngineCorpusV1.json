@@ -1,0 +1,52 @@
+{
+  "cardID": "V23-P04-C08",
+  "expected": {
+    "allOrNothing": "ALL_OR_NOTHING",
+    "changedInput": "QUARANTINED_CHANGED_INPUT",
+    "errorCodes": ["INVALID_VALUE", "STALE_EXPECTED_REVISION"],
+    "previewWritesCanonicalState": false,
+    "receipt": {
+      "chunkIndex": 0,
+      "committedMutationCount": 1,
+      "disposition": "COMMITTED"
+    },
+    "receiptDisposition": "COMMITTED",
+    "sourceSHA256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "workspaceRevisionSHA256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "claims": {
+    "boundedParse": true,
+    "deterministicChunks": true,
+    "deterministicExport": true,
+    "deterministicIdentity": true,
+    "oneCanonicalWriter": true,
+    "samePlanResumeFirstMissingReceipt": true,
+    "zeroWritePreview": true
+  },
+  "dispositions": ["CREATE", "UPDATE_EXACT_MATCH", "UNCHANGED", "DUPLICATE_SOURCE", "AMBIGUOUS_TARGET", "CONFLICT", "INVALID", "UNSUPPORTED", "SKIPPED_BY_USER"],
+  "executionStates": ["PREVIEW_ONLY", "ALL_OR_NOTHING_PREVIEW", "CHUNKED_PREVIEW", "COMMITTED", "PARTIAL_COMMITTED", "INTERRUPTED", "STALE"],
+  "lifecycle": ["SCHEMA_VERSION", "WRITER_QUERY", "MIGRATION", "BACKUP_REPLACE_RESTORE", "CLONE_FORK", "IMPORT_EXPORT", "JOURNAL_REPLAY", "SEARCH_REBUILD", "REPORT_PROJECTION", "DELETE_ERASE", "RETENTION", "COMPATIBILITY", "DOWNGRADE_FORWARD_FIX", "INTERRUPTION", "IDEMPOTENT_RECEIPTS"],
+  "ordinal": 96,
+  "schema": "V22P04C08ImportBulkEngineCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    { "id": "G01", "selector": "V23-P04-C08-G01", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "V23-P04-C08-A01", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "V23-P04-C08-H01", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "V23-P04-C08-I01", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "V23-P04-C08-R01", "tier": "RECOVERY" }
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "synthetic": true
+}

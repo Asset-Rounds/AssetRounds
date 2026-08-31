@@ -241,6 +241,60 @@ enum C05RoundSessionRestoreIdentityBoundaryV1 {
     }
 }
 
+/// C08 never reuses source workspace execution truth. Profiles can be rebuilt
+/// only with the exact target schema; sessions additionally require a target
+/// plan, source digest, and revision. Receipts are immutable audit evidence
+/// and are deliberately never rebound.
+enum C08ImportBulkRestoreIdentityBoundaryV1 {
+    static func rebinding(
+        profiles: [ImportMappingProfileV1],
+        sessions: [BulkSessionV1],
+        receipts: [BulkCommitReceiptV1],
+        identity: RestoreIdentityV1,
+        targetSchemaRelease: ImportSchemaReleaseV1?,
+        targetBulkPlan: BulkCommandPlanV1?,
+        targetSourceSHA256: String?,
+        targetWorkspaceRevisionSHA256: String?
+    ) throws -> (profiles: [ImportMappingProfileV1], sessions: [BulkSessionV1]) {
+        let target = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        switch identity.mode {
+        case .emptyInstall, .replaceExisting:
+            guard profiles.allSatisfy({ $0.workspaceID == target }),
+                  sessions.allSatisfy({ $0.workspaceID == target }),
+                  receipts.allSatisfy({ $0.workspaceID == target }) else {
+                throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
+            }
+            return (profiles, sessions)
+        case .clone, .fork:
+            guard !profiles.isEmpty || !sessions.isEmpty || !receipts.isEmpty else {
+                return ([], [])
+            }
+            guard receipts.isEmpty,
+                  let targetSchemaRelease,
+                  let targetBulkPlan,
+                  let targetSourceSHA256,
+                  let targetWorkspaceRevisionSHA256 else {
+                throw RestoreIdentityDecisionErrorV1.invalidMode
+            }
+            let reboundProfiles = try profiles.map { source -> ImportMappingProfileV1 in
+                guard case let .mappingProfile(value) = try ImportBulkWorkspaceRebindingFactoryV1.rebind(
+                    mappingProfile: source, to: target, schemaRelease: targetSchemaRelease
+                ) else { throw RestoreIdentityDecisionErrorV1.invalidMode }
+                return value
+            }
+            let reboundSessions = try sessions.map { source -> BulkSessionV1 in
+                guard case let .bulkSession(value) = try ImportBulkWorkspaceRebindingFactoryV1.rebind(
+                    session: source, to: target, bulkPlan: targetBulkPlan,
+                    sourceSHA256: targetSourceSHA256,
+                    expectedWorkspaceRevisionSHA256: targetWorkspaceRevisionSHA256
+                ) else { throw RestoreIdentityDecisionErrorV1.invalidMode }
+                return value
+            }
+            return (reboundProfiles, reboundSessions)
+        }
+    }
+}
+
 enum AccessibleDocumentRestoreIdentityDispositionV1:String,Codable,Equatable,Sendable{
     case preserveAcceptedSourceBinding="PRESERVE_ACCEPTED_SOURCE_BINDING"
     case reboundAsIncompleteHistoricSourceEvidence="REBOUND_AS_INCOMPLETE_HISTORIC_SOURCE_EVIDENCE"

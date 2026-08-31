@@ -57,6 +57,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyServiceReliability,
             .applyShopReportProfile,
             .applyRoundSession,
+            .applyImportBulk,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -238,6 +239,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyShopReportProfile(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyRoundSession(value):
             return try applyRoundSession(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyImportBulk(value):
+            return try applyImportBulk(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -247,6 +250,99 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .restoreWorkspace,
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
+        }
+    }
+
+    /// C08's three lifecycle rows participate in the same uncommitted context
+    /// as the journal receipt.  This method intentionally never saves; the
+    /// journal owns the sole transaction boundary and rolls it back on failure.
+    private func applyImportBulk(
+        _ mutation: ImportBulkWorkspaceMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            switch mutation.operation {
+            case let .upsertMappingProfile(profile, expectedProfileSHA256):
+                let rows = try modelContext.fetch(FetchDescriptor<ImportMappingProfileRowV1>(
+                    predicate: #Predicate { $0.profileID == profile.profileID }
+                ))
+                guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                if let existing = rows.first {
+                    let prior = try existing.value()
+                    if prior != profile {
+                        guard expectedProfileSHA256 == prior.profileSHA256 else {
+                            throw WorkspaceMutationFailureV1.staleEntityRevision(try mutation.concurrencyIdentity)
+                        }
+                        try existing.replace(with: profile, expectedProfileSHA256: prior.profileSHA256)
+                    }
+                } else {
+                    guard expectedProfileSHA256 == nil else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(try mutation.concurrencyIdentity)
+                    }
+                    modelContext.insert(try ImportMappingProfileRowV1(profile))
+                }
+            case let .advanceSession(session, expectedSessionSHA256):
+                let rows = try modelContext.fetch(FetchDescriptor<BulkSessionRowV1>(
+                    predicate: #Predicate { $0.sessionID == session.sessionID }
+                ))
+                guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                if let existing = rows.first {
+                    let prior = try existing.value()
+                    if prior != session {
+                        guard expectedSessionSHA256 == prior.sessionSHA256 else {
+                            throw WorkspaceMutationFailureV1.staleEntityRevision(try mutation.concurrencyIdentity)
+                        }
+                        guard session.workspaceID == prior.workspaceID,
+                              session.bulkPlanID == prior.bulkPlanID,
+                              session.bulkPlanSHA256 == prior.bulkPlanSHA256,
+                              session.sourceSHA256 == prior.sourceSHA256,
+                              session.expectedWorkspaceRevisionSHA256 == prior.expectedWorkspaceRevisionSHA256,
+                              session.chunkReceipts.starts(with: prior.chunkReceipts),
+                              session.chunkReceipts.count > prior.chunkReceipts.count,
+                              prior.state != .completed,
+                              prior.state != .cancelled,
+                              prior.state != .quarantinedChangedInput else {
+                            throw WorkspaceMutationFailureV1.invalidCommand
+                        }
+                        try existing.replace(with: session, expectedSessionSHA256: prior.sessionSHA256)
+                    }
+                } else {
+                    guard expectedSessionSHA256 == nil else {
+                        throw WorkspaceMutationFailureV1.staleEntityRevision(try mutation.concurrencyIdentity)
+                    }
+                    modelContext.insert(try BulkSessionRowV1(session))
+                }
+            case let .appendReceipt(receipt):
+                let rows = try modelContext.fetch(FetchDescriptor<BulkCommitReceiptRowV1>(
+                    predicate: #Predicate { $0.receiptID == receipt.receiptID }
+                ))
+                guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                if let existing = rows.first {
+                    guard try existing.value() == receipt else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                } else {
+                    let workspaceID = receipt.workspaceID.rawValue
+                    let bulkPlanID = receipt.bulkPlanID
+                    let chunkIndex = receipt.chunkIndex
+                    let duplicates = try modelContext.fetch(FetchDescriptor<BulkCommitReceiptRowV1>(
+                        predicate: #Predicate {
+                            $0.workspaceID == workspaceID && $0.bulkPlanID == bulkPlanID && $0.chunkIndex == chunkIndex
+                        }
+                    ))
+                    guard duplicates.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+                    modelContext.insert(try BulkCommitReceiptRowV1(receipt))
+                }
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: [try mutation.affectedIdentity],
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
         }
     }
 

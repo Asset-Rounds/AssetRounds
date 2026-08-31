@@ -866,6 +866,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         case .applyRoundSession(let value):
             do{try value.validate();let target=try value.concurrencyIdentity,expected=request.expectedRevision.entityRevisions.first(where:{$0.identity==target})?.revision;guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || expected==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}
             catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyImportBulk(let value):
+            do { try value.validate(); let target = try value.concurrencyIdentity; let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision; guard value.workspaceID == identity.workspaceID, value.mutationID == request.mutationID, sourceKind == .importedHistory || occurredAtOverride != nil || expected == value.expectedRevision else { throw WorkspaceMutationFailureV1.invalidCommand } }
+            catch let failure as WorkspaceMutationFailureV1 { throw failure } catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -1154,6 +1157,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         } else if case let .applyRoundSession(mutation) = request.command {
             let image = try mutation.mutationPostImage
             entityRevisions[try image.identity] = image.revision
+        } else if case let .applyImportBulk(mutation) = request.command {
+            entityRevisions[try mutation.affectedIdentity] = mutation.expectedRevision + 1
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1674,6 +1679,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=[try value.affectedIdentity]
         case let .applyRoundSession(value):
             try value.validate();values=[try value.affectedIdentity]
+        case let .applyImportBulk(value):
+            try value.validate(); values = [try value.affectedIdentity]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1739,6 +1746,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyServiceReliability(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
         if case let .applyShopReportProfile(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyRoundSession(value)=command{try value.validate();return[try value.concurrencyIdentity]}
+        if case let .applyImportBulk(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         return try targetIdentities(for: command)
     }
 

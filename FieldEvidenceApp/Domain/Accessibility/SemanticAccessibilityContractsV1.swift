@@ -3012,3 +3012,26 @@ enum OfflineReadinessPreflightAccessibilityPolicyV1 {
 }
 
 enum RoundSessionAccessibilityIDV1: String, CaseIterable, Sendable { case screen = "v23.p04.c07.round-session.screen", progress = "v23.p04.c07.round-session.progress", readiness = "v23.p04.c07.round-session.readiness", items = "v23.p04.c07.round-session.items", item = "v23.p04.c07.round-session.item", jumpIncomplete = "v23.p04.c07.round-session.jump-incomplete", jumpFlagged = "v23.p04.c07.round-session.jump-flagged", handoff = "v23.p04.c07.round-session.handoff", recovery = "v23.p04.c07.round-session.recovery", position = "v23.p04.c07.round-session.position", closeout = "v23.p04.c07.round-session.closeout", saveFailure = "v23.p04.c07.round-session.save-failure", back = "v23.p04.c07.round-session.back" }
+
+enum ImportBulkPreviewAccessibilityIDV1: String, CaseIterable, Sendable { case screen = "v23.p04.c08.import-preview.screen", summary = "v23.p04.c08.import-preview.summary", disposition = "v23.p04.c08.import-preview.disposition", commitMode = "v23.p04.c08.import-preview.commit-mode", progress = "v23.p04.c08.import-preview.progress", error = "v23.p04.c08.import-preview.error", correction = "v23.p04.c08.import-preview.correction", export = "v23.p04.c08.import-preview.export", recovery = "v23.p04.c08.import-preview.recovery" }
+
+enum ImportBulkPreviewAccessibilityPolicyV1 {
+    static let semanticIDs = ImportBulkPreviewAccessibilityIDV1.allCases.map(\.rawValue)
+    static let previewNeverClaimsWrite = true
+    static let rawIdentityDisclosureForbidden = true
+    static let freeFormReasonPresentationForbidden = true
+    static let executionTruthIsTextual = true
+    static let dispositionIsNotColorOnly = true
+    static let uiAdoptionClaimed = false
+    static func validate() throws {
+        guard semanticIDs.count == Set(semanticIDs).count,
+              previewNeverClaimsWrite,
+              rawIdentityDisclosureForbidden,
+              freeFormReasonPresentationForbidden,
+              executionTruthIsTextual,
+              dispositionIsNotColorOnly,
+              !uiAdoptionClaimed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

@@ -1613,6 +1613,7 @@ private extension EraseAllService {
             session.modelContext
         )
         try validateActivityContractEraseClosure(session: session)
+        try validateImportBulkEraseClosure(session: session)
         if let identity {
             let history = try MutationJournalStoreV1(
                 modelContext: session.modelContext,
@@ -2873,6 +2874,15 @@ extension EraseAllService {
             throw EraseAllServiceError.invalidAuthority
         }
         try C47ActivityContractKernelDeletionEnrollmentV2.validate()
+    }
+
+    func validateImportBulkEraseClosure(session: StoreGenerationSession) throws {
+        guard try session.modelContext.fetchCount(FetchDescriptor<ImportMappingProfileRowV1>()) == 0,
+              try session.modelContext.fetchCount(FetchDescriptor<BulkSessionRowV1>()) == 0,
+              try session.modelContext.fetchCount(FetchDescriptor<BulkCommitReceiptRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try C08ImportBulkKernelDeletionEraseEnrollmentV1.validate()
     }
 }
 

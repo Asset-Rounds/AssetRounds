@@ -315,6 +315,9 @@ struct ReportProjectionRegistryV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         try IntegrationProjectionReportExclusionV1.validate()
+        guard C08ImportBulkReportProjectionBoundaryV1.validate() else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
         guard self == Self() else { throw SnapshotProjectionFailureV1.incompatibleVersion }
     }
 
@@ -1866,6 +1869,20 @@ extension ReportProjectionRegistryV1 {
     func validatePackageEvolutionSandbox(_ run: PackageSandboxRunV1) throws {
         try validate()
         try PackageEvolutionReportConsumerPolicyV1.validateSandbox(run)
+    }
+}
+
+/// Import-bulk receipts may be opened/exported only through the incumbent
+/// deterministic report registry; this card introduces no renderer or source
+/// parser and exposes no raw imported values as report projection truth.
+enum C08ImportBulkReportProjectionBoundaryV1 {
+    static let usesExistingReportProjectionRegistry = true
+    static let createsRenderer = false
+    static let rawSourceOrCustomerFieldsAreReportMetadata = false
+    static func validate() -> Bool {
+        usesExistingReportProjectionRegistry
+            && !createsRenderer
+            && !rawSourceOrCustomerFieldsAreReportMetadata
     }
 }
 

@@ -147,6 +147,20 @@ enum C05RoundSessionKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum C08ImportBulkKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 46
+    static let recordsSchemaVersion = 45
+    static let durableFamilies = ["ImportMappingProfileRowV1", "BulkSessionRowV1", "BulkCommitReceiptRowV1"]
+
+    static func validate() throws {
+        guard persistentSchemaVersion == C08ImportBulkBackupEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilies == C08ImportBulkBackupEnrollmentV1.canonicalRowKinds else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C30EvidenceContextBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 30
     static let recordsSchemaVersion = 29
@@ -724,6 +738,7 @@ enum KernelBackupRestoreRegistryV4 {
         try C46OperationalContactBackupRestoreRegistryV1.validate()
         try C53ServiceReliabilityKernelBackupRestoreEnrollmentV1.validate()
         try C05RoundSessionKernelBackupRestoreEnrollmentV1.validate()
+        try C08ImportBulkKernelBackupRestoreEnrollmentV1.validate()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

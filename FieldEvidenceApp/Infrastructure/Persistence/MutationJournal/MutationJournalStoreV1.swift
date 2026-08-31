@@ -451,6 +451,7 @@ final class MutationJournalStoreV1 {
         if case let .applyServiceReliability(value)=envelope.command{try value.validateForCanonicalWriter();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyShopReportProfile(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyRoundSession(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyImportBulk(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command{try plan.validate();try validateAssetPlacementPoseReferences(plan);guard let expected=try envelope.command.canonicalLocationAffectedIdentities(),affectedEntities==expected else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command{for plan in change.placementChanges{try plan.validate();try validateAssetPlacementPoseReferences(plan)}}
         let state = try requireState()
@@ -468,6 +469,7 @@ final class MutationJournalStoreV1 {
         if case let .applyEvidenceMetadata(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyShopReportProfile(mutation)=envelope.command{let concurrency=try mutation.concurrencyIdentity;guard expectedByIdentity[concurrency]==mutation.expectedRevision,currentByIdentity[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applyRoundSession(mutation)=envelope.command{let concurrency=try mutation.concurrencyIdentity;guard expectedByIdentity[concurrency]==mutation.expectedRevision,currentByIdentity[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
+        if case let .applyImportBulk(mutation)=envelope.command{let concurrency=try mutation.concurrencyIdentity;guard expectedByIdentity[concurrency]==mutation.expectedRevision,currentByIdentity[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applySchedule(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyPlan(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyPlacementPose(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
@@ -546,6 +548,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyServiceReliability(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyShopReportProfile(mutation)=envelope.command{concurrencyIdentity=try mutation.concurrencyIdentity
             }else if case let .applyRoundSession(mutation)=envelope.command{concurrencyIdentity=try mutation.concurrencyIdentity
+            }else if case let .applyImportBulk(mutation)=envelope.command{concurrencyIdentity=try mutation.concurrencyIdentity
             }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             } else {
@@ -571,6 +574,8 @@ final class MutationJournalStoreV1 {
             } else if case let .applyShopReportProfile(mutation) = envelope.command {
                 expectedRevision = mutation.expectedRevision
             } else if case let .applyRoundSession(mutation) = envelope.command {
+                expectedRevision = mutation.expectedRevision
+            } else if case let .applyImportBulk(mutation) = envelope.command {
                 expectedRevision = mutation.expectedRevision
             } else {
                 throw WorkspaceMutationFailureV1.invalidCommand
@@ -648,6 +653,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyServiceReliability(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyShopReportProfile(mutation)=envelope.command{initialRevision=mutation.profile.revision
                 }else if case let .applyRoundSession(mutation)=envelope.command{initialRevision=mutation.session.revision
+                }else if case let .applyImportBulk(mutation)=envelope.command{initialRevision=mutation.expectedRevision + 1
                 }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 } else {
@@ -749,6 +755,7 @@ final class MutationJournalStoreV1 {
         if case let .applyServiceReliability(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyShopReportProfile(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyRoundSession(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyImportBulk(mutation)=envelope.command{guard postImages.count == 1, (try postImages[0].identity) == (try mutation.affectedIdentity), postImages[0].revision == mutation.expectedRevision + 1 else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let after = try currentRevision(writerInstanceID: writerInstanceID)
@@ -2243,6 +2250,7 @@ final class MutationJournalStoreV1 {
         if case let .applyServiceReliability(mutation)=envelope.command{try mutation.validateForCanonicalWriter()}
         if case let .applyShopReportProfile(mutation)=envelope.command{try mutation.validate()}
         if case let .applyRoundSession(mutation)=envelope.command{try mutation.validate()}
+        if case let .applyImportBulk(mutation)=envelope.command{try mutation.validate()}
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
         guard row.mutationID == envelope.mutationID.rawValue,
               row.workspaceID == envelope.workspaceID.rawValue,

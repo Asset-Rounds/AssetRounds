@@ -1317,6 +1317,32 @@ enum C05RoundSessionPersistentKindPolicyV1 {
     }
 }
 
+enum C08ImportBulkPersistentKindPolicyV1 {
+    static let durableKindIDs = Set([
+        "PERSISTENT_MODEL:ImportMappingProfileRowV1",
+        "PERSISTENT_MODEL:BulkSessionRowV1",
+        "PERSISTENT_MODEL:BulkCommitReceiptRowV1"
+    ])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV46"])
+    static let excludedKindIDs = Set([
+        "SCRATCH:ImportSourceV1", "PREVIEW:ImportBulkPreviewV1",
+        "SCRATCH:ImportBulkCorrectionStagingV1"
+    ])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 3, derivedKindIDs.count == 1,
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              durableKindIDs.isDisjoint(with: excludedKindIDs),
+              (durableKindIDs.union(derivedKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+
+    static let savedMappingMayDeleteWithWorkspace = true
+    static let sessionMayDeleteWithWorkspace = true
+    static let immutableReceiptNeverRollsBackCommittedBatch = true
+}
+
 enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let persistentKindCount = 0
     static let lifecycleEnrollmentCount = 0

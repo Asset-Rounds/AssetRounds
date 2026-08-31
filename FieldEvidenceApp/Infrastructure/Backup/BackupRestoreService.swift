@@ -2160,7 +2160,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 
@@ -2250,7 +2250,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 
@@ -3005,7 +3005,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 
@@ -3339,7 +3339,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -3443,7 +3443,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 
@@ -8083,7 +8083,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 
@@ -8675,7 +8675,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
+                || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -8705,7 +8706,8 @@ private extension BackupRestoreService {
              (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
-             (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
+             (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
+             (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -9717,6 +9719,46 @@ private extension BackupRestoreService {
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidPackage }
         } else if !records.roundSessions.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        if records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                try C08ImportBulkBackupImportBoundaryV1.validate(records)
+                if let identityDecision {
+                    switch identityDecision.mode {
+                    case .emptyInstall, .replaceExisting:
+                        break
+                    case .clone, .fork:
+                        // This restore path has no target schema/plan/source/revision
+                        // authority. The canonical factory therefore rejects every
+                        // nonempty C08 execution set instead of fabricating a rebind.
+                        _ = try C08ImportBulkRestoreIdentityBoundaryV1.rebinding(
+                            profiles: records.importMappingProfiles,
+                            sessions: records.bulkSessions,
+                            receipts: records.bulkCommitReceipts,
+                            identity: identityDecision,
+                            targetSchemaRelease: nil,
+                            targetBulkPlan: nil,
+                            targetSourceSHA256: nil,
+                            targetWorkspaceRevisionSHA256: nil
+                        )
+                    }
+                }
+                let workspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                guard records.importMappingProfiles.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      records.bulkSessions.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      records.bulkCommitReceipts.allSatisfy({ $0.workspaceID.rawValue == workspaceID }) else {
+                    // Import plans bind the original workspace revision. A clone/fork
+                    // cannot activate them without a contract-owned rebind plan.
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                for value in records.importMappingProfiles { context.insert(try ImportMappingProfileRowV1(value)) }
+                for value in records.bulkSessions { context.insert(try BulkSessionRowV1(value)) }
+                for value in records.bulkCommitReceipts { context.insert(try BulkCommitReceiptRowV1(value)) }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.importMappingProfiles.isEmpty || !records.bulkSessions.isEmpty || !records.bulkCommitReceipts.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
@@ -11269,7 +11311,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
         )
     }
 

@@ -268,6 +268,12 @@ struct BackupCanonicalEncoderV1: Sendable {
                 try records.roundSessions.map(Self.roundSessionCanonicalValue)
             )
         }
+        if records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion {
+            try C08ImportBulkBackupEnrollmentV1.validate(records)
+            fields["importMappingProfiles"] = .array(try records.importMappingProfiles.map(Self.importBulkCanonicalValue))
+            fields["bulkSessions"] = .array(try records.bulkSessions.map(Self.importBulkCanonicalValue))
+            fields["bulkCommitReceipts"] = .array(try records.bulkCommitReceipts.map(Self.importBulkCanonicalValue))
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -360,6 +366,12 @@ private extension BackupCanonicalEncoderV1 {
     ) throws -> CanonicalJSONValueV1 {
         try value.validateIntrinsic()
         let data = try RoundSessionCanonicalCodecV1.encode(value)
+        let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        return try canonicalPartsStockJSON(object)
+    }
+
+    static func importBulkCanonicalValue<T: Encodable>(_ value: T) throws -> CanonicalJSONValueV1 {
+        let data = try ImportBulkCanonicalCodecV1.encode(value)
         let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
         return try canonicalPartsStockJSON(object)
     }
