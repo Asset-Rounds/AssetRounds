@@ -146,8 +146,13 @@ def fence_rows() -> tuple[list[dict[str, Any]], dict[str, int]]:
     for rel in fence["allowedCreateOrReplacePaths"]:
         p=ROOT/rel; present=p.is_file()
         rows.append({"path":rel,"status":"PRESENT" if present else "MISSING","byteCount":len(p.read_bytes()) if present else 0,"sha256":sha(p.read_bytes()) if present else None})
-    changed=subprocess.run(["git","status","--porcelain=v1","--untracked-files=all"],cwd=ROOT,check=True,capture_output=True,text=True).stdout.splitlines()
-    changed_paths={line[3:].replace("\\\\","/") for line in changed if len(line)>=4}; owned=set(fence["allowedCreateOrReplacePaths"])
+    def names(*args: str) -> set[str]:
+        output=subprocess.run(["git",*args],cwd=ROOT,check=True,capture_output=True,text=True).stdout.splitlines()
+        return {path.replace("\\\\","/") for path in output if path}
+    # The candidate is the immutable app-base delta plus any exact worktree
+    # delta.  This remains identical after the candidate is committed.
+    changed_paths=(names("diff","--name-only",APP_BASE_HEAD,"HEAD") | names("diff","--name-only","HEAD") | names("diff","--name-only","--cached") | names("ls-files","--others","--exclude-standard"))
+    owned=set(fence["allowedCreateOrReplacePaths"])
     return rows,{"changedPathCount":len(changed_paths & owned),"missingPathCount":sum(r["status"]=="MISSING" for r in rows),"unownedChangedPathCount":len(changed_paths-owned),"s10ReservationOverlapCount":len(owned & set(fence["activeS10ReservedPaths"]))}
 def validate_source_semantics(rows: list[dict[str, Any]], ready: bool) -> None:
     """Only a complete source set may make source semantics inspectable."""
