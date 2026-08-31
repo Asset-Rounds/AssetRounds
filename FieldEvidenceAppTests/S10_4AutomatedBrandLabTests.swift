@@ -21089,10 +21089,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 808_735)
+        XCTAssertEqual(uiSource.utf8.count, 808_773)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "305FE0A1C45DFC94D31B4795D5256469ECFF285E3029F0489EDE7F6821A83438"
+            "F0EA6D0CA55235FBA6C986B484921C9DA1FBF3D4939B4D075FEFDF860C0BF703"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -22495,10 +22495,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast("
         )
-        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 22_485)
+        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 22_523)
         XCTAssertEqual(
             Data(workValidationDiagnosticSource.utf8).sha256,
-            "7E7E041C4F678E75F3B435090D2D94D2FC38850CD0C857DEE0D9EAEBC2FF6E5F"
+            "E0CA69CB3FEF0DEB63BCE48CEF84737EDA6E07B246A514F989D644E0169F6056"
         )
         for exact in [
             #"let stateID = "state.work.validation-error""#,
@@ -22538,12 +22538,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC"#,
             #"preFocusedDescriptionFields.count == 1"#,
             #"preKeyboards.count == 1"#,
-            #"preDoneButtons.count == 1"#,
+            #"preInputViews.count == 1"#,
+            #"preGlobalDoneButtons.count == 1"#,
             #"preDescriptionValue == "Short description""#,
             #"preValidationIdentifier == "s5.1.work.validation""#,
             #"preValidationLabelText == "Short description""#,
-            #"keyboardDoneButton.isHittable"#,
-            #"keyboardDoneButton.tap()"#,
+            #"globalDoneButton.isHittable"#,
+            #"globalDoneButton.tap()"#,
             #"identifier: "s5.1.work.screen""#,
             #"postWorkScreens.count == 1"#,
             #"postWorkScreenExists"#,
@@ -22680,7 +22681,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let preconditionContextAttachment = XCTAttachment(",
             "guard preDescriptionFields.count == 1,",
             "S10.4 AX-text work-validation keyboard Done preconditions are invalid",
-            "keyboardDoneButton.tap()",
+            "globalDoneButton.tap()",
             "let postDoneConditionsPass =",
             "let diagnosticContext: [String: Any] = [",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
@@ -23935,7 +23936,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 451)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "8438E94C45C392267D59D7C6C7B7BFFAF2DA4B73E7F99D33C57195131DD329A8"
+            "4F480F5DF1BE41575874F6704D9785AF12F9EEE399DFB91AC780E37345A8E364"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#

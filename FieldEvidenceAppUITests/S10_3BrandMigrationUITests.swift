@@ -12645,14 +12645,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               preFocusedDescriptionFields.count == 1,
               preValidationLabels.count == 1,
               preKeyboards.count == 1,
-              preDoneButtons.count == 1 else {
+              preInputViews.count == 1,
+              preGlobalDoneButtons.count == 1 else {
             throw AutomationConfigurationError.invalid(
                 "S10.4 AX-text work-validation keyboard Done preconditions are invalid"
             )
         }
         let preDescriptionField = preDescriptionFields.element(boundBy: 0)
         let preValidationLabel = preValidationLabels.element(boundBy: 0)
-        let keyboardDoneButton = preDoneButtons.element(boundBy: 0)
+        let globalDoneButton = preGlobalDoneButtons.element(boundBy: 0)
         let preDescriptionValue = preDescriptionField.value as? String
         let preValidationIdentifier = preValidationLabel.identifier
         let preValidationLabelText = preValidationLabel.label
@@ -12664,16 +12665,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               preValidationLabel.isEnabled,
               preValidationIdentifier == "s5.1.work.validation",
               preValidationLabelText == "Short description",
-              keyboardDoneButton.exists,
-              keyboardDoneButton.isEnabled,
-              keyboardDoneButton.isHittable,
-              keyboardDoneButton.identifier == "s5.1.work.keyboard-done",
-              keyboardDoneButton.label == "Done" else {
+              globalDoneButton.exists,
+              globalDoneButton.isEnabled,
+              globalDoneButton.isHittable,
+              globalDoneButton.identifier == "s5.1.work.keyboard-done",
+              globalDoneButton.label == "Done" else {
             throw AutomationConfigurationError.invalid(
                 "S10.4 AX-text work-validation keyboard Done semantic preconditions are invalid"
             )
         }
-        keyboardDoneButton.tap()
+        globalDoneButton.tap()
 
         let postWorkScreens = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.screen"
