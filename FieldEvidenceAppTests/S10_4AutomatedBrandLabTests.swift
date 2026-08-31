@@ -5319,9 +5319,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for authorizedWorkValidationDiagnosticForm in [
+            "S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "S10.4 AX-text work-validation keyboard Done precondition app",
+            "S10.4 AX-text work-validation keyboard Done precondition tree",
+            "S10.4 AX-text work-validation keyboard Done precondition context",
             "S10.4 AX-text work-validation keyboard Done post-state app",
             "S10.4 AX-text work-validation keyboard Done post-state tree",
             "S10.4 AX-text work-validation keyboard Done post-state context",
@@ -21085,10 +21089,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 805_016)
+        XCTAssertEqual(uiSource.utf8.count, 808_735)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "EFB41B29862B639E3236521F8CDF851D1FF0A83429063CE89D534B3918874607"
+            "305FE0A1C45DFC94D31B4795D5256469ECFF285E3029F0489EDE7F6821A83438"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -22491,10 +22495,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast("
         )
-        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 18_766)
+        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 22_485)
         XCTAssertEqual(
             Data(workValidationDiagnosticSource.utf8).sha256,
-            "92E338F22ED2B0940B5969436C0FA6A60C38ACA3A934C4931ED8D5320AF018B5"
+            "7E7E041C4F678E75F3B435090D2D94D2FC38850CD0C857DEE0D9EAEBC2FF6E5F"
         )
         for exact in [
             #"let stateID = "state.work.validation-error""#,
@@ -22522,6 +22526,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"identifier: "s5.1.work.description""#,
             #"identifier: "s5.1.work.validation""#,
             #"identifier: "s5.1.work.keyboard-done""#,
+            #"let preInputViews = app.otherElements.matching("#,
+            #"let preGlobalDoneButtons = app.buttons.matching("#,
+            #"let preInputViewDoneButtons = preInputViews.buttons.matching("#,
+            #"let preconditionButtonObjects: (XCUIElementQuery) -> [[String: Any]]"#,
+            #""auditInvoked": false"#,
+            #""tapPerformed": false"#,
+            #""globalDoneButtonCount": preGlobalDoneButtons.count"#,
+            #""inputViewDoneButtonCount": preInputViewDoneButtons.count"#,
+            #""keyboardDoneButtonCount": preDoneButtons.count"#,
+            #"S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC"#,
             #"preFocusedDescriptionFields.count == 1"#,
             #"preKeyboards.count == 1"#,
             #"preDoneButtons.count == 1"#,
@@ -22629,15 +22643,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workValidationDiagnosticSource.components(
                 separatedBy: ".lifetime = .keepAlways"
             ).count - 1,
-            4
+            7
         )
         XCTAssertEqual(
             workValidationDiagnosticSource.components(separatedBy: "add(").count - 1,
-            4
+            7
+        )
+        let workValidationPreconditionDiagnosticSource = try boundedSource(
+            workValidationDiagnosticSource,
+            from: "        let preInputViews = app.otherElements.matching(",
+            before: "        guard preDescriptionFields.count == 1,"
+        )
+        XCTAssertFalse(workValidationPreconditionDiagnosticSource.contains("\"frame\""))
+        XCTAssertEqual(
+            workValidationPreconditionDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            workValidationPreconditionDiagnosticSource.components(
+                separatedBy: "add("
+            ).count - 1,
+            3
         )
         var workValidationDiagnosticTail =
             workValidationDiagnosticSource[workValidationDiagnosticSource.startIndex...]
         for orderedToken in [
+            "let preInputViews = app.otherElements.matching(",
+            "let preGlobalDoneButtons = app.buttons.matching(",
+            "let preInputViewDoneButtons = preInputViews.buttons.matching(",
+            "let preconditionContext: [String: Any] = [",
+            "S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC",
+            "let preconditionAppAttachment = XCTAttachment(",
+            "let preconditionTreeAttachment = XCTAttachment(",
+            "let preconditionContextAttachment = XCTAttachment(",
+            "guard preDescriptionFields.count == 1,",
+            "S10.4 AX-text work-validation keyboard Done preconditions are invalid",
             "keyboardDoneButton.tap()",
             "let postDoneConditionsPass =",
             "let diagnosticContext: [String: Any] = [",

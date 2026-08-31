@@ -12556,6 +12556,91 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let preDoneButtons = preKeyboards.buttons.matching(
             identifier: "s5.1.work.keyboard-done"
         )
+        let preInputViews = app.otherElements.matching(
+            identifier: "inputView"
+        )
+        let preGlobalDoneButtons = app.buttons.matching(
+            identifier: "s5.1.work.keyboard-done"
+        )
+        let preInputViewDoneButtons = preInputViews.buttons.matching(
+            identifier: "s5.1.work.keyboard-done"
+        )
+        let preconditionButtonObjects: (XCUIElementQuery) -> [[String: Any]] = {
+            query in
+            (0..<query.count).map { index in
+                let element = query.element(boundBy: index)
+                return [
+                    "elementTypeDescription": String(
+                        describing: element.elementType
+                    ),
+                    "elementTypeRawValue": element.elementType.rawValue,
+                    "exists": element.exists,
+                    "identifier": element.identifier,
+                    "isEnabled": element.isEnabled,
+                    "isHittable": element.isHittable,
+                    "label": element.label,
+                ]
+            }
+        }
+        let preconditionContext: [String: Any] = [
+            "acceptanceEligible": false,
+            "applicationForeground": app.state == .runningForeground,
+            "auditInvoked": false,
+            "descriptionCount": preDescriptionFields.count,
+            "focusedDescriptionCount": preFocusedDescriptionFields.count,
+            "globalDoneButtonCount": preGlobalDoneButtons.count,
+            "globalDoneButtons": preconditionButtonObjects(
+                preGlobalDoneButtons
+            ),
+            "inputViewCount": preInputViews.count,
+            "inputViewDoneButtonCount": preInputViewDoneButtons.count,
+            "inputViewDoneButtons": preconditionButtonObjects(
+                preInputViewDoneButtons
+            ),
+            "keyboardCount": preKeyboards.count,
+            "keyboardDoneButtonCount": preDoneButtons.count,
+            "keyboardDoneButtons": preconditionButtonObjects(preDoneButtons),
+            "requirementID": shard.requirementID,
+            "schemaVersion": 1,
+            "shardID": shard.shardID,
+            "stateID": stateID,
+            "stateOrdinal": 23,
+            "tapPerformed": false,
+            "validationCount": preValidationLabels.count,
+        ]
+        printJSONLine(
+            prefix:
+                "S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC",
+            object: preconditionContext
+        )
+        let preconditionAppAttachment = XCTAttachment(
+            screenshot: app.screenshot()
+        )
+        preconditionAppAttachment.name =
+            "S10.4 AX-text work-validation keyboard Done precondition app"
+        preconditionAppAttachment.lifetime = .keepAlways
+        add(preconditionAppAttachment)
+        let preconditionTreeAttachment = XCTAttachment(
+            string: app.debugDescription
+        )
+        preconditionTreeAttachment.name =
+            "S10.4 AX-text work-validation keyboard Done precondition tree"
+        preconditionTreeAttachment.lifetime = .keepAlways
+        add(preconditionTreeAttachment)
+        let preconditionContextData = try JSONSerialization.data(
+            withJSONObject: preconditionContext,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let preconditionContextAttachment = XCTAttachment(
+            string: String(
+                decoding: preconditionContextData,
+                as: UTF8.self
+            )
+        )
+        preconditionContextAttachment.name =
+            "S10.4 AX-text work-validation keyboard Done precondition context"
+        preconditionContextAttachment.lifetime = .keepAlways
+        add(preconditionContextAttachment)
         guard preDescriptionFields.count == 1,
               preFocusedDescriptionFields.count == 1,
               preValidationLabels.count == 1,
