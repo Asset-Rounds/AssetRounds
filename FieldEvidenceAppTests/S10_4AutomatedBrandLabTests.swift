@@ -8286,16 +8286,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ), let workEditingFinalDiagnosticEndRange =
                 workEditingPositioningSource.range(
                     of: workEditingFinalDiagnosticEnd,
-                    range: (workEditingFinalDiagnosticStartRange.upperBound
-                        ..<workEditingPositioningSource.endIndex)
+                    range: workEditingFinalDiagnosticStartRange.upperBound..<workEditingPositioningSource.endIndex
                 ) else {
             XCTFail("Missing the bounded Record-work final-guard diagnostic")
             return
         }
         let workEditingFinalDiagnosticSource = String(
             workEditingPositioningSource[
-                (workEditingFinalDiagnosticStartRange.lowerBound
-                    ..<workEditingFinalDiagnosticEndRange.lowerBound)
+                workEditingFinalDiagnosticStartRange.lowerBound..<workEditingFinalDiagnosticEndRange.lowerBound
             ]
         )
         XCTAssertEqual(workEditingFinalDiagnosticSource.utf8.count, 5_366)
