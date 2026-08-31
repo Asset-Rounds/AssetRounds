@@ -10,7 +10,7 @@ enum C50IncumbentFileExchangeStreamingArchiveBoundaryV1 {
 
     static func validate(recordsSchemaVersion: Int) -> Bool {
         excludesSceneRouteState
-            && recordsSchemaVersion <= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion
+            && recordsSchemaVersion <= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
             && adapterSourceMemberCount == 0
             && adapterQuarantineMemberCount == 0
             && profileSelectionMemberCount == 0
@@ -108,7 +108,7 @@ enum ScheduleStreamingArchivePolicyV1 {
     static let calendarOverrideBasisClosureUsesExistingRecordKinds = true
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
@@ -146,7 +146,7 @@ enum PlanStreamingArchivePolicyV1 {
     static let componentRegistryIsArchiveTruth = false
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
@@ -191,7 +191,7 @@ enum PlacementPoseStreamingArchivePolicyV1 {
     static let cloneForkSourcePoseAutomaticallyActive = false
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               derivedProjectionStorage == "NONPERSISTENT_REBUILD",
               lifecycleHistoryStorage == "MUTATION_HISTORY_ONLY",
@@ -270,7 +270,7 @@ enum C32AssistanceStreamingArchivePolicyV1 {
     static let proposalArchiveDisposition = "EXCLUDED_NONPERSISTENT"
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               durableFamilyCount == AssistancePersistenceEnrollmentV1.durableModelCount,
               proposalArchiveDisposition == "EXCLUDED_NONPERSISTENT" else {
@@ -601,7 +601,7 @@ enum C47ActivityContractStreamingArchiveBoundaryV2 {
     static let nonpersistentReceiptsAreExcluded = true
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               fiveCanonicalRowFamiliesAreStreamed,
               completedSnapshotRemainsReleasedReportMember,
@@ -619,7 +619,7 @@ enum C49WorkResourceStreamingArchiveBoundaryV1 {
     static let totalsSearchDraftsAndLiveStockAreExcluded = true
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               canonicalRowsShareRecordsEnvelope,
               totalsSearchDraftsAndLiveStockAreExcluded else {
@@ -675,7 +675,7 @@ enum C55PartsStockStreamingArchiveBoundaryV1 {
     static let parallelArchiveMemberExists = false
 
     static func validate(records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               durableFamilyCount == 7,
               canonicalSnapshotSharesRecordsEnvelope,
@@ -684,6 +684,33 @@ enum C55PartsStockStreamingArchiveBoundaryV1 {
         }
         do { try C55PartsStockBackupEnrollmentV1.validate(records) }
         catch { throw StreamingArchiveFailureV1.invalidArchive }
+    }
+}
+
+/// C04 keeps the single canonical shop-report-profile row family inside the
+/// existing records envelope. No profile sidecar or archive grammar is added.
+enum C04ShopReportProfileStreamingArchiveBoundaryV1 {
+    static let persistentSchemaVersion = C04ShopReportProfileBackupEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
+    static let durableFamilyCount = C04ShopReportProfileBackupEnrollmentV1.durableFamilyCount
+    static let canonicalRowsShareRecordsEnvelope = true
+    static let parallelArchiveMemberExists = false
+    static let archiveFormatChanged = false
+
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard persistentSchemaVersion == 44,
+              recordsSchemaVersion == 43,
+              durableFamilyCount == 1,
+              canonicalRowsShareRecordsEnvelope,
+              !parallelArchiveMemberExists,
+              !archiveFormatChanged else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        do {
+            try C04ShopReportProfileBackupEnrollmentV1.validate(records)
+        } catch {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
     }
 }
 

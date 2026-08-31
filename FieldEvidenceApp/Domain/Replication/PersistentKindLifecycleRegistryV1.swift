@@ -1288,6 +1288,20 @@ enum C05EvidenceCurationPersistentKindPolicyV1 {
     }
 }
 
+enum C04ShopReportProfilePersistentKindPolicyV1 {
+    static let durableKindIDs = Set(["PERSISTENT_MODEL:ShopReportProfileRowV1"])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV44"])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 1,
+              derivedKindIDs.count == 1,
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              (durableKindIDs.union(derivedKindIDs)).allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+}
+
 enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let persistentKindCount = 0
     static let lifecycleEnrollmentCount = 0

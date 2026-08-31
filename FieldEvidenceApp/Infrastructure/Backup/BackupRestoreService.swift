@@ -786,6 +786,7 @@ final class BackupRestoreService {
                 metadata.sequences
             )
             try C05EvidenceMetadataBackupEnrollmentV1.validate(expectedRecords)
+            try C04ShopReportProfileBackupEnrollmentV1.validate(expectedRecords)
         } catch {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
@@ -2159,7 +2160,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -2249,7 +2250,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -2344,6 +2345,7 @@ private extension BackupRestoreService {
         if records.recordsSchemaVersion >= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion {
             do {
                 try C05EvidenceMetadataBackupEnrollmentV1.validate(records)
+                try C04ShopReportProfileBackupEnrollmentV1.validate(records)
                 try C05EvidenceMetadataRestoreIdentityBoundaryV1.validate(
                     records,
                     identity: identityDecision
@@ -2367,6 +2369,33 @@ private extension BackupRestoreService {
             catch { throw BackupRestoreServiceError.invalidPackage }
         } else if !records.evidenceAssociationEvents.isEmpty
                     || !records.evidenceSequenceRevisions.isEmpty {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        if records.recordsSchemaVersion >= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                try C04ShopReportProfileBackupEnrollmentV1.validate(records)
+                let expectedWorkspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                let profiles: [ShopReportProfileV1]
+                if let identityDecision {
+                    profiles = try C04ShopReportProfileRestoreIdentityBoundaryV1.rebinding(
+                        records.shopReportProfiles,
+                        identity: identityDecision
+                    )
+                } else {
+                    profiles = records.shopReportProfiles
+                }
+                guard profiles.allSatisfy({
+                    $0.workspaceID.rawValue == expectedWorkspaceID
+                }) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                for profile in profiles {
+                    context.insert(try ShopReportProfileRowV1(profile))
+                }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if !records.shopReportProfiles.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
         if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
@@ -2649,6 +2678,23 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
+        if normalized.recordsSchemaVersion >= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                let profiles: [ShopReportProfileV1]
+                if let identityDecision {
+                    profiles = try C04ShopReportProfileRestoreIdentityBoundaryV1.rebinding(
+                        records.shopReportProfiles,
+                        identity: identityDecision
+                    )
+                } else {
+                    profiles = records.shopReportProfiles
+                }
+                normalized = normalized.replacingShopReportProfiles(profiles)
+                try C04ShopReportProfileBackupEnrollmentV1.validate(normalized)
+            } catch {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2926,7 +2972,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -3260,7 +3306,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
             )
         }
         let receipt = try LocationPersistenceCodecV1.decode(
@@ -3364,7 +3410,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -8004,7 +8050,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -8595,7 +8641,7 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+                || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -8624,7 +8670,7 @@ private extension BackupRestoreService {
              (C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
-             (C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
+             (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -9703,7 +9749,7 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
-                    || records.recordsSchemaVersion == C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion else {
+                    || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -11133,7 +11179,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -11333,6 +11379,9 @@ private extension BackupRestoreService {
         )
         let evidenceSequenceRevisionRows = try context.fetch(
             FetchDescriptor<EvidenceSequenceRevisionRowV1>()
+        )
+        let shopReportProfileRows = try context.fetch(
+            FetchDescriptor<ShopReportProfileRowV1>()
         )
         let workResourceRows = try context.fetch(
             FetchDescriptor<ManualWorkResourceRecordRow>()
@@ -11813,6 +11862,9 @@ private extension BackupRestoreService {
         let evidenceSequenceRevisions = try evidenceSequenceRevisionRows.map { try $0.value() }
             .sorted { EvidenceSequenceRevisionRowV1.rowID(sequenceID: $0.sequenceID, revision: $0.revision)
                 < EvidenceSequenceRevisionRowV1.rowID(sequenceID: $1.sequenceID, revision: $1.revision) }
+        let shopReportProfiles = try shopReportProfileRows.map { try $0.value() }
+            .sorted { ($0.workspaceID.rawValue.uuidString, $0.profileID.uuidString, $0.revision)
+                < ($1.workspaceID.rawValue.uuidString, $1.profileID.uuidString, $1.revision) }
         let hasServiceReliabilityHistory = try mutationHistory?.receipts.contains { record in
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             if case .applyServiceReliability = envelope.command { return true }
@@ -12087,7 +12139,7 @@ private extension BackupRestoreService {
                     : 11)
                 : 12)
                 : 13)
-                : 14) : C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion,
+                : 14) : C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -12146,7 +12198,7 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: myDayCarryoverReceipts,
             nonactivePlanReferences: nonactivePlanReferences,
             evidenceAssociationEvents: evidenceAssociationEvents,
-            evidenceSequenceRevisions: evidenceSequenceRevisions
+            evidenceSequenceRevisions: evidenceSequenceRevisions, shopReportProfiles: shopReportProfiles
         )
     }
 

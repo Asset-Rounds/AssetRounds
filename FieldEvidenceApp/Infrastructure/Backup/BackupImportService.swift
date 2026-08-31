@@ -622,6 +622,7 @@ private extension BackupImportService {
             try C55PartsStockBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C57MyDayBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C05EvidenceMetadataBackupEnrollmentV1.validate(temporaryValue.records)
+            try C04ShopReportProfileBackupEnrollmentV1.validate(temporaryValue.records)
             guard temporaryValue.manifest == source.manifest,
                   try BackupPackageAnchoredFile.rootIdentity(at: sourceURL)
                     == source.rootIdentity else {
@@ -667,6 +668,7 @@ private extension BackupImportService {
             try C55PartsStockBackupImportServiceBoundaryV1.validate(value)
             try C57MyDayBackupImportServiceBoundaryV1.validate(value)
             try C05EvidenceMetadataBackupEnrollmentV1.validate(value.records)
+            try C04ShopReportProfileBackupEnrollmentV1.validate(value.records)
             guard value.manifest == source.manifest else {
                 throw BackupImportServiceError.invalidSource
             }
@@ -785,6 +787,7 @@ private extension BackupImportService {
             try C55PartsStockBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C57MyDayBackupImportServiceBoundaryV1.validate(temporaryValue)
             try C05EvidenceMetadataBackupEnrollmentV1.validate(temporaryValue.records)
+            try C04ShopReportProfileBackupEnrollmentV1.validate(temporaryValue.records)
             let indexByPath = Dictionary(
                 uniqueKeysWithValues: extraction.index.entries.map { ($0.path, $0) }
             )
@@ -833,6 +836,7 @@ private extension BackupImportService {
             try C55PartsStockBackupImportServiceBoundaryV1.validate(value)
             try C57MyDayBackupImportServiceBoundaryV1.validate(value)
             try C05EvidenceMetadataBackupEnrollmentV1.validate(value.records)
+            try C04ShopReportProfileBackupEnrollmentV1.validate(value.records)
             guard value.manifest == temporaryValue.manifest,
                   value.records == temporaryValue.records,
                   value.members.keys == temporaryValue.members.keys else {
@@ -1616,7 +1620,7 @@ enum C49WorkResourceBackupImportPolicyV1 {
             return
         }
         guard (C49BackupEnrollmentV1.recordsSchemaVersion...
-                C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+                C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               persistentSchemaVersion == records.recordsSchemaVersion + 1 else {
             throw BackupImportServiceError.invalidGeneration
@@ -1644,7 +1648,7 @@ enum C52ServiceRequestBackupImportServiceBoundaryV1 {
             return
         }
         guard persistent == records.recordsSchemaVersion + 1,
-              (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               importsCanonicalHistoryThroughRestoreAuthority,
               !importedOutstandingCapabilitiesRemainValid,
@@ -1683,7 +1687,7 @@ enum C53ServiceReliabilityBackupImportServiceBoundaryV1 {
             return
         }
         guard persistent == records.recordsSchemaVersion + 1,
-              (recordsSchemaVersion...C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               importsAllSevenSourceFamilies,
               validatesCanonicalHistoryBeforeMaterialization,

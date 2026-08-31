@@ -45,6 +45,24 @@ enum EvidenceMetadataKernelMutationReceiptPolicyV1 {
     }
 }
 
+enum ShopReportProfileKernelMutationReceiptPolicyV1 {
+    static let entityKinds: Set<WorkspaceEntityKindV1> = [.shopReportProfile]
+
+    static func validate(
+        mutation: ShopReportProfileMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        try mutation.validate()
+        guard [try mutation.affectedIdentity].map(\.kind) == [.shopReportProfile] else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        _ = try ShopReportProfileMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
+}
+
 struct KernelMutationRegistrationV4: Codable, Equatable, Comparable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case kind, mutationEnvelopeTypeID, effectID, effectDisposition, receiptTypeID
@@ -334,6 +352,15 @@ enum KernelMutationReceiptRegistryV4 {
             receipt: receipt
         )
     }
+    static func validateShopReportProfile(
+        mutation: ShopReportProfileMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        try ShopReportProfileKernelMutationReceiptPolicyV1.validate(
+            mutation: mutation,
+            receipt: receipt
+        )
+    }
     static func validateClientCapability(mutation:ClientCapabilityMutationV1,receipt:MutationReceiptV1)throws{_ = try ClientCapabilityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validateFieldReference(mutation:FieldReferenceMutationV1,receipt:MutationReceiptV1)throws{_ = try FieldReferenceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     static func validateAccessibleDocumentAssessment(mutation:AccessibleDocumentMutationV1,receipt:MutationReceiptV1)throws{_ = try AccessibleDocumentMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
@@ -401,7 +428,8 @@ enum KernelMutationReceiptRegistryV4 {
     }
 
     static func validate() throws {
-        guard C50IncumbentFileExchangeKernelMutationReceiptBoundaryV1.validate() else {
+        guard C50IncumbentFileExchangeKernelMutationReceiptBoundaryV1.validate(),
+              C04ShopReportProfileKernelMutationReceiptBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
         try validate(registrations)
@@ -445,6 +473,20 @@ enum KernelMutationReceiptRegistryV4 {
         case .recoveryJournal: return .recoveryJournal
         case .dormantContractDeclaration: return .dormantNoRuntimeEffect
         }
+    }
+}
+
+enum C04ShopReportProfileKernelMutationReceiptBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyShopReportProfile
+    static let durableReceiptRequired = true
+    static let effectBeforeReceiptRecovery = true
+    static let postimageCount = 1
+
+    static func validate() -> Bool {
+        commandKind == .applyShopReportProfile
+            && durableReceiptRequired
+            && effectBeforeReceiptRecovery
+            && postimageCount == 1
     }
 }
 

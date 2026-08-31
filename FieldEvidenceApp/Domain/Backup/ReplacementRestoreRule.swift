@@ -486,7 +486,7 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -547,7 +547,7 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -606,7 +606,7 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -656,7 +656,7 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
         )
     }
 
@@ -1455,8 +1455,8 @@ enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              current.recordsSchemaVersion <= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion,
-              incoming.recordsSchemaVersion <= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion else {
+              current.recordsSchemaVersion <= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
+              incoming.recordsSchemaVersion <= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion else {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
         do {
@@ -1569,6 +1569,7 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
         }
         do {
             try C05EvidenceMetadataBackupEnrollmentV1.validate(incoming)
+            try C04ShopReportProfileBackupEnrollmentV1.validate(incoming)
             switch mode {
             case .emptyInstall:
                 guard current.evidenceAssociationEvents.isEmpty,
@@ -1584,6 +1585,7 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
                 return ([], [])
             case .replaceExisting:
                 try C05EvidenceMetadataBackupEnrollmentV1.validate(current)
+                try C04ShopReportProfileBackupEnrollmentV1.validate(current)
                 let associations = try merge(
                     current.evidenceAssociationEvents,
                     incoming.evidenceAssociationEvents,
@@ -1596,6 +1598,7 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
                 )
                 let combined = incoming.replacingEvidenceMetadata(associations, sequences)
                 try C05EvidenceMetadataBackupEnrollmentV1.validate(combined)
+                try C04ShopReportProfileBackupEnrollmentV1.validate(combined)
                 return (associations, sequences)
             }
         } catch let error as ReplacementRestoreRuleError { throw error }

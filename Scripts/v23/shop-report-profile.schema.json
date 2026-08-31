@@ -1,0 +1,100 @@
+{
+  "$id": "https://assetrounds.invalid/v23/shop-report-profile.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P04-C04"
+    },
+    "schema": {
+      "const": "SHOP_REPORT_PROFILE_V1"
+    },
+    "schemaVersion": {
+      "const": 44
+    },
+    "selectors": {
+      "const": [
+        "testV23P04C04G01DeterministicProfilePresetAndConfirmationBytes",
+        "testV23P04C04A01CustomerSafePackagingAndAccessibleOutputs",
+        "testV23P04C04H01RejectsCorruptStaleUnsafeAndSecondRendererInputs",
+        "testV23P04C04I01InterruptionLeavesZeroOrRecoverableCanonicalEffect",
+        "testV23P04C04R01RestoreCloneForkAndHistoricExportImmutability"
+      ]
+    },
+    "semantics": {
+      "const": {
+        "allExistingProfilesRemainOff": true,
+        "confirmation": "IMMUTABLE_ORIGINAL_PRIVACY_DERIVATIVE_REVIEWED_MARKUP_DETAILS_EXACT_BYTES",
+        "evidenceIDs": [
+          "V23-P04-C04-G01",
+          "V23-P04-C04-A01",
+          "V23-P04-C04-H01",
+          "V23-P04-C04-I01",
+          "V23-P04-C04-R01"
+        ],
+        "formats": [
+          "PDF",
+          "OPEN_JSON",
+          "TEXT",
+          "FORMULA_SAFE_CSV",
+          "MEDIA",
+          "HASH_MANIFEST"
+        ],
+        "lifecycle": [
+          "FIRST_WRITE",
+          "MIGRATION",
+          "JOURNAL",
+          "BACKUP",
+          "RESTORE",
+          "DELETE",
+          "ERASE",
+          "CLONE",
+          "FORK",
+          "CONFIGURATION",
+          "EXPORT",
+          "REPORT",
+          "REPLAY"
+        ],
+        "oneIncumbentRenderer": true,
+        "persistentFamily": "SHOP_REPORT_PROFILE_V1",
+        "rejects": [
+          "ACTIVE_CONTENT",
+          "UNBOUNDED",
+          "REMOTE"
+        ],
+        "schemaVersion": 44,
+        "selectors": [
+          "testV23P04C04G01DeterministicProfilePresetAndConfirmationBytes",
+          "testV23P04C04A01CustomerSafePackagingAndAccessibleOutputs",
+          "testV23P04C04H01RejectsCorruptStaleUnsafeAndSecondRendererInputs",
+          "testV23P04C04I01InterruptionLeavesZeroOrRecoverableCanonicalEffect",
+          "testV23P04C04R01RestoreCloneForkAndHistoricExportImmutability"
+        ],
+        "ui": "STANDALONE_VIEW_ONLY_POST_S10_SETTINGS_AND_FINALIZATION_UNTOUCHED"
+      }
+    },
+    "statusFlags": {
+      "const": {
+        "acceptance": false,
+        "activation": false,
+        "adoption": false,
+        "hosted": false,
+        "hostedAcceptance": false,
+        "native": false,
+        "nativeAcceptance": false,
+        "phase10PollingDuringParallelExecution": false,
+        "physicalEvidence": false,
+        "release": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "selectors",
+    "statusFlags",
+    "semantics"
+  ],
+  "type": "object"
+}

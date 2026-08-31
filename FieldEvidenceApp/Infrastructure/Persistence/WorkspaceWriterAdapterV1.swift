@@ -55,6 +55,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyMyDay,
             .applyServiceRequest,
             .applyServiceReliability,
+            .applyShopReportProfile,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -232,6 +233,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyServiceRequest(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyServiceReliability(value):
             return try applyServiceReliability(value,temporaryRelativePath:temporaryRelativePath)
+        case let .applyShopReportProfile(value):
+            return try applyShopReportProfile(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -242,6 +245,167 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    /// V44 keeps immutable profile revisions under a profile-level concurrency
+    /// stream. The canonical workspace/profile/revision row identity lets
+    /// replay discover an effect that committed before its receipt.
+    private func applyShopReportProfile(
+        _ mutation: ShopReportProfileMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            let profile = mutation.profile
+            guard mutation.workspaceID == profile.workspaceID,
+                  mutation.mutationID == profile.mutationID,
+                  profile.revision == mutation.expectedRevision + 1,
+                  (mutation.expectedRevision == 0) == (profile.predecessor == nil) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            _ = try ShopReportProfileCanonicalCodecV1.decode(
+                ShopReportProfileV1.self,
+                from: try ShopReportProfileCanonicalCodecV1.encode(profile)
+            )
+
+            let workspaceID = mutation.workspaceID.rawValue
+            let profileID = profile.profileID
+            let profileRowID = ShopReportProfileRowV1.rowID(
+                workspaceID: profile.workspaceID,
+                profileID: profile.profileID,
+                revision: profile.revision
+            )
+            let matchingMutationRows = try modelContext.fetch(
+                FetchDescriptor<ShopReportProfileRowV1>(
+                    predicate: #Predicate { $0.rowID == profileRowID }
+                )
+            )
+            guard matchingMutationRows.count <= 1 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            if let existing = matchingMutationRows.first {
+                guard try existing.value() == profile else {
+                    throw WorkspaceMutationFailureV1.sequenceCollision
+                }
+                return try WorkspaceMutationEffectV1(
+                    affectedEntities: [try mutation.affectedIdentity],
+                    temporaryRelativePath: temporaryRelativePath
+                )
+            }
+
+            let rows = try modelContext.fetch(
+                FetchDescriptor<ShopReportProfileRowV1>(
+                    predicate: #Predicate {
+                        $0.workspaceID == workspaceID && $0.profileID == profileID
+                    }
+                )
+            )
+            let history = try rows.map { try $0.value() }.sorted {
+                ($0.revision, $0.mutationID.rawValue.uuidString)
+                    < ($1.revision, $1.mutationID.rawValue.uuidString)
+            }
+            guard Set(history.map(\.revision)).count == history.count,
+                  Set(history.map(\.mutationID)).count == history.count else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            if mutation.expectedRevision == 0 {
+                guard history.isEmpty, profile.revision == 1,
+                      profile.predecessor == nil else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(
+                        try mutation.concurrencyIdentity
+                    )
+                }
+            } else {
+                guard let predecessor = history.last,
+                      predecessor.revision == mutation.expectedRevision,
+                      profile.predecessor == (try predecessor.reference),
+                      profile.workspaceID == predecessor.workspaceID,
+                      profile.profileID == predecessor.profileID,
+                      profile.revision == predecessor.revision + 1,
+                      profile.mutationID != predecessor.mutationID,
+                      profile.recordedAt >= predecessor.recordedAt else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(
+                        try mutation.concurrencyIdentity
+                    )
+                }
+            }
+            modelContext.insert(try ShopReportProfileRowV1(profile))
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: [try mutation.affectedIdentity],
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    func shopReportProfileHistory(
+        workspaceID: WorkspaceID,
+        profileID: UUID
+    ) throws -> [ShopReportProfileV1] {
+        let rawWorkspaceID = workspaceID.rawValue
+        let rows = try modelContext.fetch(
+            FetchDescriptor<ShopReportProfileRowV1>(
+                predicate: #Predicate {
+                    $0.workspaceID == rawWorkspaceID && $0.profileID == profileID
+                }
+            )
+        )
+        let history = try rows.map { try $0.value() }.sorted {
+            ($0.revision, $0.mutationID.rawValue.uuidString)
+                < ($1.revision, $1.mutationID.rawValue.uuidString)
+        }
+        guard Set(history.map(\.revision)).count == history.count,
+              Set(history.map(\.mutationID)).count == history.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        for index in history.indices {
+            let current = history[index]
+            if index == history.startIndex {
+                guard current.revision == 1, current.predecessor == nil else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            } else {
+                let predecessor = history[index - 1]
+                guard current.revision == predecessor.revision + 1,
+                      current.predecessor == (try predecessor.reference),
+                      current.recordedAt >= predecessor.recordedAt else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            }
+        }
+        return history
+    }
+
+    func persistedShopReportProfileEffectMatches(
+        _ mutation: ShopReportProfileMutationV1
+    ) throws -> Bool {
+        let profile = mutation.profile
+        let profileRowID = ShopReportProfileRowV1.rowID(
+            workspaceID: profile.workspaceID,
+            profileID: profile.profileID,
+            revision: profile.revision
+        )
+        let rows = try modelContext.fetch(
+            FetchDescriptor<ShopReportProfileRowV1>(
+                predicate: #Predicate { $0.rowID == profileRowID }
+            )
+        )
+        guard rows.count <= 1 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        guard let row = rows.first else { return false }
+        guard try row.value() == profile else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        _ = try shopReportProfileHistory(
+            workspaceID: mutation.workspaceID,
+            profileID: profile.profileID
+        )
+        return true
     }
 
     private func requireCurrentMyDaySources(
@@ -4197,3 +4361,5 @@ enum C34SceneNavigationWorkspaceWriterAdapterBoundaryV1 {
     static func validate() -> Bool { adapterWriteCount == 0 && !resolvesOrRestoresRoutes && C34SceneNavigationWorkspaceWriterBoundaryV1.validate() }
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-apply-recover
+
+extension WorkspaceWriterAdapterV1: ShopReportProfileCurrentReadingV1 {}

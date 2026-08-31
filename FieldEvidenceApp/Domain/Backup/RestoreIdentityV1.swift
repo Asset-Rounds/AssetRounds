@@ -92,6 +92,7 @@ enum C05EvidenceMetadataRestoreIdentityBoundaryV1 {
             throw RestoreIdentityDecisionErrorV1.invalidMode
         }
         try C05EvidenceMetadataBackupEnrollmentV1.validate(records)
+        try C04ShopReportProfileBackupEnrollmentV1.validate(records)
         guard let identity else { return }
         if identity.mode == .clone || identity.mode == .fork {
             guard records.evidenceAssociationEvents.isEmpty,
@@ -106,6 +107,50 @@ enum C05EvidenceMetadataRestoreIdentityBoundaryV1 {
         }), records.evidenceSequenceRevisions.allSatisfy({
             $0.workspaceID.rawValue == expected
         }) else { throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity }
+    }
+}
+
+enum C04ShopReportProfileRestoreIdentityBoundaryV1 {
+    static let profileHistoryIsCanonical = true
+    static let sameWorkspaceReplacePreservesExactBytes = true
+    static let cloneForkRebindsInAscendingRevisionOrder = true
+    static let profileEmbeddedRegistryIsTheOnlyRebindAuthority = true
+
+    static func rebinding(
+        _ profiles: [ShopReportProfileV1],
+        identity: RestoreIdentityV1
+    ) throws -> [ShopReportProfileV1] {
+        guard profileHistoryIsCanonical,
+              sameWorkspaceReplacePreservesExactBytes,
+              cloneForkRebindsInAscendingRevisionOrder,
+              profileEmbeddedRegistryIsTheOnlyRebindAuthority else {
+            throw RestoreIdentityDecisionErrorV1.invalidMode
+        }
+        try profiles.forEach { try $0.validateIntrinsic() }
+        let targetWorkspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        switch identity.mode {
+        case .emptyInstall, .replaceExisting:
+            guard profiles.allSatisfy({ $0.workspaceID == targetWorkspaceID }) else {
+                throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
+            }
+            return profiles
+        case .clone, .fork:
+            let grouped = Dictionary(grouping: profiles, by: { $0.profileID })
+            var result: [ShopReportProfileV1] = []
+            for history in grouped.values {
+                var predecessor: ShopReportProfileV1?
+                for profile in history.sorted(by: { $0.revision < $1.revision }) {
+                    let rebound = try profile.rebindingWorkspaceID(
+                        targetWorkspaceID,
+                        rebasedPredecessor: predecessor,
+                        sectionRegistry: profile.sectionRegistry
+                    )
+                    predecessor = rebound
+                    result.append(rebound)
+                }
+            }
+            return result.sorted { ($0.profileID.uuidString, $0.revision) < ($1.profileID.uuidString, $1.revision) }
+        }
     }
 }
 
@@ -1023,7 +1068,7 @@ enum C53ServiceReliabilityRestoreIdentityBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              records.recordsSchemaVersion <= C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion else {
+              records.recordsSchemaVersion <= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion else {
             throw RestoreIdentityDecisionErrorV1.invalidMode
         }
         do {

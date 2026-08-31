@@ -5771,3 +5771,104 @@ enum IlluminatedSignPlaybookLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C04 shop-profile open-evidence handoff presentation
+
+enum ShopReportProfileLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case heading = "shop.profile.heading"
+    case profileHeading = "shop.profile.profile.heading"
+    case defaultOff = "shop.profile.default_off"
+    case presetHeading = "shop.profile.preset.heading"
+    case audienceHeading = "shop.profile.audience.heading"
+    case activationHeading = "shop.profile.activation.heading"
+    case activationOn = "shop.profile.activation.on"
+    case activationOff = "shop.profile.activation.off"
+    case packagingHeading = "shop.profile.packaging.heading"
+    case combinedPackage = "shop.profile.packaging.combined"
+    case separatePackage = "shop.profile.packaging.separate"
+    case previewHeading = "shop.profile.preview.heading"
+    case exactBytes = "shop.profile.preview.exact_bytes"
+    case digest = "shop.profile.preview.digest"
+    case detectorHeading = "shop.profile.detector.heading"
+    case detectorPass = "shop.profile.detector.pass"
+    case detectorBlocked = "shop.profile.detector.blocked"
+    case semanticTextHeading = "shop.profile.semantic_text.heading"
+    case confirmationHeading = "shop.profile.confirmation.heading"
+    case confirmationRequired = "shop.profile.confirmation.required"
+    case confirmationRecorded = "shop.profile.confirmation.recorded"
+    case handoffHeading = "shop.profile.handoff.heading"
+    case handoffAvailable = "shop.profile.handoff.available"
+    case noDeliveryClaim = "shop.profile.no_delivery_claim"
+    case statusUnavailable = "shop.profile.status.unavailable"
+    case statusStale = "shop.profile.status.stale"
+    case statusCancelled = "shop.profile.status.cancelled"
+    case statusLowStorage = "shop.profile.status.low_storage"
+    case statusProtectedData = "shop.profile.status.protected_data"
+    case recoveryRequired = "shop.profile.recovery.required"
+    case retry = "shop.profile.retry"
+    case limitations = "shop.profile.limitations"
+
+    var localizationKey: LocalizationKeyV1 {
+        // Closed, repository-owned C04 vocabulary only.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum ShopReportProfileLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let keys = ShopReportProfileLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let remoteDeliveryClaimed = false
+    static let certificationClaimed = false
+
+    static func english(_ key: ShopReportProfileLocalizationKeyV1) -> String {
+        switch key {
+        case .heading: return "Shop profile and open evidence"
+        case .profileHeading: return "Shop profile"
+        case .defaultOff: return "Evidence details are off until a profile is selected and recorded."
+        case .presetHeading: return "Preset"
+        case .audienceHeading: return "Audience"
+        case .activationHeading: return "Evidence details"
+        case .activationOn: return "On"
+        case .activationOff: return "Off"
+        case .packagingHeading: return "Package arrangement"
+        case .combinedPackage: return "Combined archive"
+        case .separatePackage: return "Separate files"
+        case .previewHeading: return "Exact-byte preview"
+        case .exactBytes: return "Composed bytes"
+        case .digest: return "SHA-256 digest"
+        case .detectorHeading: return "Audience privacy check"
+        case .detectorPass: return "No prohibited audience facts were detected in this preview."
+        case .detectorBlocked: return "This preview is blocked by the audience privacy check."
+        case .semanticTextHeading: return "Semantic text alternative"
+        case .confirmationHeading: return "Final privacy confirmation"
+        case .confirmationRequired: return "Confirmation is available only after the privacy check passes for these exact composed bytes."
+        case .confirmationRecorded: return "Exact-byte confirmation is present for this preview."
+        case .handoffHeading: return "Open evidence handoff"
+        case .handoffAvailable: return "The typed handoff receipt is available for review."
+        case .noDeliveryClaim: return "This view does not claim that files were opened, shared, delivered, or received."
+        case .statusUnavailable: return "Preview is unavailable. No partial handoff is shown."
+        case .statusStale: return "Preview is stale. Refresh before reviewing or confirming."
+        case .statusCancelled: return "Preview preparation was cancelled. No partial handoff is shown."
+        case .statusLowStorage: return "Storage is too low to prepare this preview. No partial handoff is shown."
+        case .statusProtectedData: return "Protected data is unavailable while the device is locked. No partial handoff is shown."
+        case .recoveryRequired: return "Recovery is required before a preview can continue."
+        case .retry: return "Retry preview"
+        case .limitations: return "This material records reviewed evidence details. It is not a certification and does not verify capture time, location, or person."
+        }
+    }
+
+    static func validate() throws {
+        let values = ShopReportProfileLocalizationKeyV1.allCases
+        let rawValues = values.map(\.rawValue)
+        guard sourceLocale == "en", shippingLocale == "en",
+              rawValues.count == Set(rawValues).count,
+              Set(rawValues) == Set(keys),
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }),
+              !remoteDeliveryClaimed,
+              !certificationClaimed else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

@@ -103,6 +103,28 @@ enum C05EvidenceMetadataKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum C04ShopReportProfileKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 44
+    static let recordsSchemaVersion = 43
+    static let durableFamilies = ["ShopReportProfileRowV1"]
+    static let sameWorkspaceReplacePreservesExactHistory = true
+    static let cloneForkRequiresCanonicalWorkspaceRebind = true
+    static let configurationCloneFailsClosedWithoutRegistry = true
+    static let predecessorClosureIsRequired = true
+
+    static func validate() throws {
+        guard persistentSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilies.count == C04ShopReportProfileBackupEnrollmentV1.durableFamilyCount,
+              sameWorkspaceReplacePreservesExactHistory,
+              cloneForkRequiresCanonicalWorkspaceRebind,
+              configurationCloneFailsClosedWithoutRegistry,
+              predecessorClosureIsRequired else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C30EvidenceContextBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 30
     static let recordsSchemaVersion = 29

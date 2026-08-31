@@ -3556,6 +3556,48 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+// MARK: - C04 shop-profile open-evidence handoff catalog
+
+extension BundledLocalizationCatalogV1 {
+    static func shopReportProfileEnglish(
+        _ key: ShopReportProfileLocalizationKeyV1
+    ) -> String {
+        ShopReportProfileLocalizationPolicyV1.english(key)
+    }
+
+    static func shopReportProfileLocalized(
+        _ key: ShopReportProfileLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: shopReportProfileEnglish(key),
+            bundle: bundle,
+            locale: locale,
+            comment: "C04 shop-profile open-evidence handoff presentation; exact-byte privacy confirmation and no delivery or certification claim."
+        )
+    }
+
+    static func shopReportProfileRegistry() throws -> LocalizationKeyRegistryV1 {
+        try ShopReportProfileLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = ShopReportProfileLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C04 shop-profile open-evidence handoff presentation; exact-byte privacy confirmation and no delivery or certification claim.",
+                englishDefaultValue: shopReportProfileEnglish(key),
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 extension BundledLocalizationCatalogV1 {
     static func operationalContactEnglish(
         _ key: OperationalContactLocalizationKeyV1

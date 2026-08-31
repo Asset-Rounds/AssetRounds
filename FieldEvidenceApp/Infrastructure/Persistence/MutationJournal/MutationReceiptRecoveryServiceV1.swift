@@ -97,6 +97,15 @@ final class MutationReceiptRecoveryServiceV1 {
         }
         try recoverBeforeWriterActivation()
     }
+    /// C04 revalidates the single append-only profile frontier against its
+    /// canonical semantic postimage before any writer is activated. Recovery
+    /// never synthesizes a profile revision or a receipt.
+    func recoverShopReportProfileEffectsBeforeWriterActivation() throws {
+        guard C04ShopReportProfileReceiptRecoveryBoundaryV1.validate() else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try recoverBeforeWriterActivation()
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -138,6 +147,18 @@ enum EvidenceMetadataMutationReceiptRecoveryPolicyV1 {
         receipt: MutationReceiptV1
     ) throws {
         _ = try EvidenceMetadataMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
+}
+
+enum ShopReportProfileMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        mutation: ShopReportProfileMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        _ = try ShopReportProfileMutationReceiptV1(
             mutation: mutation,
             mutationReceipt: receipt
         )
@@ -207,6 +228,26 @@ enum C05EvidenceMetadataReceiptRecoveryBoundaryV1 {
             && effectBeforeReceiptRecoveryRequiresBothExactRows
             && partialOrDivergentEffectFailsClosed
             && associationAndSequenceFrontiersAreRevalidated
+            && !createsParallelWriterOrStore
+    }
+}
+
+enum C04ShopReportProfileReceiptRecoveryBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyShopReportProfile
+    static let canonicalPostImageCount = 1
+    static let effectBeforeReceiptRecoveryRequiresExactFrontier = true
+    static let allAbsentMeansSafeToApply = true
+    static let partialOrDivergentEffectFailsClosed = true
+    static let profileHistoryIsRevalidatedInRevisionOrder = true
+    static let createsParallelWriterOrStore = false
+
+    static func validate() -> Bool {
+        commandKind == .applyShopReportProfile
+            && canonicalPostImageCount == 1
+            && effectBeforeReceiptRecoveryRequiresExactFrontier
+            && allAbsentMeansSafeToApply
+            && partialOrDivergentEffectFailsClosed
+            && profileHistoryIsRevalidatedInRevisionOrder
             && !createsParallelWriterOrStore
     }
 }

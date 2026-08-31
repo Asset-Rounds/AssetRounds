@@ -642,6 +642,7 @@ enum KernelDeletionEraseRegistryV4 {
 
     static func validate() throws {
         try EvidenceMetadataKernelDeletionEraseEnrollmentV1.validate()
+        try C04ShopReportProfileKernelDeletionEraseEnrollmentV1.validate()
         try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
@@ -861,6 +862,31 @@ enum C53AssetServiceReliabilityKernelDeletionEraseEnrollmentV1 {
               derivedMetricProjectionIsRebuilt,
               rowsOwnNoFilesystemPayload,
               C53AssetServiceReliabilityEraseIntentBoundaryV1.validate() else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+/// C04 persists one append-only, device-local profile history family. Normal
+/// domain deletion never rewrites it; workspace erase is the only destructive
+/// lifecycle boundary and clears the complete family with its generation.
+enum C04ShopReportProfileKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = ["ShopReportProfileRowV1"]
+    static let ordinaryDeleteDisposition = "PRESERVE_APPEND_ONLY_HISTORY"
+    static let workspaceEraseClearsAllCanonicalFamilies = true
+    static let cloneForkSourceHistoryIsNotActiveTruth = true
+    static let rowsOwnNoFilesystemPayload = true
+
+    static func validate() throws {
+        try C04ShopReportProfileBackupEnrollmentV1.validate(
+            V4BackupRecordsV1(recordsSchemaVersion:
+                C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
+        )
+        guard durableFamilies == ["ShopReportProfileRowV1"],
+              ordinaryDeleteDisposition == "PRESERVE_APPEND_ONLY_HISTORY",
+              workspaceEraseClearsAllCanonicalFamilies,
+              cloneForkSourceHistoryIsNotActiveTruth,
+              rowsOwnNoFilesystemPayload else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

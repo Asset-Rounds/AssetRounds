@@ -1679,3 +1679,28 @@ enum C05EvidenceCurationMigrationBoundaryV1 {
             && !backfillCreatesEvidenceTruth
     }
 }
+
+/// V44 adds one append-only canonical profile family.  A V43 store has no
+/// profile rows to synthesize: the first profile is always an explicit writer
+/// mutation, and every previously persisted report remains unchanged.
+enum C04ShopReportProfileMigrationBoundaryV1 {
+    static let sourcePersistentSchemaVersion = 43
+    static let targetPersistentSchemaVersion = 44
+    static let currentRecordsSchemaVersion = 43
+    static let compatibleRecordsSchemaVersions = [42, 43]
+    static let newlyAddedRows = ["ShopReportProfileRowV1"]
+    static let sourceRowsMustBeEmpty = true
+    static let backfillCreatesProfileTruth = false
+    static let downgradeDisposition = "FORWARD_FIX_ONLY"
+
+    static func validate() -> Bool {
+        sourcePersistentSchemaVersion == 43
+            && targetPersistentSchemaVersion == 44
+            && currentRecordsSchemaVersion == 43
+            && compatibleRecordsSchemaVersions == [42, 43]
+            && newlyAddedRows == ["ShopReportProfileRowV1"]
+            && sourceRowsMustBeEmpty
+            && !backfillCreatesProfileTruth
+            && downgradeDisposition == "FORWARD_FIX_ONLY"
+    }
+}

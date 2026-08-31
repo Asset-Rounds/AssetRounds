@@ -85,6 +85,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case claimEvidenceLink
     case evidenceAssociationEvent
     case evidenceSequenceRevision
+    case shopReportProfile
     case assuranceManifest
     case attestation
     case inspectionReviewTransition
@@ -2528,6 +2529,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyMyDay(MyDayMutationV1)
     case applyServiceRequest(ServiceRequestMutationV1)
     case applyServiceReliability(ServiceReliabilityAtomicBundleV1)
+    case applyShopReportProfile(ShopReportProfileMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2582,6 +2584,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyMyDay:.applyMyDay
         case .applyServiceRequest:.applyServiceRequest
         case .applyServiceReliability:.applyServiceReliability
+        case .applyShopReportProfile:.applyShopReportProfile
         }
     }
 }
@@ -2638,6 +2641,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyMyDay="apply_my_day_v1"
     case applyServiceRequest="apply_service_request_v1"
     case applyServiceReliability="apply_service_reliability_v1"
+    case applyShopReportProfile="apply_shop_report_profile_v1"
 }
 
 extension WorkspaceCommandV1 {
@@ -3443,6 +3447,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyMyDay,disposition:.compensatable,stableReason:"append_my_day_plan_successor_and_carryover_receipt_only"),
         .init(commandKind:.applyServiceRequest,disposition:.compensatable,stableReason:"append_request_history_or_explicit_unlink_reversal_only"),
         .init(commandKind:.applyServiceReliability,disposition:.compensatable,stableReason:"append_incident_impact_cause_remedy_repair_restoration_or_exposure_successor_only"),
+        .init(commandKind:.applyShopReportProfile,disposition:.compensatable,stableReason:"append_shop_report_profile_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

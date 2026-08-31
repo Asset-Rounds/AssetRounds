@@ -289,6 +289,28 @@ enum EvidenceMetadataEraseAllPolicyV1 {
     }
 }
 
+/// Shop-report profiles are immutable workspace-local history. A workspace
+/// erase publishes a new V44 generation and therefore must carry no profile
+/// rows or surviving active-profile frontier.
+enum C04ShopReportProfileEraseAllPolicyV1 {
+    static let persistentSchemaVersion = 44
+    static let recordsSchemaVersion = 43
+    static let durableFamilyCount = 1
+
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        try C04ShopReportProfileKernelDeletionEraseEnrollmentV1.validate()
+        guard persistentSchemaVersion
+                == C04ShopReportProfileBackupEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion
+                == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount
+                == C04ShopReportProfileBackupEnrollmentV1.durableFamilyCount,
+              try context.fetchCount(FetchDescriptor<ShopReportProfileRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum PlanEraseAllPolicyV1 {
     static let persistentSchemaVersion = 28
     static let recordsSchemaVersion = 27
@@ -1550,6 +1572,9 @@ private extension EraseAllService {
         try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try C57MyDayEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try EvidenceMetadataEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
+        try C04ShopReportProfileEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)

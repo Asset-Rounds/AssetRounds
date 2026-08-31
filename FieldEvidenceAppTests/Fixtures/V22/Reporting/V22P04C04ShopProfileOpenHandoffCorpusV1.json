@@ -1,0 +1,111 @@
+{
+  "schema": "V22P04C04ShopProfileOpenHandoffCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C04",
+  "ordinal": 92,
+  "contentMode": "CONTENT_ONLY",
+  "uiAdoptionEnabled": false,
+  "statusFlags": {
+    "activation": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "nativeAcceptance": false,
+    "hostedAcceptance": false,
+    "physicalEvidence": false,
+    "phase10PollingDuringParallelExecution": false
+  },
+  "selectors": [
+    { "id": "G01", "selector": "V23-P04-C04-G01", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "V23-P04-C04-A01", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "V23-P04-C04-H01", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "V23-P04-C04-I01", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "V23-P04-C04-R01", "tier": "RECOVERY" }
+  ],
+  "presetIDs": ["internal_complete", "customer_safe_summary"],
+  "audiences": ["INTERNAL_USE", "CUSTOMER_SAFE"],
+  "packaging": ["COMBINED", "SEPARATE_PER_WORK_ITEM"],
+  "formats": ["PDF", "OPEN_JSON", "STRUCTURED_TEXT", "FORMULA_SAFE_CSV", "MEDIA", "MANIFEST"],
+  "hashManifest": {
+    "generatedOnly": true,
+    "contentInputFormats": ["PDF", "OPEN_JSON", "STRUCTURED_TEXT", "FORMULA_SAFE_CSV"],
+    "successfulHandoffFormats": ["PDF", "OPEN_JSON", "STRUCTURED_TEXT", "FORMULA_SAFE_CSV", "MANIFEST"],
+    "manifestCannotBeConfirmedAsContent": true,
+    "canonicalDecodeRequired": true,
+    "tamperCases": [
+      "manifest-byte-mutation", "manifest-reorder", "manifest-omission", "profile-frontier-mismatch",
+      "snapshot-binding-mismatch", "media-binding-mismatch", "accessibility-binding-mismatch", "noncanonical-manifest"
+    ]
+  },
+  "requiredSectionOrder": ["summary", "evidence", "limitations"],
+  "defaultProfileEnabled": false,
+  "firstWriteRequired": true,
+  "exactByteConfirmationRequired": true,
+  "privacyCanaries": [
+    "INTERNAL-CANARY", "CUSTOMER-CANARY", "RAW-OCR-CANARY", "CONTACT-CANARY",
+    "COST-CANARY", "DIAGNOSTIC-CANARY", "CAPABILITY-CANARY", "VERIFICATION-CANARY",
+    "https://internal.invalid/customer", "C:\\private\\customer", "BRAND-INTERNAL-CANARY"
+  ],
+  "hostileCases": [
+    "corrupt-profile", "unknown-profile-key", "stale-profile", "duplicate-section", "wrong-section-order",
+    "hostile-text", "hostile-media", "oversize-profile", "formula-injection", "active-content",
+    "script", "macro", "embedded-content", "active-pdf", "active-html", "path-traversal",
+    "second-renderer", "remote-delivery", "hash-mismatch", "renderer-binding-mismatch",
+    "manifest-binding-mismatch", "media-binding-mismatch", "confirmation-byte-mutation",
+    "pdf-javascript", "pdf-launch", "pdf-embedded-file", "pdf-open-action", "pdf-rich-media", "pdf-xfa",
+    "remote-link", "malformed-json", "invalid-utf8", "direct-media-format", "noncanonical-manifest"
+  ],
+  "formulaInjectionVariants": [
+    "=ASCII", "+ASCII", "-ASCII", "@ASCII", " space-before-formula", "\tTAB-before-formula",
+    "NBSP-before-formula", "BOM-before-formula", "Unicode-whitespace-before-formula"
+  ],
+  "previewFailures": ["stale", "cancelled", "low-storage", "protected-data"],
+  "unsupportedProductionSeams": [
+    "low-storage preview fault injection is not exposed by the C04 coordinator",
+    "protected-data preview fault injection is not exposed by the C04 coordinator",
+    "direct media and noncanonical manifest receipt rejection require the coordinator-backed handoff fixture",
+    "backup/Erase/delete/journal replay orchestration remains owned by the existing workspace lifecycle"
+  ],
+  "recoveryCases": [
+    "migration", "backup", "restore", "clone", "fork", "configuration-clone",
+    "edit-historic-immutability", "delete-historic-immutability", "erase", "journal", "replay", "search-rebuild"
+  ],
+  "hostileLifecycleConstraints": {
+    "active content": "forbidden",
+    "unbounded": "forbidden",
+    "remote": "forbidden",
+    "manifest": "hash-bound",
+    "renderer": "one incumbent renderer only",
+    "exact": "confirmation binds exact composed bytes",
+    "privacy": "customer-safe canaries reject handoff"
+  },
+  "accessibility": {
+    "taggedPDFAccessibilityClaimed": false,
+    "structuredTextRequired": true,
+    "semanticTreeRequired": true,
+    "brandProfileBinding": "profileID/revision/profileSHA256 exact",
+    "workspaceSourceSnapshotManifestLocaleReportProfileRendererAndBytesBound": true,
+    "mismatchRejects": ["brand", "workspace", "source-snapshot", "manifest", "locale", "report-profile", "renderer", "output-bytes"],
+    "prohibitedClaims": ["tagged-PDF", "WCAG conformance", "professional certification"]
+  },
+  "delivery": {
+    "oneRendererOnly": true,
+    "scriptAllowed": false,
+    "macroAllowed": false,
+    "remoteDeliveryAllowed": false,
+    "boundedBulkJobOnly": true,
+    "maximumConcurrentJobs": 1
+  },
+  "claims": {
+    "savedClaimWithoutReceipt": false,
+    "deliveredClaim": false,
+    "approvedClaim": false,
+    "taggedPDFClaim": false,
+    "wcagCertificationClaim": false,
+    "professionalCertificationClaim": false,
+    "privacyConfirmationReusableAfterByteChange": false
+  },
+  "hashAlgorithm": "SHA-256"
+}

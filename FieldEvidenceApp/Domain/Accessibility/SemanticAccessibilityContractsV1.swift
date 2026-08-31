@@ -2925,3 +2925,52 @@ enum IlluminatedSignPlaybookAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C04 shop-profile open-evidence handoff accessibility
+
+enum ShopReportProfileAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "v23.p04.c04.shop-report-profile.screen"
+    case profile = "v23.p04.c04.shop-report-profile.profile"
+    case preset = "v23.p04.c04.shop-report-profile.preset"
+    case audience = "v23.p04.c04.shop-report-profile.audience"
+    case activation = "v23.p04.c04.shop-report-profile.activation"
+    case packaging = "v23.p04.c04.shop-report-profile.packaging"
+    case combinedPackage = "v23.p04.c04.shop-report-profile.packaging.combined"
+    case separatePackage = "v23.p04.c04.shop-report-profile.packaging.separate"
+    case preview = "v23.p04.c04.shop-report-profile.preview"
+    case exactBytes = "v23.p04.c04.shop-report-profile.preview.exact-bytes"
+    case digest = "v23.p04.c04.shop-report-profile.preview.digest"
+    case detector = "v23.p04.c04.shop-report-profile.privacy-detector"
+    case detectorPass = "v23.p04.c04.shop-report-profile.privacy-detector.pass"
+    case detectorBlocked = "v23.p04.c04.shop-report-profile.privacy-detector.blocked"
+    case semanticText = "v23.p04.c04.shop-report-profile.semantic-text"
+    case confirmation = "v23.p04.c04.shop-report-profile.confirmation"
+    case handoff = "v23.p04.c04.shop-report-profile.handoff"
+    case status = "v23.p04.c04.shop-report-profile.status"
+    case recovery = "v23.p04.c04.shop-report-profile.recovery"
+    case retry = "v23.p04.c04.shop-report-profile.retry"
+    case limitations = "v23.p04.c04.shop-report-profile.limitations"
+}
+
+enum ShopReportProfileAccessibilityPolicyV1 {
+    static let semanticIDs = ShopReportProfileAccessibilityIDV1.allCases.map(\.rawValue)
+    static let sourceOrderIsVoiceOverOrder = true
+    static let dynamicTypeVerticalFallbackRequired = true
+    static let reducedMotionUsesStaticPresentation = true
+    static let rtlAndBidiIsolationRequired = true
+    static let remoteDeliveryClaimed = false
+    static let uiAdoptionClaimed = false
+
+    static func validate() throws {
+        let identifiers = ShopReportProfileAccessibilityIDV1.allCases.map(\.rawValue)
+        guard identifiers.count == Set(identifiers).count,
+              sourceOrderIsVoiceOverOrder,
+              dynamicTypeVerticalFallbackRequired,
+              reducedMotionUsesStaticPresentation,
+              rtlAndBidiIsolationRequired,
+              !remoteDeliveryClaimed,
+              !uiAdoptionClaimed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}
