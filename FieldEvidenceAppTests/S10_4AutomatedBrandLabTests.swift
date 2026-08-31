@@ -8247,14 +8247,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                && !finalExactPreviewIsHittable\n" +
                 "                && !finalWorkPreviewIsHittable\n" +
                 "                && workEditingInitialProof\n" +
-                "                && initialHelperToPreviewSeparation != nil\n" +
+                "                && initialHelperToPreviewSeparationFixedPoint != nil\n" +
                 "                && provenGestureCount >= 1\n" +
                 "                && provenGestureCount <= 4\n" +
                 "                && finalFramesAreValid\n" +
                 "                && finalScrollFrameIsValid\n" +
                 "                && finalWorkEditingCompositionIsValid\n" +
-                "                && finalHelperToPreviewSeparation\n" +
-                "                    == initialHelperToPreviewSeparation\n" +
+                "                && finalHelperToPreviewSeparationFixedPoint\n" +
+                "                    == initialHelperToPreviewSeparationFixedPoint\n" +
                 "                && finalHelperFrame.maxY < finalPreviewFrame.minY\n" +
                 "                && finalPreviewFrame.minY > finalScrollFrame.maxY"
         XCTAssertEqual(
@@ -8315,9 +8315,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("let finalHelperIsHittable = workHelper.isHittable", 1),
             ("let finalExactPreviewIsHittable = workPreviewImage.isHittable", 1),
             ("let finalWorkPreviewIsHittable = workPreview.isHittable", 1),
-            ("finalWorkEditingCompositionIsValid", 5),
-            ("finalFramesAreValid", 7),
-            ("finalScrollFrameIsValid", 6),
+            ("finalWorkEditingCompositionIsValid", 3),
+            ("finalFramesAreValid", 5),
+            ("finalScrollFrameIsValid", 4),
             ("finalHelperFrame.maxY < finalTabFrame.minY", 0),
             ("finalHelperFrame.maxY < finalPreviewFrame.minY", 1),
             ("finalPreviewFrame.minY > finalScrollFrame.maxY", 1),
