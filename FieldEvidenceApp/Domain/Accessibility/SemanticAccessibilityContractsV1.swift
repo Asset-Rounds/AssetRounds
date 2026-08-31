@@ -2850,3 +2850,78 @@ enum EvidenceCurationAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C03 illuminated-sign playbook accessibility
+
+enum IlluminatedSignPlaybookAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "v23.p04.c03.illuminated-playbook.screen"
+    case playbooks = "v23.p04.c03.illuminated-playbook.playbooks"
+    case preflight = "v23.p04.c03.illuminated-playbook.preflight"
+    case afterDark = "v23.p04.c03.illuminated-playbook.after-dark"
+    case safeAuthorizedPosition = "v23.p04.c03.illuminated-playbook.safe-authorized-position"
+    case capture = "v23.p04.c03.illuminated-playbook.capture"
+    case wideCapture = "v23.p04.c03.illuminated-playbook.capture.wide-context"
+    case closeCapture = "v23.p04.c03.illuminated-playbook.capture.close-detail"
+    case workCapture = "v23.p04.c03.illuminated-playbook.capture.work-context"
+    case pose = "v23.p04.c03.illuminated-playbook.pose"
+    case facts = "v23.p04.c03.illuminated-playbook.facts"
+    case disclaimer = "v23.p04.c03.illuminated-playbook.disclaimer"
+    case retakeDisclosure = "v23.p04.c03.illuminated-playbook.retake-disclosure"
+    case offlineReady = "v23.p04.c03.illuminated-playbook.offline-ready"
+    case blocked = "v23.p04.c03.illuminated-playbook.blocked"
+    case recovery = "v23.p04.c03.illuminated-playbook.recovery"
+}
+
+enum IlluminatedSignPlaybookAccessibilityPolicyV1 {
+    static let semanticIDs = IlluminatedSignPlaybookAccessibilityIDV1.allCases.map(\.rawValue)
+    static let playbookAndCaptureStatusAreSpoken = true
+    static let requiredAndOptionalCaptureAreTextuallyDistinct = true
+    static let poseNeverUsesBareDirectionText = true
+    static let factsAndDisclaimerAreSpoken = true
+    static let reducedMotionUsesStaticPresentation = true
+    static let dynamicTypeAndRTLRequired = true
+    static let offlineAndBlockedStateAreExplicit = true
+    static let uiConformanceClaimed = false
+    static let uiAdoptionClaimed = false
+
+    static func localizationKey(
+        for id: IlluminatedSignPlaybookAccessibilityIDV1
+    ) -> IlluminatedSignPlaybookLocalizationKeyV1 {
+        switch id {
+        case .screen: return .heading
+        case .playbooks: return .playbooksHeading
+        case .preflight: return .preflightHeading
+        case .afterDark: return .afterDark
+        case .safeAuthorizedPosition: return .safeAuthorizedPosition
+        case .capture: return .captureHeading
+        case .wideCapture: return .wideCapture
+        case .closeCapture: return .closeCapture
+        case .workCapture: return .workCapture
+        case .pose: return .poseHeading
+        case .facts: return .factsHeading
+        case .disclaimer: return .disclaimer
+        case .retakeDisclosure: return .retakeDisclosure
+        case .offlineReady: return .offlineReady
+        case .blocked: return .blocked
+        case .recovery: return .recovered
+        }
+    }
+
+    static func validate() throws {
+        let ids = IlluminatedSignPlaybookAccessibilityIDV1.allCases
+        let keys = ids.map { localizationKey(for: $0).rawValue }
+        guard ids.map(\.rawValue).count == Set(ids.map(\.rawValue)).count,
+              keys.count == Set(keys).count,
+              playbookAndCaptureStatusAreSpoken,
+              requiredAndOptionalCaptureAreTextuallyDistinct,
+              poseNeverUsesBareDirectionText,
+              factsAndDisclaimerAreSpoken,
+              reducedMotionUsesStaticPresentation,
+              dynamicTypeAndRTLRequired,
+              offlineAndBlockedStateAreExplicit,
+              !uiConformanceClaimed,
+              !uiAdoptionClaimed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

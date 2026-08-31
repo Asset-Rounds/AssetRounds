@@ -5638,3 +5638,136 @@ enum EvidenceCurationLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C03 illuminated-sign playbook presentation
+
+enum IlluminatedSignPlaybookLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case heading = "illuminated.playbook.heading"
+    case playbooksHeading = "illuminated.playbook.list.heading"
+    case selectedPlaybook = "illuminated.playbook.list.selected"
+    case generalVisibleCondition = "illuminated.playbook.general_visible_condition"
+    case darkSection = "illuminated.playbook.dark_section"
+    case dimOrUneven = "illuminated.playbook.dim_or_uneven"
+    case flickerOrIntermittent = "illuminated.playbook.flicker_or_intermittent"
+    case colorMismatch = "illuminated.playbook.color_mismatch"
+    case physicalDamage = "illuminated.playbook.physical_damage"
+    case otherVisibleCondition = "illuminated.playbook.other_visible_condition"
+    case preflightHeading = "illuminated.playbook.preflight.heading"
+    case afterDark = "illuminated.playbook.preflight.after_dark"
+    case safeAuthorizedPosition = "illuminated.playbook.preflight.safe_authorized_position"
+    case captureHeading = "illuminated.playbook.capture.heading"
+    case wideCapture = "illuminated.playbook.capture.wide_context"
+    case closeCapture = "illuminated.playbook.capture.close_detail"
+    case workCapture = "illuminated.playbook.capture.work_context"
+    case captureRequired = "illuminated.playbook.capture.required"
+    case captureComplete = "illuminated.playbook.capture.complete"
+    case captureMissing = "illuminated.playbook.capture.missing"
+    case factsHeading = "illuminated.playbook.facts.heading"
+    case checkedTime = "illuminated.playbook.facts.checked_time"
+    case stageLabel = "illuminated.playbook.facts.stage"
+    case stageCheck = "illuminated.playbook.facts.stage.check"
+    case stageRecheck = "illuminated.playbook.facts.stage.recheck"
+    case outcomeLabel = "illuminated.playbook.facts.outcome"
+    case outcomeNoVisibleIssue = "illuminated.playbook.facts.outcome.no_visible_issue"
+    case outcomeVisibleIssue = "illuminated.playbook.facts.outcome.visible_issue"
+    case outcomeCouldNotVerify = "illuminated.playbook.facts.outcome.could_not_verify"
+    case selectedCondition = "illuminated.playbook.facts.selected_condition"
+    case couldNotVerifyReason = "illuminated.playbook.facts.could_not_verify_reason"
+    case visibleConditionsOnly = "illuminated.playbook.facts.visible_conditions_only"
+    case reportTrace = "illuminated.playbook.facts.report_trace"
+    case poseHeading = "illuminated.playbook.pose.heading"
+    case poseUnavailable = "illuminated.playbook.pose.unavailable"
+    case poseReviewed = "illuminated.playbook.pose.reviewed"
+    case poseReviewRequired = "illuminated.playbook.pose.review_required"
+    case retakeDisclosure = "illuminated.playbook.retake.disclosure"
+    case disclaimer = "illuminated.playbook.disclaimer"
+    case offlineReady = "illuminated.playbook.state.offline_ready"
+    case blocked = "illuminated.playbook.state.blocked"
+    case permissionDenied = "illuminated.playbook.state.permission_denied"
+    case protectedDataUnavailable = "illuminated.playbook.state.protected_data_unavailable"
+    case lowStorage = "illuminated.playbook.state.low_storage"
+    case cancelled = "illuminated.playbook.state.cancelled"
+    case recoveryRequired = "illuminated.playbook.state.recovery_required"
+    case recovered = "illuminated.playbook.state.recovered"
+
+    var localizationKey: LocalizationKeyV1 {
+        // This closed, repository-owned vocabulary has no dynamic keys.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum IlluminatedSignPlaybookLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let keys = IlluminatedSignPlaybookLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let claimsAreVisibleConditionOnly = true
+    static let nonCertificationDisclaimerIsExplicit = true
+    static let preflightIsExplicit = true
+
+    static func english(_ key: IlluminatedSignPlaybookLocalizationKeyV1) -> String {
+        switch key {
+        case .heading: return "Illuminated sign playbook"
+        case .playbooksHeading: return "Visible-condition playbooks"
+        case .selectedPlaybook: return "Selected playbook"
+        case .generalVisibleCondition: return "General visible condition"
+        case .darkSection: return "Dark section"
+        case .dimOrUneven: return "Dim or uneven illumination"
+        case .flickerOrIntermittent: return "Flicker or intermittent light"
+        case .colorMismatch: return "Visible color mismatch"
+        case .physicalDamage: return "Visible physical damage"
+        case .otherVisibleCondition: return "Other visible condition"
+        case .preflightHeading: return "Before capture"
+        case .afterDark: return "Before capture, confirm conditions are dark enough to observe the sign's visible illumination."
+        case .safeAuthorizedPosition: return "Capture only from a position you have determined is safe and authorized."
+        case .captureHeading: return "Required capture"
+        case .wideCapture: return "Wide view"
+        case .closeCapture: return "Close view"
+        case .workCapture: return "Optional work photo"
+        case .captureRequired: return "Required"
+        case .captureComplete: return "Captured"
+        case .captureMissing: return "Missing"
+        case .factsHeading: return "Structured report facts"
+        case .checkedTime: return "Checked time"
+        case .stageLabel: return "Stage"
+        case .stageCheck: return "Check"
+        case .stageRecheck: return "Recheck"
+        case .outcomeLabel: return "Outcome"
+        case .outcomeNoVisibleIssue: return "No visible issue"
+        case .outcomeVisibleIssue: return "Visible issue"
+        case .outcomeCouldNotVerify: return "Could not verify"
+        case .selectedCondition: return "Selected visible condition"
+        case .couldNotVerifyReason: return "Could-not-verify reason"
+        case .visibleConditionsOnly: return "Record only conditions visible in the evidence."
+        case .reportTrace: return "Facts retain their capture and playbook trace."
+        case .poseHeading: return "Sign face or forward axis"
+        case .poseUnavailable: return "Pose review is unavailable; no direction is recorded."
+        case .poseReviewed: return "Reviewed pose is recorded through the typed pose authority."
+        case .poseReviewRequired: return "A reviewed pose is required before this visible-condition report can complete."
+        case .retakeDisclosure: return "A retake creates a new original. Prior evidence and finalized reports remain unchanged."
+        case .disclaimer: return "This report records visible conditions from the listed photos and time. It is not an electrical, code, safety, or professional certification."
+        case .offlineReady: return "Ready for offline review"
+        case .blocked: return "Playbook is blocked"
+        case .permissionDenied: return "Camera or photo access is unavailable."
+        case .protectedDataUnavailable: return "Protected data is unavailable while the device is locked."
+        case .lowStorage: return "Storage is too low to safely continue."
+        case .cancelled: return "The operation was cancelled. No completed result is claimed."
+        case .recoveryRequired: return "Recovery is required before this playbook can continue."
+        case .recovered: return "A recovered playbook checkpoint is being shown for review."
+        }
+    }
+
+    static func validate() throws {
+        let values = IlluminatedSignPlaybookLocalizationKeyV1.allCases
+        let rawValues = values.map(\.rawValue)
+        guard sourceLocale == "en", shippingLocale == "en",
+              rawValues.count == Set(rawValues).count,
+              Set(rawValues) == Set(keys),
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }),
+              claimsAreVisibleConditionOnly,
+              nonCertificationDisclaimerIsExplicit,
+              preflightIsExplicit else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

@@ -4346,6 +4346,194 @@
       "comment" : "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Support export preview is unavailable." } } }
     },
+    "illuminated.playbook.heading" : {
+      "comment" : "C03 illuminated-sign playbook presentation; visible-condition-only facts and no certification claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Illuminated sign playbook" } } }
+    },
+    "illuminated.playbook.list.heading" : {
+      "comment" : "C03 illuminated-sign playbook presentation; visible-condition-only facts and no certification claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Visible-condition playbooks" } } }
+    },
+    "illuminated.playbook.list.selected" : {
+      "comment" : "C03 selected-playbook state; this is not capture completion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected playbook" } } }
+    },
+    "illuminated.playbook.general_visible_condition" : {
+      "comment" : "C03 exact released playbook label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "General visible condition" } } }
+    },
+    "illuminated.playbook.dark_section" : {
+      "comment" : "C03 exact released playbook label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark section" } } }
+    },
+    "illuminated.playbook.dim_or_uneven" : {
+      "comment" : "C03 exact released playbook label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Dim or uneven illumination" } } }
+    },
+    "illuminated.playbook.flicker_or_intermittent" : {
+      "comment" : "C03 exact released playbook label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Flicker or intermittent light" } } }
+    },
+    "illuminated.playbook.color_mismatch" : {
+      "comment" : "C03 exact released playbook label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Visible color mismatch" } } }
+    },
+    "illuminated.playbook.physical_damage" : {
+      "comment" : "C03 exact released playbook label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Visible physical damage" } } }
+    },
+    "illuminated.playbook.other_visible_condition" : {
+      "comment" : "C03 exact released playbook label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Other visible condition" } } }
+    },
+    "illuminated.playbook.preflight.heading" : {
+      "comment" : "C03 preflight presentation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Before capture" } } }
+    },
+    "illuminated.playbook.preflight.after_dark" : {
+      "comment" : "C03 preflight guidance; it does not claim system verification or an accepted acknowledgement.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Before capture, confirm conditions are dark enough to observe the sign's visible illumination." } } }
+    },
+    "illuminated.playbook.preflight.safe_authorized_position" : {
+      "comment" : "C03 preflight guidance; it does not claim system verification or an accepted acknowledgement.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Capture only from a position you have determined is safe and authorized." } } }
+    },
+    "illuminated.playbook.capture.heading" : {
+      "comment" : "C03 capture traceability presentation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Required capture" } } }
+    },
+    "illuminated.playbook.capture.wide_context" : {
+      "comment" : "C03 released capture purpose.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Wide view" } } }
+    },
+    "illuminated.playbook.capture.close_detail" : {
+      "comment" : "C03 released capture purpose.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Close view" } } }
+    },
+    "illuminated.playbook.capture.work_context" : {
+      "comment" : "C03 optional capture purpose, shown only when the released pack supplies it.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Optional work photo" } } }
+    },
+    "illuminated.playbook.capture.required" : {
+      "comment" : "C03 capture status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Required" } } }
+    },
+    "illuminated.playbook.capture.complete" : {
+      "comment" : "C03 capture status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Captured" } } }
+    },
+    "illuminated.playbook.capture.missing" : {
+      "comment" : "C03 capture status.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Missing" } } }
+    },
+    "illuminated.playbook.facts.heading" : {
+      "comment" : "C03 structured report-fact presentation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Structured report facts" } } }
+    },
+    "illuminated.playbook.facts.checked_time" : {
+      "comment" : "C03 structured report fact label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Checked time" } } }
+    },
+    "illuminated.playbook.facts.stage" : {
+      "comment" : "C03 structured report fact label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Stage" } } }
+    },
+    "illuminated.playbook.facts.stage.check" : {
+      "comment" : "C03 released stage label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Check" } } }
+    },
+    "illuminated.playbook.facts.stage.recheck" : {
+      "comment" : "C03 released stage label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recheck" } } }
+    },
+    "illuminated.playbook.facts.outcome" : {
+      "comment" : "C03 structured report fact label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Outcome" } } }
+    },
+    "illuminated.playbook.facts.outcome.no_visible_issue" : {
+      "comment" : "C03 released outcome label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No visible issue" } } }
+    },
+    "illuminated.playbook.facts.outcome.visible_issue" : {
+      "comment" : "C03 released outcome label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Visible issue" } } }
+    },
+    "illuminated.playbook.facts.outcome.could_not_verify" : {
+      "comment" : "C03 released outcome label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not verify" } } }
+    },
+    "illuminated.playbook.facts.selected_condition" : {
+      "comment" : "C03 structured report fact label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected visible condition" } } }
+    },
+    "illuminated.playbook.facts.could_not_verify_reason" : {
+      "comment" : "C03 structured report fact label.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Could-not-verify reason" } } }
+    },
+    "illuminated.playbook.facts.visible_conditions_only" : {
+      "comment" : "C03 claims boundary.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Record only conditions visible in the evidence." } } }
+    },
+    "illuminated.playbook.facts.report_trace" : {
+      "comment" : "C03 traceability presentation.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Facts retain their capture and playbook trace." } } }
+    },
+    "illuminated.playbook.pose.heading" : {
+      "comment" : "C03 typed pose-editor heading.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sign face or forward axis" } } }
+    },
+    "illuminated.playbook.pose.unavailable" : {
+      "comment" : "C03 fail-closed pose state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pose review is unavailable; no direction is recorded." } } }
+    },
+    "illuminated.playbook.pose.reviewed" : {
+      "comment" : "C03 typed pose state; no bare direction is displayed.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reviewed pose is recorded through the typed pose authority." } } }
+    },
+    "illuminated.playbook.pose.review_required" : {
+      "comment" : "C03 typed pose completion boundary.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "A reviewed pose is required before this visible-condition report can complete." } } }
+    },
+    "illuminated.playbook.retake.disclosure" : {
+      "comment" : "C03 immutable history disclosure.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "A retake creates a new original. Prior evidence and finalized reports remain unchanged." } } }
+    },
+    "illuminated.playbook.disclaimer" : {
+      "comment" : "C03 exact visible-condition, non-certification disclaimer.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This report records visible conditions from the listed photos and time. It is not an electrical, code, safety, or professional certification." } } }
+    },
+    "illuminated.playbook.state.offline_ready" : {
+      "comment" : "C03 local readiness state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready for offline review" } } }
+    },
+    "illuminated.playbook.state.blocked" : {
+      "comment" : "C03 fail-closed state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Playbook is blocked" } } }
+    },
+    "illuminated.playbook.state.permission_denied" : {
+      "comment" : "C03 permission failure state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera or photo access is unavailable." } } }
+    },
+    "illuminated.playbook.state.protected_data_unavailable" : {
+      "comment" : "C03 protected-data failure state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Protected data is unavailable while the device is locked." } } }
+    },
+    "illuminated.playbook.state.low_storage" : {
+      "comment" : "C03 storage failure state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage is too low to safely continue." } } }
+    },
+    "illuminated.playbook.state.cancelled" : {
+      "comment" : "C03 cancellation state; no completed result is claimed.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The operation was cancelled. No completed result is claimed." } } }
+    },
+    "illuminated.playbook.state.recovery_required" : {
+      "comment" : "C03 deterministic recovery state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery is required before this playbook can continue." } } }
+    },
+    "illuminated.playbook.state.recovered" : {
+      "comment" : "C03 recovered checkpoint presentation; it does not claim completion.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "A recovered playbook checkpoint is being shown for review." } } }
+    },
     "evidence.curation.heading" : {
       "comment" : "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence curation" } } }

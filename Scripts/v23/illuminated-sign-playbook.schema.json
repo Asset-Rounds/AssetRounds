@@ -1,0 +1,199 @@
+{
+  "$id": "https://assetrounds.invalid/v23/illuminated-sign-playbook.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "captureSlots": {
+      "const": [
+        "wide_context",
+        "close_detail",
+        "work_context"
+      ]
+    },
+    "cardID": {
+      "const": "V23-P04-C03"
+    },
+    "checkpointBinding": {
+      "const": "C36_UNIVERSAL_CHECKPOINT"
+    },
+    "comparisonIsProof": {
+      "const": false
+    },
+    "contentMode": {
+      "const": "NONPERSISTENT_DIGEST_BOUND_SIDECAR"
+    },
+    "diagnosisClaimed": {
+      "const": false
+    },
+    "directPrerequisites": {
+      "const": [
+        "V23-P04-C02",
+        "V23-P03-C37"
+      ]
+    },
+    "eighthPlaybookForbidden": {
+      "const": true
+    },
+    "electricalCertification": {
+      "const": false
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P04-C03-G01",
+        "V23-P04-C03-A01",
+        "V23-P04-C03-H01",
+        "V23-P04-C03-I01",
+        "V23-P04-C03-R01"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "journeyRefs": {
+      "const": [
+        "CommonTaskJourneyReleaseV2"
+      ]
+    },
+    "lifecycle": {
+      "const": {
+        "backupRestoreDeleteErase": "NOT_APPLICABLE_DERIVED_FROM_DURABLE_AUTHORITIES",
+        "certificationAuthority": false,
+        "evidence": "INCUMBENT_C05_EVIDENCE_METADATA_AUTHORITY",
+        "networkDependency": false,
+        "persistence": "NONPERSISTENT_DIGEST_BOUND_SIDECAR",
+        "schema": "NOT_APPLICABLE",
+        "store": "NOT_APPLICABLE",
+        "writer": "INCUMBENT_FIELD_DRAFT_AND_POSE_AUTHORITIES"
+      }
+    },
+    "nonCertificationDisclaimerRequired": {
+      "const": true
+    },
+    "optionalCapabilityProviders": {
+      "const": [
+        "NONE"
+      ]
+    },
+    "optionalCaptureSlots": {
+      "const": [
+        "work_context"
+      ]
+    },
+    "ordinal": {
+      "const": 91
+    },
+    "persistence": {
+      "const": {
+        "backupRestoreDeleteErase": "DERIVED_FROM_DURABLE_AUTHORITIES",
+        "contentMode": "CONTENT_ONLY",
+        "durableFamilyDelta": false,
+        "incumbentEvidenceAuthority": "V23-P03-C05",
+        "incumbentFieldDraftAuthority": "FieldDraftCheckpointV1",
+        "incumbentPoseAuthority": "V23-P03-C37",
+        "journalReplay": "C36_CHECKPOINT_AND_C05_ASSOCIATION_REPLAY",
+        "mode": "NONE_NONPERSISTENT_SIDECAR",
+        "persistentStoreWriter": "NONE_CARD_LOCAL",
+        "plansAndProjections": "NONPERSISTENT",
+        "recordsSchemaVersionDelta": false,
+        "schemaVersionDelta": false,
+        "searchRebuild": "NO_NEW_INDEX_DERIVED_ONLY"
+      }
+    },
+    "playbookCount": {
+      "const": 7
+    },
+    "playbookIDs": {
+      "const": [
+        "general_visible_condition",
+        "dark_section",
+        "dim_or_uneven",
+        "flicker_or_intermittent",
+        "color_mismatch",
+        "physical_damage",
+        "other_visible_condition"
+      ],
+      "maxItems": 7,
+      "minItems": 7
+    },
+    "provisional": {
+      "const": false
+    },
+    "requiredCaptureSlots": {
+      "const": [
+        "wide_context",
+        "close_detail"
+      ]
+    },
+    "safetyCertification": {
+      "const": false
+    },
+    "schema": {
+      "const": "V22P04C03IlluminatedSignPlaybookCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P04C03G01ExactSevenPlaybookManifestAndCaptureMatrix",
+        "testV23P04C03A01StructuredReportFactTraceabilityAndPoseBinding",
+        "testV23P04C03H01ClaimsSafeAdmissionRejectsUnsafeAndUndeclaredContent",
+        "testV23P04C03I01InterruptedCaptureCheckpointAndReplayAreZeroOrComplete",
+        "testV23P04C03R01PlaybookRemovalPreservesKernelAndHistoricTruth"
+      ]
+    },
+    "statusFlags": {
+      "const": {
+        "acceptance": false,
+        "activation": false,
+        "adoption": false,
+        "hosted": false,
+        "hostedAcceptance": false,
+        "native": false,
+        "nativeAcceptance": false,
+        "phase10PollingDuringParallelExecution": false,
+        "physicalEvidence": false,
+        "release": false
+      }
+    },
+    "typedPoseBinding": {
+      "const": "C37_SHARED_POSE_EDITOR"
+    },
+    "visibleConditionClaim": {
+      "const": "VISIBLE_CONDITIONS_ONLY"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "ordinal",
+    "contentMode",
+    "playbookIDs",
+    "playbookCount",
+    "eighthPlaybookForbidden",
+    "captureSlots",
+    "requiredCaptureSlots",
+    "optionalCaptureSlots",
+    "evidenceIDs",
+    "selectors",
+    "journeyRefs",
+    "directPrerequisites",
+    "optionalCapabilityProviders",
+    "visibleConditionClaim",
+    "comparisonIsProof",
+    "diagnosisClaimed",
+    "electricalCertification",
+    "safetyCertification",
+    "nonCertificationDisclaimerRequired",
+    "typedPoseBinding",
+    "checkpointBinding",
+    "lifecycle",
+    "persistence",
+    "statusFlags",
+    "finalHashesSealed",
+    "provisional"
+  ],
+  "title": "Illuminated-sign playbooks and structured report facts",
+  "type": "object"
+}

@@ -291,6 +291,55 @@ enum ShippingIlluminatedSignAdapterV1 {
         )
     }
 
+    static func playbookRegistry(
+        release: InspectionPackageReleaseV1,
+        draftCodec: DraftPayloadCodecReleaseV1,
+        source: SignPack = .illuminatedSignV1
+    ) throws -> IlluminatedSignPlaybookRegistryV1 {
+        try release.validate(); try draftCodec.validate()
+        guard release.state == .published,
+              SignPackLoader.valid(source), source.packID == packageID else {
+            throw IlluminatedSignPlaybookFailureV1.releaseMismatch
+        }
+        let expectedPackage = try inspectionPackage(from: source)
+        let releasedPackage = try InspectionPackageCanonicalCodecV2.decode(release.canonicalPackageBytes)
+        guard releasedPackage == expectedPackage,
+              release.packageID == source.packID,
+              release.packageContentVersion == source.contentVersion else {
+            throw IlluminatedSignPlaybookFailureV1.releaseMismatch
+        }
+        let sourceSHA256 = digest(try canonicalSignPack(source))
+        let requirements = try IlluminatedSignCaptureSlotIDV1.canonicalOrder.map {
+            try IlluminatedSignCaptureRequirementV1(
+                slotID: $0, purposeKey: $0.rawValue, required: $0 != .workContext
+            )
+        }
+        let manifests = try IlluminatedSignPlaybookIDV1.canonicalOrder.map {
+            try IlluminatedSignPlaybookManifestV1(
+                playbookID: $0, release: release, sourcePackSHA256: sourceSHA256,
+                captureRequirements: requirements
+            )
+        }
+        let issuePairs = source.issueLabels.map { ($0.key, $0.display) }
+        guard Set(issuePairs.map(\.0)).count == issuePairs.count else {
+            throw IlluminatedSignPlaybookFailureV1.registryMismatch
+        }
+        var visibleDisplays = Dictionary(uniqueKeysWithValues: issuePairs)
+        visibleDisplays[IlluminatedSignPlaybookIDV1.generalVisibleCondition.rawValue] = "General visible condition"
+        let cnvPairs = source.couldNotVerifyReasons.entries.map { ($0.key, $0.display) }
+        guard Set(cnvPairs.map(\.0)).count == cnvPairs.count else {
+            throw IlluminatedSignPlaybookFailureV1.registryMismatch
+        }
+        return try IlluminatedSignPlaybookRegistryV1(
+            release: release, sourcePackSHA256: sourceSHA256, draftCodec: draftCodec,
+            manifests: manifests, evidencePurposeKeys: source.evidencePurposes.map(\.key),
+            visibleConditionDisplays: visibleDisplays,
+            disclaimer: source.disclaimer,
+            couldNotVerifyRegistryVersion: source.couldNotVerifyReasons.version,
+            couldNotVerifyReasons: Dictionary(uniqueKeysWithValues: cnvPairs)
+        )
+    }
+
     private static func entries(
         _ values: [SignPack.RegistryEntry]
     ) -> [InspectionPackageDisplayEntryV2] {

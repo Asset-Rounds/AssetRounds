@@ -3514,6 +3514,48 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+// MARK: - C03 illuminated-sign playbook catalog
+
+extension BundledLocalizationCatalogV1 {
+    static func illuminatedSignPlaybookEnglish(
+        _ key: IlluminatedSignPlaybookLocalizationKeyV1
+    ) -> String {
+        IlluminatedSignPlaybookLocalizationPolicyV1.english(key)
+    }
+
+    static func illuminatedSignPlaybookLocalized(
+        _ key: IlluminatedSignPlaybookLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: illuminatedSignPlaybookEnglish(key),
+            bundle: bundle,
+            locale: locale,
+            comment: "C03 illuminated-sign playbook presentation; visible-condition-only facts, required capture traceability, and no certification claim."
+        )
+    }
+
+    static func illuminatedSignPlaybookRegistry() throws -> LocalizationKeyRegistryV1 {
+        try IlluminatedSignPlaybookLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = IlluminatedSignPlaybookLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C03 illuminated-sign playbook presentation; visible-condition-only facts, required capture traceability, and no certification claim.",
+                englishDefaultValue: illuminatedSignPlaybookEnglish(key),
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 extension BundledLocalizationCatalogV1 {
     static func operationalContactEnglish(
         _ key: OperationalContactLocalizationKeyV1

@@ -1,0 +1,581 @@
+{
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "df789ffe1c75442b1dcf64c2ce0deef143b1e78dd304d5fa09254f1c16b04bc7",
+  "authority": {
+    "appBaseHead": "2546d4af374a83b93a5e655445cc8d58e8921285",
+    "appBaseTree": "ee3935607a0f3b0f2a76518e4648a0955aa139cc",
+    "attemptID": 1,
+    "authorizedOverlapCount": 5906,
+    "candidateHead": "2546d4af374a83b93a5e655445cc8d58e8921285",
+    "candidateTree": "ee3935607a0f3b0f2a76518e4648a0955aa139cc",
+    "cardID": "V23-P04-C03",
+    "contextDigest": "ca36dbada09e3d994554ea651ad31d4fb08d3f2bdb49862ec2edc510bbefe7fd",
+    "coordinationCASSequence": 398,
+    "coordinationHead": "777c996bbb27064d0e9662a4860b6b22b9ae6d4a",
+    "coordinationLedgerDigest": "d674bb38fc5779cf71ee0c9ad192f51375bd779d0cf55364ddc778a0058ea913",
+    "coordinationOriginHead": "777c996bbb27064d0e9662a4860b6b22b9ae6d4a",
+    "coordinationProjectionDigest": "a1cbfe8a048b37f5f9e348c2a23b22cacb438ddb08f6bce70bf55d2e0be1b5fc",
+    "coordinationTree": "e981260ca4110eea9cb31a1b26bd2526cc2c531b",
+    "directPrerequisiteCards": [
+      "V23-P04-C02",
+      "V23-P03-C37"
+    ],
+    "dossierByteCount": 7223,
+    "dossierSHA256": "3e5a1662853a726a3ce8a9af4202b01db278d5543c0732aea82ccfcc672b2ecf",
+    "expectedExistingPathCount": 288,
+    "expectedFencePathCount": 303,
+    "expectedNewPathCount": 15,
+    "finalHashesSealed": true,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "d689fd1b4219b4a6a1d2c8be31e60a7aaa52141dc66c89aeadf6f291f40335f9",
+    "inheritedV21BlockByteCount": 8498,
+    "inheritedV21BlockSHA256": "e3e010efcb02ab5ef26b68069827369abecb05ad7243e8e050aa97f925e51c12",
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "pathFenceDigest": "700e01cf30f6e0d24e2e699beefbbd986932d08290d56456fb4a1495725bb59f",
+    "prerequisiteDigest": "36a4f58d89bbc30a04fd9007d77ed1eebfb6c0986eab503d9ca1bd0b6fc68857",
+    "priorFenceCount": 91,
+    "priorOwnedPathCount": 1443,
+    "registerOrdinal": 91,
+    "registerRowByteCount": 266,
+    "registerRowSHA256": "2b59a34dc9d3f55bf79760450a087920349fb6dc542b07d329fba0859c85e883",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "title": "Illuminated-sign playbooks and structured report facts",
+    "unauthorizedOverlapCount": 0
+  },
+  "captureSlots": [
+    "wide_context",
+    "close_detail",
+    "work_context"
+  ],
+  "cardID": "V23-P04-C03",
+  "cases": [
+    {
+      "evidenceID": "V23-P04-C03-G01",
+      "focus": [
+        "exact seven registry and source pack vocabulary",
+        "wide and close capture completeness",
+        "typed C37 pose with C36 checkpoint",
+        "structured visible-condition report fact"
+      ],
+      "kind": "GOLDEN",
+      "selectorSuffix": "G01"
+    },
+    {
+      "evidenceID": "V23-P04-C03-A01",
+      "focus": [
+        "could-not-verify and safe authorized-position path",
+        "frozen display and deterministic registry digest",
+        "content-only nonpersistent sidecar"
+      ],
+      "kind": "ALTERNATE",
+      "selectorSuffix": "A01"
+    },
+    {
+      "evidenceID": "V23-P04-C03-H01",
+      "focus": [
+        "missing, duplicate, renamed, or eighth playbook rejected",
+        "unsafe diagnosis, electrical, safety, or certification claims rejected",
+        "forged pack, pose, frame, source, checkpoint, and evidence bindings rejected",
+        "optional decision gate cannot enter the shipping registry"
+      ],
+      "kind": "HOSTILE",
+      "selectorSuffix": "H01"
+    },
+    {
+      "evidenceID": "V23-P04-C03-I01",
+      "focus": [
+        "kill or cancel at every C36 checkpoint boundary",
+        "relaunch exposes no partial accepted state",
+        "deterministic replay or visible recovery-required state"
+      ],
+      "kind": "INTERRUPTION",
+      "selectorSuffix": "I01"
+    },
+    {
+      "evidenceID": "V23-P04-C03-R01",
+      "focus": [
+        "remove affected playbook version while retaining kernel and prior content",
+        "backup/restore/delete/Erase/report/search and journal closure",
+        "reconcile exact source, receipts, projections, and evidence hashes"
+      ],
+      "kind": "RECOVERY",
+      "selectorSuffix": "R01"
+    }
+  ],
+  "checkpointBinding": "C36_UNIVERSAL_CHECKPOINT_KILL_RESUME",
+  "comparisonIsProof": false,
+  "diagnosisClaimed": false,
+  "eighthPlaybookForbidden": true,
+  "electricalCertification": false,
+  "evidenceIDs": [
+    "V23-P04-C03-G01",
+    "V23-P04-C03-A01",
+    "V23-P04-C03-H01",
+    "V23-P04-C03-I01",
+    "V23-P04-C03-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "lifecycle": {
+    "backupRestoreDeleteErase": "NOT_APPLICABLE_DERIVED_FROM_DURABLE_AUTHORITIES",
+    "certificationAuthority": false,
+    "evidence": "INCUMBENT_C05_EVIDENCE_METADATA_AUTHORITY",
+    "networkDependency": false,
+    "persistence": "NONPERSISTENT_DIGEST_BOUND_SIDECAR",
+    "schema": "NOT_APPLICABLE",
+    "store": "NOT_APPLICABLE",
+    "writer": "INCUMBENT_FIELD_DRAFT_AND_POSE_AUTHORITIES"
+  },
+  "lifecycleCoverage": [
+    "SCHEMA_VERSION",
+    "WRITER_QUERY",
+    "MIGRATION",
+    "BACKUP_REPLACE_RESTORE",
+    "CLONE_FORK",
+    "IMPORT_EXPORT",
+    "JOURNAL_REPLAY",
+    "SEARCH_REBUILD",
+    "REPORT_PROJECTION",
+    "DELETE_ERASE",
+    "RETENTION",
+    "COMPATIBILITY",
+    "DOWNGRADE_FORWARD_FIX",
+    "INTERRUPTION",
+    "IDEMPOTENT_RECEIPTS"
+  ],
+  "nativeCompileRan": false,
+  "nonCertificationDisclaimerRequired": true,
+  "persistence": {
+    "backupRestoreDeleteErase": "DERIVED_FROM_DURABLE_AUTHORITIES",
+    "contentMode": "CONTENT_ONLY",
+    "durableFamilyDelta": false,
+    "incumbentEvidenceAuthority": "V23-P03-C05",
+    "incumbentFieldDraftAuthority": "FieldDraftCheckpointV1",
+    "incumbentPoseAuthority": "V23-P03-C37",
+    "journalReplay": "C36_CHECKPOINT_AND_C05_ASSOCIATION_REPLAY",
+    "mode": "NONE_NONPERSISTENT_SIDECAR",
+    "persistentStoreWriter": "NONE_CARD_LOCAL",
+    "plansAndProjections": "NONPERSISTENT",
+    "recordsSchemaVersionDelta": false,
+    "schemaVersionDelta": false,
+    "searchRebuild": "NO_NEW_INDEX_DERIVED_ONLY"
+  },
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "playbookCount": 7,
+  "playbookIDs": [
+    "general_visible_condition",
+    "dark_section",
+    "dim_or_uneven",
+    "flicker_or_intermittent",
+    "color_mismatch",
+    "physical_damage",
+    "other_visible_condition"
+  ],
+  "providerArtifacts": [
+    {
+      "allFilesPresent": true,
+      "candidateHead": "2546d4af374a83b93a5e655445cc8d58e8921285",
+      "candidateTree": "ee3935607a0f3b0f2a76518e4648a0955aa139cc",
+      "capability": "C05_EVIDENCE_ASSOCIATION_AND_SEQUENCE_INPUT",
+      "checkpointDigest": "5921ccecd027c0f2cdfb6279f16817b683062b00a07d8bda97597a0a9c933253",
+      "contextDigest": "69b4a6c0aa7c6a30431d28dddc4542d4178bed5f5ba2a5fc36b8925fb7f14f89",
+      "contracts": [
+        "EvidenceSequenceV1",
+        "EvidenceSequenceItemV1",
+        "EvidenceAssociationV1",
+        "EvidenceMetadataMutationReceiptV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 41489,
+          "path": "FieldEvidenceApp/Domain/Evidence/EvidenceCurationContractsV1.swift",
+          "sha256": "5d4393ec07583985004b31404de189e8a8a701178143a794c58f28ea51d38559",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 45395,
+          "path": "FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift",
+          "sha256": "6b8cf8322d6214c2ecad2a35a18125e7302b6d1a1d0f56492281691243506ea0",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 69656,
+          "path": "Scripts/v23/p04_c02_contracts.py",
+          "sha256": "f520e497b199613aa3b3ba6b94d0219f1edf2923d35ed9607f732fbb156bce25",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 5862,
+          "path": "Scripts/v23/evidence-curation.schema.json",
+          "sha256": "6608fcf33cfef91d1127090729e64c3a2079adf2b4c39b075ef4b75e507ac95c",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 36801,
+          "path": "docs/design/v23/tooling/V23P04C02EvidenceCurationContractV1.json",
+          "sha256": "f77aef5e3bf78de5128d41c279bfbf2d4d9d24bd33980cb693618dd25bf2010d",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 35023,
+          "path": "docs/design/v23/tooling/V23P04C02EvidenceCurationEvidenceReceiptV1.json",
+          "sha256": "80b95da665551f396e10f645d5e8c5a3c15ce2bf7b2e31127a56e3822886fece",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 130916,
+          "path": "docs/design/v23/tooling/V23-P04-C02-tooling-manifest.json",
+          "sha256": "85d20bdd3170f39283f7b86abb76fc42b20e9e1574df1f5093737fa76f0ee856",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "d978809591e63a7e74235a7e1029d546286aadc0bccdeed8bfb4ce2bb38d5768",
+      "paths": [
+        "FieldEvidenceApp/Domain/Evidence/EvidenceCurationContractsV1.swift",
+        "FieldEvidenceApp/Domain/Evidence/EvidenceAssociationContractsV1.swift",
+        "Scripts/v23/p04_c02_contracts.py",
+        "Scripts/v23/evidence-curation.schema.json",
+        "docs/design/v23/tooling/V23P04C02EvidenceCurationContractV1.json",
+        "docs/design/v23/tooling/V23P04C02EvidenceCurationEvidenceReceiptV1.json",
+        "docs/design/v23/tooling/V23-P04-C02-tooling-manifest.json"
+      ],
+      "providerCardID": "V23-P04-C02",
+      "required": true,
+      "verificationReceiptDigest": "81fb14bc312d1b3c2ddc8f066b54cec3827e93ab19b7923f3a92c6094c489de9"
+    },
+    {
+      "allFilesPresent": true,
+      "candidateHead": "08841c808ab5fe263b41db530e4e733f8126adb4",
+      "candidateTree": "19b59129672300d130b96b7115c9fce1aef1a8e5",
+      "capability": "POSE_AXIS_AND_TYPED_EVENT_INPUT",
+      "checkpointDigest": "0ab302395a9d3a951ecf5df17c5de641cb69c8926a441b531c3da0e5e106a7d1",
+      "contextDigest": "cacb2aeb4e857ef445a4432ed71c33b499e92de72d9bcf6cbc638a95f27d75bc",
+      "contracts": [
+        "PoseAxisDescriptorV1",
+        "AssetPoseEventV1",
+        "PlacementPoseAdmissionClosureV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 63484,
+          "path": "FieldEvidenceApp/Domain/Pose/PlacementPoseContractsV1.swift",
+          "sha256": "3646286965e096fcc1e7707e1dbe6dfa296207f1fef19ee7753d9fb1c6622807",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 7048,
+          "path": "FieldEvidenceApp/Domain/Models/PlacementPosePersistenceModelsV1.swift",
+          "sha256": "964d622d1a56977d1863a84b3899ee6ecd560b1499314187e3295abf61d6a562",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 20486,
+          "path": "Scripts/v23/p03_c37_contracts.py",
+          "sha256": "1ffdc8e745db74ba4115e4754e1ab85ab31028e07b81767bf8bdb863787f42ea",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2418,
+          "path": "Scripts/v23/placement-pose.schema.json",
+          "sha256": "e513bbdee1ef7da901e25ce3aa27b8602a690e775b1d818f7dd164865d6350d6",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 5305,
+          "path": "docs/design/v23/tooling/V23P03C37PlacementPoseContractV1.json",
+          "sha256": "8f97eb428dbf0de3ef90979baaaf3ef0759b07368e7ddd390854bce18c05d02b",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1204,
+          "path": "docs/design/v23/tooling/V23P03C37PlacementPoseEvidenceReceiptV1.json",
+          "sha256": "51c5333aefb72a24b6098a558c063c6da11b44679fd998710deb0db479613bb3",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 56517,
+          "path": "docs/design/v23/tooling/V23-P03-C37-tooling-manifest.json",
+          "sha256": "8fdfa329c9888e9eb0b582ff13af9ccaa9b53ab8e909107326206ad30780014d",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "59b198fde5e300119e100f68870480334b704adc64e303de40db3b23979a4e59",
+      "paths": [
+        "FieldEvidenceApp/Domain/Pose/PlacementPoseContractsV1.swift",
+        "FieldEvidenceApp/Domain/Models/PlacementPosePersistenceModelsV1.swift",
+        "Scripts/v23/p03_c37_contracts.py",
+        "Scripts/v23/placement-pose.schema.json",
+        "docs/design/v23/tooling/V23P03C37PlacementPoseContractV1.json",
+        "docs/design/v23/tooling/V23P03C37PlacementPoseEvidenceReceiptV1.json",
+        "docs/design/v23/tooling/V23-P03-C37-tooling-manifest.json"
+      ],
+      "providerCardID": "V23-P03-C37",
+      "required": true,
+      "verificationReceiptDigest": "e95d1bbdbdfe66466ec3f3a19780d3671db4162ae9e48eda5ba350f2b12c630b"
+    },
+    {
+      "allFilesPresent": true,
+      "candidateHead": null,
+      "candidateTree": null,
+      "capability": "UNIVERSAL_CHECKPOINT_AND_DRAFT_RECOVERY_INPUT",
+      "checkpointDigest": null,
+      "contextDigest": null,
+      "contracts": [
+        "FieldDraftCheckpointV1",
+        "DraftCommitSagaRecoveryV1",
+        "FieldDraftLifecycleAdapterV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 71662,
+          "path": "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+          "sha256": "84bf6f25ba7a549d73dee864cb465daf0813572fdd76d49b0cd51391f1d74f58",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 15175,
+          "path": "FieldEvidenceApp/Domain/Models/FieldDraftPersistenceModelsV1.swift",
+          "sha256": "2403c8bd186a2ba804806402809b4d3f0d2037a1b7bc8270a6d0a5a66b508627",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 26699,
+          "path": "FieldEvidenceApp/Application/Drafts/FieldDraftCoordinatorV1.swift",
+          "sha256": "47075c3dd1f26588cf7ba4b3a179f7a98fd073ec929d796420eea270c84659f6",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 12042,
+          "path": "FieldEvidenceApp/Infrastructure/Drafts/FieldDraftLifecycleAdapterV1.swift",
+          "sha256": "d654dcb1a6f7cd2643e3394017f1c4e1e602d7c2e4512f669a370a6d57298ce2",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": null,
+      "paths": [
+        "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+        "FieldEvidenceApp/Domain/Models/FieldDraftPersistenceModelsV1.swift",
+        "FieldEvidenceApp/Application/Drafts/FieldDraftCoordinatorV1.swift",
+        "FieldEvidenceApp/Infrastructure/Drafts/FieldDraftLifecycleAdapterV1.swift"
+      ],
+      "providerCardID": "V23-P03-C36",
+      "required": true,
+      "verificationReceiptDigest": null
+    }
+  ],
+  "provisional": false,
+  "releaseCredit": false,
+  "safetyCertification": false,
+  "schema": "V23P04C03IlluminatedSignPlaybookEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1",
+      "P04ShippingSurfaceSetV1",
+      "P04BrandClosureSetV1"
+    ],
+    "canonicalSuccessor": {
+      "cardID": "V23-P04-C04",
+      "registerOrdinal": 92
+    },
+    "conformanceSubjects": [
+      "P04ShippingSurfaceSetV1",
+      "CommonTaskJourneyReleaseV2"
+    ],
+    "deterministicEvidenceIDs": [
+      "V23-P04-C03-G01",
+      "V23-P04-C03-A01",
+      "V23-P04-C03-H01",
+      "V23-P04-C03-I01",
+      "V23-P04-C03-R01"
+    ],
+    "dossierByteCount": 7223,
+    "dossierSHA256": "3e5a1662853a726a3ce8a9af4202b01db278d5543c0732aea82ccfcc672b2ecf",
+    "eighthPlaybookForbidden": true,
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/Packs/IlluminatedSignPlaybookContractsV1.swift",
+      "FieldEvidenceApp/Application/Packs/IlluminatedSignPlaybookCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Reporting/IlluminatedSignReportProjectionV1.swift",
+      "FieldEvidenceApp/Features/CheckRunner/IlluminatedSignPlaybookView.swift",
+      "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C03IlluminatedSignPlaybookUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/IlluminatedSignPlaybook/V22P04C03IlluminatedSignPlaybookCorpusV1.json"
+    ],
+    "inheritedV21BlockByteCount": 8498,
+    "inheritedV21BlockSHA256": "e3e010efcb02ab5ef26b68069827369abecb05ad7243e8e050aa97f925e51c12",
+    "invalidationConsumers": [
+      "V23-P04-C04",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lifecycle": {
+      "backupRestoreDeleteErase": "NOT_APPLICABLE_DERIVED_FROM_DURABLE_AUTHORITIES",
+      "certificationAuthority": false,
+      "evidence": "INCUMBENT_C05_EVIDENCE_METADATA_AUTHORITY",
+      "networkDependency": false,
+      "persistence": "NONPERSISTENT_DIGEST_BOUND_SIDECAR",
+      "schema": "NOT_APPLICABLE",
+      "store": "NOT_APPLICABLE",
+      "writer": "INCUMBENT_FIELD_DRAFT_AND_POSE_AUTHORITIES"
+    },
+    "missingPaths": [],
+    "persistence": {
+      "backupRestoreDeleteErase": "DERIVED_FROM_DURABLE_AUTHORITIES",
+      "contentMode": "CONTENT_ONLY",
+      "durableFamilyDelta": false,
+      "incumbentEvidenceAuthority": "V23-P03-C05",
+      "incumbentFieldDraftAuthority": "FieldDraftCheckpointV1",
+      "incumbentPoseAuthority": "V23-P03-C37",
+      "journalReplay": "C36_CHECKPOINT_AND_C05_ASSOCIATION_REPLAY",
+      "mode": "NONE_NONPERSISTENT_SIDECAR",
+      "persistentStoreWriter": "NONE_CARD_LOCAL",
+      "plansAndProjections": "NONPERSISTENT",
+      "recordsSchemaVersionDelta": false,
+      "schemaVersionDelta": false,
+      "searchRebuild": "NO_NEW_INDEX_DERIVED_ONLY"
+    },
+    "playbookIDs": [
+      "general_visible_condition",
+      "dark_section",
+      "dim_or_uneven",
+      "flicker_or_intermittent",
+      "color_mismatch",
+      "physical_damage",
+      "other_visible_condition"
+    ],
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/Packs/IlluminatedSignPlaybookContractsV1.swift",
+      "FieldEvidenceApp/Application/Packs/IlluminatedSignPlaybookCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Reporting/IlluminatedSignReportProjectionV1.swift",
+      "FieldEvidenceApp/Features/CheckRunner/IlluminatedSignPlaybookView.swift",
+      "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C03IlluminatedSignPlaybookUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/IlluminatedSignPlaybook/V22P04C03IlluminatedSignPlaybookCorpusV1.json"
+    ],
+    "providerContractSlices": [
+      {
+        "contracts": [
+          "EvidenceSequenceV1",
+          "EvidenceSequenceItemV1",
+          "EvidenceAssociationV1",
+          "EvidenceMetadataMutationReceiptV1"
+        ],
+        "facet": "C05_EVIDENCE_ASSOCIATION_AND_SEQUENCE_INPUT",
+        "pathFenceDigest": "d978809591e63a7e74235a7e1029d546286aadc0bccdeed8bfb4ce2bb38d5768",
+        "providerCardID": "V23-P04-C02"
+      },
+      {
+        "contracts": [
+          "PoseAxisDescriptorV1",
+          "AssetPoseEventV1",
+          "PlacementPoseAdmissionClosureV1"
+        ],
+        "facet": "POSE_AXIS_AND_TYPED_EVENT_INPUT",
+        "pathFenceDigest": "59b198fde5e300119e100f68870480334b704adc64e303de40db3b23979a4e59",
+        "providerCardID": "V23-P03-C37"
+      },
+      {
+        "contracts": [
+          "FieldDraftCheckpointV1",
+          "DraftCommitSagaRecoveryV1",
+          "FieldDraftLifecycleAdapterV1"
+        ],
+        "facet": "UNIVERSAL_CHECKPOINT_AND_DRAFT_RECOVERY_INPUT",
+        "pathFenceDigest": null,
+        "providerCardID": "V23-P03-C36"
+      }
+    ],
+    "registerRowByteCount": 266,
+    "registerRowSHA256": "2b59a34dc9d3f55bf79760450a087920349fb6dc542b07d329fba0859c85e883",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "selectors": [
+      "testV23P04C03G01ExactSevenPlaybookManifestAndCaptureMatrix",
+      "testV23P04C03A01StructuredReportFactTraceabilityAndPoseBinding",
+      "testV23P04C03H01ClaimsSafeAdmissionRejectsUnsafeAndUndeclaredContent",
+      "testV23P04C03I01InterruptedCaptureCheckpointAndReplayAreZeroOrComplete",
+      "testV23P04C03R01PlaybookRemovalPreservesKernelAndHistoricTruth"
+    ],
+    "sourceRows": [
+      {
+        "byteCount": 44763,
+        "path": "FieldEvidenceApp/Domain/Packs/IlluminatedSignPlaybookContractsV1.swift",
+        "sha256": "ceb3f172d1f07e5c29ceb496859cfafaeb25951b21a58b7c237e40661002f3d8",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 18387,
+        "path": "FieldEvidenceApp/Application/Packs/IlluminatedSignPlaybookCoordinatorV1.swift",
+        "sha256": "b87ca3772a9e7146cc5b73fc52ff5d446b63d5096454f96be2f222e600d659cf",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 23554,
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/IlluminatedSignReportProjectionV1.swift",
+        "sha256": "46cf96bad59952147a5b7f913aa7d6476f0458255909c8f5054658a5bb44e52e",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 16614,
+        "path": "FieldEvidenceApp/Features/CheckRunner/IlluminatedSignPlaybookView.swift",
+        "sha256": "9a39e9ac8d108a783b1dd52ac68261346da8e32b26fbb1dc2a3fd48c239fe4d7",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 53912,
+        "path": "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests.swift",
+        "sha256": "4d59bd8f38301f27186ad71425f4a8eff20fc43e636826828f41d0fb2cd11552",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 2819,
+        "path": "FieldEvidenceAppUITests/V23_P04_C03IlluminatedSignPlaybookUITests.swift",
+        "sha256": "be332d258e25c7e34dd45e678a610c35a157a3d8a38377567540ab2342c7b1b8",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 4633,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/IlluminatedSignPlaybook/V22P04C03IlluminatedSignPlaybookCorpusV1.json",
+        "sha256": "c72a291a50050054678ffe0575141f65ca6777ca99727e34e5932bedefbc55bd",
+        "status": "SEALED_SOURCE"
+      }
+    ],
+    "sourceSemanticsInspected": true
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C03G01ExactSevenPlaybookManifestAndCaptureMatrix",
+    "testV23P04C03A01StructuredReportFactTraceabilityAndPoseBinding",
+    "testV23P04C03H01ClaimsSafeAdmissionRejectsUnsafeAndUndeclaredContent",
+    "testV23P04C03I01InterruptedCaptureCheckpointAndReplayAreZeroOrComplete",
+    "testV23P04C03R01PlaybookRemovalPreservesKernelAndHistoricTruth"
+  ],
+  "title": "Illuminated-sign playbooks and structured report facts",
+  "typedPoseBinding": "C37_SHARED_POSE_EDITOR_AXIS_FRAME_SOURCE_UNCERTAINTY_NOT_OBSERVED",
+  "uiAdoptionSkipped": true,
+  "visibleConditionClaim": "VISIBLE_CONDITIONS_ONLY"
+}

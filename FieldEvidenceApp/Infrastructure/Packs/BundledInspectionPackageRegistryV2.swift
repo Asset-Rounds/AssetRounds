@@ -175,6 +175,19 @@ enum BundledInspectionPackageRegistryV2 {
         )
     }
 
+    static func shippingIlluminatedSignPlaybookRegistry(
+        release: InspectionPackageReleaseV1,
+        draftCodec: DraftPayloadCodecReleaseV1,
+        bundle: Bundle = .main
+    ) throws -> IlluminatedSignPlaybookRegistryV1 {
+        guard case let .available(signPack) = SignPackLoader.loadBundled(bundle: bundle) else {
+            throw InspectionPackageFailureV2.bundledPackageUnavailable
+        }
+        return try ShippingIlluminatedSignAdapterV1.playbookRegistry(
+            release: release, draftCodec: draftCodec, source: signPack
+        )
+    }
+
     static func load(bundle: Bundle = .main) -> BundledInspectionPackageRegistryLoadResultV2 {
         guard case let .available(signPack) = SignPackLoader.loadBundled(bundle: bundle) else {
             return .unavailable(.bundledPackageUnavailable)
