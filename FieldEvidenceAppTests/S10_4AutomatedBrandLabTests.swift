@@ -3779,8 +3779,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 8_555,
-             "35A73B39ABAE220A24DC508F87878E0DF187D1BE0826D3F965AB84B4C2234B25"),
+            (workValidationGateSource, 5_731,
+             "60BC41ECFB8C0A45C43EC6F288893E6974143CFA50E7D447526857B4899AFBEC"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -19964,10 +19964,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 733_410)
+        XCTAssertEqual(uiSource.utf8.count, 730_586)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "CB569798D90A45823999776A0199E5BA383A0B0280C9507AE4FC81775619ECA8"
+            "EE2ED28981DE938B86E68A8F1E9EC4DE21E991BE2245F0A5C44C1B09D57DFBE7"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
