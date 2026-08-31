@@ -4414,6 +4414,98 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "postDescriptionValue == preDescriptionValue"
             )
         )
+        let workValidationContrastDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func diagnoseAXTextWorkValidationNativeContrast(",
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func captureBaseline("
+        )
+        XCTAssertEqual(workValidationContrastDiagnosticSource.utf8.count, 10_003)
+        XCTAssertEqual(
+            Data(workValidationContrastDiagnosticSource.utf8).sha256,
+            "A33A0EAC1F734A591375D47182F0637E834EA1F2C7045765B1DA6ABC786208F0"
+        )
+        for diagnosticLock in [
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting",
+            "optionalPhotoStaticTexts",
+            "optionalPhotoButtons",
+            "importFixtureButtons",
+            "scrollViews",
+            "navigationBars",
+            "tabBars",
+            "auditTypeRawValue",
+            "compactDescription",
+            "detailedDescription",
+            "elementIdentifier",
+            "elementLabel",
+            "elementValue",
+            "elementTypeRawValue",
+            "elementTypeDescription",
+            "elementFrame",
+            "applicationFrame",
+            "observedIssueCount",
+            "auditedElementCount",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "return true",
+        ] {
+            XCTAssertTrue(
+                workValidationContrastDiagnosticSource.contains(diagnosticLock),
+                diagnosticLock
+            )
+        }
+        XCTAssertEqual(
+            workValidationContrastDiagnosticSource.components(
+                separatedBy: "XCTAttachment("
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            workValidationContrastDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        for prohibitedDiagnosticToken in [
+            ".tap()", "press(", "swipe", "scroll(", "waitForExistence",
+            "sleep(", "captureBaseline(", "S10_4_AX_STATE",
+            "S10_4_CONTRAST\"", "S10_4_CANDIDATE",
+        ] {
+            XCTAssertFalse(
+                workValidationContrastDiagnosticSource.contains(
+                    prohibitedDiagnosticToken
+                ),
+                prohibitedDiagnosticToken
+            )
+        }
+        let workValidationDiagnosticCall =
+            "            if shard.shardID == \"s10.4.current.ax-text\",\n" +
+                "               automationSegment == .segment2,\n" +
+                "               stateID == \"state.work.validation-error\" {\n" +
+                "                try diagnoseAXTextWorkValidationNativeContrast(in: app)\n" +
+                "            }"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: workValidationDiagnosticCall).count - 1,
+            1
+        )
+        let workValidationDiagnosticCallRange = try XCTUnwrap(
+            uiSource.range(of: workValidationDiagnosticCall)
+        )
+        let normalContrastAuthorityRange = try XCTUnwrap(
+            uiSource.range(
+                of: "            let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {",
+                range: workValidationDiagnosticCallRange.upperBound..<uiSource.endIndex
+            )
+        )
+        XCTAssertLessThan(
+            workValidationDiagnosticCallRange.lowerBound,
+            normalContrastAuthorityRange.lowerBound
+        )
         let doneTapRange = try XCTUnwrap(
             workValidationRouteSource.range(of: "            globalDoneButton.tap()")
         )
@@ -4442,16 +4534,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "positionWorkValidationShortDescriptionForAXText",
             "diagnoseFullRouteAXTextWorkValidationNativeContrast",
             "S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
             "S10.4 AX-text work-validation keyboard Done precondition app",
             "S10.4 AX-text work-validation keyboard Done precondition tree",
             "S10.4 AX-text work-validation keyboard Done precondition context",
             "S10.4 AX-text work-validation keyboard Done post-state app",
             "S10.4 AX-text work-validation keyboard Done post-state tree",
             "S10.4 AX-text work-validation keyboard Done post-state context",
-            "S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting",
         ] {
             XCTAssertEqual(
                 uiSource.components(separatedBy: retiredWorkValidationForm).count - 1,
@@ -19964,10 +20052,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 730_586)
+        XCTAssertEqual(uiSource.utf8.count, 740_839)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "EE2ED28981DE938B86E68A8F1E9EC4DE21E991BE2245F0A5C44C1B09D57DFBE7"
+            "53EA72163E9B2E0D18EC78EF13065992187BFA4DC60C04A95B870EDC3825EC68"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
