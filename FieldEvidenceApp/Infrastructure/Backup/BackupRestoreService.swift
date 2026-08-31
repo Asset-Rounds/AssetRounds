@@ -2733,6 +2733,7 @@ private extension BackupRestoreService {
         // deliberately decided by the later C10 materialization branch.
         normalized.evidenceQuality = records.evidenceQuality
         normalized.fastSurveyInbox = records.fastSurveyInbox
+        normalized.reinspectionExceptionQueue = records.reinspectionExceptionQueue
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2760,6 +2761,7 @@ private extension BackupRestoreService {
         )
         reset.evidenceQuality = records.evidenceQuality
         reset.fastSurveyInbox = records.fastSurveyInbox
+        reset.reinspectionExceptionQueue = records.reinspectionExceptionQueue
         return reset
     }
 
@@ -8685,7 +8687,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion
-                || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
+                || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -8717,7 +8720,8 @@ private extension BackupRestoreService {
              (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion, let ledger?, _),
-             (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
+             (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
+             (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -9873,6 +9877,39 @@ private extension BackupRestoreService {
                 ).replaceRestore(fastSurveyInbox)
             } catch let error as BackupRestoreServiceError { throw error }
             catch { throw BackupRestoreServiceError.invalidPackage }
+        }
+        if let reinspectionExceptionQueue = records.reinspectionExceptionQueue {
+            do {
+                try ReinspectionExceptionQueueBackupEnrollmentV1.validate(reinspectionExceptionQueue)
+                if let identityDecision {
+                    switch identityDecision.mode {
+                    case .clone, .fork:
+                        guard reinspectionExceptionQueue.plans.isEmpty,
+                              reinspectionExceptionQueue.attestations.isEmpty,
+                              reinspectionExceptionQueue.acknowledgements.isEmpty,
+                              reinspectionExceptionQueue.receipts.isEmpty,
+                              reinspectionExceptionQueue.effectProvenance.isEmpty else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                    case .emptyInstall, .replaceExisting:
+                        break
+                    }
+                }
+                let workspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                guard reinspectionExceptionQueue.plans.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      reinspectionExceptionQueue.attestations.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      reinspectionExceptionQueue.acknowledgements.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      reinspectionExceptionQueue.receipts.allSatisfy({ $0.workspaceID.rawValue == workspaceID }) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                try ReinspectionExceptionQueueLifecycleAdapterV1(
+                    modelContext: context, workspaceID: WorkspaceID(rawValue: workspaceID)
+                ).replaceRestore(reinspectionExceptionQueue)
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
+        } else if records.recordsSchemaVersion >= ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion {
+            throw BackupRestoreServiceError.invalidPackage
         }
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
             do {

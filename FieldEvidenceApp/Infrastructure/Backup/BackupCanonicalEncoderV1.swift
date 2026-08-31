@@ -274,6 +274,13 @@ struct BackupCanonicalEncoderV1: Sendable {
             fields["bulkSessions"] = .array(try records.bulkSessions.map(Self.importBulkCanonicalValue))
             fields["bulkCommitReceipts"] = .array(try records.bulkCommitReceipts.map(Self.importBulkCanonicalValue))
         }
+        if records.recordsSchemaVersion >= ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion {
+            try ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)
+            guard let snapshot = records.reinspectionExceptionQueue else {
+                throw BackupCanonicalEncodingErrorV1.invalidRecords
+            }
+            fields["reinspectionExceptionQueue"] = try Self.reinspectionExceptionQueueSnapshot(snapshot)
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -376,6 +383,15 @@ private extension BackupCanonicalEncoderV1 {
         return try canonicalPartsStockJSON(object)
     }
 
+    static func reinspectionExceptionQueueSnapshot(
+        _ value: ReinspectionExceptionQueueBackupSnapshotV1
+    ) throws -> CanonicalJSONValueV1 {
+        try value.validate()
+        let data = try WorkspaceMutationCanonicalV1.data(value)
+        let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        return try canonicalPartsStockJSON(object)
+    }
+
     static func canonicalPartsStockJSON(_ value: Any) throws -> CanonicalJSONValueV1 {
         if value is NSNull { return .null }
         if let value = value as? [String: Any] {
@@ -401,7 +417,7 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (4...ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {
@@ -442,6 +458,7 @@ private extension BackupCanonicalEncoderV1 {
             && validC49WorkResources(records)
             && validC04ShopReportProfiles(records)
             && validC05RoundSessions(records)
+            && (try? ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)) != nil
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -477,7 +494,7 @@ private extension BackupCanonicalEncoderV1 {
              (13, let ledger?, let history?), (14, let ledger?, let history?),
              (15, let ledger?, let history?), (16, let ledger?, let history?),
              (17, let ledger?, let history?), (18, let ledger?, let history?), (19, let ledger?, let history?),
-             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?), (36, let ledger?, let history?), (37, let ledger?, let history?), (38, let ledger?, let history?), (39, let ledger?, let history?), (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
+             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?), (36, let ledger?, let history?), (37, let ledger?, let history?), (38, let ledger?, let history?), (39, let ledger?, let history?), (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
             ledgerIsValid = (try? ledger.validate()) != nil
                 && (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
                 && validMutationHistoryOrder(history)
@@ -521,6 +538,7 @@ private extension BackupCanonicalEncoderV1 {
              && (try? C52ServiceRequestBackupDecodingBoundaryV1.validate(records)) != nil
              && validC53ServiceReliability(records)
              && validC55PartsStock(records)
+             && (try? ReinspectionExceptionQueueBackupEnrollmentV1.validate(records)) != nil
             && sortedUniqueIDs(records.assets.map(\.id))
             && records.assets.allSatisfy({ $0.schemaVersion == 1 })
             && sortedUniqueIDs(records.evidenceFiles.map(\.id))
@@ -1205,7 +1223,7 @@ private extension BackupCanonicalEncoderV1 {
                 && records.serviceReliabilityReceipts.isEmpty
         }
         guard (C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion...
-                C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
+                ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
             .contains(records.recordsSchemaVersion) else {
             return false
         }
@@ -2204,9 +2222,9 @@ enum C52ServiceRequestBackupEncodingBoundaryV1 {
 }
 
 enum C53ServiceReliabilityBackupEncodingBoundaryV1 {
-    /// The encoder accepts the current C55 envelope while C53's own rows
-    /// remain introduced at schema 39.
-    static let recordsSchemaVersion = C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+    /// C53 rows remain canonical in the active C12 envelope; this upper
+    /// boundary advances with the current records schema, not their origin.
+    static let recordsSchemaVersion = ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion
     static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
     static let durableFamilyCount = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies.count
     static let canonicalOrdering = ["kind", "workspaceID", "lineageID", "revision", "eventID"]

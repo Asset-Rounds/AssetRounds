@@ -864,7 +864,8 @@ private extension BackupExportService {
                 myDayCarryoverReceipts: records.myDayCarryoverReceipts,
                 nonactivePlanReferences: records.nonactivePlanReferences,
                 evidenceAssociationEvents: records.evidenceAssociationEvents,
-                evidenceSequenceRevisions: records.evidenceSequenceRevisions
+                evidenceSequenceRevisions: records.evidenceSequenceRevisions,
+                reinspectionExceptionQueue: records.reinspectionExceptionQueue
             )
             semanticRecordsData = try BackupCanonicalEncoderV1()
                 .encodeSemanticRecords(semanticRecords).data
@@ -2598,6 +2599,33 @@ private extension BackupExportService {
                              receipts: snapshot.receipts,
                              effectProvenance: itemProvenance + promotionProvenance + snippetProvenance + insertionProvenance)
         }()
+        let reinspectionExceptionQueue: ReinspectionExceptionQueueBackupSnapshotV1? = try {
+            guard mutationHistory != nil else { return nil }
+            let source = ReinspectionExceptionQueueLifecycleAdapterV1(
+                modelContext: modelContext, workspaceID: sourceIdentity.workspaceID
+            )
+            let planProvenance = try modelContext.fetch(FetchDescriptor<ReinspectionPlanRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try ReinspectionExceptionBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let attestationProvenance = try modelContext.fetch(FetchDescriptor<UnchangedAttestationRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try ReinspectionExceptionBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let acknowledgementProvenance = try modelContext.fetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try ReinspectionExceptionBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            return try source.backupSnapshot(
+                effectProvenance: planProvenance + attestationProvenance + acknowledgementProvenance
+            )
+        }()
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2667,7 +2695,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : FastSurveyInboxBackupEnrollmentV1.recordsSchemaVersion,
+                : ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2728,7 +2756,8 @@ private extension BackupExportService {
              bulkSessions: bulkSessions,
              bulkCommitReceipts: bulkCommitReceipts,
              evidenceQuality: evidenceQuality,
-             fastSurveyInbox: fastSurveyInbox
+             fastSurveyInbox: fastSurveyInbox,
+             reinspectionExceptionQueue: reinspectionExceptionQueue
          )
     }
 

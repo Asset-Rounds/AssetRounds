@@ -38,6 +38,14 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
     func persistedRoundSessionEffectMatches(_ mutation: RoundSessionMutationV1) throws -> Bool
     func roundSessionHistory(workspaceID: WorkspaceID, sessionID: UUID) throws -> [RoundSessionV1]
     func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1?
+    func validateReinspectionExceptionCommand(
+        _ command: ReinspectionExceptionMutationCommandV1,
+        currentRevision: WorkspaceRevisionV1
+    ) throws
+    func reinspectionExceptionQuery(
+        _ request: ReinspectionExceptionQueryV1,
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1]
+    ) throws -> ReinspectionExceptionQueryResultV1
     func persistAppliedActivityContractEffect(
         _ mutation: ActivityContractMutationV2
     ) throws
@@ -92,6 +100,11 @@ extension WorkspaceWriterAdapterPortV1 {
     func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1? {
         throw WorkspaceMutationFailureV1.unsupportedCommand
     }
+    func validateReinspectionExceptionCommand(
+        _ command: ReinspectionExceptionMutationCommandV1,
+        currentRevision: WorkspaceRevisionV1
+    ) throws { throw WorkspaceMutationFailureV1.unsupportedCommand }
+    func reinspectionExceptionQuery(_ request: ReinspectionExceptionQueryV1, providers: [any ExceptionQueueCanonicalSourceProvidingV1]) throws -> ReinspectionExceptionQueryResultV1 { throw WorkspaceMutationFailureV1.unsupportedCommand }
 
     func persistedActivityContractEffectMatches(
         _ mutation: ActivityContractMutationV2
@@ -543,6 +556,53 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return try journalStore.fastSurveyInboxReceipt(command)
     }
 
+    /// C12 uses the incumbent writer/journal transaction for canonical plan,
+    /// attestation, and acknowledgement history only. The exception queue is
+    /// a query-time projection and is never accepted as a mutation effect.
+    func commitReinspectionException(
+        _ command: ReinspectionExceptionMutationCommandV1
+    ) throws -> ReinspectionExceptionMutationReceiptV1 {
+        try command.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let receipt = try journalStore.reinspectionExceptionReceipt(command) { return receipt }
+        let current = try currentRevision()
+        try adapter.validateReinspectionExceptionCommand(command, currentRevision: current)
+        _ = try execute(.init(
+            mutationID: command.mutationID,
+            expectedRevision: command.expectedRevision,
+            command: .applyReinspectionException(command)
+        ))
+        guard let receipt = try journalStore.reinspectionExceptionReceipt(command) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try receipt.validate(command: command)
+        return receipt
+    }
+
+    func reinspectionExceptionReceipt(
+        for command: ReinspectionExceptionMutationCommandV1
+    ) throws -> ReinspectionExceptionMutationReceiptV1? {
+        try command.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.reinspectionExceptionReceipt(command)
+    }
+
+    func reinspectionExceptionQuery(
+        _ request: ReinspectionExceptionQueryV1,
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1]
+    ) throws -> ReinspectionExceptionQueryResultV1 {
+        try request.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard request.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        // The adapter owns both incumbent canonical resolvers and returns only
+        // a result already validated with `validateResolved(for:...)`.
+        return try adapter.reinspectionExceptionQuery(request, providers: providers)
+    }
+
     func evidenceMetadataReceipt(
         for mutation: EvidenceMetadataMutationV1
     ) throws -> EvidenceMetadataMutationReceiptV1? {
@@ -970,6 +1030,18 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 }
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
               catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyReinspectionException(let value):
+            do {
+                try value.validate()
+                let targets = try value.affectedIdentitiesForCanonicalWriter()
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      value.expectedRevision == request.expectedRevision,
+                      Set(request.expectedRevision.entityRevisions.map(\.identity)).isSuperset(of: targets) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+              catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -1265,6 +1337,11 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision ?? 0
             entityRevisions[target] = expected + 1
         } else if case let .applyFastSurveyInbox(mutation) = request.command {
+            for target in try mutation.affectedIdentitiesForCanonicalWriter() {
+                let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision ?? 0
+                entityRevisions[target] = expected + 1
+            }
+        } else if case let .applyReinspectionException(mutation) = request.command {
             for target in try mutation.affectedIdentitiesForCanonicalWriter() {
                 let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision ?? 0
                 entityRevisions[target] = expected + 1
@@ -1795,6 +1872,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate(); values = [try value.affectedIdentityForCanonicalWriter()]
         case let .applyFastSurveyInbox(value):
             try value.validate(); values = try value.affectedIdentitiesForCanonicalWriter()
+        case let .applyReinspectionException(value):
+            try value.validate(); values = try value.affectedIdentitiesForCanonicalWriter()
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1863,6 +1942,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyImportBulk(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyEvidenceQuality(value)=command{try value.validate();return[try value.affectedIdentityForCanonicalWriter()]}
         if case let .applyFastSurveyInbox(value)=command{try value.validate();return try value.affectedIdentitiesForCanonicalWriter()}
+        if case let .applyReinspectionException(value)=command{try value.validate();return try value.affectedIdentitiesForCanonicalWriter()}
         return try targetIdentities(for: command)
     }
 

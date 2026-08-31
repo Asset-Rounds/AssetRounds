@@ -384,6 +384,19 @@ enum KernelMutationReceiptRegistryV4 {
             throw WorkspaceMutationFailureV1.invalidReceipt
         }
     }
+    static func validateReinspectionException(
+        command: ReinspectionExceptionMutationCommandV1,
+        receipt: ReinspectionExceptionMutationReceiptV1
+    ) throws {
+        try command.validate()
+        try receipt.validate(command: command)
+        let targets = try command.affectedIdentitiesForCanonicalWriter()
+        guard targets.count == 1,
+              receipt.recoveryState == .receiptCommitted,
+              receipt.semanticSHA256s == command.payload.semanticSHA256s.sorted() else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+    }
     static func validateShopReportProfile(
         mutation: ShopReportProfileMutationV1,
         receipt: MutationReceiptV1
@@ -472,7 +485,8 @@ enum KernelMutationReceiptRegistryV4 {
         guard C50IncumbentFileExchangeKernelMutationReceiptBoundaryV1.validate(),
               C04ShopReportProfileKernelMutationReceiptBoundaryV1.validate(),
               C05RoundSessionKernelMutationReceiptBoundaryV1.validate(),
-              C11FastSurveyInboxKernelMutationReceiptBoundaryV1.validate() else {
+              C11FastSurveyInboxKernelMutationReceiptBoundaryV1.validate(),
+              C12ReinspectionExceptionKernelMutationReceiptBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
         try validate(registrations)
@@ -558,6 +572,20 @@ enum C11FastSurveyInboxKernelMutationReceiptBoundaryV1 {
             && durableReceiptRequired
             && effectBeforeReceiptRecovery
             && maximumPostimageCount == 2
+    }
+}
+
+enum C12ReinspectionExceptionKernelMutationReceiptBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyReinspectionException
+    static let durableReceiptRequired = true
+    static let effectBeforeReceiptRecovery = true
+    static let postimageCount = 1
+
+    static func validate() -> Bool {
+        commandKind == .applyReinspectionException
+            && durableReceiptRequired
+            && effectBeforeReceiptRecovery
+            && postimageCount == 1
     }
 }
 

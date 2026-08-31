@@ -714,6 +714,7 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
         try LightingJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try EvidenceQualityJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try FastSurveyInboxJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
+        try ReinspectionExceptionJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         let receiptIdentities = try receipt.postImages.map { try $0.identity }
         let locationIdentities = try envelope.command.canonicalLocationAffectedIdentities()
         guard schemaVersion == Self.schemaVersion, envelope.workspaceID == receipt.identity.workspaceID, envelope.replicaID == receipt.identity.replicaID, envelope.mutationID == receipt.mutationID, receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
@@ -884,6 +885,36 @@ enum FastSurveyInboxJournalContractV1 {
                 throw ChangeJournalFailureV1.tamperedBatch
             }
         }
+    }
+}
+
+enum ReinspectionExceptionJournalContractV1 {
+    static func validate(
+        envelope: MutationEnvelopeV1,
+        receipt: MutationReceiptV1,
+        entityChanges: [EntityChangeV1]
+    ) throws {
+        guard case let .applyReinspectionException(command) = envelope.command else { return }
+        try command.validate()
+        let targets = try command.affectedIdentitiesForCanonicalWriter()
+        let expectedPairs = command.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) }
+        guard Set(expectedPairs.map(\.0)).count == expectedPairs.count else { throw ChangeJournalFailureV1.tamperedBatch }
+        let expected = Dictionary(uniqueKeysWithValues: expectedPairs)
+        let receiptIdentities = try receipt.postImages.map { try $0.identity }
+        guard envelope.commandKind == .applyReinspectionException,
+              envelope.mutationID == command.mutationID,
+              receipt.mutationID == command.mutationID,
+              receipt.postImages.count == 1,
+              entityChanges.count == 1,
+              receiptIdentities == targets,
+              entityChanges.map(\.identity) == targets,
+              entityChanges.map(\.postImage) == receipt.postImages,
+              receipt.postImages.map(\.semanticSHA256).sorted() == command.payload.semanticSHA256s.sorted() else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
+        guard let identity = receiptIdentities.first,
+              let prior = expected[identity],
+              receipt.postImages[0].revision == prior + 1 else { throw ChangeJournalFailureV1.tamperedBatch }
     }
 }
 

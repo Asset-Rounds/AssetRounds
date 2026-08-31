@@ -170,6 +170,9 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case capturePromotion
     case snippet
     case snippetInsertion
+    case reinspectionPlan
+    case unchangedAttestation
+    case exceptionQueueAcknowledgement
 }
 
 struct WorkspaceEntityIdentityV1: Codable, Hashable, Sendable {
@@ -2641,6 +2644,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyImportBulk(ImportBulkWorkspaceMutationV1)
     case applyEvidenceQuality(EvidenceQualityMutationCommandV1)
     case applyFastSurveyInbox(FastSurveyInboxMutationCommandV1)
+    case applyReinspectionException(ReinspectionExceptionMutationCommandV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2700,6 +2704,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyImportBulk: .applyImportBulk
         case .applyEvidenceQuality: .applyEvidenceQuality
         case .applyFastSurveyInbox: .applyFastSurveyInbox
+        case .applyReinspectionException: .applyReinspectionException
         }
     }
 }
@@ -2761,6 +2766,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyImportBulk="apply_import_bulk_v1"
     case applyEvidenceQuality="apply_evidence_quality_v1"
     case applyFastSurveyInbox="apply_fast_survey_inbox_v1"
+    case applyReinspectionException="apply_reinspection_exception_v1"
 }
 
 extension EvidenceQualityMutationCommandV1 {
@@ -2804,6 +2810,35 @@ extension FastSurveyInboxMutationCommandV1 {
             throw WorkspaceMutationFailureV1.invalidCommand
         }
         return ordered
+    }
+}
+
+extension ReinspectionExceptionMutationCommandV1 {
+    /// C12 persists only plans, attestations, and acknowledgement history.
+    /// Queue items are rebuilt from canonical sources and have no identity here.
+    func affectedIdentitiesForCanonicalWriter() throws -> [WorkspaceEntityIdentityV1] {
+        try validate()
+        let value: WorkspaceEntityIdentityV1
+        switch payload {
+        case let .putPlan(plan, _):
+            value = try .init(kind: .reinspectionPlan, id: plan.planID)
+        case let .recordAttestation(attestation, _):
+            value = try .init(kind: .unchangedAttestation, id: attestation.attestationID)
+        case let .recordAcknowledgement(acknowledgement, _, _):
+            value = try .init(
+                kind: .exceptionQueueAcknowledgement,
+                id: Self.acknowledgementIdentity(acknowledgement.logicalExceptionKey)
+            )
+        }
+        return [value]
+    }
+
+    static func acknowledgementIdentity(_ logicalExceptionKey: String) -> UUID {
+        let digest = Array(SHA256.hash(data: Data(logicalExceptionKey.utf8)))
+        return UUID(uuid: (
+            digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+            digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]
+        ))
     }
 }
 
@@ -3615,6 +3650,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyImportBulk,disposition:.compensatable,stableReason:"incumbent_import_bulk_append_or_replace_contract"),
         .init(commandKind:.applyEvidenceQuality,disposition:.irreversible,stableReason:"immutable_evidence_quality_assessment_and_waiver_history_forward_fix_only"),
         .init(commandKind:.applyFastSurveyInbox,disposition:.compensatable,stableReason:"append_inbox_promotion_and_snippet_successors_preserve_original_content_provenance"),
+        .init(commandKind:.applyReinspectionException,disposition:.irreversible,stableReason:"append_reinspection_plan_attestation_and_acknowledgement_history_preserves_canonical_source_truth"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

@@ -4904,7 +4904,27 @@
     "fast.inbox.snippet" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review editable snippets" } } } },
     "fast.inbox.preview_only" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Promotion and snippet insertion are previews until an explicit local action is recorded." } } } },
     "fast.inbox.no_acceptance" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This contained screen is not adopted and provides no acceptance credit." } } } },
-    "fast.inbox.reduced_motion" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced." } } } }
+    "fast.inbox.reduced_motion" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced." } } } },
+    "c12.reinspection.heading" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reinspection plan" } } } },
+    "c12.reinspection.disclosure" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Selection reasons are shown for review. Unchanged attestations are not fresh evidence." } } } },
+    "c12.reinspection.fresh" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Fresh evidence recorded" } } } },
+    "c12.reinspection.unchanged" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unchanged attestation; not new evidence" } } } },
+    "c12.state.empty" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No local items need review." } } } },
+    "c12.state.protected" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Protected local data is unavailable until the device is unlocked." } } } },
+    "c12.state.storage" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Local storage needs attention." } } } },
+    "c12.state.offline" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This local review is unavailable while offline." } } } },
+    "c12.state.interrupted" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review was interrupted; resume from the recorded local state." } } } },
+    "c12.state.error" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The local review could not be prepared." } } } },
+    "c12.queue.heading" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Exception review queue" } } } },
+    "c12.queue.disclosure" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledgement records review only. It does not resolve the source or make prior evidence new." } } } },
+    "c12.queue.severity" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Severity" } } } },
+    "c12.queue.deduplicated" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Related records" } } } },
+    "c12.queue.preview" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview local detail" } } } },
+    "c12.queue.acknowledge" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledge review" } } } },
+    "c12.queue.acknowledged" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledged; source remains unresolved" } } } },
+    "c12.queue.not_acknowledged" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not acknowledged" } } } },
+    "c12.queue.unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The local queue is unavailable." } } } },
+    "c12.reduced_motion" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced." } } } }
   },
   "version" : "1.0"
 }

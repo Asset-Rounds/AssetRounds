@@ -97,6 +97,27 @@ enum FastSurveyInboxKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum ReinspectionExceptionKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 49
+    static let durableFamilies = [
+        "ReinspectionPlanRowV1", "UnchangedAttestationRowV1",
+        "ExceptionQueueAcknowledgementRowV1", "ReinspectionExceptionMutationReceiptRowV1"
+    ]
+    static let queueItemsAreDerived = true
+    static let acknowledgementNeverResolvesSource = true
+    static let cloneForkRequireEmptySnapshot = true
+    static let resolverFreeReplaceRestoreUsesReceiptProvenance = true
+
+    static func validate() throws {
+        guard persistentSchemaVersion == ReinspectionAndExceptionSchemaV1.schemaVersion,
+              durableFamilies.count == ReinspectionAndExceptionSchemaV1.durableModelCount,
+              queueItemsAreDerived, acknowledgementNeverResolvesSource,
+              cloneForkRequireEmptySnapshot, resolverFreeReplaceRestoreUsesReceiptProvenance else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C05EvidenceMetadataKernelBackupRestoreEnrollmentV1 {
     static let persistentSchemaVersion = 43
     static let recordsSchemaVersion = 42

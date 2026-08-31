@@ -647,6 +647,7 @@ enum KernelDeletionEraseRegistryV4 {
         try C08ImportBulkKernelDeletionEraseEnrollmentV1.validate()
         try EvidenceQualityKernelDeletionEraseEnrollmentV1.validate()
         try FastSurveyInboxKernelDeletionEraseEnrollmentV1.validate()
+        try ReinspectionExceptionKernelDeletionEraseEnrollmentV1.validate()
         try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
@@ -973,6 +974,20 @@ enum FastSurveyInboxKernelDeletionEraseEnrollmentV1 {
     static func validate() throws {
         guard durableFamilies.count == FastSurveyInboxSchemaV1.durableModelCount,
               ordinaryDeletePreservesReviewableInbox, workspaceEraseClearsAllCanonicalFamilies else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+/// C12 acknowledgements are append-only history and never resolve their
+/// canonical source; ordinary sign deletion preserves them, Erase clears them.
+enum ReinspectionExceptionKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = ["ReinspectionPlanRowV1", "UnchangedAttestationRowV1", "ExceptionQueueAcknowledgementRowV1", "ReinspectionExceptionMutationReceiptRowV1"]
+    static let ordinaryDeletePreservesSourceTruth = true
+    static let acknowledgementNeverResolvesSource = true
+    static func validate() throws {
+        guard durableFamilies.count == ReinspectionAndExceptionSchemaV1.durableModelCount,
+              ordinaryDeletePreservesSourceTruth, acknowledgementNeverResolvesSource else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

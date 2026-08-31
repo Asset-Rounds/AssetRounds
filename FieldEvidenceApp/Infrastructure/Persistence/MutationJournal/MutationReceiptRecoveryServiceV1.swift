@@ -18,6 +18,7 @@ final class MutationReceiptRecoveryServiceV1 {
         try store.withAuthorizedRecovery {
             try store.validateAll()
             try validateFastSurveyInboxRecoveryParity()
+            try validateReinspectionExceptionRecoveryParity()
         }
     }
 
@@ -145,6 +146,16 @@ final class MutationReceiptRecoveryServiceV1 {
             )
         }
     }
+
+    func recoverReinspectionExceptionEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
+
+    private func validateReinspectionExceptionRecoveryParity() throws {
+        for pair in try store.reinspectionExceptionRecoveryPairs() {
+            try ReinspectionExceptionMutationReceiptRecoveryPolicyV1.validateRecovered(command: pair.command, receipt: pair.receipt)
+        }
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -211,6 +222,17 @@ enum FastSurveyInboxMutationReceiptRecoveryPolicyV1 {
               effectBeforeReceiptRecoveryRequiresExactRows,
               divergentSameMutationFailsClosed,
               !createsParallelWriter else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+    }
+}
+
+enum ReinspectionExceptionMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(command: ReinspectionExceptionMutationCommandV1, receipt: ReinspectionExceptionMutationReceiptV1) throws {
+        try command.validate()
+        try receipt.validate(command: command)
+        guard receipt.recoveryState == .receiptCommitted,
+              (try command.affectedIdentitiesForCanonicalWriter()).count == 1 else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
     }

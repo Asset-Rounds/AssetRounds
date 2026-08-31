@@ -60,6 +60,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyImportBulk,
             .applyEvidenceQuality,
             .applyFastSurveyInbox,
+            .applyReinspectionException,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -84,6 +85,10 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     /// reader. C11 receives no destination fixture or mutable destination
     /// store; this transaction verifies only the current canonical target.
     private let capturePromotionDestinationResolver: (any CapturePromotionDestinationResolvingV1)?
+    /// C12 source owners must provide exact canonical snapshots. The writer
+    /// deliberately has no fixture or guessed row mapping for these sources.
+    private let reinspectionCanonicalSourceResolver: (any ReinspectionCanonicalSourceResolvingV1)?
+    private let exceptionQueueCanonicalSourceResolver: (any ExceptionQueueCanonicalSourceResolvingV1)?
 
     init(
         modelContext: ModelContext,
@@ -93,12 +98,16 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 -> CompletedActivitySnapshotResolutionContextV2)? = nil,
         activityFindingEvidenceResolver:
             (([PunchFindingLinkV1]) throws -> [FindingLifecycleCanonicalEvidenceV1])? = nil,
-        capturePromotionDestinationResolver: (any CapturePromotionDestinationResolvingV1)? = nil
+        capturePromotionDestinationResolver: (any CapturePromotionDestinationResolvingV1)? = nil,
+        reinspectionCanonicalSourceResolver: (any ReinspectionCanonicalSourceResolvingV1)? = nil,
+        exceptionQueueCanonicalSourceResolver: (any ExceptionQueueCanonicalSourceResolvingV1)? = nil
     ) {
         self.modelContext = modelContext
         self.completedActivitySnapshotResolver = completedActivitySnapshotResolver
         self.activityFindingEvidenceResolver = activityFindingEvidenceResolver
         self.capturePromotionDestinationResolver = capturePromotionDestinationResolver
+        self.reinspectionCanonicalSourceResolver = reinspectionCanonicalSourceResolver
+        self.exceptionQueueCanonicalSourceResolver = exceptionQueueCanonicalSourceResolver
         if let assetSemanticLifecycleAdapter {
             self.assetSemanticLifecycleAdapter = assetSemanticLifecycleAdapter
         } else {
@@ -253,6 +262,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyEvidenceQuality(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
         case let .applyFastSurveyInbox(value):
             return try applyFastSurveyInbox(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
+        case let .applyReinspectionException(value):
+            return try applyReinspectionException(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -263,6 +274,103 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    func validateReinspectionExceptionCommand(
+        _ command: ReinspectionExceptionMutationCommandV1,
+        currentRevision: WorkspaceRevisionV1
+    ) throws {
+        guard let reinspectionCanonicalSourceResolver,
+              let exceptionQueueCanonicalSourceResolver else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        try command.validate(
+            currentRevision: currentRevision,
+            reinspectionResolver: reinspectionCanonicalSourceResolver,
+            exceptionResolver: exceptionQueueCanonicalSourceResolver
+        )
+    }
+
+    func reinspectionExceptionQuery(
+        _ request: ReinspectionExceptionQueryV1,
+        providers: [any ExceptionQueueCanonicalSourceProvidingV1]
+    ) throws -> ReinspectionExceptionQueryResultV1 {
+        try request.validate()
+        guard let reinspectionResolver = reinspectionCanonicalSourceResolver,
+              let exceptionResolver = exceptionQueueCanonicalSourceResolver else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let result: ReinspectionExceptionQueryResultV1
+        switch request.target {
+        case let .plan(planID):
+            let values = try modelContext.fetch(FetchDescriptor<ReinspectionPlanRowV1>()).map { try $0.value() }
+                .filter { $0.workspaceID == request.workspaceID && $0.planID == planID }
+                .sorted { $0.revision > $1.revision }
+            guard values.count <= ReinspectionExceptionLimitsV1.maximumQueryResults else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            if let value = values.first {
+                try value.validateResolved(by: reinspectionResolver)
+                result = .plan(value)
+            } else { result = .notFound(request) }
+        case let .attestation(attestationID):
+            let rows = try modelContext.fetch(FetchDescriptor<UnchangedAttestationRowV1>())
+            let values = try rows.map { try $0.value() }
+                .filter { $0.workspaceID == request.workspaceID && $0.attestationID == attestationID }
+            guard values.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            if let value = values.first {
+                let plans = try modelContext.fetch(FetchDescriptor<ReinspectionPlanRowV1>()).map { try $0.value() }
+                    .filter { $0.workspaceID == value.workspaceID && $0.planID == value.planID && $0.revision == value.planRevision && $0.planSHA256 == value.planSHA256 }
+                guard plans.count == 1, let plan = plans.first else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                try value.validateResolved(plan: plan, by: reinspectionResolver)
+                result = .attestation(value)
+            } else { result = .notFound(request) }
+        case let .acknowledgement(logicalExceptionKey):
+            let values = try modelContext.fetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>()).map { try $0.value() }
+                .filter { $0.workspaceID == request.workspaceID && $0.logicalExceptionKey == logicalExceptionKey }
+                .sorted { $0.revision > $1.revision }
+            guard values.count <= ReinspectionExceptionLimitsV1.maximumQueryResults else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            if let value = values.first {
+                let source = try exceptionResolver.resolveExceptionQueueSource(
+                    workspaceID: value.workspaceID, kind: value.sourceKind,
+                    sourceID: value.sourceID, revision: value.sourceRevision
+                )
+                try source.validateResolved(by: exceptionResolver)
+                try value.validateCurrentSource(source)
+                result = .acknowledgement(value)
+            } else { result = .notFound(request) }
+        case let .queue(filter):
+            let registered = providers.map(\.registeredSourceKind).sorted { $0.rawValue < $1.rawValue }
+            guard providers.count == ExceptionQueueSourceKindV1.allCases.count else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let registry = try ExceptionQueueSourceRegistryV1(registeredKinds: registered)
+            var sources: [ExceptionQueueSourceSnapshotV1] = []
+            for provider in providers {
+                let produced = try provider.unresolvedExceptionSources(workspaceID: request.workspaceID)
+                guard produced.count <= ReinspectionExceptionLimitsV1.maximumQueueItems,
+                      sources.count <= ReinspectionExceptionLimitsV1.maximumQueueItems - produced.count else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                try produced.forEach { try $0.validateResolved(by: exceptionResolver) }
+                guard produced.allSatisfy({ $0.workspaceID == request.workspaceID && $0.kind == provider.registeredSourceKind }) else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                sources += produced
+            }
+            let acknowledgements = try modelContext.fetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>()).map { try $0.value() }
+                .filter { $0.workspaceID == request.workspaceID }
+            let projection = try ExceptionQueueProjectionV1(
+                workspaceID: request.workspaceID, registry: registry, sources: sources,
+                acknowledgements: acknowledgements, resolver: exceptionResolver
+            )
+            let values = Array(projection.items.filter(filter.includes).prefix(request.maximumResults))
+            result = .queue(values)
+        }
+        try result.validateResolved(
+            for: request,
+            reinspectionResolver: reinspectionResolver,
+            exceptionResolver: exceptionResolver
+        )
+        return result
     }
 
     /// C10 persists only through this adapter's existing journal-owned model
@@ -479,6 +587,101 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             modelContext.insert(row)
         }
         modelContext.insert(try FastSurveyInboxMutationReceiptRowV1(receipt))
+        return try WorkspaceMutationEffectV1(affectedEntities: targets, temporaryRelativePath: temporaryRelativePath)
+    }
+
+    /// C12 stages one canonical history row and its typed receipt in the
+    /// incumbent journal transaction. Queue items remain a rebuilt projection;
+    /// acknowledgement history cannot change, hide, or resolve its source.
+    private func applyReinspectionException(
+        _ command: ReinspectionExceptionMutationCommandV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try command.validate()
+        let targets = try command.affectedIdentitiesForCanonicalWriter()
+        let (resultingRevision, overflow) = command.expectedRevision.workspaceRevision.addingReportingOverflow(1)
+        guard !overflow else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let receipt = try ReinspectionExceptionMutationReceiptV1(
+            receiptID: command.mutationID.rawValue,
+            command: command,
+            resultingWorkspaceRevision: resultingRevision,
+            recoveryState: .receiptCommitted,
+            committedAt: occurredAt
+        )
+        let receiptValues = try modelContext.fetch(FetchDescriptor<ReinspectionExceptionMutationReceiptRowV1>())
+            .map { try $0.value() }
+        var seenReceiptKeys = Set<String>()
+        for value in receiptValues {
+            let key = MutationWorkspaceKeyV1.value(workspaceID: value.workspaceID, mutationID: value.mutationID)
+            guard seenReceiptKeys.insert(key).inserted else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        }
+        if let prior = receiptValues.first(where: { $0.workspaceID == command.workspaceID && $0.mutationID == command.mutationID }) {
+            try prior.validate(command: command)
+            guard prior.recoveryState == .receiptCommitted else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return try WorkspaceMutationEffectV1(affectedEntities: targets, temporaryRelativePath: temporaryRelativePath)
+        }
+
+        let planRows = try modelContext.fetch(FetchDescriptor<ReinspectionPlanRowV1>())
+        let plans = try planRows.map { try $0.value() }
+        let attestationRows = try modelContext.fetch(FetchDescriptor<UnchangedAttestationRowV1>())
+        let attestations = try attestationRows.map { try $0.value() }
+        let acknowledgementRows = try modelContext.fetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>())
+        let acknowledgements = try acknowledgementRows.map { try $0.value() }
+        guard Set(plans.map(\.planEventID)).count == plans.count,
+              Set(attestations.map(\.attestationID)).count == attestations.count,
+              Set(acknowledgements.map(\.acknowledgementID)).count == acknowledgements.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+
+        switch command.payload {
+        case let .putPlan(value, predecessor):
+            guard !plans.contains(where: { $0.planEventID == value.planEventID }),
+                  !plans.contains(where: { $0.planID == value.planID && $0.revision == value.revision }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            if let predecessor {
+                guard plans.contains(predecessor) else { throw WorkspaceMutationFailureV1.invalidCommand }
+            }
+            guard let resolver = reinspectionCanonicalSourceResolver else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            for item in value.items { try item.prior.validateResolved(by: resolver); try item.current.validateResolved(by: resolver) }
+            let row = try ReinspectionPlanRowV1(value, predecessor: predecessor, resolver: resolver, command: command, resultingWorkspaceRevision: resultingRevision)
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        case let .recordAttestation(value, plan):
+            guard !attestations.contains(where: { $0.attestationID == value.attestationID }),
+                  plans.contains(plan),
+                  let resolver = reinspectionCanonicalSourceResolver else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            try value.prior.validateResolved(by: resolver)
+            try value.current.validateResolved(by: resolver)
+            let row = try UnchangedAttestationRowV1(value, plan: plan, resolver: resolver, command: command, resultingWorkspaceRevision: resultingRevision)
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        case let .recordAcknowledgement(value, source, predecessor):
+            guard !acknowledgements.contains(where: { $0.acknowledgementID == value.acknowledgementID }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            guard let resolver = exceptionQueueCanonicalSourceResolver else { throw WorkspaceMutationFailureV1.invalidCommand }
+            try source.validateResolved(by: resolver)
+            if let predecessor {
+                guard acknowledgements.contains(predecessor) else { throw WorkspaceMutationFailureV1.invalidCommand }
+            }
+            let row = try ExceptionQueueAcknowledgementRowV1(
+                value,
+                source: source,
+                predecessor: predecessor,
+                resolver: resolver,
+                command: command,
+                resultingWorkspaceRevision: resultingRevision
+            )
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        }
+        modelContext.insert(try ReinspectionExceptionMutationReceiptRowV1(receipt))
         return try WorkspaceMutationEffectV1(affectedEntities: targets, temporaryRelativePath: temporaryRelativePath)
     }
 

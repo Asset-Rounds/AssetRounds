@@ -256,6 +256,7 @@ struct BackupCanonicalDecoderV1: Sendable {
               try Self.validateC04ShopReportProfiles(value)
               try Self.validateC05RoundSessions(value)
               try Self.validateC08ImportBulk(value)
+              try Self.validateReinspectionExceptionQueue(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -350,6 +351,11 @@ private extension BackupCanonicalDecoderV1 {
                 guard try ImportBulkCanonicalCodecV1.decode(BulkCommitReceiptV1.self, from: ImportBulkCanonicalCodecV1.encode(value)) == value else { throw ImportBulkFailureV1.digestMismatch }
             }
         } catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+    }
+
+    static func validateReinspectionExceptionQueue(_ records: V4BackupRecordsV1) throws {
+        do { try ReinspectionExceptionQueueBackupEnrollmentV1.validate(records) }
+        catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
     }
 
     static func validateC49WorkResources(_ records: V4BackupRecordsV1) throws {
@@ -1361,7 +1367,8 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
                 || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion),
+                || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }

@@ -1,0 +1,46 @@
+{
+  "schema": "V23P04C12ReinspectionExceptionQueueCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C12",
+  "ordinal": 100,
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "selectors": [
+    { "id": "G01", "selector": "testV23P04C12G01ChangedOpenExpiredItemsRequireFreshEvidenceAndQueueClearsOnlyOnResolution", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "testV23P04C12A01UnchangedAttestationBindsExactPriorCurrentRevisionsAndPolicy", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "testV23P04C12H01ChangedIdentityMissingEvidenceStaleAttestationDuplicateAndForgedDismissalFailClosed", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "testV23P04C12I01InterruptedPlanQueueRebuildOrAttestationCommitPreservesCanonicalSources", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "testV23P04C12R01RestoredCanonicalSourcesRebuildExactQueueDecisionsReasonsAndUnresolvedCounts", "tier": "RECOVERY" }
+  ],
+  "queueReasons": ["CHANGED", "OPEN", "EXPIRED", "UNCERTAIN", "POLICY", "EVIDENCE", "FULL_REVIEW"],
+  "requirements": {
+    "freshEvidenceForChangedItems": true,
+    "queueClearsOnlyOnCanonicalSourceResolution": true,
+    "unchangedAttestationHasNoFreshObservationCredit": true,
+    "attestationBindsExactPriorCurrentRevisionAndPolicy": true,
+    "everyRegisteredCanonicalSourceParticipates": true,
+    "derivedQueueIsRebuildable": true,
+    "oneCanonicalWriter": true,
+    "noSecondStore": true
+  },
+  "hostileCases": ["CHANGED_IDENTITY", "MISSING_EVIDENCE", "STALE_ATTESTATION", "DUPLICATE", "FORGED_ACKNOWLEDGEMENT", "RELATED_WORK_REVERSED_PAIR"],
+  "journalFaultBoundaries": ["AFTER_EFFECT_BEFORE_RECEIPT", "AFTER_RECEIPT_BEFORE_SAVE", "AFTER_SAVE_BEFORE_RETURN"],
+  "lifecycleCoverage": ["MIGRATION", "BACKUP", "REPLACE_RESTORE", "DELETE", "ERASE", "EXPORT", "REPORT", "SEARCH", "REBUILD", "JOURNAL", "REPLAY"],
+  "invariantNotes": ["fresh observation is required where selected", "prior revision is bound exactly", "queue rebuild uses canonical sources", "forged dismissal fails closed", "no acceptance credit"],
+  "statusFlags": {
+    "activation": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "nativeAcceptance": false,
+    "hostedAcceptance": false,
+    "physicalEvidence": false,
+    "phase10PollingDuringParallelExecution": false,
+    "uiAcceptanceCredit": false
+  }
+}
