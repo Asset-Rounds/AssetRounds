@@ -12542,6 +12542,103 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
         }
 
+        let focusedPredicate = NSPredicate(format: "hasKeyboardFocus == true")
+        let preDescriptionFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.description"
+        )
+        let preFocusedDescriptionFields = preDescriptionFields.matching(
+            focusedPredicate
+        )
+        let preValidationLabels = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.validation"
+        )
+        let preKeyboards = app.keyboards
+        let preReturnButtons = preKeyboards.buttons.matching(
+            NSPredicate(
+                format: "identifier == %@ AND label == %@",
+                "Return",
+                "return"
+            )
+        )
+        guard preDescriptionFields.count == 1,
+              preFocusedDescriptionFields.count == 1,
+              preValidationLabels.count == 1,
+              preKeyboards.count == 1,
+              preReturnButtons.count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 AX-text work-validation native Return preconditions are invalid"
+            )
+        }
+        let preDescriptionField = preDescriptionFields.element(boundBy: 0)
+        let preValidationLabel = preValidationLabels.element(boundBy: 0)
+        let nativeReturnButton = preReturnButtons.element(boundBy: 0)
+        let preDescriptionValue = preDescriptionField.value as? String
+        let preValidationIdentifier = preValidationLabel.identifier
+        let preValidationLabelText = preValidationLabel.label
+        guard preDescriptionField.exists,
+              preDescriptionField.isEnabled,
+              preDescriptionField.isHittable,
+              preDescriptionValue == "Short description",
+              preValidationLabel.exists,
+              preValidationLabel.isEnabled,
+              preValidationIdentifier == "s5.1.work.validation",
+              preValidationLabelText == "Short description",
+              nativeReturnButton.exists,
+              nativeReturnButton.isEnabled,
+              nativeReturnButton.isHittable else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 AX-text work-validation native Return semantic preconditions are invalid"
+            )
+        }
+        nativeReturnButton.tap()
+
+        let postWorkScreens = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.screen"
+        )
+        let postDescriptionFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.description"
+        )
+        let postFocusedDescriptionFields = postDescriptionFields.matching(
+            focusedPredicate
+        )
+        let postValidationLabels = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.validation"
+        )
+        let postDescriptionValue: String? = postDescriptionFields.count == 1
+            ? postDescriptionFields.element(boundBy: 0).value as? String
+            : nil
+        let postValidationIdentifier: String? = postValidationLabels.count == 1
+            ? postValidationLabels.element(boundBy: 0).identifier
+            : nil
+        let postValidationLabelText: String? = postValidationLabels.count == 1
+            ? postValidationLabels.element(boundBy: 0).label
+            : nil
+        let postWorkScreenExists = postWorkScreens.count == 1
+            && postWorkScreens.element(boundBy: 0).exists
+        let postWorkScreenEnabled = postWorkScreens.count == 1
+            && postWorkScreens.element(boundBy: 0).isEnabled
+        let postWorkScreenHittable = postWorkScreens.count == 1
+            && postWorkScreens.element(boundBy: 0).isHittable
+        let postValidationExists = postValidationLabels.count == 1
+            && postValidationLabels.element(boundBy: 0).exists
+        let postValidationEnabled = postValidationLabels.count == 1
+            && postValidationLabels.element(boundBy: 0).isEnabled
+        let postReturnConditionsPass =
+            app.state == .runningForeground
+                && postWorkScreens.count == 1
+                && postWorkScreenExists
+                && postWorkScreenEnabled
+                && postWorkScreenHittable
+                && postDescriptionFields.count == 1
+                && postFocusedDescriptionFields.count == 0
+                && postValidationLabels.count == 1
+                && postValidationExists
+                && postValidationEnabled
+                && app.keyboards.count == 0
+                && postDescriptionValue == preDescriptionValue
+                && postValidationIdentifier == preValidationIdentifier
+                && postValidationLabelText == preValidationLabelText
+
         let dateLabelPredicate = NSPredicate(format: "label == %@", "Date")
         let shortDescriptionLabelPredicate = NSPredicate(
             format: "label == %@",
@@ -12690,6 +12787,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             "applicationForeground": app.state == .runningForeground,
             "applicationFrame": auditFrameObject(app.frame),
             "application": diagnosticElementObject(app),
+            "nativeReturn": [
+                "preDescriptionValue": preDescriptionValue ?? "",
+                "preValidationIdentifier": preValidationIdentifier,
+                "preValidationLabel": preValidationLabelText,
+                "postDescriptionValue": postDescriptionValue ?? "",
+                "postValidationIdentifier": postValidationIdentifier ?? "",
+                "postValidationLabel": postValidationLabelText ?? "",
+                "postWorkScreenCount": postWorkScreens.count,
+                "postWorkScreenExists": postWorkScreenExists,
+                "postWorkScreenEnabled": postWorkScreenEnabled,
+                "postWorkScreenHittable": postWorkScreenHittable,
+                "postDescriptionCount": postDescriptionFields.count,
+                "postFocusedDescriptionCount": postFocusedDescriptionFields.count,
+                "postValidationCount": postValidationLabels.count,
+                "postValidationExists": postValidationExists,
+                "postValidationEnabled": postValidationEnabled,
+                "postKeyboardCount": app.keyboards.count,
+                "postReturnConditionsPass": postReturnConditionsPass,
+            ],
             "queries": diagnosticQueryObjects,
         ]
         printJSONLine(
@@ -12700,12 +12816,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let appAttachment = XCTAttachment(screenshot: app.screenshot())
         appAttachment.name =
-            "S10.4 AX-text work-validation native contrast diagnostic app"
+            "S10.4 AX-text work-validation native Return post-state app"
         appAttachment.lifetime = .keepAlways
         add(appAttachment)
         let treeAttachment = XCTAttachment(string: app.debugDescription)
         treeAttachment.name =
-            "S10.4 AX-text work-validation native contrast diagnostic tree"
+            "S10.4 AX-text work-validation native Return post-state tree"
         treeAttachment.lifetime = .keepAlways
         add(treeAttachment)
         let contextData = try JSONSerialization.data(
@@ -12716,9 +12832,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             string: String(decoding: contextData, as: UTF8.self)
         )
         contextAttachment.name =
-            "S10.4 AX-text work-validation native contrast diagnostic context"
+            "S10.4 AX-text work-validation native Return post-state context"
         contextAttachment.lifetime = .keepAlways
         add(contextAttachment)
+        guard postReturnConditionsPass else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 AX-text work-validation native Return postconditions failed nonaccepting"
+            )
+        }
 
         var observedIssueCount = 0
         var auditedElementCount = 0

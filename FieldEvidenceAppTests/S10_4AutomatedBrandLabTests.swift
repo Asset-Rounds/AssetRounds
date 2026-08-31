@@ -5322,9 +5322,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-            "S10.4 AX-text work-validation native contrast diagnostic app",
-            "S10.4 AX-text work-validation native contrast diagnostic tree",
-            "S10.4 AX-text work-validation native contrast diagnostic context",
+            "S10.4 AX-text work-validation native Return post-state app",
+            "S10.4 AX-text work-validation native Return post-state tree",
+            "S10.4 AX-text work-validation native Return post-state context",
             "S10.4 AX-text work-validation native contrast diagnostic audited element",
         ] {
             XCTAssertEqual(
@@ -7794,7 +7794,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"shard.shardID == "s10.4.minimum.minimum-os""#,
             #"identifier: "s2.new-sign.screen""#,
             #"identifier: "s2.new-sign.sign-label""#,
-            #"NSPredicate(format: "label == %@", "Return")"#,
+            #"format: "identifier == %@ AND label == %@""#,
+            #""Return""#,
+            #""return""#,
             "minimum keyboard geometry app",
             "minimum keyboard geometry accessibility tree",
             "minimum keyboard geometry keyboard",
@@ -21054,10 +21056,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 798_938)
+        XCTAssertEqual(uiSource.utf8.count, 805_006)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "4A2A5D8D23376F9E31B3512E2E2D1BB25EA74F81B14E7C0A32EDEF2223D2D20D"
+            "65C8D42ACB79F39BC33F6E0CE891D31D2C06599CE8078D724EE97B4DF782EAE1"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -22460,10 +22462,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast("
         )
-        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 12_688)
+        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 18_756)
         XCTAssertEqual(
             Data(workValidationDiagnosticSource.utf8).sha256,
-            "E2A468E1B17101727BD532F51087CA3169C9FC08761368512C628537B9DA8DCC"
+            "494A667F2E5BBBF23A4E8DACD4D321AA8A2D9DC7AFBD34B340596132F5F8C00E"
         )
         for exact in [
             #"let stateID = "state.work.validation-error""#,
@@ -22487,6 +22489,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"automationContrastExceptions.keys.sorted()"#,
             #"!automatedSegmentFinished"#,
             #"app.state == .runningForeground"#,
+            #"let focusedPredicate = NSPredicate(format: "hasKeyboardFocus == true")"#,
+            #"identifier: "s5.1.work.description""#,
+            #"identifier: "s5.1.work.validation""#,
+            #"format: "identifier == %@ AND label == %@""#,
+            #""Return""#,
+            #""return""#,
+            #"preFocusedDescriptionFields.count == 1"#,
+            #"preKeyboards.count == 1"#,
+            #"preReturnButtons.count == 1"#,
+            #"preDescriptionValue == "Short description""#,
+            #"preValidationIdentifier == "s5.1.work.validation""#,
+            #"preValidationLabelText == "Short description""#,
+            #"nativeReturnButton.isHittable"#,
+            #"nativeReturnButton.tap()"#,
+            #"identifier: "s5.1.work.screen""#,
+            #"postWorkScreens.count == 1"#,
+            #"postWorkScreenExists"#,
+            #"postWorkScreenEnabled"#,
+            #"postWorkScreenHittable"#,
+            #"postFocusedDescriptionFields.count == 0"#,
+            #"postValidationExists"#,
+            #"postValidationEnabled"#,
+            #"app.keyboards.count == 0"#,
+            #"postDescriptionValue == preDescriptionValue"#,
+            #"postValidationIdentifier == preValidationIdentifier"#,
+            #"postValidationLabelText == preValidationLabelText"#,
+            #""postReturnConditionsPass": postReturnConditionsPass"#,
             #""stateOrdinal": 23"#,
             #""predecessorStateID": "state.sign-detail.open-issue""#,
             #""predecessorOrdinal": 22"#,
@@ -22524,6 +22553,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"try app.performAccessibilityAudit(for: .contrast)"#,
             #"screenshot: auditedElement.screenshot()"#,
             #"return true"#,
+            #"S10.4 AX-text work-validation native Return postconditions failed nonaccepting"#,
             #"S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting"#,
         ] {
             XCTAssertTrue(workValidationDiagnosticSource.contains(exact), exact)
@@ -22564,6 +22594,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             workValidationDiagnosticSource.components(
+                separatedBy: "nativeReturnButton.tap()"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationDiagnosticSource.components(
                 separatedBy: ".lifetime = .keepAlways"
             ).count - 1,
             4
@@ -22575,11 +22611,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         var workValidationDiagnosticTail =
             workValidationDiagnosticSource[workValidationDiagnosticSource.startIndex...]
         for orderedToken in [
+            "nativeReturnButton.tap()",
+            "let postReturnConditionsPass =",
             "let diagnosticContext: [String: Any] = [",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
             "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
             "let treeAttachment = XCTAttachment(string: app.debugDescription)",
             "let contextAttachment = XCTAttachment(",
+            "guard postReturnConditionsPass else {",
+            "S10.4 AX-text work-validation native Return postconditions failed nonaccepting",
             "try app.performAccessibilityAudit(for: .contrast)",
             "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
             "screenshot: auditedElement.screenshot()",
@@ -22595,7 +22635,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         for prohibited in [
             "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
-            "S10_4_CONTRAST\"", "S10_4_CANDIDATE", ".tap()", ".typeText(",
+            "S10_4_CONTRAST\"", "S10_4_CANDIDATE", ".typeText(",
             "setToggle(", "navigateBack(", "waitForExistence(", ".swipe",
             ".press(", "sleep(", "NotificationCenter", "migratedStateIDs.append",
             "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
