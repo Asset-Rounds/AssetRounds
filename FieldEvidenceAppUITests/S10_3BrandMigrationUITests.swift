@@ -9802,7 +9802,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var correctionDirection: CGFloat?
         var previousResidualMagnitude: CGFloat?
         var usesProvenAXTextZeroIssueComposition = false
-        for _ in 0..<2 {
+        for _ in 0..<4 {
             let minimumShift = navigationBar.frame.maxY
                 + topClearance
                 - diagnosticsAuthority.frame.minY

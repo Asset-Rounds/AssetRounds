@@ -12335,7 +12335,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let diagnosticsTwoAttemptLoop =
-            "        for _ in 0..<2 {\n" +
+            "        for _ in 0..<4 {\n" +
                 "            let minimumShift = navigationBar.frame.maxY\n" +
                 "                + topClearance\n" +
                 "                - diagnosticsAuthority.frame.minY\n" +
@@ -12625,7 +12625,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         for (fragment, expectedCount) in [
-            ("for _ in 0..<2 {", 1),
+            ("for _ in 0..<4 {", 1),
             ("diagnosticsScrollView.coordinate(", 1),
             ("dragStart.press(", 1),
             ("forDuration: 0.2", 1),
@@ -12701,7 +12701,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "if dragDistance != 0 {",
             "guard maximumShift <= -minimumGestureDistance else {",
             "guard minimumShift >= minimumGestureDistance else {",
-            "for _ in 0..<4 {",
+            "for _ in 0..<5 {",
             "for _ in 0..<6 {",
             "upwardUndertravel",
             "downwardUndertravel",
@@ -12783,7 +12783,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(diagnosticsPositioningSource.utf8.count, 10_361)
         XCTAssertEqual(
             Data(diagnosticsPositioningSource.utf8).sha256,
-            "390E910476202D32D755CBC98D9C05EA99F39692B5670771B8DFD19D8DD4F288"
+            "85AAE84493648E0DB5D7725EC161C5CB5898DD0347D95551204E0BA0F51CBF93"
         )
         let removedDifferentiateDiagnosticsFragments = [
             "diagnoseDifferentiateWithoutColorDiagnosticsPositioning",
@@ -21031,10 +21031,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 796_605)
+        XCTAssertEqual(uiSource.utf8.count, 785_980)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "A1B1CA5F5E65C69EF22897147F49354D2EEB3E47CE0399AE6A4BA80D31FC2F1A"
+            "F641401C91F4F31B52774848CF39CFDB6955091CEC5ED2BDBB362C84CE2ED681"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
