@@ -7641,10 +7641,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workEditingPositioningSource.utf8.count, 19_823)
+        XCTAssertEqual(workEditingPositioningSource.utf8.count, 20_264)
         XCTAssertEqual(
             Data(workEditingPositioningSource.utf8).sha256,
-            "37C042B0B3BA97FD04E5262EA6E0DD0171D06454FB0A46021A02107E2EBC8C4A"
+            "4B77CDC970234A0856FEF0D1FD10A4198BF300A372C4B0628B5EB8F018E96886"
         )
         let workEditingRouteBeforeEvidence =
             #"        let workPreview = element("s5.1.work.photo", in: app)"# + "\n" +
@@ -7814,8 +7814,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"            NSPredicate(format: "identifier == %@", "s5.1.work.photo")"# + "\n" +
                 "        )\n" +
                 "        let workEditingTabBars = app.tabBars\n" +
-                "        let workPreviewImage = workPreviewImages.firstMatch\n" +
-                "        let workEditingTabBar = workEditingTabBars.firstMatch"
+                "        let workPreviewImage = workPreviewImages.firstMatch"
         XCTAssertEqual(
             workEditingPositioningSource.components(
                 separatedBy: workEditingPassiveAXBindings
@@ -7828,12 +7827,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("workPreviewImages.count == 1", 1),
             ("workScrollViews.count == 1", 5),
             ("workNavigationBars.count == 1", 5),
-            ("workEditingTabBars.count == 1", 1),
+            ("workEditingTabBars.count == 0", 1),
             ("workHelper.exists", 6),
             ("workPreviewImage.exists", 1),
             ("workScrollView.exists", 4),
             ("workNavigationBar.exists", 4),
-            ("workEditingTabBar.exists", 1),
+            ("workEditingTabBar.exists", 0),
             ("workPreview.exists", 2),
             ("app.state == .runningForeground", 3),
             ("workHelper.elementType == .staticText", 1),
@@ -7852,10 +7851,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("workNavigationBar.identifier == observedRecordWorkTitle", 1),
             (#"workNavigationBar.label == """#, 1),
             (#"(workNavigationBar.value as? String) == """#, 1),
-            ("workEditingTabBar.elementType == .tabBar", 1),
-            (#"workEditingTabBar.identifier == """#, 1),
-            (#"workEditingTabBar.label == "Tab Bar""#, 1),
-            (#"(workEditingTabBar.value as? String) == """#, 1),
+            ("workEditingTabBar.elementType == .tabBar", 0),
+            (#"workEditingTabBar.identifier == """#, 0),
+            (#"workEditingTabBar.label == "Tab Bar""#, 0),
+            (#"(workEditingTabBar.value as? String) == """#, 0),
         ] {
             XCTAssertEqual(
                 workEditingPositioningSource.components(
@@ -7897,7 +7896,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "            let initialApplicationFrame = app.frame\n" +
                 "            let initialNavigationFrame = workNavigationBar.frame\n" +
                 "            let initialScrollRawFrame = workScrollView.frame\n" +
-                "            let initialTabFrame = workEditingTabBar.frame\n" +
                 "            let initialHelperFrame = workHelper.frame\n" +
                 "            let initialPreviewFrame = workPreviewImage.frame"
         let workEditingInitialScrollAndSafeTop =
@@ -7908,19 +7906,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    let initialSafeTop = max(\n" +
                 "                        initialScrollFrame.minY,\n" +
                 "                        initialNavigationFrame.maxY\n" +
-                "                    ) + verticalInset"
+                "                    ) + verticalInset\n" +
+                "                    let initialSafeBottom =\n" +
+                "                        initialScrollFrame.maxY - verticalInset"
         let workEditingInitialDisjointProof =
             "                    let requiredHelperDownwardMovement =\n" +
                 "                        initialSafeTop - initialHelperFrame.minY\n" +
-                "                    let previewRoomToTabTop =\n" +
-                "                        initialTabFrame.minY - initialPreviewFrame.minY\n" +
+                "                    let requiredPreviewBelowViewportMovement =\n" +
+                "                        initialScrollFrame.maxY + verticalInset\n" +
+                "                            - initialPreviewFrame.minY\n" +
+                "                    let requiredRigidDownwardMovement = max(\n" +
+                "                        requiredHelperDownwardMovement,\n" +
+                "                        requiredPreviewBelowViewportMovement\n" +
+                "                    )\n" +
+                "                    let helperRoomToSafeBottom =\n" +
+                "                        initialSafeBottom - initialHelperFrame.maxY\n" +
                 "                    let exactSeparation =\n" +
                 "                        initialPreviewFrame.minY - initialHelperFrame.maxY\n" +
                 "                    initialHelperToPreviewSeparation = exactSeparation\n" +
                 "                    workEditingInitialSeparation =\n" +
                 "                        requiredHelperDownwardMovement > 0\n" +
-                "                            && previewRoomToTabTop > 0\n" +
-                "                            && requiredHelperDownwardMovement >= previewRoomToTabTop\n" +
+                "                            && requiredPreviewBelowViewportMovement > 0\n" +
+                "                            && requiredRigidDownwardMovement\n" +
+                "                                <= helperRoomToSafeBottom\n" +
                 "                            && exactSeparation > 0\n" +
                 "                    workEditingInitialProof =\n" +
                 "                        workEditingInitialSeparation"
@@ -7997,22 +8005,39 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workEditingPositiveInterval =
             "            let minimumShift = safeTop - helperFrame.minY\n" +
                 "            let maximumShift = safeBottom - helperFrame.maxY\n" +
+                "            let requiredPreviewBelowViewportMovement =\n" +
+                "                liveScrollFrame.maxY + verticalInset - previewFrame.minY\n" +
+                "            let requiredRigidDownwardMovement = workEditingAXTextEnabled\n" +
+                "                ? max(minimumShift, requiredPreviewBelowViewportMovement)\n" +
+                "                : minimumShift\n" +
                 "            let receiverCapacity = receiverBottom - receiverTop\n" +
                 "            let recognizedMinimum = max(\n" +
-                "                minimumShift,\n" +
+                "                requiredRigidDownwardMovement,\n" +
                 "                minimumGestureDistance\n" +
                 "            )\n" +
                 "            let recognizedMaximum = min(\n" +
                 "                maximumShift,\n" +
                 "                receiverCapacity\n" +
                 "            )\n" +
-                "            guard minimumShift > 0,\n" +
-                "                  minimumShift <= maximumShift,\n" +
+                "            guard requiredRigidDownwardMovement > 0,\n" +
+                "                  requiredRigidDownwardMovement <= maximumShift,\n" +
                 "                  receiverCapacity >= minimumGestureDistance,\n" +
                 "                  recognizedMinimum <= recognizedMaximum else {"
+        let workEditingPreviewPlacement =
+            "            let previewPlacementAccepted =\n" +
+                "                !workEditingAXTextEnabled\n" +
+                "                    || workPreviewImage.isHittable\n" +
+                "                    || previewFrame.minY > liveScrollFrame.maxY\n" +
+                "            if helperFrame.minY >= safeTop,\n" +
+                "               helperFrame.maxY <= safeBottom,\n" +
+                "               workHelper.isHittable,\n" +
+                "               previewPlacementAccepted {\n" +
+                "                break\n" +
+                "            }"
         for workEditingGestureGeometryLock in [
             workEditingLiveRecomputation,
             workEditingLiveViewport,
+            workEditingPreviewPlacement,
             workEditingPositiveInterval,
         ] {
             XCTAssertEqual(
@@ -8184,7 +8209,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        let finalScrollRawFrame = workScrollView.frame\n" +
                 "        let finalHelperFrame = workHelper.frame\n" +
                 "        let finalPreviewFrame = workPreviewImage.frame\n" +
-                "        let finalTabFrame = workEditingTabBar.frame\n" +
                 "        let finalCommonFramesAreValid =\n" +
                 "            workEditingFrameIsValid(finalApplicationFrame)\n" +
                 "                && workEditingFrameIsValid(finalNavigationFrame)\n" +
@@ -8192,7 +8216,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                && workEditingFrameIsValid(finalHelperFrame)\n" +
                 "        let finalAXFramesAreValid =\n" +
                 "            workEditingFrameIsValid(finalPreviewFrame)\n" +
-                "                && workEditingFrameIsValid(finalTabFrame)\n" +
                 "        let finalFramesAreValid =\n" +
                 "            finalCommonFramesAreValid\n" +
                 "                && (!workEditingAXTextEnabled || finalAXFramesAreValid)"
@@ -8229,9 +8252,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                && finalWorkEditingCompositionIsValid\n" +
                 "                && finalHelperToPreviewSeparation\n" +
                 "                    == initialHelperToPreviewSeparation\n" +
-                "                && finalHelperFrame.maxY < finalTabFrame.minY\n" +
                 "                && finalHelperFrame.maxY < finalPreviewFrame.minY\n" +
-                "                && finalPreviewFrame.minY > finalTabFrame.minY"
+                "                && finalPreviewFrame.minY > finalScrollFrame.maxY"
         XCTAssertEqual(
             workEditingPositioningSource.components(
                 separatedBy: workEditingAXTextFallback
@@ -8259,9 +8281,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("finalWorkEditingCompositionIsValid", 3),
             ("finalFramesAreValid", 5),
             ("finalScrollFrameIsValid", 4),
-            ("finalHelperFrame.maxY < finalTabFrame.minY", 1),
+            ("finalHelperFrame.maxY < finalTabFrame.minY", 0),
             ("finalHelperFrame.maxY < finalPreviewFrame.minY", 1),
-            ("finalPreviewFrame.minY > finalTabFrame.minY", 1),
+            ("finalPreviewFrame.minY > finalScrollFrame.maxY", 1),
             ("finalHelperToPreviewSeparation", 3),
             ("initialHelperToPreviewSeparation", 4),
         ] {
@@ -8313,6 +8335,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         for prohibitedWorkEditingForm in [
+            "let workEditingTabBar =",
+            "initialTabFrame",
+            "finalTabFrame",
+            "previewRoomToTabTop",
             "finalTabFrame.maxY",
             "finalPreviewFrame.intersection(finalTabFrame)",
             "finalPreviewFrame.intersects(finalTabFrame)",
@@ -8406,10 +8432,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workSavingPositioningStartRange.lowerBound..<workSavingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workSavingPositioningSource.utf8.count, 25_646)
+        XCTAssertEqual(workSavingPositioningSource.utf8.count, 25_019)
         XCTAssertEqual(
             Data(workSavingPositioningSource.utf8).sha256,
-            "99E15DC67C1C4ABDE1266E1FE23848AB0E8D196C360283AA11F94BC752D72CB2"
+            "45E20AFB104568CEDD7E18179E2626FAB79363E3E41A8F226598E9FF1078706F"
         )
         let workSavingRouteBeforeEvidence =
             "        scroll(saveWork, in: app)\n" +
@@ -8436,6 +8462,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: workSavingEvidenceBoundary
+            ).count - 1,
+            1
+        )
+        let workSavingTabBarCountPolicy =
+            "        let workTabBars = app.tabBars\n" +
+                "        let expectedWorkSavingTabBarCount: Int\n" +
+                "        if #available(iOS 26.0, *) {\n" +
+                "            expectedWorkSavingTabBarCount = 0\n" +
+                "        } else {\n" +
+                "            expectedWorkSavingTabBarCount = 1\n" +
+                "        }"
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: workSavingTabBarCountPolicy
             ).count - 1,
             1
         )
@@ -8510,8 +8550,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    && !navigationFrame.isEmpty\n" +
                 "                    && !scrollFrame.isNull\n" +
                 "                    && !scrollFrame.isEmpty\n" +
-                "                    && !tabBarFrame.isNull\n" +
-                "                    && !tabBarFrame.isEmpty\n" +
                 "                    && !noteFrame.isNull\n" +
                 "                    && !noteFrame.isEmpty\n" +
                 "                    && !helperFrame.isNull\n" +
@@ -8520,7 +8558,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                workEditingFrameIsValid(applicationFrame)\n" +
                 "                    && workEditingFrameIsValid(navigationFrame)\n" +
                 "                    && workEditingFrameIsValid(scrollFrame)\n" +
-                "                    && workEditingFrameIsValid(tabBarFrame)\n" +
                 "                    && workEditingFrameIsValid(noteFrame)\n" +
                 "                    && workEditingFrameIsValid(helperFrame)\n" +
                 "            let commonFramesAreValid = workEditingAXTextEnabled\n" +
@@ -8532,6 +8569,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        for workSavingViewportLock in [
+            "            let liveBottom = liveScrollFrame.maxY",
+            "        let savingFinalLiveBottom = savingFinalScrollFrame.maxY",
+            "        let savingFinalSafeBottom = savingFinalLiveBottom - verticalInset",
+        ] {
+            XCTAssertEqual(
+                workSavingPositioningSource.components(
+                    separatedBy: workSavingViewportLock
+                ).count - 1,
+                1,
+                workSavingViewportLock
+            )
+        }
         let workSavingDisjointCompletion =
             "            if (!workEditingAXTextEnabled && ordinaryCompositionIsComplete)\n" +
                 "                || savingAXTextCompositionIsComplete {\n" +
@@ -8703,14 +8753,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (workSavingCardinalityLock, count) in [
             ("app.state == .runningForeground", 3),
             ("workNoteHeadings.count == 1", 4),
-            ("workTabBars.count == 1", 4),
+            ("workTabBars.count == expectedWorkSavingTabBarCount", 4),
             ("workHelperTextBindingsAreValid()", 0),
             ("workSavingHelperTextBindingsAreValid()", 4),
             ("workHelperTexts.count == 1", 1),
             ("workScrollViews.count == 1", 4),
             ("workNavigationBars.count == 1", 4),
             ("workNoteHeading.exists", 4),
-            ("workTabBar.exists", 4),
+            ("workTabBar.exists", 0),
             ("workHelper.exists", 5),
             ("workScrollView.exists", 3),
             ("workNavigationBar.exists", 3),
@@ -8732,6 +8782,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 count,
                 workSavingCardinalityLock
+            )
+        }
+        for staleWorkSavingTabAuthority in [
+            "let workTabBar =",
+            "workTabBar.exists",
+            "tabBarFrame",
+            "savingInitialTabFrame",
+            "savingFinalTabBarFrame",
+        ] {
+            XCTAssertFalse(
+                workSavingPositioningSource.contains(staleWorkSavingTabAuthority),
+                staleWorkSavingTabAuthority
             )
         }
         for (workSavingInvariant, count) in [
@@ -20002,10 +20064,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 730_612)
+        XCTAssertEqual(uiSource.utf8.count, 730_426)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "A3C2008C8BEE3DC53AAC5A9E4194732F36604715A2DEF2378B523BA78C6F6C50"
+            "1F11A517C8710AF152F1C0C6128A4A4F191500F864B0FB1FBBCE17D7040E049A"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

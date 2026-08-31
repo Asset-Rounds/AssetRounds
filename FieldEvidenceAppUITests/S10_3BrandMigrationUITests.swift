@@ -4979,7 +4979,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         let workEditingTabBars = app.tabBars
         let workPreviewImage = workPreviewImages.firstMatch
-        let workEditingTabBar = workEditingTabBars.firstMatch
         let workEditingFrameIsValid: (CGRect) -> Bool = { frame in
             !frame.isNull
                 && !frame.isEmpty
@@ -5023,12 +5022,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && workPreviewImages.count == 1
                 && workScrollViews.count == 1
                 && workNavigationBars.count == 1
-                && workEditingTabBars.count == 1
+                && workEditingTabBars.count == 0
                 && workHelper.exists
                 && workPreviewImage.exists
                 && workScrollView.exists
                 && workNavigationBar.exists
-                && workEditingTabBar.exists
                 && workHelper.elementType == .staticText
                 && workHelper.identifier.isEmpty
                 && workHelper.label == observedWorkHelperLabel
@@ -5045,16 +5043,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && workNavigationBar.identifier == observedRecordWorkTitle
                 && workNavigationBar.label == ""
                 && (workNavigationBar.value as? String) == ""
-                && workEditingTabBar.elementType == .tabBar
-                && workEditingTabBar.identifier == ""
-                && workEditingTabBar.label == "Tab Bar"
-                && (workEditingTabBar.value as? String) == ""
                 && workEditingFrameIsValid(app.frame)
                 && workEditingFrameIsValid(workHelper.frame)
                 && workEditingFrameIsValid(workPreviewImage.frame)
                 && workEditingFrameIsValid(workScrollView.frame)
                 && workEditingFrameIsValid(workNavigationBar.frame)
-                && workEditingFrameIsValid(workEditingTabBar.frame)
         }
         var initialHelperToPreviewSeparation: CGFloat?
         var workEditingAXTextFallbackAccepted = false
@@ -5077,7 +5070,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let initialApplicationFrame = app.frame
             let initialNavigationFrame = workNavigationBar.frame
             let initialScrollRawFrame = workScrollView.frame
-            let initialTabFrame = workEditingTabBar.frame
             let initialHelperFrame = workHelper.frame
             let initialPreviewFrame = workPreviewImage.frame
             let initialCommonFramesAreValid =
@@ -5086,8 +5078,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && workEditingFrameIsValid(initialScrollRawFrame)
                     && workEditingFrameIsValid(initialHelperFrame)
             let initialAXFramesAreValid =
-                workEditingFrameIsValid(initialTabFrame)
-                    && workEditingFrameIsValid(initialPreviewFrame)
+                workEditingFrameIsValid(initialPreviewFrame)
             let initialCompositionIsValid =
                 initialCommonFramesAreValid
                     && initialAXFramesAreValid
@@ -5101,17 +5092,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         initialScrollFrame.minY,
                         initialNavigationFrame.maxY
                     ) + verticalInset
+                    let initialSafeBottom =
+                        initialScrollFrame.maxY - verticalInset
                     let requiredHelperDownwardMovement =
                         initialSafeTop - initialHelperFrame.minY
-                    let previewRoomToTabTop =
-                        initialTabFrame.minY - initialPreviewFrame.minY
+                    let requiredPreviewBelowViewportMovement =
+                        initialScrollFrame.maxY + verticalInset
+                            - initialPreviewFrame.minY
+                    let requiredRigidDownwardMovement = max(
+                        requiredHelperDownwardMovement,
+                        requiredPreviewBelowViewportMovement
+                    )
+                    let helperRoomToSafeBottom =
+                        initialSafeBottom - initialHelperFrame.maxY
                     let exactSeparation =
                         initialPreviewFrame.minY - initialHelperFrame.maxY
                     initialHelperToPreviewSeparation = exactSeparation
                     workEditingInitialSeparation =
                         requiredHelperDownwardMovement > 0
-                            && previewRoomToTabTop > 0
-                            && requiredHelperDownwardMovement >= previewRoomToTabTop
+                            && requiredPreviewBelowViewportMovement > 0
+                            && requiredRigidDownwardMovement
+                                <= helperRoomToSafeBottom
                             && exactSeparation > 0
                     workEditingInitialProof =
                         workEditingInitialSeparation
@@ -5181,25 +5182,35 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("Record-work editing viewport geometry is invalid.")
                 return
             }
+            let previewPlacementAccepted =
+                !workEditingAXTextEnabled
+                    || workPreviewImage.isHittable
+                    || previewFrame.minY > liveScrollFrame.maxY
             if helperFrame.minY >= safeTop,
                helperFrame.maxY <= safeBottom,
-               workHelper.isHittable {
+               workHelper.isHittable,
+               previewPlacementAccepted {
                 break
             }
 
             let minimumShift = safeTop - helperFrame.minY
             let maximumShift = safeBottom - helperFrame.maxY
+            let requiredPreviewBelowViewportMovement =
+                liveScrollFrame.maxY + verticalInset - previewFrame.minY
+            let requiredRigidDownwardMovement = workEditingAXTextEnabled
+                ? max(minimumShift, requiredPreviewBelowViewportMovement)
+                : minimumShift
             let receiverCapacity = receiverBottom - receiverTop
             let recognizedMinimum = max(
-                minimumShift,
+                requiredRigidDownwardMovement,
                 minimumGestureDistance
             )
             let recognizedMaximum = min(
                 maximumShift,
                 receiverCapacity
             )
-            guard minimumShift > 0,
-                  minimumShift <= maximumShift,
+            guard requiredRigidDownwardMovement > 0,
+                  requiredRigidDownwardMovement <= maximumShift,
                   receiverCapacity >= minimumGestureDistance,
                   recognizedMinimum <= recognizedMaximum else {
                 XCTFail("Record-work editing has no feasible downward correction.")
@@ -5274,7 +5285,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let finalScrollRawFrame = workScrollView.frame
         let finalHelperFrame = workHelper.frame
         let finalPreviewFrame = workPreviewImage.frame
-        let finalTabFrame = workEditingTabBar.frame
         let finalCommonFramesAreValid =
             workEditingFrameIsValid(finalApplicationFrame)
                 && workEditingFrameIsValid(finalNavigationFrame)
@@ -5282,7 +5292,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && workEditingFrameIsValid(finalHelperFrame)
         let finalAXFramesAreValid =
             workEditingFrameIsValid(finalPreviewFrame)
-                && workEditingFrameIsValid(finalTabFrame)
         let finalFramesAreValid =
             finalCommonFramesAreValid
                 && (!workEditingAXTextEnabled || finalAXFramesAreValid)
@@ -5327,9 +5336,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && finalWorkEditingCompositionIsValid
                 && finalHelperToPreviewSeparation
                     == initialHelperToPreviewSeparation
-                && finalHelperFrame.maxY < finalTabFrame.minY
                 && finalHelperFrame.maxY < finalPreviewFrame.minY
-                && finalPreviewFrame.minY > finalTabFrame.minY
+                && finalPreviewFrame.minY > finalScrollFrame.maxY
         let workPreviewHittabilityAccepted: Bool
         if workEditingAXTextEnabled {
             workPreviewHittabilityAccepted =
@@ -5383,8 +5391,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             NSPredicate(format: "label == %@", "Note")
         )
         let workTabBars = app.tabBars
+        let expectedWorkSavingTabBarCount: Int
+        if #available(iOS 26.0, *) {
+            expectedWorkSavingTabBarCount = 0
+        } else {
+            expectedWorkSavingTabBarCount = 1
+        }
         let workNoteHeading = workNoteHeadings.firstMatch
-        let workTabBar = workTabBars.firstMatch
         let workImportFixtureButtons: XCUIElementQuery? = workEditingAXTextEnabled
             ? app.buttons.matching(identifier: "s5.1.work.import-fixture")
             : nil
@@ -5407,7 +5420,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         if workEditingAXTextEnabled {
             let savingInitialHelperFrame = workHelper.frame
             let savingInitialPreviewFrame = workPreviewImage.frame
-            let savingInitialTabFrame = workEditingTabBar.frame
             let savingInitialSeparation =
                 savingInitialPreviewFrame.minY - savingInitialHelperFrame.maxY
             savingInitialAXTextCompositionIsValid =
@@ -5424,18 +5436,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && workEditingComposition()
                     && workEditingFrameIsValid(savingInitialHelperFrame)
                     && workEditingFrameIsValid(savingInitialPreviewFrame)
-                    && workEditingFrameIsValid(savingInitialTabFrame)
                     && savingInitialSeparation
                         == initialHelperToPreviewSeparation
         }
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
-              workTabBars.count == 1,
+              workTabBars.count == expectedWorkSavingTabBarCount,
               workSavingHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
               workNoteHeading.exists,
-              workTabBar.exists,
               workNoteHeading.identifier.isEmpty,
               workNoteHeading.label == "Note",
               workNoteHeading.elementType == .staticText,
@@ -5453,7 +5463,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         for _ in 0..<4 {
             guard app.state == .runningForeground,
                   workNoteHeadings.count == 1,
-                  workTabBars.count == 1,
+                  workTabBars.count == expectedWorkSavingTabBarCount,
                   workSavingHelperTextBindingsAreValid(),
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
@@ -5462,7 +5472,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   (!workEditingAXTextEnabled
                     || workPreviewImages.count == 1),
                   workNoteHeading.exists,
-                  workTabBar.exists,
                   workHelper.exists,
                   workScrollView.exists,
                   workNavigationBar.exists,
@@ -5483,7 +5492,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let scrollFrame = workScrollView.frame
             let applicationFrame = app.frame
             let navigationFrame = workNavigationBar.frame
-            let tabBarFrame = workTabBar.frame
             let noteFrame = workNoteHeading.frame
             let helperFrame = workHelper.frame
             var buttonFrame = CGRect.null
@@ -5499,8 +5507,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && !navigationFrame.isEmpty
                     && !scrollFrame.isNull
                     && !scrollFrame.isEmpty
-                    && !tabBarFrame.isNull
-                    && !tabBarFrame.isEmpty
                     && !noteFrame.isNull
                     && !noteFrame.isEmpty
                     && !helperFrame.isNull
@@ -5509,7 +5515,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 workEditingFrameIsValid(applicationFrame)
                     && workEditingFrameIsValid(navigationFrame)
                     && workEditingFrameIsValid(scrollFrame)
-                    && workEditingFrameIsValid(tabBarFrame)
                     && workEditingFrameIsValid(noteFrame)
                     && workEditingFrameIsValid(helperFrame)
             let commonFramesAreValid = workEditingAXTextEnabled
@@ -5538,10 +5543,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("Record-work saving viewport geometry is invalid.")
                 return
             }
-            let liveBottom = min(
-                liveScrollFrame.maxY,
-                min(applicationFrame.maxY, tabBarFrame.minY)
-            )
+            let liveBottom = liveScrollFrame.maxY
             let safeTop = max(
                 liveScrollFrame.minY,
                 navigationFrame.maxY
@@ -5700,7 +5702,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 thenHoldForDuration: 0.2
             )
             guard workNoteHeadings.count == 1,
-                  workTabBars.count == 1,
+                  workTabBars.count == expectedWorkSavingTabBarCount,
                   workSavingHelperTextBindingsAreValid(),
                   workScrollViews.count == 1,
                   workNavigationBars.count == 1,
@@ -5709,7 +5711,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   (!workEditingAXTextEnabled
                     || workPreviewImages.count == 1),
                   workNoteHeading.exists,
-                  workTabBar.exists,
                   workHelper.exists,
                   (!workEditingAXTextEnabled || workPreview.exists),
                   (!workEditingAXTextEnabled
@@ -5774,7 +5775,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let savingFinalApplicationFrame = app.frame
         let savingFinalNavigationFrame = workNavigationBar.frame
         let savingFinalScrollRawFrame = workScrollView.frame
-        let savingFinalTabBarFrame = workTabBar.frame
         let savingFinalNoteFrame = workNoteHeading.frame
         let savingFinalHelperFrame = workHelper.frame
         var savingFinalButtonFrame = CGRect.null
@@ -5790,8 +5790,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && !savingFinalNavigationFrame.isEmpty
                 && !savingFinalScrollRawFrame.isNull
                 && !savingFinalScrollRawFrame.isEmpty
-                && !savingFinalTabBarFrame.isNull
-                && !savingFinalTabBarFrame.isEmpty
                 && !savingFinalNoteFrame.isNull
                 && !savingFinalNoteFrame.isEmpty
                 && !savingFinalHelperFrame.isNull
@@ -5800,7 +5798,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             workEditingFrameIsValid(savingFinalApplicationFrame)
                 && workEditingFrameIsValid(savingFinalNavigationFrame)
                 && workEditingFrameIsValid(savingFinalScrollRawFrame)
-                && workEditingFrameIsValid(savingFinalTabBarFrame)
                 && workEditingFrameIsValid(savingFinalNoteFrame)
                 && workEditingFrameIsValid(savingFinalHelperFrame)
         let savingFinalCommonFramesAreValid = workEditingAXTextEnabled
@@ -5829,10 +5826,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             savingFinalScrollFrame.minY,
             savingFinalNavigationFrame.maxY
         ) + verticalInset
-        let savingFinalLiveBottom = min(
-            savingFinalScrollFrame.maxY,
-            min(savingFinalApplicationFrame.maxY, savingFinalTabBarFrame.minY)
-        )
+        let savingFinalLiveBottom = savingFinalScrollFrame.maxY
         let savingFinalSafeBottom = savingFinalLiveBottom - verticalInset
         let workSavingOrdinaryCompositionAccepted =
             !workEditingAXTextEnabled
@@ -5869,7 +5863,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && savingFinalButtonFrame.maxY < savingFinalPhotoFrame.minY
         guard app.state == .runningForeground,
               workNoteHeadings.count == 1,
-              workTabBars.count == 1,
+              workTabBars.count == expectedWorkSavingTabBarCount,
               workSavingHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1,
@@ -5878,7 +5872,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               (!workEditingAXTextEnabled
                 || workPreviewImages.count == 1),
               workNoteHeading.exists,
-              workTabBar.exists,
               workNoteHeading.identifier.isEmpty,
               workNoteHeading.label == "Note",
               workNoteHeading.elementType == .staticText,
