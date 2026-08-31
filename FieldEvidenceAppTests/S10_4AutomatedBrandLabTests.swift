@@ -4536,7 +4536,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                      workQuickPathButtons.count == 1,\n" +
                 "                      workQuickPathStaticTexts.count == 2,"
         let workValidationMinimumQuickPathFirstProperty =
-            "                      workQuickPathIntroductionView.exists,"
+            "                let workQuickPathButton = workQuickPathButtons.firstMatch"
         let workValidationMinimumQuickPathLastFrameValidator =
             "                      workQuickPathFrameIsValid(workValidationFrame) else {"
         let workValidationMinimumQuickPathFirstGeometry =
