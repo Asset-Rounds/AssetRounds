@@ -5341,7 +5341,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let workPreviewHittabilityAccepted: Bool
         if workEditingAXTextEnabled {
             workPreviewHittabilityAccepted =
-                finalWorkPreviewIsHittable
+                finalExactPreviewIsHittable
+                    || finalWorkPreviewIsHittable
                     || workEditingAXTextFallbackAccepted
         } else {
             workPreviewHittabilityAccepted = finalWorkPreviewIsHittable

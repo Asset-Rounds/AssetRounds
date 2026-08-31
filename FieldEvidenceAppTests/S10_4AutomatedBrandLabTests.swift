@@ -7641,10 +7641,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workEditingPositioningSource.utf8.count, 20_264)
+        XCTAssertEqual(workEditingPositioningSource.utf8.count, 20_315)
         XCTAssertEqual(
             Data(workEditingPositioningSource.utf8).sha256,
-            "4B77CDC970234A0856FEF0D1FD10A4198BF300A372C4B0628B5EB8F018E96886"
+            "14A75409E861FD461B56089AD8F6C71F1DB0B670720F3BF9A6D43A92E9A2BDEE"
         )
         let workEditingRouteBeforeEvidence =
             #"        let workPreview = element("s5.1.work.photo", in: app)"# + "\n" +
@@ -8264,7 +8264,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        let workPreviewHittabilityAccepted: Bool\n" +
                 "        if workEditingAXTextEnabled {\n" +
                 "            workPreviewHittabilityAccepted =\n" +
-                "                finalWorkPreviewIsHittable\n" +
+                "                finalExactPreviewIsHittable\n" +
+                "                    || finalWorkPreviewIsHittable\n" +
                 "                    || workEditingAXTextFallbackAccepted\n" +
                 "        } else {\n" +
                 "            workPreviewHittabilityAccepted = finalWorkPreviewIsHittable\n" +
@@ -20064,10 +20065,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 730_426)
+        XCTAssertEqual(uiSource.utf8.count, 730_477)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "1F11A517C8710AF152F1C0C6128A4A4F191500F864B0FB1FBBCE17D7040E049A"
+            "3E94B4CBC5FDDDBEAD2E258B2A60BDEC35AE8E04F7C7A70584A8315005406B37"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
