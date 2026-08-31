@@ -1,0 +1,35 @@
+{
+  "schema": "V22P04C06OfflineReadinessManifestCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C06",
+  "ordinal": 94,
+  "selectors": [
+    { "id": "G01", "selector": "V23-P04-C06-G01", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "V23-P04-C06-A01", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "V23-P04-C06-H01", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "V23-P04-C06-I01", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "V23-P04-C06-R01", "tier": "RECOVERY" }
+  ],
+  "statuses": ["READY", "BLOCKED", "WARNING", "STALE"],
+  "requirements": ["PACKAGE", "GUIDANCE", "REFERENCE", "ASSET", "STORAGE", "PROTECTED_DATA", "CLOCK"],
+  "hostileVectors": ["wrong-workspace", "missing-bytes", "corrupt-bytes", "partial-bytes", "package-drift", "guidance-drift", "reference-drift", "asset-drift", "field-reference-omitted", "field-reference-unrelated", "field-reference-unknown", "protected-data", "low-storage", "uncheckable-storage", "clock-timezone", "overflow", "duplicate", "unknown-key", "noncanonical-decode", "unknown-extra-content", "inconsistent-ready-status"],
+  "interruptionVectors": ["snapshot", "readback", "build", "source-drift"],
+  "recoveryVectors": ["derived-view-removal", "drop-and-rebuild", "compatibility"],
+  "forbidden": ["PERSISTENCE", "BACKUP", "DELETE", "EXPORT", "SYNC", "NETWORK"],
+  "claims": {
+    "allFlagsFalse": true,
+    "readinessIsDerived": true,
+    "sourceDriftIsStaleWithoutPartialSuccess": true,
+    "derivedViewRebuildPreservesRoundSessionAndCanonicalData": true,
+    "noPersistenceBackupDeleteOrExportClaim": true,
+    "optionalOnlyWarningMayStartFieldWork": true,
+    "mandatorySatisfactionRemainsExplicit": true
+  },
+  "statusFlags": {
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false
+  }
+}

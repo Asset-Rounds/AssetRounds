@@ -1,0 +1,644 @@
+{
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "48b36dbc4b44f760b7ed09e507f45cf9abe2a3a4b62fa1031ca51c82a5f64c74",
+  "authority": {
+    "appBaseHead": "37e5781e15fa84524da50049a7b16c1eda363c0c",
+    "appBaseTree": "7b69ccbb2e3a4d2ef3feffb66315682efe190a70",
+    "attemptID": 1,
+    "authorizedOverlapCount": 6904,
+    "candidateHead": "37e5781e15fa84524da50049a7b16c1eda363c0c",
+    "candidateTree": "7b69ccbb2e3a4d2ef3feffb66315682efe190a70",
+    "cardID": "V23-P04-C06",
+    "contextDigest": "f80df4adf42c3392e5639f6c65164c925f175567cc027811f905d6981e243bad",
+    "coordinationCASSequence": 410,
+    "coordinationHead": "d01217e77f87f85861a20948a4840864e90bc57d",
+    "coordinationLedgerDigest": "172c6ad1b3875868a33283c73120764b36527708aa208729e57d958f9e6046ab",
+    "coordinationOriginHead": "d01217e77f87f85861a20948a4840864e90bc57d",
+    "coordinationProjectionDigest": "df19d07ce3c9e62c3eda4b3400953d5ca8ef8f4c6be869af58ea419c7b4822ec",
+    "coordinationSequence": 410,
+    "coordinationTree": "8ebd74ebeab9176215e6f670c3360d55e1202921",
+    "directPrerequisiteCards": [
+      "V23-P04-C05"
+    ],
+    "expectedExistingPathCount": 347,
+    "expectedFencePathCount": 362,
+    "expectedNewPathCount": 15,
+    "finalHashesSealed": true,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "90618a5c1395cea5bed69fb75c55ea24cdefe8a3d180e5c4067f99295384a366",
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "pathFenceDigest": "67a33ce68a08b9614e00d3e274f87b21126d72cd9be24bf0d6fd9482d1f710a6",
+    "prerequisiteDigest": "3f7da1ca598dffebed74d46068dbc7027c71941c3067ec4136f4ba8787efa472",
+    "priorFenceCount": 94,
+    "priorOwnedPathCount": 1487,
+    "registerOrdinal": 94,
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "sourcePins": {
+      "dossierSHA256": "cc114b26912213522bcd8f3d817d21ae61659a196286e141366cffe8e1cd37d6",
+      "dossierUTF8Length": 7216,
+      "inheritedV21BlockSHA256": "014ecb54b52e78b8404d3db9b83ff5868205bd92b5ac1d097793c90bef881c19",
+      "inheritedV21BlockUTF8Length": 8195,
+      "registerRowSHA256": "da94d087d0eddf3347d64d65e77bb5ba10706a85d599926303c90cebcdbe1c49",
+      "registerRowUTF8Length": 255,
+      "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+      "registerSectionUTF8Length": 44217
+    },
+    "title": "OfflineReadinessManifestV1 and cold-launch field preflight",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C06",
+  "contractRefs": [
+    "V21ToV23RequirementRebindingV1(V21-P04-C06).CONTRACTS",
+    "DirectPrerequisiteEvidenceSetV1",
+    "CardAcceptanceInclusionProofV1",
+    "CardAcceptanceInclusionProofRecoveryReceiptV1",
+    "CandidateAcceptanceCompatibilityReceiptV1"
+  ],
+  "directPrerequisites": [
+    "V23-P04-C05"
+  ],
+  "evidenceIDs": [
+    "V23-P04-C06-G01",
+    "V23-P04-C06-A01",
+    "V23-P04-C06-H01",
+    "V23-P04-C06-I01",
+    "V23-P04-C06-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "journeyRefs": [
+    "CommonTaskJourneyReleaseV2"
+  ],
+  "nativeCompileRan": false,
+  "optionalCapabilityProviders": [
+    "NONE"
+  ],
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "providerArtifacts": [
+    {
+      "allFilesPresent": true,
+      "candidateHead": "37e5781e15fa84524da50049a7b16c1eda363c0c",
+      "candidateTree": "7b69ccbb2e3a4d2ef3feffb66315682efe190a70",
+      "capability": "ROUND_SESSION_REVISION_AND_CANONICAL_CONTENT_BINDINGS",
+      "checkpointDigest": "8edb487c30b1468d182a5720345a9f83cad24cacb7d7dd71b2c692526ecf8587",
+      "contextDigest": "0da6087d34e3145e7516435c5458bae772f288c7646b70c941f0a905d0694667",
+      "contracts": [
+        "RoundSessionV1",
+        "RoundSessionReferenceV1",
+        "RoundPackageContentRequirementV1",
+        "RoundSessionCanonicalCodecV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 31951,
+          "path": "FieldEvidenceApp/Domain/Rounds/RoundSessionContractsV1.swift",
+          "sha256": "90e4915272cc0bf00d9e737149534658ab9357b8048f70b2e691a80655a71333",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1999,
+          "path": "FieldEvidenceApp/Domain/Models/RoundSessionPersistenceModelsV1.swift",
+          "sha256": "241726c93a497c6067eee11f3319e4f497d183caed0b1bf7a5be6f5aa4ff1071",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 6028,
+          "path": "FieldEvidenceApp/Application/Rounds/RoundSessionCoordinatorV1.swift",
+          "sha256": "0caee4cf976923d30ff589ec101854def5d7531bb948d37a2dba131212a18602",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 4129,
+          "path": "FieldEvidenceApp/Infrastructure/Rounds/RoundSessionLifecycleAdapterV1.swift",
+          "sha256": "358cdae4fb409773c6eeaf7309015ff6500110525c4a9546ba3fa5710524ef40",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 12317,
+          "path": "Scripts/v23/p04_c05_contracts.py",
+          "sha256": "35ad9ad030e7c4b1d31ff906cd29856c2498c2e41491dabd03543902c56218b0",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 3211,
+          "path": "Scripts/v23/round-session.schema.json",
+          "sha256": "224c5a64ad669c99f891db6d0ac76218f48dc9c7b53462c9a2294837188bfea2",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 5841,
+          "path": "docs/design/v23/tooling/V23P04C05RoundSessionContractV1.json",
+          "sha256": "5456418e75218774c7e8fb1e356610461b0ca62b2183961211eebbb2895c2b4f",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 5228,
+          "path": "docs/design/v23/tooling/V23P04C05RoundSessionEvidenceReceiptV1.json",
+          "sha256": "baacf6eb0d782e6b4f8f1408c84028c0ee7ad8af5dc2fa7fb13f92df29a06aa1",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 4505,
+          "path": "docs/design/v23/tooling/V23P04C05BrandImpactManifestV1.json",
+          "sha256": "a60a6b0e06e76a53e66598a00e1a953f668fbed7012fdcec687b5306b5aa5f9e",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 135964,
+          "path": "docs/design/v23/tooling/V23-P04-C05-tooling-manifest.json",
+          "sha256": "9977332a279e3a9b28a87c57fc3d9034c7dcdb8fd91e0a7a714f6e688773be9e",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "1bf82731526fa55f0f91c53f30a38cea7b246ef1c23ee93c7e4cb1c7398bab31",
+      "paths": [
+        "FieldEvidenceApp/Domain/Rounds/RoundSessionContractsV1.swift",
+        "FieldEvidenceApp/Domain/Models/RoundSessionPersistenceModelsV1.swift",
+        "FieldEvidenceApp/Application/Rounds/RoundSessionCoordinatorV1.swift",
+        "FieldEvidenceApp/Infrastructure/Rounds/RoundSessionLifecycleAdapterV1.swift",
+        "Scripts/v23/p04_c05_contracts.py",
+        "Scripts/v23/round-session.schema.json",
+        "docs/design/v23/tooling/V23P04C05RoundSessionContractV1.json",
+        "docs/design/v23/tooling/V23P04C05RoundSessionEvidenceReceiptV1.json",
+        "docs/design/v23/tooling/V23P04C05BrandImpactManifestV1.json",
+        "docs/design/v23/tooling/V23-P04-C05-tooling-manifest.json"
+      ],
+      "providerCardID": "V23-P04-C05",
+      "required": true,
+      "verificationReceiptDigest": "f8b13e1b1dc58e2c28f9fe3dd8e305683e6ae050b0dac86c15146c5cf3fbc24e"
+    }
+  ],
+  "provisional": false,
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P04C06OfflineReadinessManifestContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "accessibilityAndLocalization": {
+      "contrast": true,
+      "dynamicTypeThroughAX5": true,
+      "localeAndRTL": true,
+      "reduceMotion": true,
+      "switchControl": true,
+      "truthfulStatusAndErrorFocus": true,
+      "voiceControl": true,
+      "voiceOver": true
+    },
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1",
+      "P04ShippingSurfaceSetV1",
+      "P04BrandClosureSetV1"
+    ],
+    "backupRestoreRequired": false,
+    "bindings": [
+      "ROUND_SESSION_REVISION",
+      "PACKAGE_VERSION_AND_HASH",
+      "ASSET_SET",
+      "GUIDANCE_REFERENCE_IDS",
+      "CONTENT_REFERENCE_HASHES",
+      "STORAGE_BUDGET",
+      "PROTECTION_STATE"
+    ],
+    "canonicalReadinessRow": false,
+    "closedSets": {
+      "categories": [
+        "PACKAGE",
+        "SELECTED_ASSET",
+        "GUIDANCE",
+        "FIELD_REFERENCE",
+        "CONTENT",
+        "PROTECTION",
+        "STORAGE",
+        "CLOCK",
+        "BINDING"
+      ],
+      "manualFallbacks": [
+        "DO_NOT_START",
+        "DEFER_FIELD_WORK",
+        "USE_APPROVED_MANUAL_PROCEDURE",
+        "CONTACT_SUPERVISOR"
+      ],
+      "reasons": [
+        "PACKAGE_MISMATCH",
+        "SELECTED_ASSET_MISMATCH",
+        "GUIDANCE_REFERENCE_MISMATCH",
+        "FIELD_REFERENCE_UNAVAILABLE",
+        "MISSING_MANDATORY_CONTENT",
+        "MISSING_OPTIONAL_CONTENT",
+        "CORRUPT_MANDATORY_CONTENT",
+        "CORRUPT_OPTIONAL_CONTENT",
+        "PARTIAL_MANDATORY_CONTENT",
+        "PARTIAL_OPTIONAL_CONTENT",
+        "WRONG_WORKSPACE_CONTENT",
+        "PROTECTED_DATA_UNAVAILABLE",
+        "STORAGE_UNCHECKABLE",
+        "INSUFFICIENT_STORAGE",
+        "STORAGE_ARITHMETIC_OVERFLOW",
+        "CLOCK_UNCHECKABLE",
+        "CLOCK_OR_TIME_ZONE_CHANGED",
+        "SOURCE_BINDING_DRIFT"
+      ],
+      "remediations": [
+        "REBUILD_PREFLIGHT",
+        "RESTORE_EXACT_PACKAGE",
+        "RESELECT_ASSETS",
+        "RESTORE_GUIDANCE",
+        "RESTORE_FIELD_REFERENCE",
+        "RESTORE_EXACT_CONTENT",
+        "UNLOCK_PROTECTED_DATA",
+        "FREE_STORAGE",
+        "CHECK_STORAGE_AGAIN",
+        "CHECK_CLOCK_AND_TIME_ZONE"
+      ],
+      "states": [
+        "SATISFIED",
+        "MISSING",
+        "CORRUPT",
+        "PARTIAL",
+        "WRONG_WORKSPACE",
+        "PROTECTED_DATA_UNAVAILABLE",
+        "CAPACITY_UNAVAILABLE",
+        "INSUFFICIENT_CAPACITY",
+        "UNCHECKABLE",
+        "MISMATCH",
+        "STALE"
+      ],
+      "statuses": [
+        "READY",
+        "BLOCKED",
+        "WARNING",
+        "STALE"
+      ]
+    },
+    "coldLaunch": {
+      "manifestIsCanonical": false,
+      "preserves": [
+        "ROUND_SESSION",
+        "CANONICAL_DATA",
+        "IMMUTABLE_HISTORY"
+      ],
+      "reboot": true,
+      "rebuild": "DETERMINISTIC_INVALIDATION_AND_REBUILD",
+      "required": true,
+      "termination": true
+    },
+    "conformanceSubjects": [
+      "P04ShippingSurfaceSetV1",
+      "CommonTaskJourneyReleaseV2"
+    ],
+    "deleteEraseRequired": false,
+    "determinism": {
+      "canonicalInputOrdering": true,
+      "independentHashVerification": true,
+      "partialSuccessForbidden": true,
+      "sourceDriftIsStale": true
+    },
+    "directPrerequisites": [
+      "V23-P04-C05"
+    ],
+    "downgradePolicy": "DROP_AND_REBUILD",
+    "evidenceIDs": [
+      "V23-P04-C06-G01",
+      "V23-P04-C06-A01",
+      "V23-P04-C06-H01",
+      "V23-P04-C06-I01",
+      "V23-P04-C06-R01"
+    ],
+    "exportReportRequired": false,
+    "failureCoverage": [
+      "COLD_LAUNCH",
+      "REBOOT",
+      "TERMINATION",
+      "PROTECTED_DATA",
+      "MISSING_OR_CORRUPT_CONTENT",
+      "LOW_STORAGE",
+      "CLOCK_OR_TIME_ZONE"
+    ],
+    "forbiddenCapabilities": [
+      "NETWORK",
+      "ACCOUNT",
+      "SYNC",
+      "PREFETCH",
+      "CACHE_DAEMON",
+      "UI_SYNC_CLAIM",
+      "REMOTE_UPLOAD_OR_STATUS",
+      "PERSISTENT_ROW",
+      "CARD_LOCAL_STORE",
+      "CARD_LOCAL_WRITER"
+    ],
+    "invalidationConsumers": [
+      "V23-P04-C07",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "journeyRefs": [
+      "CommonTaskJourneyReleaseV2"
+    ],
+    "mandatoryBindingCategories": [
+      "PACKAGE",
+      "GUIDANCE",
+      "FIELD_REFERENCE",
+      "CONTENT",
+      "SELECTED_ASSET",
+      "STORAGE",
+      "PROTECTION",
+      "CLOCK"
+    ],
+    "manifestDigest": {
+      "algorithm": "OFFLINE_READINESS_V1_CANONICAL_SHA256",
+      "basisIncludes": [
+        "CHECKED_AT",
+        "TIME_ZONE",
+        "CLOCK",
+        "REQUIREMENT_ROWS",
+        "STATUS",
+        "SOURCE_SNAPSHOT_SHA256"
+      ],
+      "checkedAtIncluded": true
+    },
+    "migrationRequired": false,
+    "noNetworkCloudTelemetryAI": true,
+    "noSyncStoreOrWriterClaim": true,
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "persistence": {
+      "backupRestore": "NOT_APPLICABLE",
+      "deleteErase": "NOT_APPLICABLE",
+      "downgrade": "DROP_AND_REBUILD",
+      "exportReport": "NOT_APPLICABLE",
+      "journalReplay": "NOT_APPLICABLE_DERIVED_VIEW",
+      "migration": "NOT_APPLICABLE",
+      "networkDependency": false,
+      "persistence": "DERIVED_ONLY",
+      "persistentRow": false,
+      "persistentSchema": false,
+      "schema": "OFFLINE_READINESS_V1",
+      "searchRebuild": "NO_NEW_INDEX_DERIVED_ONLY",
+      "store": "NOT_APPLICABLE",
+      "syncDependency": false,
+      "writer": "NONE_CARD_LOCAL"
+    },
+    "persistentContractMode": "DERIVED_ONLY",
+    "persistentRow": false,
+    "persistentSchema": false,
+    "reasonCodes": [
+      "PACKAGE_MISMATCH",
+      "SELECTED_ASSET_MISMATCH",
+      "GUIDANCE_REFERENCE_MISMATCH",
+      "FIELD_REFERENCE_UNAVAILABLE",
+      "MISSING_MANDATORY_CONTENT",
+      "MISSING_OPTIONAL_CONTENT",
+      "CORRUPT_MANDATORY_CONTENT",
+      "CORRUPT_OPTIONAL_CONTENT",
+      "PARTIAL_MANDATORY_CONTENT",
+      "PARTIAL_OPTIONAL_CONTENT",
+      "WRONG_WORKSPACE_CONTENT",
+      "PROTECTED_DATA_UNAVAILABLE",
+      "STORAGE_UNCHECKABLE",
+      "INSUFFICIENT_STORAGE",
+      "STORAGE_ARITHMETIC_OVERFLOW",
+      "CLOCK_UNCHECKABLE",
+      "CLOCK_OR_TIME_ZONE_CHANGED",
+      "SOURCE_BINDING_DRIFT"
+    ],
+    "reducer": {
+      "builderOnlyMaterializesInput": true,
+      "mandatoryCategories": [
+        "PACKAGE",
+        "SELECTED_ASSET",
+        "GUIDANCE",
+        "FIELD_REFERENCE",
+        "CONTENT",
+        "PROTECTION",
+        "STORAGE",
+        "CLOCK"
+      ],
+      "rowsSortedBy": "requirementID",
+      "soleFullRowReducer": "OfflineReadinessManifestReducerV1.reduce"
+    },
+    "requirements": [
+      "PACKAGE",
+      "GUIDANCE",
+      "REFERENCE",
+      "ASSET",
+      "STORAGE",
+      "PROTECTED_DATA",
+      "CLOCK"
+    ],
+    "schemaVersion": "OFFLINE_READINESS_V1",
+    "selectors": [
+      "testV23P04C06G01ReadyManifestDeterministicRepeatAndRevisionInvalidation",
+      "testV23P04C06A01ColdLaunchRebootForceQuitReconstructsAndWarnsOnlyForOptionalContent",
+      "testV23P04C06H01MandatoryOptionalAndHostileReadinessMatrixFailsClosed",
+      "testV23P04C06I01CancellationTerminationBoundariesRejectPartialAndSourceDriftStales",
+      "testV23P04C06R01DerivedViewDropAndRebuildPreservesSessionAndCanonicalData"
+    ],
+    "sourceProof": {
+      "algorithm": "OFFLINE_READINESS_V1_CANONICAL_SHA256",
+      "checkedAtExcluded": true,
+      "excludes": [
+        "CHECKED_AT",
+        "DERIVED_REQUIREMENT_ROWS",
+        "PRIOR_EVIDENCE"
+      ],
+      "includes": [
+        "ROUND_SESSION",
+        "PACKAGE",
+        "SELECTED_ASSET",
+        "GUIDANCE",
+        "FIELD_REFERENCE",
+        "CONTENT",
+        "STORAGE",
+        "PROTECTION",
+        "TIME_ZONE",
+        "CLOCK"
+      ]
+    },
+    "statusReasonMatrix": {
+      "BLOCKED": [
+        "PACKAGE_MISMATCH",
+        "SELECTED_ASSET_MISMATCH",
+        "GUIDANCE_REFERENCE_MISMATCH",
+        "FIELD_REFERENCE_UNAVAILABLE",
+        "MISSING_MANDATORY_CONTENT",
+        "CORRUPT_MANDATORY_CONTENT",
+        "PARTIAL_MANDATORY_CONTENT",
+        "WRONG_WORKSPACE_CONTENT",
+        "PROTECTED_DATA_UNAVAILABLE",
+        "STORAGE_UNCHECKABLE",
+        "INSUFFICIENT_STORAGE",
+        "STORAGE_ARITHMETIC_OVERFLOW",
+        "CLOCK_UNCHECKABLE"
+      ],
+      "READY": [],
+      "STALE": [
+        "CLOCK_OR_TIME_ZONE_CHANGED",
+        "SOURCE_BINDING_DRIFT"
+      ],
+      "WARNING": [
+        "MISSING_OPTIONAL_CONTENT",
+        "CORRUPT_OPTIONAL_CONTENT",
+        "PARTIAL_OPTIONAL_CONTENT"
+      ]
+    },
+    "statusTruth": {
+      "BLOCKED": "mandatory row not SATISFIED",
+      "READY": "all rows SATISFIED",
+      "STALE": "clock changed or any row stale",
+      "WARNING": "nonmandatory row not SATISFIED",
+      "precedence": [
+        "STALE",
+        "BLOCKED",
+        "WARNING",
+        "READY"
+      ]
+    },
+    "statuses": [
+      "READY",
+      "BLOCKED",
+      "WARNING",
+      "STALE"
+    ],
+    "ui": "POST_S10_6_ADOPTION_SKIP_NO_RESERVED_COMPOSITION_EDIT",
+    "warningStartOnly": {
+      "readyMaySafelyCloseWhenMandatorySatisfied": true,
+      "warningMaySafelyClose": false,
+      "warningMayStartWhenMandatorySatisfied": true
+    }
+  },
+  "sourceProjection": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1",
+      "P04ShippingSurfaceSetV1",
+      "P04BrandClosureSetV1"
+    ],
+    "canonicalSuccessor": {
+      "cardID": "V23-P04-C07",
+      "registerOrdinal": 95
+    },
+    "conformanceSubjects": [
+      "P04ShippingSurfaceSetV1",
+      "CommonTaskJourneyReleaseV2"
+    ],
+    "deterministicEvidenceIDs": [
+      "V23-P04-C06-G01",
+      "V23-P04-C06-A01",
+      "V23-P04-C06-H01",
+      "V23-P04-C06-I01",
+      "V23-P04-C06-R01"
+    ],
+    "dossierSHA256": "cc114b26912213522bcd8f3d817d21ae61659a196286e141366cffe8e1cd37d6",
+    "dossierUTF8Length": 7216,
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/OfflineReadiness/OfflineReadinessManifestContractsV1.swift",
+      "FieldEvidenceApp/Application/Rounds/OfflineReadinessPreflightCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/OfflineReadiness/OfflineReadinessManifestBuilderV1.swift",
+      "FieldEvidenceApp/Features/Rounds/OfflineReadinessPreflightView.swift",
+      "FieldEvidenceAppTests/V9_71OfflineReadinessManifestTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C06OfflineReadinessPreflightUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/OfflineReadiness/V22P04C06OfflineReadinessManifestCorpusV1.json"
+    ],
+    "inheritedV21BlockSHA256": "014ecb54b52e78b8404d3db9b83ff5868205bd92b5ac1d097793c90bef881c19",
+    "inheritedV21BlockUTF8Length": 8195,
+    "invalidationConsumers": [
+      "V23-P04-C07",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "missingPaths": [],
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/OfflineReadiness/OfflineReadinessManifestContractsV1.swift",
+      "FieldEvidenceApp/Application/Rounds/OfflineReadinessPreflightCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/OfflineReadiness/OfflineReadinessManifestBuilderV1.swift",
+      "FieldEvidenceApp/Features/Rounds/OfflineReadinessPreflightView.swift",
+      "FieldEvidenceAppTests/V9_71OfflineReadinessManifestTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C06OfflineReadinessPreflightUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/OfflineReadiness/V22P04C06OfflineReadinessManifestCorpusV1.json"
+    ],
+    "registerRowSHA256": "da94d087d0eddf3347d64d65e77bb5ba10706a85d599926303c90cebcdbe1c49",
+    "registerRowUTF8Length": 255,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionUTF8Length": 44217,
+    "selectors": [
+      "testV23P04C06G01ReadyManifestDeterministicRepeatAndRevisionInvalidation",
+      "testV23P04C06A01ColdLaunchRebootForceQuitReconstructsAndWarnsOnlyForOptionalContent",
+      "testV23P04C06H01MandatoryOptionalAndHostileReadinessMatrixFailsClosed",
+      "testV23P04C06I01CancellationTerminationBoundariesRejectPartialAndSourceDriftStales",
+      "testV23P04C06R01DerivedViewDropAndRebuildPreservesSessionAndCanonicalData"
+    ],
+    "sourceReady": true,
+    "sourceReason": "ALL_IMPLEMENTATION_SOURCE_LANES_PRESENT",
+    "sourceRows": [
+      {
+        "byteCount": 48775,
+        "path": "FieldEvidenceApp/Domain/OfflineReadiness/OfflineReadinessManifestContractsV1.swift",
+        "sha256": "aed153b0d4bb0dab224aff0480e2834f5589a3626f928676e62eb22adf9702b7",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 11988,
+        "path": "FieldEvidenceApp/Application/Rounds/OfflineReadinessPreflightCoordinatorV1.swift",
+        "sha256": "d7e5d8c5cc956d7f15c75beccfc86392e2a134e487ed038433a36e319b553e25",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 8467,
+        "path": "FieldEvidenceApp/Infrastructure/OfflineReadiness/OfflineReadinessManifestBuilderV1.swift",
+        "sha256": "2b98ae8bc6c50989ccd5e52f1b1917be77f808f31d83dde623da570b0f23b218",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 11197,
+        "path": "FieldEvidenceApp/Features/Rounds/OfflineReadinessPreflightView.swift",
+        "sha256": "55a8bfe733a9aa5da7ebd768597f8be14d8ac46d0e1d9db9db0a4ae0758e53ac",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 21951,
+        "path": "FieldEvidenceAppTests/V9_71OfflineReadinessManifestTests.swift",
+        "sha256": "3f727e2e36311354f8e6b7aa53faf1f62c900c30542c916bf25e0737e9bb887a",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 1877,
+        "path": "FieldEvidenceAppUITests/V23_P04_C06OfflineReadinessPreflightUITests.swift",
+        "sha256": "bc78cd11beacc7d09cc75d57a64bd0c41ecca24468dddc574a16b465025261b1",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 1830,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/OfflineReadiness/V22P04C06OfflineReadinessManifestCorpusV1.json",
+        "sha256": "f809499a1880ccf9a22912c70f505afcf71077395ccdd881077489660176ef5f",
+        "status": "SEALED_SOURCE"
+      }
+    ],
+    "sourceSemanticsInspected": true,
+    "sourceStatus": "SOURCE_READY"
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "title": "OfflineReadinessManifestV1 and cold-launch field preflight",
+  "uiAcceptanceCredit": false,
+  "uiAdoptionSkipped": true
+}

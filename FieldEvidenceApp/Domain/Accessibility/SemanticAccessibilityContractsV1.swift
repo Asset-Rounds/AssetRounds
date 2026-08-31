@@ -2974,3 +2974,39 @@ enum ShopReportProfileAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C06 round offline-readiness preflight accessibility
+
+enum OfflineReadinessPreflightAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "v23.p04.c06.offline-readiness.screen"
+    case status = "v23.p04.c06.offline-readiness.status"
+    case safety = "v23.p04.c06.offline-readiness.safety"
+    case requirements = "v23.p04.c06.offline-readiness.requirements"
+    case reasons = "v23.p04.c06.offline-readiness.reasons"
+    case remediation = "v23.p04.c06.offline-readiness.remediation"
+    case manualFallback = "v23.p04.c06.offline-readiness.manual-fallback"
+    case rebuild = "v23.p04.c06.offline-readiness.rebuild"
+    case cancel = "v23.p04.c06.offline-readiness.cancel"
+    case localOnlyDisclosure = "v23.p04.c06.offline-readiness.local-only-disclosure"
+}
+
+enum OfflineReadinessPreflightAccessibilityPolicyV1 {
+    static let semanticIDs = OfflineReadinessPreflightAccessibilityIDV1.allCases.map(\.rawValue)
+    static let statusIsNotColorOnly = true
+    static let requiredAndOptionalAreTextuallyDistinct = true
+    static let safeClaimRequiresReadyManifest = true
+    static let dynamicTypeAX5AndRTLRequired = true
+    static let uiAdoptionClaimed = false
+
+    static func validate() throws {
+        let identifiers = OfflineReadinessPreflightAccessibilityIDV1.allCases.map(\.rawValue)
+        guard identifiers.count == Set(identifiers).count,
+              statusIsNotColorOnly,
+              requiredAndOptionalAreTextuallyDistinct,
+              safeClaimRequiresReadyManifest,
+              dynamicTypeAX5AndRTLRequired,
+              !uiAdoptionClaimed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

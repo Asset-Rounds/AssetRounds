@@ -5872,3 +5872,141 @@ enum ShopReportProfileLocalizationPolicyV1 {
         }
     }
 }
+
+// MARK: - C06 round offline-readiness preflight presentation
+
+enum OfflineReadinessPreflightLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case heading = "round.offline_readiness.heading"
+    case loading = "round.offline_readiness.loading"
+    case unavailable = "round.offline_readiness.unavailable"
+    case ready = "round.offline_readiness.state.ready"
+    case blocked = "round.offline_readiness.state.blocked"
+    case warning = "round.offline_readiness.state.warning"
+    case stale = "round.offline_readiness.state.stale"
+    case safeToStart = "round.offline_readiness.safe_to_start"
+    case safeToClose = "round.offline_readiness.safe_to_close"
+    case notSafeToStartOrClose = "round.offline_readiness.not_safe_to_start_or_close"
+    case requirementsHeading = "round.offline_readiness.requirements.heading"
+    case reasonsHeading = "round.offline_readiness.reasons.heading"
+    case required = "round.offline_readiness.required"
+    case optional = "round.offline_readiness.optional"
+    case remediation = "round.offline_readiness.remediation"
+    case manualFallback = "round.offline_readiness.manual_fallback"
+    case rebuild = "round.offline_readiness.rebuild"
+    case cancel = "round.offline_readiness.cancel"
+    case rebuildUnavailable = "round.offline_readiness.rebuild_unavailable"
+    case localOnlyDisclosure = "round.offline_readiness.local_only_disclosure"
+    case reasonPackageMismatch = "round.offline_readiness.reason.package_mismatch"
+    case reasonSelectedAssetMismatch = "round.offline_readiness.reason.selected_asset_mismatch"
+    case reasonGuidanceReferenceMismatch = "round.offline_readiness.reason.guidance_reference_mismatch"
+    case reasonFieldReferenceUnavailable = "round.offline_readiness.reason.field_reference_unavailable"
+    case reasonMissingMandatoryContent = "round.offline_readiness.reason.missing_mandatory_content"
+    case reasonMissingOptionalContent = "round.offline_readiness.reason.missing_optional_content"
+    case reasonCorruptMandatoryContent = "round.offline_readiness.reason.corrupt_mandatory_content"
+    case reasonCorruptOptionalContent = "round.offline_readiness.reason.corrupt_optional_content"
+    case reasonPartialMandatoryContent = "round.offline_readiness.reason.partial_mandatory_content"
+    case reasonPartialOptionalContent = "round.offline_readiness.reason.partial_optional_content"
+    case reasonWrongWorkspaceContent = "round.offline_readiness.reason.wrong_workspace_content"
+    case reasonProtectedDataUnavailable = "round.offline_readiness.reason.protected_data_unavailable"
+    case reasonStorageUncheckable = "round.offline_readiness.reason.storage_uncheckable"
+    case reasonInsufficientStorage = "round.offline_readiness.reason.insufficient_storage"
+    case reasonStorageArithmeticOverflow = "round.offline_readiness.reason.storage_arithmetic_overflow"
+    case reasonClockUncheckable = "round.offline_readiness.reason.clock_uncheckable"
+    case reasonClockOrTimeZoneChanged = "round.offline_readiness.reason.clock_or_time_zone_changed"
+    case reasonSourceBindingDrift = "round.offline_readiness.reason.source_binding_drift"
+    case remediationRebuild = "round.offline_readiness.remediation.rebuild"
+    case remediationRestorePackage = "round.offline_readiness.remediation.restore_package"
+    case remediationReselectAssets = "round.offline_readiness.remediation.reselect_assets"
+    case remediationRestoreGuidance = "round.offline_readiness.remediation.restore_guidance"
+    case remediationRestoreFieldReference = "round.offline_readiness.remediation.restore_field_reference"
+    case remediationRestoreContent = "round.offline_readiness.remediation.restore_content"
+    case remediationUnlock = "round.offline_readiness.remediation.unlock"
+    case remediationFreeStorage = "round.offline_readiness.remediation.free_storage"
+    case remediationCheckStorage = "round.offline_readiness.remediation.check_storage"
+    case remediationCheckClock = "round.offline_readiness.remediation.check_clock"
+    case fallbackDoNotStart = "round.offline_readiness.fallback.do_not_start"
+    case fallbackDeferFieldWork = "round.offline_readiness.fallback.defer_field_work"
+    case fallbackApprovedManualProcedure = "round.offline_readiness.fallback.approved_manual_procedure"
+    case fallbackContactSupervisor = "round.offline_readiness.fallback.contact_supervisor"
+
+    var localizationKey: LocalizationKeyV1 {
+        // Closed C06 vocabulary; manifest facts are never used as localization keys.
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+}
+
+enum OfflineReadinessPreflightLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let keys = OfflineReadinessPreflightLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let remoteSyncClaimed = false
+    static let unknownIsSafe = false
+
+    static func english(_ key: OfflineReadinessPreflightLocalizationKeyV1) -> String {
+        switch key {
+        case .heading: return "Offline readiness"
+        case .loading: return "Checking local readiness…"
+        case .unavailable: return "Local readiness is unavailable. No safe start or close status is shown."
+        case .ready: return "Ready for local field work"
+        case .blocked: return "Local readiness is blocked"
+        case .warning: return "Local readiness needs attention"
+        case .stale: return "Local readiness is out of date"
+        case .safeToStart: return "Safe to start locally"
+        case .safeToClose: return "Safe to close locally"
+        case .notSafeToStartOrClose: return "Do not start or close until readiness is rebuilt."
+        case .requirementsHeading: return "Readiness requirements"
+        case .reasonsHeading: return "What needs attention"
+        case .required: return "Required"
+        case .optional: return "Optional"
+        case .remediation: return "What to do"
+        case .manualFallback: return "Manual fallback"
+        case .rebuild: return "Rebuild local readiness"
+        case .cancel: return "Cancel"
+        case .rebuildUnavailable: return "Local readiness cannot be rebuilt from this screen."
+        case .localOnlyDisclosure: return "This screen shows local readiness only. It does not report sync, upload, online, or account status."
+        case .reasonPackageMismatch: return "The selected package does not match this round."
+        case .reasonSelectedAssetMismatch: return "A selected asset no longer matches this round."
+        case .reasonGuidanceReferenceMismatch: return "A required guidance reference does not match this round."
+        case .reasonFieldReferenceUnavailable: return "A required local field reference is unavailable."
+        case .reasonMissingMandatoryContent: return "Required local content is missing."
+        case .reasonMissingOptionalContent: return "Optional local content is missing."
+        case .reasonCorruptMandatoryContent: return "Required local content could not be verified."
+        case .reasonCorruptOptionalContent: return "Optional local content could not be verified."
+        case .reasonPartialMandatoryContent: return "Required local content is incomplete."
+        case .reasonPartialOptionalContent: return "Optional local content is incomplete."
+        case .reasonWrongWorkspaceContent: return "Local content belongs to a different workspace."
+        case .reasonProtectedDataUnavailable: return "Protected local data is unavailable while the device is locked."
+        case .reasonStorageUncheckable: return "Available local storage could not be checked."
+        case .reasonInsufficientStorage: return "Available local storage is too low to continue safely."
+        case .reasonStorageArithmeticOverflow: return "The local storage check could not be completed safely."
+        case .reasonClockUncheckable: return "The device clock or time zone could not be checked."
+        case .reasonClockOrTimeZoneChanged: return "The device clock or time zone changed after readiness was checked."
+        case .reasonSourceBindingDrift: return "This readiness result no longer matches the current round."
+        case .remediationRebuild: return "Rebuild local readiness."
+        case .remediationRestorePackage: return "Restore the exact package selected for this round."
+        case .remediationReselectAssets: return "Review the selected local assets for this round."
+        case .remediationRestoreGuidance: return "Restore the required local guidance reference."
+        case .remediationRestoreFieldReference: return "Restore the required local field reference."
+        case .remediationRestoreContent: return "Restore the exact local content required for this round."
+        case .remediationUnlock: return "Unlock the device, then rebuild local readiness."
+        case .remediationFreeStorage: return "Free local storage, then rebuild local readiness."
+        case .remediationCheckStorage: return "Check local storage again, then rebuild local readiness."
+        case .remediationCheckClock: return "Check the device clock and time zone, then rebuild local readiness."
+        case .fallbackDoNotStart: return "Do not start or close this round from this readiness result."
+        case .fallbackDeferFieldWork: return "Defer field work until local readiness can be rebuilt."
+        case .fallbackApprovedManualProcedure: return "Use the approved manual procedure if one applies."
+        case .fallbackContactSupervisor: return "Contact your supervisor for the approved next step."
+        }
+    }
+
+    static func validate() throws {
+        let values = OfflineReadinessPreflightLocalizationKeyV1.allCases
+        guard sourceLocale == "en", shippingLocale == "en",
+              Set(values.map(\.rawValue)) == Set(keys),
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }),
+              !remoteSyncClaimed, !unknownIsSafe else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

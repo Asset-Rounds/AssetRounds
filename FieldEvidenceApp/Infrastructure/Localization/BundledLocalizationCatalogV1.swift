@@ -3514,6 +3514,48 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+// MARK: - C06 round offline-readiness preflight catalog
+
+extension BundledLocalizationCatalogV1 {
+    static func offlineReadinessPreflightEnglish(
+        _ key: OfflineReadinessPreflightLocalizationKeyV1
+    ) -> String {
+        OfflineReadinessPreflightLocalizationPolicyV1.english(key)
+    }
+
+    static func offlineReadinessPreflightLocalized(
+        _ key: OfflineReadinessPreflightLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: offlineReadinessPreflightEnglish(key),
+            bundle: bundle,
+            locale: locale,
+            comment: "C06 local-only offline readiness presentation. It never claims sync, upload, network, account, or remote delivery status."
+        )
+    }
+
+    static func offlineReadinessPreflightRegistry() throws -> LocalizationKeyRegistryV1 {
+        try OfflineReadinessPreflightLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = OfflineReadinessPreflightLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C06 local-only offline readiness presentation. It never claims sync, upload, network, account, or remote delivery status.",
+                englishDefaultValue: offlineReadinessPreflightEnglish(key),
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 // MARK: - C03 illuminated-sign playbook catalog
 
 extension BundledLocalizationCatalogV1 {
