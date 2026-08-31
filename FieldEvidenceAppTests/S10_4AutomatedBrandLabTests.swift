@@ -2535,8 +2535,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             preflightQuickPathSource.range(
                 of: minimumTallPreflightDiagnosticCaller,
                 range:
-                    currentProfilePreflightQuickPathStartRange.upperBound..<
-                        preflightQuickPathSource.endIndex
+                    currentProfilePreflightQuickPathStartRange.upperBound..<preflightQuickPathSource.endIndex
             )
         else {
             XCTFail("Missing the isolated minimum/current preflight source slices")
