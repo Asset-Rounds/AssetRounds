@@ -4841,6 +4841,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "S10.4 AX-text work-validation Short description positioning failed"
                 )
             }
+            try diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)
         }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
@@ -12503,6 +12504,307 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         throw AutomationConfigurationError.invalid(
             "S10.4 AX-text paywall purchase-complete native contrast diagnostic completed nonaccepting"
+        )
+    }
+
+    @MainActor
+    private func diagnoseFullRouteAXTextWorkValidationNativeContrast(
+        in app: XCUIApplication
+    ) throws {
+        let stateID = "state.work.validation-error"
+        let expectedMigratedStateIDs = Array(Self.segmentedRouteStateIDs.prefix(22))
+        let expectedContrastExceptionStateIDs = [
+            "state.check-preflight.ready",
+            "state.new-sign.editing",
+            "state.report-history.ready",
+            "state.reports-index.ready",
+        ]
+        guard let shard = automationShard,
+              shard.shardID == "s10.4.current.ax-text",
+              automationSegment == .none,
+              automationSegment.replayCount == 0,
+              automationSegment.ownedStartOrdinal == 1,
+              automationSegment.ownedCount == 67,
+              automationSegment.finalOrdinal == 67,
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              Self.segmentedRouteStateIDs[22] == stateID,
+              segmentedRouteStateCursor == 0,
+              migratedStateIDs == expectedMigratedStateIDs,
+              automationAXTreeDigests.keys.sorted()
+                == expectedMigratedStateIDs.sorted(),
+              automationContrastExceptions.keys.sorted()
+                == expectedContrastExceptionStateIDs,
+              !automatedSegmentFinished,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 AX-text work-validation native contrast diagnostic gate is invalid"
+            )
+        }
+
+        let dateLabelPredicate = NSPredicate(format: "label == %@", "Date")
+        let shortDescriptionLabelPredicate = NSPredicate(
+            format: "label == %@",
+            "Short description"
+        )
+        let noteLabelPredicate = NSPredicate(format: "label == %@", "Note")
+        let diagnosticQueryBindings: [(
+            name: String,
+            query: XCUIElementQuery
+        )] = [
+            (
+                "workScreens",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.screen"
+                )
+            ),
+            (
+                "workScrollViews",
+                app.scrollViews.matching(identifier: "s5.1.work.screen")
+            ),
+            (
+                "workHeaders",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.header"
+                )
+            ),
+            (
+                "workDates",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.date"
+                )
+            ),
+            (
+                "workDescriptions",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.description"
+                )
+            ),
+            (
+                "workValidations",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.validation"
+                )
+            ),
+            (
+                "workNotes",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.note"
+                )
+            ),
+            (
+                "workPhotos",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.photo"
+                )
+            ),
+            (
+                "workImportFixtureControls",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.import-fixture"
+                )
+            ),
+            (
+                "workSaveControls",
+                app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.save"
+                )
+            ),
+            ("dateLabelStaticTexts", app.staticTexts.matching(dateLabelPredicate)),
+            (
+                "shortDescriptionLabelStaticTexts",
+                app.staticTexts.matching(shortDescriptionLabelPredicate)
+            ),
+            ("noteLabelStaticTexts", app.staticTexts.matching(noteLabelPredicate)),
+            ("navigationBars", app.navigationBars),
+            ("tabBars", app.tabBars),
+            ("keyboards", app.keyboards),
+            (
+                "inputViews",
+                app.otherElements.matching(
+                    NSPredicate(format: "identifier == %@", "inputView")
+                )
+            ),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isEnabled": element.isEnabled,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+            query in
+            let count = query.count
+            var elements: [[String: Any]] = []
+            for index in 0..<count {
+                elements.append(
+                    diagnosticElementObject(query.element(boundBy: index))
+                )
+            }
+            return [
+                "count": count,
+                "elements": elements,
+            ]
+        }
+        var diagnosticQueryObjects: [String: Any] = [:]
+        for binding in diagnosticQueryBindings {
+            diagnosticQueryObjects[binding.name] = diagnosticQueryObject(binding.query)
+        }
+        let diagnosticContext: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "segmentID": automationSegment.rawValue,
+            "segmentReplayCount": automationSegment.replayCount,
+            "segmentOwnedStartOrdinal": automationSegment.ownedStartOrdinal,
+            "segmentOwnedCount": automationSegment.ownedCount,
+            "segmentFinalOrdinal": automationSegment.finalOrdinal,
+            "segmentStateCursor": segmentedRouteStateCursor,
+            "stateID": stateID,
+            "stateOrdinal": 23,
+            "predecessorStateID": "state.sign-detail.open-issue",
+            "predecessorOrdinal": 22,
+            "successorStateID": "state.work.editing",
+            "successorOrdinal": 24,
+            "migratedStateIDs": migratedStateIDs,
+            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
+            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "application": diagnosticElementObject(app),
+            "queries": diagnosticQueryObjects,
+        ]
+        printJSONLine(
+            prefix:
+                "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            object: diagnosticContext
+        )
+
+        let appAttachment = XCTAttachment(screenshot: app.screenshot())
+        appAttachment.name =
+            "S10.4 AX-text work-validation native contrast diagnostic app"
+        appAttachment.lifetime = .keepAlways
+        add(appAttachment)
+        let treeAttachment = XCTAttachment(string: app.debugDescription)
+        treeAttachment.name =
+            "S10.4 AX-text work-validation native contrast diagnostic tree"
+        treeAttachment.lifetime = .keepAlways
+        add(treeAttachment)
+        let contextData = try JSONSerialization.data(
+            withJSONObject: diagnosticContext,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let contextAttachment = XCTAttachment(
+            string: String(decoding: contextData, as: UTF8.self)
+        )
+        contextAttachment.name =
+            "S10.4 AX-text work-validation native contrast diagnostic context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+
+        var observedIssueCount = 0
+        var auditedElementCount = 0
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            observedIssueCount += 1
+            let auditedElement = issue.element
+            var diagnosticIssue: [String: Any] = [
+                "schemaVersion": 1,
+                "acceptanceEligible": false,
+                "shardID": shard.shardID,
+                "requirementID": shard.requirementID,
+                "deviceProfileID": shard.deviceProfileID,
+                "segmentID": self.automationSegment.rawValue,
+                "segmentStateCursor": self.segmentedRouteStateCursor,
+                "stateID": stateID,
+                "stateOrdinal": 23,
+                "issueOrdinal": observedIssueCount,
+                "auditTypeRawValue": String(issue.auditType.rawValue),
+                "compactDescription": issue.compactDescription,
+                "detailedDescription": issue.detailedDescription,
+                "elementExists": NSNull(),
+                "elementEnabled": NSNull(),
+                "elementHittable": NSNull(),
+                "elementIdentifier": NSNull(),
+                "elementLabel": NSNull(),
+                "elementValue": NSNull(),
+                "elementTypeRawValue": NSNull(),
+                "elementTypeDescription": NSNull(),
+                "elementFrame": NSNull(),
+                "applicationFrame": self.auditFrameObject(app.frame),
+            ]
+            if let auditedElement {
+                auditedElementCount += 1
+                let valueObject: Any
+                if let value = auditedElement.value as? String {
+                    valueObject = value
+                } else {
+                    valueObject = NSNull()
+                }
+                diagnosticIssue["elementExists"] = auditedElement.exists
+                diagnosticIssue["elementEnabled"] = auditedElement.isEnabled
+                diagnosticIssue["elementHittable"] = auditedElement.isHittable
+                diagnosticIssue["elementIdentifier"] = auditedElement.identifier
+                diagnosticIssue["elementLabel"] = auditedElement.label
+                diagnosticIssue["elementValue"] = valueObject
+                diagnosticIssue["elementTypeRawValue"] =
+                    auditedElement.elementType.rawValue
+                diagnosticIssue["elementTypeDescription"] =
+                    String(describing: auditedElement.elementType)
+                diagnosticIssue["elementFrame"] =
+                    self.auditFrameObject(auditedElement.frame)
+            }
+            self.printJSONLine(
+                prefix:
+                    "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+                object: diagnosticIssue
+            )
+            if let auditedElement {
+                let issueAttachment = XCTAttachment(
+                    screenshot: auditedElement.screenshot()
+                )
+                issueAttachment.name =
+                    "S10.4 AX-text work-validation native contrast diagnostic audited element "
+                        + String(observedIssueCount)
+                issueAttachment.lifetime = .keepAlways
+                self.add(issueAttachment)
+            }
+            return true
+        }
+        printJSONLine(
+            prefix:
+                "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            object: [
+                "schemaVersion": 1,
+                "acceptanceEligible": false,
+                "shardID": shard.shardID,
+                "segmentID": automationSegment.rawValue,
+                "stateID": stateID,
+                "stateOrdinal": 23,
+                "segmentStateCursor": segmentedRouteStateCursor,
+                "observedIssueCount": observedIssueCount,
+                "auditedElementCount": auditedElementCount,
+            ]
+        )
+        throw AutomationConfigurationError.invalid(
+            "S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting"
         )
     }
 

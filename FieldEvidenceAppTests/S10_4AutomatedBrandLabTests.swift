@@ -21036,10 +21036,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 786_171)
+        XCTAssertEqual(uiSource.utf8.count, 798_938)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "36CD8EE5B87BEB89D6500432E9C1D33ECA368F534490CF3C0104E01120114F01"
+            "1ADFD4A4191EF04F96BE5F230323E77FD118B0A720F442B3268BA6160AA70DF8"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -22395,6 +22395,195 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "ContrastAuditExceptionSignature(", "exceptionIssueID",
         ] {
             XCTAssertFalse(purchaseCompleteDiagnosticSource.contains(prohibited), prohibited)
+        }
+
+        let workValidationDiagnosticCallerSource = try boundedSource(
+            uiSource,
+            from:
+                "        if automationShard?.shardID == \"s10.4.current.ax-text\",\n" +
+                    "           shouldPrepareNormalEvidence(\n" +
+                    "               for: \"state.work.validation-error\",",
+            before:
+                "        captureBaseline(\"state.work.validation-error\", in: app)"
+        )
+        XCTAssertEqual(workValidationDiagnosticCallerSource.utf8.count, 543)
+        XCTAssertEqual(
+            Data(workValidationDiagnosticCallerSource.utf8).sha256,
+            "C7748373196C6E5FC796A98984FD3F1142D19D966969A4FF15A41FEE584DD65C"
+        )
+        for exact in [
+            #"automationShard?.shardID == "s10.4.current.ax-text""#,
+            #"for: "state.work.validation-error""#,
+            #"guard positionWorkValidationShortDescriptionForAXText(in: app) else"#,
+            #"try diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)"#,
+        ] {
+            XCTAssertTrue(workValidationDiagnosticCallerSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            workValidationDiagnosticCallerSource.components(
+                separatedBy: "diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)"
+            ).count - 1,
+            1
+        )
+        for prohibited in [
+            "captureBaseline(", "performAccessibilityAudit", "ContrastAuditExceptionSignature(",
+            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
+            "automatedSegmentFinished = true", "sleep(",
+        ] {
+            XCTAssertFalse(workValidationDiagnosticCallerSource.contains(prohibited), prohibited)
+        }
+
+        let workValidationDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func diagnoseFullRouteAXTextWorkValidationNativeContrast(",
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast("
+        )
+        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 12_688)
+        XCTAssertEqual(
+            Data(workValidationDiagnosticSource.utf8).sha256,
+            "E2A468E1B17101727BD532F51087CA3169C9FC08761368512C628537B9DA8DCC"
+        )
+        for exact in [
+            #"let stateID = "state.work.validation-error""#,
+            #"Self.segmentedRouteStateIDs.prefix(22)"#,
+            #""state.check-preflight.ready""#,
+            #""state.new-sign.editing""#,
+            #""state.report-history.ready""#,
+            #""state.reports-index.ready""#,
+            #"shard.shardID == "s10.4.current.ax-text""#,
+            #"automationSegment == .none"#,
+            #"automationSegment.replayCount == 0"#,
+            #"automationSegment.ownedStartOrdinal == 1"#,
+            #"automationSegment.ownedCount == 67"#,
+            #"automationSegment.finalOrdinal == 67"#,
+            #"Self.segmentedRouteStateIDs.count == 67"#,
+            #"Set(Self.segmentedRouteStateIDs).count == 67"#,
+            #"Self.segmentedRouteStateIDs[22] == stateID"#,
+            #"segmentedRouteStateCursor == 0"#,
+            #"migratedStateIDs == expectedMigratedStateIDs"#,
+            #"automationAXTreeDigests.keys.sorted()"#,
+            #"automationContrastExceptions.keys.sorted()"#,
+            #"!automatedSegmentFinished"#,
+            #"app.state == .runningForeground"#,
+            #""stateOrdinal": 23"#,
+            #""predecessorStateID": "state.sign-detail.open-issue""#,
+            #""predecessorOrdinal": 22"#,
+            #""successorStateID": "state.work.editing""#,
+            #""successorOrdinal": 24"#,
+            #""applicationStateRawValue": app.state.rawValue"#,
+            #""applicationForeground": app.state == .runningForeground"#,
+            #""applicationFrame": auditFrameObject(app.frame)"#,
+            #""application": diagnosticElementObject(app)"#,
+            #""queries": diagnosticQueryObjects"#,
+            #""exists": element.exists"#,
+            #""isEnabled": element.isEnabled"#,
+            #""isHittable": element.isHittable"#,
+            #""identifier": element.identifier"#,
+            #""label": element.label"#,
+            #""value": valueObject"#,
+            #""elementTypeRawValue": element.elementType.rawValue"#,
+            #""elementTypeDescription": String(describing: element.elementType)"#,
+            #""frame": self.auditFrameObject(element.frame)"#,
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementExists": NSNull()"#,
+            #""elementEnabled": NSNull()"#,
+            #""elementHittable": NSNull()"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementValue": NSNull()"#,
+            #""elementTypeRawValue": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            #""observedIssueCount": observedIssueCount"#,
+            #""auditedElementCount": auditedElementCount"#,
+            #"options: [.prettyPrinted, .sortedKeys]"#,
+            #"try app.performAccessibilityAudit(for: .contrast)"#,
+            #"screenshot: auditedElement.screenshot()"#,
+            #"return true"#,
+            #"S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting"#,
+        ] {
+            XCTAssertTrue(workValidationDiagnosticSource.contains(exact), exact)
+        }
+        var workValidationQueryTail =
+            workValidationDiagnosticSource[workValidationDiagnosticSource.startIndex...]
+        for queryName in [
+            "workScreens", "workScrollViews", "workHeaders", "workDates",
+            "workDescriptions", "workValidations", "workNotes", "workPhotos",
+            "workImportFixtureControls", "workSaveControls", "dateLabelStaticTexts",
+            "shortDescriptionLabelStaticTexts", "noteLabelStaticTexts",
+            "navigationBars", "tabBars", "keyboards", "inputViews",
+        ] {
+            let token = "\"\(queryName)\""
+            let range = try XCTUnwrap(workValidationQueryTail.range(of: token), queryName)
+            workValidationQueryTail = workValidationQueryTail[range.upperBound...]
+        }
+        for prefix in [
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+        ] {
+            XCTAssertEqual(
+                workValidationDiagnosticSource.components(separatedBy: prefix).count - 1,
+                1,
+                prefix
+            )
+        }
+        XCTAssertEqual(
+            workValidationDiagnosticSource.components(
+                separatedBy: "performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationDiagnosticSource.components(separatedBy: "return true").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationDiagnosticSource.components(
+                separatedBy: ".lifetime = .keepAlways"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            workValidationDiagnosticSource.components(separatedBy: "add(").count - 1,
+            4
+        )
+        var workValidationDiagnosticTail =
+            workValidationDiagnosticSource[workValidationDiagnosticSource.startIndex...]
+        for orderedToken in [
+            "let diagnosticContext: [String: Any] = [",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
+            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
+            "let contextAttachment = XCTAttachment(",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "screenshot: auditedElement.screenshot()",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "throw AutomationConfigurationError.invalid(",
+        ] {
+            let range = try XCTUnwrap(
+                workValidationDiagnosticTail.range(of: orderedToken),
+                orderedToken
+            )
+            workValidationDiagnosticTail =
+                workValidationDiagnosticTail[range.upperBound...]
+        }
+        for prohibited in [
+            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST\"", "S10_4_CANDIDATE", ".tap()", ".typeText(",
+            "setToggle(", "navigateBack(", "waitForExistence(", ".swipe",
+            ".press(", "sleep(", "NotificationCenter", "migratedStateIDs.append",
+            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
+            "ContrastAuditExceptionSignature(", "exceptionIssueID",
+        ] {
+            XCTAssertFalse(workValidationDiagnosticSource.contains(prohibited), prohibited)
         }
 
         let issueResolvedDiagnosticSource = try boundedSource(
