@@ -22636,7 +22636,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             workValidationDiagnosticSource.components(
-                separatedBy: "keyboardDoneButton.tap()"
+                separatedBy: "globalDoneButton.tap()"
             ).count - 1,
             1
         )
