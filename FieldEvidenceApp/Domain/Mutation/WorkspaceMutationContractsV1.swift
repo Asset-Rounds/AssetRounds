@@ -86,6 +86,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case evidenceAssociationEvent
     case evidenceSequenceRevision
     case shopReportProfile
+    case roundSession
     case assuranceManifest
     case attestation
     case inspectionReviewTransition
@@ -2477,6 +2478,33 @@ extension EvidenceMetadataMutationV1 {
     }
 }
 
+struct RoundSessionMutationV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let expectedRevision: UInt64
+    let mutationID: MutationIDV1
+    let session: RoundSessionV1
+
+    init(workspaceID: WorkspaceID, expectedRevision: UInt64, mutationID: MutationIDV1, session: RoundSessionV1) throws {
+        try session.validateIntrinsic()
+        guard expectedRevision < UInt64.max, workspaceID == session.workspaceID,
+              mutationID == session.mutationID, session.revision == expectedRevision + 1,
+              (expectedRevision == 0) == (session.predecessor == nil),
+              session.predecessor?.revision == expectedRevision else { throw RoundSessionFailureV1.staleRevision }
+        self.workspaceID = workspaceID; self.expectedRevision = expectedRevision
+        self.mutationID = mutationID; self.session = session
+    }
+    var affectedIdentity: WorkspaceEntityIdentityV1 { get throws { try .init(kind: .roundSession, id: session.sessionID) } }
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 { get throws { try .init(kind: .roundSession, id: session.sessionID) } }
+    func validate() throws { _ = try Self(workspaceID: workspaceID, expectedRevision: expectedRevision, mutationID: mutationID, session: session) }
+    func canonicalSHA256() throws -> String { try validate(); return try WorkspaceMutationCanonicalV1.sha256(self) }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case workspaceID, expectedRevision, mutationID, session }
+    init(from decoder: Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(workspaceID: c.decode(WorkspaceID.self, forKey: .workspaceID), expectedRevision: c.decode(UInt64.self, forKey: .expectedRevision), mutationID: c.decode(MutationIDV1.self, forKey: .mutationID), session: c.decode(RoundSessionV1.self, forKey: .session))
+    }
+}
+
 enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case createFirstSign(FirstSignMutationV1)
     case createCheckDraft(CheckDraftMutationV1)
@@ -2530,6 +2558,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyServiceRequest(ServiceRequestMutationV1)
     case applyServiceReliability(ServiceReliabilityAtomicBundleV1)
     case applyShopReportProfile(ShopReportProfileMutationV1)
+    case applyRoundSession(RoundSessionMutationV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2585,6 +2614,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyServiceRequest:.applyServiceRequest
         case .applyServiceReliability:.applyServiceReliability
         case .applyShopReportProfile:.applyShopReportProfile
+        case .applyRoundSession:.applyRoundSession
         }
     }
 }
@@ -2642,6 +2672,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyServiceRequest="apply_service_request_v1"
     case applyServiceReliability="apply_service_reliability_v1"
     case applyShopReportProfile="apply_shop_report_profile_v1"
+    case applyRoundSession="apply_round_session_v1"
 }
 
 extension WorkspaceCommandV1 {
@@ -3448,6 +3479,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyServiceRequest,disposition:.compensatable,stableReason:"append_request_history_or_explicit_unlink_reversal_only"),
         .init(commandKind:.applyServiceReliability,disposition:.compensatable,stableReason:"append_incident_impact_cause_remedy_repair_restoration_or_exposure_successor_only"),
         .init(commandKind:.applyShopReportProfile,disposition:.compensatable,stableReason:"append_shop_report_profile_successor_only"),
+        .init(commandKind:.applyRoundSession,disposition:.compensatable,stableReason:"append_round_session_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

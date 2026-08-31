@@ -35,6 +35,8 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
         sequenceID: UUID
     ) throws -> [EvidenceSequenceV1]
     func persistedMyDayEffectMatches(_ mutation: MyDayMutationV1) throws -> Bool
+    func persistedRoundSessionEffectMatches(_ mutation: RoundSessionMutationV1) throws -> Bool
+    func roundSessionHistory(workspaceID: WorkspaceID, sessionID: UUID) throws -> [RoundSessionV1]
     func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1?
     func persistAppliedActivityContractEffect(
         _ mutation: ActivityContractMutationV2
@@ -85,6 +87,8 @@ extension WorkspaceWriterAdapterPortV1 {
         throw WorkspaceMutationFailureV1.unsupportedCommand
     }
     func persistedMyDayEffectMatches(_ mutation: MyDayMutationV1) throws -> Bool { false }
+    func persistedRoundSessionEffectMatches(_ mutation: RoundSessionMutationV1) throws -> Bool { false }
+    func roundSessionHistory(workspaceID: WorkspaceID, sessionID: UUID) throws -> [RoundSessionV1] { throw WorkspaceMutationFailureV1.unsupportedCommand }
     func currentMyDayPlan(for key: MyDayKeyV1) throws -> MyDayPlanV1? {
         throw WorkspaceMutationFailureV1.unsupportedCommand
     }
@@ -507,6 +511,24 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     func commitClientCapability(_ mutation:ClientCapabilityMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyClientCapability(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try ClientCapabilityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitFieldReference(_ mutation:FieldReferenceMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyFieldReference(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try FieldReferenceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitShopReportProfile(_ mutation:ShopReportProfileMutationV1)throws->ShopReportProfileMutationReceiptV1{try mutation.validate();guard mutation.workspaceID==identity.workspaceID else{throw WorkspaceMutationFailureV1.wrongWorkspace};let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyShopReportProfile(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try ShopReportProfileMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
+    func commitRoundSession(_ mutation: RoundSessionMutationV1) throws -> RoundSessionMutationReceiptV1 {
+        try mutation.validate(); guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard mutation.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        let command = WorkspaceCommandV1.applyRoundSession(mutation), digest = try WorkspaceMutationCanonicalV1.sha256(command)
+        if let receipt = try journalStore.receipt(mutationID: mutation.mutationID) {
+            guard receipt.identity.workspaceID == mutation.workspaceID, receipt.commandBodySHA256 == digest,
+                  try adapter.persistedRoundSessionEffectMatches(mutation) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return try .init(mutation: mutation, mutationReceipt: receipt)
+        }
+        let current = try currentRevision(), target = try mutation.concurrencyIdentity
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        guard known[target, default: 0] == mutation.expectedRevision else { throw WorkspaceMutationFailureV1.staleWorkspaceRevision }
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID, generationID: current.generationID, writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision, entityRevisions: [.init(identity: target, revision: mutation.expectedRevision)])
+        _ = try execute(.init(mutationID: mutation.mutationID, expectedRevision: expected, command: command))
+        guard let receipt = try journalStore.receipt(mutationID: mutation.mutationID), try adapter.persistedRoundSessionEffectMatches(mutation) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        return try .init(mutation: mutation, mutationReceipt: receipt)
+    }
     func commitAccessibleDocumentAssessment(_ mutation:AccessibleDocumentMutationV1,validatedAgainst tree:AccessibleDocumentSemanticTreeV1)throws->MutationReceiptV1{try mutation.validate();try mutation.receipt.validate(tree:tree);let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyAccessibleDocumentAssessment(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try AccessibleDocumentMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitSurveyDefinition(_ mutation:SurveyDefinitionMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applySurveyDefinition(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try SurveyDefinitionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitSurveySession(_ mutation:SurveySessionMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),targets=try mutation.concurrencyIdentities;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try targets.allSatisfy({known[$0,default:0]==(try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try targets.map{.init(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applySurveySession(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try SurveySessionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
@@ -841,6 +863,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         case .applyShopReportProfile(let value):
             do{try value.validate();let target=try value.concurrencyIdentity,expected=request.expectedRevision.entityRevisions.first(where:{$0.identity==target})?.revision;guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || expected==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}
             catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
+        case .applyRoundSession(let value):
+            do{try value.validate();let target=try value.concurrencyIdentity,expected=request.expectedRevision.entityRevisions.first(where:{$0.identity==target})?.revision;guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || expected==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}
+            catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         default:
             break
         }
@@ -1124,6 +1149,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         } else if case let .applyServiceReliability(bundle) = request.command {
             for image in try bundle.mutationPostImages { entityRevisions[try image.identity]=image.revision }
         } else if case let .applyShopReportProfile(mutation) = request.command {
+            let image = try mutation.mutationPostImage
+            entityRevisions[try image.identity] = image.revision
+        } else if case let .applyRoundSession(mutation) = request.command {
             let image = try mutation.mutationPostImage
             entityRevisions[try image.identity] = image.revision
         } else {
@@ -1644,6 +1672,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validateForCanonicalWriter();values=try value.affectedIdentities
         case let .applyShopReportProfile(value):
             try value.validate();values=[try value.affectedIdentity]
+        case let .applyRoundSession(value):
+            try value.validate();values=[try value.affectedIdentity]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1708,6 +1738,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyServiceRequest(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
         if case let .applyServiceReliability(value)=command{try value.validateForCanonicalWriter();return try value.concurrencyIdentities}
         if case let .applyShopReportProfile(value)=command{try value.validate();return[try value.concurrencyIdentity]}
+        if case let .applyRoundSession(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         return try targetIdentities(for: command)
     }
 

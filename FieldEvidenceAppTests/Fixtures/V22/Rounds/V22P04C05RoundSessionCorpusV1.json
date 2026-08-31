@@ -1,0 +1,128 @@
+{
+  "cardID": "V23-P04-C05",
+  "claims": {
+    "allFlagsFalse": true,
+    "cloneForkPreservesSessionIdentityAndRebindsWorkspace": true,
+    "completedHistorySurvivesOrdinaryAssetDeletion": true,
+    "existingSessionsDefaultAbsentUntilCreated": true,
+    "expectedMembershipNeverShrinksOnAssetDeletion": true,
+    "hostileDecodedProjectionCountsRejectWithoutOverflow": true,
+    "terminalUnavailablePackageOrContentIsLocalStateOnly": true,
+    "visitedMayOverlapTerminal": true
+  },
+  "counts": [
+    "EXPECTED",
+    "VISITED",
+    "COMPLETED",
+    "INACCESSIBLE",
+    "SKIPPED",
+    "DEFERRED"
+  ],
+  "forbidden": [
+    "ROUTE_AUTOMATION",
+    "QR",
+    "RECURRENCE",
+    "DUE",
+    "REMINDER",
+    "NETWORK",
+    "TEAM_DISPATCH",
+    "UI"
+  ],
+  "hostileVectors": [
+    "duplicate-items",
+    "lost-items",
+    "reordered-items",
+    "invalid-transition",
+    "asset-deletion-during-open-session",
+    "closeout-mismatch",
+    "hostile-decoded-progress-search-counts-reject-without-overflow",
+    "corrupt-schema",
+    "unknown-keys",
+    "archive-omission",
+    "clone-fork-workspace-identity-mismatch",
+    "forbidden-route-qr-recurrence-due-reminder-network"
+  ],
+  "interruptionVectors": [
+    "effect-before-receipt",
+    "partial-journal",
+    "divergent-journal"
+  ],
+  "lifecycleInventory": [
+    "MIGRATION",
+    "BACKUP",
+    "REPLACE_RESTORE",
+    "CLONE",
+    "FORK",
+    "IMPORT",
+    "EXPORT",
+    "REPORT",
+    "SEARCH",
+    "REBUILD",
+    "DELETE",
+    "ERASE",
+    "STREAMING_ARCHIVE",
+    "FORWARD_FIX"
+  ],
+  "ordinal": 93,
+  "reasonMatrix": {
+    "DEFERRED": [
+      "USER_DEFERRED",
+      "INTERRUPTION",
+      "REQUIRED_CONTENT_UNAVAILABLE",
+      "PROTECTED_DATA_UNAVAILABLE",
+      "FOLLOW_UP_REQUIRED"
+    ],
+    "INACCESSIBLE": [
+      "PHYSICAL_ACCESS_UNAVAILABLE",
+      "PERMISSION_UNAVAILABLE",
+      "PROTECTED_DATA_UNAVAILABLE",
+      "REQUIRED_PACKAGE_UNAVAILABLE",
+      "REQUIRED_CONTENT_UNAVAILABLE",
+      "ASSET_DELETED_DURING_SESSION",
+      "ASSET_RETIRED_OR_REPLACED"
+    ],
+    "SKIPPED": [
+      "EXPLICITLY_OUT_OF_SCOPE",
+      "DUPLICATE_SELECTION",
+      "NOT_REQUIRED"
+    ]
+  },
+  "schema": "V22P04C05RoundSessionCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    { "id": "G01", "selector": "V23-P04-C05-G01", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "V23-P04-C05-A01", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "V23-P04-C05-H01", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "V23-P04-C05-I01", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "V23-P04-C05-R01", "tier": "RECOVERY" }
+  ],
+  "stateMatrix": {
+    "ACTIVE": [
+      "VISIT_ITEM",
+      "COMPLETE_ITEM",
+      "MARK_INACCESSIBLE",
+      "SKIP_ITEM",
+      "DEFER_ITEM",
+      "RETRY_ITEM",
+      "PAUSE",
+      "CLOSE"
+    ],
+    "ARCHIVED": [],
+    "COMPLETED": ["ARCHIVE"],
+    "DRAFT": ["REVISE_SELECTION", "START"],
+    "PAUSED": ["RESUME"]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "network": false,
+    "physicalEvidence": false,
+    "release": false,
+    "ui": false
+  }
+}

@@ -106,6 +106,14 @@ final class MutationReceiptRecoveryServiceV1 {
         }
         try recoverBeforeWriterActivation()
     }
+    /// V45 validates an immutable round-session frontier before accepting a
+    /// receipt-less durable effect. No item state or projection is rebuilt.
+    func recoverRoundSessionEffectsBeforeWriterActivation() throws {
+        guard C05RoundSessionReceiptRecoveryBoundaryV1.validate() else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try recoverBeforeWriterActivation()
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -159,6 +167,18 @@ enum ShopReportProfileMutationReceiptRecoveryPolicyV1 {
         receipt: MutationReceiptV1
     ) throws {
         _ = try ShopReportProfileMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
+}
+
+enum RoundSessionMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        mutation: RoundSessionMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        _ = try RoundSessionMutationReceiptV1(
             mutation: mutation,
             mutationReceipt: receipt
         )
@@ -248,6 +268,26 @@ enum C04ShopReportProfileReceiptRecoveryBoundaryV1 {
             && allAbsentMeansSafeToApply
             && partialOrDivergentEffectFailsClosed
             && profileHistoryIsRevalidatedInRevisionOrder
+            && !createsParallelWriterOrStore
+    }
+}
+
+enum C05RoundSessionReceiptRecoveryBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyRoundSession
+    static let canonicalPostImageCount = 1
+    static let effectBeforeReceiptRecoveryRequiresExactFrontier = true
+    static let allAbsentMeansSafeToApply = true
+    static let partialOrDivergentEffectFailsClosed = true
+    static let sessionHistoryIsRevalidatedInRevisionOrder = true
+    static let createsParallelWriterOrStore = false
+
+    static func validate() -> Bool {
+        commandKind == .applyRoundSession
+            && canonicalPostImageCount == 1
+            && effectBeforeReceiptRecoveryRequiresExactFrontier
+            && allAbsentMeansSafeToApply
+            && partialOrDivergentEffectFailsClosed
+            && sessionHistoryIsRevalidatedInRevisionOrder
             && !createsParallelWriterOrStore
     }
 }

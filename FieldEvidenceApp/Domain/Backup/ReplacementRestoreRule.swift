@@ -486,7 +486,7 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
         )
         guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
               validLocationReferences(result, ledger: ledger) else {
@@ -547,7 +547,7 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
         )
     }
 
@@ -606,7 +606,7 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
         )
     }
 
@@ -656,7 +656,7 @@ private extension ReplacementRestoreRule {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions
         )
     }
 
@@ -1455,8 +1455,8 @@ enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              current.recordsSchemaVersion <= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
-              incoming.recordsSchemaVersion <= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion else {
+              current.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+              incoming.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion else {
             throw ReplacementRestoreRuleError.invalidAuthority
         }
         do {
@@ -1570,6 +1570,7 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
         do {
             try C05EvidenceMetadataBackupEnrollmentV1.validate(incoming)
             try C04ShopReportProfileBackupEnrollmentV1.validate(incoming)
+            try C05RoundSessionBackupEnrollmentV1.validate(incoming)
             switch mode {
             case .emptyInstall:
                 guard current.evidenceAssociationEvents.isEmpty,
@@ -1586,6 +1587,7 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
             case .replaceExisting:
                 try C05EvidenceMetadataBackupEnrollmentV1.validate(current)
                 try C04ShopReportProfileBackupEnrollmentV1.validate(current)
+                try C05RoundSessionBackupEnrollmentV1.validate(current)
                 let associations = try merge(
                     current.evidenceAssociationEvents,
                     incoming.evidenceAssociationEvents,
@@ -1599,6 +1601,7 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
                 let combined = incoming.replacingEvidenceMetadata(associations, sequences)
                 try C05EvidenceMetadataBackupEnrollmentV1.validate(combined)
                 try C04ShopReportProfileBackupEnrollmentV1.validate(combined)
+                try C05RoundSessionBackupEnrollmentV1.validate(combined)
                 return (associations, sequences)
             }
         } catch let error as ReplacementRestoreRuleError { throw error }
@@ -1617,5 +1620,44 @@ enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
             values[identity] = value
         }
         return values.sorted { $0.key < $1.key }.map(\.value)
+    }
+}
+
+enum C05RoundSessionReplacementRestoreBoundaryV1 {
+    static let sameWorkspaceReplacementPreservesExactRows = true
+    static let cloneForkUsesRestoreIdentityRebind = true
+    static let appendOnlyRowsAreNotMergedAcrossDistinctWorkspaces = true
+
+    static func canonicalRows(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        identity: RestoreIdentityV1?
+    ) throws -> [RoundSessionV1] {
+        guard sameWorkspaceReplacementPreservesExactRows,
+              cloneForkUsesRestoreIdentityRebind,
+              appendOnlyRowsAreNotMergedAcrossDistinctWorkspaces else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        try C05RoundSessionBackupEnrollmentV1.validate(incoming)
+        switch mode {
+        case .emptyInstall:
+            guard current.roundSessions.isEmpty else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            return incoming.roundSessions
+        case .replaceExisting:
+            try C05RoundSessionBackupEnrollmentV1.validate(current)
+            guard current.roundSessions.isEmpty || current.roundSessions == incoming.roundSessions else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            return incoming.roundSessions
+        case .clone, .fork:
+            guard let identity else { throw ReplacementRestoreRuleError.invalidAuthority }
+            return try C05RoundSessionRestoreIdentityBoundaryV1.rebinding(
+                incoming.roundSessions,
+                identity: identity
+            )
+        }
     }
 }

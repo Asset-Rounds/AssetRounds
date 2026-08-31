@@ -2668,3 +2668,40 @@ enum C57MyDayReportProjectionRegistryV1 {
         try projection.validate(plan: plan, readiness: readiness)
     }
 }
+
+// MARK: - C05 round-session derived projection registry
+
+extension ReportProjectionRegistryV1 {
+    /// The incumbent registry validates the derived round-session metadata.
+    /// It intentionally does not create another rendering path or publish an
+    /// export; later consumers must use the same semantic-renderer route.
+    static func roundSessionProgress(
+        session: RoundSessionV1
+    ) throws -> C05RoundSessionProgressReportProjectionV1 {
+        let projection = try C05RoundSessionProgressReportProjectionV1(session: session)
+        try projection.validate(source: session)
+        return projection
+    }
+
+    static func roundSessionCloseout(
+        session: RoundSessionV1
+    ) throws -> C05RoundSessionCloseoutReportProjectionV1 {
+        let projection = try C05RoundSessionCloseoutReportProjectionV1(session: session)
+        try projection.validate(source: session)
+        return projection
+    }
+
+    static func validateRoundSessionProgress(
+        _ projection: C05RoundSessionProgressReportProjectionV1,
+        against session: RoundSessionV1
+    ) throws {
+        try projection.validate(source: session)
+    }
+
+    static func validateRoundSessionCloseout(
+        _ projection: C05RoundSessionCloseoutReportProjectionV1,
+        against session: RoundSessionV1
+    ) throws {
+        try projection.validate(source: session)
+    }
+}

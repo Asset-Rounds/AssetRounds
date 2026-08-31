@@ -125,6 +125,28 @@ enum C04ShopReportProfileKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum C05RoundSessionKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 45
+    static let recordsSchemaVersion = 44
+    static let durableFamilies = ["RoundSessionRevisionRowV1"]
+    static let sameWorkspaceReplacePreservesExactHistory = true
+    static let cloneForkRequiresCanonicalWorkspaceRebind = true
+    static let itemStateIsEmbeddedInImmutableHistory = true
+    static let predecessorClosureIsRequired = true
+
+    static func validate() throws {
+        guard persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilies.count == C05RoundSessionBackupEnrollmentV1.durableFamilyCount,
+              sameWorkspaceReplacePreservesExactHistory,
+              cloneForkRequiresCanonicalWorkspaceRebind,
+              itemStateIsEmbeddedInImmutableHistory,
+              predecessorClosureIsRequired else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C30EvidenceContextBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 30
     static let recordsSchemaVersion = 29
@@ -701,6 +723,7 @@ enum KernelBackupRestoreRegistryV4 {
         try C45AcceptedLabelBackupRestoreRegistryV1.validate()
         try C46OperationalContactBackupRestoreRegistryV1.validate()
         try C53ServiceReliabilityKernelBackupRestoreEnrollmentV1.validate()
+        try C05RoundSessionKernelBackupRestoreEnrollmentV1.validate()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

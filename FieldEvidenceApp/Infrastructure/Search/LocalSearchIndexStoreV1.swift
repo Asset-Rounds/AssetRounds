@@ -1655,3 +1655,32 @@ enum C57MyDayLocalSearchIndexBoundaryV1 {
         )
     }
 }
+
+// MARK: - C05 round-session local-index boundary
+
+enum C05RoundSessionLocalSearchIndexBoundaryV1 {
+    static let storeType: LocalSearchIndexStoreV1.Type = LocalSearchIndexStoreV1.self
+    static let rowsAreDerivedAndDisposable = true
+    static let staleRowsAreDroppedNotReconciledAsTruth = true
+    static let contentReferencesActorsReasonsAndAssetLabelsIndexed = false
+    static let routeDueReminderNetworkOrTeamStateIndexed = false
+
+    static func record(
+        progress: C05RoundSessionProgressReportProjectionV1,
+        closeout: C05RoundSessionCloseoutReportProjectionV1?
+    ) throws -> C05RoundSessionSearchProjectionV1 {
+        try C05RoundSessionSearchProjectionBoundaryV1.projection(
+            progress: progress,
+            closeout: closeout
+        )
+    }
+
+    static func serializedRecord(
+        progress: C05RoundSessionProgressReportProjectionV1,
+        closeout: C05RoundSessionCloseoutReportProjectionV1?
+    ) throws -> Data {
+        try C05RoundSessionSearchPersistenceBoundaryV1.encode(
+            record(progress: progress, closeout: closeout)
+        )
+    }
+}

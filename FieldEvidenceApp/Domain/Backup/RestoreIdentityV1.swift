@@ -154,6 +154,93 @@ enum C04ShopReportProfileRestoreIdentityBoundaryV1 {
     }
 }
 
+enum C05RoundSessionRestoreIdentityBoundaryV1 {
+    static let sessionHistoryIsCanonical = true
+    static let sameWorkspaceReplacePreservesExactBytes = true
+    static let cloneForkRebindsInAscendingRevisionOrder = true
+    static let visitActorSnapshotsAreReboundBySourceSnapshotID = true
+
+    static func rebinding(
+        _ sessions: [RoundSessionV1],
+        identity: RestoreIdentityV1
+    ) throws -> [RoundSessionV1] {
+        guard sessionHistoryIsCanonical,
+              sameWorkspaceReplacePreservesExactBytes,
+              cloneForkRebindsInAscendingRevisionOrder,
+              visitActorSnapshotsAreReboundBySourceSnapshotID else {
+            throw RestoreIdentityDecisionErrorV1.invalidMode
+        }
+        try C05RoundSessionBackupEnrollmentV1.validate(
+            V4BackupRecordsV1(
+                assets: [], evidenceFiles: [], issues: [], packets: [],
+                recordsSchemaVersion: C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+                reports: [], sites: [], workflowRecords: [], roundSessions: sessions
+            )
+        )
+        let targetWorkspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
+        switch identity.mode {
+        case .emptyInstall, .replaceExisting:
+            guard sessions.allSatisfy({ $0.workspaceID == targetWorkspaceID }) else {
+                throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
+            }
+            return sessions
+        case .clone, .fork:
+            func actor(_ source: ActorSnapshotV1) throws -> ActorSnapshotV1 {
+                let local = try LocalActorReferenceV1(
+                    actorReferenceID: source.actor.actorReferenceID,
+                    workspaceID: targetWorkspaceID,
+                    partyID: source.actor.partyID,
+                    displayName: source.actor.displayName
+                )
+                return try .init(
+                    snapshotID: source.snapshotID,
+                    workspaceID: targetWorkspaceID,
+                    actor: local,
+                    responsibility: source.responsibility,
+                    displayNameAtTime: source.displayNameAtTime,
+                    capturedAt: source.capturedAt
+                )
+            }
+            var result: [RoundSessionV1] = []
+            for history in Dictionary(grouping: sessions, by: { $0.sessionID }).values {
+                let ordered = history.sorted { $0.revision < $1.revision }
+                guard let first = ordered.first else {
+                    throw RestoreIdentityDecisionErrorV1.invalidMode
+                }
+                _ = try RoundSessionHistoryValidatorV1.validate(
+                    ordered,
+                    workspaceID: first.workspaceID,
+                    sessionID: first.sessionID
+                )
+                var predecessor: RoundSessionV1?
+                for source in ordered {
+                    var visitActors: [UUID: ActorSnapshotV1] = [:]
+                    for visit in source.items.compactMap(\.visit) {
+                        let rebound = try actor(visit.recordedBy)
+                        if let existing = visitActors.updateValue(
+                            rebound,
+                            forKey: visit.recordedBy.snapshotID
+                        ), existing != rebound {
+                            throw RestoreIdentityDecisionErrorV1.invalidMode
+                        }
+                    }
+                    let rebound = try source.rebindingWorkspaceID(
+                        targetWorkspaceID,
+                        rebasedPredecessor: predecessor,
+                        recordedBy: actor(source.recordedBy),
+                        visitActors: visitActors
+                    )
+                    predecessor = rebound
+                    result.append(rebound)
+                }
+            }
+            return result.sorted {
+                ($0.sessionID.uuidString, $0.revision) < ($1.sessionID.uuidString, $1.revision)
+            }
+        }
+    }
+}
+
 enum AccessibleDocumentRestoreIdentityDispositionV1:String,Codable,Equatable,Sendable{
     case preserveAcceptedSourceBinding="PRESERVE_ACCEPTED_SOURCE_BINDING"
     case reboundAsIncompleteHistoricSourceEvidence="REBOUND_AS_INCOMPLETE_HISTORIC_SOURCE_EVIDENCE"
@@ -1068,7 +1155,7 @@ enum C53ServiceReliabilityRestoreIdentityBoundaryV1 {
               cloneForkRequiresExplicitWorkspaceRebind,
               !cloneForkAutomaticallyActivatesSourceRows,
               derivedProjectionsAreRebuilt,
-              records.recordsSchemaVersion <= C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion else {
+              records.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion else {
             throw RestoreIdentityDecisionErrorV1.invalidMode
         }
         do {

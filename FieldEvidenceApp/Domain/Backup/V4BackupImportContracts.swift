@@ -31,7 +31,7 @@ enum C49WorkResourceBackupImportBoundaryV1 {
     static let derivedTotalsSearchAndDraftsAreRebuilt = true
 
     static func validate(_ records: V4BackupRecordsV1) throws {
-        guard (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
             .contains(records.recordsSchemaVersion) else {
             throw WorkResourceContractFailureV1.invalidValue
         }
@@ -468,7 +468,7 @@ enum C53ServiceReliabilityBackupImportContractBoundaryV1 {
     ) throws {
         guard persistent == records + 1,
               records == backup.recordsSchemaVersion,
-              (recordsSchemaVersion...C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
+              (recordsSchemaVersion...C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records),
               persistentSchemaVersion == 40,
               durableFamilyCount == 7,
@@ -510,5 +510,24 @@ enum C53ServiceReliabilityBackupImportContractBoundaryV1 {
             from: backup,
             workspaceID: workspaceID
         )
+    }
+}
+
+enum C05RoundSessionBackupImportBoundaryV1 {
+    static let persistentSchemaVersion = 45
+    static let recordsSchemaVersion = 44
+    static let durableFamilyCount = 1
+    static let importsCanonicalHistoryOnly = true
+    static let mutableItemTablesAreImported = false
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion <= recordsSchemaVersion,
+              persistentSchemaVersion == recordsSchemaVersion + 1,
+              durableFamilyCount == C05RoundSessionBackupEnrollmentV1.durableFamilyCount,
+              importsCanonicalHistoryOnly,
+              !mutableItemTablesAreImported else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        try C05RoundSessionBackupEnrollmentV1.validate(records)
     }
 }

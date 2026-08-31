@@ -1540,3 +1540,62 @@ enum C57MyDaySearchPersistenceBoundaryV1 {
         ))
     }
 }
+
+// MARK: - C05 round-session search persistence boundary
+
+/// This envelope is a disposable local-search derivative. It is never a
+/// canonical session row, backup/export source, mutation receipt, or replay
+/// input; restore and replay must discard it and rebuild from canonical
+/// round-session frontiers.
+struct C05RoundSessionSearchPersistenceEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let projection: C05RoundSessionSearchProjectionV1
+    let lifecycle: [SearchIndexLifecycleDispositionV1]
+
+    init(projection: C05RoundSessionSearchProjectionV1) throws {
+        try projection.validate()
+        schemaVersion = Self.schemaVersion
+        self.projection = projection
+        lifecycle = Self.expectedLifecycle
+        try validate()
+    }
+
+    func validate() throws {
+        try projection.validate()
+        guard schemaVersion == Self.schemaVersion,
+              lifecycle == Self.expectedLifecycle else {
+            throw SearchContractFailureV1.unsupportedSchemaVersion
+        }
+    }
+
+    static let expectedLifecycle: [SearchIndexLifecycleDispositionV1] = [
+        .excludedFromMigration,
+        .excludedFromBackup,
+        .excludedFromExport,
+        .purgeOnDelete,
+        .purgeOnErase,
+        .dropAndRebuildAfterRestore,
+        .dropAndRebuildOnDowngrade,
+    ]
+}
+
+enum C05RoundSessionSearchPersistenceBoundaryV1 {
+    static let projectionRowsAreNonPersistent = true
+    static let excludedFromBackupExportJournalAndReplay = true
+    static let rebuiltOnlyFromCanonicalFrontiers = true
+    static let createsCanonicalRoundSessionRows = false
+
+    static func envelope(
+        _ projection: C05RoundSessionSearchProjectionV1
+    ) throws -> C05RoundSessionSearchPersistenceEnvelopeV1 {
+        try .init(projection: projection)
+    }
+
+    static func encode(
+        _ projection: C05RoundSessionSearchProjectionV1
+    ) throws -> Data {
+        try SearchPersistenceCodecV1.encode(envelope(projection))
+    }
+}

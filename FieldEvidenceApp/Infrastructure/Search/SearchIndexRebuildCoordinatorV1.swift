@@ -2556,3 +2556,52 @@ enum C57MyDaySearchRebuildBoundaryV1 {
         return values
     }
 }
+
+// MARK: - C05 round-session deterministic search rebuild
+
+enum C05RoundSessionSearchRebuildBoundaryV1 {
+    static let rebuildsFromExactCurrentCanonicalFrontiers = true
+    static let rebuildWritesNoRoundSessionCanonicalState = true
+    static let staleProjectionIsDroppedBeforePublication = true
+    static let routeDueReminderNetworkOrTeamStateIndexed = false
+
+    static func records(
+        progress: [C05RoundSessionProgressReportProjectionV1],
+        closeouts: [C05RoundSessionCloseoutReportProjectionV1]
+    ) throws -> [C05RoundSessionSearchProjectionV1] {
+        guard progress.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              closeouts.count <= progress.count else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        try progress.forEach { try $0.validate() }
+        try closeouts.forEach { try $0.validate() }
+
+        let progressBySession = Dictionary(grouping: progress, by: \.session)
+        let closeoutBySession = Dictionary(grouping: closeouts, by: \.progress.session)
+        guard progressBySession.values.allSatisfy({ $0.count == 1 }),
+              closeoutBySession.values.allSatisfy({ $0.count == 1 }),
+              Set(closeoutBySession.keys).isSubset(of: Set(progressBySession.keys)) else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+
+        let values = try progress.map { value in
+            try C05RoundSessionSearchProjectionBoundaryV1.projection(
+                progress: value,
+                closeout: closeoutBySession[value.session]?.first
+            )
+        }.sorted {
+            ($0.workspaceID.rawValue.uuidString, $0.session.sessionID.uuidString)
+                < ($1.workspaceID.rawValue.uuidString, $1.session.sessionID.uuidString)
+        }
+        let stableIDs = values.map {
+            $0.workspaceID.rawValue.uuidString.lowercased()
+                + "|"
+                + $0.session.sessionID.uuidString.lowercased()
+        }
+        guard values.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              Set(stableIDs).count == values.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        return values
+    }
+}

@@ -643,6 +643,7 @@ enum KernelDeletionEraseRegistryV4 {
     static func validate() throws {
         try EvidenceMetadataKernelDeletionEraseEnrollmentV1.validate()
         try C04ShopReportProfileKernelDeletionEraseEnrollmentV1.validate()
+        try C05RoundSessionKernelDeletionEraseEnrollmentV1.validate()
         try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
@@ -886,6 +887,32 @@ enum C04ShopReportProfileKernelDeletionEraseEnrollmentV1 {
               ordinaryDeleteDisposition == "PRESERVE_APPEND_ONLY_HISTORY",
               workspaceEraseClearsAllCanonicalFamilies,
               cloneForkSourceHistoryIsNotActiveTruth,
+              rowsOwnNoFilesystemPayload else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+/// C05 stores completed-item state inside one append-only session revision
+/// family. Ordinary asset removal leaves that historic completion evidence
+/// intact; only workspace Erase clears it.
+enum C05RoundSessionKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = ["RoundSessionRevisionRowV1"]
+    static let ordinaryDeleteDisposition = "PRESERVE_SESSION_AND_COMPLETED_ITEM_HISTORY"
+    static let workspaceEraseClearsAllCanonicalFamilies = true
+    static let rowsOwnNoFilesystemPayload = true
+
+    static func validate() throws {
+        try C05RoundSessionBackupEnrollmentV1.validate(
+            V4BackupRecordsV1(
+                assets: [], evidenceFiles: [], issues: [], packets: [],
+                recordsSchemaVersion: C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+                reports: [], sites: [], workflowRecords: []
+            )
+        )
+        guard durableFamilies == ["RoundSessionRevisionRowV1"],
+              ordinaryDeleteDisposition == "PRESERVE_SESSION_AND_COMPLETED_ITEM_HISTORY",
+              workspaceEraseClearsAllCanonicalFamilies,
               rowsOwnNoFilesystemPayload else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }

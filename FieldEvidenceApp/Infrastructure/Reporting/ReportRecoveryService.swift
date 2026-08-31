@@ -1297,6 +1297,42 @@ enum C34RouteSnapshotReportRecoveryBoundaryV1 {
     }
 }
 
+// MARK: - C05 round-session report recovery
+
+extension ReportRecoveryService {
+    /// Reopening a round-session derivative re-proves it against the exact
+    /// canonical frontier. Recovery never treats a historical progress view as
+    /// current, and never applies a canonical transition.
+    static func recoverRoundSessionProgress(
+        _ projection: C05RoundSessionProgressReportProjectionV1,
+        source: RoundSessionV1
+    ) throws -> C05RoundSessionProgressReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateRoundSessionProgress(
+            projection,
+            against: source
+        )
+        return projection
+    }
+
+    static func recoverRoundSessionCloseout(
+        _ projection: C05RoundSessionCloseoutReportProjectionV1,
+        source: RoundSessionV1
+    ) throws -> C05RoundSessionCloseoutReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateRoundSessionCloseout(
+            projection,
+            against: source
+        )
+        return projection
+    }
+}
+
+enum C05RoundSessionReportRecoveryBoundaryV1 {
+    static let recoveryRevalidatesExactCanonicalFrontier = true
+    static let recoveryRebuildsDerivedMetadataOnly = true
+    static let recoveryNeverAppliesSessionMutation = true
+    static let recoveryNeverClaimsDeliveryOrOpen = true
+}
+
 // MARK: - C52 lifecycle and privacy boundary
 enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Reporting_ReportRecoveryService_swift {
     static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent

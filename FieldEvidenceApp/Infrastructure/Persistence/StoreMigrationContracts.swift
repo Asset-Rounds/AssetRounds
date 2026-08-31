@@ -1704,3 +1704,28 @@ enum C04ShopReportProfileMigrationBoundaryV1 {
             && downgradeDisposition == "FORWARD_FIX_ONLY"
     }
 }
+
+/// V45 adds the one canonical round-session history family.  A V44 store has
+/// no rows to synthesize; the initial round session is always an explicit
+/// accepted mutation, so migration remains additive and forward-only.
+enum C05RoundSessionMigrationBoundaryV1 {
+    static let sourcePersistentSchemaVersion = 44
+    static let targetPersistentSchemaVersion = 45
+    static let currentRecordsSchemaVersion = 44
+    static let compatibleRecordsSchemaVersions = [43, 44]
+    static let newlyAddedRows = ["RoundSessionRevisionRowV1"]
+    static let sourceRowsMustBeEmpty = true
+    static let backfillCreatesRoundSessionTruth = false
+    static let downgradeDisposition = "FORWARD_FIX_ONLY"
+
+    static func validate() -> Bool {
+        sourcePersistentSchemaVersion == 44
+            && targetPersistentSchemaVersion == 45
+            && currentRecordsSchemaVersion == 44
+            && compatibleRecordsSchemaVersions == [43, 44]
+            && newlyAddedRows == ["RoundSessionRevisionRowV1"]
+            && sourceRowsMustBeEmpty
+            && !backfillCreatesRoundSessionTruth
+            && downgradeDisposition == "FORWARD_FIX_ONLY"
+    }
+}

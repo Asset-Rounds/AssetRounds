@@ -4201,3 +4201,143 @@ enum C57MyDaySearchProjectionBoundaryV1 {
         return sorted
     }
 }
+
+// MARK: - C05 round-session disposable search projection
+
+/// Search receives a small, rebuildable metadata projection. The canonical
+/// session, item selections, reasons, content references, and actor snapshots
+/// are never search rows or search tokens.
+struct C05RoundSessionSearchProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let session: RoundSessionReferenceV1
+    let state: RoundSessionStateV1
+    let counts: RoundSessionCountsV1
+    let sourceFrontierSHA256: String
+    let progressProjectionSHA256: String
+    let closeoutSHA256: String?
+    let normalizedTokens: [String]
+    let projectionSHA256: String
+
+    init(
+        progress: C05RoundSessionProgressReportProjectionV1,
+        closeout: C05RoundSessionCloseoutReportProjectionV1?
+    ) throws {
+        try progress.validate()
+        if let closeout {
+            try closeout.validate()
+            guard closeout.progress == progress else {
+                throw SearchContractFailureV1.staleIndex
+            }
+        }
+        guard (progress.state == .completed) == (closeout != nil) else {
+            throw SearchContractFailureV1.staleIndex
+        }
+        schemaVersion = Self.schemaVersion
+        workspaceID = progress.session.workspaceID
+        session = progress.session
+        state = progress.state
+        counts = progress.counts
+        sourceFrontierSHA256 = progress.sourceFrontierSHA256
+        progressProjectionSHA256 = progress.projectionSHA256
+        closeoutSHA256 = closeout?.closeoutSHA256
+        normalizedTokens = Self.tokens(
+            "round session",
+            state.rawValue,
+            "expected items",
+            counts.completed > 0 ? "completed items" : "no completed items",
+            closeout == nil ? "closeout unavailable" : "closeout recorded"
+        )
+        projectionSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: schemaVersion,
+            workspaceID: workspaceID,
+            session: session,
+            state: state,
+            counts: counts,
+            sourceFrontierSHA256: sourceFrontierSHA256,
+            progressProjectionSHA256: progressProjectionSHA256,
+            closeoutSHA256: closeoutSHA256,
+            normalizedTokens: normalizedTokens
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        try session.validate()
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID == session.workspaceID,
+              sourceFrontierSHA256 == session.sessionSHA256,
+              MutationEnvelopeV1.isSHA256(sourceFrontierSHA256),
+              MutationEnvelopeV1.isSHA256(progressProjectionSHA256),
+              closeoutSHA256.map(MutationEnvelopeV1.isSHA256) ?? true,
+              (state == .completed) == (closeoutSHA256 != nil),
+              C05RoundSessionCountValidationV1.validProgress(counts),
+              normalizedTokens == Self.tokens(
+                  "round session",
+                  state.rawValue,
+                  "expected items",
+                  counts.completed > 0 ? "completed items" : "no completed items",
+                  closeoutSHA256 == nil ? "closeout unavailable" : "closeout recorded"
+              ),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              projectionSHA256 == (try WorkspaceMutationCanonicalV1.sha256(basis)) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    private static func tokens(_ values: String...) -> [String] {
+        Array(Set(values.flatMap {
+            SearchContractValidationV1.normalizeSearchText($0)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        })).sorted()
+    }
+
+    private var basis: Basis {
+        Basis(
+            schemaVersion: schemaVersion,
+            workspaceID: workspaceID,
+            session: session,
+            state: state,
+            counts: counts,
+            sourceFrontierSHA256: sourceFrontierSHA256,
+            progressProjectionSHA256: progressProjectionSHA256,
+            closeoutSHA256: closeoutSHA256,
+            normalizedTokens: normalizedTokens
+        )
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let workspaceID: WorkspaceID
+        let session: RoundSessionReferenceV1
+        let state: RoundSessionStateV1
+        let counts: RoundSessionCountsV1
+        let sourceFrontierSHA256: String
+        let progressProjectionSHA256: String
+        let closeoutSHA256: String?
+        let normalizedTokens: [String]
+    }
+}
+
+enum C05RoundSessionSearchProjectionBoundaryV1 {
+    static let indexIsDerivedAndDisposable = true
+    static let indexRowsAreNeverCanonicalWriterInputs = true
+    static let rawContentOrLocatorValuesAreSearchable = false
+    static let actorOrReasonValuesAreSearchable = false
+    static let routeDueReminderOrTeamStateIsSearchable = false
+
+    static func projection(
+        progress: C05RoundSessionProgressReportProjectionV1,
+        closeout: C05RoundSessionCloseoutReportProjectionV1?
+    ) throws -> C05RoundSessionSearchProjectionV1 {
+        let projection = try C05RoundSessionSearchProjectionV1(
+            progress: progress,
+            closeout: closeout
+        )
+        try projection.validate()
+        return projection
+    }
+}

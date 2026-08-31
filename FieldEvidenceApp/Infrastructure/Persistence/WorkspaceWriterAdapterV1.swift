@@ -56,6 +56,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyServiceRequest,
             .applyServiceReliability,
             .applyShopReportProfile,
+            .applyRoundSession,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -235,6 +236,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyServiceReliability(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyShopReportProfile(value):
             return try applyShopReportProfile(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyRoundSession(value):
+            return try applyRoundSession(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -408,6 +411,168 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         return true
     }
 
+    /// V45 stores a round session as immutable, revision-addressed semantic
+    /// history. A committed row is accepted on replay only when its complete
+    /// canonical lineage is still exact.
+    private func applyRoundSession(
+        _ mutation: RoundSessionMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            let session = mutation.session
+            guard mutation.workspaceID == session.workspaceID,
+                  mutation.mutationID == session.mutationID,
+                  session.revision == mutation.expectedRevision + 1,
+                  (mutation.expectedRevision == 0) == (session.predecessor == nil) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            _ = try RoundSessionCanonicalCodecV1.decode(
+                RoundSessionV1.self,
+                from: try RoundSessionCanonicalCodecV1.encode(session)
+            )
+
+            let workspaceID = mutation.workspaceID.rawValue
+            let sessionID = session.sessionID
+            let rowID = RoundSessionRevisionRowV1.rowID(
+                workspaceID: session.workspaceID,
+                sessionID: session.sessionID,
+                revision: session.revision
+            )
+            let matchingRows = try modelContext.fetch(
+                FetchDescriptor<RoundSessionRevisionRowV1>(
+                    predicate: #Predicate { $0.rowID == rowID }
+                )
+            )
+            guard matchingRows.count <= 1 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            if let existing = matchingRows.first {
+                guard try existing.value() == session else {
+                    throw WorkspaceMutationFailureV1.sequenceCollision
+                }
+                return try WorkspaceMutationEffectV1(
+                    affectedEntities: [try mutation.affectedIdentity],
+                    temporaryRelativePath: temporaryRelativePath
+                )
+            }
+
+            let rows = try modelContext.fetch(
+                FetchDescriptor<RoundSessionRevisionRowV1>(
+                    predicate: #Predicate {
+                        $0.workspaceID == workspaceID && $0.sessionID == sessionID
+                    }
+                )
+            )
+            let history = try rows.map { try $0.value() }.sorted {
+                ($0.revision, $0.mutationID.rawValue.uuidString)
+                    < ($1.revision, $1.mutationID.rawValue.uuidString)
+            }
+            guard Set(history.map(\.revision)).count == history.count,
+                  Set(history.map(\.mutationID)).count == history.count else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            _ = try RoundSessionHistoryValidatorV1.validate(
+                history,
+                workspaceID: mutation.workspaceID,
+                sessionID: sessionID
+            )
+            if mutation.expectedRevision == 0 {
+                guard history.isEmpty, session.revision == 1,
+                      session.predecessor == nil else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(
+                        try mutation.concurrencyIdentity
+                    )
+                }
+            } else {
+                guard let predecessor = history.last,
+                      predecessor.revision == mutation.expectedRevision,
+                      session.predecessor == (try predecessor.reference),
+                      session.workspaceID == predecessor.workspaceID,
+                      session.sessionID == predecessor.sessionID,
+                      session.revision == predecessor.revision + 1,
+                      session.mutationID != predecessor.mutationID,
+                      session.recordedAt >= predecessor.recordedAt else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(
+                        try mutation.concurrencyIdentity
+                    )
+                }
+                try session.validateSuccessor(of: predecessor)
+            }
+            modelContext.insert(try RoundSessionRevisionRowV1(session))
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: [try mutation.affectedIdentity],
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    func roundSessionHistory(
+        workspaceID: WorkspaceID,
+        sessionID: UUID
+    ) throws -> [RoundSessionV1] {
+        let rawWorkspaceID = workspaceID.rawValue
+        let rows = try modelContext.fetch(
+            FetchDescriptor<RoundSessionRevisionRowV1>(
+                predicate: #Predicate {
+                    $0.workspaceID == rawWorkspaceID && $0.sessionID == sessionID
+                }
+            )
+        )
+        let history = try rows.map { try $0.value() }.sorted {
+            ($0.revision, $0.mutationID.rawValue.uuidString)
+                < ($1.revision, $1.mutationID.rawValue.uuidString)
+        }
+        guard Set(history.map(\.revision)).count == history.count,
+              Set(history.map(\.mutationID)).count == history.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        do {
+            _ = try RoundSessionHistoryValidatorV1.validate(
+                history,
+                workspaceID: workspaceID,
+                sessionID: sessionID
+            )
+        } catch {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return history
+    }
+
+    func persistedRoundSessionEffectMatches(
+        _ mutation: RoundSessionMutationV1
+    ) throws -> Bool {
+        let session = mutation.session
+        let rowID = RoundSessionRevisionRowV1.rowID(
+            workspaceID: session.workspaceID,
+            sessionID: session.sessionID,
+            revision: session.revision
+        )
+        let rows = try modelContext.fetch(
+            FetchDescriptor<RoundSessionRevisionRowV1>(
+                predicate: #Predicate { $0.rowID == rowID }
+            )
+        )
+        guard rows.count <= 1 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        guard let row = rows.first else { return false }
+        guard try row.value() == session else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        _ = try roundSessionHistory(
+            workspaceID: mutation.workspaceID,
+            sessionID: session.sessionID
+        )
+        return true
+    }
+
     private func requireCurrentMyDaySources(
         _ items: [MyDayItemV1],
         workspaceID: WorkspaceID
@@ -425,16 +590,19 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                     throw WorkspaceMutationFailureV1.invalidCommand
                 }
             case let .roundSession(referenceWorkspaceID, sessionID, revision, digest):
-                let rows = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(
-                    predicate: #Predicate { $0.sessionID == sessionID }
+                let rows = try modelContext.fetch(FetchDescriptor<RoundSessionRevisionRowV1>(
+                    predicate: #Predicate {
+                        $0.workspaceID == referenceWorkspaceID.rawValue
+                            && $0.sessionID == sessionID
+                            && $0.revision == revision
+                    }
                 ))
                 guard rows.count == 1,
                       let value = try rows.first?.value(),
                       referenceWorkspaceID == workspaceID,
                       value.workspaceID == workspaceID,
                       value.revision == revision,
-                      value.sessionSHA256 == digest,
-                      ![.superseded, .archived, .deleted].contains(value.state) else {
+                      value.sessionSHA256 == digest else {
                     throw WorkspaceMutationFailureV1.invalidCommand
                 }
             case let .scheduleOccurrence(anchor, digest):
@@ -2139,8 +2307,9 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                     let rows = try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>(predicate: #Predicate { $0.manifestID == id }))
                     guard rows.count == 1, let stored = try rows.first?.value(), try WorkPacketManifestReferenceV1(stored) == reference else { throw WorkspaceMutationFailureV1.invalidCommand }
                 case let .roundSession(sessionID, revision, digest):
-                    let rows = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(predicate: #Predicate { $0.sessionID == sessionID }))
-                    guard rows.count == 1, let stored = try rows.first?.value(), stored.revision == revision, stored.sessionSHA256 == digest else { throw WorkspaceMutationFailureV1.invalidCommand }
+                    let workspaceID = mutation.workspaceID.rawValue
+                    let rows = try modelContext.fetch(FetchDescriptor<RoundSessionRevisionRowV1>(predicate: #Predicate { $0.workspaceID == workspaceID && $0.sessionID == sessionID && $0.revision == revision }))
+                    guard rows.count == 1, let stored = try rows.first?.value(), stored.workspaceID == mutation.workspaceID, stored.revision == revision, stored.sessionSHA256 == digest else { throw WorkspaceMutationFailureV1.invalidCommand }
                 }
             }
             func appendEvent(_ value: OccurrenceHistoryEventV1, _ predecessor: OccurrenceHistoryEventV1?, _ release: ScheduleDefinitionReleaseV1) throws {
@@ -4363,3 +4532,4 @@ enum C34SceneNavigationWorkspaceWriterAdapterBoundaryV1 {
 // C52_BOUNDARY_ANCHOR: canonical-service-request-apply-recover
 
 extension WorkspaceWriterAdapterV1: ShopReportProfileCurrentReadingV1 {}
+extension WorkspaceWriterAdapterV1: RoundSessionCurrentReadingV1 {}

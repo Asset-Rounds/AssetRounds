@@ -6385,3 +6385,224 @@ enum C57MyDayReportProjectionBoundaryV1 {
         try .init(plan: plan, readiness: readiness)
     }
 }
+
+// MARK: - C05 round-session derived report projections
+
+enum C05RoundSessionReportProjectionFailureV1: Error, Equatable, Sendable {
+    case invalidValue
+    case staleFrontier
+    case incompleteCloseout
+    case digestMismatch
+}
+
+/// Validates independently recorded visit counts and the terminal/pending
+/// partition without ever summing decoded `Int` values. Each subtraction is
+/// preceded by a bound check, so hostile values cannot overflow validation.
+enum C05RoundSessionCountValidationV1 {
+    static func validProgress(_ counts: RoundSessionCountsV1) -> Bool {
+        guard counts.expected > 0,
+              counts.expected <= RoundSessionLimitsV1.maximumItems,
+              counts.visited >= 0,
+              counts.visited <= counts.expected,
+              counts.completed >= 0,
+              counts.completed <= counts.visited,
+              counts.inaccessible >= 0,
+              counts.skipped >= 0,
+              counts.deferred >= 0,
+              counts.undispositioned >= 0 else {
+            return false
+        }
+
+        var remaining = counts.expected
+        for bucket in [
+            counts.completed,
+            counts.inaccessible,
+            counts.skipped,
+            counts.deferred,
+            counts.undispositioned,
+        ] {
+            guard bucket <= remaining else { return false }
+            remaining -= bucket
+        }
+        return remaining == 0
+    }
+}
+
+/// A bounded, metadata-only view of one exact round-session frontier. It is
+/// derived from canonical session history and never carries asset labels,
+/// content references, reasons, or actor snapshots.
+struct C05RoundSessionProgressReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "C05_ROUND_SESSION_PROGRESS_REPORT_V1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let session: RoundSessionReferenceV1
+    let state: RoundSessionStateV1
+    let counts: RoundSessionCountsV1
+    let packageSHA256s: [String]
+    let workflowSHA256s: [String]
+    let requirementSHA256s: [String]
+    let completionSHA256s: [String]
+    let sourceFrontierSHA256: String
+    let projectionSHA256: String
+
+    init(session source: RoundSessionV1) throws {
+        try source.validateIntrinsic()
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        session = try source.reference
+        state = source.state
+        counts = source.counts
+        packageSHA256s = Self.sortedDigests(source.items.map { $0.requirement.packageRelease.packageSHA256 })
+        workflowSHA256s = Self.sortedDigests(source.items.map { $0.requirement.packageRelease.workflowSHA256 })
+        requirementSHA256s = Self.sortedDigests(source.items.map(\.requirement.requirementSHA256))
+        completionSHA256s = Self.sortedDigests(source.items.compactMap { $0.completion?.completionSHA256 })
+        sourceFrontierSHA256 = source.sessionSHA256
+        projectionSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: schemaVersion,
+            projectionVersion: projectionVersion,
+            session: session,
+            state: state,
+            counts: counts,
+            packageSHA256s: packageSHA256s,
+            workflowSHA256s: workflowSHA256s,
+            requirementSHA256s: requirementSHA256s,
+            completionSHA256s: completionSHA256s,
+            sourceFrontierSHA256: sourceFrontierSHA256
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        try session.validate()
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              sourceFrontierSHA256 == session.sessionSHA256,
+              C05RoundSessionCountValidationV1.validProgress(counts),
+              packageSHA256s.count == counts.expected,
+              workflowSHA256s.count == counts.expected,
+              requirementSHA256s.count == counts.expected,
+              Self.validDigests(packageSHA256s),
+              Self.validDigests(workflowSHA256s),
+              Self.validDigests(requirementSHA256s),
+              Self.validDigests(completionSHA256s),
+              completionSHA256s.count == counts.completed,
+              projectionSHA256 == (try WorkspaceMutationCanonicalV1.sha256(basis)) else {
+            throw C05RoundSessionReportProjectionFailureV1.digestMismatch
+        }
+    }
+
+    func validate(source: RoundSessionV1) throws {
+        try source.validateIntrinsic()
+        guard self == (try Self(session: source)) else {
+            throw C05RoundSessionReportProjectionFailureV1.staleFrontier
+        }
+    }
+
+    private static func sortedDigests(_ values: [String]) -> [String] {
+        values.sorted()
+    }
+
+    private static func validDigests(_ values: [String]) -> Bool {
+        values == values.sorted()
+            && values.allSatisfy(KernelCanonicalHashV1.validSHA256)
+    }
+
+    private var basis: Basis {
+        Basis(
+            schemaVersion: schemaVersion,
+            projectionVersion: projectionVersion,
+            session: session,
+            state: state,
+            counts: counts,
+            packageSHA256s: packageSHA256s,
+            workflowSHA256s: workflowSHA256s,
+            requirementSHA256s: requirementSHA256s,
+            completionSHA256s: completionSHA256s,
+            sourceFrontierSHA256: sourceFrontierSHA256
+        )
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let session: RoundSessionReferenceV1
+        let state: RoundSessionStateV1
+        let counts: RoundSessionCountsV1
+        let packageSHA256s: [String]
+        let workflowSHA256s: [String]
+        let requirementSHA256s: [String]
+        let completionSHA256s: [String]
+        let sourceFrontierSHA256: String
+    }
+}
+
+/// Closeout is available only from a completed, fully dispositioned canonical
+/// session. It deliberately reports dispositions and immutable hashes, not an
+/// approval, delivery, safety, or completion-quality claim.
+struct C05RoundSessionCloseoutReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let projectionVersion = "C05_ROUND_SESSION_CLOSEOUT_REPORT_V1"
+
+    let schemaVersion: Int
+    let projectionVersion: String
+    let progress: C05RoundSessionProgressReportProjectionV1
+    let finalDispositionCounts: RoundSessionCountsV1
+    let closeoutSHA256: String
+
+    init(session: RoundSessionV1) throws {
+        try session.validateIntrinsic()
+        guard session.state == .completed,
+              session.counts.undispositioned == 0 else {
+            throw C05RoundSessionReportProjectionFailureV1.incompleteCloseout
+        }
+        schemaVersion = Self.schemaVersion
+        projectionVersion = Self.projectionVersion
+        progress = try .init(session: session)
+        finalDispositionCounts = session.counts
+        closeoutSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: schemaVersion,
+            projectionVersion: projectionVersion,
+            progress: progress,
+            finalDispositionCounts: finalDispositionCounts
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        try progress.validate()
+        guard schemaVersion == Self.schemaVersion,
+              projectionVersion == Self.projectionVersion,
+              progress.state == .completed,
+              progress.counts == finalDispositionCounts,
+              finalDispositionCounts.undispositioned == 0,
+              C05RoundSessionCountValidationV1.validProgress(finalDispositionCounts),
+              closeoutSHA256 == (try WorkspaceMutationCanonicalV1.sha256(basis)) else {
+            throw C05RoundSessionReportProjectionFailureV1.incompleteCloseout
+        }
+    }
+
+    func validate(source: RoundSessionV1) throws {
+        try validate()
+        guard self == (try Self(session: source)) else {
+            throw C05RoundSessionReportProjectionFailureV1.staleFrontier
+        }
+    }
+
+    private var basis: Basis {
+        Basis(
+            schemaVersion: schemaVersion,
+            projectionVersion: projectionVersion,
+            progress: progress,
+            finalDispositionCounts: finalDispositionCounts
+        )
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let progress: C05RoundSessionProgressReportProjectionV1
+        let finalDispositionCounts: RoundSessionCountsV1
+    }
+}

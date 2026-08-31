@@ -311,6 +311,30 @@ enum C04ShopReportProfileEraseAllPolicyV1 {
     }
 }
 
+/// Round sessions retain item completion only as immutable history during
+/// ordinary asset deletion. A full workspace erase produces a V45 generation
+/// with no retained round-session rows.
+enum C05RoundSessionEraseAllPolicyV1 {
+    static let persistentSchemaVersion = 45
+    static let recordsSchemaVersion = 44
+    static let durableFamilyCount = 1
+    static let ordinaryAssetDeletionPreservesSessionHistory = true
+
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        try C05RoundSessionKernelDeletionEraseEnrollmentV1.validate()
+        guard persistentSchemaVersion
+                == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion
+                == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount
+                == C05RoundSessionBackupEnrollmentV1.durableFamilyCount,
+              ordinaryAssetDeletionPreservesSessionHistory,
+              try context.fetchCount(FetchDescriptor<RoundSessionRevisionRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
+
 enum PlanEraseAllPolicyV1 {
     static let persistentSchemaVersion = 28
     static let recordsSchemaVersion = 27
@@ -1575,6 +1599,9 @@ private extension EraseAllService {
             session.modelContext
         )
         try C04ShopReportProfileEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
+        try C05RoundSessionEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)

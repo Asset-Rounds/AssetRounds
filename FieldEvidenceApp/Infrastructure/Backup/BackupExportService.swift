@@ -1136,9 +1136,9 @@ private extension BackupExportService {
             source: .init(
                 appBuild: appBuild(),
                 appVersion: appVersion(),
-                persistentSchemaVersion: C04ShopReportProfileBackupEnrollmentV1.persistentSchemaVersion,
+                persistentSchemaVersion: C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion,
                 replicaID: sourceIdentity.replicaID.rawValue,
-                recordsSchemaVersion: C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
+                recordsSchemaVersion: C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
                 sourceGenerationID: generationID,
                 workspaceID: sourceIdentity.workspaceID.rawValue
             )
@@ -2491,6 +2491,12 @@ private extension BackupExportService {
             .filter { $0.workspaceID == sourceIdentity.workspaceID }
             .sorted { ($0.profileID.uuidString, $0.revision, $0.mutationID.rawValue.uuidString)
                 < ($1.profileID.uuidString, $1.revision, $1.mutationID.rawValue.uuidString) }
+        let roundSessions = mutationHistory == nil ? [] : try modelContext
+            .fetch(FetchDescriptor<RoundSessionRevisionRowV1>())
+            .map { try $0.value() }
+            .filter { $0.workspaceID == sourceIdentity.workspaceID }
+            .sorted { ($0.sessionID.uuidString, $0.revision, $0.mutationID.rawValue.uuidString)
+                < ($1.sessionID.uuidString, $1.revision, $1.mutationID.rawValue.uuidString) }
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2560,7 +2566,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
+                : C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2615,7 +2621,8 @@ private extension BackupExportService {
              nonactivePlanReferences: nonactivePlanReferences,
              evidenceAssociationEvents: evidenceAssociationEvents,
              evidenceSequenceRevisions: evidenceSequenceRevisions,
-             shopReportProfiles: shopReportProfiles
+             shopReportProfiles: shopReportProfiles,
+             roundSessions: roundSessions
          )
     }
 

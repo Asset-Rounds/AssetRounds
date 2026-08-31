@@ -254,6 +254,7 @@ struct BackupCanonicalDecoderV1: Sendable {
               try Self.validateC57MyDay(value)
               try Self.validateC05EvidenceMetadata(value)
               try Self.validateC04ShopReportProfiles(value)
+              try Self.validateC05RoundSessions(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -309,6 +310,24 @@ private extension BackupCanonicalDecoderV1 {
                     from: data
                 )
                 guard decoded == profile else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
+            }
+        } catch {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+    }
+
+    static func validateC05RoundSessions(_ records: V4BackupRecordsV1) throws {
+        do {
+            try C05RoundSessionBackupEnrollmentV1.validate(records)
+            for session in records.roundSessions {
+                let data = try RoundSessionCanonicalCodecV1.encode(session)
+                let decoded = try RoundSessionCanonicalCodecV1.decode(
+                    RoundSessionV1.self,
+                    from: data
+                )
+                guard decoded == session else {
                     throw BackupCanonicalDecodingErrorV1.invalidRecords
                 }
             }
@@ -1325,7 +1344,8 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
                 || records.recordsSchemaVersion == C53ServiceReliabilityBackupDecodingBoundaryV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion),
+                || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }
