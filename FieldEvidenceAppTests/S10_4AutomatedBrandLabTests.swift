@@ -3779,44 +3779,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 543,
-             "D1CD393C76E0E16A658BCCEC1E8AD6D3D67076C9F4022EE333416D5D946ACB4D"),
+            (workValidationGateSource, 4_750,
+             "FC5721207495ED67975620FF24851460F545F70F57E312818E6F5517FFA1F523"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
-        let workValidationPositioningHelperStart =
-            "    @MainActor\n" +
-                "    private func positionWorkValidationShortDescriptionForAXText(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) -> Bool {"
-        let reportComparisonRouteStart =
-            "    @MainActor\n" +
-                "    private func captureReportComparisonAndCorrectionStates("
-        guard let workValidationPositioningHelperStartRange = uiSource.range(
-            of: workValidationPositioningHelperStart,
-            range: workValidationRouteEndRange.upperBound..<uiSource.endIndex
-        ), let reportComparisonRouteStartRange = uiSource.range(
-            of: reportComparisonRouteStart,
-            range: workValidationPositioningHelperStartRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the bounded AX-text work-validation positioning helper")
-            return
-        }
-        let workValidationPositioningHelperSource = String(
-            uiSource[
-                workValidationPositioningHelperStartRange.lowerBound ..<
-                    reportComparisonRouteStartRange.lowerBound
-            ]
-        )
-        XCTAssertEqual(workValidationPositioningHelperSource.utf8.count, 58_880)
-        XCTAssertEqual(
-            Data(workValidationPositioningHelperSource.utf8).sha256,
-            "5E8B68225FED4BDE4044FB0E3EFDD6986586404B1E683DD41BE3D9DF590D8470"
-        )
-
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
                 "           shouldPrepareNormalEvidence(\n" +
@@ -4368,910 +4338,97 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let workValidationBaseline = k121WorkValidationBaseline
-        let workValidationPositioningGate = k121WorkValidationPositioningGate
-        let workValidationPositioningGuard =
-            "            guard positionWorkValidationShortDescriptionForAXText(in: app) else {\n" +
-                "                throw AutomationConfigurationError.invalid(\n" +
-                "                    \"S10.4 AX-text work-validation Short description positioning failed\"\n" +
-                "                )\n" +
-                "            }"
-        let workValidationPositioningAdjacency =
-            workValidationPositioningGate + "\n" +
-                "            try diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)\n" +
-                workValidationPositioningGuard + "\n" +
-                "        }\n" +
-                workValidationBaseline
-        XCTAssertEqual(
-            workValidationRouteSource.components(
-                separatedBy: workValidationPositioningAdjacency
-            ).count - 1,
-            1
-        )
-        let workValidationWaitBeforePositioning =
-            #"        let validation = element("s5.1.work.validation", in: app)"# +
-                "\n" +
-                "        XCTAssertTrue(validation.waitForExistence(timeout: 10))\n" +
-                #"        assertLocalizedLabel(validation, equals: "Short description")"# +
-                "\n" +
-                workValidationPositioningGate
-        XCTAssertEqual(
-            workValidationRouteSource.components(
-                separatedBy: workValidationWaitBeforePositioning
-            ).count - 1,
-            1
-        )
         XCTAssertEqual(
             workValidationRouteSource.components(
                 separatedBy: workValidationBaseline
             ).count - 1,
             1
         )
-
-        let workValidationQueryLocks = [
-            "        let notePredicate = NSPredicate(\n" +
-                "            format: \"identifier == '' AND label == %@\",\n" +
-                "            \"Note\"\n" +
-                "        )",
-            "        let noteStaticTexts = app.staticTexts.matching(notePredicate)",
-            "        let noteStaticText = noteStaticTexts.firstMatch",
-            "              noteStaticTexts.count == 1,",
-            #"            identifier: "s5.1.work.screen""#,
-            #"            identifier: "s5.1.work.description""#,
-            #"            identifier: "s5.1.work.validation""#,
-            #"            identifier: "Record work""#,
-            #"            format: "hasKeyboardFocus == true""#,
-            "        let keyboards = app.keyboards",
+        let workValidationWaitBeforeDone =
+            #"        let validation = element("s5.1.work.validation", in: app)"# +
+                "\n" +
+                "        XCTAssertTrue(validation.waitForExistence(timeout: 10))\n" +
+                #"        assertLocalizedLabel(validation, equals: "Short description")"# +
+                "\n" +
+                k121WorkValidationPositioningGate
+        XCTAssertEqual(
+            workValidationRouteSource.components(
+                separatedBy: workValidationWaitBeforeDone
+            ).count - 1,
+            1
+        )
+        let workValidationDoneRouteLocks = [
+            #"identifier: "s5.1.work.description""#,
+            #"identifier: "s5.1.work.validation""#,
+            #"identifier: "s5.1.work.keyboard-done""#,
+            #"identifier: "inputView""#,
+            #"format: "hasKeyboardFocus == true""#,
+            "preFocusedDescriptionFields.count == 1",
+            "preKeyboards.count == 1",
+            "preInputViews.count == 1",
+            "preGlobalDoneButtons.count == 1",
+            "globalDoneButton.identifier == \"s5.1.work.keyboard-done\"",
+            "globalDoneButton.label == \"Done\"",
+            "globalDoneButton.tap()",
+            "preKeyboards.firstMatch.waitForNonExistence(timeout: 10)",
+            "postFocusedDescriptionFields.count == 0",
+            "postValidationLabels.firstMatch.identifier",
+            "postValidationLabels.firstMatch.label",
+            "app.keyboards.count == 0",
         ]
-        for lock in workValidationQueryLocks {
-            XCTAssertEqual(
-                workValidationPositioningHelperSource.components(
-                    separatedBy: lock
-                ).count - 1,
-                lock == #"            identifier: "s5.1.work.description""# ? 2 : 1,
-                lock
-            )
+        for lock in workValidationDoneRouteLocks {
+            XCTAssertTrue(workValidationGateSource.contains(lock), lock)
         }
-        let workValidationAuthorityLocks = [
-            "        let fieldLabelExceptionIssueID =\n" +
-                "            \"S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION\"",
-            "        let workValidationExceptionIssueIDs = Set([",
-            "        let activeWorkValidationExceptions = Self.contrastAuditExceptionSignatures.filter {",
-            #"            $0.shardID == "s10.4.current.ax-text""#,
-            #"                && $0.stateID == "state.work.validation-error""#,
-            "                && isActive($0)",
-            "        guard activeWorkValidationExceptions.count == 1,",
-            #"              Set(activeWorkValidationExceptions.map(\.issueID))"#,
-            "                == workValidationExceptionIssueIDs,",
-            "              let activeFieldLabelException = activeWorkValidationExceptions.first(",
-            "                where: { $0.issueID == fieldLabelExceptionIssueID }",
-            "        let targetFieldLabelMinY = activeFieldLabelException.elementFrame.minY",
-        ]
-        for lock in workValidationAuthorityLocks {
-            XCTAssertEqual(
-                workValidationPositioningHelperSource.components(
-                    separatedBy: lock
-                ).count - 1,
-                1,
-                lock
-            )
-        }
-        XCTAssertEqual(
-            workValidationPositioningHelperSource.components(
-                separatedBy: "activeFieldLabelException.elementFrame."
-            ).count - 1,
-            1
+        let doneTapRange = try XCTUnwrap(
+            workValidationRouteSource.range(of: "            globalDoneButton.tap()")
         )
-        for prohibitedAuthorityCoordinate in [
-            "activeFieldLabelException.elementFrame.minX",
-            "activeFieldLabelException.elementFrame.maxX",
-            "activeFieldLabelException.elementFrame.maxY",
-            "activeFieldLabelException.elementFrame.width",
-            "activeFieldLabelException.elementFrame.height",
-        ] {
-            XCTAssertFalse(
-                workValidationPositioningHelperSource.contains(
-                    prohibitedAuthorityCoordinate
-                ),
-                prohibitedAuthorityCoordinate
-            )
-        }
-
-        let workValidationStableRelationsSource = try boundedSource(
-            workValidationPositioningHelperSource,
-            from:
-                "        let stablePrePositionRouteRelations: () -> [(String, Bool)] = {",
-            before:
-                "        let finalStrictSemanticRelations: () -> [(String, Bool)] = {"
-        )
-        let workValidationFinalSemanticSource = try boundedSource(
-            workValidationPositioningHelperSource,
-            from:
-                "        let finalStrictSemanticRelations: () -> [(String, Bool)] = {",
-            before:
-                "        let stablePrePositionFramesAreValid: () -> Bool = {"
-        )
-        XCTAssertEqual(workValidationFinalSemanticSource.utf8.count, 4_343)
-        XCTAssertEqual(
-            Data(workValidationFinalSemanticSource.utf8).sha256,
-            "AE41FD114D02E8264C87D0F0430124754404FC2F63D663F10F6C28F3F7DD7A5E"
-        )
-        for stableLock in [
-            #"("applicationForeground", app.state == .runningForeground)"#,
-            #"("workScreensCountOne", workScreens.count == 1)"#,
-            #""focusedDescriptionFieldsCountOne""#,
-            #"("noteStaticTextsCountOne", noteStaticTexts.count == 1)"#,
-            #"("workScreenExists", workScreen.exists)"#,
-            #"workScreen.elementType == .scrollView"#,
-            #"workScreen.identifier == "s5.1.work.screen""#,
-            #"descriptionField.elementType == .textField"#,
-            #"descriptionField.identifier == "s5.1.work.description""#,
-            #"focusedDescriptionField.elementType == .textField"#,
-            #"focusedDescriptionField.identifier == "s5.1.work.description""#,
-            #"validationLabel.elementType == .staticText"#,
-            #"validationLabel.identifier == "s5.1.work.validation""#,
-            #"shortDescriptionFieldLabel.identifier.isEmpty"#,
-            #"noteStaticText.elementType == .staticText"#,
-            #"noteStaticText.identifier.isEmpty"#,
-            #"descriptionScrollView.identifier == "s5.1.work.screen""#,
-            #"navigationBar.identifier == "Record work""#,
-            #"tabBar.identifier.isEmpty"#,
-            #"keyboard.identifier.isEmpty"#,
-        ] {
-            XCTAssertTrue(
-                workValidationStableRelationsSource.contains(stableLock),
-                stableLock
-            )
-        }
-        for volatilePrePositionForm in [
-            ".label",
-            ".value",
-            ".isEnabled",
-            ".isHittable",
-            #""descriptionFieldValue""#,
-            #""focusedDescriptionFieldValue""#,
-            #"Short description"#,
-            #"Note"#,
-            #"Tab Bar"#,
-        ] {
-            XCTAssertFalse(
-                workValidationStableRelationsSource.contains(
-                    volatilePrePositionForm
-                ),
-                volatilePrePositionForm
-            )
-        }
-
-        for finalSemanticLock in [
-            #"("workScreenLabelEmpty", workScreen.label.isEmpty)"#,
-            #"(workScreen.value as? String) == """#,
-            #"("workScreenEnabled", workScreen.isEnabled)"#,
-            #"("workScreenHittable", workScreen.isHittable)"#,
-            #"descriptionField.label == "Short description""#,
-            #"descriptionFields.count == 1"#,
-            #"descriptionFields.element(boundBy: 0).value as? String"#,
-            #"("descriptionFieldEnabled", descriptionField.isEnabled)"#,
-            #"("descriptionFieldHittable", descriptionField.isHittable)"#,
-            #"focusedDescriptionField.label == "Short description""#,
-            #"focusedDescriptionFields.count == 1"#,
-            #"focusedDescriptionFields.element(boundBy: 0).value"#,
-            #"as? String) == "Short description""#,
-            #"focusedDescriptionField.isEnabled"#,
-            #"focusedDescriptionField.isHittable"#,
-            #"validationLabel.label == "Short description""#,
-            #"(validationLabel.value as? String) == """#,
-            #"validationLabel.isEnabled"#,
-            #"validationLabel.isHittable"#,
-            #"shortDescriptionFieldLabel.label == "Short description""#,
-            #"(shortDescriptionFieldLabel.value as? String) == """#,
-            #"shortDescriptionFieldLabel.isEnabled"#,
-            #"noteStaticText.label == "Note""#,
-            #"(noteStaticText.value as? String) == """#,
-            #"noteStaticText.isEnabled"#,
-            #"noteStaticText.isHittable"#,
-            #"descriptionScrollView.label.isEmpty"#,
-            #"(descriptionScrollView.value as? String) == """#,
-            #"descriptionScrollView.isEnabled"#,
-            #"descriptionScrollView.isHittable"#,
-            #"navigationBar.label.isEmpty"#,
-            #"(navigationBar.value as? String) == """#,
-            #"navigationBar.isEnabled"#,
-            #"navigationBar.isHittable"#,
-            #"tabBar.label == "Tab Bar""#,
-            #"(tabBar.value as? String) == """#,
-            #"tabBar.isEnabled"#,
-            #"tabBar.isHittable"#,
-            #"keyboard.label.isEmpty"#,
-            #"(keyboard.value as? String) == """#,
-            #"keyboard.isEnabled"#,
-        ] {
-            XCTAssertTrue(
-                workValidationFinalSemanticSource.contains(finalSemanticLock),
-                finalSemanticLock
-            )
-        }
-        XCTAssertFalse(
-            workValidationFinalSemanticSource.contains(
-                "shortDescriptionFieldLabel.isHittable"
+        let baselineRange = try XCTUnwrap(
+            workValidationRouteSource.range(
+                of: workValidationBaseline,
+                range: doneTapRange.upperBound..<workValidationRouteSource.endIndex
             )
         )
-        XCTAssertFalse(
-            workValidationFinalSemanticSource.contains(
-                #"("keyboardHittable", keyboard.isHittable)"#
-            )
-        )
-        for removedStoredFirstMatchValueCast in [
-            "descriptionField.value as? String",
-            "focusedDescriptionField.value as? String",
-        ] {
-            XCTAssertFalse(
-                workValidationFinalSemanticSource.contains(
-                    removedStoredFirstMatchValueCast
-                ),
-                removedStoredFirstMatchValueCast
-            )
-        }
-        XCTAssertEqual(
-            workValidationFinalSemanticSource.components(
-                separatedBy: "element(boundBy: 0).value"
-            ).count - 1,
-            2
-        )
-        for removedK148ValuePredicateForm in [
-            "exactShortDescriptionValuePredicate",
-            "FieldsWithExactValue",
-            #"format: "value == %@""#,
-        ] {
-            XCTAssertFalse(
-                workValidationPositioningHelperSource.contains(
-                    removedK148ValuePredicateForm
-                ),
-                removedK148ValuePredicateForm
-            )
-        }
-        let k195WorkValidationRestorationIntervalDiagnosticSource = try boundedSource(
-            workValidationPositioningHelperSource,
-            from: "        func diagnoseSegment2InvalidRestorationInterval(\n",
-            before: "        let hasFinalPositionComposition: () -> Bool = {"
-        )
-        XCTAssertEqual(
-            k195WorkValidationRestorationIntervalDiagnosticSource.utf8.count,
-            17_370
-        )
-        XCTAssertEqual(
-            Data(k195WorkValidationRestorationIntervalDiagnosticSource.utf8).sha256,
-            "545BC1766E1743586CEE358B0B87C9CFE96CEAAA3533A8C5DAAB90597AD8F397"
-        )
-        for exactContext in [
-            "guard automationSegment == .segment2",
-            #"shard.shardID == "s10.4.current.ax-text""#,
-            "automationSegment.replayCount == 22",
-            "automationSegment.ownedCount == 28",
-            "automationSegment.finalOrdinal == 50",
-            "segmentedRouteStateCursor == 22",
-            "migratedStateIDs.isEmpty",
-            "!automatedSegmentFinished",
-            "app.state == .runningForeground",
-            #""stateID": "state.work.validation-error""#,
-            #""stateOrdinal": 23"#,
-            #""predecessorStateID": "state.sign-detail.open-issue""#,
-            #""predecessorOrdinal": 22"#,
-            #""successorStateID": "state.work.editing""#,
-            #""successorOrdinal": 24"#,
-            #""applicationState""#,
-            #""applicationStateRawValue""#,
-            #""applicationForeground""#,
-            #""applicationFrame""#,
-            #""constants""#,
-            #""intervalTerms""#,
-            #""orderedStableRouteRelations""#,
-            #""stablePrePositionFramesAreValid""#,
-            #""orderedCurrentGeometryRelations""#,
-            #""orderedRestorationIntervalRelations""#,
-            #""failedRestorationIntervalRelations""#,
-            #""frozenFrames""#,
-            #""currentFrames""#,
-        ] {
-            XCTAssertTrue(
-                k195WorkValidationRestorationIntervalDiagnosticSource.contains(
-                    exactContext
-                ),
-                exactContext
-            )
-        }
-        for publicNodeField in [
-            #""exists": element.exists"#,
-            #""isEnabled": element.isEnabled"#,
-            #""isHittable": element.isHittable"#,
-            #""identifier": element.identifier"#,
-            #""label": element.label"#,
-            #""value": (element.value as? String).map { $0 as Any }"#,
-            #"?? NSNull()"#,
-            #""elementTypeRawValue": element.elementType.rawValue"#,
-            #""elementTypeDescription": String(describing: element.elementType)"#,
-            #""frame": self.auditFrameObject(element.frame)"#,
-        ] {
-            XCTAssertEqual(
-                k195WorkValidationRestorationIntervalDiagnosticSource.components(
-                    separatedBy: publicNodeField
-                ).count - 1,
-                publicNodeField == #"?? NSNull()"# ? 3 : 1,
-                publicNodeField
-            )
-        }
-        for queryFamily in [
-            "workScreens", "descriptionFields", "focusedDescriptionFields",
-            "validationLabels", "shortDescriptionStaticTexts",
-            "shortDescriptionFieldLabels", "noteStaticTexts",
-            "descriptionScrollViews", "navigationBars", "tabBars", "keyboards",
-        ] {
-            XCTAssertEqual(
-                k195WorkValidationRestorationIntervalDiagnosticSource.components(
-                    separatedBy: #""\#(queryFamily)": publicQueryObject("#
-                ).count - 1,
-                1,
-                queryFamily
-            )
-        }
-        for exactTerm in [
-            #""targetFieldLabelMinY": Double(targetFieldLabelMinY)"#,
-            #""verticalInset": Double(verticalInset)"#,
-            #""receiverInset": Double(receiverInset)"#,
-            #""minimumGestureDistance": Double(minimumGestureDistance)"#,
-            #""liveTop": Double(liveTop)"#,
-            #""liveBottom": Double(liveBottom)"#,
-            #""safeTop": Double(safeTop)"#,
-            #""safeBottom": Double(safeBottom)"#,
-            #""receiverTop": Double(receiverTop)"#,
-            #""receiverBottom": Double(receiverBottom)"#,
-            #""receiverLeft": Double(receiverLeft)"#,
-            #""receiverRight": Double(receiverRight)"#,
-            #""receiverCapacity": Double(receiverCapacity)"#,
-            #""remainingShift": Double(remainingShift)"#,
-            #""remainingDistance": Double(remainingDistance)"#,
-            #""previousRemainingDistance": previousRemainingDistance.map"#,
-            #""restorationDirection": restorationDirection.map"#,
-        ] {
-            XCTAssertEqual(
-                k195WorkValidationRestorationIntervalDiagnosticSource.components(
-                    separatedBy: exactTerm
-                ).count - 1,
-                1,
-                exactTerm
-            )
-        }
-        XCTAssertEqual(
-            k195WorkValidationRestorationIntervalDiagnosticSource.components(
-                separatedBy:
-                    "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_DIAGNOSTIC"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            k195WorkValidationRestorationIntervalDiagnosticSource.components(
-                separatedBy: "XCTAttachment("
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            k195WorkValidationRestorationIntervalDiagnosticSource.components(
-                separatedBy: ".lifetime = .keepAlways"
-            ).count - 1,
-            4
-        )
-        XCTAssertEqual(
-            k195WorkValidationRestorationIntervalDiagnosticSource.components(
-                separatedBy: "add("
-            ).count - 1,
-            4
-        )
-        for exactAuditContract in [
-            #""remainingShiftNonzero""#,
-            #""remainingDistanceAtLeastMinimumGestureDistance""#,
-            "intervalRelations.count == 15",
-            "failedIntervalRelations == exactAuditFailedIntervalRelations",
-            "exactAuditFailedIntervalRelations.contains(relation.0)",
-            "remainingShift == 0",
-            "remainingDistance == 0",
-            "fieldLabelFrame.minY == targetFieldLabelMinY",
-            "stablePrePositionRouteRelations().allSatisfy({ $0.1 })",
-            "currentGeometryRelations.allSatisfy({ $0.1 })",
-            "noteFrame.maxY > safeBottom",
-            "noteFrame.maxY <= liveBottom",
-            "try app.performAccessibilityAudit(for: .contrast)",
-            "observedIssueCount += 1",
-            "auditedElementCount += 1",
-            "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_ISSUE_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_COUNT_DIAGNOSTIC",
-            #""issueOrdinal": observedIssueCount"#,
-            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
-            #""compactDescription": issue.compactDescription"#,
-            #""detailedDescription": issue.detailedDescription"#,
-            #""elementExists": NSNull()"#,
-            #""elementEnabled": NSNull()"#,
-            #""elementHittable": NSNull()"#,
-            #""elementIdentifier": NSNull()"#,
-            #""elementLabel": NSNull()"#,
-            #""elementValue": NSNull()"#,
-            #""elementTypeRawValue": NSNull()"#,
-            #""elementTypeDescription": NSNull()"#,
-            #""elementFrame": NSNull()"#,
-            #""observedIssueCount": observedIssueCount"#,
-            #""auditedElementCount": auditedElementCount"#,
-            "S10.4 AX-text work-validation restoration-interval diagnostic audit failed:",
-            "return true",
-        ] {
-            XCTAssertEqual(
-                k195WorkValidationRestorationIntervalDiagnosticSource.components(
-                    separatedBy: exactAuditContract
-                ).count - 1,
-                1,
-                exactAuditContract
-            )
-        }
-        var k195DiagnosticTail =
-            k195WorkValidationRestorationIntervalDiagnosticSource[
-                k195WorkValidationRestorationIntervalDiagnosticSource.startIndex...
-            ]
-        for orderedToken in [
-            "let context: [String: Any] = [",
-            "options: [.sortedKeys]",
-            "self.printJSONLine(",
-            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "let contextAttachment = XCTAttachment(string: contextText)",
-            "try app.performAccessibilityAudit(for: .contrast)",
-            "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_ISSUE_DIAGNOSTIC",
-            "let issueAttachment = XCTAttachment(",
-            "return true",
-            "S10_4_AX_TEXT_WORK_VALIDATION_RESTORATION_INTERVAL_COUNT_DIAGNOSTIC",
-            "XCTFail(\n                \"S10.4 AX-text work-validation restoration-interval diagnostic is nonaccepting\"",
-            "return false",
-        ] {
-            let range = try XCTUnwrap(k195DiagnosticTail.range(of: orderedToken), orderedToken)
-            k195DiagnosticTail = k195DiagnosticTail[range.upperBound...]
-        }
-        for prohibitedDiagnosticForm in [
-            "captureBaseline(", "attachCandidate(",
-            "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST",
-            "S10_4_CANDIDATE", "S10_4_TASK", "S10_4_SHARD_RECEIPT",
-            "eligibleExceptions", "matchedExceptions",
-            "ContrastAuditExceptionSignature(", "tolerance", "epsilon",
-            ".tap(", ".typeText(", "setToggle(", "navigateBack(",
-            "waitForExistence", "waitForNonExistence", ".press(", ".swipe",
-            "scroll(", "sleep(", "NotificationCenter", "migratedStateIDs.append",
-            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
-        ] {
-            XCTAssertFalse(
-                k195WorkValidationRestorationIntervalDiagnosticSource.contains(
-                    prohibitedDiagnosticForm
-                ),
-                prohibitedDiagnosticForm
-            )
-        }
-        let k195WorkValidationRestorationIntervalGuardSource = try boundedSource(
-            workValidationPositioningHelperSource,
-            from: "            let restorationIntervalRelations: [(String, Bool)] = [\n",
-            before: "            if let previousRemainingDistance {"
-        )
-        XCTAssertEqual(
-            k195WorkValidationRestorationIntervalGuardSource.utf8.count,
-            3_727
-        )
-        XCTAssertEqual(
-            Data(k195WorkValidationRestorationIntervalGuardSource.utf8).sha256,
-            "07D250C3D628F1890DACD2411E327D85F3A76CB4017BE7048E3C20A0A4CD32C3"
-        )
-        for relationName in [
-            "safeTopFinite", "safeBottomFinite", "receiverTopFinite",
-            "receiverBottomFinite", "receiverLeftFinite", "receiverRightFinite",
-            "receiverCapacityFinite", "remainingShiftFinite",
-            "remainingDistanceFinite", "safeTopAtMostSafeBottom",
-            "receiverLeftAtMostReceiverRight", "receiverTopAtMostReceiverBottom",
-            "receiverCapacityAtLeastMinimumGestureDistance",
-            "remainingShiftNonzero",
-            "remainingDistanceAtLeastMinimumGestureDistance",
-        ] {
-            XCTAssertEqual(
-                k195WorkValidationRestorationIntervalGuardSource.components(
-                    separatedBy: #""\#(relationName)""#
-                ).count - 1,
-                1,
-                relationName
-            )
-        }
-        for exactCallLock in [
-            "if automationSegment == .segment2 {",
-            "return diagnoseSegment2InvalidRestorationInterval(",
-            "previousRemainingDistance: previousRemainingDistance",
-            "restorationDirection: restorationDirection",
-            "intervalRelations: restorationIntervalRelations",
-            "XCTFail(\"AX-text work-validation live restoration interval is invalid.\")",
-        ] {
-            XCTAssertEqual(
-                k195WorkValidationRestorationIntervalGuardSource.components(
-                    separatedBy: exactCallLock
-                ).count - 1,
-                1,
-                exactCallLock
-            )
-        }
-        let k144WorkValidationDiagnosticSource = try boundedSource(
-            workValidationPositioningHelperSource,
-            from: "        func diagnoseSegment2FinalSemantics(\n",
-            before: "        var restorationDirection: CGFloat?"
-        )
-        XCTAssertEqual(k144WorkValidationDiagnosticSource.utf8.count, 8_211)
-        XCTAssertEqual(
-            Data(k144WorkValidationDiagnosticSource.utf8).sha256,
-            "C0E2AA771BF8CDCF3D658AA4384363D3584251785560370749CE3A681C39B797"
-        )
-        for exactContext in [
-            "guard automationSegment == .segment2",
-            #"shard.shardID == "s10.4.current.ax-text""#,
-            "automationSegment.replayCount == 22",
-            "automationSegment.ownedCount == 28",
-            "automationSegment.finalOrdinal == 50",
-            "segmentedRouteStateCursor == 22",
-            "migratedStateIDs.isEmpty",
-            "!automatedSegmentFinished",
-            "app.state == .runningForeground",
-            #""stateID": "state.work.validation-error""#,
-            #""stateOrdinal": 23"#,
-            #""predecessorStateID": "state.sign-detail.open-issue""#,
-            #""predecessorOrdinal": 22"#,
-            #""successorStateID": "state.work.editing""#,
-            #""successorOrdinal": 24"#,
-            #""applicationState""#,
-            #""applicationStateRawValue""#,
-            #""applicationForeground""#,
-            #""applicationFrame""#,
-            #""targetFieldLabelMinY""#,
-            #""finalPositionComposition": true"#,
-            #""orderedFinalSemanticRelations""#,
-            #""failedFinalSemanticRelations""#,
-            #""frozenFrames""#,
-            #""currentFrames""#,
-        ] {
-            XCTAssertTrue(
-                k144WorkValidationDiagnosticSource.contains(exactContext),
-                exactContext
-            )
-        }
-        for publicNodeField in [
-            #""exists": element.exists"#,
-            #""isEnabled": element.isEnabled"#,
-            #""isHittable": element.isHittable"#,
-            #""identifier": element.identifier"#,
-            #""label": element.label"#,
-            #""value": (element.value as? String).map { $0 as Any }"#,
-            #"?? NSNull()"#,
-            #""elementTypeRawValue": element.elementType.rawValue"#,
-            #""elementTypeDescription": String(describing: element.elementType)"#,
-            #""frame": self.auditFrameObject(element.frame)"#,
-        ] {
-            XCTAssertEqual(
-                k144WorkValidationDiagnosticSource.components(
-                    separatedBy: publicNodeField
-                ).count - 1,
-                1,
-                publicNodeField
-            )
-        }
-        XCTAssertEqual(
-            k144WorkValidationDiagnosticSource.components(
-                separatedBy: "let actualCount = query.count"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            k144WorkValidationDiagnosticSource.components(
-                separatedBy: "query.element(boundBy: index)"
-            ).count - 1,
-            1
-        )
-        for queryFamily in [
-            "workScreens", "descriptionFields", "focusedDescriptionFields",
-            "validationLabels", "shortDescriptionStaticTexts",
-            "shortDescriptionFieldLabels", "noteStaticTexts",
-            "descriptionScrollViews", "navigationBars", "tabBars", "keyboards",
-        ] {
-            XCTAssertEqual(
-                k144WorkValidationDiagnosticSource.components(
-                    separatedBy: #""\#(queryFamily)": publicQueryObject("#
-                ).count - 1,
-                1,
-                queryFamily
-            )
-        }
-        XCTAssertTrue(
-            k144WorkValidationDiagnosticSource.contains(
-                "let orderedRelations: [[String: Any]] = finalSemanticRelations.map"
-            )
-        )
-        XCTAssertTrue(
-            k144WorkValidationDiagnosticSource.contains(
-                "let failedRelations = finalSemanticRelations.compactMap"
-            )
-        )
-        XCTAssertTrue(
-            k144WorkValidationDiagnosticSource.contains("options: [.sortedKeys]")
-        )
-        XCTAssertEqual(
-            k144WorkValidationDiagnosticSource.components(
-                separatedBy:
-                    "S10_4_AX_TEXT_WORK_VALIDATION_FINAL_SEMANTICS_DIAGNOSTIC"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            k144WorkValidationDiagnosticSource.components(
-                separatedBy: "XCTAttachment("
-            ).count - 1,
-            3
-        )
-        XCTAssertEqual(
-            k144WorkValidationDiagnosticSource.components(
-                separatedBy: ".lifetime = .keepAlways"
-            ).count - 1,
-            3
-        )
-        XCTAssertEqual(
-            k144WorkValidationDiagnosticSource.components(separatedBy: "add(").count - 1,
-            3
-        )
-        var k144DiagnosticTail =
-            k144WorkValidationDiagnosticSource[k144WorkValidationDiagnosticSource.startIndex...]
-        for orderedToken in [
-            "let context: [String: Any] = [",
-            "options: [.sortedKeys]",
-            "self.printJSONLine(",
-            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "let contextAttachment = XCTAttachment(string: contextText)",
-            "XCTFail(\n                \"S10.4 AX-text work-validation final-semantics diagnostic is nonaccepting\"",
-            "return false",
-        ] {
-            let range = try XCTUnwrap(k144DiagnosticTail.range(of: orderedToken), orderedToken)
-            k144DiagnosticTail = k144DiagnosticTail[range.upperBound...]
-        }
-        for prohibitedDiagnosticForm in [
-            "performAccessibilityAudit", "captureBaseline(", "attachCandidate(",
-            "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST",
-            "S10_4_CANDIDATE", "S10_4_TASK", "S10_4_SHARD_RECEIPT",
-            ".tap(", ".typeText(", "setToggle(", "navigateBack(",
-            "waitForExistence", "waitForNonExistence", ".press(", ".swipe",
-            "scroll(", "sleep(", "NotificationCenter", "migratedStateIDs.append",
-            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
-        ] {
-            XCTAssertFalse(
-                k144WorkValidationDiagnosticSource.contains(prohibitedDiagnosticForm),
-                prohibitedDiagnosticForm
-            )
-        }
-
-        for exactLiveRestorationLock in [
-            "        let frozenApplicationFrame = app.frame",
-            "        let frozenKeyboardFrame = keyboard.frame",
-            "        let frozenFieldLabelFrame = shortDescriptionFieldLabel.frame",
-            "        let frozenDescriptionFrame = descriptionField.frame",
-            "        let frozenValidationFrame = validationLabel.frame",
-            "        let frozenNoteFrame = noteStaticText.frame",
-            "        let targetFieldLabelMinY = activeFieldLabelException.elementFrame.minY",
-            "        let verticalInset: CGFloat = 16",
-            "        let receiverInset: CGFloat = 24",
-            "        let minimumGestureDistance: CGFloat = 44",
-            "        let hasFrozenHorizontalGeometry: (CGRect, CGRect) -> Bool",
-            "        let hasFinalPositionComposition: () -> Bool = {",
-            "            guard hasStablePrePositionRoute() else {",
-            "            let rigidShift = fieldLabelFrame.minY - frozenFieldLabelFrame.minY",
-            "descriptionFrame.minY - frozenDescriptionFrame.minY == rigidShift",
-            "validationFrame.minY - frozenValidationFrame.minY == rigidShift",
-            "noteFrame.minY - frozenNoteFrame.minY == rigidShift",
-            "fieldLabelFrame.minY == targetFieldLabelMinY",
-            "let visibleDescriptionFrame = descriptionFrame.intersection(",
-            "visibleDescriptionFrame.width >= minimumGestureDistance",
-            "visibleDescriptionFrame.height >= minimumGestureDistance",
-            "descriptionFrame.maxY <= safeBottom",
-            "validationFrame.minY >= safeTop",
-            "validationFrame.maxY <= safeBottom",
-            "noteFrame.minY >= safeTop",
-            "noteFrame.maxY <= safeBottom",
-            "fieldLabelFrame.maxY <= descriptionFrame.minY",
-            "descriptionFrame.maxY <= validationFrame.minY",
-            "validationFrame.maxY <= noteFrame.minY",
-            "        var restorationDirection: CGFloat?",
-            "        for _ in 0..<4 {",
-            "            if hasFinalPositionComposition() { break }",
-            "            let remainingShift = targetFieldLabelMinY - fieldLabelFrame.minY",
-            "            let remainingDistance = abs(remainingShift)",
-            "                guard remainingDistance < previousRemainingDistance else {",
-            "            let liveDirection: CGFloat = remainingShift > 0 ? 1 : -1",
-            "                guard liveDirection == restorationDirection else {",
-            "                    remainingDistance - minimumGestureDistance",
-            "            let dragDistance = remainingShift > 0",
-            "                y: dragDistance > 0 ? receiverTop : receiverBottom",
-            "                  !fieldLabelFrame.contains(startPoint),",
-            "                  !fieldLabelFrame.contains(endPoint),",
-            "                  !descriptionFrame.contains(startPoint),",
-            "                  !descriptionFrame.contains(endPoint),",
-            "                  !validationFrame.contains(startPoint),",
-            "                  !validationFrame.contains(endPoint),",
-            "                  !noteFrame.contains(startPoint),",
-            "                  !noteFrame.contains(endPoint) else {",
-            "                  observedFieldLabelShift * dragDistance > 0,",
-            "                  observedDescriptionShift * dragDistance > 0,",
-            "                  observedValidationShift * dragDistance > 0,",
-            "                  observedNoteShift * dragDistance > 0,",
-            "        guard hasFinalPositionComposition() else {",
-            "        let finalSemanticRelations = finalStrictSemanticRelations()",
-            "        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {",
-            "            if automationSegment == .segment2 {",
-            "                return diagnoseSegment2FinalSemantics(finalSemanticRelations)",
-            "            XCTFail(\"AX-text work-validation final semantics are invalid.\")",
-        ] {
-            XCTAssertTrue(
-                workValidationPositioningHelperSource.contains(
-                    exactLiveRestorationLock
-                ),
-                exactLiveRestorationLock
-            )
-        }
-        for (token, count) in [
-            (".press(", 1),
-            ("thenDragTo:", 1),
-            ("withVelocity: .slow", 1),
-            ("for _ in 0..<4", 1),
-            ("hasFinalPositionComposition()", 2),
-            ("finalStrictSemanticRelations()", 1),
-            ("XCTNSPredicateExpectation(", 0),
-            ("XCTWaiter.wait(", 0),
-        ] {
-            XCTAssertEqual(
-                workValidationPositioningHelperSource.components(
-                    separatedBy: token
-                ).count - 1,
-                count,
-                token
-            )
-        }
-        let k148FinalSemanticSource = try boundedSource(
-            workValidationPositioningHelperSource,
-            from:
-                "        let finalSemanticRelations = finalStrictSemanticRelations()",
-            before: "\n    }\n\n"
-        )
-        XCTAssertEqual(k148FinalSemanticSource.utf8.count, 421)
-        XCTAssertEqual(
-            Data(k148FinalSemanticSource.utf8).sha256,
-            "BD39F9DCD25D6FEF4B688866B3754A6D7862F9C077FEBD8616DF72D06E2102A9"
-        )
-        for prohibitedFinalSemanticForm in [
-            "NSString",
-            "String(describing:",
-            ".trimmingCharacters(",
-            ".lowercased(",
-            ".uppercased(",
-            "??",
-            ".tap(",
-            ".press(",
-            ".swipe",
-            "scroll(",
+        XCTAssertLessThan(doneTapRange.lowerBound, baselineRange.lowerBound)
+        for prohibitedGateForm in [
             "performAccessibilityAudit",
-            "captureBaseline(",
-            "attachCandidate(",
-            "printJSONLine(",
-        ] {
-            XCTAssertFalse(
-                k148FinalSemanticSource.contains(
-                    prohibitedFinalSemanticForm
-                ),
-                prohibitedFinalSemanticForm
-            )
-        }
-
-        let workValidationGeometryClosureRange = try XCTUnwrap(
-            workValidationPositioningHelperSource.range(
-                of: "        let hasFinalPositionComposition: () -> Bool = {"
-            )
-        )
-        let workValidationDiagnosticRange = try XCTUnwrap(
-            workValidationPositioningHelperSource.range(
-                of: "        func diagnoseSegment2FinalSemantics(\n",
-                range:
-                    workValidationGeometryClosureRange.upperBound ..<
-                    workValidationPositioningHelperSource.endIndex
-            )
-        )
-        let workValidationLoopRange = try XCTUnwrap(
-            workValidationPositioningHelperSource.range(
-                of: "        for _ in 0..<4 {",
-                range:
-                    workValidationGeometryClosureRange.upperBound ..<
-                workValidationPositioningHelperSource.endIndex
-            )
-        )
-        let workValidationGeometryClosureSource = String(
-            workValidationPositioningHelperSource[
-                workValidationGeometryClosureRange.lowerBound ..<
-                    workValidationDiagnosticRange.lowerBound
-            ]
-        )
-        XCTAssertFalse(workValidationGeometryClosureSource.contains(".isHittable"))
-        let workValidationFinalGeometryGuardRange = try XCTUnwrap(
-            workValidationPositioningHelperSource.range(
-                of: "        guard hasFinalPositionComposition() else {",
-                range:
-                    workValidationLoopRange.upperBound ..<
-                    workValidationPositioningHelperSource.endIndex
-            )
-        )
-        let workValidationFinalSemanticGuardRange = try XCTUnwrap(
-            workValidationPositioningHelperSource.range(
-                of:
-                    "        let finalSemanticRelations = finalStrictSemanticRelations()\n" +
-                    "        guard finalSemanticRelations.allSatisfy({ relation in relation.1 }) else {",
-                range:
-                    workValidationFinalGeometryGuardRange.upperBound ..<
-                    workValidationPositioningHelperSource.endIndex
-            )
-        )
-        let workValidationOrdinaryFailureRange = try XCTUnwrap(
-            workValidationPositioningHelperSource.range(
-                of: "        XCTFail(\"AX-text work-validation final semantics are invalid.\")",
-                range:
-                    workValidationFinalSemanticGuardRange.upperBound ..<
-                    workValidationPositioningHelperSource.endIndex
-            )
-        )
-        XCTAssertLessThan(
-            workValidationGeometryClosureRange.lowerBound,
-            workValidationLoopRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workValidationLoopRange.lowerBound,
-            workValidationFinalGeometryGuardRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workValidationFinalGeometryGuardRange.lowerBound,
-            workValidationFinalSemanticGuardRange.lowerBound
-        )
-        XCTAssertLessThan(
-            workValidationFinalSemanticGuardRange.lowerBound,
-            workValidationOrdinaryFailureRange.lowerBound
-        )
-        for prohibitedWorkValidationPositioningForm in [
-            ".tap(",
-            ".swipe",
+            "positionWorkValidationShortDescriptionForAXText",
+            "diagnoseFullRouteAXTextWorkValidationNativeContrast",
+            "S10_4_AX_TEXT_WORK_VALIDATION_",
+            "XCTAttachment",
+            "printJSONLine",
             "scroll(",
-            "waitForExistence",
-            "waitForNonExistence",
-            ".typeText(",
-            "Thread.sleep",
-            "sleep(",
-            "captureBaseline(",
-            "attachCandidate(",
-            #"prefix: "S10_4_AX_STATE""#,
-            #"prefix: "S10_4_CONTRAST""#,
-            "S10_4_CANDIDATE",
-            "S10_4_TASK",
-            "S10_4_SHARD_RECEIPT",
+            "swipe",
             "tolerance",
             "epsilon",
-            "CGRect(x:",
         ] {
             XCTAssertFalse(
-                workValidationPositioningHelperSource.contains(
-                    prohibitedWorkValidationPositioningForm
-                ),
-                prohibitedWorkValidationPositioningForm
+                workValidationGateSource.contains(prohibitedGateForm),
+                prohibitedGateForm
             )
         }
-        XCTAssertEqual(
-            workValidationPositioningHelperSource.components(
-                separatedBy: "performAccessibilityAudit"
-            ).count - 1,
-            1
-        )
+        for retiredWorkValidationForm in [
+            "positionWorkValidationShortDescriptionForAXText",
+            "diagnoseFullRouteAXTextWorkValidationNativeContrast",
+            "S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
+            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
+            "S10.4 AX-text work-validation keyboard Done precondition app",
+            "S10.4 AX-text work-validation keyboard Done precondition tree",
+            "S10.4 AX-text work-validation keyboard Done precondition context",
+            "S10.4 AX-text work-validation keyboard Done post-state app",
+            "S10.4 AX-text work-validation keyboard Done post-state tree",
+            "S10.4 AX-text work-validation keyboard Done post-state context",
+            "S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting",
+        ] {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: retiredWorkValidationForm).count - 1,
+                0,
+                retiredWorkValidationForm
+            )
+        }
+
+
 
         for consumedWorkValidationDiagnosticForm in [
             "diagnoseAXTextWorkValidationContrast",
@@ -5316,34 +4473,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 0,
                 consumedWorkValidationDiagnosticForm
-            )
-        }
-        for authorizedWorkValidationDiagnosticForm in [
-            "S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-            "S10.4 AX-text work-validation keyboard Done precondition app",
-            "S10.4 AX-text work-validation keyboard Done precondition tree",
-            "S10.4 AX-text work-validation keyboard Done precondition context",
-            "S10.4 AX-text work-validation keyboard Done post-state app",
-            "S10.4 AX-text work-validation keyboard Done post-state tree",
-            "S10.4 AX-text work-validation keyboard Done post-state context",
-            "S10.4 AX-text work-validation native contrast diagnostic audited element",
-        ] {
-            XCTAssertEqual(
-                uiSource.components(
-                    separatedBy: authorizedWorkValidationDiagnosticForm
-                ).count - 1,
-                1,
-                authorizedWorkValidationDiagnosticForm
-            )
-            XCTAssertEqual(
-                workflowSource.components(
-                    separatedBy: authorizedWorkValidationDiagnosticForm
-                ).count - 1,
-                0,
-                authorizedWorkValidationDiagnosticForm
             )
         }
         let preflightReturnAbsenceDiscriminator =
@@ -10507,10 +9636,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_139)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_071)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "20B29BCDC20E2E4720307D9BCD74166B4AACCECE57141C085D7FC88C33721035"
+            "A769FFC8EA01F8ED562B1D599CF92A1A759782E295F5F2731CCE7D837F2A6252"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -11919,7 +11048,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             contrastAuthoritySource.components(
                 separatedBy: "ContrastAuditExceptionSignature("
             ).count - 1,
-            23
+            22
         )
         let purchaseCompleteNoSyncExceptionSource = try boundedSource(
             contrastAuthoritySource,
@@ -12423,7 +11552,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        \"state.report-correction.validation-error\",\n" +
                 "                        \"state.report-history.ready\",\n" +
                 "                        \"state.reports-index.ready\",\n" +
-                "                        \"state.work.validation-error\",\n" +
                 "                    ]\n" +
                 "                    guard automationSegment.replayCount == 0,\n" +
                 "                          automationSegment.ownedStartOrdinal == 1,\n" +
@@ -12545,10 +11673,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     ..< diagnosticsReadyZeroIssueGateEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(diagnosticsReadyZeroIssueGateSource.utf8.count, 4_232)
+        XCTAssertEqual(diagnosticsReadyZeroIssueGateSource.utf8.count, 4_177)
         XCTAssertEqual(
             Data(diagnosticsReadyZeroIssueGateSource.utf8).sha256,
-            "0F6726AFD71E5F49DF415B8F73F6AA2C48B2A3D763CCB6480224A6C8B45F411C"
+            "81852AAF1A5EE36856E125EEC3B3230170B5223C7DEC66BAC66BDE9E89611096"
         )
         for exact in [
             #"shard.shardID == "s10.4.current.ax-text""#,
@@ -12586,7 +11714,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""state.report-correction.validation-error""#,
             #""state.report-history.ready""#,
             #""state.reports-index.ready""#,
-            #""state.work.validation-error""#,
             #"S10.4 AX-text full-route diagnostics-ready zero-issue composition gate is invalid"#,
         ] {
             XCTAssertTrue(
@@ -12806,10 +11933,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        XCTAssertEqual(diagnosticsPositioningSource.utf8.count, 10_361)
+        XCTAssertEqual(diagnosticsPositioningSource.utf8.count, 10_306)
         XCTAssertEqual(
             Data(diagnosticsPositioningSource.utf8).sha256,
-            "85AAE84493648E0DB5D7725EC161C5CB5898DD0347D95551204E0BA0F51CBF93"
+            "7AE0CB333D9E8103272551B6B04056168654AC70EB3D2CFE26FF7315044C6C3C"
         )
         let removedDifferentiateDiagnosticsFragments = [
             "diagnoseDifferentiateWithoutColorDiagnosticsPositioning",
@@ -13897,10 +13024,53 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
         try assertFile(
             recordWorkSourcePath,
-            byteCount: 15_713,
-            sha256: "C82466FB55F0C3967B24A80D1C7EFBC6741EE5756536EB75AC5E1BE5D2365ADC"
+            byteCount: 15_903,
+            sha256: "C84860608E552D20FCA5A1A99512801A6B5BB2BDB8D6B6026D6FF7400D91A73B"
         )
         let recordWorkSource = try text(recordWorkSourcePath)
+        let recordWorkDateSemanticComposition =
+            "                    DatePicker(\n" +
+                "                        selection: $performedDate,\n" +
+                "                        displayedComponents: .date\n" +
+                "                    ) {\n" +
+                "                        Text(\"Date\")\n" +
+                "                            .accessibilityHidden(true)\n" +
+                "                    }\n" +
+                "                    .datePickerStyle(.compact)\n" +
+                "                    .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)\n" +
+                "                    .accessibilityLabel(\"Date\")\n" +
+                "                    .accessibilityHint(\"Required\")\n" +
+                "                    .accessibilityIdentifier(Self.dateAccessibilityIdentifier)"
+        let recordWorkDescriptionSemanticComposition =
+            "                        Text(\"Short description\")\n" +
+                "                            .font(DesignTokens.Typography.supportingCaption.weight(.semibold))\n" +
+                "                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)\n" +
+                "                            .accessibilityHidden(true)\n\n" +
+                "                        TextField(\"Short description\", text: $description, axis: .vertical)"
+        let recordWorkPhotoSemanticComposition =
+            "                    Text(\"Add one optional photo showing the work performed.\")\n" +
+                "                        .font(DesignTokens.Typography.primaryBody)\n" +
+                "                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)\n" +
+                "                        .fixedSize(horizontal: false, vertical: true)\n" +
+                "                        .accessibilityHidden(true)\n\n" +
+                "                    if usesImportedFixtureForUITest {"
+        for semanticComposition in [
+            recordWorkDateSemanticComposition,
+            recordWorkDescriptionSemanticComposition,
+            recordWorkPhotoSemanticComposition,
+        ] {
+            XCTAssertEqual(
+                recordWorkSource.components(separatedBy: semanticComposition).count - 1,
+                1,
+                semanticComposition
+            )
+        }
+        XCTAssertEqual(
+            recordWorkSource.components(
+                separatedBy: ".accessibilityHidden(true)"
+            ).count - 1,
+            3
+        )
         let recordWorkSavingPresentationSelection =
             "        let minimumSavingPresentationNanoseconds: UInt64 =\n" +
                 "            usesImportedFixtureForUITest\n" +
@@ -15359,8 +14529,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             (
                 "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-                15_713,
-                "C82466FB55F0C3967B24A80D1C7EFBC6741EE5756536EB75AC5E1BE5D2365ADC",
+                15_903,
+                "C84860608E552D20FCA5A1A99512801A6B5BB2BDB8D6B6026D6FF7400D91A73B",
                 [
                     #"AssetRoundsPrimaryAction("Record work", action: save)"#,
                     "AssetRoundsSecondaryAction(\n" +
@@ -16521,7 +15691,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
-            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RESOLVED-WORK-DESCRIPTION",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-OPEN-WORK-DESCRIPTION",
             "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
@@ -16546,7 +15715,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
-            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Short description field label whose frozen public frame intersects native Record work navigation chrome and is not hittable, while the separate identified Short description validation node is fully visible, hittable, and rendered with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Replaced failed power supply value whose frozen public frame is wholly inside the application but overlaps 14.7375488281249 points of native bottom tab chrome in the AX-text issue-resolved state; the audit-owned crop and serialized tree bind the issue to that exact native-chrome composition, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Replaced damaged component value whose frozen public frame begins inside native bottom tab chrome and extends below the 402x874 application frame in the AX-text issue-open state; the exact unfiltered audit callback and audit-owned crop bind the issue to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature.",
@@ -16571,17 +15739,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             exceptionIDs.filter { !$0.hasSuffix("REPORT-CORRECTION-HEADER") }.count,
-            17
+            16
         )
         for lock in exceptionIDs {
-            let uiCount = lock.hasPrefix(
-                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-"
-            )
-                ? 2
-                : 1
             XCTAssertEqual(
                 uiSource.components(separatedBy: lock).count - 1,
-                uiCount,
+                1,
                 lock
             )
             let workflowCount = lock.contains("REPORT-CORRECTION-HEADER") ? 4 : 2
@@ -16601,7 +15764,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("state.paywall.purchase-complete", 1),
             ("state.sample-report.ready", 1),
             ("state.feedback.review-ready", 1),
-            ("state.work.validation-error", 1),
             ("state.issue.resolved", 1),
             ("state.issue.recheck-due", 1),
             ("state.recheck-preflight.ready", 1),
@@ -16621,13 +15783,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "ContrastAuditExceptionSignature(").count - 1,
-            23
+            22
         )
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: #"issueID: "S10.4-XCUI-CONTRAST-FP-"#
             ).count - 1,
-            23
+            22
         )
         XCTAssertEqual(
             workflowSource.components(
@@ -16637,7 +15799,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"owner: "palatis3""#).count - 1,
-            23
+            22
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionOwner: "palatis3""#)
@@ -16646,7 +15808,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             uiSource.components(separatedBy: #"expiresAt: "2026-11-20""#).count - 1,
-            23
+            22
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"exceptionExpiresAt: "2026-11-20""#)
@@ -16675,7 +15837,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
-            #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION""#,
             #"issueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
@@ -16685,7 +15846,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"shardID: "s10.4.current.ax-text""#,
             #"stateID: "state.report-history.ready""#,
             #"stateID: "state.reports-index.ready""#,
-            #"stateID: "state.work.validation-error""#,
             #"stateID: "state.recheck-capture.wide-ready""#,
             #"stateID: "state.report-correction.validation-error""#,
             #"stateID: "state.sign-selection.ready""#,
@@ -16747,7 +15907,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT""#,
-            #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION""#,
             #"exceptionIssueID: "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN""#,
             #"shardID: "s10.4.current.default-light""#,
             #"shardID: "s10.4.current.increased-contrast""#,
@@ -16882,311 +16041,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             restoredCaptureBaselineSource.contains(recheckCaptureWideReadyExceptionID)
         )
 
-        let workValidationExceptionID =
-            "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
-        let workValidationExceptionRationale =
-            "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Short description field label whose frozen public frame intersects native Record work navigation chrome and is not hittable, while the separate identified Short description validation node is fully visible, hittable, and rendered with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature."
-        let workValidationUIAuthority =
-            "        ContrastAuditExceptionSignature(\n" +
-                "            issueID: \"\(workValidationExceptionID)\",\n" +
-                #"            shardID: "s10.4.current.ax-text","# + "\n" +
-                #"            stateID: "state.work.validation-error","# + "\n" +
-                #"            taskID: "work_and_recheck","# + "\n" +
-                #"            owner: "palatis3","# + "\n" +
-                #"            expiresAt: "2026-11-20","# + "\n" +
-                "            rationale: \"\(workValidationExceptionRationale)\",\n" +
-                #"            auditTypeRawValue: "1","# + "\n" +
-                #"            compactDescription: "Contrast failed","# + "\n" +
-                #"            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","# + "\n" +
-                #"            elementIdentifier: "","# + "\n" +
-                #"            elementLabel: "Short description","# + "\n" +
-                #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","# + "\n" +
-                "            elementFrame: CGRect(\n" +
-                "                x: 29.333333333333332,\n" +
-                "                y: 36.666666666666686,\n" +
-                "                width: 333.66666666666663,\n" +
-                "                height: 51.333333333333314\n" +
-                "            ),\n" +
-                "            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)\n" +
-                "        ),"
-        let workValidationWorkflowAuthority =
-            "              {\n" +
-                #"                shardID: "s10.4.current.ax-text","# + "\n" +
-                #"                stateID: "state.work.validation-error","# + "\n" +
-                #"                taskID: "work_and_recheck","# + "\n" +
-                "                exceptionIssueID: \"\(workValidationExceptionID)\",\n" +
-                #"                exceptionOwner: "palatis3","# + "\n" +
-                #"                exceptionExpiresAt: "2026-11-20","# + "\n" +
-                "                exceptionRationale: \"\(workValidationExceptionRationale)\",\n" +
-                "                ignoredAuditIssues: [\n" +
-                "                  {\n" +
-                #"                    auditTypeRawValue: "1","# + "\n" +
-                #"                    compactDescription: "Contrast failed","# + "\n" +
-                #"                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","# + "\n" +
-                #"                    elementIdentifier: "","# + "\n" +
-                #"                    elementLabel: "Short description","# + "\n" +
-                #"                    elementType: "XCUIElementType(rawValue: 48)","# + "\n" +
-                "                    elementFrame: {\n" +
-                "                      x: 29.333333333333332,\n" +
-                "                      y: 36.666666666666686,\n" +
-                "                      width: 333.66666666666663,\n" +
-                "                      height: 51.333333333333314\n" +
-                "                    },\n" +
-                "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}\n" +
-                "                  }\n" +
-                "                ]\n" +
-                "              },"
-        let workValidationWorkflowTuple =
-            "              {\n" +
-                #"                shardID: "s10.4.current.ax-text","# + "\n" +
-                #"                stateID: "state.work.validation-error","# + "\n" +
-                #"                taskID: "work_and_recheck","# + "\n" +
-                "                exceptionIssueID: \"\(workValidationExceptionID)\"\n" +
-                "              },"
-        for (source, authority, label) in [
-            (uiSource, workValidationUIAuthority, "work-validation UI authority"),
-            (
-                workflowSource,
-                workValidationWorkflowAuthority,
-                "work-validation workflow authority"
-            ),
-            (
-                workflowSource,
-                workValidationWorkflowTuple,
-                "work-validation workflow tuple"
-            ),
-        ] {
-            XCTAssertEqual(
-                source.components(separatedBy: authority).count - 1,
-                1,
-                label
-            )
-            let missing = source.replacingOccurrences(of: authority, with: "")
-            XCTAssertEqual(
-                missing.components(separatedBy: authority).count - 1,
-                0,
-                label
-            )
-            let duplicated = source.replacingOccurrences(
-                of: authority,
-                with: authority + authority
-            )
-            XCTAssertEqual(
-                duplicated.components(separatedBy: authority).count - 1,
-                2,
-                label
-            )
-        }
-        let workValidationUIFieldMutations = [
-            (
-                "duplicate issue ID",
-                workValidationExceptionID,
-                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION"
-            ),
-            ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
-            ("wrong state", "state.work.validation-error", "state.work.editing"),
-            ("wrong task", "work_and_recheck", "one_handed_start"),
-            ("wrong owner", #"owner: "palatis3""#, #"owner: "unknown""#),
-            ("expired", #"expiresAt: "2026-11-20""#, #"expiresAt: "2026-08-21""#),
-            (
-                "broad rationale",
-                workValidationExceptionRationale,
-                "Native navigation overlap."
-            ),
-            ("wrong audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
-            (
-                "wrong compact",
-                #"compactDescription: "Contrast failed""#,
-                #"compactDescription: "Contrast passed""#
-            ),
-            (
-                "wrong detailed",
-                "Contrast failed for SwiftUI.AccessibilityNode",
-                "Contrast failed for another node"
-            ),
-            ("wrong identifier", #"elementIdentifier: """#, #"elementIdentifier: "unexpected""#),
-            (
-                "wrong label",
-                #"elementLabel: "Short description""#,
-                #"elementLabel: "Description""#
-            ),
-            (
-                "wrong type",
-                #"elementTypeDescription: "XCUIElementType(rawValue: 48)""#,
-                #"elementTypeDescription: "XCUIElementType(rawValue: 49)""#
-            ),
-            (
-                "wrong x",
-                "                x: 29.333333333333332,",
-                "                x: 31,"
-            ),
-            (
-                "wrong y",
-                "                y: 36.666666666666686,",
-                "                y: 36.666666666666687,"
-            ),
-            (
-                "wrong width",
-                "                width: 333.66666666666663,",
-                "                width: 333.66666666666668,"
-            ),
-            (
-                "wrong height",
-                "                height: 51.333333333333314",
-                "                height: 51.333333333333315"
-            ),
-            (
-                "wrong application frame",
-                "applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
-                "applicationFrame: CGRect(x: 0, y: 0, width: 401, height: 874)"
-            ),
-        ]
-        let workValidationWorkflowFieldMutations = [
-            (
-                "duplicate issue ID",
-                workValidationExceptionID,
-                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION"
-            ),
-            ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
-            ("wrong state", "state.work.validation-error", "state.work.editing"),
-            ("wrong task", "work_and_recheck", "one_handed_start"),
-            (
-                "wrong owner",
-                #"exceptionOwner: "palatis3""#,
-                #"exceptionOwner: "unknown""#
-            ),
-            (
-                "expired",
-                #"exceptionExpiresAt: "2026-11-20""#,
-                #"exceptionExpiresAt: "2026-08-21""#
-            ),
-            (
-                "broad rationale",
-                workValidationExceptionRationale,
-                "Native navigation overlap."
-            ),
-            ("wrong audit type", #"auditTypeRawValue: "1""#, #"auditTypeRawValue: "2""#),
-            (
-                "wrong compact",
-                #"compactDescription: "Contrast failed""#,
-                #"compactDescription: "Contrast passed""#
-            ),
-            (
-                "wrong detailed",
-                "Contrast failed for SwiftUI.AccessibilityNode",
-                "Contrast failed for another node"
-            ),
-            ("wrong identifier", #"elementIdentifier: """#, #"elementIdentifier: "unexpected""#),
-            (
-                "wrong label",
-                #"elementLabel: "Short description""#,
-                #"elementLabel: "Description""#
-            ),
-            (
-                "wrong type",
-                #"elementType: "XCUIElementType(rawValue: 48)""#,
-                #"elementType: "XCUIElementType(rawValue: 49)""#
-            ),
-            (
-                "wrong x",
-                "                      x: 29.333333333333332,",
-                "                      x: 31,"
-            ),
-            (
-                "wrong y",
-                "                      y: 36.666666666666686,",
-                "                      y: 36.666666666666687,"
-            ),
-            (
-                "wrong width",
-                "                      width: 333.66666666666663,",
-                "                      width: 333.66666666666668,"
-            ),
-            (
-                "wrong height",
-                "                      height: 51.333333333333314",
-                "                      height: 51.333333333333315"
-            ),
-            (
-                "wrong application frame",
-                "applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
-                "applicationFrame: {x: 0, y: 0, width: 401, height: 874}"
-            ),
-        ]
-        for (source, authority, mutations) in [
-            (uiSource, workValidationUIAuthority, workValidationUIFieldMutations),
-            (
-                workflowSource,
-                workValidationWorkflowAuthority,
-                workValidationWorkflowFieldMutations
-            ),
-        ] {
-            for (label, original, mutation) in mutations {
-                XCTAssertTrue(authority.contains(original), label)
-                let mutatedAuthority = authority.replacingOccurrences(
-                    of: original,
-                    with: mutation
-                )
-                XCTAssertNotEqual(mutatedAuthority, authority, label)
-                let mutatedSource = source.replacingOccurrences(
-                    of: authority,
-                    with: mutatedAuthority
-                )
-                XCTAssertEqual(
-                    mutatedSource.components(separatedBy: authority).count - 1,
-                    0,
-                    label
-                )
-            }
-        }
-        let workValidationUIPublicFieldLines = [
-            #"            auditTypeRawValue: "1","#,
-            #"            compactDescription: "Contrast failed","#,
-            #"            detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","#,
-            #"            elementIdentifier: "","#,
-            #"            elementLabel: "Short description","#,
-            #"            elementTypeDescription: "XCUIElementType(rawValue: 48)","#,
-            "            elementFrame: CGRect(",
-            "            applicationFrame: CGRect(x: 0, y: 0, width: 402, height: 874)",
-        ]
-        let workValidationWorkflowPublicFieldLines = [
-            #"                    auditTypeRawValue: "1","#,
-            #"                    compactDescription: "Contrast failed","#,
-            #"                    detailedDescription: "Contrast failed for SwiftUI.AccessibilityNode","#,
-            #"                    elementIdentifier: "","#,
-            #"                    elementLabel: "Short description","#,
-            #"                    elementType: "XCUIElementType(rawValue: 48)","#,
-            "                    elementFrame: {",
-            "                    applicationFrame: {x: 0, y: 0, width: 402, height: 874}",
-        ]
-        for (authority, fields) in [
-            (workValidationUIAuthority, workValidationUIPublicFieldLines),
-            (
-                workValidationWorkflowAuthority,
-                workValidationWorkflowPublicFieldLines
-            ),
-        ] {
-            for field in fields {
-                XCTAssertEqual(
-                    authority.components(separatedBy: field).count - 1,
-                    1,
-                    field
-                )
-                let missingField = authority.replacingOccurrences(of: field, with: "")
-                XCTAssertFalse(missingField.contains(authority), field)
-                let duplicatedField = authority.replacingOccurrences(
-                    of: field,
-                    with: field + "\n" + field
-                )
-                XCTAssertFalse(duplicatedField.contains(authority), field)
-            }
-        }
-        XCTAssertFalse(
-            restoredCaptureBaselineSource.contains(workValidationExceptionID)
-        )
-        XCTAssertFalse(
-            restoredCaptureBaselineSource.contains(workValidationExceptionRationale)
-        )
 
         let reportHistoryRationale =
             "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature."
@@ -18601,7 +17455,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "duplicate issue ID",
                 issueRecheckDueExceptionID,
-                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN"
             ),
             ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
             ("wrong state", "state.issue.recheck-due", "state.issue.resolved"),
@@ -18661,7 +17515,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "duplicate issue ID",
                 issueRecheckDueExceptionID,
-                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION"
+                "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN"
             ),
             ("wrong shard", "s10.4.current.ax-text", "s10.4.current.default-light"),
             ("wrong state", "state.issue.recheck-due", "state.issue.resolved"),
@@ -19164,7 +18018,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                && (\n" +
                 #"                    stateID == "state.check-preflight.ready""# + "\n" +
                 #"                        || stateID == "state.reports-index.ready""# + "\n" +
-                #"                        || stateID == "state.work.validation-error""# + "\n" +
                 "                ) ? 2 : 1"
         XCTAssertEqual(
             restoredCaptureBaselineSource.components(
@@ -19262,15 +18115,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 #"                    "state.reports-index.ready","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.ax-text", "work_and_recheck")"#,
-            #"taskIssueLimit = 6"#,
-            #"taskStateLimit = 6"#,
+            #"taskIssueLimit = 5"#,
+            #"taskStateLimit = 5"#,
             #"permittedExceptionStateIDs = ["# + "\n" +
                 #"                    "state.issue.open","# + "\n" +
                 #"                    "state.issue.recheck-due","# + "\n" +
                 #"                    "state.issue.resolved","# + "\n" +
                 #"                    "state.recheck-capture.wide-ready","# + "\n" +
                 #"                    "state.recheck-preflight.ready","# + "\n" +
-                #"                    "state.work.validation-error","# + "\n" +
                 #"                ]"#,
             #"case ("s10.4.current.increased-contrast", "report_comprehension")"#,
             #"case ("s10.4.current.differentiate-without-color", "report_comprehension")"#,
@@ -19446,7 +18298,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axReportComprehensionTaskParitySource = try boundedSource(
             uiSource,
             from: #"            case ("s10.4.current.ax-text", "report_comprehension"):"#,
-            before: "\n                taskIssueLimit = 6"
+            before: "\n                taskIssueLimit = 5"
         )
         XCTAssertEqual(axReportComprehensionTaskParitySource.utf8.count, 429)
         XCTAssertEqual(
@@ -19499,15 +18351,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let axWorkAndRecheckTaskExceptionBound =
             #"            case ("s10.4.current.ax-text", "work_and_recheck"):"# +
                 "\n" +
-                "                taskIssueLimit = 6\n" +
-                "                taskStateLimit = 6\n" +
+                "                taskIssueLimit = 5\n" +
+                "                taskStateLimit = 5\n" +
                 "                permittedExceptionStateIDs = [\n" +
                 #"                    "state.issue.open","# + "\n" +
                 #"                    "state.issue.recheck-due","# + "\n" +
                 #"                    "state.issue.resolved","# + "\n" +
                 #"                    "state.recheck-capture.wide-ready","# + "\n" +
                 #"                    "state.recheck-preflight.ready","# + "\n" +
-                #"                    "state.work.validation-error","# + "\n" +
                 "                ]"
         XCTAssertEqual(
             uiSource.components(
@@ -19531,15 +18382,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "AX work task issue contraction",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: "taskIssueLimit = 6",
-                    with: "taskIssueLimit = 5"
+                    of: "taskIssueLimit = 5",
+                    with: "taskIssueLimit = 4"
                 )
             ),
             (
                 "AX work task state contraction",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: "taskStateLimit = 6",
-                    with: "taskStateLimit = 5"
+                    of: "taskStateLimit = 5",
+                    with: "taskStateLimit = 4"
                 )
             ),
             (
@@ -19583,13 +18434,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "AX work task missing recheck-preflight state",
                 axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
                     of: #"                    "state.recheck-preflight.ready","# + "\n",
-                    with: ""
-                )
-            ),
-            (
-                "AX work task missing validation state",
-                axWorkAndRecheckTaskExceptionBound.replacingOccurrences(
-                    of: #"                    "state.work.validation-error","# + "\n",
                     with: ""
                 )
             ),
@@ -21089,10 +19933,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 808_773)
+        XCTAssertEqual(uiSource.utf8.count, 729_605)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "F0EA6D0CA55235FBA6C986B484921C9DA1FBF3D4939B4D075FEFDF860C0BF703"
+            "549D98BF56CD98AB4C4D297DDEEFCDEDE23E470229326E89C50E1FC650F2B620"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -21550,10 +20394,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n    @MainActor\n" +
                     "    private func captureDifferentIssueStatesBeforeRecovery("
         )
-        XCTAssertEqual(differentIssueIntervalDiagnosticSource.utf8.count, 14_781)
+        XCTAssertEqual(differentIssueIntervalDiagnosticSource.utf8.count, 14_738)
         XCTAssertEqual(
             Data(differentIssueIntervalDiagnosticSource.utf8).sha256,
-            "66E3C2F613FEC3BA3142EB1F5F1C07BD1F0BC4BDF2ECA18978598B86BA76505B"
+            "B73DB138CEC120001A7C18F6373981753E22B7A129B0CCD5442689B5405E420E"
         )
         for exact in [
             #"let stateID = "state.recheck-outcome.different-issue""#,
@@ -22303,12 +21147,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    private func diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast(",
             before:
                 "\n\n    @MainActor\n" +
-                    "    private func diagnoseFullRouteAXTextWorkValidationNativeContrast("
+                    "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast("
         )
-        XCTAssertEqual(purchaseCompleteDiagnosticSource.utf8.count, 12_204)
+        XCTAssertEqual(purchaseCompleteDiagnosticSource.utf8.count, 12_162)
         XCTAssertEqual(
             Data(purchaseCompleteDiagnosticSource.utf8).sha256,
-            "AC26452EA10EF5574261FE136F70EB07205F52CBD7875FC6F44FD9A2162D13B6"
+            "085D7D21EFA50EB4F1A04C157408D223F7F6296C2A24DC113115878C79C9C791"
         )
         for exact in [
             #"let stateID = "state.paywall.purchase-complete""#,
@@ -22317,7 +21161,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""state.issue.resolved""#,
             #""state.recheck-capture.wide-ready""#,
             #""state.recheck-preflight.ready""#,
-            #""state.work.validation-error""#,
             #"shard.shardID == "s10.4.current.ax-text""#,
             #"automationSegment == .segment2"#,
             #"automationSegment.replayCount == 22"#,
@@ -22450,269 +21293,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(purchaseCompleteDiagnosticSource.contains(prohibited), prohibited)
         }
 
-        let workValidationDiagnosticCallerSource = try boundedSource(
-            uiSource,
-            from:
-                "        if automationShard?.shardID == \"s10.4.current.ax-text\",\n" +
-                    "           shouldPrepareNormalEvidence(\n" +
-                    "               for: \"state.work.validation-error\",",
-            before:
-                "        captureBaseline(\"state.work.validation-error\", in: app)"
-        )
-        XCTAssertEqual(workValidationDiagnosticCallerSource.utf8.count, 543)
-        XCTAssertEqual(
-            Data(workValidationDiagnosticCallerSource.utf8).sha256,
-            "D1CD393C76E0E16A658BCCEC1E8AD6D3D67076C9F4022EE333416D5D946ACB4D"
-        )
-        for exact in [
-            #"automationShard?.shardID == "s10.4.current.ax-text""#,
-            #"for: "state.work.validation-error""#,
-            #"guard positionWorkValidationShortDescriptionForAXText(in: app) else"#,
-            #"try diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)"#,
-        ] {
-            XCTAssertTrue(workValidationDiagnosticCallerSource.contains(exact), exact)
-        }
-        XCTAssertEqual(
-            workValidationDiagnosticCallerSource.components(
-                separatedBy: "diagnoseFullRouteAXTextWorkValidationNativeContrast(in: app)"
-            ).count - 1,
-            1
-        )
-        for prohibited in [
-            "captureBaseline(", "performAccessibilityAudit", "ContrastAuditExceptionSignature(",
-            "migratedStateIDs.append", "segmentedRouteStateCursor +=",
-            "automatedSegmentFinished = true", "sleep(",
-        ] {
-            XCTAssertFalse(workValidationDiagnosticCallerSource.contains(prohibited), prohibited)
-        }
-
-        let workValidationDiagnosticSource = try boundedSource(
-            uiSource,
-            from:
-                "    @MainActor\n" +
-                    "    private func diagnoseFullRouteAXTextWorkValidationNativeContrast(",
-            before:
-                "\n\n    @MainActor\n" +
-                    "    private func diagnoseSegment2AXTextIssueResolvedNativeContrast("
-        )
-        XCTAssertEqual(workValidationDiagnosticSource.utf8.count, 22_523)
-        XCTAssertEqual(
-            Data(workValidationDiagnosticSource.utf8).sha256,
-            "E0CA69CB3FEF0DEB63BCE48CEF84737EDA6E07B246A514F989D644E0169F6056"
-        )
-        for exact in [
-            #"let stateID = "state.work.validation-error""#,
-            #"Self.segmentedRouteStateIDs.prefix(22)"#,
-            #""state.check-preflight.ready""#,
-            #""state.new-sign.editing""#,
-            #""state.report-history.ready""#,
-            #""state.reports-index.ready""#,
-            #"shard.shardID == "s10.4.current.ax-text""#,
-            #"automationSegment == .none"#,
-            #"automationSegment.replayCount == 0"#,
-            #"automationSegment.ownedStartOrdinal == 1"#,
-            #"automationSegment.ownedCount == 67"#,
-            #"automationSegment.finalOrdinal == 67"#,
-            #"Self.segmentedRouteStateIDs.count == 67"#,
-            #"Set(Self.segmentedRouteStateIDs).count == 67"#,
-            #"Self.segmentedRouteStateIDs[22] == stateID"#,
-            #"segmentedRouteStateCursor == 0"#,
-            #"migratedStateIDs == expectedMigratedStateIDs"#,
-            #"automationAXTreeDigests.keys.sorted()"#,
-            #"automationContrastExceptions.keys.sorted()"#,
-            #"!automatedSegmentFinished"#,
-            #"app.state == .runningForeground"#,
-            #"let focusedPredicate = NSPredicate(format: "hasKeyboardFocus == true")"#,
-            #"identifier: "s5.1.work.description""#,
-            #"identifier: "s5.1.work.validation""#,
-            #"identifier: "s5.1.work.keyboard-done""#,
-            #"let preInputViews = app.otherElements.matching("#,
-            #"let preGlobalDoneButtons = app.buttons.matching("#,
-            #"let preInputViewDoneButtons = preInputViews.buttons.matching("#,
-            #"let preconditionButtonObjects: (XCUIElementQuery) -> [[String: Any]]"#,
-            #""auditInvoked": false"#,
-            #""tapPerformed": false"#,
-            #""globalDoneButtonCount": preGlobalDoneButtons.count"#,
-            #""inputViewDoneButtonCount": preInputViewDoneButtons.count"#,
-            #""keyboardDoneButtonCount": preDoneButtons.count"#,
-            #"S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC"#,
-            #"preFocusedDescriptionFields.count == 1"#,
-            #"preKeyboards.count == 1"#,
-            #"preInputViews.count == 1"#,
-            #"preGlobalDoneButtons.count == 1"#,
-            #"preDescriptionValue == "Short description""#,
-            #"preValidationIdentifier == "s5.1.work.validation""#,
-            #"preValidationLabelText == "Short description""#,
-            #"globalDoneButton.isHittable"#,
-            #"globalDoneButton.tap()"#,
-            #"identifier: "s5.1.work.screen""#,
-            #"postWorkScreens.count == 1"#,
-            #"postWorkScreenExists"#,
-            #"postWorkScreenEnabled"#,
-            #"postWorkScreenHittable"#,
-            #"postFocusedDescriptionFields.count == 0"#,
-            #"postValidationExists"#,
-            #"postValidationEnabled"#,
-            #"app.keyboards.count == 0"#,
-            #"postDescriptionValue == preDescriptionValue"#,
-            #"postValidationIdentifier == preValidationIdentifier"#,
-            #"postValidationLabelText == preValidationLabelText"#,
-            #""postDoneConditionsPass": postDoneConditionsPass"#,
-            #""stateOrdinal": 23"#,
-            #""predecessorStateID": "state.sign-detail.open-issue""#,
-            #""predecessorOrdinal": 22"#,
-            #""successorStateID": "state.work.editing""#,
-            #""successorOrdinal": 24"#,
-            #""applicationStateRawValue": app.state.rawValue"#,
-            #""applicationForeground": app.state == .runningForeground"#,
-            #""applicationFrame": auditFrameObject(app.frame)"#,
-            #""application": diagnosticElementObject(app)"#,
-            #""queries": diagnosticQueryObjects"#,
-            #""exists": element.exists"#,
-            #""isEnabled": element.isEnabled"#,
-            #""isHittable": element.isHittable"#,
-            #""identifier": element.identifier"#,
-            #""label": element.label"#,
-            #""value": valueObject"#,
-            #""elementTypeRawValue": element.elementType.rawValue"#,
-            #""elementTypeDescription": String(describing: element.elementType)"#,
-            #""frame": self.auditFrameObject(element.frame)"#,
-            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
-            #""compactDescription": issue.compactDescription"#,
-            #""detailedDescription": issue.detailedDescription"#,
-            #""elementExists": NSNull()"#,
-            #""elementEnabled": NSNull()"#,
-            #""elementHittable": NSNull()"#,
-            #""elementIdentifier": NSNull()"#,
-            #""elementLabel": NSNull()"#,
-            #""elementValue": NSNull()"#,
-            #""elementTypeRawValue": NSNull()"#,
-            #""elementTypeDescription": NSNull()"#,
-            #""elementFrame": NSNull()"#,
-            #""observedIssueCount": observedIssueCount"#,
-            #""auditedElementCount": auditedElementCount"#,
-            #"options: [.prettyPrinted, .sortedKeys]"#,
-            #"try app.performAccessibilityAudit(for: .contrast)"#,
-            #"screenshot: auditedElement.screenshot()"#,
-            #"return true"#,
-            #"S10.4 AX-text work-validation keyboard Done postconditions failed nonaccepting"#,
-            #"S10.4 AX-text work-validation native contrast diagnostic completed nonaccepting"#,
-        ] {
-            XCTAssertTrue(workValidationDiagnosticSource.contains(exact), exact)
-        }
-        var workValidationQueryTail =
-            workValidationDiagnosticSource[workValidationDiagnosticSource.startIndex...]
-        for queryName in [
-            "workScreens", "workScrollViews", "workHeaders", "workDates",
-            "workDescriptions", "workValidations", "workNotes", "workPhotos",
-            "workImportFixtureControls", "workSaveControls", "dateLabelStaticTexts",
-            "shortDescriptionLabelStaticTexts", "noteLabelStaticTexts",
-            "navigationBars", "tabBars", "keyboards", "inputViews",
-        ] {
-            let token = "\"\(queryName)\""
-            let range = try XCTUnwrap(workValidationQueryTail.range(of: token), queryName)
-            workValidationQueryTail = workValidationQueryTail[range.upperBound...]
-        }
-        for prefix in [
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-        ] {
-            XCTAssertEqual(
-                workValidationDiagnosticSource.components(separatedBy: prefix).count - 1,
-                1,
-                prefix
-            )
-        }
-        XCTAssertEqual(
-            workValidationDiagnosticSource.components(
-                separatedBy: "performAccessibilityAudit(for: .contrast)"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            workValidationDiagnosticSource.components(separatedBy: "return true").count - 1,
-            1
-        )
-        XCTAssertEqual(
-            workValidationDiagnosticSource.components(
-                separatedBy: "globalDoneButton.tap()"
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            workValidationDiagnosticSource.components(
-                separatedBy: ".lifetime = .keepAlways"
-            ).count - 1,
-            7
-        )
-        XCTAssertEqual(
-            workValidationDiagnosticSource.components(separatedBy: "add(").count - 1,
-            7
-        )
-        let workValidationPreconditionDiagnosticSource = try boundedSource(
-            workValidationDiagnosticSource,
-            from: "        let preInputViews = app.otherElements.matching(",
-            before: "        guard preDescriptionFields.count == 1,"
-        )
-        XCTAssertFalse(workValidationPreconditionDiagnosticSource.contains("\"frame\""))
-        XCTAssertEqual(
-            workValidationPreconditionDiagnosticSource.components(
-                separatedBy: ".lifetime = .keepAlways"
-            ).count - 1,
-            3
-        )
-        XCTAssertEqual(
-            workValidationPreconditionDiagnosticSource.components(
-                separatedBy: "add("
-            ).count - 1,
-            3
-        )
-        var workValidationDiagnosticTail =
-            workValidationDiagnosticSource[workValidationDiagnosticSource.startIndex...]
-        for orderedToken in [
-            "let preInputViews = app.otherElements.matching(",
-            "let preGlobalDoneButtons = app.buttons.matching(",
-            "let preInputViewDoneButtons = preInputViews.buttons.matching(",
-            "let preconditionContext: [String: Any] = [",
-            "S10_4_AX_TEXT_WORK_VALIDATION_KEYBOARD_DONE_PRECONDITION_DIAGNOSTIC",
-            "let preconditionAppAttachment = XCTAttachment(",
-            "let preconditionTreeAttachment = XCTAttachment(",
-            "let preconditionContextAttachment = XCTAttachment(",
-            "guard preDescriptionFields.count == 1,",
-            "S10.4 AX-text work-validation keyboard Done preconditions are invalid",
-            "globalDoneButton.tap()",
-            "let postDoneConditionsPass =",
-            "let diagnosticContext: [String: Any] = [",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_CONTEXT_DIAGNOSTIC",
-            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "let contextAttachment = XCTAttachment(",
-            "guard postDoneConditionsPass else {",
-            "S10.4 AX-text work-validation keyboard Done postconditions failed nonaccepting",
-            "try app.performAccessibilityAudit(for: .contrast)",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_ISSUE_DIAGNOSTIC",
-            "screenshot: auditedElement.screenshot()",
-            "S10_4_AX_TEXT_WORK_VALIDATION_NATIVE_CONTRAST_COUNT_DIAGNOSTIC",
-            "throw AutomationConfigurationError.invalid(",
-        ] {
-            let range = try XCTUnwrap(
-                workValidationDiagnosticTail.range(of: orderedToken),
-                orderedToken
-            )
-            workValidationDiagnosticTail =
-                workValidationDiagnosticTail[range.upperBound...]
-        }
-        for prohibited in [
-            "captureBaseline(", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
-            "S10_4_CONTRAST\"", "S10_4_CANDIDATE", ".typeText(",
-            "setToggle(", "navigateBack(", "waitForExistence(", ".swipe",
-            ".press(", "sleep(", "NotificationCenter", "migratedStateIDs.append",
-            "segmentedRouteStateCursor +=", "automatedSegmentFinished = true",
-            "ContrastAuditExceptionSignature(", "exceptionIssueID",
-        ] {
-            XCTAssertFalse(workValidationDiagnosticSource.contains(prohibited), prohibited)
-        }
 
         let issueResolvedDiagnosticSource = try boundedSource(
             uiSource,
@@ -22723,10 +21303,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment2AXTextIssueOpenNativeContrast("
         )
-        XCTAssertEqual(issueResolvedDiagnosticSource.utf8.count, 12_424)
+        XCTAssertEqual(issueResolvedDiagnosticSource.utf8.count, 12_381)
         XCTAssertEqual(
             Data(issueResolvedDiagnosticSource.utf8).sha256,
-            "D9D1A7820B41E4153B354763BC05DAD10A204B2D9EF234EBAB529E458F0DB87C"
+            "1E6DCABFCCEC8092C16F6C28B0EB50C8DA911DA609F000A5AF4E521ECF8F1DFC"
         )
         for exact in [
             #"let stateID = "state.issue.resolved""#,
@@ -22734,7 +21314,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""state.issue.recheck-due""#,
             #""state.recheck-capture.wide-ready""#,
             #""state.recheck-preflight.ready""#,
-            #""state.work.validation-error""#,
             #"shard.shardID == "s10.4.current.ax-text""#,
             #"automationSegment == .segment2"#,
             #"automationSegment.replayCount == 22"#,
@@ -22873,10 +21452,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func positionSettingsHubDiagnosticsEntryForAXText("
         )
-        XCTAssertEqual(issueOpenDiagnosticSource.utf8.count, 12_471)
+        XCTAssertEqual(issueOpenDiagnosticSource.utf8.count, 12_428)
         XCTAssertEqual(
             Data(issueOpenDiagnosticSource.utf8).sha256,
-            "80FFA051998EA3053084900BA282F9C1A70281593201EBC6D79ECB7558C7F636"
+            "0FC4F28FFC46FD895D3185D2FFBC1BF298C77B717E6BB02C255C68CD350B9BF5"
         )
         for exact in [
             #"let stateID = "state.issue.open""#,
@@ -22886,7 +21465,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""state.paywall.purchase-complete""#,
             #""state.recheck-capture.wide-ready""#,
             #""state.recheck-preflight.ready""#,
-            #""state.work.validation-error""#,
             #"shard.shardID == "s10.4.current.ax-text""#,
             #"automationSegment == .segment2"#,
             #"automationSegment.replayCount == 22"#,
@@ -23343,10 +21921,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func diagnoseSegment3AXTextSignSelectionNativeContrast("
         )
-        XCTAssertEqual(settingsHubDiagnosticSource.utf8.count, 12_419)
+        XCTAssertEqual(settingsHubDiagnosticSource.utf8.count, 12_376)
         XCTAssertEqual(
             Data(settingsHubDiagnosticSource.utf8).sha256,
-            "A80654A2D41C8DA6DB093C75BB4FB3850F7F9010B3DB17A4E7F27F6D6B6CEB81"
+            "EDD4C18FBB343694D8DB018D54756C17430E5B093A219046DF274F04DC4092BF"
         )
         for exact in [
             #"let stateID = "state.settings.hub""#,
@@ -23363,7 +21941,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""state.report-correction.validation-error""#,
             #""state.report-history.ready""#,
             #""state.reports-index.ready""#,
-            #""state.work.validation-error""#,
             #"shard.shardID == "s10.4.current.ax-text""#,
             #"automationSegment == .none"#,
             #"automationSegment.replayCount == 0"#,
@@ -23430,7 +22007,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "state.report-correction.validation-error",
             "state.report-history.ready",
             "state.reports-index.ready",
-            "state.work.validation-error",
         ]
         XCTAssertEqual(
             expectedSettingsHubContrastExceptionStateIDs,

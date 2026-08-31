@@ -52,10 +52,12 @@ struct RecordWorkView: View {
                         .accessibilityFocused($accessibilityFocus, equals: .header)
 
                     DatePicker(
-                        "Date",
                         selection: $performedDate,
                         displayedComponents: .date
-                    )
+                    ) {
+                        Text("Date")
+                            .accessibilityHidden(true)
+                    }
                     .datePickerStyle(.compact)
                     .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
                     .accessibilityLabel("Date")
@@ -66,6 +68,7 @@ struct RecordWorkView: View {
                         Text("Short description")
                             .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
                             .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                            .accessibilityHidden(true)
 
                         TextField("Short description", text: $description, axis: .vertical)
                             .lineLimit(3 ... 5)
@@ -169,6 +172,7 @@ struct RecordWorkView: View {
                         .font(DesignTokens.Typography.primaryBody)
                         .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(true)
 
                     if usesImportedFixtureForUITest {
                         AssetRoundsSecondaryAction(
