@@ -7691,8 +7691,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""sampleOrdinal""#,
             #""elapsedMilliseconds""#,
             #""queries":"#,
-            "XCTAttachment(",
-            ".lifetime = .keepAlways",
             "throw AutomationConfigurationError.invalid(",
             "S10.4 AX-text Record-work editing positioning diagnostic",
         ] {
@@ -8320,6 +8318,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#""helperFrame": diagnosticFrame(finalHelperFrame)"#, 1),
             (#""previewFrame": diagnosticFrame(finalPreviewFrame)"#, 1),
             ("options: [.prettyPrinted, .sortedKeys]", 1),
+            ("printJSONLine(", 1),
+            ("XCTAttachment(", 3),
+            (".lifetime = .keepAlways", 3),
             ("diagnosticAppAttachment.lifetime = .keepAlways", 1),
             ("diagnosticTreeAttachment.lifetime = .keepAlways", 1),
             ("diagnosticContextAttachment.lifetime = .keepAlways", 1),
@@ -8440,8 +8441,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "waitForNonExistence",
             "Thread.sleep",
             "performAccessibilityAudit",
-            "XCTAttachment(",
-            "printJSONLine(",
             "emitAutomationTaskEvidence",
             "emitAutomationShardReceipt",
         ] {
