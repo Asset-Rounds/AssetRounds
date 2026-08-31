@@ -237,6 +237,7 @@ struct RecordWorkView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        .modifier(RecordWorkTabBarVisibility())
         .onAppear {
             moveAccessibilityFocus(to: .header)
         }
@@ -341,4 +342,15 @@ struct RecordWorkView: View {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+}
+
+private struct RecordWorkTabBarVisibility: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.toolbar(.hidden, for: .tabBar)
+        } else {
+            content
+        }
+    }
 }
