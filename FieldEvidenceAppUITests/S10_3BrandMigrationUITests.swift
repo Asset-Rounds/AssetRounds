@@ -5321,6 +5321,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 || (finalFramesAreValid
                     && finalScrollFrameIsValid
                     && workEditingComposition())
+        let finalHelperIsHittable = workHelper.isHittable
         let finalExactPreviewIsHittable = workPreviewImage.isHittable
         let finalWorkPreviewIsHittable = workPreview.isHittable
         workEditingAXTextFallbackAccepted =
@@ -5347,6 +5348,84 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         } else {
             workPreviewHittabilityAccepted = finalWorkPreviewIsHittable
         }
+        if workEditingAXTextEnabled {
+            let diagnosticFrame: (CGRect) -> [String: Double] = { frame in
+                [
+                    "height": Double(frame.height),
+                    "width": Double(frame.width),
+                    "x": Double(frame.minX),
+                    "y": Double(frame.minY),
+                ]
+            }
+            let diagnosticContext: [String: Any] = [
+                "acceptanceEligible": false,
+                "applicationFrame": diagnosticFrame(finalApplicationFrame),
+                "finalAXFramesAreValid": finalAXFramesAreValid,
+                "finalCommonFramesAreValid": finalCommonFramesAreValid,
+                "finalExactPreviewIsHittable": finalExactPreviewIsHittable,
+                "finalFramesAreValid": finalFramesAreValid,
+                "finalHelperIsHittable": finalHelperIsHittable,
+                "finalHelperToPreviewSeparation": finalHelperToPreviewSeparation
+                    .map { Double($0) as Any } ?? NSNull(),
+                "finalSafeBottom": finalSafeBottom
+                    .map { Double($0) as Any } ?? NSNull(),
+                "finalSafeTop": finalSafeTop
+                    .map { Double($0) as Any } ?? NSNull(),
+                "finalScrollFrameIsValid": finalScrollFrameIsValid,
+                "finalWorkEditingCompositionIsValid":
+                    finalWorkEditingCompositionIsValid,
+                "finalWorkPreviewIsHittable": finalWorkPreviewIsHittable,
+                "helperFrame": diagnosticFrame(finalHelperFrame),
+                "initialHelperToPreviewSeparation": initialHelperToPreviewSeparation
+                    .map { Double($0) as Any } ?? NSNull(),
+                "navigationFrame": diagnosticFrame(finalNavigationFrame),
+                "previewFrame": diagnosticFrame(finalPreviewFrame),
+                "provenGestureCount": provenGestureCount,
+                "schemaVersion": 1,
+                "scrollFrame": diagnosticFrame(finalScrollFrame),
+                "shardID": automationShard?.shardID ?? "UNSET",
+                "stateID": "state.work.editing",
+                "workEditingAXTextFallbackAccepted":
+                    workEditingAXTextFallbackAccepted,
+                "workEditingInitialProof": workEditingInitialProof,
+                "workPreviewHittabilityAccepted": workPreviewHittabilityAccepted,
+            ]
+            printJSONLine(
+                prefix: "S10_4_AX_TEXT_WORK_EDITING_FINAL_GUARD_DIAGNOSTIC",
+                object: diagnosticContext
+            )
+            let diagnosticAppAttachment = XCTAttachment(
+                screenshot: app.screenshot()
+            )
+            diagnosticAppAttachment.name =
+                "S10.4 AX-text work-editing final-guard diagnostic app"
+            diagnosticAppAttachment.lifetime = .keepAlways
+            add(diagnosticAppAttachment)
+            let diagnosticTreeAttachment = XCTAttachment(
+                string: app.debugDescription
+            )
+            diagnosticTreeAttachment.name =
+                "S10.4 AX-text work-editing final-guard diagnostic tree"
+            diagnosticTreeAttachment.lifetime = .keepAlways
+            add(diagnosticTreeAttachment)
+            let diagnosticContextData = try? JSONSerialization.data(
+                withJSONObject: diagnosticContext,
+                options: [.prettyPrinted, .sortedKeys]
+            )
+            let diagnosticContextAttachment = XCTAttachment(
+                string: diagnosticContextData.map {
+                    String(decoding: $0, as: UTF8.self)
+                } ?? "S10.4 AX-text work-editing final-guard diagnostic context encoding failed"
+            )
+            diagnosticContextAttachment.name =
+                "S10.4 AX-text work-editing final-guard diagnostic context"
+            diagnosticContextAttachment.lifetime = .keepAlways
+            add(diagnosticContextAttachment)
+            XCTFail(
+                "S10.4 AX-text work-editing final-guard diagnostic completed nonaccepting"
+            )
+            return
+        }
         guard app.state == .runningForeground,
               workHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
@@ -5366,7 +5445,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               workEditingFrameIsValid(finalHelperFrame),
               finalHelperFrame.minY >= finalSafeTop,
               finalHelperFrame.maxY <= finalSafeBottom,
-              workHelper.isHittable,
+              finalHelperIsHittable,
               workPreviewHittabilityAccepted else {
             XCTFail("Record-work editing composition is outside the safe viewport.")
             return

@@ -7641,10 +7641,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingPositioningStartRange.lowerBound..<workEditingPositioningEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(workEditingPositioningSource.utf8.count, 20_315)
+        XCTAssertEqual(workEditingPositioningSource.utf8.count, 24_427)
         XCTAssertEqual(
             Data(workEditingPositioningSource.utf8).sha256,
-            "14A75409E861FD461B56089AD8F6C71F1DB0B670720F3BF9A6D43A92E9A2BDEE"
+            "C4D4991C67D958F7D21704EA018BD6E7B948D2E667423B1B6BCBF53FF2181262"
         )
         let workEditingRouteBeforeEvidence =
             #"        let workPreview = element("s5.1.work.photo", in: app)"# + "\n" +
@@ -8276,17 +8276,92 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let workEditingFinalDiagnosticStart =
+            "        let finalHelperIsHittable = workHelper.isHittable"
+        let workEditingFinalDiagnosticEnd =
+            "        guard app.state == .runningForeground,"
+        guard let workEditingFinalDiagnosticStartRange =
+                workEditingPositioningSource.range(
+                    of: workEditingFinalDiagnosticStart
+                ), let workEditingFinalDiagnosticEndRange =
+                workEditingPositioningSource.range(
+                    of: workEditingFinalDiagnosticEnd,
+                    range: workEditingFinalDiagnosticStartRange.upperBound
+                        ..<workEditingPositioningSource.endIndex
+                ) else {
+            XCTFail("Missing the bounded Record-work final-guard diagnostic")
+            return
+        }
+        let workEditingFinalDiagnosticSource = String(
+            workEditingPositioningSource[
+                workEditingFinalDiagnosticStartRange.lowerBound
+                    ..<workEditingFinalDiagnosticEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(workEditingFinalDiagnosticSource.utf8.count, 5_366)
+        XCTAssertEqual(
+            Data(workEditingFinalDiagnosticSource.utf8).sha256,
+            "E1493FBC3E492040698358C1F66E3E83312B61FE190E8A8E0C144B3688DD24A1"
+        )
+        for (workEditingFinalDiagnosticLock, count) in [
+            ("let finalHelperIsHittable = workHelper.isHittable", 1),
+            ("S10_4_AX_TEXT_WORK_EDITING_FINAL_GUARD_DIAGNOSTIC", 1),
+            (#""acceptanceEligible": false"#, 1),
+            (#""finalAXFramesAreValid": finalAXFramesAreValid"#, 1),
+            (#""finalCommonFramesAreValid": finalCommonFramesAreValid"#, 1),
+            (#""finalHelperIsHittable": finalHelperIsHittable"#, 1),
+            (#""finalExactPreviewIsHittable": finalExactPreviewIsHittable"#, 1),
+            (#""finalWorkPreviewIsHittable": finalWorkPreviewIsHittable"#, 1),
+            (#""workEditingAXTextFallbackAccepted":"#, 1),
+            (#""workPreviewHittabilityAccepted": workPreviewHittabilityAccepted"#, 1),
+            (#""stateID": "state.work.editing""#, 1),
+            (#""shardID": automationShard?.shardID ?? "UNSET""#, 1),
+            (#""applicationFrame": diagnosticFrame(finalApplicationFrame)"#, 1),
+            (#""navigationFrame": diagnosticFrame(finalNavigationFrame)"#, 1),
+            (#""scrollFrame": diagnosticFrame(finalScrollFrame)"#, 1),
+            (#""helperFrame": diagnosticFrame(finalHelperFrame)"#, 1),
+            (#""previewFrame": diagnosticFrame(finalPreviewFrame)"#, 1),
+            ("options: [.prettyPrinted, .sortedKeys]", 1),
+            ("diagnosticAppAttachment.lifetime = .keepAlways", 1),
+            ("diagnosticTreeAttachment.lifetime = .keepAlways", 1),
+            ("diagnosticContextAttachment.lifetime = .keepAlways", 1),
+            (
+                "S10.4 AX-text work-editing final-guard diagnostic completed nonaccepting",
+                1
+            ),
+        ] {
+            XCTAssertEqual(
+                workEditingFinalDiagnosticSource.components(
+                    separatedBy: workEditingFinalDiagnosticLock
+                ).count - 1,
+                count,
+                workEditingFinalDiagnosticLock
+            )
+        }
+        let workEditingFinalDiagnosticTerminal =
+            #"                "S10.4 AX-text work-editing final-guard diagnostic completed nonaccepting""# + "\n" +
+                "            )\n" +
+                "            return\n" +
+                "        }\n" +
+                workEditingFinalDiagnosticEnd
+        XCTAssertEqual(
+            workEditingPositioningSource.components(
+                separatedBy: workEditingFinalDiagnosticTerminal
+            ).count - 1,
+            1
+        )
         for (workEditingFinalIdentityLock, count) in [
+            ("let finalHelperIsHittable = workHelper.isHittable", 1),
             ("let finalExactPreviewIsHittable = workPreviewImage.isHittable", 1),
             ("let finalWorkPreviewIsHittable = workPreview.isHittable", 1),
-            ("finalWorkEditingCompositionIsValid", 3),
-            ("finalFramesAreValid", 5),
-            ("finalScrollFrameIsValid", 4),
+            ("finalWorkEditingCompositionIsValid", 5),
+            ("finalFramesAreValid", 7),
+            ("finalScrollFrameIsValid", 6),
             ("finalHelperFrame.maxY < finalTabFrame.minY", 0),
             ("finalHelperFrame.maxY < finalPreviewFrame.minY", 1),
             ("finalPreviewFrame.minY > finalScrollFrame.maxY", 1),
-            ("finalHelperToPreviewSeparation", 3),
-            ("initialHelperToPreviewSeparation", 4),
+            ("finalHelperToPreviewSeparation", 5),
+            ("initialHelperToPreviewSeparation", 6),
         ] {
             XCTAssertEqual(
                 workEditingPositioningSource.components(
@@ -8298,7 +8373,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let workEditingFinalFailureAndCapture =
-            "              workPreviewHittabilityAccepted else {\n" +
+            "              finalHelperIsHittable,\n" +
+                "              workPreviewHittabilityAccepted else {\n" +
                 #"            XCTFail("Record-work editing composition is outside the safe viewport.")"# + "\n" +
                 "            return\n" +
                 "        }\n" +
@@ -8312,11 +8388,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             workEditingPositioningSource.components(separatedBy: "XCTFail(").count - 1,
-            9
+            10
         )
         XCTAssertEqual(
             workEditingPositioningSource.components(separatedBy: "return\n").count - 1,
-            9
+            10
         )
         for (workEditingMechanicalLock, count) in [
             ("        for _ in 0..<4 {", 1),
@@ -20065,10 +20141,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 730_477)
+        XCTAssertEqual(uiSource.utf8.count, 734_589)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "3E94B4CBC5FDDDBEAD2E258B2A60BDEC35AE8E04F7C7A70584A8315005406B37"
+            "E74456096FC2486047F29280CA4F4083AC0DF93B5FB4D24144DE655F81531E73"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
