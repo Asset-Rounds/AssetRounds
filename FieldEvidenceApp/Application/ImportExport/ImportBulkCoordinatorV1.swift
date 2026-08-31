@@ -68,6 +68,19 @@ final class ImportBulkCoordinatorV1 {
         return try ImportBulkPreviewV1(importPlan: importPlan, bulkPlan: bulkPlan)
     }
 
+    /// C08 may hand a validated import artifact to C13 review, but it cannot
+    /// materialize an alias or consolidation command.  This is intentionally
+    /// typed rather than a new generic import command.
+    func handoffToEntityIdentityResolution(
+        plan: EntityIdentityResolutionPlanV1
+    ) throws -> EntityIdentityResolutionPlanV1 {
+        guard plan.workspaceID == (try writer.currentRevision()).workspaceID else {
+            throw ImportBulkFailureV1.invalidValue
+        }
+        try plan.validate()
+        return plan
+    }
+
     /// Saving a reusable mapping is a C08 lifecycle mutation, never a direct
     /// SwiftData save. The adapter derives its deterministic mutation ID from
     /// the canonical profile digest and reuses the incumbent writer receipt.

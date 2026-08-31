@@ -590,6 +590,7 @@ final class LocalChangeJournalV1 {
             try PlacementPoseJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try EvidenceContextJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
             try LightingJournalContractV1.validate(envelope:change.envelope,receipt:change.receipt,entityChanges:change.entityChanges)
+            try EntityIdentityResolutionJournalContractV1.validate(envelope: change.envelope, receipt: change.receipt, entityChanges: change.entityChanges)
             try AssistanceLocalChangeJournalPolicyV1.validate(change)
             try TemporalEvidenceLocalChangeJournalPolicyV1.validate(change)
             let disposition: MutationReplayDispositionV1

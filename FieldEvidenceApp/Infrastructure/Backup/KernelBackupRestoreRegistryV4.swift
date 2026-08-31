@@ -118,6 +118,30 @@ enum ReinspectionExceptionKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum EntityIdentityResolutionKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 50
+    static let recordsSchemaVersion = 49
+    static let durableFamilies = [
+        "EntityAliasLinkRowV1", "EntityConsolidationReceiptRowV1",
+        "EntityIdentityResolutionMutationReceiptRowV1"
+    ]
+    static let plansAndPreviewsAreExcluded = true
+    static let relationshipsRemainEvidenceOnly = true
+    static let replaceRestoreRequiresExactJournalCommands = true
+    static let cloneForkRequireEmptySnapshot = true
+
+    static func validate() throws {
+        guard persistentSchemaVersion == EntityIdentityResolutionSchemaMigrationBoundaryV1.persistentSchemaVersion,
+              recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilies.count == EntityIdentityResolutionSchemaMigrationBoundaryV1.durableModelCount,
+              EntityIdentityResolutionSchemaMigrationBoundaryV1.validate(),
+              plansAndPreviewsAreExcluded, relationshipsRemainEvidenceOnly,
+              replaceRestoreRequiresExactJournalCommands, cloneForkRequireEmptySnapshot else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C05EvidenceMetadataKernelBackupRestoreEnrollmentV1 {
     static let persistentSchemaVersion = 43
     static let recordsSchemaVersion = 42
@@ -774,6 +798,7 @@ enum KernelBackupRestoreRegistryV4 {
         try C53ServiceReliabilityKernelBackupRestoreEnrollmentV1.validate()
         try C05RoundSessionKernelBackupRestoreEnrollmentV1.validate()
         try C08ImportBulkKernelBackupRestoreEnrollmentV1.validate()
+        try EntityIdentityResolutionKernelBackupRestoreEnrollmentV1.validate()
         try validatePrivacyTransformLifecycle()
         try validateMeasurementIntegrityLifecycle()
         try validatePackageEvolutionLifecycle()

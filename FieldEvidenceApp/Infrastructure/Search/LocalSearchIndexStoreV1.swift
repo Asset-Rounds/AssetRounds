@@ -1705,3 +1705,9 @@ enum C08ImportBulkLocalSearchIndexBoundaryV1 {
             && rowsAreDerivedAndRebuildable
     }
 }
+enum EntityIdentityResolutionLocalSearchEnrollmentV1 {
+    static let aliasAwareRebuildUsesCanonicalRows = true
+    static let staleIndexRowsAreDropped = true
+    static let indexOwnsIdentityTruth = false
+    static let automaticAliasOrConsolidationPermitted = false
+}

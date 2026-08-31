@@ -1301,3 +1301,39 @@ struct C53ServiceReliabilityCompatibilityPolicyV1: Codable, Equatable, Sendable 
 extension ReleasedDataCompatibilityPolicyV1 {
     static let serviceReliabilityCompatibility = C53ServiceReliabilityCompatibilityPolicyV1()
 }
+
+struct EntityIdentityResolutionCompatibilityPolicyV1: Codable, Equatable, Sendable {
+    static let persistentSchemaVersion = 50
+    static let recordsSchemaVersion = 49
+    static let currentPersistentWriterVersion = "50.0.0"
+    static let currentBackupWriterVersion = "archive1-backup4-persistent50-records49"
+
+    let durableFamilies = [
+        "EntityAliasLinkRowV1", "EntityConsolidationReceiptRowV1",
+        "EntityIdentityResolutionMutationReceiptRowV1"
+    ]
+    let aliasAndSuccessorHistoryRemainsReadable = true
+    let typedReceiptParityRequired = true
+    let relationshipRowsBecomeConsolidationAuthority = false
+    let automaticHistoricRewritePermitted = false
+    let unknownFutureVersionsFailClosed = true
+
+    func validate() throws {
+        guard Self.persistentSchemaVersion
+                == EntityIdentityResolutionSchemaMigrationBoundaryV1.persistentSchemaVersion,
+              Self.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilies.count
+                == EntityIdentityResolutionSchemaMigrationBoundaryV1.durableModelCount,
+              EntityIdentityResolutionSchemaMigrationBoundaryV1.validate(),
+              aliasAndSuccessorHistoryRemainsReadable, typedReceiptParityRequired,
+              !relationshipRowsBecomeConsolidationAuthority,
+              !automaticHistoricRewritePermitted, unknownFutureVersionsFailClosed else {
+            throw CompatibilityContractErrorV1.invalidSupportTable
+        }
+    }
+}
+
+extension ReleasedDataCompatibilityPolicyV1 {
+    static let entityIdentityResolutionCompatibility =
+        EntityIdentityResolutionCompatibilityPolicyV1()
+}

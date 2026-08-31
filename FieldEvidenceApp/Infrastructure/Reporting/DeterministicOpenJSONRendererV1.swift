@@ -3818,3 +3818,25 @@ enum C57MyDayOpenJSONRendererV1 {
         return value
     }
 }
+
+enum EntityIdentityResolutionOpenJSONRendererV1 {
+    static let format = "OPEN_JSON"
+    static let emitsMutablePlan = false
+    static let emitsAutomaticConsolidationClaim = false
+
+    static func render(_ projection: EntityIdentityResolutionReportProjectionV1) throws -> Data {
+        try projection.validate()
+        return try WorkspaceMutationCanonicalV1.data(projection)
+    }
+
+    static func reopen(_ data: Data) throws -> EntityIdentityResolutionReportProjectionV1 {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(EntityIdentityResolutionReportProjectionV1.self, from: data)
+        try value.validate()
+        guard try WorkspaceMutationCanonicalV1.data(value) == data else {
+            throw EntityIdentityResolutionFailureV1.corruptDigest
+        }
+        return value
+    }
+}

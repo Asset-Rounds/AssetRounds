@@ -46,6 +46,16 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
         _ request: ReinspectionExceptionQueryV1,
         providers: [any ExceptionQueueCanonicalSourceProvidingV1]
     ) throws -> ReinspectionExceptionQueryResultV1
+    func validateEntityIdentityResolutionCommand(
+        _ command: EntityIdentityResolutionMutationCommandV1,
+        currentRevision: WorkspaceRevisionV1
+    ) throws
+    func entityIdentityResolutionReceipt(
+        for command: EntityIdentityResolutionMutationCommandV1
+    ) throws -> EntityIdentityResolutionMutationReceiptV1?
+    func entityIdentityResolutionQuery(
+        _ request: EntityIdentityResolutionQueryV1
+    ) throws -> EntityIdentityResolutionQueryResultV1
     func persistAppliedActivityContractEffect(
         _ mutation: ActivityContractMutationV2
     ) throws
@@ -105,6 +115,9 @@ extension WorkspaceWriterAdapterPortV1 {
         currentRevision: WorkspaceRevisionV1
     ) throws { throw WorkspaceMutationFailureV1.unsupportedCommand }
     func reinspectionExceptionQuery(_ request: ReinspectionExceptionQueryV1, providers: [any ExceptionQueueCanonicalSourceProvidingV1]) throws -> ReinspectionExceptionQueryResultV1 { throw WorkspaceMutationFailureV1.unsupportedCommand }
+    func validateEntityIdentityResolutionCommand(_ command: EntityIdentityResolutionMutationCommandV1, currentRevision: WorkspaceRevisionV1) throws { throw WorkspaceMutationFailureV1.unsupportedCommand }
+    func entityIdentityResolutionReceipt(for command: EntityIdentityResolutionMutationCommandV1) throws -> EntityIdentityResolutionMutationReceiptV1? { nil }
+    func entityIdentityResolutionQuery(_ request: EntityIdentityResolutionQueryV1) throws -> EntityIdentityResolutionQueryResultV1 { throw WorkspaceMutationFailureV1.unsupportedCommand }
 
     func persistedActivityContractEffectMatches(
         _ mutation: ActivityContractMutationV2
@@ -591,6 +604,58 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return try journalStore.reinspectionExceptionReceipt(command)
     }
 
+    /// C13 writes only an explicit reviewed alias/consolidation command.  The
+    /// adapter resolves every source and inventory item before the generic
+    /// journal transaction stages its one effect row and typed receipt.
+    func commitEntityIdentityResolution(
+        _ command: EntityIdentityResolutionMutationCommandV1
+    ) throws -> EntityIdentityResolutionMutationReceiptV1 {
+        try command.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let receipt = try journalStore.entityIdentityResolutionReceipt(command) {
+            try receipt.validate(command: command)
+            return receipt
+        }
+        let current = try currentRevision()
+        try Self.validateEntityIdentityResolutionLineage(command, currentRevision: current)
+        try adapter.validateEntityIdentityResolutionCommand(command, currentRevision: current)
+        _ = try execute(.init(
+            mutationID: command.mutationID,
+            expectedRevision: command.expectedRevision,
+            command: .applyEntityIdentityResolution(command)
+        ))
+        guard let receipt = try journalStore.entityIdentityResolutionReceipt(command) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try receipt.validate(command: command)
+        return receipt
+    }
+
+    func entityIdentityResolutionReceipt(
+        for command: EntityIdentityResolutionMutationCommandV1
+    ) throws -> EntityIdentityResolutionMutationReceiptV1? {
+        try command.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.entityIdentityResolutionReceipt(command)
+    }
+
+    /// C13 identity queries are immutable-history reads.  They deliberately
+    /// do not invoke the canonical mutation resolver or the mutation journal.
+    func entityIdentityResolutionQuery(
+        _ request: EntityIdentityResolutionQueryV1
+    ) throws -> EntityIdentityResolutionQueryResultV1 {
+        try request.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard request.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        let result = try adapter.entityIdentityResolutionQuery(request)
+        try result.validate(for: request)
+        return result
+    }
+
     func reinspectionExceptionQuery(
         _ request: ReinspectionExceptionQueryV1,
         providers: [any ExceptionQueueCanonicalSourceProvidingV1]
@@ -1042,6 +1107,23 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 }
             } catch let failure as WorkspaceMutationFailureV1 { throw failure }
               catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyEntityIdentityResolution(let value):
+            do {
+                try value.validateForCanonicalWriter()
+                let target = try Self.entityIdentityResolutionConcurrencyIdentity(value)
+                let expected = request.expectedRevision.entityRevisions.filter { $0.identity == target }
+                let (nextRevision, overflow) = expected.count == 1
+                    ? expected[0].revision.addingReportingOverflow(1)
+                    : (UInt64.zero, true)
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      value.expectedRevision == request.expectedRevision,
+                      !overflow,
+                      nextRevision == (try Self.entityIdentityResolutionLineageRevision(value)) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+              catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -1346,6 +1428,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision ?? 0
                 entityRevisions[target] = expected + 1
             }
+        } else if case let .applyEntityIdentityResolution(mutation) = request.command {
+            let target = try Self.entityIdentityResolutionConcurrencyIdentity(mutation)
+            entityRevisions[target] = try Self.entityIdentityResolutionLineageRevision(mutation)
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1874,6 +1959,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate(); values = try value.affectedIdentitiesForCanonicalWriter()
         case let .applyReinspectionException(value):
             try value.validate(); values = try value.affectedIdentitiesForCanonicalWriter()
+        case let .applyEntityIdentityResolution(value):
+            try value.validateForCanonicalWriter(); values = [try Self.entityIdentityResolutionConcurrencyIdentity(value)]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1943,7 +2030,53 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyEvidenceQuality(value)=command{try value.validate();return[try value.affectedIdentityForCanonicalWriter()]}
         if case let .applyFastSurveyInbox(value)=command{try value.validate();return try value.affectedIdentitiesForCanonicalWriter()}
         if case let .applyReinspectionException(value)=command{try value.validate();return try value.affectedIdentitiesForCanonicalWriter()}
+        if case let .applyEntityIdentityResolution(value)=command{try value.validateForCanonicalWriter();return [try entityIdentityResolutionConcurrencyIdentity(value)]}
         return try targetIdentities(for: command)
+    }
+
+    /// C13 revisions serialize logical identity chains, never the append-only
+    /// event/receipt identifiers.  The latter remain immutable payload facts.
+    private static func entityIdentityResolutionConcurrencyIdentity(
+        _ command: EntityIdentityResolutionMutationCommandV1
+    ) throws -> WorkspaceEntityIdentityV1 {
+        try command.validateForCanonicalWriter()
+        switch command.payload {
+        case let .alias(value, _):
+            return try .init(kind: .entityAliasLink, id: value.alias.identity.id)
+        case let .consolidation(value, _):
+            return try .init(kind: .entityConsolidationReceipt, id: value.source.identity.id)
+        }
+    }
+
+    private static func entityIdentityResolutionLineageRevision(
+        _ command: EntityIdentityResolutionMutationCommandV1
+    ) throws -> UInt64 {
+        try command.validateForCanonicalWriter()
+        switch command.payload {
+        case let .alias(value, _): return value.revision
+        case let .consolidation(value, _): return value.revision
+        }
+    }
+
+    private static func validateEntityIdentityResolutionLineage(
+        _ command: EntityIdentityResolutionMutationCommandV1,
+        currentRevision: WorkspaceRevisionV1
+    ) throws {
+        let target = try entityIdentityResolutionConcurrencyIdentity(command)
+        let expectedRows = command.expectedRevision.entityRevisions.filter { $0.identity == target }
+        let currentRows = currentRevision.entityRevisions.filter { $0.identity == target }
+        guard expectedRows.count == 1, currentRows.count <= 1,
+              currentRevision.workspaceID == command.expectedRevision.workspaceID,
+              currentRevision.generationID == command.expectedRevision.generationID,
+              currentRevision.writerInstanceID == command.expectedRevision.writerInstanceID,
+              currentRevision.revision == command.expectedRevision.workspaceRevision,
+              expectedRows[0].revision == (currentRows.first?.revision ?? 0) else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        let (nextRevision, overflow) = expectedRows[0].revision.addingReportingOverflow(1)
+        guard !overflow, nextRevision == (try entityIdentityResolutionLineageRevision(command)) else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
     }
 
     private static func validateC51ScheduleMutation(_ mutation: ScheduleMutationV1) throws {

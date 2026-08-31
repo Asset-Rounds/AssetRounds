@@ -1611,6 +1611,7 @@ private extension EraseAllService {
             session.modelContext
         )
         try ReinspectionExceptionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try EntityIdentityResolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
@@ -2929,6 +2930,17 @@ enum ReinspectionExceptionEraseAllPolicyV1 {
             throw EraseAllServiceError.invalidAuthority
         }
         try ReinspectionExceptionKernelDeletionEraseEnrollmentV1.validate()
+    }
+}
+
+enum EntityIdentityResolutionEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<EntityAliasLinkRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<EntityConsolidationReceiptRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<EntityIdentityResolutionMutationReceiptRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try EntityIdentityResolutionKernelDeletionEraseEnrollmentV1.validate()
     }
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-erase

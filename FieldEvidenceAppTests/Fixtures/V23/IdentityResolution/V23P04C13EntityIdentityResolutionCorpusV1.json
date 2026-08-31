@@ -1,0 +1,111 @@
+{
+  "schema": "V23P04C13EntityIdentityResolutionCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C13",
+  "ordinal": 101,
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "selectors": [
+    { "id": "G01", "selector": "testV23P04C13G01PreviewAliasAndConsolidationPlansPreserveCanonicalEvidenceAndHistory", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "testV23P04C13A01ExplicitSingleWriterAliasAndSuccessorReversalReceiptsUseExactRevision", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "testV23P04C13H01CrossWorkspaceReuseStalePlanHistoryRewriteAndAutomaticMutationFailClosed", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "testV23P04C13I01InterruptedEffectBeforeReceiptRecoveryNeverDuplicatesIdentityConsolidation", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "testV23P04C13R01RestoreReplayRebuildsAliasesConsolidationReceiptsAndEvidenceOnlyRelationships", "tier": "RECOVERY" }
+  ],
+  "actions": ["CREATE_NEW", "LINK_ALIAS", "CONSOLIDATE", "REJECT", "REVIEW_REQUIRED"],
+  "requirements": {
+    "previewDoesNotWriteCanonicalState": true,
+    "everyActionPreviewable": true,
+    "strictCanonicalResolverRequired": true,
+    "exactRevisionCommit": true,
+    "singleWriter": true,
+    "idempotentRetry": true,
+    "preservesCanonicalMeaningAndAuthority": true,
+    "relationshipsAreEvidenceOnly": true,
+    "preservesEvidenceContentHistoryAndTombstones": true,
+    "noAutomaticMutation": true,
+    "unknownOrIncompleteInventoryFailsClosed": true,
+    "reversalAppendsSuccessor": true,
+    "rebuildAndReplayDeterministic": true
+  },
+  "sourceHandoff": {
+    "cardID": "V23-P04-C08",
+    "previewFirst": true,
+    "sourceBatchRequiresExactSHA256": true,
+    "usesExistingCanonicalWriter": true,
+    "secondWriter": false,
+    "secondStore": false
+  },
+  "canonicalInventory": [
+    "stable entity IDs",
+    "entity revisions",
+    "relationships",
+    "evidence",
+    "content",
+    "history",
+    "tombstones",
+    "mutation receipts"
+  ],
+  "hostileCases": [
+    "AMBIGUOUS_CANDIDATE",
+    "STALE_PREVIEW",
+    "CROSS_WORKSPACE_ALIAS",
+    "CYCLE",
+    "ORPHAN_RELATION",
+    "ORPHAN_EVIDENCE",
+    "DUPLICATE_MUTATION",
+    "REPLAY_DUPLICATE",
+    "HISTORY_REWRITE",
+    "INCOMPLETE_INVENTORY",
+    "RELATED_WORK_IS_NOT_CONSOLIDATION_AUTHORITY"
+  ],
+  "journalFaultBoundaries": [
+    "AFTER_EFFECT_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_SAVE",
+    "AFTER_SAVE_BEFORE_RETURN"
+  ],
+  "expectedFailures": [
+    { "case": "CROSS_WORKSPACE_ALIAS", "failure": "WRONG_WORKSPACE", "writes": 0 },
+    { "case": "STALE_PREVIEW", "failure": "STALE_REVISION", "writes": 0 },
+    { "case": "AMBIGUOUS_CANDIDATE", "failure": "AMBIGUOUS_CANDIDATE", "writes": 0 },
+    { "case": "ALIAS_CYCLE", "failure": "ALIAS_CYCLE", "writes": 0 },
+    { "case": "INCOMPLETE_INVENTORY", "failure": "INCOMPLETE_INVENTORY", "writes": 0 },
+    { "case": "IDENTITY_REUSE", "failure": "IDENTITY_REUSE", "writes": 0 },
+    { "case": "AUTOMATIC_MUTATION", "failure": "AUTOMATIC_MUTATION_FORBIDDEN", "writes": 0 }
+  ],
+  "expectedReceipts": [
+    { "effect": "ENTITY_ALIAS_LINK", "recoveryState": "RECEIPT_COMMITTED", "semanticDigestCount": 1, "revisionDelta": 1 },
+    { "effect": "ENTITY_CONSOLIDATION_RECEIPT", "recoveryState": "EFFECT_COMMITTED_AWAITING_RECEIPT", "semanticDigestCount": 1, "revisionDelta": 1 },
+    { "effect": "ENTITY_CONSOLIDATION_RECEIPT", "recoveryState": "RECEIPT_COMMITTED", "semanticDigestCount": 1, "revisionDelta": 1 }
+  ],
+  "lifecycleCoverage": [
+    "MIGRATION",
+    "BACKUP",
+    "REPLACE_RESTORE",
+    "DELETE",
+    "ERASE",
+    "EXPORT",
+    "REPORT",
+    "SEARCH",
+    "REBUILD",
+    "JOURNAL",
+    "REPLAY"
+  ],
+  "statusFlags": {
+    "activation": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "nativeAcceptance": false,
+    "hostedAcceptance": false,
+    "physicalEvidence": false,
+    "phase10PollingDuringParallelExecution": false,
+    "uiAcceptanceCredit": false
+  },
+  "uiAdoptionSkipped": true
+}

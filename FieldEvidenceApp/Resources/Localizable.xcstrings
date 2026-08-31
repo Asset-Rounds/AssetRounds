@@ -4924,7 +4924,18 @@
     "c12.queue.acknowledged" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledged; source remains unresolved" } } } },
     "c12.queue.not_acknowledged" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not acknowledged" } } } },
     "c12.queue.unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The local queue is unavailable." } } } },
-    "c12.reduced_motion" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced." } } } }
+    "c12.reduced_motion" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced." } } } },
+    "c13.identity.heading" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Entity identity review" } } } },
+    "c13.identity.accepted" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Deterministic preview accepted for review" } } } },
+    "c13.identity.ambiguity" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ambiguity requires review" } } } },
+    "c13.identity.stale_conflict" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview is stale or conflicts" } } } },
+    "c13.identity.confirmation" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Explicit consolidation confirmation required" } } } },
+    "c13.identity.interrupted" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review was interrupted; recover the recorded local state." } } } },
+    "c13.identity.historic_alias" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Historic alias or successor disclosure" } } } },
+    "c13.identity.no_automatic_mutation" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Automatic mutation is disabled." } } } },
+    "c13.identity.confirm_consolidation" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm consolidation" } } } },
+    "c13.identity.handoff" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review identity resolution" } } } },
+    "c13.identity.reduced_motion" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Motion is reduced." } } } }
   },
   "version" : "1.0"
 }

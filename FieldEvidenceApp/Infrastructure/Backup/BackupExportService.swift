@@ -2626,6 +2626,27 @@ private extension BackupExportService {
                 effectProvenance: planProvenance + attestationProvenance + acknowledgementProvenance
             )
         }()
+        let entityIdentityResolution: EntityIdentityResolutionBackupSnapshotV1? = try {
+            guard mutationHistory != nil else { return nil }
+            let aliases = try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try $0.value() }
+            let consolidations = try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try $0.value() }
+            let receipts = try modelContext.fetch(FetchDescriptor<EntityIdentityResolutionMutationReceiptRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try $0.value() }
+            let generations = Set(receipts.map(\.generationID))
+            guard generations.count <= 1 else { throw BackupExportServiceError.invalidAuthority }
+            return try EntityIdentityResolutionBackupSnapshotV1(
+                workspaceID: sourceIdentity.workspaceID,
+                generationID: generations.first ?? currentStreamingGenerationID(),
+                aliasLinks: aliases,
+                consolidationReceipts: consolidations,
+                mutationReceipts: receipts
+            )
+        }()
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2695,7 +2716,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion,
+                : EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2757,7 +2778,8 @@ private extension BackupExportService {
              bulkCommitReceipts: bulkCommitReceipts,
              evidenceQuality: evidenceQuality,
              fastSurveyInbox: fastSurveyInbox,
-             reinspectionExceptionQueue: reinspectionExceptionQueue
+             reinspectionExceptionQueue: reinspectionExceptionQueue,
+             entityIdentityResolution: entityIdentityResolution
          )
     }
 

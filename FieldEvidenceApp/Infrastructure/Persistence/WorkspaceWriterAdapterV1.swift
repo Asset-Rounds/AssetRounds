@@ -61,6 +61,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyEvidenceQuality,
             .applyFastSurveyInbox,
             .applyReinspectionException,
+            .applyEntityIdentityResolution,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -89,6 +90,9 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
     /// deliberately has no fixture or guessed row mapping for these sources.
     private let reinspectionCanonicalSourceResolver: (any ReinspectionCanonicalSourceResolvingV1)?
     private let exceptionQueueCanonicalSourceResolver: (any ExceptionQueueCanonicalSourceResolvingV1)?
+    /// C13 cannot derive identity truth from a preview or imported artifact.
+    /// The composition root must provide the incumbent canonical source view.
+    private let entityIdentityCanonicalResolver: (any EntityIdentityResolutionCanonicalSourceResolvingV1)?
 
     init(
         modelContext: ModelContext,
@@ -100,7 +104,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             (([PunchFindingLinkV1]) throws -> [FindingLifecycleCanonicalEvidenceV1])? = nil,
         capturePromotionDestinationResolver: (any CapturePromotionDestinationResolvingV1)? = nil,
         reinspectionCanonicalSourceResolver: (any ReinspectionCanonicalSourceResolvingV1)? = nil,
-        exceptionQueueCanonicalSourceResolver: (any ExceptionQueueCanonicalSourceResolvingV1)? = nil
+        exceptionQueueCanonicalSourceResolver: (any ExceptionQueueCanonicalSourceResolvingV1)? = nil,
+        entityIdentityCanonicalResolver: (any EntityIdentityResolutionCanonicalSourceResolvingV1)? = nil
     ) {
         self.modelContext = modelContext
         self.completedActivitySnapshotResolver = completedActivitySnapshotResolver
@@ -108,6 +113,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         self.capturePromotionDestinationResolver = capturePromotionDestinationResolver
         self.reinspectionCanonicalSourceResolver = reinspectionCanonicalSourceResolver
         self.exceptionQueueCanonicalSourceResolver = exceptionQueueCanonicalSourceResolver
+        self.entityIdentityCanonicalResolver = entityIdentityCanonicalResolver
         if let assetSemanticLifecycleAdapter {
             self.assetSemanticLifecycleAdapter = assetSemanticLifecycleAdapter
         } else {
@@ -264,6 +270,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyFastSurveyInbox(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
         case let .applyReinspectionException(value):
             return try applyReinspectionException(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
+        case let .applyEntityIdentityResolution(value):
+            return try applyEntityIdentityResolution(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -289,6 +297,180 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             reinspectionResolver: reinspectionCanonicalSourceResolver,
             exceptionResolver: exceptionQueueCanonicalSourceResolver
         )
+    }
+
+    func validateEntityIdentityResolutionCommand(
+        _ command: EntityIdentityResolutionMutationCommandV1,
+        currentRevision: WorkspaceRevisionV1
+    ) throws {
+        guard let entityIdentityCanonicalResolver else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        try command.validate(currentRevision: currentRevision, resolver: entityIdentityCanonicalResolver)
+        try command.validateCanonicalSources(by: entityIdentityCanonicalResolver)
+    }
+
+    func entityIdentityResolutionReceipt(
+        for command: EntityIdentityResolutionMutationCommandV1
+    ) throws -> EntityIdentityResolutionMutationReceiptV1? {
+        try command.validate()
+        let values = try modelContext.fetch(FetchDescriptor<EntityIdentityResolutionMutationReceiptRowV1>()).map { try $0.value() }
+        guard Set(values.map { MutationWorkspaceKeyV1.value(workspaceID: $0.workspaceID, mutationID: $0.mutationID) }).count == values.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        guard let receipt = values.first(where: { $0.workspaceID == command.workspaceID && $0.mutationID == command.mutationID }) else {
+            return nil
+        }
+        try receipt.validate(command: command)
+        return receipt
+    }
+
+    /// Read-only C13 history lookup.  This intentionally uses only immutable
+    /// C13 rows; mutation-time canonical source resolution is not a query
+    /// dependency and no model mutation or save occurs here.
+    func entityIdentityResolutionQuery(
+        _ request: EntityIdentityResolutionQueryV1
+    ) throws -> EntityIdentityResolutionQueryResultV1 {
+        try request.validate()
+        let aliases = try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).map { try $0.value() }
+        let consolidations = try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).map { try $0.value() }
+        guard Set(aliases.map(\.linkEventID)).count == aliases.count,
+              Set(consolidations.map(\.consolidationReceiptID)).count == consolidations.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+
+        let workspaceAliases = aliases.filter { $0.workspaceID == request.workspaceID }
+        let workspaceConsolidations = consolidations.filter { $0.workspaceID == request.workspaceID }
+        let result: EntityIdentityResolutionQueryResultV1
+        switch request.target {
+        case let .aliases(identity):
+            let history = try validatedEntityAliasHistory(
+                workspaceAliases.filter { $0.alias.identity == identity },
+                identity: identity,
+                workspaceID: request.workspaceID,
+                maximumResults: request.maximumResults
+            )
+            result = .aliases(history)
+        case let .consolidationHistory(receiptID):
+            guard let requested = workspaceConsolidations.first(where: { $0.consolidationReceiptID == receiptID }) else {
+                result = .notFound(request)
+                break
+            }
+            let root = try consolidationRoot(for: requested, values: workspaceConsolidations)
+            result = .consolidationHistory(try validatedEntityConsolidationHistory(
+                root: root,
+                values: workspaceConsolidations,
+                maximumResults: request.maximumResults
+            ))
+        case let .resolve(identity):
+            result = try resolveEntityIdentity(
+                identity,
+                aliases: workspaceAliases,
+                workspaceID: request.workspaceID,
+                maximumResults: request.maximumResults,
+                request: request
+            )
+        }
+        try result.validate(for: request)
+        return result
+    }
+
+    private func validatedEntityAliasHistory(
+        _ values: [EntityAliasLinkV1],
+        identity: WorkspaceEntityIdentityV1,
+        workspaceID: WorkspaceID,
+        maximumResults: Int
+    ) throws -> [EntityAliasLinkV1] {
+        guard values.count <= maximumResults,
+              values.allSatisfy({ $0.workspaceID == workspaceID && $0.alias.identity == identity }),
+              Set(values.map(\.linkEventID)).count == values.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        guard !values.isEmpty else { return [] }
+        let ordered = values.sorted {
+            $0.revision == $1.revision
+                ? $0.linkEventID.uuidString < $1.linkEventID.uuidString
+                : $0.revision < $1.revision
+        }
+        guard ordered.first?.revision == 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        try ordered[0].validate(predecessor: nil)
+        for index in ordered.indices.dropFirst() {
+            try ordered[index].validate(predecessor: ordered[index - 1])
+        }
+        return ordered
+    }
+
+    private func validatedEntityConsolidationHistory(
+        root: EntityConsolidationReceiptV1,
+        values: [EntityConsolidationReceiptV1],
+        maximumResults: Int
+    ) throws -> [EntityConsolidationReceiptV1] {
+        var chain = [root]
+        var visited = Set([root.consolidationReceiptID])
+        var current = root
+        while true {
+            let successors = values.filter { $0.supersedesReceiptID == current.consolidationReceiptID }
+            guard successors.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            guard let successor = successors.first else { break }
+            guard !visited.contains(successor.consolidationReceiptID), chain.count < maximumResults else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            visited.insert(successor.consolidationReceiptID)
+            chain.append(successor)
+            current = successor
+        }
+        guard chain.count <= maximumResults else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        return chain
+    }
+
+    private func consolidationRoot(
+        for value: EntityConsolidationReceiptV1,
+        values: [EntityConsolidationReceiptV1]
+    ) throws -> EntityConsolidationReceiptV1 {
+        var current = value
+        var visited = Set([value.consolidationReceiptID])
+        while let predecessorID = current.supersedesReceiptID {
+            let predecessors = values.filter { $0.consolidationReceiptID == predecessorID }
+            guard predecessors.count == 1, let predecessor = predecessors.first,
+                  !visited.contains(predecessor.consolidationReceiptID) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            visited.insert(predecessor.consolidationReceiptID)
+            current = predecessor
+        }
+        guard current.revision == 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        return current
+    }
+
+    private func resolveEntityIdentity(
+        _ identity: WorkspaceEntityIdentityV1,
+        aliases: [EntityAliasLinkV1],
+        workspaceID: WorkspaceID,
+        maximumResults: Int,
+        request: EntityIdentityResolutionQueryV1
+    ) throws -> EntityIdentityResolutionQueryResultV1 {
+        var currentIdentity = identity
+        var visitedIdentities = Set([identity])
+        var path: [EntityAliasLinkV1] = []
+        while true {
+            let history = try validatedEntityAliasHistory(
+                aliases.filter { $0.alias.identity == currentIdentity },
+                identity: currentIdentity,
+                workspaceID: workspaceID,
+                maximumResults: maximumResults
+            )
+            guard let current = history.last else {
+                guard let snapshot = path.last?.canonicalEntity else { return .notFound(request) }
+                return .resolved(snapshot, path)
+            }
+            guard path.count < maximumResults,
+                  !visitedIdentities.contains(current.canonicalEntity.identity) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            path.append(current)
+            visitedIdentities.insert(current.canonicalEntity.identity)
+            currentIdentity = current.canonicalEntity.identity
+        }
     }
 
     func reinspectionExceptionQuery(
@@ -683,6 +865,129 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
         modelContext.insert(try ReinspectionExceptionMutationReceiptRowV1(receipt))
         return try WorkspaceMutationEffectV1(affectedEntities: targets, temporaryRelativePath: temporaryRelativePath)
+    }
+
+    /// C13 is append-only identity history.  The canonical resolver is
+    /// mandatory: imported plans/previews and relationship labels are never
+    /// accepted as source truth.  The effect row and typed receipt are staged
+    /// in this same incumbent journal transaction.
+    private func applyEntityIdentityResolution(
+        _ command: EntityIdentityResolutionMutationCommandV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try command.validate()
+        guard let resolver = entityIdentityCanonicalResolver else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        let target = try entityIdentityResolutionConcurrencyIdentity(command)
+        let (resultingRevision, overflow) = command.expectedRevision.workspaceRevision.addingReportingOverflow(1)
+        guard !overflow else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let receipt = try EntityIdentityResolutionMutationReceiptV1(
+            receiptID: command.mutationID.rawValue,
+            command: command,
+            resultingWorkspaceRevision: resultingRevision,
+            recoveryState: .receiptCommitted,
+            committedAt: occurredAt
+        )
+        let receiptRows = try modelContext.fetch(FetchDescriptor<EntityIdentityResolutionMutationReceiptRowV1>())
+        let receipts = try receiptRows.map { try $0.value() }
+        guard Set(receipts.map { MutationWorkspaceKeyV1.value(workspaceID: $0.workspaceID, mutationID: $0.mutationID) }).count == receipts.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let existing = receipts.first(where: { $0.workspaceID == command.workspaceID && $0.mutationID == command.mutationID }) {
+            try existing.validate(command: command)
+            return try WorkspaceMutationEffectV1(affectedEntities: [target], temporaryRelativePath: temporaryRelativePath)
+        }
+
+        let aliasRows = try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>())
+        let aliases = try aliasRows.map { try $0.value() }
+        let consolidationRows = try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>())
+        let consolidations = try consolidationRows.map { try $0.value() }
+        guard Set(aliases.map(\.linkEventID)).count == aliases.count,
+              Set(consolidations.map(\.consolidationReceiptID)).count == consolidations.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+
+        switch command.payload {
+        case let .alias(value, predecessor):
+            guard !aliases.contains(where: { $0.linkEventID == value.linkEventID }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            try validateAliasInsertion(value: value, predecessor: predecessor, aliases: aliases)
+            try value.validateResolved(predecessor: predecessor, resolver: resolver)
+            modelContext.insert(try EntityAliasLinkRowV1(
+                value, command: command, receipt: receipt,
+                predecessor: predecessor, resolver: resolver
+            ))
+        case let .consolidation(value, predecessor):
+            guard !consolidations.contains(where: { $0.consolidationReceiptID == value.consolidationReceiptID }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            try validateConsolidationInsertion(value: value, predecessor: predecessor, consolidations: consolidations)
+            try value.validateResolved(predecessor: predecessor, resolver: resolver)
+            modelContext.insert(try EntityConsolidationReceiptRowV1(
+                value, command: command, receipt: receipt,
+                predecessor: predecessor, resolver: resolver
+            ))
+        }
+        modelContext.insert(try EntityIdentityResolutionMutationReceiptRowV1(receipt, command: command))
+        return try WorkspaceMutationEffectV1(affectedEntities: [target], temporaryRelativePath: temporaryRelativePath)
+    }
+
+    private func entityIdentityResolutionConcurrencyIdentity(
+        _ command: EntityIdentityResolutionMutationCommandV1
+    ) throws -> WorkspaceEntityIdentityV1 {
+        try command.validateForCanonicalWriter()
+        switch command.payload {
+        case let .alias(value, _):
+            return try .init(kind: .entityAliasLink, id: value.alias.identity.id)
+        case let .consolidation(value, _):
+            return try .init(kind: .entityConsolidationReceipt, id: value.source.identity.id)
+        }
+    }
+
+    private func validateAliasInsertion(
+        value: EntityAliasLinkV1,
+        predecessor: EntityAliasLinkV1?,
+        aliases: [EntityAliasLinkV1]
+    ) throws {
+        let chain = aliases.filter { $0.workspaceID == value.workspaceID && $0.alias.identity == value.alias.identity }
+        if let predecessor {
+            let history = try validatedEntityAliasHistory(
+                chain, identity: value.alias.identity,
+                workspaceID: value.workspaceID, maximumResults: Int.max
+            )
+            guard let tip = history.last, predecessor == tip,
+                  !aliases.contains(where: { $0.supersedesLinkEventID == predecessor.linkEventID }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            let (nextRevision, overflow) = tip.revision.addingReportingOverflow(1)
+            guard !overflow, value.revision == nextRevision else { throw WorkspaceMutationFailureV1.sequenceCollision }
+        } else {
+            guard value.revision == 1, chain.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+        }
+    }
+
+    private func validateConsolidationInsertion(
+        value: EntityConsolidationReceiptV1,
+        predecessor: EntityConsolidationReceiptV1?,
+        consolidations: [EntityConsolidationReceiptV1]
+    ) throws {
+        let family = consolidations.filter { $0.workspaceID == value.workspaceID && $0.source.identity == value.source.identity }
+        if let predecessor {
+            let roots = family.filter { $0.revision == 1 }
+            guard roots.count == 1, let root = roots.first else { throw WorkspaceMutationFailureV1.sequenceCollision }
+            let history = try validatedEntityConsolidationHistory(root: root, values: family, maximumResults: Int.max)
+            guard history.count == family.count, let tip = history.last, predecessor == tip,
+                  !consolidations.contains(where: { $0.supersedesReceiptID == predecessor.consolidationReceiptID }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            let (nextRevision, overflow) = tip.revision.addingReportingOverflow(1)
+            guard !overflow, value.revision == nextRevision else { throw WorkspaceMutationFailureV1.sequenceCollision }
+        } else {
+            guard value.revision == 1, family.isEmpty else { throw WorkspaceMutationFailureV1.sequenceCollision }
+        }
     }
 
     /// C11 retains the immutable C02 original by reference. A self-consistent

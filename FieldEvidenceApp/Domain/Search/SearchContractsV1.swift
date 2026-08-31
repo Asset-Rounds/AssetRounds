@@ -179,6 +179,14 @@ enum SearchSourceKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case party = "PARTY"
 }
 
+enum EntityIdentityResolutionSearchBoundaryV1 {
+    static let aliasAndSurvivorIdentifiersAreIndexed = true
+    static let indexIsDerivedAndDisposable = true
+    static let historicEvidenceOrRelationshipRowsAreRewritten = false
+    static let relationshipRowsAreConsolidationAuthority = false
+    static let automaticConsolidationFromSearchPermitted = false
+}
+
 enum SearchFieldPrivacyClassV1: String, CaseIterable, Codable, Hashable, Sendable {
     case userVisibleIdentifier = "USER_VISIBLE_IDENTIFIER"
     case approvedCustomerText = "APPROVED_CUSTOMER_TEXT"

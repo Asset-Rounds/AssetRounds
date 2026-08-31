@@ -713,3 +713,8 @@ extension CompletedFunctionalRelationshipSnapshotV1:FunctionalRelationshipValida
 enum FunctionalRelationshipCanonicalCodecV1 { static func encode<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)};static func decode<T:Decodable & Encodable>(_ type:T.Type,from data:Data)throws->T{let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970;let value=try decoder.decode(type,from:data);if let validatable=value as? any FunctionalRelationshipValidatableV1{try validatable.validate()};guard try encode(value)==data else{throw FunctionalRelationshipFailureV1.nonCanonicalData};return value};static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)} }
 
 private func validLocalizationKey(_ value:String)->Bool{AssetSemanticValidationV1.validLocalizationKey(value)}
+enum EntityIdentityResolutionRelationshipAuthorityBoundaryV1 {
+    static let relationshipRowsAreIdentityEvidence = true
+    static let relationshipRowsAreConsolidationAuthority = false
+    static let relationshipRowsCanTriggerAutomaticAliasOrConsolidation = false
+}

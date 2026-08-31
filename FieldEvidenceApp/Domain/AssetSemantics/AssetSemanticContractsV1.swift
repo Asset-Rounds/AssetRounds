@@ -1527,3 +1527,8 @@ enum C52ServiceRequestBoundary_AssetSemanticContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+enum EntityIdentityResolutionAssetSemanticBoundaryV1 {
+    static let semanticRowsAreRewrittenByAliasResolution = false
+    static let semanticRowsAreConsolidationAuthority = false
+    static let identityResolutionRouteAdopted = false
+}

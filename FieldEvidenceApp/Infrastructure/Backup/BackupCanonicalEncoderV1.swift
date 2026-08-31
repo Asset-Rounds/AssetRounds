@@ -75,6 +75,124 @@ struct BackupCanonicalEncoderV1: Sendable {
         return try encoded(.object(Self.recordFields(records)))
     }
 
+    /// C13 package restore reuses the shipping encoder's one canonical field
+    /// construction. Every non-C13 top-level records section is classified
+    /// exactly once; a newly added or duplicated section fails closed here.
+    func entityIdentityResolutionInventoryAtoms(
+        _ records: V4BackupRecordsV1
+    ) throws -> [EntityConsolidationInventoryFamilyV1: [EntityConsolidationInventoryAtomV1]] {
+        var fields = try Self.recordFields(records)
+        guard fields.removeValue(forKey: "entityIdentityResolution") != nil else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        if let history = records.mutationHistory {
+            fields["mutationHistory"] = try Self.mutationHistory(
+                Self.nonEntityIdentityResolutionHistory(history)
+            )
+        }
+        let registry = try Self.entityIdentityResolutionSectionRegistry()
+        guard Set(fields.keys).isSubset(of: Set(registry.keys)) else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        var result = Dictionary(
+            uniqueKeysWithValues: EntityConsolidationInventoryFamilyV1.allCases.map { ($0, [EntityConsolidationInventoryAtomV1]()) }
+        )
+        for key in fields.keys.sorted() {
+            guard let family = registry[key], let value = fields[key] else {
+                throw BackupCanonicalEncodingErrorV1.invalidRecords
+            }
+            let bytes = try CanonicalJSONV1.encode(value)
+            result[family, default: []].append(try EntityConsolidationInventoryAtomV1(
+                kind: "V4_BACKUP_RECORD_SECTION",
+                itemID: key,
+                revision: UInt64(records.recordsSchemaVersion),
+                itemSHA256: CanonicalJSONV1.sha256(bytes),
+                associationRole: "WORKSPACE_CLOSURE_FOR_EXACT_PAIR"
+            ))
+        }
+        return result
+    }
+
+    static let entityIdentityResolutionRegisteredSectionCount = 71
+
+    private static func entityIdentityResolutionSectionRegistry() throws
+        -> [String: EntityConsolidationInventoryFamilyV1] {
+        let groups: [(EntityConsolidationInventoryFamilyV1, [String])] = [
+            (.relationship, [
+                "assetCompositionEdges", "assetCompositionEvents", "assetLocators",
+                "assetPlacementEvents", "functionalRelationships", "locationHierarchyEvents",
+                "locationMigrationReceipts", "locationNodes", "pairedObservationLinks",
+            ]),
+            (.evidence, [
+                "authorityCriterion", "evidenceAssociationEvents", "evidenceAssurance",
+                "evidenceContexts", "evidenceFiles", "evidenceSequenceRevisions",
+                "inspectionReview", "lighting", "measurementIntegrity", "privacyTransforms",
+                "requirementAssurance", "temporalEvidence",
+            ]),
+            (.content, [
+                "assets", "assetSemantics", "issues", "packets", "reports", "sites",
+                "workflowRecords", "fieldDrafts", "workPackets", "partsStockSnapshot",
+            ]),
+            (.tombstone, ["deletionLedger"]),
+            (.mutationReceipt, [
+                "assistanceAcceptanceReceipts", "bulkCommitReceipts", "mutationHistory",
+                "myDayCarryoverReceipts", "recoverabilityReceipts",
+                "serviceReliabilityReceipts",
+            ]),
+            (.history, [
+                "acceptedLabelGenerationSnapshots", "accessibleDocumentAssessments",
+                "activityContracts", "bulkSessions", "clientCapabilities", "fieldReferences",
+                "guidedSurveys", "importMappingProfiles", "myDayPlans",
+                "nonactivePlanReferences", "operationalContacts", "packageEvolution",
+                "partyAccountability", "placementPoses", "plans", "qualifiedServiceExposures",
+                "recordsSchemaVersion", "reinspectionExceptionQueue", "roundSessions",
+                "savedSmartViews", "schedules", "serviceCauseAssertions",
+                "serviceImpactSegments", "serviceReliabilityIncidents",
+                "serviceRemedyAssertions", "serviceRepairIntervals",
+                "serviceRequestDispositionEvents", "serviceRequests",
+                "serviceRequestWorkLinkEvents", "serviceRestorationAssertions",
+                "shopReportProfiles", "surveyDefinitions", "workResources",
+            ]),
+        ]
+        var registry: [String: EntityConsolidationInventoryFamilyV1] = [:]
+        for (family, keys) in groups {
+            for key in keys where registry.updateValue(family, forKey: key) != nil {
+                throw BackupCanonicalEncodingErrorV1.invalidRecords
+            }
+        }
+        guard registry.count == entityIdentityResolutionRegisteredSectionCount else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        return registry
+    }
+
+    private static func nonEntityIdentityResolutionHistory(
+        _ history: MutationHistorySnapshotV1
+    ) throws -> MutationHistorySnapshotV1 {
+        var receipts: [MutationHistoryReceiptRecordV1] = []
+        var removedMutationIDs = Set<UUID>()
+        for record in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            if case let .applyEntityIdentityResolution(command) = envelope.command {
+                removedMutationIDs.insert(command.mutationID.rawValue)
+            } else {
+                receipts.append(record)
+            }
+        }
+        let accepted = try receipts.map {
+            try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+        }
+        return MutationHistorySnapshotV1(
+            workspaceRevision: accepted.map(\.resultingRevision.workspaceRevision).max() ?? 0,
+            lastLocalSequence: accepted.map(\.identity.localSequence).max() ?? 0,
+            receipts: receipts,
+            quarantines: history.quarantines.filter { !removedMutationIDs.contains($0.mutationID) },
+            entityRevisions: history.entityRevisions.filter {
+                $0.identity.kind != .entityAliasLink && $0.identity.kind != .entityConsolidationReceipt
+            }
+        )
+    }
+
     private static func recordFields(
         _ records: V4BackupRecordsV1
     ) throws -> [String: CanonicalJSONValueV1] {
@@ -281,6 +399,13 @@ struct BackupCanonicalEncoderV1: Sendable {
             }
             fields["reinspectionExceptionQueue"] = try Self.reinspectionExceptionQueueSnapshot(snapshot)
         }
+        if records.recordsSchemaVersion >= EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion {
+            try EntityIdentityResolutionBackupEnrollmentV1.validate(records)
+            guard let snapshot = records.entityIdentityResolution else {
+                throw BackupCanonicalEncodingErrorV1.invalidRecords
+            }
+            fields["entityIdentityResolution"] = try Self.entityIdentityResolutionSnapshot(snapshot)
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -392,6 +517,15 @@ private extension BackupCanonicalEncoderV1 {
         return try canonicalPartsStockJSON(object)
     }
 
+    static func entityIdentityResolutionSnapshot(
+        _ value: EntityIdentityResolutionBackupSnapshotV1
+    ) throws -> CanonicalJSONValueV1 {
+        try value.validate()
+        let data = try WorkspaceMutationCanonicalV1.data(value)
+        let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        return try canonicalPartsStockJSON(object)
+    }
+
     static func canonicalPartsStockJSON(_ value: Any) throws -> CanonicalJSONValueV1 {
         if value is NSNull { return .null }
         if let value = value as? [String: Any] {
@@ -417,7 +551,7 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     static func validSemantic(_ records: V4BackupRecordsV1) -> Bool {
-        guard (4...ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (4...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.mutationHistory == nil,
               let ledger = records.deletionLedger,
               (try? ledger.validate()) != nil else {

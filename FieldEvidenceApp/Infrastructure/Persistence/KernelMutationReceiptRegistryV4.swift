@@ -397,6 +397,23 @@ enum KernelMutationReceiptRegistryV4 {
             throw WorkspaceMutationFailureV1.invalidReceipt
         }
     }
+
+    /// C13 receives the generic receipt through the one canonical writer and
+    /// persists a typed receipt only when it closes the exact immutable alias
+    /// or consolidation effect. A preview plan never reaches this boundary.
+    static func validateEntityIdentityResolution(
+        command: EntityIdentityResolutionMutationCommandV1,
+        receipt: EntityIdentityResolutionMutationReceiptV1
+    ) throws {
+        try command.validate()
+        try receipt.validate(command: command)
+        guard receipt.recoveryState == .receiptCommitted,
+              receipt.semanticSHA256s == command.payload.semanticSHA256s.sorted(),
+              receipt.resultingWorkspaceRevision
+                == command.expectedRevision.workspaceRevision + 1 else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+    }
     static func validateShopReportProfile(
         mutation: ShopReportProfileMutationV1,
         receipt: MutationReceiptV1
@@ -486,7 +503,8 @@ enum KernelMutationReceiptRegistryV4 {
               C04ShopReportProfileKernelMutationReceiptBoundaryV1.validate(),
               C05RoundSessionKernelMutationReceiptBoundaryV1.validate(),
               C11FastSurveyInboxKernelMutationReceiptBoundaryV1.validate(),
-              C12ReinspectionExceptionKernelMutationReceiptBoundaryV1.validate() else {
+              C12ReinspectionExceptionKernelMutationReceiptBoundaryV1.validate(),
+              C13EntityIdentityResolutionKernelMutationReceiptBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
         try validate(registrations)
@@ -586,6 +604,20 @@ enum C12ReinspectionExceptionKernelMutationReceiptBoundaryV1 {
             && durableReceiptRequired
             && effectBeforeReceiptRecovery
             && postimageCount == 1
+    }
+}
+
+enum C13EntityIdentityResolutionKernelMutationReceiptBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyEntityIdentityResolution
+    static let durableReceiptRequired = true
+    static let effectBeforeReceiptRecovery = true
+    static let previewPlanIsNonpersistent = true
+
+    static func validate() -> Bool {
+        commandKind == .applyEntityIdentityResolution
+            && durableReceiptRequired
+            && effectBeforeReceiptRecovery
+            && previewPlanIsNonpersistent
     }
 }
 

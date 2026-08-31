@@ -23,8 +23,8 @@ struct MutationIDV1: Codable, Hashable, Sendable {
 }
 
 enum C50IncumbentWorkspaceMutationBoundaryV1 {
-    static let addsWorkspaceCommand = false
-    static let addsWorkspaceEntityKind = false
+    static let addsWorkspaceCommand = true
+    static let addsWorkspaceEntityKind = true
     static let previewIsZeroWrite = true
     static let acceptedImportDelegatesToExistingCanonicalMutation = true
 }
@@ -173,6 +173,8 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case reinspectionPlan
     case unchangedAttestation
     case exceptionQueueAcknowledgement
+    case entityAliasLink
+    case entityConsolidationReceipt
 }
 
 struct WorkspaceEntityIdentityV1: Codable, Hashable, Sendable {
@@ -2645,6 +2647,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyEvidenceQuality(EvidenceQualityMutationCommandV1)
     case applyFastSurveyInbox(FastSurveyInboxMutationCommandV1)
     case applyReinspectionException(ReinspectionExceptionMutationCommandV1)
+    case applyEntityIdentityResolution(EntityIdentityResolutionMutationCommandV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2705,6 +2708,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyEvidenceQuality: .applyEvidenceQuality
         case .applyFastSurveyInbox: .applyFastSurveyInbox
         case .applyReinspectionException: .applyReinspectionException
+        case .applyEntityIdentityResolution: .applyEntityIdentityResolution
         }
     }
 }
@@ -2767,6 +2771,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyEvidenceQuality="apply_evidence_quality_v1"
     case applyFastSurveyInbox="apply_fast_survey_inbox_v1"
     case applyReinspectionException="apply_reinspection_exception_v1"
+    case applyEntityIdentityResolution="apply_entity_identity_resolution_v1"
 }
 
 extension EvidenceQualityMutationCommandV1 {
@@ -2839,6 +2844,77 @@ extension ReinspectionExceptionMutationCommandV1 {
             digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
             digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]
         ))
+    }
+}
+
+extension EntityIdentityResolutionMutationCommandV1 {
+    /// C13 plans and previews are read-only.  This is the sole mapping from a
+    /// reviewed alias/consolidation payload to an incumbent writer target.
+    func validateForCanonicalWriter() throws {
+        guard expectedRevision.workspaceID == workspaceID else {
+            throw EntityIdentityResolutionFailureV1.wrongWorkspace
+        }
+        switch payload {
+        case let .alias(value, predecessor):
+            try value.validate(predecessor: predecessor)
+            guard value.workspaceID == workspaceID,
+                  value.mutationID == mutationID else {
+                throw EntityIdentityResolutionFailureV1.invalidValue
+            }
+        case let .consolidation(value, predecessor):
+            try value.validate(predecessor: predecessor)
+            guard value.workspaceID == workspaceID,
+                  value.mutationID == mutationID else {
+                throw EntityIdentityResolutionFailureV1.invalidValue
+            }
+        }
+    }
+
+    func affectedIdentityForCanonicalWriter() throws -> WorkspaceEntityIdentityV1 {
+        try validateForCanonicalWriter()
+        let identity: WorkspaceEntityIdentityV1
+        let lineageRevision: UInt64
+        switch payload {
+        case let .alias(value, _):
+            identity = try .init(kind: .entityAliasLink, id: value.alias.identity.id)
+            lineageRevision = value.revision
+        case let .consolidation(value, _):
+            identity = try .init(kind: .entityConsolidationReceipt, id: value.source.identity.id)
+            lineageRevision = value.revision
+        }
+        let expected = expectedRevision.entityRevisions.filter { $0.identity == identity }
+        guard expected.count == 1 else { throw EntityIdentityResolutionFailureV1.staleRevision }
+        let (nextRevision, overflow) = expected[0].revision.addingReportingOverflow(1)
+        guard !overflow, nextRevision == lineageRevision else {
+            throw EntityIdentityResolutionFailureV1.staleRevision
+        }
+        return identity
+    }
+
+    func affectedIdentitiesForCanonicalWriter() throws -> [WorkspaceEntityIdentityV1] {
+        return [try affectedIdentityForCanonicalWriter()]
+    }
+
+    func mutationPostImageForCanonicalWriter() throws -> MutationPostImageV1 {
+        let identity = try affectedIdentityForCanonicalWriter()
+        switch payload {
+        case let .alias(value, _):
+            return .entityIdentityResolution(
+                id: value.linkEventID,
+                kind: .entityAliasLink,
+                concurrencyIdentity: identity,
+                revision: value.revision,
+                semanticSHA256: value.aliasSHA256
+            )
+        case let .consolidation(value, _):
+            return .entityIdentityResolution(
+                id: value.consolidationReceiptID,
+                kind: .entityConsolidationReceipt,
+                concurrencyIdentity: identity,
+                revision: value.revision,
+                semanticSHA256: value.receiptSHA256
+            )
+        }
     }
 }
 
@@ -3651,6 +3727,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyEvidenceQuality,disposition:.irreversible,stableReason:"immutable_evidence_quality_assessment_and_waiver_history_forward_fix_only"),
         .init(commandKind:.applyFastSurveyInbox,disposition:.compensatable,stableReason:"append_inbox_promotion_and_snippet_successors_preserve_original_content_provenance"),
         .init(commandKind:.applyReinspectionException,disposition:.irreversible,stableReason:"append_reinspection_plan_attestation_and_acknowledgement_history_preserves_canonical_source_truth"),
+        .init(commandKind:.applyEntityIdentityResolution,disposition:.compensatable,stableReason:"append_entity_alias_or_consolidation_successor_with_explicit_reversal_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

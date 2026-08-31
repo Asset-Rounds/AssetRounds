@@ -13,6 +13,8 @@ struct ImportBulkPreviewStateV1: Sendable {
 
 struct ImportBulkPreviewView: View {
     let state: ImportBulkPreviewStateV1
+    let onIdentityResolutionHandoff: (() -> Void)?
+    init(state: ImportBulkPreviewStateV1, onIdentityResolutionHandoff: (() -> Void)? = nil) { self.state = state; self.onIdentityResolutionHandoff = onIdentityResolutionHandoff }
     var body: some View {
         ScrollView { VStack(alignment: .leading, spacing: 16) {
             Label(executionText, systemImage: "eye")
@@ -39,6 +41,7 @@ struct ImportBulkPreviewView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityLabel(text(.noReceiptClaim))
                 .accessibilityIdentifier(ImportBulkPreviewAccessibilityIDV1.export.rawValue)
+            if let onIdentityResolutionHandoff { Button(BundledLocalizationCatalogV1.c13Localized(.handoff)) { onIdentityResolutionHandoff() }.accessibilityIdentifier(C13AccessibilityIDV1.handoff.rawValue) }
         }.padding().frame(maxWidth: .infinity, alignment: .leading) }
         .navigationTitle(text(.heading)).navigationBarTitleDisplayMode(.inline).accessibilityIdentifier(ImportBulkPreviewAccessibilityIDV1.screen.rawValue)
     }

@@ -592,7 +592,6 @@ struct LifecycleUniverseSourceEvidenceV1: Codable, Equatable, Sendable {
 
 struct LifecycleCoverageManifestV1: Codable, Equatable, Sendable {
     static let currentSchemaVersion = 1
-    static let maximumKindCount = 128
     static let shippingBoundaryAdoption =
         "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION"
 
@@ -653,7 +652,6 @@ struct LifecycleCoverageManifestV1: Codable, Equatable, Sendable {
               Set(sourceDriftIDs).count == sourceDriftIDs.count,
               sourceDriftIDs.allSatisfy({ CompatibilityCanonicalV1.validToken($0) }),
               !universeKindIDs.isEmpty,
-              universeKindIDs.count <= Self.maximumKindCount,
               collections.allSatisfy({ values in
                   values == values.sorted()
                       && Set(values).count == values.count
@@ -1394,6 +1392,31 @@ enum C11FastSurveyInboxPersistentKindPolicyV1 {
     static let unpromotedItemsExcludedFromInspectionAndReports = true
     static let promotionPreservesOriginalEvidenceAndExactLinks = true
     static let frozenSnippetInsertionsAreHistoric = true
+    static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+}
+
+/// C13 stores only immutable alias/consolidation history and its typed
+/// receipt. Plans and previews are derived, explicitly mutation-free input.
+enum C13EntityIdentityResolutionPersistentKindPolicyV1 {
+    static let durableKindIDs = Set([
+        "PERSISTENT_MODEL:EntityAliasLinkRowV1",
+        "PERSISTENT_MODEL:EntityConsolidationReceiptRowV1",
+        "PERSISTENT_MODEL:EntityIdentityResolutionMutationReceiptRowV1",
+    ])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV50"])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 3, derivedKindIDs.count == 1,
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              durableKindIDs.union(derivedKindIDs)
+                .allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+
+    static let plansAndPreviewsAreNonpersistent = true
+    static let aliasesAndConsolidationReceiptsAreAppendOnly = true
+    static let reversalIsSuccessorReceiptOnly = true
     static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
 }
 

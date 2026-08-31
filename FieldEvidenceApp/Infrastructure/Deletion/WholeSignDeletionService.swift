@@ -70,6 +70,19 @@ enum FastSurveyInboxWholeSignDeletionPolicyV1 {
     }
 }
 
+enum EntityIdentityResolutionWholeSignDeletionPolicyV1 {
+    static let ordinaryAssetAndSiteDeletionPreservesIdentityHistory = true
+    static let ordinaryDeletionFetchesNoIdentityResolutionRows = true
+    static let consolidationRequiresExplicitSuccessorReceipt = true
+    static func validate() throws {
+        guard ordinaryAssetAndSiteDeletionPreservesIdentityHistory,
+              ordinaryDeletionFetchesNoIdentityResolutionRows,
+              consolidationRequiresExplicitSuccessorReceipt else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
+}
+
 enum C31LightingWholeSignDeletionServiceBoundaryV1 {
     static let deletesTopologyAsOneClosure = true
     static let preservesImmutableHistoryForOrdinaryDelete = true
@@ -698,6 +711,7 @@ final class WholeSignDeletionService {
         try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
         try EvidenceQualityWholeSignDeletionPolicyV1.validate()
         try FastSurveyInboxWholeSignDeletionPolicyV1.validate()
+        try EntityIdentityResolutionWholeSignDeletionPolicyV1.validate()
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
@@ -866,6 +880,7 @@ final class WholeSignDeletionService {
         try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
         try EvidenceQualityWholeSignDeletionPolicyV1.validate()
         try FastSurveyInboxWholeSignDeletionPolicyV1.validate()
+        try EntityIdentityResolutionWholeSignDeletionPolicyV1.validate()
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges

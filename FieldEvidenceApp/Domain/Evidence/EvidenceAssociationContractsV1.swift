@@ -782,3 +782,8 @@ extension EvidenceMetadataMutationV1 {
         try self.init(workspaceID: c.decode(WorkspaceID.self, forKey: .workspaceID), mutationID: c.decode(MutationIDV1.self, forKey: .mutationID), expectedSequenceRevision: c.decode(UInt64.self, forKey: .expectedSequenceRevision), associationEvent: c.decode(EvidenceAssociationV1.self, forKey: .associationEvent), sequenceSuccessor: c.decode(EvidenceSequenceV1.self, forKey: .sequenceSuccessor))
     }
 }
+enum EntityIdentityResolutionEvidenceAssociationBoundaryV1 {
+    static let historicAssociationIdentityIsRewritten = false
+    static let successorResolutionIsASeparateAppendOnlyReceipt = true
+    static let associationRowsCanConsolidateEntities = false
+}

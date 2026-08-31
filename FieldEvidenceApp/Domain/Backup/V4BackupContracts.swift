@@ -1910,6 +1910,31 @@ enum ReinspectionExceptionQueueBackupEnrollmentV1 {
     }
 }
 
+enum EntityIdentityResolutionBackupEnrollmentV1 {
+    static let persistentSchemaVersion = 50
+    static let recordsSchemaVersion = 49
+    static let durableFamilyCount = 3
+    static let plansAndPreviewsAreExcluded = true
+    static let relationshipsRemainEvidenceOnly = true
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard durableFamilyCount == 3, plansAndPreviewsAreExcluded,
+              relationshipsRemainEvidenceOnly else {
+            throw EntityIdentityResolutionFailureV1.incompatibleVersion
+        }
+        if records.recordsSchemaVersion < recordsSchemaVersion {
+            guard records.entityIdentityResolution == nil else {
+                throw EntityIdentityResolutionFailureV1.incompatibleVersion
+            }
+            return
+        }
+        guard let snapshot = records.entityIdentityResolution else {
+            throw EntityIdentityResolutionFailureV1.incompatibleVersion
+        }
+        try snapshot.validate()
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -1989,6 +2014,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     /// C12 canonical reinspection and exception history. The queue itself is
     /// deterministically rebuilt from mandatory registered source providers.
     var reinspectionExceptionQueue: ReinspectionExceptionQueueBackupSnapshotV1?
+    /// C13 append-only alias/consolidation history and exact typed receipts.
+    /// Preview plans and relationship projections are never archive members.
+    var entityIdentityResolution: EntityIdentityResolutionBackupSnapshotV1?
     /// C55 is transported as the one canonical snapshot owned by PartsStock.
     /// Its seven durable families must never be split into a parallel archive.
     let partsStockSnapshot: PartsStockBackupSnapshotV1?
@@ -2100,7 +2128,8 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         bulkCommitReceipts: [BulkCommitReceiptV1] = [],
         evidenceQuality: EvidenceQualityBackupSnapshotV1? = nil,
         fastSurveyInbox: FastSurveyInboxBackupSnapshotV1? = nil,
-        reinspectionExceptionQueue: ReinspectionExceptionQueueBackupSnapshotV1? = nil
+        reinspectionExceptionQueue: ReinspectionExceptionQueueBackupSnapshotV1? = nil,
+        entityIdentityResolution: EntityIdentityResolutionBackupSnapshotV1? = nil
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -2141,6 +2170,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.evidenceQuality = evidenceQuality
         self.fastSurveyInbox = fastSurveyInbox
         self.reinspectionExceptionQueue = reinspectionExceptionQueue
+        self.entityIdentityResolution = entityIdentityResolution
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -2190,7 +2220,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
           case qualifiedServiceExposures, serviceReliabilityReceipts
           case partsStockSnapshot, myDayPlans, myDayCarryoverReceipts, nonactivePlanReferences
           case evidenceAssociationEvents, evidenceSequenceRevisions, shopReportProfiles, roundSessions
-          case importMappingProfiles, bulkSessions, bulkCommitReceipts, evidenceQuality, fastSurveyInbox, reinspectionExceptionQueue
+          case importMappingProfiles, bulkSessions, bulkCommitReceipts, evidenceQuality, fastSurveyInbox, reinspectionExceptionQueue, entityIdentityResolution
     }
 
     init(from decoder: Decoder) throws {
@@ -2382,6 +2412,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             ),
             reinspectionExceptionQueue: try values.decodeIfPresent(
                 ReinspectionExceptionQueueBackupSnapshotV1.self, forKey: .reinspectionExceptionQueue
+            ),
+            entityIdentityResolution: try values.decodeIfPresent(
+                EntityIdentityResolutionBackupSnapshotV1.self, forKey: .entityIdentityResolution
             )
         )
     }
@@ -4650,7 +4683,7 @@ extension V4BackupRecordsV1{
                 || recordsSchemaVersion == 32 || recordsSchemaVersion == 33 || recordsSchemaVersion == 34
                 || recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
                 || recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
-                || recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion else {
+                || recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion else {
             throw LightingContractFailureV1.invalidValue
         }
         let decodedLighting = try LightingBackupRecordSetV1.decode(lighting)
@@ -4677,7 +4710,7 @@ extension V4BackupRecordsV1{
                 || recordsSchemaVersion == 33 || recordsSchemaVersion == 34
                 || recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
                 || recordsSchemaVersion == C49WorkResourcePersistenceBoundaryV1.recordsSchemaVersion
-                || recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion else {
+                || recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion else {
             throw EvidenceContextFailureV1.incompatibleVersion
         }
         guard evidenceContexts.allSatisfy({ $0.kind == .evidenceContext }),

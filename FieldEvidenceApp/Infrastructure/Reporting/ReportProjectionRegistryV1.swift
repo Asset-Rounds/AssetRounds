@@ -1884,6 +1884,21 @@ extension ReportProjectionRegistryV1 {
     }
 }
 
+enum EntityIdentityResolutionReportProjectionRegistryV1 {
+    static let relationshipsAreConsolidationAuthority = false
+    static let mutablePlansAreReportTruth = false
+    static let automaticConsolidationClaimPermitted = false
+    static let exactAliasReceiptAndInventoryHistoryIncluded = true
+
+    static func projection(
+        snapshot: EntityIdentityResolutionBackupSnapshotV1
+    ) throws -> EntityIdentityResolutionReportProjectionV1 {
+        let value = try EntityIdentityResolutionReportProjectionV1(snapshot: snapshot)
+        try value.validate()
+        return value
+    }
+}
+
 /// Import-bulk receipts may be opened/exported only through the incumbent
 /// deterministic report registry; this card introduces no renderer or source
 /// parser and exposes no raw imported values as report projection truth.

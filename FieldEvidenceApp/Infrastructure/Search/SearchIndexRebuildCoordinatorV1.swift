@@ -555,6 +555,33 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                            breadcrumb: [], status: "frozen", dueAt: nil,
                            timestamp: insertion.insertedAt)
         }
+        // C13 alias and consolidation history is canonical, append-only
+        // metadata. Index both former and survivor identities so a historic
+        // identifier resolves without rewriting evidence or relationship rows.
+        values += try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>())
+            .map { try $0.value() }
+            .filter { $0.workspaceID == workspaceID }
+            .map { link in
+                CanonicalValue(
+                    kind: .report,
+                    stableID: try stableKey(kind: .entityAliasLink, id: link.linkEventID),
+                    display: "Entity alias",
+                    summary: "\(link.alias.identity.id.uuidString.lowercased()) \(link.canonicalEntity.identity.id.uuidString.lowercased()) \(link.reason.rawValue)",
+                    breadcrumb: [], status: "alias", dueAt: nil, timestamp: link.recordedAt
+                )
+            }
+        values += try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>())
+            .map { try $0.value() }
+            .filter { $0.workspaceID == workspaceID }
+            .map { receipt in
+                CanonicalValue(
+                    kind: .report,
+                    stableID: try stableKey(kind: .entityConsolidationReceipt, id: receipt.consolidationReceiptID),
+                    display: "Entity consolidation",
+                    summary: "\(receipt.source.identity.id.uuidString.lowercased()) \(receipt.survivor.identity.id.uuidString.lowercased()) \(receipt.disposition.rawValue)",
+                    breadcrumb: [], status: receipt.disposition.rawValue, dueAt: nil, timestamp: receipt.recordedAt
+                )
+            }
         values += try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>())
             .filter { $0.workspaceID == workspaceID }
             .map { row in

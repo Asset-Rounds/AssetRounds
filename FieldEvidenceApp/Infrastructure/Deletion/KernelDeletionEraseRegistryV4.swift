@@ -648,6 +648,7 @@ enum KernelDeletionEraseRegistryV4 {
         try EvidenceQualityKernelDeletionEraseEnrollmentV1.validate()
         try FastSurveyInboxKernelDeletionEraseEnrollmentV1.validate()
         try ReinspectionExceptionKernelDeletionEraseEnrollmentV1.validate()
+        try EntityIdentityResolutionKernelDeletionEraseEnrollmentV1.validate()
         try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
@@ -988,6 +989,27 @@ enum ReinspectionExceptionKernelDeletionEraseEnrollmentV1 {
     static func validate() throws {
         guard durableFamilies.count == ReinspectionAndExceptionSchemaV1.durableModelCount,
               ordinaryDeletePreservesSourceTruth, acknowledgementNeverResolvesSource else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+/// C13 identity decisions are workspace history. Ordinary sign deletion must
+/// preserve them; only the existing whole-workspace Erase registry clears the
+/// three V50 families.
+enum EntityIdentityResolutionKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = [
+        "EntityAliasLinkRowV1",
+        "EntityConsolidationReceiptRowV1",
+        "EntityIdentityResolutionMutationReceiptRowV1"
+    ]
+    static let ordinaryDeletePreservesIdentityHistory = true
+    static let relationshipsAreEvidenceOnly = true
+    static func validate() throws {
+        guard durableFamilies.count == 3,
+              EntityIdentityResolutionSchemaMigrationBoundaryV1.validate(),
+              ordinaryDeletePreservesIdentityHistory,
+              relationshipsAreEvidenceOnly else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

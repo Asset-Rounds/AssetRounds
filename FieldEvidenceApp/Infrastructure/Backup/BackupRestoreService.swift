@@ -194,6 +194,177 @@ final class BackupRestoreFailureInjection {
     }
 }
 
+/// Immutable resolver used only while validating/materializing one already
+/// validated V50 package. Source identity digests come exclusively from the
+/// non-C13 generic journal; inventory atoms come from canonical non-C13 record
+/// sections produced by the shipping backup encoder.
+private struct EntityIdentityResolutionPackageResolverV1:
+    EntityIdentityResolutionCanonicalSourceResolvingV1 {
+    private struct JournalImage {
+        let identity: WorkspaceEntityIdentityV1
+        let revision: UInt64
+        let semanticSHA256: String
+    }
+
+    let workspaceID: WorkspaceID
+    let snapshots: [EntityIdentitySnapshotV1]
+    let aliasLinks: [EntityAliasLinkV1]
+    let atomsByFamily:
+        [EntityConsolidationInventoryFamilyV1: [EntityConsolidationInventoryAtomV1]]
+
+    init(records: V4BackupRecordsV1, snapshot: EntityIdentityResolutionBackupSnapshotV1) throws {
+        try snapshot.validate()
+        guard let history = records.mutationHistory else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let required = snapshot.aliasLinks.flatMap { [$0.alias, $0.canonicalEntity] }
+            + snapshot.consolidationReceipts.flatMap { [$0.source, $0.survivor] }
+        let uniqueRequired = Dictionary(grouping: required, by: { $0.identity }).values
+        guard uniqueRequired.allSatisfy({ Set($0).count == 1 }) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+
+        var journalImages: [JournalImage] = []
+        for record in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            if case .applyEntityIdentityResolution = envelope.command { continue }
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            for image in receipt.postImages {
+                let identity = try image.identity
+                guard identity.kind != .entityAliasLink,
+                      identity.kind != .entityConsolidationReceipt else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                journalImages.append(.init(
+                    identity: identity,
+                    revision: image.revision,
+                    semanticSHA256: image.semanticSHA256
+                ))
+            }
+        }
+
+        let resolved = try uniqueRequired.map { group -> EntityIdentitySnapshotV1 in
+            guard let expected = group.first else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let terminals = history.entityRevisions.filter { $0.identity == expected.identity }
+            guard terminals.count == 1, let terminal = terminals.first,
+                  terminal.revision == expected.revision else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let identityImages = journalImages.filter { $0.identity == expected.identity }
+            guard identityImages.allSatisfy({ $0.revision <= terminal.revision }) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let exact = identityImages.filter { $0.revision == terminal.revision }
+            let digest: String
+            if exact.count == 1, let image = exact.first {
+                digest = image.semanticSHA256
+            } else if exact.isEmpty,
+                      let external = terminal.externalProjectionSHA256,
+                      MutationEnvelopeV1.isSHA256(external) {
+                digest = external
+            } else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let value = try EntityIdentitySnapshotV1(
+                workspaceID: snapshot.workspaceID,
+                identity: terminal.identity,
+                revision: terminal.revision,
+                entitySHA256: digest
+            )
+            guard value == expected else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            return value
+        }.sorted { $0.stableKey < $1.stableKey }
+
+        let atoms = try BackupCanonicalEncoderV1()
+            .entityIdentityResolutionInventoryAtoms(records)
+        guard Set(atoms.keys) == Set(EntityConsolidationInventoryFamilyV1.allCases) else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        workspaceID = snapshot.workspaceID
+        snapshots = resolved
+        aliasLinks = snapshot.aliasLinks
+        atomsByFamily = atoms
+    }
+
+    func resolveEntityIdentity(
+        _ identity: WorkspaceEntityIdentityV1,
+        workspaceID: WorkspaceID,
+        revision: UInt64
+    ) throws -> EntityIdentitySnapshotV1 {
+        guard workspaceID == self.workspaceID else {
+            throw EntityIdentityResolutionFailureV1.wrongWorkspace
+        }
+        let matches = snapshots.filter { $0.identity == identity && $0.revision == revision }
+        guard matches.count == 1, let value = matches.first else {
+            throw EntityIdentityResolutionFailureV1.staleRevision
+        }
+        return value
+    }
+
+    func aliasPath(
+        from alias: WorkspaceEntityIdentityV1,
+        workspaceID: WorkspaceID
+    ) throws -> [WorkspaceEntityIdentityV1] {
+        guard workspaceID == self.workspaceID else {
+            throw EntityIdentityResolutionFailureV1.wrongWorkspace
+        }
+        var current = alias
+        var result: [WorkspaceEntityIdentityV1] = []
+        var visited = Set([alias])
+        while true {
+            let candidates = aliasLinks.filter { $0.alias.identity == current }
+            guard !candidates.isEmpty else { return result }
+            let maximumRevision = candidates.map(\.revision).max()
+            let latest = candidates.filter { $0.revision == maximumRevision }
+            guard latest.count == 1, let link = latest.first,
+                  visited.insert(link.canonicalEntity.identity).inserted,
+                  result.count < EntityIdentityResolutionLimitsV1.maximumQueryResults else {
+                throw EntityIdentityResolutionFailureV1.aliasCycle
+            }
+            result.append(link.canonicalEntity.identity)
+            current = link.canonicalEntity.identity
+        }
+    }
+
+    func canonicalConsolidationAtoms(
+        source: EntityIdentitySnapshotV1,
+        survivor: EntityIdentitySnapshotV1,
+        family: EntityConsolidationInventoryFamilyV1
+    ) throws -> [EntityConsolidationInventoryAtomV1] {
+        guard source.workspaceID == workspaceID, survivor.workspaceID == workspaceID,
+              source.identity != survivor.identity,
+              try resolveEntityIdentity(source.identity, workspaceID: workspaceID, revision: source.revision) == source,
+              try resolveEntityIdentity(survivor.identity, workspaceID: workspaceID, revision: survivor.revision) == survivor,
+              let atoms = atomsByFamily[family] else {
+            throw EntityIdentityResolutionFailureV1.incompleteInventory
+        }
+        return atoms
+    }
+
+    func resolve(
+        workspaceID: WorkspaceID,
+        entityID: WorkspaceEntityIdentityV1,
+        expectedRevision: UInt64
+    ) throws -> EntityIdentityResolutionCanonicalSourceV1 {
+        let snapshot = try resolveEntityIdentity(
+            entityID, workspaceID: workspaceID, revision: expectedRevision
+        )
+        guard let counterpart = snapshots.first(where: { $0.identity != snapshot.identity }) else {
+            throw EntityIdentityResolutionFailureV1.incompleteInventory
+        }
+        return try EntityIdentityResolutionCanonicalSourceV1(
+            snapshot: snapshot,
+            inventory: try canonicalConsolidationInventory(
+                source: snapshot, survivor: counterpart
+            )
+        )
+    }
+}
+
 @MainActor
 final class BackupRestoreService {
     private struct PortableExchangeRestoreSidecarV1: Codable, Equatable {
@@ -2734,6 +2905,7 @@ private extension BackupRestoreService {
         normalized.evidenceQuality = records.evidenceQuality
         normalized.fastSurveyInbox = records.fastSurveyInbox
         normalized.reinspectionExceptionQueue = records.reinspectionExceptionQueue
+        normalized.entityIdentityResolution = records.entityIdentityResolution
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2762,6 +2934,7 @@ private extension BackupRestoreService {
         reset.evidenceQuality = records.evidenceQuality
         reset.fastSurveyInbox = records.fastSurveyInbox
         reset.reinspectionExceptionQueue = records.reinspectionExceptionQueue
+        reset.entityIdentityResolution = records.entityIdentityResolution
         return reset
     }
 
@@ -8097,6 +8270,55 @@ private extension BackupRestoreService {
         )
     }
 
+    func entityIdentityResolutionCommands(
+        from history: MutationHistorySnapshotV1,
+        snapshot: EntityIdentityResolutionBackupSnapshotV1
+    ) throws -> [MutationIDV1: EntityIdentityResolutionMutationCommandV1] {
+        var commands: [MutationIDV1: EntityIdentityResolutionMutationCommandV1] = [:]
+        var genericReceipts: [MutationIDV1: MutationReceiptV1] = [:]
+        for record in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard case let .applyEntityIdentityResolution(command) = envelope.command else {
+                continue
+            }
+            let generic = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            try command.validate()
+            guard commands.updateValue(command, forKey: command.mutationID) == nil,
+                  genericReceipts.updateValue(generic, forKey: command.mutationID) == nil,
+                  generic.mutationID == command.mutationID,
+                  generic.identity.workspaceID == command.workspaceID,
+                  generic.expectedRevision.generationID == command.expectedRevision.generationID,
+                  generic.expectedRevision.workspaceRevision
+                    == command.expectedRevision.workspaceRevision,
+                  generic.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(
+                      WorkspaceCommandV1.applyEntityIdentityResolution(command)
+                  )),
+                  generic.postImages.map(\.semanticSHA256).sorted()
+                    == command.payload.semanticSHA256s.sorted() else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        let expected = Set(snapshot.mutationReceipts.map(\.mutationID))
+        guard Set(commands.keys) == expected, Set(genericReceipts.keys) == expected else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        for typed in snapshot.mutationReceipts {
+            guard let command = commands[typed.mutationID],
+                  let generic = genericReceipts[typed.mutationID] else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            try typed.validate(command: command)
+            guard typed.recoveryState == .receiptCommitted,
+                  typed.generationID == generic.expectedRevision.generationID,
+                  typed.priorWorkspaceRevision == generic.expectedRevision.workspaceRevision,
+                  typed.resultingWorkspaceRevision == generic.resultingRevision.workspaceRevision,
+                  typed.semanticSHA256s == generic.postImages.map(\.semanticSHA256).sorted() else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        return commands
+    }
+
     func materialize(
         _ value: ValidatedV4BackupPackageV1,
         records: V4BackupRecordsV1,
@@ -8688,7 +8910,8 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion
                 || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
+                || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -8721,7 +8944,8 @@ private extension BackupRestoreService {
              (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion, let ledger?, _),
              (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
-             (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
+             (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
+             (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
             do {
                 try ledger.validate()
                 try DeletionLedgerStore(context: context).stageUnion(ledger.entries)
@@ -9911,6 +10135,69 @@ private extension BackupRestoreService {
         } else if records.recordsSchemaVersion >= ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion {
             throw BackupRestoreServiceError.invalidPackage
         }
+        if let identityResolution = records.entityIdentityResolution {
+            do {
+                try identityResolution.validate()
+                let sourceIsEmpty = identityResolution.aliasLinks.isEmpty
+                    && identityResolution.consolidationReceipts.isEmpty
+                    && identityResolution.mutationReceipts.isEmpty
+                if let identityDecision {
+                    switch identityDecision.mode {
+                    case .clone, .fork:
+                        guard sourceIsEmpty else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                    case .emptyInstall, .replaceExisting:
+                        break
+                    }
+                }
+                let workspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                let restoredSnapshot: EntityIdentityResolutionBackupSnapshotV1
+                if sourceIsEmpty,
+                   let identityDecision,
+                   identityDecision.mode == .clone || identityDecision.mode == .fork {
+                    restoredSnapshot = try EntityIdentityResolutionBackupSnapshotV1(
+                        workspaceID: WorkspaceID(rawValue: workspaceID),
+                        generationID: generationID,
+                        aliasLinks: [], consolidationReceipts: [], mutationReceipts: []
+                    )
+                } else {
+                    restoredSnapshot = identityResolution
+                }
+                guard restoredSnapshot.workspaceID.rawValue == workspaceID else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                guard let mutationHistory = records.mutationHistory else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let commands = try entityIdentityResolutionCommands(
+                    from: mutationHistory,
+                    snapshot: restoredSnapshot
+                )
+                if sourceIsEmpty {
+                    guard commands.isEmpty else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                } else {
+                    let packageResolver = try EntityIdentityResolutionPackageResolverV1(
+                        records: records, snapshot: restoredSnapshot
+                    )
+                    try EntityIdentityResolutionLifecycleAdapterV1(
+                        modelContext: context,
+                        workspaceID: WorkspaceID(rawValue: workspaceID),
+                        resolver: packageResolver
+                    ).replaceRestore(restoredSnapshot, commands: commands)
+                }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else if records.recordsSchemaVersion
+                    >= EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion {
+            throw BackupRestoreServiceError.invalidPackage
+        }
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
             do {
                 if let identityDecision {
@@ -10031,7 +10318,10 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
-                    || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion else {
+                    || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+                    || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
+                    || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion
+                    || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {

@@ -3516,6 +3516,7 @@ extension BundledLocalizationCatalogV1 {
 
 extension BundledLocalizationCatalogV1 { static func fastSurveyInboxLocalized(_ key: FastSurveyInboxLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C11 contained local inbox presentation; no completion, truth, route, or acceptance claim.") } }
 extension BundledLocalizationCatalogV1 { static func c12Localized(_ key: C12LocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C12 contained local reinspection and exception-queue presentation; no source-resolution, evidence-freshness, adoption, acceptance, or release claim.") } }
+extension BundledLocalizationCatalogV1 { static func c13Localized(_ key: C13LocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C13 contained identity review; no automatic mutation, route, root, adoption, acceptance, or release claim.") } }
 
 // MARK: - C10 evidence quality coach catalog
 

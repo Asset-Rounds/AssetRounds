@@ -6606,3 +6606,40 @@ struct C05RoundSessionCloseoutReportProjectionV1: Codable, Equatable, Sendable {
         let finalDispositionCounts: RoundSessionCountsV1
     }
 }
+
+/// C13 reports the exact immutable resolution inventory. It does not infer a
+/// consolidation from relationship rows or expose a mutable resolution plan.
+struct EntityIdentityResolutionReportProjectionV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let snapshot: EntityIdentityResolutionBackupSnapshotV1
+    let projectionSHA256: String
+
+    init(snapshot: EntityIdentityResolutionBackupSnapshotV1) throws {
+        try snapshot.validate()
+        schemaVersion = Self.schemaVersion
+        self.snapshot = snapshot
+        projectionSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion,
+            snapshot: snapshot
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        try snapshot.validate()
+        guard schemaVersion == Self.schemaVersion,
+              projectionSHA256 == (try WorkspaceMutationCanonicalV1.sha256(Basis(
+                  schemaVersion: schemaVersion,
+                  snapshot: snapshot
+              ))) else {
+            throw EntityIdentityResolutionFailureV1.corruptDigest
+        }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int
+        let snapshot: EntityIdentityResolutionBackupSnapshotV1
+    }
+}

@@ -19,6 +19,7 @@ final class MutationReceiptRecoveryServiceV1 {
             try store.validateAll()
             try validateFastSurveyInboxRecoveryParity()
             try validateReinspectionExceptionRecoveryParity()
+            try validateEntityIdentityResolutionRecoveryParity()
         }
     }
 
@@ -156,6 +157,22 @@ final class MutationReceiptRecoveryServiceV1 {
             try ReinspectionExceptionMutationReceiptRecoveryPolicyV1.validateRecovered(command: pair.command, receipt: pair.receipt)
         }
     }
+
+    /// C13 activation requires exact generic/typed receipt parity. Missing or
+    /// corrupt identity receipts fail closed; recovery never infers an alias or
+    /// consolidation from the durable effect row alone.
+    func recoverEntityIdentityResolutionEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
+
+    private func validateEntityIdentityResolutionRecoveryParity() throws {
+        for pair in try store.entityIdentityResolutionRecoveryPairs() {
+            try EntityIdentityResolutionMutationReceiptRecoveryPolicyV1.validateRecovered(
+                command: pair.command,
+                receipt: pair.receipt
+            )
+        }
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -167,6 +184,18 @@ final class MutationReceiptRecoveryServiceV1 {
 }
 
 enum LightingMutationReceiptRecoveryPolicyV1 { static func validateRecovered(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)} }
+enum EntityIdentityResolutionMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        command: EntityIdentityResolutionMutationCommandV1,
+        receipt: EntityIdentityResolutionMutationReceiptV1
+    ) throws {
+        try command.validate()
+        try receipt.validate(command: command)
+        guard receipt.recoveryState == .receiptCommitted else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+    }
+}
 enum TemporalEvidenceMutationReceiptRecoveryPolicyV1 {
     static func validateRecovered(
         mutation: TemporalEvidenceMutationV1,
