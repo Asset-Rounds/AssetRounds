@@ -4881,25 +4881,88 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let postValidationLabels = app.descendants(matching: .any).matching(
                 identifier: "s5.1.work.validation"
             )
-            guard app.state == .runningForeground,
-                  postWorkScreens.count == 1,
-                  postWorkScreens.firstMatch.exists,
-                  postWorkScreens.firstMatch.isEnabled,
-                  postWorkScreens.firstMatch.isHittable,
-                  postDescriptionFields.count == 1,
-                  postDescriptionFields.firstMatch.exists,
-                  postDescriptionFields.firstMatch.isEnabled,
-                  postDescriptionFields.firstMatch.value as? String
-                    == preDescriptionValue,
-                  postFocusedDescriptionFields.count == 0,
-                  postValidationLabels.count == 1,
-                  postValidationLabels.firstMatch.exists,
-                  postValidationLabels.firstMatch.isEnabled,
-                  postValidationLabels.firstMatch.identifier
-                    == preValidationIdentifier,
-                  postValidationLabels.firstMatch.label
-                    == preValidationLabelText,
-                  app.keyboards.count == 0 else {
+            let postWorkScreen = postWorkScreens.firstMatch
+            let postDescriptionField = postDescriptionFields.firstMatch
+            let postValidationLabel = postValidationLabels.firstMatch
+            let postDescriptionValue = postDescriptionField.value as? String
+            let postValidationIdentifier = postValidationLabel.identifier
+            let postValidationLabelText = postValidationLabel.label
+            let postAppState = app.state
+            let postKeyboardCount = app.keyboards.count
+            let postWorkScreenCount = postWorkScreens.count
+            let postWorkScreenExists = postWorkScreen.exists
+            let postWorkScreenEnabled = postWorkScreen.isEnabled
+            let postWorkScreenHittable = postWorkScreen.isHittable
+            let postDescriptionCount = postDescriptionFields.count
+            let postDescriptionExists = postDescriptionField.exists
+            let postDescriptionEnabled = postDescriptionField.isEnabled
+            let postFocusedDescriptionCount = postFocusedDescriptionFields.count
+            let postValidationCount = postValidationLabels.count
+            let postValidationExists = postValidationLabel.exists
+            let postValidationEnabled = postValidationLabel.isEnabled
+            let postconditionDiagnostic: [String: Any] = [
+                "appState": postAppState.rawValue,
+                "keyboardCount": postKeyboardCount,
+                "postDescriptionCount": postDescriptionCount,
+                "postDescriptionEnabled": postDescriptionEnabled,
+                "postDescriptionExists": postDescriptionExists,
+                "postDescriptionValue": postDescriptionValue.map { $0 as Any } ?? NSNull(),
+                "postFocusedDescriptionCount": postFocusedDescriptionCount,
+                "postValidationCount": postValidationCount,
+                "postValidationEnabled": postValidationEnabled,
+                "postValidationExists": postValidationExists,
+                "postValidationIdentifier": postValidationIdentifier,
+                "postValidationLabel": postValidationLabelText,
+                "postWorkScreenCount": postWorkScreenCount,
+                "postWorkScreenEnabled": postWorkScreenEnabled,
+                "postWorkScreenExists": postWorkScreenExists,
+                "postWorkScreenHittable": postWorkScreenHittable,
+                "preDescriptionValue": preDescriptionValue.map { $0 as Any } ?? NSNull(),
+                "preValidationIdentifier": preValidationIdentifier,
+                "preValidationLabel": preValidationLabelText,
+                "shardID": automationShard?.shardID ?? "none",
+            ]
+            printJSONLine(
+                prefix: "S10_4_AX_TEXT_WORK_VALIDATION_DONE_POSTCONDITION_DIAGNOSTIC",
+                object: postconditionDiagnostic
+            )
+            let postconditionAppAttachment = XCTAttachment(screenshot: app.screenshot())
+            postconditionAppAttachment.name =
+                "S10.4 K306 AX-text work-validation Done postcondition app"
+            postconditionAppAttachment.lifetime = .keepAlways
+            add(postconditionAppAttachment)
+            let postconditionTreeAttachment = XCTAttachment(string: app.debugDescription)
+            postconditionTreeAttachment.name =
+                "S10.4 K306 AX-text work-validation Done postcondition tree"
+            postconditionTreeAttachment.lifetime = .keepAlways
+            add(postconditionTreeAttachment)
+            let postconditionContextData = try JSONSerialization.data(
+                withJSONObject: postconditionDiagnostic,
+                options: [.prettyPrinted, .sortedKeys]
+            )
+            let postconditionContextAttachment = XCTAttachment(
+                string: String(decoding: postconditionContextData, as: UTF8.self)
+            )
+            postconditionContextAttachment.name =
+                "S10.4 K306 AX-text work-validation Done postcondition context"
+            postconditionContextAttachment.lifetime = .keepAlways
+            add(postconditionContextAttachment)
+            guard postAppState == .runningForeground,
+                  postWorkScreenCount == 1,
+                  postWorkScreenExists,
+                  postWorkScreenEnabled,
+                  postWorkScreenHittable,
+                  postDescriptionCount == 1,
+                  postDescriptionExists,
+                  postDescriptionEnabled,
+                  postDescriptionValue == preDescriptionValue,
+                  postFocusedDescriptionCount == 0,
+                  postValidationCount == 1,
+                  postValidationExists,
+                  postValidationEnabled,
+                  postValidationIdentifier == preValidationIdentifier,
+                  postValidationLabelText == preValidationLabelText,
+                  postKeyboardCount == 0 else {
                 throw AutomationConfigurationError.invalid(
                     "S10.4 AX-text work-validation keyboard Done postconditions are invalid"
                 )

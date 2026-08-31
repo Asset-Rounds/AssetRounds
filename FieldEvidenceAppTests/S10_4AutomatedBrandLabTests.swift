@@ -3779,8 +3779,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 4_750,
-             "FC5721207495ED67975620FF24851460F545F70F57E312818E6F5517FFA1F523"),
+            (workValidationGateSource, 8_555,
+             "35A73B39ABAE220A24DC508F87878E0DF187D1BE0826D3F965AB84B4C2234B25"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4371,14 +4371,81 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "globalDoneButton.label == \"Done\"",
             "globalDoneButton.tap()",
             "preKeyboards.firstMatch.waitForNonExistence(timeout: 10)",
-            "postFocusedDescriptionFields.count == 0",
-            "postValidationLabels.firstMatch.identifier",
-            "postValidationLabels.firstMatch.label",
-            "app.keyboards.count == 0",
+            "postDescriptionValue == preDescriptionValue",
+            "postFocusedDescriptionCount == 0",
+            "postValidationIdentifier == preValidationIdentifier",
+            "postValidationLabelText == preValidationLabelText",
+            "postKeyboardCount == 0",
         ]
         for lock in workValidationDoneRouteLocks {
             XCTAssertTrue(workValidationGateSource.contains(lock), lock)
         }
+        let workValidationDoneDiagnosticLocks = [
+            "S10_4_AX_TEXT_WORK_VALIDATION_DONE_POSTCONDITION_DIAGNOSTIC",
+            "postDescriptionValue.map { $0 as Any } ?? NSNull()",
+            "preDescriptionValue.map { $0 as Any } ?? NSNull()",
+            "let postFocusedDescriptionCount = postFocusedDescriptionFields.count",
+            "\"postFocusedDescriptionCount\": postFocusedDescriptionCount",
+            "\"postValidationIdentifier\": postValidationIdentifier",
+            "\"postValidationLabel\": postValidationLabelText",
+            "\"postWorkScreenHittable\": postWorkScreenHittable",
+            "\"keyboardCount\": postKeyboardCount",
+            "S10.4 K306 AX-text work-validation Done postcondition app",
+            "S10.4 K306 AX-text work-validation Done postcondition tree",
+            "S10.4 K306 AX-text work-validation Done postcondition context",
+            "options: [.prettyPrinted, .sortedKeys]",
+        ]
+        for lock in workValidationDoneDiagnosticLocks {
+            XCTAssertTrue(workValidationGateSource.contains(lock), lock)
+        }
+        let workValidationDoneCachedFactLocks = [
+            "let postAppState = app.state",
+            "let postKeyboardCount = app.keyboards.count",
+            "let postWorkScreenCount = postWorkScreens.count",
+            "let postWorkScreenExists = postWorkScreen.exists",
+            "let postWorkScreenEnabled = postWorkScreen.isEnabled",
+            "let postWorkScreenHittable = postWorkScreen.isHittable",
+            "let postDescriptionCount = postDescriptionFields.count",
+            "let postDescriptionExists = postDescriptionField.exists",
+            "let postDescriptionEnabled = postDescriptionField.isEnabled",
+            "let postFocusedDescriptionCount = postFocusedDescriptionFields.count",
+            "let postValidationCount = postValidationLabels.count",
+            "let postValidationExists = postValidationLabel.exists",
+            "let postValidationEnabled = postValidationLabel.isEnabled",
+        ]
+        for lock in workValidationDoneCachedFactLocks {
+            XCTAssertEqual(
+                workValidationGateSource.components(separatedBy: lock).count - 1,
+                1,
+                lock
+            )
+        }
+        XCTAssertEqual(
+            workValidationGateSource.components(
+                separatedBy:
+                    "S10_4_AX_TEXT_WORK_VALIDATION_DONE_POSTCONDITION_DIAGNOSTIC"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationGateSource.components(separatedBy: "XCTAttachment(").count - 1,
+            3
+        )
+        XCTAssertEqual(
+            workValidationGateSource.components(separatedBy: ".lifetime = .keepAlways").count - 1,
+            3
+        )
+        let diagnosticRange = try XCTUnwrap(
+            workValidationRouteSource.range(
+                of: "S10_4_AX_TEXT_WORK_VALIDATION_DONE_POSTCONDITION_DIAGNOSTIC"
+            )
+        )
+        let postconditionGuardRange = try XCTUnwrap(
+            workValidationRouteSource.range(
+                of: "            guard postAppState == .runningForeground,"
+            )
+        )
+        XCTAssertLessThan(diagnosticRange.lowerBound, postconditionGuardRange.lowerBound)
         let doneTapRange = try XCTUnwrap(
             workValidationRouteSource.range(of: "            globalDoneButton.tap()")
         )
@@ -4393,9 +4460,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "performAccessibilityAudit",
             "positionWorkValidationShortDescriptionForAXText",
             "diagnoseFullRouteAXTextWorkValidationNativeContrast",
-            "S10_4_AX_TEXT_WORK_VALIDATION_",
-            "XCTAttachment",
-            "printJSONLine",
             "scroll(",
             "swipe",
             "tolerance",
@@ -19932,10 +19996,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 729_605)
+        XCTAssertEqual(uiSource.utf8.count, 733_410)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "549D98BF56CD98AB4C4D297DDEEFCDEDE23E470229326E89C50E1FC650F2B620"
+            "CB569798D90A45823999776A0199E5BA383A0B0280C9507AE4FC81775619ECA8"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
