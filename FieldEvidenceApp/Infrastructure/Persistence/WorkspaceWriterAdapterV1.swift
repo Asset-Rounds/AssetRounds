@@ -58,6 +58,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyShopReportProfile,
             .applyRoundSession,
             .applyImportBulk,
+            .applyEvidenceQuality,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -241,6 +242,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyRoundSession(value, temporaryRelativePath: temporaryRelativePath)
         case let .applyImportBulk(value):
             return try applyImportBulk(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyEvidenceQuality(value):
+            return try applyEvidenceQuality(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -251,6 +254,84 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
              .archiveEntities:
             throw WorkspaceMutationFailureV1.unsupportedCommand
         }
+    }
+
+    /// C10 persists only through this adapter's existing journal-owned model
+    /// context.  No save occurs here: effect rows and the typed receipt join
+    /// the incumbent mutation receipt in the one enclosing transaction.
+    private func applyEvidenceQuality(
+        _ command: EvidenceQualityMutationCommandV1,
+        occurredAt: Date,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try command.validate()
+        let target = try command.affectedIdentityForCanonicalWriter()
+        let (resultingRevision, overflow) = command.expectedRevision.workspaceRevision.addingReportingOverflow(1)
+        guard !overflow else { throw WorkspaceMutationFailureV1.invalidCommand }
+        let receipt = try EvidenceQualityMutationReceiptV1(
+            receiptID: command.mutationID.rawValue,
+            command: command,
+            resultingWorkspaceRevision: resultingRevision,
+            recoveryState: .receiptCommitted,
+            committedAt: occurredAt
+        )
+        let receiptRows = try modelContext.fetch(FetchDescriptor<EvidenceQualityMutationReceiptRowV1>())
+        let priorReceipts = try receiptRows.map { try $0.value() }
+        guard Set(priorReceipts.map(\.mutationID)).count == priorReceipts.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        if let prior = priorReceipts.first(where: { $0.mutationID == command.mutationID }) {
+            try prior.validate(command: command)
+            return try WorkspaceMutationEffectV1(affectedEntities: [target], temporaryRelativePath: temporaryRelativePath)
+        }
+
+        let ruleSets = try modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { try $0.value() }
+        let assessments = try modelContext.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>()).map { row -> EvidenceQualityAssessmentV1 in
+            for ruleSet in ruleSets {
+                if let assessment = try? row.value(ruleSet: ruleSet) { return assessment }
+            }
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let waivers = try modelContext.fetch(FetchDescriptor<EvidenceQualityWaiverRowV1>()).map { row -> EvidenceQualityWaiverV1 in
+            for assessment in assessments {
+                if let waiver = try? row.value(assessment: assessment) { return waiver }
+            }
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        switch command.payload {
+        case let .putRuleSet(value):
+            guard !ruleSets.contains(where: { $0.ruleSetID == value.ruleSetID && $0.revision == value.revision }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            let row = try EvidenceQualityRuleSetRowV1(value, command: command, resultingWorkspaceRevision: resultingRevision)
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        case let .recordAssessment(value):
+            guard let ruleSet = ruleSets.first(where: { $0.ruleSetID == value.ruleSetID }),
+                  !assessments.contains(where: { $0.assessmentID == value.assessmentID && $0.revision == value.revision }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let row = try EvidenceQualityAssessmentRowV1(value, ruleSet: ruleSet, command: command, resultingWorkspaceRevision: resultingRevision)
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        case let .recordWaiver(value):
+            guard let assessment = assessments.first(where: { $0.assessmentID == value.assessmentID }),
+                  !waivers.contains(where: { $0.waiverEventID == value.waiverEventID }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            let history = waivers.filter { $0.waiverID == value.waiverID }.sorted { $0.revision < $1.revision }
+            guard history.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            if let predecessor = history.first {
+                try value.validateSuccessor(of: predecessor)
+            } else {
+                try value.validate(assessment: assessment)
+            }
+            let row = try EvidenceQualityWaiverRowV1(value, assessment: assessment, command: command, resultingWorkspaceRevision: resultingRevision)
+            try row.markReceiptCommitted(receipt)
+            modelContext.insert(row)
+        }
+        modelContext.insert(try EvidenceQualityMutationReceiptRowV1(receipt))
+        return try WorkspaceMutationEffectV1(affectedEntities: [target], temporaryRelativePath: temporaryRelativePath)
     }
 
     /// C08's three lifecycle rows participate in the same uncommitted context

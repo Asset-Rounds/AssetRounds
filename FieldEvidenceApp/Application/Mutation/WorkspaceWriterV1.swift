@@ -466,6 +466,47 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         )
     }
 
+    /// C10 is submitted through the one canonical writer/journal transaction.
+    /// Evidence, rule, and waiver history are immutable; a replay returns the
+    /// existing typed receipt only after its command digest is revalidated.
+    func commitEvidenceQuality(
+        _ command: EvidenceQualityMutationCommandV1
+    ) throws -> EvidenceQualityMutationReceiptV1 {
+        try command.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let receipt = try journalStore.evidenceQualityReceipt(command) { return receipt }
+        let current = try currentRevision()
+        let target = try command.affectedIdentityForCanonicalWriter()
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        let expected = Dictionary(uniqueKeysWithValues: command.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        guard current.workspaceID == command.expectedRevision.workspaceID,
+              current.generationID == command.expectedRevision.generationID,
+              current.writerInstanceID == command.expectedRevision.writerInstanceID,
+              current.revision == command.expectedRevision.workspaceRevision,
+              let targetRevision = expected[target], known[target, default: 0] == targetRevision else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        _ = try execute(.init(mutationID: command.mutationID,
+                              expectedRevision: command.expectedRevision,
+                              command: .applyEvidenceQuality(command)))
+        guard let receipt = try journalStore.evidenceQualityReceipt(command) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return receipt
+    }
+
+    func evidenceQualityReceipt(
+        for command: EvidenceQualityMutationCommandV1
+    ) throws -> EvidenceQualityMutationReceiptV1? {
+        try command.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard command.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        return try journalStore.evidenceQualityReceipt(command)
+    }
+
     func evidenceMetadataReceipt(
         for mutation: EvidenceMetadataMutationV1
     ) throws -> EvidenceMetadataMutationReceiptV1? {
@@ -869,6 +910,18 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         case .applyImportBulk(let value):
             do { try value.validate(); let target = try value.concurrencyIdentity; let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision; guard value.workspaceID == identity.workspaceID, value.mutationID == request.mutationID, sourceKind == .importedHistory || occurredAtOverride != nil || expected == value.expectedRevision else { throw WorkspaceMutationFailureV1.invalidCommand } }
             catch let failure as WorkspaceMutationFailureV1 { throw failure } catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyEvidenceQuality(let value):
+            do {
+                try value.validate()
+                let target = try value.affectedIdentityForCanonicalWriter()
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      value.expectedRevision == request.expectedRevision,
+                      request.expectedRevision.entityRevisions.contains(where: { $0.identity == target }) else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 { throw failure }
+              catch { throw WorkspaceMutationFailureV1.invalidCommand }
         default:
             break
         }
@@ -1159,6 +1212,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             entityRevisions[try image.identity] = image.revision
         } else if case let .applyImportBulk(mutation) = request.command {
             entityRevisions[try mutation.affectedIdentity] = mutation.expectedRevision + 1
+        } else if case let .applyEvidenceQuality(mutation) = request.command {
+            let target = try mutation.affectedIdentityForCanonicalWriter()
+            let expected = request.expectedRevision.entityRevisions.first(where: { $0.identity == target })?.revision ?? 0
+            entityRevisions[target] = expected + 1
         } else {
             for target in targets { entityRevisions[target, default: 0] += 1 }
         }
@@ -1681,6 +1738,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=[try value.affectedIdentity]
         case let .applyImportBulk(value):
             try value.validate(); values = [try value.affectedIdentity]
+        case let .applyEvidenceQuality(value):
+            try value.validate(); values = [try value.affectedIdentityForCanonicalWriter()]
         }
         guard Set(values).count == values.count else {
             throw WorkspaceMutationFailureV1.invalidCommand
@@ -1747,6 +1806,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyShopReportProfile(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyRoundSession(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyImportBulk(value)=command{try value.validate();return[try value.concurrencyIdentity]}
+        if case let .applyEvidenceQuality(value)=command{try value.validate();return[try value.affectedIdentityForCanonicalWriter()]}
         return try targetIdentities(for: command)
     }
 

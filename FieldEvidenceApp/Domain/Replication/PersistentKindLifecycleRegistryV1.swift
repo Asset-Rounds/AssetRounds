@@ -1343,6 +1343,32 @@ enum C08ImportBulkPersistentKindPolicyV1 {
     static let immutableReceiptNeverRollsBackCommittedBatch = true
 }
 
+/// C10 keeps every assessment, rule-set, waiver, and durable mutation receipt
+/// as an independent canonical fact. Later evidence or policy cannot rewrite
+/// the historic fact it invalidates.
+enum C10EvidenceQualityPersistentKindPolicyV1 {
+    static let durableKindIDs = Set([
+        "PERSISTENT_MODEL:EvidenceQualityAssessmentRowV1",
+        "PERSISTENT_MODEL:EvidenceQualityMutationReceiptRowV1",
+        "PERSISTENT_MODEL:EvidenceQualityRuleSetRowV1",
+        "PERSISTENT_MODEL:EvidenceQualityWaiverRowV1",
+    ])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV47"])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 4, derivedKindIDs.count == 1,
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              durableKindIDs.union(derivedKindIDs)
+                .allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+
+    static let historicWarningsAndWaiversAreImmutable = true
+    static let changedEvidenceOrRulesInvalidateWithoutRewrite = true
+    static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+}
+
 enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let persistentKindCount = 0
     static let lifecycleEnrollmentCount = 0

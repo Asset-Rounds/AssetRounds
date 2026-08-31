@@ -1634,6 +1634,64 @@ struct V39BackupServiceReliabilityReceiptRecordV1: Codable, Equatable, Sendable 
     }
 }
 
+/// C10 transports the four immutable canonical families together.  Splitting
+/// these facts would permit a restore to retain a waiver without its exact
+/// assessment/rule/receipt provenance, so the envelope is closed and
+/// validates the complete append-only chain before export or restore.
+struct EvidenceQualityBackupEffectProvenanceV1: Codable, Equatable, Sendable {
+    let mutationID: UUID
+    let writerInstanceID: UUID
+
+    init(mutationID: UUID, writerInstanceID: UUID) throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        guard mutationID != zero, writerInstanceID != zero else {
+            throw EvidenceQualityPersistenceFailureV1.corruptRow
+        }
+        self.mutationID = mutationID
+        self.writerInstanceID = writerInstanceID
+    }
+}
+
+struct EvidenceQualityBackupSnapshotV1: Codable, Equatable, Sendable {
+    let ruleSets: [EvidenceQualityRuleSetV1]
+    let assessments: [EvidenceQualityAssessmentV1]
+    let waivers: [EvidenceQualityWaiverV1]
+    let receipts: [EvidenceQualityMutationReceiptV1]
+    let effectProvenance: [EvidenceQualityBackupEffectProvenanceV1]
+
+    init(ruleSets: [EvidenceQualityRuleSetV1], assessments: [EvidenceQualityAssessmentV1],
+         waivers: [EvidenceQualityWaiverV1], receipts: [EvidenceQualityMutationReceiptV1],
+         effectProvenance: [EvidenceQualityBackupEffectProvenanceV1]) throws {
+        let snapshot = EvidenceQualityLifecycleAdapterV1.Snapshot(
+            ruleSets: ruleSets, assessments: assessments, waivers: waivers, receipts: receipts
+        )
+        try EvidenceQualityLifecycleAdapterV1.validate(snapshot)
+        self.ruleSets = snapshot.ruleSets
+        self.assessments = snapshot.assessments
+        self.waivers = snapshot.waivers
+        self.receipts = snapshot.receipts
+        let values = effectProvenance.sorted { $0.mutationID.uuidString < $1.mutationID.uuidString }
+        let effectMutationIDs = snapshot.ruleSets.map(\.mutationID.rawValue)
+            + snapshot.assessments.map(\.mutationID.rawValue)
+            + snapshot.waivers.map(\.mutationID.rawValue)
+        let sortedEffectMutationIDs = effectMutationIDs.sorted(by: { $0.uuidString < $1.uuidString })
+        guard Set(values.map(\.mutationID)).count == values.count,
+              Set(effectMutationIDs).count == effectMutationIDs.count,
+              values.map(\.mutationID) == sortedEffectMutationIDs else {
+            throw EvidenceQualityPersistenceFailureV1.receiptMismatch
+        }
+        self.effectProvenance = values
+    }
+
+    func validate() throws {
+        try EvidenceQualityLifecycleAdapterV1.validate(.init(
+            ruleSets: ruleSets, assessments: assessments, waivers: waivers, receipts: receipts
+        ))
+        _ = try Self(ruleSets: ruleSets, assessments: assessments, waivers: waivers,
+                     receipts: receipts, effectProvenance: effectProvenance)
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -1704,6 +1762,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let importMappingProfiles: [ImportMappingProfileV1]
     let bulkSessions: [BulkSessionV1]
     let bulkCommitReceipts: [BulkCommitReceiptV1]
+    /// C10 immutable advisory assessment provenance. It contains no original
+    /// media bytes and no derived rebuild/search/report projection.
+    var evidenceQuality: EvidenceQualityBackupSnapshotV1?
     /// C55 is transported as the one canonical snapshot owned by PartsStock.
     /// Its seven durable families must never be split into a parallel archive.
     let partsStockSnapshot: PartsStockBackupSnapshotV1?
@@ -1812,7 +1873,8 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         roundSessions: [RoundSessionV1] = [],
         importMappingProfiles: [ImportMappingProfileV1] = [],
         bulkSessions: [BulkSessionV1] = [],
-        bulkCommitReceipts: [BulkCommitReceiptV1] = []
+        bulkCommitReceipts: [BulkCommitReceiptV1] = [],
+        evidenceQuality: EvidenceQualityBackupSnapshotV1? = nil
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -1850,6 +1912,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.importMappingProfiles = importMappingProfiles
         self.bulkSessions = bulkSessions
         self.bulkCommitReceipts = bulkCommitReceipts
+        self.evidenceQuality = evidenceQuality
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -1899,7 +1962,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
           case qualifiedServiceExposures, serviceReliabilityReceipts
           case partsStockSnapshot, myDayPlans, myDayCarryoverReceipts, nonactivePlanReferences
           case evidenceAssociationEvents, evidenceSequenceRevisions, shopReportProfiles, roundSessions
-          case importMappingProfiles, bulkSessions, bulkCommitReceipts
+          case importMappingProfiles, bulkSessions, bulkCommitReceipts, evidenceQuality
     }
 
     init(from decoder: Decoder) throws {
@@ -2082,7 +2145,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             ) ?? [],
             bulkCommitReceipts: try values.decodeIfPresent(
                 [BulkCommitReceiptV1].self, forKey: .bulkCommitReceipts
-            ) ?? []
+            ) ?? [],
+            evidenceQuality: try values.decodeIfPresent(
+                EvidenceQualityBackupSnapshotV1.self, forKey: .evidenceQuality
+            )
         )
     }
 }
@@ -2240,8 +2306,12 @@ enum C05RoundSessionBackupEnrollmentV1 {
 /// previews, scratch leases, and correction staging are deliberately never
 /// backed up or restored.
 enum C08ImportBulkBackupEnrollmentV1 {
-    static let persistentSchemaVersion = 46
-    static let recordsSchemaVersion = 45
+    static let persistentSchemaVersion = EvidenceQualitySchemaV1.schemaVersion
+    /// V46 is the first records envelope that can carry C10's closed
+    /// immutable provenance snapshot. V45 packages remain valid legacy C08
+    /// packages and are decoded through the bounded compatibility range.
+    static let legacyRecordsSchemaVersion = 45
+    static let recordsSchemaVersion = 46
     static let durableFamilyCount = 3
     static let canonicalRowKinds = [
         "ImportMappingProfileRowV1",
@@ -2250,7 +2320,7 @@ enum C08ImportBulkBackupEnrollmentV1 {
     ]
 
     static func validate(_ records: V4BackupRecordsV1) throws {
-        if records.recordsSchemaVersion < recordsSchemaVersion {
+        if records.recordsSchemaVersion < legacyRecordsSchemaVersion {
             guard records.importMappingProfiles.isEmpty,
                   records.bulkSessions.isEmpty,
                   records.bulkCommitReceipts.isEmpty else {
@@ -2258,7 +2328,8 @@ enum C08ImportBulkBackupEnrollmentV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion == recordsSchemaVersion,
+        guard (legacyRecordsSchemaVersion...recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion),
               durableFamilyCount == canonicalRowKinds.count else {
             throw ImportBulkFailureV1.invalidValue
         }
@@ -2279,6 +2350,25 @@ enum C08ImportBulkBackupEnrollmentV1 {
               receiptKeys == receiptKeys.sorted(), Set(receiptKeys).count == receiptKeys.count else {
             throw ImportBulkFailureV1.invalidValue
         }
+    }
+}
+
+enum EvidenceQualityBackupEnrollmentV1 {
+    static let persistentSchemaVersion = EvidenceQualitySchemaV1.schemaVersion
+    static let recordsSchemaVersion = C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
+    static let durableFamilyCount = 4
+    static let cloneAndForkRequireEmptySnapshot = true
+    static let retainsHistoricWarningsAndWaivers = true
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard persistentSchemaVersion == 47,
+              recordsSchemaVersion == 46,
+              durableFamilyCount == EvidenceQualitySchemaV1.durableModelCount,
+              cloneAndForkRequireEmptySnapshot,
+              retainsHistoricWarningsAndWaivers else {
+            throw EvidenceQualityFailureV1.invalidValue
+        }
+        try records.evidenceQuality?.validate()
     }
 }
 

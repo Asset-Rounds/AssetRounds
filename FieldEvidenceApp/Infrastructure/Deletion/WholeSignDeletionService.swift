@@ -5,7 +5,7 @@ import Foundation
 enum C50IncumbentFileExchangeWholeSignDeletionServiceBoundaryV1 {
     static func clearSceneRouteState(using adapter: SceneNavigationStateAdapterV1) throws {
         guard C34SceneNavigationCompatibilityBoundaryV1.validate() else {
-            throw WholeSignDeletionServiceError.invalidAuthority
+            throw WholeSignDeletionServiceError.graphInvalid
         }
         try adapter.erase()
     }
@@ -39,6 +39,24 @@ enum C49WorkResourceWholeSignDeletionServiceBoundaryV1 {
     static let fetchesNoWorkResourceRowsForCascade = true
     static let ordinaryDeletePreservesAcceptedRows = true
     static let voidAndReversalRemainWriterMutations = true
+}
+
+/// C10 is deliberately absent from ordinary asset/site cascades: its immutable
+/// assessment, warning, and waiver provenance remains historic truth. The
+/// existing workspace Erase generation replacement removes these rows and is
+/// verified by EvidenceQualityEraseAllPolicyV1.
+enum EvidenceQualityWholeSignDeletionPolicyV1 {
+    static let ordinaryAssetAndSiteDeletionPreservesHistory = true
+    static let wholeWorkspaceEraseUsesEraseAllService = true
+    static let ordinaryDeletionFetchesNoEvidenceQualityRows = true
+
+    static func validate() throws {
+        guard ordinaryAssetAndSiteDeletionPreservesHistory,
+              wholeWorkspaceEraseUsesEraseAllService,
+              ordinaryDeletionFetchesNoEvidenceQualityRows else {
+            throw WholeSignDeletionServiceError.graphInvalid
+        }
+    }
 }
 
 enum C31LightingWholeSignDeletionServiceBoundaryV1 {
@@ -667,6 +685,7 @@ final class WholeSignDeletionService {
 
     func delete(assetID: UUID) async throws -> WholeSignDeletionOutcome {
         try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
+        try EvidenceQualityWholeSignDeletionPolicyV1.validate()
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
@@ -833,6 +852,7 @@ final class WholeSignDeletionService {
         preview: ExplicitSiteDeletionPreviewV1
     ) async throws -> ExplicitSiteDeletionOutcomeV1 {
         try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
+        try EvidenceQualityWholeSignDeletionPolicyV1.validate()
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges

@@ -1604,6 +1604,9 @@ private extension EraseAllService {
         try C05RoundSessionEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        try EvidenceQualityEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
@@ -2887,4 +2890,16 @@ extension EraseAllService {
 }
 
 enum C45AcceptedLabelEraseAllBoundaryV1 { static let deletesAcceptedSnapshotRows=true;static let deletesLeasedLabelScratch=true }
+
+enum EvidenceQualityEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<EvidenceQualityRuleSetRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<EvidenceQualityAssessmentRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<EvidenceQualityWaiverRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<EvidenceQualityMutationReceiptRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try EvidenceQualityKernelDeletionEraseEnrollmentV1.validate()
+    }
+}
 // C52_BOUNDARY_ANCHOR: canonical-service-request-erase

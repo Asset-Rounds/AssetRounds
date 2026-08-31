@@ -5756,6 +5756,107 @@ enum EvidenceCurationLocalizationPolicyV1 {
     }
 }
 
+// MARK: - C10 evidence quality coach presentation
+
+/// Closed system-copy vocabulary for the contained C10 coach. User-authored
+/// content is supplied separately by the view state and is never made into a
+/// localization key.
+enum EvidenceQualityCoachLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case heading = "evidence.quality.coach.heading"
+    case introduction = "evidence.quality.coach.introduction"
+    case warning = "evidence.quality.coach.warning"
+    case input = "evidence.quality.coach.input"
+    case threshold = "evidence.quality.coach.threshold"
+    case remedy = "evidence.quality.coach.remedy"
+    case ruleVersion = "evidence.quality.coach.rule_version"
+    case retake = "evidence.quality.coach.retake"
+    case retakeHint = "evidence.quality.coach.retake.hint"
+    case acceptWithReason = "evidence.quality.coach.accept_with_reason"
+    case acceptWithReasonHint = "evidence.quality.coach.accept_with_reason.hint"
+    case reasonHeading = "evidence.quality.coach.reason.heading"
+    case reasonEvidenceUnavailable = "evidence.quality.coach.reason.evidence_unavailable"
+    case reasonConditionsChanged = "evidence.quality.coach.reason.conditions_changed"
+    case reasonRetakeNotPossible = "evidence.quality.coach.reason.retake_not_possible"
+    case limitationHeading = "evidence.quality.coach.limitation.heading"
+    case limitationRequired = "evidence.quality.coach.limitation.required"
+    case cancel = "evidence.quality.coach.cancel"
+    case cancelHint = "evidence.quality.coach.cancel.hint"
+    case reasonRequired = "evidence.quality.coach.reason.required"
+    case unavailableHeading = "evidence.quality.coach.unavailable.heading"
+    case unavailable = "evidence.quality.coach.unavailable"
+    case unavailableCorrupt = "evidence.quality.coach.unavailable.corrupt"
+    case unavailableStale = "evidence.quality.coach.unavailable.stale"
+    case unavailableCancelled = "evidence.quality.coach.unavailable.cancelled"
+    case unavailableProtected = "evidence.quality.coach.unavailable.protected"
+    case unavailableOffline = "evidence.quality.coach.unavailable.offline"
+    case unavailableStorage = "evidence.quality.coach.unavailable.storage"
+    case reducedMotion = "evidence.quality.coach.reduced_motion"
+    case originalPreserved = "evidence.quality.coach.original_preserved"
+
+    var localizationKey: LocalizationKeyV1 { try! LocalizationKeyV1(rawValue) }
+}
+
+enum EvidenceQualityCoachLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let semanticNamespace = "v23.p04.c10.evidence-quality-coach"
+    static let keys = EvidenceQualityCoachLocalizationKeyV1.allCases.map(\.rawValue).sorted()
+    static let closedReasonsOnly = true
+    static let noAutomaticRequirementJudgment = true
+    static let opaqueConfidenceProhibited = true
+    static let uiAdoptionClaimed = false
+
+    static func english(_ key: EvidenceQualityCoachLocalizationKeyV1) -> String {
+        switch key {
+        case .heading: return "Evidence quality review"
+        case .introduction: return "Review each recorded warning and choose a next step. This review does not change any requirement outcome."
+        case .warning: return "Warning"
+        case .input: return "Recorded input"
+        case .threshold: return "Rule threshold"
+        case .remedy: return "Suggested retake"
+        case .ruleVersion: return "Rule version"
+        case .retake: return "Retake evidence"
+        case .retakeHint: return "Starts a new capture attempt; the original evidence remains unchanged."
+        case .acceptWithReason: return "Accept with reason"
+        case .acceptWithReasonHint: return "Records the selected closed reason through the supplied coordinator action."
+        case .reasonHeading: return "Reason"
+        case .reasonEvidenceUnavailable: return "Required evidence is unavailable"
+        case .reasonConditionsChanged: return "Capture conditions have changed"
+        case .reasonRetakeNotPossible: return "A retake cannot be completed now"
+        case .limitationHeading: return "Recorded limitation"
+        case .limitationRequired: return "This reason requires the stated limitation to be included."
+        case .cancel: return "Cancel"
+        case .cancelHint: return "Closes this review and preserves the original evidence."
+        case .reasonRequired: return "Choose a reason before continuing."
+        case .unavailableHeading: return "Quality review unavailable"
+        case .unavailable: return "The quality review is unavailable."
+        case .unavailableCorrupt: return "The recorded quality data cannot be read."
+        case .unavailableStale: return "The recorded quality data is stale and needs a new review."
+        case .unavailableCancelled: return "The quality review was cancelled before it produced a reviewable result."
+        case .unavailableProtected: return "Unlock this device to review protected recorded data."
+        case .unavailableOffline: return "A local review is unavailable while this device is offline."
+        case .unavailableStorage: return "There is not enough local storage to prepare this review."
+        case .reducedMotion: return "Motion is reduced."
+        case .originalPreserved: return "Cancelling keeps the original evidence unchanged."
+        }
+    }
+
+    static func validate() throws {
+        let values = EvidenceQualityCoachLocalizationKeyV1.allCases
+        let rawValues = values.map(\.rawValue)
+        guard sourceLocale == "en", shippingLocale == "en",
+              rawValues.count == Set(rawValues).count,
+              Set(rawValues) == Set(keys),
+              values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty && !english($0).isEmpty }),
+              closedReasonsOnly,
+              noAutomaticRequirementJudgment,
+              opaqueConfidenceProhibited,
+              !uiAdoptionClaimed else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
 // MARK: - C03 illuminated-sign playbook presentation
 
 enum IlluminatedSignPlaybookLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {

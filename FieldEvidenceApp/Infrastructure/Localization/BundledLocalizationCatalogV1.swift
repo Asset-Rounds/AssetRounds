@@ -3514,6 +3514,46 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+// MARK: - C10 evidence quality coach catalog
+
+extension BundledLocalizationCatalogV1 {
+    static func evidenceQualityCoachEnglish(_ key: EvidenceQualityCoachLocalizationKeyV1) -> String {
+        EvidenceQualityCoachLocalizationPolicyV1.english(key)
+    }
+
+    static func evidenceQualityCoachLocalized(
+        _ key: EvidenceQualityCoachLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: evidenceQualityCoachEnglish(key),
+            bundle: bundle,
+            locale: locale,
+            comment: "C10 contained evidence-quality coach system copy; describes recorded warnings without an automatic requirement judgment."
+        )
+    }
+
+    static func evidenceQualityCoachRegistry() throws -> LocalizationKeyRegistryV1 {
+        try EvidenceQualityCoachLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = EvidenceQualityCoachLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C10 contained evidence-quality coach system copy; describes recorded warnings without an automatic requirement judgment.",
+                englishDefaultValue: evidenceQualityCoachEnglish(key),
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 extension BundledLocalizationCatalogV1 { static func importBulkPreviewLocalized(_ key: ImportBulkPreviewLocalizationKeyV1, bundle: Bundle = .main, locale: Locale = .current) -> String { String(localized: key.rawValue, defaultValue: key.english, bundle: bundle, locale: locale, comment: "C08 preview-only presentation; no write claim.") } }
 
 extension BundledLocalizationCatalogV1 {

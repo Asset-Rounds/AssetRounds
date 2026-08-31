@@ -163,6 +163,9 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case packet
     case report
     case deletionLedgerEntry
+    case evidenceQualityRuleSet
+    case evidenceQualityAssessment
+    case evidenceQualityWaiverEvent
 }
 
 struct WorkspaceEntityIdentityV1: Codable, Hashable, Sendable {
@@ -2632,6 +2635,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyShopReportProfile(ShopReportProfileMutationV1)
     case applyRoundSession(RoundSessionMutationV1)
     case applyImportBulk(ImportBulkWorkspaceMutationV1)
+    case applyEvidenceQuality(EvidenceQualityMutationCommandV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2689,6 +2693,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyShopReportProfile:.applyShopReportProfile
         case .applyRoundSession:.applyRoundSession
         case .applyImportBulk: .applyImportBulk
+        case .applyEvidenceQuality: .applyEvidenceQuality
         }
     }
 }
@@ -2748,6 +2753,23 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyShopReportProfile="apply_shop_report_profile_v1"
     case applyRoundSession="apply_round_session_v1"
     case applyImportBulk="apply_import_bulk_v1"
+    case applyEvidenceQuality="apply_evidence_quality_v1"
+}
+
+extension EvidenceQualityMutationCommandV1 {
+    /// One immutable C10 event maps to one family-qualified writer target.
+    /// The journal receipt is intentionally not an independent target/store.
+    func affectedIdentityForCanonicalWriter() throws -> WorkspaceEntityIdentityV1 {
+        try validate()
+        switch payload {
+        case let .putRuleSet(value):
+            return try .init(kind: .evidenceQualityRuleSet, id: value.ruleSetID)
+        case let .recordAssessment(value):
+            return try .init(kind: .evidenceQualityAssessment, id: value.assessmentID)
+        case let .recordWaiver(value):
+            return try .init(kind: .evidenceQualityWaiverEvent, id: value.waiverEventID)
+        }
+    }
 }
 
 extension WorkspaceCommandV1 {
@@ -3555,6 +3577,8 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyServiceReliability,disposition:.compensatable,stableReason:"append_incident_impact_cause_remedy_repair_restoration_or_exposure_successor_only"),
         .init(commandKind:.applyShopReportProfile,disposition:.compensatable,stableReason:"append_shop_report_profile_successor_only"),
         .init(commandKind:.applyRoundSession,disposition:.compensatable,stableReason:"append_round_session_successor_only"),
+        .init(commandKind:.applyImportBulk,disposition:.compensatable,stableReason:"incumbent_import_bulk_append_or_replace_contract"),
+        .init(commandKind:.applyEvidenceQuality,disposition:.irreversible,stableReason:"immutable_evidence_quality_assessment_and_waiver_history_forward_fix_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {

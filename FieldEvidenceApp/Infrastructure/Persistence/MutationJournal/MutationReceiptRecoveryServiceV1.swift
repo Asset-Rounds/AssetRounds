@@ -123,6 +123,11 @@ final class MutationReceiptRecoveryServiceV1 {
         }
         try recoverBeforeWriterActivation()
     }
+    /// C10 adopts an effect only after the incumbent journal validates the one
+    /// business row, its typed receipt, and its generic mutation receipt.
+    func recoverEvidenceQualityEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{

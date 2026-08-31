@@ -2728,6 +2728,10 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
+        // Existing normalization copies predate C10. Reattach the closed,
+        // immutable snapshot after those copies; clone/fork admission is
+        // deliberately decided by the later C10 materialization branch.
+        normalized.evidenceQuality = records.evidenceQuality
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2743,7 +2747,7 @@ private extension BackupRestoreService {
         guard resetsLocalSequence, history.lastLocalSequence != 0 else {
             return normalized
         }
-        return replacingMutationHistoryForCurrentWriter(
+        var reset = replacingMutationHistoryForCurrentWriter(
             in: normalized,
             with: MutationHistorySnapshotV1(
                 workspaceRevision: history.workspaceRevision,
@@ -2753,6 +2757,8 @@ private extension BackupRestoreService {
                 entityRevisions: history.entityRevisions
             )
         )
+        reset.evidenceQuality = records.evidenceQuality
+        return reset
     }
 
     func rebindingAcceptedLabelSnapshots(
@@ -8676,6 +8682,7 @@ private extension BackupRestoreService {
                 || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion
                 || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
                 == (records.mutationHistory != nil) else {
             throw BackupRestoreServiceError.invalidPackage
@@ -8707,6 +8714,7 @@ private extension BackupRestoreService {
              (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
              (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _),
+             (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion, let ledger?, _),
              (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, _):
             do {
                 try ledger.validate()
@@ -9721,7 +9729,7 @@ private extension BackupRestoreService {
         } else if !records.roundSessions.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
         }
-        if records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion {
+        if records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion {
             do {
                 try C08ImportBulkBackupImportBoundaryV1.validate(records)
                 if let identityDecision {
@@ -9760,6 +9768,79 @@ private extension BackupRestoreService {
             catch { throw BackupRestoreServiceError.invalidPackage }
         } else if !records.importMappingProfiles.isEmpty || !records.bulkSessions.isEmpty || !records.bulkCommitReceipts.isEmpty {
             throw BackupRestoreServiceError.invalidPackage
+        }
+        if let evidenceQuality = records.evidenceQuality {
+            do {
+                try evidenceQuality.validate()
+                if let identityDecision {
+                    switch identityDecision.mode {
+                    case .clone, .fork:
+                        guard evidenceQuality.ruleSets.isEmpty,
+                              evidenceQuality.assessments.isEmpty,
+                              evidenceQuality.waivers.isEmpty,
+                              evidenceQuality.receipts.isEmpty,
+                              evidenceQuality.effectProvenance.isEmpty else {
+                            // Immutable C10 facts bind both workspace identity and
+                            // original evidence/rule bytes. Clone/fork has no
+                            // sanctioned rebinding transformation.
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                    case .emptyInstall, .replaceExisting:
+                        break
+                    }
+                }
+                let workspaceID = identityDecision?.targetPointer.workspaceID
+                    ?? legacyDestinationIdentity.workspaceID.rawValue
+                guard evidenceQuality.ruleSets.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      evidenceQuality.assessments.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      evidenceQuality.waivers.allSatisfy({ $0.workspaceID.rawValue == workspaceID }),
+                      evidenceQuality.receipts.allSatisfy({ $0.workspaceID.rawValue == workspaceID }) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let receipts = Dictionary(uniqueKeysWithValues: evidenceQuality.receipts.map { ($0.mutationID.rawValue, $0) })
+                let writerInstances = Dictionary(uniqueKeysWithValues: evidenceQuality.effectProvenance.map {
+                    ($0.mutationID, $0.writerInstanceID)
+                })
+                var ruleSets: [UUID: EvidenceQualityRuleSetV1] = [:]
+                for value in evidenceQuality.ruleSets {
+                    guard let receipt = receipts[value.mutationID.rawValue],
+                          let writerInstanceID = writerInstances[value.mutationID.rawValue] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try EvidenceQualityRuleSetRowV1(
+                        restoring: value, receipt: receipt, writerInstanceID: writerInstanceID
+                    ))
+                    ruleSets[value.ruleSetID] = value
+                }
+                var assessments: [UUID: EvidenceQualityAssessmentV1] = [:]
+                for value in evidenceQuality.assessments {
+                    guard let ruleSet = ruleSets[value.ruleSetID],
+                          let receipt = receipts[value.mutationID.rawValue],
+                          let writerInstanceID = writerInstances[value.mutationID.rawValue] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try EvidenceQualityAssessmentRowV1(
+                        restoring: value, ruleSet: ruleSet, receipt: receipt,
+                        writerInstanceID: writerInstanceID
+                    ))
+                    assessments[value.assessmentID] = value
+                }
+                for value in evidenceQuality.waivers {
+                    guard let assessment = assessments[value.assessmentID],
+                          let receipt = receipts[value.mutationID.rawValue],
+                          let writerInstanceID = writerInstances[value.mutationID.rawValue] else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                    context.insert(try EvidenceQualityWaiverRowV1(
+                        restoring: value, assessment: assessment, receipt: receipt,
+                        writerInstanceID: writerInstanceID
+                    ))
+                }
+                for receipt in evidenceQuality.receipts {
+                    context.insert(try EvidenceQualityMutationReceiptRowV1(receipt))
+                }
+            } catch let error as BackupRestoreServiceError { throw error }
+            catch { throw BackupRestoreServiceError.invalidPackage }
         }
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
             do {

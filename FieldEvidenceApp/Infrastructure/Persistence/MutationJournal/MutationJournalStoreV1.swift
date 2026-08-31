@@ -452,6 +452,7 @@ final class MutationJournalStoreV1 {
         if case let .applyShopReportProfile(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyRoundSession(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyImportBulk(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyEvidenceQuality(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentityForCanonicalWriter()]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command{try plan.validate();try validateAssetPlacementPoseReferences(plan);guard let expected=try envelope.command.canonicalLocationAffectedIdentities(),affectedEntities==expected else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command{for plan in change.placementChanges{try plan.validate();try validateAssetPlacementPoseReferences(plan)}}
         let state = try requireState()
@@ -470,6 +471,7 @@ final class MutationJournalStoreV1 {
         if case let .applyShopReportProfile(mutation)=envelope.command{let concurrency=try mutation.concurrencyIdentity;guard expectedByIdentity[concurrency]==mutation.expectedRevision,currentByIdentity[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applyRoundSession(mutation)=envelope.command{let concurrency=try mutation.concurrencyIdentity;guard expectedByIdentity[concurrency]==mutation.expectedRevision,currentByIdentity[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applyImportBulk(mutation)=envelope.command{let concurrency=try mutation.concurrencyIdentity;guard expectedByIdentity[concurrency]==mutation.expectedRevision,currentByIdentity[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
+        if case let .applyEvidenceQuality(mutation)=envelope.command{let concurrency=try mutation.affectedIdentityForCanonicalWriter();guard let expected=expectedByIdentity[concurrency],currentByIdentity[concurrency,default:0]==expected else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applySchedule(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyPlan(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyPlacementPose(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
@@ -549,6 +551,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyShopReportProfile(mutation)=envelope.command{concurrencyIdentity=try mutation.concurrencyIdentity
             }else if case let .applyRoundSession(mutation)=envelope.command{concurrencyIdentity=try mutation.concurrencyIdentity
             }else if case let .applyImportBulk(mutation)=envelope.command{concurrencyIdentity=try mutation.concurrencyIdentity
+            }else if case let .applyEvidenceQuality(mutation)=envelope.command{concurrencyIdentity=try mutation.affectedIdentityForCanonicalWriter()
             }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             } else {
@@ -577,6 +580,10 @@ final class MutationJournalStoreV1 {
                 expectedRevision = mutation.expectedRevision
             } else if case let .applyImportBulk(mutation) = envelope.command {
                 expectedRevision = mutation.expectedRevision
+            } else if case let .applyEvidenceQuality(mutation) = envelope.command {
+                let concurrency = try mutation.affectedIdentityForCanonicalWriter()
+                guard let revision = expectedByIdentity[concurrency] else { throw WorkspaceMutationFailureV1.invalidCommand }
+                expectedRevision = revision
             } else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
@@ -654,6 +661,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyShopReportProfile(mutation)=envelope.command{initialRevision=mutation.profile.revision
                 }else if case let .applyRoundSession(mutation)=envelope.command{initialRevision=mutation.session.revision
                 }else if case let .applyImportBulk(mutation)=envelope.command{initialRevision=mutation.expectedRevision + 1
+                }else if case let .applyEvidenceQuality(mutation)=envelope.command{let identity=try mutation.affectedIdentityForCanonicalWriter();initialRevision=(expectedByIdentity[identity] ?? 0) + 1
                 }else if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 } else {
@@ -756,6 +764,7 @@ final class MutationJournalStoreV1 {
         if case let .applyShopReportProfile(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyRoundSession(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyImportBulk(mutation)=envelope.command{guard postImages.count == 1, (try postImages[0].identity) == (try mutation.affectedIdentity), postImages[0].revision == mutation.expectedRevision + 1 else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyEvidenceQuality(mutation)=envelope.command{let identity=try mutation.affectedIdentityForCanonicalWriter();guard postImages.count == 1,postImages[0].identity == identity,postImages[0].revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let after = try currentRevision(writerInstanceID: writerInstanceID)
@@ -1075,6 +1084,24 @@ final class MutationJournalStoreV1 {
     func assetLocatorMutation(mutationID:MutationIDV1)throws->AssetLocatorMutationV1?{let key=MutationWorkspaceKeyV1.value(workspaceID:identity.workspaceID,mutationID:mutationID),rows=try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate:#Predicate{$0.workspaceMutationKey==key}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};guard let row=rows.first else{return nil};_ = try validate(row:row,expectedEnvelope:nil);let envelope=try MutationEnvelopeV1.decodeCanonical(from:row.envelopeData);guard case let .applyAssetLocator(mutation)=envelope.command else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};try mutation.validate();return mutation}
     func acceptedEvidenceMetadataMutation(_ mutation:EvidenceMetadataMutationV1)throws->EvidenceMetadataMutationReceiptV1?{guard let receipt=try receipt(mutationID:mutation.mutationID)else{return nil};guard try evidenceMetadataMutation(mutationID:mutation.mutationID)==mutation else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try EvidenceMetadataMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
     func evidenceMetadataMutation(mutationID:MutationIDV1)throws->EvidenceMetadataMutationV1?{let key=MutationWorkspaceKeyV1.value(workspaceID:identity.workspaceID,mutationID:mutationID),rows=try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate:#Predicate{$0.workspaceMutationKey==key}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};guard let row=rows.first else{return nil};_ = try validate(row:row,expectedEnvelope:nil);let envelope=try MutationEnvelopeV1.decodeCanonical(from:row.envelopeData);guard case let .applyEvidenceMetadata(mutation)=envelope.command else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};try mutation.validate();return mutation}
+    func evidenceQualityReceipt(_ command: EvidenceQualityMutationCommandV1) throws -> EvidenceQualityMutationReceiptV1? {
+        try command.validate()
+        guard let genericReceipt = try receipt(mutationID: command.mutationID) else { return nil }
+        let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: command.mutationID)
+        let genericRows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate: #Predicate { $0.workspaceMutationKey == key }))
+        guard genericRows.count == 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: genericRows[0].envelopeData)
+        guard case let .applyEvidenceQuality(recorded) = envelope.command, recorded == command,
+              genericReceipt.mutationID == command.mutationID else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let rows = try modelContext.fetch(FetchDescriptor<EvidenceQualityMutationReceiptRowV1>())
+        let values = try rows.map { try $0.value() }.filter { $0.mutationID == command.mutationID }
+        guard values.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard let value = values.first else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        try value.validate(command: command)
+        return value
+    }
 
     func shopReportProfileMutation(mutationID: MutationIDV1) throws -> ShopReportProfileMutationV1? {
         let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: mutationID)
@@ -2251,6 +2278,7 @@ final class MutationJournalStoreV1 {
         if case let .applyShopReportProfile(mutation)=envelope.command{try mutation.validate()}
         if case let .applyRoundSession(mutation)=envelope.command{try mutation.validate()}
         if case let .applyImportBulk(mutation)=envelope.command{try mutation.validate()}
+        if case let .applyEvidenceQuality(mutation)=envelope.command{try mutation.validate()}
         let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
         guard row.mutationID == envelope.mutationID.rawValue,
               row.workspaceID == envelope.workspaceID.rawValue,
@@ -2352,6 +2380,8 @@ final class MutationJournalStoreV1 {
             return try shopReportProfilePostImage(identity: identity, revision: revision)
         case .roundSession:
             return try roundSessionPostImage(identity: identity, revision: revision)
+        case .evidenceQualityRuleSet, .evidenceQualityAssessment, .evidenceQualityWaiverEvent:
+            return try evidenceQualityPostImage(identity: identity, revision: revision)
         case .localPartDefinition: let rows=try modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).filter{$0.partID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.localPartDefinition,concurrencyIdentity:identity,revision:v.revision,semanticSHA256:v.partSHA256)
         case .stockStorageLocation: let rows=try modelContext.fetch(FetchDescriptor<StockStorageLocationRowV1>()).filter{$0.locationID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockStorageLocation,concurrencyIdentity:identity,revision:v.revision,semanticSHA256:try PartsStockCanonicalCodecV1.sha256(v))
         case .stockMovementEvent: let rows=try modelContext.fetch(FetchDescriptor<StockMovementEventRowV1>()).filter{$0.movementID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockMovementEvent,concurrencyIdentity:try StockBalanceStreamIdentityV1.entity(partID:v.part.partID,locationID:v.locationID),revision:v.locationRevision,semanticSHA256:v.eventSHA256)
@@ -2769,6 +2799,23 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<LightingClaimStateRow>()).map{try .init(kind:.lightingClaimState,id:$0.recordID)}
         identities += try boundedFetch(FetchDescriptor<TemporalEvidenceClipRow>()).map{try .init(kind:.temporalEvidenceClip,id:$0.clipID)}
         identities += try boundedFetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()).map{try .init(kind:.timecodedEvidenceAnchor,id:$0.anchorID)}
+        identities += try boundedFetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { row in
+            try .init(kind: .evidenceQualityRuleSet, id: try row.value().ruleSetID)
+        }
+        identities += try boundedFetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>()).map { row in
+            let rules = try boundedFetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { try $0.value() }
+            for rule in rules { if let value = try? row.value(ruleSet: rule) { return try .init(kind: .evidenceQualityAssessment, id: value.assessmentID) } }
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        identities += try boundedFetch(FetchDescriptor<EvidenceQualityWaiverRowV1>()).map { row in
+            let rules = try boundedFetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { try $0.value() }
+            let assessments = try boundedFetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>()).map { assessmentRow -> EvidenceQualityAssessmentV1 in
+                for rule in rules { if let value = try? assessmentRow.value(ruleSet: rule) { return value } }
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            for assessment in assessments { if let value = try? row.value(assessment: assessment) { return try .init(kind: .evidenceQualityWaiverEvent, id: value.waiverEventID) } }
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
         identities += try boundedFetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()).filter{row in row.workspaceID==self.identity.workspaceID.rawValue && row.dispositionRawValue==AcceptedLabelSnapshotDispositionV1.activeSourceWorkspace.rawValue}.map{try .init(kind:.acceptedLabelGenerationSnapshot,id:$0.snapshotID)}
         identities += try boundedFetch(FetchDescriptor<ServiceContactPointRow>()).filter{$0.workspaceID==self.identity.workspaceID.rawValue}.map{try .init(kind:.serviceContactPoint,id:$0.contactPointID)}
         identities += try boundedFetch(FetchDescriptor<SystemHandoffIntentRow>()).filter{$0.workspaceID==self.identity.workspaceID.rawValue&&$0.dispositionRawValue==SystemHandoffIntentDispositionV1.activeSourceWorkspace.rawValue}.map{try .init(kind:.systemHandoffIntent,id:$0.intentID)}
@@ -2990,6 +3037,46 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    private func evidenceQualityPostImage(
+        identity: WorkspaceEntityIdentityV1,
+        revision: UInt64
+    ) throws -> MutationPostImageV1 {
+        switch identity.kind {
+        case .evidenceQualityRuleSet:
+            let values = try modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { try $0.value() }
+            guard let value = try exactlyOneOrAbsent(values.filter { $0.ruleSetID == identity.id && $0.revision == revision }) else {
+                return try tombstone(identity, revision)
+            }
+            return try semanticPostImage(identity, revision, value)
+        case .evidenceQualityAssessment:
+            let rules = try modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { try $0.value() }
+            let values = try modelContext.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>()).map { row -> EvidenceQualityAssessmentV1 in
+                for rule in rules { if let value = try? row.value(ruleSet: rule) { return value } }
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard let value = try exactlyOneOrAbsent(values.filter { $0.assessmentID == identity.id && $0.revision == revision }) else {
+                return try tombstone(identity, revision)
+            }
+            return try semanticPostImage(identity, revision, value)
+        case .evidenceQualityWaiverEvent:
+            let rules = try modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { try $0.value() }
+            let assessments = try modelContext.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>()).map { row -> EvidenceQualityAssessmentV1 in
+                for rule in rules { if let value = try? row.value(ruleSet: rule) { return value } }
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let values = try modelContext.fetch(FetchDescriptor<EvidenceQualityWaiverRowV1>()).map { row -> EvidenceQualityWaiverV1 in
+                for assessment in assessments { if let value = try? row.value(assessment: assessment) { return value } }
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard let value = try exactlyOneOrAbsent(values.filter { $0.waiverEventID == identity.id && $0.revision == revision }) else {
+                return try tombstone(identity, revision)
+            }
+            return try semanticPostImage(identity, revision, value)
+        default:
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
     private func authorityConcurrency(
         _ identity: WorkspaceEntityIdentityV1,
         _ predecessorID: UUID?
@@ -3004,6 +3091,8 @@ final class MutationJournalStoreV1 {
         case .evidenceSequenceRevision: return .evidenceSequenceRevision(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .shopReportProfile: return .shopReportProfile(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .roundSession: return .roundSession(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .evidenceQualityRuleSet, .evidenceQualityAssessment, .evidenceQualityWaiverEvent:
+            return .evidenceQuality(id: identity.id, kind: identity.kind, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .localPartDefinition, .stockStorageLocation, .stockMovementEvent, .stockUseReceipt, .stockUseReversalReceipt, .stockReturnReceipt, .stockAbandonment: return .partsStock(id: identity.id, kind: identity.kind, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .myDayPlan: return .myDayPlan(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .myDayCarryoverReceipt: return .myDayCarryoverReceipt(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)

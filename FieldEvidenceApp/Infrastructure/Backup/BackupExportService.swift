@@ -2509,6 +2509,60 @@ private extension BackupExportService {
             .fetch(FetchDescriptor<BulkCommitReceiptRowV1>()).map { try $0.value() }
             .filter { $0.workspaceID == sourceIdentity.workspaceID }
             .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
+        let evidenceQuality: EvidenceQualityBackupSnapshotV1? = try {
+            guard mutationHistory != nil else { return nil }
+            let ruleSetRows = try modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+            let ruleSetValues = try ruleSetRows.map { row in
+                (try row.value(), try EvidenceQualityBackupEffectProvenanceV1(
+                    mutationID: row.mutationID, writerInstanceID: row.writerInstanceID
+                ))
+            }
+            let ruleSets = ruleSetValues.map(\.0)
+            let ruleSetsByID = Dictionary(uniqueKeysWithValues: ruleSets.map { ($0.ruleSetID, $0) })
+            let assessmentRows = try modelContext.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+            let assessmentValues = try assessmentRows
+                .compactMap { row -> (EvidenceQualityAssessmentV1, EvidenceQualityBackupEffectProvenanceV1)? in
+                    for ruleSet in ruleSetsByID.values {
+                        if let value = try? row.value(ruleSet: ruleSet) {
+                            return (value, try EvidenceQualityBackupEffectProvenanceV1(
+                                mutationID: row.mutationID, writerInstanceID: row.writerInstanceID
+                            ))
+                        }
+                    }
+                    return nil
+                }
+            let assessments = assessmentValues.map(\.0)
+            guard assessments.count == assessmentRows.count else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let assessmentsByID = Dictionary(uniqueKeysWithValues: assessments.map { ($0.assessmentID, $0) })
+            let waiverRows = try modelContext.fetch(FetchDescriptor<EvidenceQualityWaiverRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+            let waiverValues = try waiverRows
+                .compactMap { row -> (EvidenceQualityWaiverV1, EvidenceQualityBackupEffectProvenanceV1)? in
+                    for assessment in assessmentsByID.values {
+                        if let value = try? row.value(assessment: assessment) {
+                            return (value, try EvidenceQualityBackupEffectProvenanceV1(
+                                mutationID: row.mutationID, writerInstanceID: row.writerInstanceID
+                            ))
+                        }
+                    }
+                    return nil
+                }
+            let waivers = waiverValues.map(\.0)
+            guard waivers.count == waiverRows.count else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let receipts = try modelContext.fetch(FetchDescriptor<EvidenceQualityMutationReceiptRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+                .map { try $0.value() }
+            return try .init(
+                ruleSets: ruleSets, assessments: assessments, waivers: waivers, receipts: receipts,
+                effectProvenance: ruleSetValues.map(\.1) + assessmentValues.map(\.1) + waiverValues.map(\.1)
+            )
+        }()
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2578,7 +2632,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion,
+                : EvidenceQualityBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2637,7 +2691,8 @@ private extension BackupExportService {
              roundSessions: roundSessions,
              importMappingProfiles: importMappingProfiles,
              bulkSessions: bulkSessions,
-             bulkCommitReceipts: bulkCommitReceipts
+             bulkCommitReceipts: bulkCommitReceipts,
+             evidenceQuality: evidenceQuality
          )
     }
 

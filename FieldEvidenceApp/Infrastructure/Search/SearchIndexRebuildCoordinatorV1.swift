@@ -476,6 +476,46 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                     timestamp: Date(timeIntervalSince1970: 0)
                 )
             }
+        // C10 indexes the three business facts only.  Typed receipts, waiver
+        // limitation text, actor snapshots, and canonical media bytes remain
+        // unindexed so a rebuild cannot disclose advisory-only details.
+        let evidenceQualityRules = try modelContext.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>())
+            .map { try $0.value() }.filter { $0.workspaceID == workspaceID }
+        values += try evidenceQualityRules.map { ruleSet in
+            CanonicalValue(kind: .report,
+                           stableID: try stableKey(kind: .evidenceQualityRuleSet, id: ruleSet.ruleSetID),
+                           display: "Evidence quality rules",
+                           summary: "\(ruleSet.policyVersion) \(ruleSet.ruleSetSHA256)",
+                           breadcrumb: [], status: "advisory", dueAt: nil, timestamp: ruleSet.recordedAt)
+        }
+        let evidenceQualityAssessments = try modelContext.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>())
+            .map { row -> EvidenceQualityAssessmentV1 in
+                for ruleSet in evidenceQualityRules {
+                    if let value = try? row.value(ruleSet: ruleSet) { return value }
+                }
+                throw SearchContractFailureV1.invalidRevision
+            }.filter { $0.workspaceID == workspaceID }
+        values += try evidenceQualityAssessments.map { assessment in
+            CanonicalValue(kind: .report,
+                           stableID: try stableKey(kind: .evidenceQualityAssessment, id: assessment.assessmentID),
+                           display: "Evidence quality assessment",
+                           summary: "\(assessment.evidence.evidenceID) r\(assessment.evidence.evidenceRevision) \(assessment.assessmentSHA256)",
+                           breadcrumb: [], status: "advisory", dueAt: nil, timestamp: assessment.assessedAt)
+        }
+        let evidenceQualityWaivers = try modelContext.fetch(FetchDescriptor<EvidenceQualityWaiverRowV1>())
+            .map { row -> EvidenceQualityWaiverV1 in
+                for assessment in evidenceQualityAssessments {
+                    if let value = try? row.value(assessment: assessment) { return value }
+                }
+                throw SearchContractFailureV1.invalidRevision
+            }.filter { $0.workspaceID == workspaceID }
+        values += try evidenceQualityWaivers.map { waiver in
+            CanonicalValue(kind: .report,
+                           stableID: try stableKey(kind: .evidenceQualityWaiverEvent, id: waiver.waiverEventID),
+                           display: "Evidence quality waiver",
+                           summary: waiver.reason.rawValue,
+                           breadcrumb: [], status: waiver.action.rawValue, dueAt: nil, timestamp: waiver.recordedAt)
+        }
         values += try modelContext.fetch(FetchDescriptor<AcceptedLabelGenerationSnapshotRow>())
             .filter { $0.workspaceID == workspaceID }
             .map { row in

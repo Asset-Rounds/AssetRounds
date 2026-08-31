@@ -645,6 +645,7 @@ enum KernelDeletionEraseRegistryV4 {
         try C04ShopReportProfileKernelDeletionEraseEnrollmentV1.validate()
         try C05RoundSessionKernelDeletionEraseEnrollmentV1.validate()
         try C08ImportBulkKernelDeletionEraseEnrollmentV1.validate()
+        try EvidenceQualityKernelDeletionEraseEnrollmentV1.validate()
         try TemporalEvidenceKernelDeletionEnrollmentV1.validate()
         try AssetLocatorKernelDeletionEnrollmentV1.validate()
         try validateSurveyDefinitionLifecycle()
@@ -932,6 +933,30 @@ enum C08ImportBulkKernelDeletionEraseEnrollmentV1 {
               immutableReceiptHistoryIsPreservedOrArchived,
               committedBatchRollbackIsForbidden,
               workspaceEraseClearsC08Rows else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
+/// C10 assessments, rule snapshots, waiver history, and their typed receipts
+/// are immutable workspace truth. Ordinary sign deletion never rewrites that
+/// history; only an authorized whole-workspace erase clears all four rows.
+enum EvidenceQualityKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = [
+        "EvidenceQualityRuleSetRowV1",
+        "EvidenceQualityAssessmentRowV1",
+        "EvidenceQualityWaiverRowV1",
+        "EvidenceQualityMutationReceiptRowV1",
+    ]
+    static let ordinaryDeletePreservesHistoricAssessmentsAndWaivers = true
+    static let workspaceEraseClearsAllCanonicalFamilies = true
+    static let waiverHistoryIsNeverRewritten = true
+
+    static func validate() throws {
+        guard durableFamilies.count == EvidenceQualitySchemaV1.durableModelCount,
+              ordinaryDeletePreservesHistoricAssessmentsAndWaivers,
+              workspaceEraseClearsAllCanonicalFamilies,
+              waiverHistoryIsNeverRewritten else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

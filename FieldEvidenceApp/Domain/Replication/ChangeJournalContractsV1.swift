@@ -712,6 +712,7 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
         try PlacementPoseJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try EvidenceContextJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try LightingJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
+        try EvidenceQualityJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         let receiptIdentities = try receipt.postImages.map { try $0.identity }
         let locationIdentities = try envelope.command.canonicalLocationAffectedIdentities()
         guard schemaVersion == Self.schemaVersion, envelope.workspaceID == receipt.identity.workspaceID, envelope.replicaID == receipt.identity.replicaID, envelope.mutationID == receipt.mutationID, receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
@@ -826,6 +827,29 @@ enum PlanJournalContractV1{static func validate(envelope:MutationEnvelopeV1,rece
 enum PlacementPoseJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyPlacementPose(mutation)=envelope.command else{return};try mutation.validate();let affected=try mutation.affectedIdentities,images=try mutation.mutationPostImages;guard envelope.commandKind == .applyPlacementPose,envelope.mutationID==mutation.mutationID,receipt.mutationID==mutation.mutationID,receipt.postImages==images,entityChanges.map(\.identity)==affected,entityChanges.map(\.postImage)==images else{throw ChangeJournalFailureV1.tamperedBatch};_ = try PlacementPoseMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}}
 enum EvidenceContextJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyEvidenceContext(operation)=envelope.command else{return};try operation.validate();let affected=try operation.affectedIdentity,image=try operation.mutationPostImage;guard envelope.commandKind == .applyEvidenceContext,envelope.mutationID==operation.mutationID,receipt.mutationID==operation.mutationID,receipt.postImages==[image],entityChanges.map(\.identity)==[affected],entityChanges.map(\.postImage)==[image]else{throw ChangeJournalFailureV1.tamperedBatch};_ = try EvidenceContextMutationReceiptV1(operation:operation,mutationReceipt:receipt)}}
 enum LightingJournalContractV1{static func validate(envelope:MutationEnvelopeV1,receipt:MutationReceiptV1,entityChanges:[EntityChangeV1])throws{guard case let .applyLighting(operation)=envelope.command else{return};try operation.validate();let affected=try operation.affectedIdentity,image=try operation.mutationPostImage;guard envelope.commandKind == .applyLighting,envelope.mutationID==operation.mutationID,receipt.postImages==[image],entityChanges.map(\.identity)==[affected],entityChanges.map(\.postImage)==[image]else{throw ChangeJournalFailureV1.tamperedBatch};_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)}}
+enum EvidenceQualityJournalContractV1 {
+    static func validate(envelope: MutationEnvelopeV1, receipt: MutationReceiptV1,
+                         entityChanges: [EntityChangeV1]) throws {
+        guard case let .applyEvidenceQuality(command) = envelope.command else { return }
+        try command.validate()
+        let target = try command.affectedIdentityForCanonicalWriter()
+        guard let expectedRevision = command.expectedRevision.entityRevisions
+                .first(where: { $0.identity == target })?.revision,
+              expectedRevision < UInt64.max,
+              envelope.commandKind == .applyEvidenceQuality,
+              envelope.mutationID == command.mutationID,
+              receipt.mutationID == command.mutationID,
+              receipt.postImages.count == 1,
+              entityChanges.count == 1,
+              entityChanges[0].identity == target,
+              entityChanges[0].postImage == receipt.postImages[0],
+              try receipt.postImages[0].identity == target,
+              receipt.postImages[0].semanticSHA256 == command.payload.semanticSHA256,
+              receipt.postImages[0].revision == expectedRevision + 1 else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
+    }
+}
 
 struct ChangeBatchV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1

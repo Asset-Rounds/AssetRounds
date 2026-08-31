@@ -1126,6 +1126,7 @@ private extension BackupPackageValidatorV1 {
         try C04ShopReportProfileBackupPackageValidationV1.validate(records, manifest: manifest)
         try C05RoundSessionBackupPackageValidationV1.validate(records, manifest: manifest)
         try C08ImportBulkBackupPackageValidationV1.validate(records, manifest: manifest)
+        try EvidenceQualityBackupEnrollmentV1.validate(records)
         _ = try C48PortableExchangeBackupPackageValidationV2.snapshot(
             manifest: manifest,
             members: members
@@ -4871,7 +4872,9 @@ enum C08ImportBulkBackupPackageValidationV1 {
             try C08ImportBulkBackupEnrollmentV1.validate(records)
             return
         }
-        guard records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion,
+        guard (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion...
+                C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == C08ImportBulkBackupEnrollmentV1.persistentSchemaVersion,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
               let workspaceID = manifest.source.workspaceID else {

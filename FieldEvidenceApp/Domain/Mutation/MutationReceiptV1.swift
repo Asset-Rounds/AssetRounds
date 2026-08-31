@@ -128,6 +128,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case evidenceSequenceRevision(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case shopReportProfile(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case roundSession(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case evidenceQuality(id:UUID,kind:WorkspaceEntityKindV1,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case clientCapabilityProfile(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case clientCapabilityAdmissionDecision(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case packageLifecyclePolicy(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
@@ -256,6 +257,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .evidenceSequenceRevision(id,_,_,_):return try .init(kind:.evidenceSequenceRevision,id:id)
             case let .shopReportProfile(id,_,_,_):return try .init(kind:.shopReportProfile,id:id)
             case let .roundSession(id,_,_,_):return try .init(kind:.roundSession,id:id)
+            case let .evidenceQuality(id,kind,_,_,_):return try .init(kind:kind,id:id)
             case let .clientCapabilityProfile(id,_,_,_):return try .init(kind:.clientCapabilityProfile,id:id)
             case let .clientCapabilityAdmissionDecision(id,_,_,_):return try .init(kind:.clientCapabilityAdmissionDecision,id:id)
             case let .packageLifecyclePolicy(id,_,_,_):return try .init(kind:.packageLifecyclePolicy,id:id)
@@ -335,7 +337,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         case let .partsStock(_,_,_,_,value): return value
         case let .evidenceAssociationEvent(_,_,_,value),
              let .evidenceSequenceRevision(_,_,_,value),
-             let .shopReportProfile(_,_,_,value), let .roundSession(_,_,_,value): return value
+             let .shopReportProfile(_,_,_,value), let .roundSession(_,_,_,value),
+             let .evidenceQuality(_,_,_,_,value): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .exceptionCalendarRelease(_,_,_,value),let .scheduleOverrideEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .myDayPlan(_,_,_,value),let .myDayCarryoverReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value),let .serviceContactPoint(_,_,_,value),let .systemHandoffIntent(_,_,_,value),let .activitySessionEnvelope(_,_,_,value),let .activityStateTransition(_,_,_,value),let .installationTaskResult(_,_,_,value),let .installationAsBuiltSnapshot(_,_,_,value),let .punchReviewBasisSnapshot(_,_,_,value),let .workResourceEntry(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
@@ -437,6 +440,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .evidenceSequenceRevision(_,v,_,_):guard v.kind == .evidenceSequenceRevision else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .shopReportProfile(_,v,_,_):guard v.kind == .shopReportProfile else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .roundSession(_,v,_,_):guard v.kind == .roundSession else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .evidenceQuality(_,kind,v,_,_):guard v.kind == kind else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .clientCapabilityProfile(_,v,_,_):guard v.kind == .clientCapabilityProfile else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .clientCapabilityAdmissionDecision(_,v,_,_):guard v.kind == .clientCapabilityAdmissionDecision else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .packageLifecyclePolicy(_,v,_,_):guard v.kind == .packageLifecyclePolicy else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
@@ -515,7 +519,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         case let .partsStock(_,_,_,value,_): return value
         case let .evidenceAssociationEvent(_,_,value,_),
              let .evidenceSequenceRevision(_,_,value,_),
-             let .shopReportProfile(_,_,value,_), let .roundSession(_,_,value,_): return value
+             let .shopReportProfile(_,_,value,_), let .roundSession(_,_,value,_),
+             let .evidenceQuality(_,_,_,value,_): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .exceptionCalendarRelease(_,_,value,_),let .scheduleOverrideEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .myDayPlan(_,_,value,_),let .myDayCarryoverReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_),let .serviceContactPoint(_,_,value,_),let .systemHandoffIntent(_,_,value,_),let .activitySessionEnvelope(_,_,value,_),let .activityStateTransition(_,_,value,_),let .installationTaskResult(_,_,value,_),let .installationAsBuiltSnapshot(_,_,value,_),let .punchReviewBasisSnapshot(_,_,value,_),let .workResourceEntry(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),

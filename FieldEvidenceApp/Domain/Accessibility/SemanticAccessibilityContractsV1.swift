@@ -2889,6 +2889,61 @@ enum EvidenceCurationAccessibilityPolicyV1 {
     }
 }
 
+// MARK: - C10 evidence quality coach accessibility
+
+/// Stable selectors for the contained C10 coach presentation. They describe
+/// only view elements: the coach is not route-adopted and these are not
+/// evidence, waiver, or requirement identities.
+enum EvidenceQualityCoachAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "v23.p04.c10.evidence-quality-coach.screen"
+    case heading = "v23.p04.c10.evidence-quality-coach.heading"
+    case ruleWarning = "v23.p04.c10.evidence-quality-coach.rule-warning"
+    case ruleInput = "v23.p04.c10.evidence-quality-coach.rule-input"
+    case ruleThreshold = "v23.p04.c10.evidence-quality-coach.rule-threshold"
+    case ruleRemedy = "v23.p04.c10.evidence-quality-coach.rule-remedy"
+    case ruleVersion = "v23.p04.c10.evidence-quality-coach.rule-version"
+    case retake = "v23.p04.c10.evidence-quality-coach.retake"
+    case acceptWithReason = "v23.p04.c10.evidence-quality-coach.accept-with-reason"
+    case reasonPicker = "v23.p04.c10.evidence-quality-coach.reason-picker"
+    case limitation = "v23.p04.c10.evidence-quality-coach.limitation"
+    case cancel = "v23.p04.c10.evidence-quality-coach.cancel"
+    case unavailable = "v23.p04.c10.evidence-quality-coach.unavailable"
+    case actionError = "v23.p04.c10.evidence-quality-coach.action-error"
+}
+
+enum EvidenceQualityCoachAccessibilityPolicyV1 {
+    static let semanticIDs = EvidenceQualityCoachAccessibilityIDV1.allCases.map(\.rawValue)
+    static let dynamicTypeThroughAX5Required = true
+    static let voiceOverRequired = true
+    static let voiceControlRequired = true
+    static let switchControlRequired = true
+    static let keyboardReasonSelectionRequired = true
+    static let errorFocusRequired = true
+    static let contrastWithoutColorRequired = true
+    static let reduceMotionSupported = true
+    static let rtlReadingOrderRequired = true
+    static let routeAdoptionClaimed = false
+    static let uiConformanceClaimed = false
+
+    static func validate() throws {
+        let ids = EvidenceQualityCoachAccessibilityIDV1.allCases.map(\.rawValue)
+        guard ids.count == Set(ids).count,
+              dynamicTypeThroughAX5Required,
+              voiceOverRequired,
+              voiceControlRequired,
+              switchControlRequired,
+              keyboardReasonSelectionRequired,
+              errorFocusRequired,
+              contrastWithoutColorRequired,
+              reduceMotionSupported,
+              rtlReadingOrderRequired,
+              !routeAdoptionClaimed,
+              !uiConformanceClaimed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}
+
 // MARK: - C03 illuminated-sign playbook accessibility
 
 enum IlluminatedSignPlaybookAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
