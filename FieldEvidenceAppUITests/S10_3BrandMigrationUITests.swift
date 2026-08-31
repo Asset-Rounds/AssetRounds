@@ -4921,6 +4921,292 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             }
         }
+        if automationShard?.deviceProfileID
+            == "iphone-se-3-ios-18.0-minimum" {
+            let workQuickPathIntroductionViews =
+                app.descendants(matching: .other).matching(
+                    identifier: "UIContinuousPathIntroductionView"
+                )
+            let workQuickPathIntroductionCount =
+                workQuickPathIntroductionViews.count
+            if workQuickPathIntroductionCount > 0 {
+                let workQuickPathIntroductionView =
+                    workQuickPathIntroductionViews.firstMatch
+                let workQuickPathButtons =
+                    workQuickPathIntroductionView.descendants(
+                        matching: .button
+                    )
+                let workQuickPathStaticTexts =
+                    workQuickPathIntroductionView.descendants(
+                        matching: .staticText
+                    )
+                let workScreens = app.descendants(matching: .any).matching(
+                    identifier: "s5.1.work.screen"
+                )
+                let workDescriptionFields =
+                    app.descendants(matching: .any).matching(
+                        identifier: "s5.1.work.description"
+                    )
+                let focusedPredicate = NSPredicate(
+                    format: "hasKeyboardFocus == true"
+                )
+                let focusedWorkDescriptionFields =
+                    workDescriptionFields.matching(focusedPredicate)
+                let workValidationLabels =
+                    app.descendants(matching: .any).matching(
+                        identifier: "s5.1.work.validation"
+                    )
+                let workKeyboards = app.keyboards
+                guard workQuickPathIntroductionCount == 1,
+                      workQuickPathButtons.count == 1,
+                      workQuickPathStaticTexts.count == 2,
+                      workScreens.count == 1,
+                      workDescriptionFields.count == 1,
+                      focusedWorkDescriptionFields.count == 1,
+                      workValidationLabels.count == 1,
+                      workKeyboards.count == 1 else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 minimum work-validation QuickPath structure is invalid"
+                    )
+                }
+
+                let workQuickPathButton = workQuickPathButtons.firstMatch
+                let workQuickPathFirstStaticText =
+                    workQuickPathStaticTexts.element(boundBy: 0)
+                let workQuickPathSecondStaticText =
+                    workQuickPathStaticTexts.element(boundBy: 1)
+                let workScreen = workScreens.firstMatch
+                let workDescriptionField = workDescriptionFields.firstMatch
+                let workValidationLabel = workValidationLabels.firstMatch
+                let workKeyboard = workKeyboards.firstMatch
+                let workQuickPathFrameIsValid: (CGRect) -> Bool = { frame in
+                    !frame.isNull
+                        && !frame.isEmpty
+                        && !frame.isInfinite
+                        && frame.origin.x.isFinite
+                        && frame.origin.y.isFinite
+                        && frame.size.width.isFinite
+                        && frame.size.height.isFinite
+                }
+                let applicationFrame = app.frame
+                let workQuickPathIntroductionFrame =
+                    workQuickPathIntroductionView.frame
+                let workQuickPathButtonFrame = workQuickPathButton.frame
+                let workQuickPathFirstStaticTextFrame =
+                    workQuickPathFirstStaticText.frame
+                let workQuickPathSecondStaticTextFrame =
+                    workQuickPathSecondStaticText.frame
+                let workKeyboardFrame = workKeyboard.frame
+                let workScreenFrame = workScreen.frame
+                let workDescriptionFrame = workDescriptionField.frame
+                let workValidationFrame = workValidationLabel.frame
+                guard workQuickPathFrameIsValid(applicationFrame),
+                      workQuickPathFrameIsValid(workQuickPathIntroductionFrame),
+                      workQuickPathFrameIsValid(workQuickPathButtonFrame),
+                      workQuickPathFrameIsValid(
+                        workQuickPathFirstStaticTextFrame
+                      ),
+                      workQuickPathFrameIsValid(
+                        workQuickPathSecondStaticTextFrame
+                      ),
+                      workQuickPathFrameIsValid(workKeyboardFrame),
+                      workQuickPathFrameIsValid(workScreenFrame),
+                      workQuickPathFrameIsValid(workDescriptionFrame),
+                      workQuickPathFrameIsValid(workValidationFrame) else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 minimum work-validation QuickPath frames are invalid"
+                    )
+                }
+                let firstTextIsActionTitle =
+                    workQuickPathFirstStaticText.label
+                        == workQuickPathButton.label
+                    && workQuickPathFirstStaticTextFrame.intersects(
+                        workQuickPathButtonFrame
+                    )
+                let secondTextIsActionTitle =
+                    workQuickPathSecondStaticText.label
+                        == workQuickPathButton.label
+                    && workQuickPathSecondStaticTextFrame.intersects(
+                        workQuickPathButtonFrame
+                    )
+                let workQuickPathTutorialText = firstTextIsActionTitle
+                    ? workQuickPathSecondStaticText
+                    : workQuickPathFirstStaticText
+                let workQuickPathTutorialFrame = firstTextIsActionTitle
+                    ? workQuickPathSecondStaticTextFrame
+                    : workQuickPathFirstStaticTextFrame
+                let workQuickPathActionTitleFrame = firstTextIsActionTitle
+                    ? workQuickPathFirstStaticTextFrame
+                    : workQuickPathSecondStaticTextFrame
+                let preActionAppState = app.state
+                let preActionWorkScreenExists = workScreen.exists
+                let preActionWorkScreenEnabled = workScreen.isEnabled
+                let preActionDescriptionExists = workDescriptionField.exists
+                let preActionDescriptionEnabled = workDescriptionField.isEnabled
+                let preActionDescriptionHittable = workDescriptionField.isHittable
+                let preActionDescriptionIdentifier = workDescriptionField.identifier
+                let preActionDescriptionLabel = workDescriptionField.label
+                let preActionDescriptionValue = workDescriptionField.value as? String
+                let preActionValidationExists = workValidationLabel.exists
+                let preActionValidationEnabled = workValidationLabel.isEnabled
+                let preActionValidationIdentifier = workValidationLabel.identifier
+                let preActionValidationLabel = workValidationLabel.label
+                let preActionValidationValue = workValidationLabel.value as? String
+                guard preActionAppState == .runningForeground,
+                      workQuickPathIntroductionView.exists,
+                      workQuickPathIntroductionView.elementType == .other,
+                      workQuickPathIntroductionView.identifier
+                        == "UIContinuousPathIntroductionView",
+                      workQuickPathButton.exists,
+                      workQuickPathButton.elementType == .button,
+                      workQuickPathButton.identifier.isEmpty,
+                      !workQuickPathButton.label.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                      ).isEmpty,
+                      workQuickPathButton.isEnabled,
+                      workQuickPathButton.isHittable,
+                      workQuickPathFirstStaticText.exists,
+                      workQuickPathFirstStaticText.elementType == .staticText,
+                      workQuickPathFirstStaticText.identifier.isEmpty,
+                      !workQuickPathFirstStaticText.label.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                      ).isEmpty,
+                      workQuickPathSecondStaticText.exists,
+                      workQuickPathSecondStaticText.elementType == .staticText,
+                      workQuickPathSecondStaticText.identifier.isEmpty,
+                      !workQuickPathSecondStaticText.label.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                      ).isEmpty,
+                      firstTextIsActionTitle != secondTextIsActionTitle,
+                      workQuickPathTutorialText.label
+                        != workQuickPathButton.label,
+                      applicationFrame.contains(workQuickPathIntroductionFrame),
+                      applicationFrame.contains(workKeyboardFrame),
+                      workQuickPathIntroductionFrame.contains(
+                        workQuickPathButtonFrame
+                      ),
+                      workQuickPathIntroductionFrame.contains(
+                        workQuickPathFirstStaticTextFrame
+                      ),
+                      workQuickPathIntroductionFrame.contains(
+                        workQuickPathSecondStaticTextFrame
+                      ),
+                      workQuickPathIntroductionFrame.intersects(
+                        workKeyboardFrame
+                      ),
+                      workQuickPathTutorialFrame.maxY
+                        <= min(
+                            workQuickPathActionTitleFrame.minY,
+                            workQuickPathButtonFrame.minY
+                        ),
+                      !workQuickPathTutorialFrame.intersects(
+                        workQuickPathButtonFrame
+                      ),
+                      !workQuickPathTutorialFrame.intersects(
+                        workQuickPathActionTitleFrame
+                      ),
+                      preActionWorkScreenExists,
+                      preActionWorkScreenEnabled,
+                      preActionDescriptionExists,
+                      preActionDescriptionEnabled,
+                      preActionDescriptionHittable,
+                      preActionDescriptionIdentifier
+                        == "s5.1.work.description",
+                      preActionDescriptionValue == "Short description",
+                      preActionValidationExists,
+                      preActionValidationEnabled,
+                      preActionValidationIdentifier
+                        == "s5.1.work.validation",
+                      preActionValidationLabel == "Short description" else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 minimum work-validation QuickPath state changed before dismissal"
+                    )
+                }
+
+                workQuickPathButton.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+                ).tap()
+                guard workQuickPathIntroductionView.waitForNonExistence(
+                    timeout: 10
+                ),
+                      workQuickPathIntroductionViews.count == 0,
+                      workQuickPathButtons.count == 0,
+                      workQuickPathStaticTexts.count == 0 else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 minimum work-validation QuickPath did not dismiss"
+                    )
+                }
+
+                let restoredWorkScreens =
+                    app.descendants(matching: .any).matching(
+                        identifier: "s5.1.work.screen"
+                    )
+                let restoredWorkDescriptionFields =
+                    app.descendants(matching: .any).matching(
+                        identifier: "s5.1.work.description"
+                    )
+                let restoredFocusedWorkDescriptionFields =
+                    restoredWorkDescriptionFields.matching(focusedPredicate)
+                let restoredWorkValidationLabels =
+                    app.descendants(matching: .any).matching(
+                        identifier: "s5.1.work.validation"
+                    )
+                let restoredWorkKeyboards = app.keyboards
+                guard restoredWorkScreens.count == 1,
+                      restoredWorkDescriptionFields.count == 1,
+                      restoredFocusedWorkDescriptionFields.count == 1,
+                      restoredWorkValidationLabels.count == 1,
+                      restoredWorkKeyboards.count == 1 else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 minimum work-validation QuickPath restoration is incomplete"
+                    )
+                }
+                let restoredWorkScreen = restoredWorkScreens.firstMatch
+                let restoredWorkDescriptionField =
+                    restoredWorkDescriptionFields.firstMatch
+                let restoredWorkValidationLabel =
+                    restoredWorkValidationLabels.firstMatch
+                let restoredWorkKeyboard = restoredWorkKeyboards.firstMatch
+                guard app.state == preActionAppState,
+                      app.frame == applicationFrame,
+                      restoredWorkScreen.exists
+                        == preActionWorkScreenExists,
+                      restoredWorkScreen.isEnabled
+                        == preActionWorkScreenEnabled,
+                      restoredWorkScreen.frame == workScreenFrame,
+                      restoredWorkDescriptionField.exists
+                        == preActionDescriptionExists,
+                      restoredWorkDescriptionField.isEnabled
+                        == preActionDescriptionEnabled,
+                      restoredWorkDescriptionField.isHittable
+                        == preActionDescriptionHittable,
+                      restoredWorkDescriptionField.identifier
+                        == preActionDescriptionIdentifier,
+                      restoredWorkDescriptionField.label
+                        == preActionDescriptionLabel,
+                      (restoredWorkDescriptionField.value as? String)
+                        == preActionDescriptionValue,
+                      restoredWorkDescriptionField.frame
+                        == workDescriptionFrame,
+                      restoredWorkValidationLabel.exists
+                        == preActionValidationExists,
+                      restoredWorkValidationLabel.isEnabled
+                        == preActionValidationEnabled,
+                      restoredWorkValidationLabel.identifier
+                        == preActionValidationIdentifier,
+                      restoredWorkValidationLabel.label
+                        == preActionValidationLabel,
+                      (restoredWorkValidationLabel.value as? String)
+                        == preActionValidationValue,
+                      restoredWorkValidationLabel.frame == workValidationFrame,
+                      restoredWorkKeyboard.exists,
+                      restoredWorkKeyboard.frame == workKeyboardFrame else {
+                    throw AutomationConfigurationError.invalid(
+                        "S10.4 minimum work-validation state was not restored after QuickPath dismissal"
+                    )
+                }
+            }
+        }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
         assertMinimumGeometry(description)

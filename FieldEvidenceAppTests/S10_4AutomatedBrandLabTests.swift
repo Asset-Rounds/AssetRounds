@@ -3779,14 +3779,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 5_731,
-             "60BC41ECFB8C0A45C43EC6F288893E6974143CFA50E7D447526857B4899AFBEC"),
+            (workValidationGateSource, 21_269,
+             "EE3628310C1A51034E69033D8A2DB77126F689915DEABF6C40B29ABF93647B0E"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
+        let workValidationMinimumQuickPathGate =
+            "        if automationShard?.deviceProfileID\n" +
+                "            == \"iphone-se-3-ios-18.0-minimum\" {"
+        let workValidationMinimumQuickPathGateRange = try XCTUnwrap(
+            workValidationGateSource.range(
+                of: workValidationMinimumQuickPathGate
+            )
+        )
+        let workValidationMinimumQuickPathSource = String(
+            workValidationGateSource[
+                workValidationMinimumQuickPathGateRange.lowerBound...
+            ]
+        )
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 15_538)
+        XCTAssertEqual(
+            Data(workValidationMinimumQuickPathSource.utf8).sha256,
+            "D9E48297FDA79BCCECA0A8EA4E015818D2D38C45D46E6F55DFDC5A34F4EABEFE"
+        )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
                 "           shouldPrepareNormalEvidence(\n" +
@@ -4458,6 +4476,171 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 uiSource.components(separatedBy: retiredWorkValidationForm).count - 1,
                 0,
                 retiredWorkValidationForm
+            )
+        }
+
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: workValidationMinimumQuickPathGate
+            ).count - 1,
+            1
+        )
+        let workValidationMinimumQuickPathLocks = [
+            #"identifier: "UIContinuousPathIntroductionView""#,
+            "let workQuickPathIntroductionCount =",
+            "if workQuickPathIntroductionCount > 0 {",
+            "workQuickPathIntroductionCount == 1",
+            "workQuickPathButtons.count == 1",
+            "workQuickPathStaticTexts.count == 2",
+            "workScreens.count == 1",
+            "workDescriptionFields.count == 1",
+            "focusedWorkDescriptionFields.count == 1",
+            "workValidationLabels.count == 1",
+            "workKeyboards.count == 1",
+            "let workQuickPathFrameIsValid: (CGRect) -> Bool",
+            "firstTextIsActionTitle != secondTextIsActionTitle",
+            "workQuickPathTutorialText.label\n" +
+                "                        != workQuickPathButton.label",
+            "workQuickPathIntroductionFrame.intersects(\n" +
+                "                        workKeyboardFrame",
+            "workQuickPathTutorialFrame.maxY\n" +
+                "                        <= min(",
+            "preActionDescriptionValue == \"Short description\"",
+            "preActionValidationIdentifier\n" +
+                "                        == \"s5.1.work.validation\"",
+            "preActionValidationLabel == \"Short description\"",
+            "workQuickPathButton.coordinate(\n" +
+                "                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)",
+            "workQuickPathIntroductionView.waitForNonExistence(\n" +
+                "                    timeout: 10",
+            "workQuickPathIntroductionViews.count == 0",
+            "workQuickPathButtons.count == 0",
+            "workQuickPathStaticTexts.count == 0",
+            "restoredFocusedWorkDescriptionFields.count == 1",
+            "restoredWorkKeyboards.count == 1",
+            "app.state == preActionAppState",
+            "app.frame == applicationFrame",
+            "restoredWorkDescriptionField.frame\n" +
+                "                        == workDescriptionFrame",
+            "restoredWorkValidationLabel.frame == workValidationFrame",
+            "restoredWorkKeyboard.frame == workKeyboardFrame",
+        ]
+        for lock in workValidationMinimumQuickPathLocks {
+            XCTAssertTrue(
+                workValidationMinimumQuickPathSource.contains(lock),
+                lock
+            )
+        }
+        let workValidationMinimumQuickPathCardinality =
+            "                guard workQuickPathIntroductionCount == 1,\n" +
+                "                      workQuickPathButtons.count == 1,\n" +
+                "                      workQuickPathStaticTexts.count == 2,"
+        let workValidationMinimumQuickPathFirstProperty =
+            "                      workQuickPathIntroductionView.exists,"
+        let workValidationMinimumQuickPathLastFrameValidator =
+            "                      workQuickPathFrameIsValid(workValidationFrame),"
+        let workValidationMinimumQuickPathFirstGeometry =
+            "                    && workQuickPathFirstStaticTextFrame.intersects("
+        let workValidationMinimumQuickPathAction =
+            "                workQuickPathButton.coordinate("
+        let workValidationMinimumQuickPathWait =
+            "                guard workQuickPathIntroductionView.waitForNonExistence("
+        let workValidationMinimumQuickPathRestoredCardinality =
+            "                guard restoredWorkScreens.count == 1,"
+        let workValidationMinimumQuickPathFinalGuard =
+            "                guard app.state == preActionAppState,"
+        let orderedMinimumQuickPathLocks = [
+            workValidationMinimumQuickPathCardinality,
+            workValidationMinimumQuickPathFirstProperty,
+            workValidationMinimumQuickPathLastFrameValidator,
+            workValidationMinimumQuickPathFirstGeometry,
+            workValidationMinimumQuickPathAction,
+            workValidationMinimumQuickPathWait,
+            workValidationMinimumQuickPathRestoredCardinality,
+            workValidationMinimumQuickPathFinalGuard,
+        ]
+        let orderedMinimumQuickPathRanges = try orderedMinimumQuickPathLocks.map {
+            try XCTUnwrap(
+                workValidationMinimumQuickPathSource.range(of: $0),
+                $0
+            )
+        }
+        for index in 1..<orderedMinimumQuickPathRanges.count {
+            XCTAssertLessThan(
+                orderedMinimumQuickPathRanges[index - 1].lowerBound,
+                orderedMinimumQuickPathRanges[index].lowerBound,
+                orderedMinimumQuickPathLocks[index]
+            )
+        }
+        let workValidationMinimumQuickPathPositiveGate =
+            "            if workQuickPathIntroductionCount > 0 {"
+        let workValidationMinimumQuickPathPositiveGateRange = try XCTUnwrap(
+            workValidationMinimumQuickPathSource.range(
+                of: workValidationMinimumQuickPathPositiveGate
+            )
+        )
+        let workValidationMinimumQuickPathZeroPrefix = String(
+            workValidationMinimumQuickPathSource[
+                ..<workValidationMinimumQuickPathPositiveGateRange.lowerBound
+            ]
+        )
+        for forbiddenZeroWrapperAction in [
+            ".tap()", ".coordinate(", "waitForNonExistence",
+        ] {
+            XCTAssertFalse(
+                workValidationMinimumQuickPathZeroPrefix.contains(
+                    forbiddenZeroWrapperAction
+                ),
+                forbiddenZeroWrapperAction
+            )
+        }
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: "workQuickPathButton.coordinate("
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: ").tap()"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationRouteSource.components(
+                separatedBy: workValidationMinimumQuickPathSource +
+                    workValidationBaseline
+            ).count - 1,
+            1
+        )
+        for prohibitedMinimumQuickPathForm in [
+            #"label == "Continue""#,
+            "Speed up your typing",
+            #"buttons["Done"]"#,
+            #"buttons["Return"]"#,
+            "Thread.sleep",
+            "sleep(",
+            "performAccessibilityAudit",
+            "ContrastAuditExceptionSignature",
+            "automationContrastExceptions",
+            "XCTAttachment",
+            "printJSONLine",
+            "captureBaseline(",
+            "scroll(",
+            ".swipe",
+            "tolerance",
+            "epsilon",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+        ] {
+            XCTAssertFalse(
+                workValidationMinimumQuickPathSource.contains(
+                    prohibitedMinimumQuickPathForm
+                ),
+                prohibitedMinimumQuickPathForm
             )
         }
 
@@ -20102,10 +20285,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 731_344)
+        XCTAssertEqual(uiSource.utf8.count, 746_882)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "DD41DEC29E06220092E689B6926D6F309B6350FE94CD0DD068CF9C7366E5B926"
+            "FC6B4CABC6587E5E8DA5EEE663824480F6E61585608539DB2FEA92843A843C21"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
