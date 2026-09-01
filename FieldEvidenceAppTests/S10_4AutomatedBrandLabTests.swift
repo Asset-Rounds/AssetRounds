@@ -3990,8 +3990,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 21_269,
-             "EE3628310C1A51034E69033D8A2DB77126F689915DEABF6C40B29ABF93647B0E"),
+            (workValidationGateSource, 36_294,
+             "3044BCAFB95BE81E5B177AF19B75FA959882EE7C6DB5A56A69FB43D5357B4C2A"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4011,10 +4011,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workValidationMinimumQuickPathGateRange.lowerBound...
             ]
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 15_538)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 30_563)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "D9E48297FDA79BCCECA0A8EA4E015818D2D38C45D46E6F55DFDC5A34F4EABEFE"
+            "9DF43839368E8E3208D623FC91256C252FEE3BCA8FA7FD34D57D06A3C606600A"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -4701,25 +4701,37 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let workQuickPathIntroductionCount =",
             "if workQuickPathIntroductionCount > 0 {",
             "workQuickPathIntroductionCount == 1",
-            "workQuickPathButtons.count == 1",
-            "workQuickPathStaticTexts.count == 2",
-            "workScreens.count == 1",
-            "workDescriptionFields.count == 1",
-            "focusedWorkDescriptionFields.count == 1",
-            "workValidationLabels.count == 1",
-            "workKeyboards.count == 1",
+            "let workQuickPathButtonCount = workQuickPathButtons.count",
+            "let workQuickPathStaticTextCount = workQuickPathStaticTexts.count",
+            "let workScreenCount = workScreens.count",
+            "let workDescriptionCount = workDescriptionFields.count",
+            "let focusedWorkDescriptionCount =\n" +
+                "                    focusedWorkDescriptionFields.count",
+            "let workValidationCount = workValidationLabels.count",
+            "let workKeyboardCount = workKeyboards.count",
+            "workQuickPathButtonCount == 1",
+            "workQuickPathStaticTextCount == 2",
+            "workScreenCount == 1",
+            "workDescriptionCount == 1",
+            "focusedWorkDescriptionCount == 1",
+            "workValidationCount == 1",
+            "workKeyboardCount == 1",
             "let workQuickPathFrameIsValid: (CGRect) -> Bool",
-            "firstTextIsActionTitle != secondTextIsActionTitle",
-            "workQuickPathTutorialText.label\n" +
-                "                        != workQuickPathButton.label",
+            "let preActionRoleIsExclusive =\n" +
+                "                    firstTextIsActionTitle != secondTextIsActionTitle",
+            "let preActionTutorialLabelDiffersFromButton =\n" +
+                "                    preActionTutorialLabel != preActionButtonLabel",
             "workQuickPathIntroductionFrame.intersects(\n" +
                 "                        workKeyboardFrame",
             "workQuickPathTutorialFrame.maxY\n" +
                 "                        <= min(",
             "preActionDescriptionValue == \"Short description\"",
-            "preActionValidationIdentifier\n" +
-                "                        == \"s5.1.work.validation\"",
-            "preActionValidationLabel == \"Short description\"",
+            "let preActionValidationIdentifierMatches =\n" +
+                "                    preActionValidationIdentifier " +
+                "== \"s5.1.work.validation\"",
+            "let preActionValidationLabelMatches =\n" +
+                "                    preActionValidationLabel " +
+                "== \"Short description\"",
             "workQuickPathButton.coordinate(\n" +
                 "                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)",
             "workQuickPathIntroductionView.waitForNonExistence(\n" +
@@ -4744,14 +4756,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         let workValidationMinimumQuickPathCardinality =
             "                guard workQuickPathIntroductionCount == 1,\n" +
-                "                      workQuickPathButtons.count == 1,\n" +
-                "                      workQuickPathStaticTexts.count == 2,"
+                "                      workQuickPathButtonCount == 1,\n" +
+                "                      workQuickPathStaticTextCount == 2,"
         let workValidationMinimumQuickPathFirstProperty =
             "                let workQuickPathButton = workQuickPathButtons.firstMatch"
         let workValidationMinimumQuickPathLastFrameValidator =
             "                      workQuickPathFrameIsValid(workValidationFrame) else {"
         let workValidationMinimumQuickPathFirstGeometry =
-            "                    && workQuickPathFirstStaticTextFrame.intersects("
+            "                let preActionApplicationContainsIntroduction ="
         let workValidationMinimumQuickPathAction =
             "                workQuickPathButton.coordinate("
         let workValidationMinimumQuickPathWait =
@@ -4817,6 +4829,92 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let minimumQuickPathDiagnosticPrefix =
+            "S10_4_MINIMUM_WORK_VALIDATION_QUICKPATH_PRE_DISMISS_DIAGNOSTIC"
+        let minimumQuickPathDiagnosticTerminal =
+            "S10.4 minimum work-validation QuickPath pre-dismiss diagnostic " +
+                "completed nonaccepting"
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: minimumQuickPathDiagnosticPrefix
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: #""acceptanceEligible": false"#
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: "auditFrameObject("
+            ).count - 1,
+            9
+        )
+        for diagnosticLock in [
+            #""schemaVersion": 1"#,
+            #""stateID": "state.work.validation-error""#,
+            #""cardinality": ["#,
+            #""frames": ["#,
+            #""wrapper": ["#,
+            #""button": ["#,
+            #""firstStaticText": ["#,
+            #""secondStaticText": ["#,
+            #""roles": ["#,
+            #""geometry": ["#,
+            #""work": ["#,
+            "preActionAppForeground",
+            "preActionIntroductionIdentifierMatches",
+            "preActionButtonLabelIsNonempty",
+            "preActionRoleIsExclusive",
+            "preActionTutorialPrecedesAction",
+            "preActionDescriptionValueMatches",
+            "preActionValidationLabelMatches",
+            minimumQuickPathDiagnosticTerminal,
+        ] {
+            XCTAssertTrue(
+                workValidationMinimumQuickPathSource.contains(diagnosticLock),
+                diagnosticLock
+            )
+        }
+        let minimumQuickPathDiagnosticStart = try XCTUnwrap(
+            workValidationMinimumQuickPathSource.range(
+                of: "                    printJSONLine("
+            )
+        )
+        let minimumQuickPathActionStart = try XCTUnwrap(
+            workValidationMinimumQuickPathSource.range(
+                of: workValidationMinimumQuickPathAction,
+                range: minimumQuickPathDiagnosticStart.upperBound..<
+                    workValidationMinimumQuickPathSource.endIndex
+            )
+        )
+        let minimumQuickPathDiagnosticSource = String(
+            workValidationMinimumQuickPathSource[
+                minimumQuickPathDiagnosticStart.lowerBound..<
+                    minimumQuickPathActionStart.lowerBound
+            ]
+        )
+        XCTAssertTrue(
+            minimumQuickPathDiagnosticSource.contains(
+                minimumQuickPathDiagnosticTerminal
+            )
+        )
+        for prohibitedDiagnosticForm in [
+            "XCTAttachment", ".screenshot()", ".debugDescription",
+            ".tap()", ".coordinate(", "waitFor", "Thread.sleep", "sleep(",
+            "scroll(", ".swipe", "performAccessibilityAudit",
+            "captureBaseline(", "S10_4_AX_STATE", "S10_4_CONTRAST",
+            "S10_4_CANDIDATE", "S10_4_TASK", "S10_4_SHARD_RECEIPT",
+        ] {
+            XCTAssertFalse(
+                minimumQuickPathDiagnosticSource.contains(
+                    prohibitedDiagnosticForm
+                ),
+                prohibitedDiagnosticForm
+            )
+        }
         XCTAssertEqual(
             workValidationRouteSource.components(
                 separatedBy: workValidationMinimumQuickPathSource +
@@ -4835,7 +4933,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "ContrastAuditExceptionSignature",
             "automationContrastExceptions",
             "XCTAttachment",
-            "printJSONLine",
             "captureBaseline(",
             "scroll(",
             ".swipe",
@@ -20573,10 +20670,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 760_019)
+        XCTAssertEqual(uiSource.utf8.count, 775_044)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "DEAF138C156F51E77CF643EC3DBFA14E833C3607B1FC25DA97D539673F00B0C6"
+            "C5C80C90A36F6C7A7965140261B9DC3A4FB28F39072645BE06D14DB2C7012FF9"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
