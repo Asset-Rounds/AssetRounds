@@ -4386,6 +4386,7 @@ extension BundledLocalizationCatalogV1 {
     static func scheduleAccessibilityRegistry(
         localization: LocalizationKeyRegistryV1
     ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try ScheduleAccessibilityPolicyV1.validateExperienceRequirements()
         let base = try assetLocatorAccessibilityRegistry(
             localization: localization
         )
@@ -4400,13 +4401,17 @@ extension BundledLocalizationCatalogV1 {
                  .exceptionCalendar, .calendarRelease, .businessDayAdjustment,
                  .completionGap, .nominalBasis, .effectiveBasis,
                  .occurrenceLineage, .scheduleOverride, .overridePrecedence,
-                 .changePreview, .recovery: role = .heading
-            case .nextStep: role = .button
+                 .changePreview, .recovery, .editor, .editorReview,
+                 .timeZone, .summary, .horizon: role = .heading
+            case .nextStep, .save, .pause, .resume, .end,
+                 .startOnce: role = .button
             case .stateUpcoming, .stateReady, .stateDue, .stateOverdue,
                  .stateDeferred, .stateMissed, .stateSkipped, .stateCancelled,
                  .stateStarted, .stateCompleted, .previewNotApplied,
                  .changeConflict, .manualResolutionRequired,
-                 .recoveryRebuilt: role = .status
+                 .recoveryRebuilt, .todayReason, .offlineReadiness,
+                 .reminderPermission, .reminderStatus, .interruption,
+                 .error: role = .status
             case .occurrence, .claimBoundary: role = .group
             }
             return AccessibilityContractV1(

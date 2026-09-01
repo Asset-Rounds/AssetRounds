@@ -431,6 +431,42 @@ enum RoundSessionHistoryValidatorV1 {
     }
 }
 
+/// C22 binds a recurring occurrence start to one already-materialized
+/// round-session frontier or one exact work-packet manifest.  It owns no
+/// mutation: the sole Schedule `.startOccurrence` mutation remains the
+/// effect/receipt authority.
+enum RecurringRoundStartFrontierBoundaryV1 {
+    static func validate(
+        request: RecurringRoundStartRequestV1,
+        currentRoundSession: RoundSessionV1? = nil,
+        exactWorkPacket: WorkPacketManifestV1? = nil
+    ) throws {
+        try request.validate()
+        guard let workInstance = request.event.workInstance else {
+            throw RoundSessionFailureV1.authorityMismatch
+        }
+        switch workInstance {
+        case let .roundSession(sessionID, revision, sessionSHA256):
+            guard exactWorkPacket == nil,
+                  let currentRoundSession,
+                  currentRoundSession.workspaceID == request.event.workspaceID,
+                  currentRoundSession.sessionID == sessionID,
+                  currentRoundSession.revision == revision,
+                  currentRoundSession.sessionSHA256 == sessionSHA256,
+                  currentRoundSession.state == .active else {
+                throw RoundSessionFailureV1.authorityMismatch
+            }
+        case let .workPacket(reference):
+            guard currentRoundSession == nil,
+                  let exactWorkPacket,
+                  exactWorkPacket.workspaceID == request.event.workspaceID,
+                  try WorkPacketManifestReferenceV1(exactWorkPacket) == reference else {
+                throw RoundSessionFailureV1.authorityMismatch
+            }
+        }
+    }
+}
+
 enum RoundSessionCanonicalCodecV1 {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
         let e = JSONEncoder(); e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]; e.dateEncodingStrategy = .millisecondsSince1970

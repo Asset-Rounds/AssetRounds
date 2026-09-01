@@ -1847,6 +1847,22 @@ enum ScheduleAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
     case stateCancelled = "schedule.occurrence.state.cancelled"
     case stateStarted = "schedule.occurrence.state.started"
     case stateCompleted = "schedule.occurrence.state.completed"
+    case editor = "schedule.editor"
+    case editorReview = "schedule.editor.review"
+    case timeZone = "schedule.time_zone"
+    case summary = "schedule.summary"
+    case horizon = "schedule.horizon"
+    case save = "schedule.save"
+    case pause = "schedule.pause"
+    case resume = "schedule.resume"
+    case end = "schedule.end"
+    case startOnce = "schedule.start_once"
+    case todayReason = "schedule.today.reason"
+    case offlineReadiness = "schedule.offline.readiness"
+    case reminderPermission = "schedule.reminder.permission"
+    case reminderStatus = "schedule.reminder.status"
+    case interruption = "schedule.interruption"
+    case error = "schedule.error"
 
     var localizationKey: LocalizationKeyV1 {
         let key: ScheduleLocalizationKeyV1
@@ -1888,6 +1904,22 @@ enum ScheduleAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
         case .stateCancelled: key = .stateCancelled
         case .stateStarted: key = .stateStarted
         case .stateCompleted: key = .stateCompleted
+        case .editor: key = .editor
+        case .editorReview: key = .editorReview
+        case .timeZone: key = .visibleTimeZone
+        case .summary: key = .editorReview
+        case .horizon: key = .boundedHorizon
+        case .save: key = .actionSave
+        case .pause: key = .actionPause
+        case .resume: key = .actionResume
+        case .end: key = .actionEnd
+        case .startOnce: key = .actionStartOnce
+        case .todayReason: key = .todayReason
+        case .offlineReadiness: key = .offlineReason
+        case .reminderPermission: key = .reminderOptIn
+        case .reminderStatus: key = .reminderReconciled
+        case .interruption: key = .interruption
+        case .error: key = .errorFocus
         }
         return key.localizationKey
     }
@@ -1929,6 +1961,29 @@ enum ScheduleAccessibilityPolicyV1 {
     static let voiceControlStableNameRequired = true
     static let switchControlReachabilityRequired = true
     static let uiConformanceClaimed = false
+    static let dynamicTypeThroughAX5Required = true
+    static let reduceMotionUsesStaticPresentation = true
+    static let errorFocusRequired = true
+    static let permissionDenialKeepsDueQueueComplete = true
+    static let requiresAcceptedS10_6Reconciliation = true
+
+    static func validateExperienceRequirements() throws {
+        guard semanticIDs.count == Set(semanticIDs).count,
+              rtlReadingOrderRequired,
+              dynamicTypeRequired,
+              dynamicTypeThroughAX5Required,
+              voiceOverLabelAndValueRequired,
+              voiceControlStableNameRequired,
+              switchControlReachabilityRequired,
+              nonColorStateTextRequired,
+              reduceMotionUsesStaticPresentation,
+              errorFocusRequired,
+              permissionDenialKeepsDueQueueComplete,
+              !uiConformanceClaimed,
+              requiresAcceptedS10_6Reconciliation else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
 
     static func requiresTextAndIcon(for semanticID: String) -> Bool {
         indeterminateSemanticIDs.contains(semanticID)

@@ -20,6 +20,126 @@ enum OfflineReadinessManifestLifecycleV1 {
     static let rebootRequiresRebuild = true
 }
 
+/// A derived, exact-source C22 readiness gate.  It records whether the
+/// requested start has a ready proof without storing a durable readiness
+/// Boolean.  A caller must call `requireReady()` before the Schedule writer.
+struct RecurringRoundStartReadinessV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let requestSHA256: String
+    let workInstance: ScheduledWorkInstanceReferenceV1
+    let status: OfflineReadinessStatusV1
+    let readinessSHA256: String
+    let bindingSHA256: String
+    let roundManifest: OfflineReadinessManifestV1?
+    let workPacketReadiness: OfflineWorkPacketReadinessV1?
+
+    init(
+        request: RecurringRoundStartRequestV1,
+        roundManifest: OfflineReadinessManifestV1? = nil,
+        workPacketReadiness: OfflineWorkPacketReadinessV1? = nil
+    ) throws {
+        try request.validate()
+        guard let workInstance = request.event.workInstance else {
+            throw OfflineReadinessManifestFailureV1.invalidValue
+        }
+        workspaceID = request.event.workspaceID
+        requestSHA256 = request.requestSHA256
+        self.workInstance = workInstance
+        switch workInstance {
+        case let .roundSession(sessionID, revision, sessionSHA256):
+            guard workPacketReadiness == nil, let roundManifest else {
+                throw OfflineReadinessManifestFailureV1.invalidValue
+            }
+            try roundManifest.validate()
+            guard roundManifest.session.workspaceID == workspaceID,
+                  roundManifest.session.sessionID == sessionID,
+                  roundManifest.session.revision == revision,
+                  roundManifest.session.sessionSHA256 == sessionSHA256 else {
+                throw OfflineReadinessManifestFailureV1.invalidValue
+            }
+            status = roundManifest.status
+            readinessSHA256 = roundManifest.manifestSHA256
+            self.roundManifest = roundManifest
+            self.workPacketReadiness = nil
+        case let .workPacket(reference):
+            guard roundManifest == nil, let workPacketReadiness else {
+                throw OfflineReadinessManifestFailureV1.invalidValue
+            }
+            try workPacketReadiness.validateIntrinsic()
+            guard workPacketReadiness.workspaceID == workspaceID,
+                  workPacketReadiness.packet == reference else {
+                throw OfflineReadinessManifestFailureV1.invalidValue
+            }
+            status = workPacketReadiness.status
+            readinessSHA256 = workPacketReadiness.readinessSHA256
+            self.roundManifest = nil
+            self.workPacketReadiness = workPacketReadiness
+        }
+        bindingSHA256 = try ScheduleCanonicalCodecV1.sha256(Basis(
+            workspaceID: workspaceID,
+            requestSHA256: requestSHA256,
+            workInstance: workInstance,
+            status: status,
+            readinessSHA256: readinessSHA256
+        ))
+        try validate()
+    }
+
+    func requireReady() throws {
+        try validate()
+        guard status == .ready else { throw OfflineReadinessManifestFailureV1.invalidValue }
+    }
+
+    func validate() throws {
+        try ScheduleLimitsV1.digest(requestSHA256)
+        try workInstance.validate()
+        guard KernelCanonicalHashV1.validSHA256(readinessSHA256),
+              bindingSHA256 == (try ScheduleCanonicalCodecV1.sha256(Basis(
+                workspaceID: workspaceID,
+                requestSHA256: requestSHA256,
+                workInstance: workInstance,
+                status: status,
+                readinessSHA256: readinessSHA256
+              ))) else {
+            throw OfflineReadinessManifestFailureV1.digestMismatch
+        }
+        switch workInstance {
+        case let .roundSession(sessionID, revision, sessionSHA256):
+            guard workPacketReadiness == nil, let roundManifest else {
+                throw OfflineReadinessManifestFailureV1.invalidValue
+            }
+            try roundManifest.validate()
+            guard roundManifest.session.workspaceID == workspaceID,
+                  roundManifest.session.sessionID == sessionID,
+                  roundManifest.session.revision == revision,
+                  roundManifest.session.sessionSHA256 == sessionSHA256,
+                  roundManifest.status == status,
+                  roundManifest.manifestSHA256 == readinessSHA256 else {
+                throw OfflineReadinessManifestFailureV1.digestMismatch
+            }
+        case let .workPacket(reference):
+            guard roundManifest == nil, let workPacketReadiness else {
+                throw OfflineReadinessManifestFailureV1.invalidValue
+            }
+            try workPacketReadiness.validateIntrinsic()
+            guard workPacketReadiness.workspaceID == workspaceID,
+                  workPacketReadiness.packet == reference,
+                  workPacketReadiness.status == status,
+                  workPacketReadiness.readinessSHA256 == readinessSHA256 else {
+                throw OfflineReadinessManifestFailureV1.digestMismatch
+            }
+        }
+    }
+
+    private struct Basis: Codable {
+        let workspaceID: WorkspaceID
+        let requestSHA256: String
+        let workInstance: ScheduledWorkInstanceReferenceV1
+        let status: OfflineReadinessStatusV1
+        let readinessSHA256: String
+    }
+}
+
 enum OfflineReadinessStatusV1: String, CaseIterable, Codable, Hashable, Sendable {
     case ready = "READY"
     case blocked = "BLOCKED"

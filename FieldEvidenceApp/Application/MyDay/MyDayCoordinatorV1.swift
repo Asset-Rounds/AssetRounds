@@ -133,6 +133,31 @@ import Foundation
         )
     }
 
+    /// Builds Today/Work sections from the canonical due projection and exact
+    /// My Day source frontiers. A missing source frontier is represented as
+    /// partial readiness instead of being filled from a latest-value fallback.
+    func recurringRoundExperience(
+        for plan: MyDayPlanV1,
+        dueQueue: OccurrenceDueQueueStateV1
+    ) throws -> MyDayRecurringRoundExperienceV1 {
+        let readiness = try readinessProjection(for: plan, evaluatedAt: dueQueue.evaluatedAt)
+        return try MyDayRecurringRoundExperienceV1(queue: dueQueue, readiness: readiness)
+    }
+
+    /// Reminder reconciliation is intentionally a parallel device-local
+    /// result. It is never an input to `recurringRoundExperience`.
+    func reconcileLocalReminders(
+        projection: ReminderProjectionV1,
+        observedReminderEntries: [ReminderEntryV1],
+        authorization: LocalReminderAuthorizationV1
+    ) throws -> LocalReminderReconciliationV1 {
+        try LocalReminderReconciliationV1(
+            projection: projection,
+            observedReminderEntries: observedReminderEntries,
+            authorization: authorization
+        )
+    }
+
     private func replay(for command: MyDayCommandV1) throws -> MyDayCommandResultV1? {
         guard let result = try writer.result(
             workspaceID: command.workspaceID,
@@ -242,4 +267,11 @@ enum C57MyDayCoordinatorLifecycleBoundaryV1 {
     static let lifecycleIsInfrastructureOwned = true
     static let sourceMutationCount = 0
     static let storedDerivedProjectionCount = 0
+}
+
+enum C22RecurringRoundMyDayBoundaryV1 {
+    static let storedQueueProjectionCount = 0
+    static let storedReminderReconciliationCount = 0
+    static let reminderDeliveryChangesCanonicalDueTruth = false
+    static let missingFrontierUsesLatestFallback = false
 }

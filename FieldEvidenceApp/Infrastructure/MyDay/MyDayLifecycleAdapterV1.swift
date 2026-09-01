@@ -130,3 +130,23 @@ struct MyDayBackupSnapshotV1: Codable, Equatable, Sendable, MyDayCanonicalValida
 }
 
 enum C57MyDayPersistentLifecycleBoundaryV1{static let persistentSchemaVersion=42;static let persistentModelCount=2;static let recordsSchemaVersion=41;static let readinessIsNonpersistent=true;static let replaceIsExact=true;static let cloneOmitsPlans=true;static let forkRetainsNonactiveHistoryOnly=true;static let eraseRemovesWorkspaceRows=true}
+
+enum C22RecurringRoundMyDayLifecycleBoundaryV1 {
+    static let activeVersionIdentifier = PersistentSchemaV53.versionIdentifier
+    static let persistentSchemaVersion = RecurringRoundExperiencePersistenceBoundaryV1.schemaVersion
+    static let activeModelCount = RecurringRoundExperiencePersistenceBoundaryV1.activeModelCount
+    static let addedRowFamilyCount = RecurringRoundExperiencePersistenceBoundaryV1.addedRowFamilyCount
+    static let dueQueueIsDerived = true
+    static let reminderReconciliationIsDeviceLocal = true
+    static let eraseHasAdditionalRows = false
+
+    static func validate(
+        experience: MyDayRecurringRoundExperienceV1,
+        reminder: LocalReminderReconciliationV1? = nil
+    ) throws {
+        try experience.validate()
+        try reminder?.validate()
+        guard reminder.map({ $0.workspaceID == experience.workspaceID && !$0.canonicalDueTruthChanged }) ?? true,
+              addedRowFamilyCount == 0 else { throw MyDayFailureV1.invalidValue }
+    }
+}

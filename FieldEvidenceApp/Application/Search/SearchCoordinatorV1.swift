@@ -872,6 +872,41 @@ extension SearchCoordinatorV1 {
         }.sorted { $0.projectionIdentity < $1.projectionIdentity }
         return Array(matches.prefix(maximumResults))
     }
+
+    /// Access is checked before inspecting the disposable index. Every row is
+    /// then constrained to one workspace and an explicitly supplied current
+    /// release frontier; reminder state is neither accepted nor queried.
+    static func searchCurrentScheduleOccurrenceMetadata(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [ScheduleOccurrenceSearchRecordV1],
+        currentReleases: [ScheduleDefinitionReleaseReferenceV1],
+        maximumResults: Int = 100,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> [ScheduleOccurrenceSearchRecordV1] {
+        let permit = try await accessGate.requireContentAccess(for: .search)
+        guard permit.surface == .search, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: .search, state: permit.state)
+        }
+        try currentReleases.forEach { try $0.validate() }
+        guard records.allSatisfy({ $0.workspaceID == workspaceID.rawValue }),
+              currentReleases.allSatisfy({ $0.workspaceID == workspaceID }),
+              Set(currentReleases.map(\.scheduleDefinitionID)).count == currentReleases.count else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        guard records.allSatisfy({ record in
+            currentReleases.contains {
+                $0.scheduleDefinitionID == record.scheduleDefinitionID &&
+                $0.releaseID == record.releaseID &&
+                $0.releaseSHA256 == record.releaseSHA256
+            }
+        }) else { throw SearchContractFailureV1.scopeMismatch }
+        return try searchScheduleOccurrenceMetadata(
+            query: query,
+            records: records,
+            maximumResults: maximumResults
+        )
+    }
 }
 
 // MARK: - C37 current placement-pose metadata search

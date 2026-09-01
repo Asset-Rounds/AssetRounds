@@ -1,6 +1,16 @@
 import Foundation
 import SwiftData
 
+/// C22 adds derived editor, queue, and reminder state only. This declaration is
+/// a static guard for schema enrollment; the four incumbent model families below
+/// remain the complete durable schedule boundary in V53 (168 active models).
+enum RecurringRoundExperienceScheduleModelBoundaryV1 {
+    static let schemaVersion = 53
+    static let activeModelCount = 168
+    static let scheduleModelCount = 4
+    static let addedModelCount = 0
+}
+
 extension ScheduleDefinitionReleaseRow {
     func c34NavigationAnchor() throws -> C34ScheduleNavigationAnchorV1 {
         let release = try value()

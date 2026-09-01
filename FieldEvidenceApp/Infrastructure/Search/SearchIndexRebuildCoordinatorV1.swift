@@ -2561,6 +2561,55 @@ extension SearchIndexRebuildCoordinatorV1 {
         return records
     }
 
+    /// C22 rebuild admission requires an explicit current release frontier and
+    /// an exact terminal occurrence event for every indexed row. Historical
+    /// releases and nonterminal events remain openable through their canonical
+    /// readers, but cannot be published as current search metadata.
+    static func currentScheduleOccurrenceSearchRecords(
+        from projections: [ScheduleReportProjectionV1],
+        currentReleases: [ScheduleDefinitionReleaseReferenceV1],
+        terminalOccurrenceEvents: [OccurrenceHistoryEventV1]
+    ) throws -> [ScheduleOccurrenceSearchRecordV1] {
+        try currentReleases.forEach { try $0.validate() }
+        try terminalOccurrenceEvents.forEach { try $0.validateIntrinsic() }
+        guard Set(currentReleases.map { "\($0.workspaceID.rawValue)|\($0.scheduleDefinitionID)" }).count == currentReleases.count,
+              Set(terminalOccurrenceEvents.map(\.occurrenceID)).count == terminalOccurrenceEvents.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        let currentByDefinition = Dictionary(
+            uniqueKeysWithValues: currentReleases.map {
+                ("\($0.workspaceID.rawValue)|\($0.scheduleDefinitionID)", $0)
+            }
+        )
+        let terminalByOccurrence = Dictionary(
+            uniqueKeysWithValues: terminalOccurrenceEvents.map { ($0.occurrenceID, $0) }
+        )
+        let current = try projections.filter { projection in
+            try ScheduleReportProjectionPolicyV1.validate(projection)
+            let key = "\(projection.workspaceID)|\(projection.scheduleDefinitionID)"
+            guard let release = currentByDefinition[key] else { return false }
+            guard projection.scheduleRelease == release,
+                  projection.reminderProjectionSHA256 == nil else {
+                throw SearchContractFailureV1.scopeMismatch
+            }
+            for occurrence in projection.occurrences {
+                guard let event = terminalByOccurrence[occurrence.occurrenceID],
+                      event.workspaceID.rawValue == projection.workspaceID,
+                      event.scheduleRelease == projection.scheduleRelease,
+                      event.eventSHA256 == occurrence.historyEventSHA256 else {
+                    throw SearchContractFailureV1.scopeMismatch
+                }
+            }
+            return true
+        }
+        let indexedOccurrenceIDs = Set(current.flatMap { $0.occurrences.map(\.occurrenceID) })
+        guard current.count == currentReleases.count,
+              indexedOccurrenceIDs == Set(terminalOccurrenceEvents.map(\.occurrenceID)) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        return try scheduleOccurrenceSearchRecords(from: current)
+    }
+
     static let scheduleOccurrenceReplayDisposition =
         "DROP_AND_REBUILD_FROM_CANONICAL_SCHEDULE_RELEASE_AND_OCCURRENCE_HISTORY"
     static let scheduleOccurrenceRestoreDisposition =

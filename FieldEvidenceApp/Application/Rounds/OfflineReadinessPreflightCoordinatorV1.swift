@@ -150,6 +150,34 @@ final class OfflineReadinessPreflightCoordinatorV1 {
         return try manifest.scanToWorkProof(assetID: assetID)
     }
 
+    /// C22 only accepts the exact active RoundSession named by the occurrence
+    /// work binding. A blocked, warning, or stale manifest is returned as an
+    /// explicit non-ready result; this method never starts a round.
+    func recurringRoundReadiness(
+        request: RecurringRoundStartRequestV1,
+        previous: OfflineReadinessManifestV1? = nil
+    ) async throws -> RecurringRoundStartReadinessV1 {
+        try request.validate()
+        guard case let .roundSession(sessionID, _, _)? = request.event.workInstance else {
+            throw OfflineReadinessPreflightCoordinatorFailureV1.inconsistentSessionRequirements
+        }
+        let manifest = try await rebuild(sessionID: sessionID, previous: previous)
+        return try RecurringRoundStartReadinessV1(request: request, roundManifest: manifest)
+    }
+
+    /// Packet-backed recurring starts receive a caller-materialized exact
+    /// packet readiness result. The coordinator does not substitute a current
+    /// packet or persist readiness state.
+    func recurringRoundReadiness(
+        request: RecurringRoundStartRequestV1,
+        workPacketReadiness: OfflineWorkPacketReadinessV1
+    ) throws -> RecurringRoundStartReadinessV1 {
+        try RecurringRoundStartReadinessV1(
+            request: request,
+            workPacketReadiness: workPacketReadiness
+        )
+    }
+
     private func materialize(
         session: RoundSessionV1,
         previous: OfflineReadinessManifestV1?

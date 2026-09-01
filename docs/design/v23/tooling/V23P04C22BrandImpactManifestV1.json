@@ -1,0 +1,212 @@
+{
+  "authority": {
+    "allocationDigest": "fda793f6c71d3cbc6c569dfb06258f4568c096ac4e383d0acc6326da281d94fa",
+    "appBaseHead": "d40d75d615d217b3da9cfc46c2078ee97b199b12",
+    "appBaseTree": "7bf75da1a00976d6e1c2ffa9b02d0026fa20bb15",
+    "authorizedOverlapCount": 55,
+    "cardID": "V23-P04-C22",
+    "contextDigest": "74432a37e3d1fdb186c0f1bd4daec7d0f8e9acf630e94df842895d713077ae03",
+    "coordinationHead": "431f40af193c8c8abb45b07124cbe4be64b4684c",
+    "coordinationTree": "1715f7108a967b19504a01baa8e6dbb22f5cf8cc",
+    "existingPathCount": 21,
+    "fencePathCount": 35,
+    "finalHashesSealed": true,
+    "newPathCount": 14,
+    "pathFenceDigest": "b180edceaec4cc56e419bf8cc7fd8881ac048e9cb7b1efeb045586b043a1f34d",
+    "prerequisiteDigest": "33a163b6e7e5adaf8f1ff640b8f37823a30a284a1bb2336c0527e4e1e2ef4da5",
+    "s10OverlapCount": 0,
+    "sequence": 476
+  },
+  "cardID": "V23-P04-C22",
+  "provisional": true,
+  "schema": "V23P04C22BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "activeModelCount": 168,
+    "incumbentScheduleRowCount": 4,
+    "newDurableFamilies": [],
+    "newDurableRecordCount": 0,
+    "persistentSchema": "V53",
+    "statusFlags": {
+      "acceptance": false,
+      "activation": false,
+      "adoption": false,
+      "hosted": false,
+      "hostedAcceptance": false,
+      "native": false,
+      "nativeAcceptance": false,
+      "phase10PollingDuringParallelExecution": false,
+      "physicalEvidence": false,
+      "publish": false,
+      "release": false
+    }
+  },
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 35,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C22G01FixedCompletionRelativeEditorDueAndStartOnce",
+      "testV23P04C22A01ReminderDenialEvictionStableIDReconcileKeepsDueTruth",
+      "testV23P04C22H01DSTTimeZoneActiveEditHorizonRetiredPartialPacketFailClosed",
+      "testV23P04C22I01InterruptedWritesAndSameMutationIDRecoverIdempotently",
+      "testV23P04C22R01BackupReplaceCloneForkRebuildAndHistoryRemainImmutable"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "FieldEvidenceApp/Domain/Workflow/ScheduleContractsV1.swift",
+        "sha256": "a52fcec08007a6c854f157aca3c750e86b806330df69c65783cf6d2754b922eb",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Workflow/ScheduleCoordinatorV1.swift",
+        "sha256": "251d02958c8460086ff8b5451b1ba1db44da4d586415b36d4f3547c6b79da072",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Workflow/ScheduleLifecycleAdapterV1.swift",
+        "sha256": "d860e44c652913d4a2215af0df888947b6b0040ed162688121a3ba1afdd968fb",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Models/SchedulePersistenceModelsV1.swift",
+        "sha256": "7d0174c5729405ee9165429a8817fed5456b8c1b569072c1eef2e13dde3e052b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/MyDay/MyDayContractsV1.swift",
+        "sha256": "38e6e6fe0519c2c4f7c2d3cb3c0cef477bc8b483ec9196f8e1e4d9cbee430122",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+        "sha256": "4f0ccb5da23e7b4f5b98d7b23f723f2fe003dc5a803722a881709b53ea8625b7",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/MyDay/MyDayLifecycleAdapterV1.swift",
+        "sha256": "6a4fde24dcc7c93946f974cb706223f9337afad1cb409d56de21ab6e0ff2bc38",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Rounds/RoundSessionContractsV1.swift",
+        "sha256": "5c151bf9effac56abd9b6cb49c31016c318352330c96903b10de483fcb75957a",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Rounds/RoundSessionCoordinatorV1.swift",
+        "sha256": "4e1ffd2e4b8c04408dfa2168fa46a69ba368eb614e5756e5f34a1f7814fb4f79",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Rounds/RoundSessionLifecycleAdapterV1.swift",
+        "sha256": "5628fd79a7951c96ba504a6cf590a0fcf6a853bb90009d820e9dc078fedb8244",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/OfflineReadiness/OfflineReadinessManifestContractsV1.swift",
+        "sha256": "9bfc091da99ecf637ee812bbbdef05ba90da45c7f1a310ec3d35bddaf904432c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Rounds/OfflineReadinessPreflightCoordinatorV1.swift",
+        "sha256": "e97f74a7dc1f7a992f1278a739de6d1e1d4614435ff5830698db61ade514a981",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/OfflineReadiness/OfflineReadinessManifestBuilderV1.swift",
+        "sha256": "fbe0e158f9e32f8b619e173ff2232decae9da079bdbc8e67c86aa16ab961483e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift",
+        "sha256": "f253fdd2746c3ef862df86f7237433be9b46d42928835e373cd5f673664abe39",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+        "sha256": "2771035e12348beaad9ffb449539003f9f35503f2415086f53d4663b13ae7048",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+        "sha256": "ce9da63d3f52d099ecc8a34919e4a1a7ac5b4c30114710f377ea7f3a810ed5d2",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+        "sha256": "fc9817b7b45f4425dbaae7c6a8df587ea7d16e7c171362d399d990ba58d5bd04",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+        "sha256": "33cbef2cc744700d3f15d6349ecd440137ecd440f1af82c79e04f8b110d2b0bc",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "sha256": "4d269b4f11f5f2e0ceb6f43e3232ee57ef94328c2465467b8bdee41716495b2c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "sha256": "a81d4e663d2b28292dcf44571fa401bb8a06f8cab773a8bb58022e2c4105c88e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "sha256": "19651ea92d52b9e14d46df3c02a6e99402d6b3970db4c1d69a6b09ec6d52fd8f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Workflow/RecurringRoundExperienceContractsV1.swift",
+        "sha256": "c187763aa709ac1f9c21cd6409d456daf4d303980e8a29135f2801ace53565b2",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Workflow/RecurringRoundExperienceCoordinatorV1.swift",
+        "sha256": "af817f07bd943c071af119139be758811b8d51f52fd81c18f926aba7f4a0e756",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Workflow/RecurringRoundExperienceLifecycleAdapterV1.swift",
+        "sha256": "ea2e0d44fd0bcb40e4fce69e17b8676a020ec6b034b2dfeeffda70ee942a189d",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests.swift",
+        "sha256": "ad9e8afbca04580b6c678917ae28d3a0b612ac9d1c9bd2a37588c3ebed5b7e85",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V23/Schedules/V23P04C22RecurringRoundExperienceCorpusV1.json",
+        "sha256": "a061f8bb2fb54bdda7d79010640e6696926f36073b9815204fde83d9b79c8291",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C22RecurringRoundExperienceUITests.swift",
+        "sha256": "6809bfbd613e761a3cba940080fd78e5daaf4e022112db4baa96b94876d76ad7",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publish": false,
+    "release": false
+  },
+  "uiAcceptanceCredit": false,
+  "uiAdoptionSkipped": true
+}

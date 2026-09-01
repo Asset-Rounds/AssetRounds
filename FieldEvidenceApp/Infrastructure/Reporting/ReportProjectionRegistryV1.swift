@@ -2477,6 +2477,36 @@ extension ReportProjectionRegistryV1 {
         )
         return try validateScheduleProjection(projection)
     }
+
+    /// C22 reviewed reporting rebuilds from exact canonical history. Passing a
+    /// reminder projection is intentionally impossible on this surface.
+    static func recurringRoundReviewedHistory(
+        definition: ScheduleDefinitionReleaseV1,
+        dueQueue: DueQueueProjectionV1,
+        occurrenceHistory: [OccurrenceHistoryEventV1],
+        roundSessions: [RoundSessionV1]
+    ) throws -> RecurringRoundReviewedHistoryReportProjectionV1 {
+        let schedule = try scheduleProjection(
+            definition: definition,
+            dueQueue: dueQueue,
+            history: occurrenceHistory,
+            reminder: nil
+        )
+        let projection = try RecurringRoundReviewedHistoryReportProjectionV1(
+            schedule: schedule,
+            occurrenceHistory: occurrenceHistory,
+            sessions: roundSessions
+        )
+        try projection.validate()
+        guard C22RecurringRoundReportPolicyV1.derivedOnly,
+              C22RecurringRoundReportPolicyV1.reviewedCanonicalHistoryOnly,
+              !C22RecurringRoundReportPolicyV1.includesNotificationPayload,
+              !C22RecurringRoundReportPolicyV1.includesReminderAuthorization,
+              !C22RecurringRoundReportPolicyV1.includesWorkInstanceIdentity else {
+            throw ScheduleReportProjectionFailureV1.invalidValue
+        }
+        return projection
+    }
 }
 
 // MARK: - C37 reference-framed pose projection

@@ -74,6 +74,27 @@ import Foundation
         try validateLiveAuthority(for: current, predecessor: nil, validatingStoredFrontier: true); return current
     }
 
+    /// C22's schedule writer owns the canonical start mutation.  This helper
+    /// only proves that its round-session work reference is the current,
+    /// active frontier; it never creates a second round mutation.
+    func validateRecurringRoundStart(
+        _ request: RecurringRoundStartRequestV1
+    ) throws -> RoundSessionV1 {
+        try request.validate()
+        guard case let .roundSession(sessionID, revision, sessionSHA256)? = request.event.workInstance,
+              let current = try current(sessionID: sessionID) else {
+            throw RoundSessionFailureV1.authorityMismatch
+        }
+        try RecurringRoundStartFrontierBoundaryV1.validate(
+            request: request,
+            currentRoundSession: current
+        )
+        guard current.revision == revision, current.sessionSHA256 == sessionSHA256 else {
+            throw RoundSessionFailureV1.staleRevision
+        }
+        return current
+    }
+
     private func validatedHistory(sessionID: UUID) throws -> [RoundSessionV1] {
         let values = try reader.roundSessionHistory(workspaceID: workspaceID, sessionID: sessionID)
         _ = try RoundSessionHistoryValidatorV1.validate(values, workspaceID: workspaceID, sessionID: sessionID)

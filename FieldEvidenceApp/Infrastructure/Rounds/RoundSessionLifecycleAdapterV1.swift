@@ -209,6 +209,29 @@ final class RoundSessionLifecycleAdapterV1 {
         )
     }
 
+    /// Reconstructs C22's derived schedule-start receipt only after the
+    /// referenced round is still the exact active frontier. Recovery never
+    /// reapplies the Schedule mutation or creates another round successor.
+    func recoverRecurringRoundStart(
+        _ receipt: RecurringRoundStartReceiptV1,
+        request: RecurringRoundStartRequestV1,
+        exactWorkPacket: WorkPacketManifestV1? = nil
+    ) throws -> RecurringRoundStartReceiptV1 {
+        try request.validate()
+        let current: RoundSessionV1?
+        if case .roundSession? = request.event.workInstance {
+            current = try roundCoordinator.validateRecurringRoundStart(request)
+        } else {
+            current = nil
+        }
+        try RecurringRoundStartFrontierBoundaryV1.validate(
+            request: request,
+            currentRoundSession: current,
+            exactWorkPacket: exactWorkPacket
+        )
+        return try .init(request: request, scheduleReceipt: receipt.scheduleReceipt)
+    }
+
     /// Captures the incumbent lifecycle closure as a derived proof scoped to
     /// one exact canonical frontier. It is not a second lifecycle registry.
     func lifecycleEvidence(

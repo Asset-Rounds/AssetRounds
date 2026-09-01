@@ -369,6 +369,22 @@ struct ReminderProjectionV1:Codable,Equatable,Sendable{let workspaceID:Workspace
     private struct Basis:Codable{let workspaceID:WorkspaceID;let evaluatedAt:Date;let dueQueueSHA256:String;let reminders:[ReminderEntryV1]}
 }
 
+extension DueQueueProjectionV1 {
+    /// C22 projection conversion preserves the exact evaluated closure and has
+    /// no notification-permission input by design.
+    func recurringRoundState() throws -> OccurrenceDueQueueStateV1 {
+        try .init(projection: self)
+    }
+}
+
+extension ScheduleDefinitionReleaseV1 {
+    /// The task-first editor is intentionally closed to the two simple policy
+    /// families. Advanced calendars remain available through their incumbent UI.
+    func recurringRoundEditorState() throws -> ScheduleEditorStateV1 {
+        try .init(release: self)
+    }
+}
+
 enum ScheduleCanonicalCodecV1{static func data<T:Encodable>(_ value:T)throws->Data{try WorkspaceMutationCanonicalV1.data(value)}static func sha256<T:Encodable>(_ value:T)throws->String{try WorkspaceMutationCanonicalV1.sha256(value)}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=ScheduleLimitsV1.maximumCanonicalBytes else{throw ScheduleFailureV1.limitExceeded};let d=JSONDecoder();d.dateDecodingStrategy = .millisecondsSince1970;let value=try d.decode(type,from:data);try (value as? any ScheduleCanonicalIntrinsicValidatingV1)?.validateCanonicalValue();guard try self.data(value)==data else{throw ScheduleFailureV1.invalidDigest};return value}}
 
 enum C34RouteAdoptionBoundary_ScheduleContractsV1 {

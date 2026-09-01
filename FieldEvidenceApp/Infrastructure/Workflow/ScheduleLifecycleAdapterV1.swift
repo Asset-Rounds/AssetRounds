@@ -66,3 +66,28 @@ actor ScheduleReminderLifecycleV1 {
     func rebuild(_ projection: ReminderProjectionV1) async throws { try await reconciler.reconcile(projection) }
     func erase(workspaceID: WorkspaceID) async throws { try await reconciler.removeAll(workspaceID: workspaceID) }
 }
+
+extension ScheduleLifecycleAdapterV1 {
+    /// Exact recovery lookup for C22. The caller supplies the complete historic
+    /// start closure; this never resolves a latest release or occurrence.
+    func acceptedRecurringRoundStart(_ request: RecurringRoundStartRequestV1,
+                                     readiness: RecurringRoundStartReadinessV1,
+                                     currentRoundSession: RoundSessionV1? = nil,
+                                     exactWorkPacket: WorkPacketManifestV1? = nil) throws -> RecurringRoundStartReceiptV1? {
+        try request.validate()
+        try RecurringRoundStartFrontierBoundaryV1.validate(request: request,
+            currentRoundSession: currentRoundSession, exactWorkPacket: exactWorkPacket)
+        try readiness.requireReady()
+        guard readiness.workspaceID == request.event.workspaceID,
+              readiness.requestSHA256 == request.requestSHA256,
+              readiness.workInstance == request.event.workInstance else {
+            throw RecurringRoundExperienceFailureV1.staleSource
+        }
+        let mutation = try ScheduleMutationV1(workspaceID: request.event.workspaceID,
+            mutationID: request.event.mutationID,
+            payload: .startOccurrence(request.event, predecessor: request.predecessor,
+                                      release: request.release))
+        guard let receipt = try acceptedScheduleMutation(mutation) else { return nil }
+        return try .init(request: request, scheduleReceipt: receipt)
+    }
+}

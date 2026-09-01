@@ -360,6 +360,132 @@ struct MyDayReadinessProjectionV1: Codable, Equatable, Hashable, Sendable, MyDay
     private struct Basis: Codable { let plan: MyDayPlanReferenceV1; let evaluatedAt: Date; let frontiers: [MyDaySourceFrontierV1]; let sourceClosureSHA256: String }
 }
 
+// MARK: - C22 recurring-round derived work surface
+
+enum MyDayRecurringRoundSectionV1: String, Codable, CaseIterable, Sendable {
+    case current = "CURRENT"
+    case upcoming = "UPCOMING"
+    case history = "HISTORY"
+}
+
+/// A device-local view over exact schedule due truth and the existing My Day
+/// source frontier. Reminder authorization and notification delivery are
+/// deliberately absent: neither can promote or demote an occurrence.
+struct MyDayRecurringRoundItemV1: Codable, Equatable, Sendable {
+    let due: OccurrenceDueQueueItemV1
+    let section: MyDayRecurringRoundSectionV1
+    let readiness: MyDayReadinessV1
+    let sourceFrontier: MyDaySourceFrontierV1?
+
+    fileprivate init(due: OccurrenceDueQueueItemV1, frontier: MyDaySourceFrontierV1?) throws {
+        self.due = due
+        section = Self.section(for: due.reason)
+        readiness = frontier?.readiness ?? .unavailable
+        sourceFrontier = frontier
+        try validate()
+    }
+
+    func validate() throws {
+        try due.entry.occurrenceID.validate()
+        try due.entry.scheduleRelease.validate()
+        try sourceFrontier?.validate()
+        guard section == Self.section(for: due.reason),
+              sourceFrontier.map({ Self.matches($0, due: due) }) ?? (readiness == .unavailable),
+              sourceFrontier?.readiness == readiness || sourceFrontier == nil else {
+            throw MyDayFailureV1.staleRevision
+        }
+    }
+
+    fileprivate static func section(for reason: OccurrenceDueReasonV1) -> MyDayRecurringRoundSectionV1 {
+        switch reason {
+        case .beforeReadyWindow: return .upcoming
+        case .readyWindowOpen, .dueWithinGrace, .overdueAfterGrace, .explicitlyDeferred, .started:
+            return .current
+        case .explicitlyMissed, .explicitlySkipped, .explicitlyCancelled, .completed:
+            return .history
+        }
+    }
+
+    fileprivate static func matches(_ frontier: MyDaySourceFrontierV1, due: OccurrenceDueQueueItemV1) -> Bool {
+        guard case let .scheduleOccurrence(anchor, sourceEventSHA256)? = frontier.currentReference,
+              anchor.occurrenceID == due.entry.occurrenceID,
+              anchor.schedule.workspaceID == due.entry.scheduleRelease.workspaceID,
+              anchor.schedule.scheduleDefinitionID == due.entry.scheduleRelease.scheduleDefinitionID,
+              anchor.schedule.scheduleReleaseID == due.entry.scheduleRelease.releaseID,
+              anchor.schedule.expectedScheduleRevision == due.entry.scheduleRelease.revision,
+              sourceEventSHA256 == frontier.currentReference?.sourceSHA256 else { return false }
+        return true
+    }
+}
+
+struct MyDayRecurringRoundExperienceV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let evaluatedAt: Date
+    let dueQueue: OccurrenceDueQueueStateV1
+    let dueQueueSHA256: String
+    let current: [MyDayRecurringRoundItemV1]
+    let upcoming: [MyDayRecurringRoundItemV1]
+    let history: [MyDayRecurringRoundItemV1]
+    let hasPartialReadiness: Bool
+
+    init(queue: OccurrenceDueQueueStateV1, readiness: MyDayReadinessProjectionV1) throws {
+        try queue.validate()
+        try readiness.validate()
+        guard queue.workspaceID == readiness.plan.key.workspaceID,
+              queue.evaluatedAt == readiness.evaluatedAt else { throw MyDayFailureV1.wrongWorkspace }
+
+        var frontiers: [OccurrenceIDV1: MyDaySourceFrontierV1] = [:]
+        for frontier in readiness.frontiers {
+            guard case let .scheduleOccurrence(anchor, _)? = frontier.currentReference else { continue }
+            guard frontiers.updateValue(frontier, forKey: anchor.occurrenceID) == nil else {
+                throw MyDayFailureV1.staleRevision
+            }
+        }
+        let items = try queue.items.map { due in
+            let candidate = frontiers[due.entry.occurrenceID]
+            let exact = candidate.flatMap {
+                MyDayRecurringRoundItemV1.matches($0, due: due) ? $0 : nil
+            }
+            return try MyDayRecurringRoundItemV1(
+                due: due,
+                frontier: exact
+            )
+        }
+        workspaceID = queue.workspaceID
+        evaluatedAt = queue.evaluatedAt
+        dueQueue = queue
+        dueQueueSHA256 = queue.stateSHA256
+        current = items.filter { $0.section == .current }
+        upcoming = items.filter { $0.section == .upcoming }
+        history = items.filter { $0.section == .history }
+        hasPartialReadiness = items.contains { $0.sourceFrontier == nil || $0.readiness != .ready }
+        try validate()
+    }
+
+    func validate() throws {
+        try MyDayLimitsV1.workspace(workspaceID)
+        try MyDayLimitsV1.millisecondInstant(evaluatedAt)
+        try MyDayLimitsV1.digest(dueQueueSHA256)
+        try dueQueue.validate()
+        let items = current + upcoming + history
+        try items.forEach { try $0.validate() }
+        guard dueQueue.workspaceID == workspaceID,
+              dueQueue.evaluatedAt == evaluatedAt,
+              dueQueue.stateSHA256 == dueQueueSHA256,
+              current.map(\.due) == dueQueue.items.filter({ MyDayRecurringRoundItemV1.section(for: $0.reason) == .current }),
+              upcoming.map(\.due) == dueQueue.items.filter({ MyDayRecurringRoundItemV1.section(for: $0.reason) == .upcoming }),
+              history.map(\.due) == dueQueue.items.filter({ MyDayRecurringRoundItemV1.section(for: $0.reason) == .history }),
+              current.allSatisfy({ $0.section == .current }),
+              upcoming.allSatisfy({ $0.section == .upcoming }),
+              history.allSatisfy({ $0.section == .history }),
+              items.allSatisfy({ $0.due.entry.scheduleRelease.workspaceID == workspaceID }),
+              Set(items.map { $0.due.entry.occurrenceID }).count == items.count,
+              hasPartialReadiness == items.contains(where: { $0.sourceFrontier == nil || $0.readiness != .ready }) else {
+            throw MyDayFailureV1.invalidValue
+        }
+    }
+}
+
 enum MyDayCommandV1: Codable, Equatable, Hashable, Sendable, MyDayCanonicalValidatingV1 {
     case save(successor: MyDayPlanV1, predecessor: MyDayPlanV1?)
     case carryover(plan: MyDayCarryoverPlanV1, source: MyDayPlanV1, target: MyDayPlanV1, receipt: MyDayCarryoverReceiptV1)

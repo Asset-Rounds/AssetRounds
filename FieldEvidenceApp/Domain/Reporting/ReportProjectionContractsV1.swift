@@ -6643,6 +6643,119 @@ struct C05RoundSessionCloseoutReportProjectionV1: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - C22 recurring-round reviewed history
+
+/// A derived, metadata-only join of one exact schedule release/occurrence
+/// history projection and exact canonical round-session frontiers. It carries
+/// neither notification state nor the schedule work-instance identity used to
+/// prove the join at construction time.
+struct RecurringRoundReviewedHistoryReportProjectionV1: Codable, Equatable, Sendable {
+    static let projectionVersion = "RECURRING_ROUND_REVIEWED_HISTORY_REPORT_V1"
+
+    let projectionVersion: String
+    let workspaceID: WorkspaceID
+    let schedule: ScheduleReportProjectionV1
+    let roundProgress: [C05RoundSessionProgressReportProjectionV1]
+    let completedRoundHistory: [C05RoundSessionCloseoutReportProjectionV1]
+    let projectionSHA256: String
+
+    init(
+        schedule: ScheduleReportProjectionV1,
+        occurrenceHistory: [OccurrenceHistoryEventV1],
+        sessions: [RoundSessionV1]
+    ) throws {
+        try ScheduleReportProjectionPolicyV1.validate(schedule)
+        try occurrenceHistory.forEach { try $0.validateIntrinsic() }
+        try sessions.forEach { try $0.validateIntrinsic() }
+        let ordered = sessions.sorted { $0.sessionID.uuidString < $1.sessionID.uuidString }
+        var terminalEvents: [OccurrenceHistoryEventV1] = []
+        for values in Dictionary(grouping: occurrenceHistory, by: \.occurrenceID).values {
+            let history = values.sorted { $0.revision < $1.revision }
+            guard let first = history.first else { continue }
+            try first.validate(predecessor: nil)
+            if history.count > 1 {
+                for index in 1..<history.count {
+                    try history[index].validate(predecessor: history[index - 1])
+                }
+            }
+            if let terminal = history.last { terminalEvents.append(terminal) }
+        }
+        let reportedEvents = Dictionary(uniqueKeysWithValues:
+            schedule.occurrences.map { ($0.occurrenceID, $0.historyEventSHA256) })
+        let referencedRounds = try Set(terminalEvents.compactMap { event -> RoundSessionReferenceV1? in
+            guard reportedEvents[event.occurrenceID] == event.eventSHA256 else { return nil }
+            guard case let .roundSession(sessionID, revision, digest)? = event.workInstance else { return nil }
+            return try RoundSessionReferenceV1(
+                workspaceID: event.workspaceID,
+                sessionID: sessionID,
+                revision: revision,
+                sessionSHA256: digest
+            )
+        })
+        let suppliedRounds = try Set(ordered.map { try $0.reference })
+        guard schedule.reminderProjectionSHA256 == nil,
+              Set(ordered.map(\.sessionID)).count == ordered.count,
+              ordered.allSatisfy({ $0.workspaceID.rawValue == schedule.workspaceID }),
+              reportedEvents.count == terminalEvents.filter({ reportedEvents[$0.occurrenceID] == $0.eventSHA256 }).count,
+              referencedRounds == suppliedRounds else {
+            throw ScheduleReportProjectionFailureV1.wrongWorkspace
+        }
+        projectionVersion = Self.projectionVersion
+        workspaceID = schedule.scheduleRelease.workspaceID
+        self.schedule = schedule
+        roundProgress = try ordered.map { try C05RoundSessionProgressReportProjectionV1(session: $0) }
+        completedRoundHistory = try ordered.filter { $0.state == .completed }
+            .map { try C05RoundSessionCloseoutReportProjectionV1(session: $0) }
+        projectionSHA256 = try WorkspaceMutationCanonicalV1.sha256(Basis(
+            projectionVersion: Self.projectionVersion,
+            workspaceID: workspaceID,
+            scheduleProjectionSHA256: schedule.projectionSHA256,
+            roundProgressSHA256s: roundProgress.map(\.projectionSHA256),
+            completedRoundSHA256s: completedRoundHistory.map(\.closeoutSHA256)
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        try ScheduleReportProjectionPolicyV1.validate(schedule)
+        try roundProgress.forEach { try $0.validate() }
+        try completedRoundHistory.forEach { try $0.validate() }
+        guard projectionVersion == Self.projectionVersion,
+              schedule.reminderProjectionSHA256 == nil,
+              workspaceID == schedule.scheduleRelease.workspaceID,
+              roundProgress.allSatisfy({ $0.session.workspaceID == workspaceID }),
+              completedRoundHistory.allSatisfy({ $0.progress.session.workspaceID == workspaceID }),
+              roundProgress == roundProgress.sorted(by: { $0.session.sessionID.uuidString < $1.session.sessionID.uuidString }),
+              Set(roundProgress.map { $0.session.sessionID }).count == roundProgress.count,
+              Set(completedRoundHistory.map { $0.progress.session.sessionID }).isSubset(of: Set(roundProgress.map { $0.session.sessionID })),
+              projectionSHA256 == (try WorkspaceMutationCanonicalV1.sha256(basis)) else {
+            throw ScheduleReportProjectionFailureV1.invalidDigest
+        }
+    }
+
+    private var basis: Basis {
+        .init(projectionVersion: projectionVersion, workspaceID: workspaceID,
+              scheduleProjectionSHA256: schedule.projectionSHA256,
+              roundProgressSHA256s: roundProgress.map(\.projectionSHA256),
+              completedRoundSHA256s: completedRoundHistory.map(\.closeoutSHA256))
+    }
+    private struct Basis: Codable {
+        let projectionVersion: String
+        let workspaceID: WorkspaceID
+        let scheduleProjectionSHA256: String
+        let roundProgressSHA256s: [String]
+        let completedRoundSHA256s: [String]
+    }
+}
+
+enum C22RecurringRoundReportPolicyV1 {
+    static let derivedOnly = true
+    static let reviewedCanonicalHistoryOnly = true
+    static let includesNotificationPayload = false
+    static let includesReminderAuthorization = false
+    static let includesWorkInstanceIdentity = false
+}
+
 /// C13 reports the exact immutable resolution inventory. It does not infer a
 /// consolidation from relationship rows or expose a mutable resolution plan.
 struct EntityIdentityResolutionReportProjectionV1: Codable, Equatable, Sendable {

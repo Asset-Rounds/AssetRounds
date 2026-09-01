@@ -1,0 +1,77 @@
+{
+  "schema": "V23P04C22RecurringRoundExperienceCorpusV1",
+  "schemaVersion": 1,
+  "sourceLocale": "en",
+  "selectors": [
+    "V23-P04-C22-G01",
+    "V23-P04-C22-A01",
+    "V23-P04-C22-H01",
+    "V23-P04-C22-I01",
+    "V23-P04-C22-R01"
+  ],
+  "recurrenceModes": ["FIXED_CALENDAR", "COMPLETION_RELATIVE"],
+  "occurrenceStates": [
+    "UPCOMING", "READY", "DUE", "OVERDUE", "DEFERRED", "MISSED",
+    "SKIPPED", "CANCELLED", "STARTED", "COMPLETED"
+  ],
+  "dueReasons": [
+    "UPCOMING_BEFORE_READY_WINDOW", "READY_WINDOW_OPEN", "DUE_WITHIN_GRACE",
+    "OVERDUE_AFTER_GRACE", "EXPLICITLY_DEFERRED", "EXPLICITLY_MISSED",
+    "EXPLICITLY_SKIPPED", "EXPLICITLY_CANCELLED", "STARTED", "COMPLETED"
+  ],
+  "editor": {
+    "requiresExplicitSave": true,
+    "timeZoneAlwaysVisible": true,
+    "boundedHorizon": true,
+    "boundedOccurrenceCount": true,
+    "startOccurrenceRequiresExplicitAction": true,
+    "startCreatesAtMostOneWorkInstance": true
+  },
+  "reminders": {
+    "authorizations": ["AUTHORIZED", "DENIED", "NOT_DETERMINED", "UNAVAILABLE"],
+    "dispositions": ["APPLIED", "NO_CHANGE", "DENIED", "UNAVAILABLE"],
+    "stableIdentifiers": true,
+    "deliveryIsCompletion": false,
+    "denialChangesCanonicalDueQueue": false,
+    "evictionChangesCanonicalDueQueue": false,
+    "reconcileFromCanonicalQueue": true
+  },
+  "hostileCases": [
+    "DST_GAP", "DST_FOLD", "TIME_ZONE_CHANGED", "ACTIVE_OCCURRENCE_EDIT",
+    "MISSED_HORIZON", "RETIRED_ASSET", "PARTIAL_OFFLINE_PACKET",
+    "DUPLICATE_COMPLETION", "NOTIFICATION_LIMIT", "NOTIFICATION_EVICTED",
+    "MISSING_READINESS", "STALE_READINESS", "WRONG_WORKSPACE_READINESS",
+    "MISMATCHED_WORK_INSTANCE", "MISSING_ROUND_FRONTIER", "STALE_ROUND_FRONTIER",
+    "MISMATCHED_WORK_PACKET_FRONTIER"
+  ],
+  "interruptionBoundaries": [
+    "BEFORE_PREPARE", "AFTER_PREPARE", "AFTER_EFFECT_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_RETURN"
+  ],
+  "recovery": {
+    "sameMutationIDReturnsSameReceipt": true,
+    "sameMutationIDDifferentPayloadRejected": true,
+    "effectBeforeReceipt": true,
+    "completedHistoryImmutable": true
+  },
+  "transformations": [
+    { "kind": "BACKUP", "derivedQueueArchived": false, "historyImmutable": true },
+    { "kind": "REPLACE_RESTORE", "derivedQueueRebuilt": true, "historyImmutable": true },
+    { "kind": "CLONE", "derivedQueueRebuilt": true, "sourceScheduleAutomaticallyActive": false },
+    { "kind": "FORK", "derivedQueueRebuilt": true, "sourceScheduleAutomaticallyActive": false }
+  ],
+  "accessibility": {
+    "voiceOverOrderIsSourceOrder": true,
+    "voiceControlUsesVisibleNames": true,
+    "dynamicTypeMaximum": "AX5",
+    "rightToLeftSupported": true,
+    "statusUsesTextAndIcon": true,
+    "reduceMotionUsesStaticPresentation": true,
+    "errorFocusIsDeterministic": true,
+    "permissionDenialKeepsManualDuePath": true
+  },
+  "statusFlags": {
+    "shippingUIAdopted": false,
+    "requiresAcceptedS10_6Reconciliation": true
+  }
+}

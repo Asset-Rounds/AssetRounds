@@ -4046,6 +4046,32 @@ enum ScheduleLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
     case stateCancelled = "schedule.occurrence.state.cancelled"
     case stateStarted = "schedule.occurrence.state.started"
     case stateCompleted = "schedule.occurrence.state.completed"
+    case editor = "schedule.editor"
+    case editorReview = "schedule.editor.review"
+    case visibleTimeZone = "schedule.time_zone.visible"
+    case durationWindow = "schedule.duration_window"
+    case boundedHorizon = "schedule.horizon.bounded"
+    case scope = "schedule.scope"
+    case exceptionBehavior = "schedule.exception_behavior"
+    case actionSave = "schedule.action.save"
+    case actionPause = "schedule.action.pause"
+    case actionResume = "schedule.action.resume"
+    case actionEnd = "schedule.action.end"
+    case actionStartOnce = "schedule.action.start_once"
+    case todayReason = "schedule.today.reason"
+    case workCurrent = "schedule.work.current"
+    case workUpcoming = "schedule.work.upcoming"
+    case offlineReady = "schedule.offline.ready"
+    case offlinePartial = "schedule.offline.partial"
+    case offlineReason = "schedule.offline.reason"
+    case reminderOptIn = "schedule.reminder.opt_in"
+    case reminderDenied = "schedule.reminder.denied"
+    case reminderEvicted = "schedule.reminder.evicted"
+    case reminderReconciled = "schedule.reminder.reconciled"
+    case interruption = "schedule.interruption"
+    case sameMutationRecovery = "schedule.recovery.same_mutation"
+    case errorFocus = "schedule.accessibility.error_focus"
+    case reducedMotion = "schedule.accessibility.reduced_motion"
 
     var localizationKey: LocalizationKeyV1 {
         // swiftlint:disable:next force_try
@@ -4094,11 +4120,46 @@ enum ScheduleLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
         case .stateCancelled: return "Cancelled"
         case .stateStarted: return "Started"
         case .stateCompleted: return "Completed"
+        case .editor: return "Schedule editor"
+        case .editorReview: return "Review the schedule summary before saving"
+        case .visibleTimeZone: return "Schedule time zone"
+        case .durationWindow: return "Duration and due window"
+        case .boundedHorizon: return "Occurrences are prepared within a bounded horizon"
+        case .scope: return "Schedule scope"
+        case .exceptionBehavior: return "Exception behavior"
+        case .actionSave: return "Save schedule"
+        case .actionPause: return "Pause schedule"
+        case .actionResume: return "Resume schedule"
+        case .actionEnd: return "End schedule"
+        case .actionStartOnce: return "Start this occurrence once"
+        case .todayReason: return "Why this work appears in Today"
+        case .workCurrent: return "Current scheduled work"
+        case .workUpcoming: return "Upcoming scheduled work"
+        case .offlineReady: return "Required local work is ready"
+        case .offlinePartial: return "Some required local work is missing"
+        case .offlineReason: return "Review what is needed before starting"
+        case .reminderOptIn: return "Allow local reminders"
+        case .reminderDenied: return "Reminders are unavailable; Today still shows all due work"
+        case .reminderEvicted: return "A reminder was removed by the system; due work remains unchanged"
+        case .reminderReconciled: return "Local reminders were rebuilt from recorded due work"
+        case .interruption: return "The schedule update was interrupted"
+        case .sameMutationRecovery: return "Resume the recorded schedule update"
+        case .errorFocus: return "Review this schedule issue before continuing"
+        case .reducedMotion: return "Motion is reduced; schedule changes remain available as text"
         }
     }
 
     var translatorComment: String {
         switch self {
+        case .editor, .editorReview, .visibleTimeZone, .durationWindow,
+             .boundedHorizon, .scope, .exceptionBehavior, .actionSave,
+             .actionPause, .actionResume, .actionEnd, .actionStartOnce,
+             .todayReason, .workCurrent, .workUpcoming, .offlineReady,
+             .offlinePartial, .offlineReason, .reminderOptIn,
+             .reminderDenied, .reminderEvicted, .reminderReconciled,
+             .interruption, .sameMutationRecovery, .errorFocus,
+             .reducedMotion:
+            return "English-only C22 recurring-round experience text; canonical schedule, occurrence, due, reminder, and history truth remains locale-independent."
         case .advancedRecurrence, .exceptionCalendar, .calendarRelease,
              .businessDayAdjustment, .completionGap, .nominalBasis,
              .effectiveBasis, .occurrenceLineage, .scheduleOverride,

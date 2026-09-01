@@ -90,6 +90,20 @@ enum OfflineReadinessManifestBuilderV1 {
         return try OfflineWorkPacketReadinessV1(source: source)
     }
 
+    /// C22 consumes only fully materialized incumbent readiness values. This
+    /// is a pure binding check, not a second readiness store or writer.
+    static func recurringRoundReadiness(
+        request: RecurringRoundStartRequestV1,
+        roundManifest: OfflineReadinessManifestV1? = nil,
+        workPacketReadiness: OfflineWorkPacketReadinessV1? = nil
+    ) throws -> RecurringRoundStartReadinessV1 {
+        try .init(
+            request: request,
+            roundManifest: roundManifest,
+            workPacketReadiness: workPacketReadiness
+        )
+    }
+
     static func build(snapshot: OfflineReadinessSnapshotV1, previous: OfflineReadinessManifestV1? = nil) throws -> OfflineReadinessManifestV1 {
         let referenceObservations = try snapshot.fieldReferenceReadiness
             .map(OfflineReadinessReferenceObservationV1.init)

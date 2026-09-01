@@ -34,6 +34,24 @@ import Foundation
                          payload: .startOccurrence(event, predecessor: predecessor, release: release)))
     }
 
+    func startRecurringRound(_ request: RecurringRoundStartRequestV1,
+                             readiness: RecurringRoundStartReadinessV1,
+                             currentRoundSession: RoundSessionV1? = nil,
+                             exactWorkPacket: WorkPacketManifestV1? = nil) throws -> RecurringRoundStartReceiptV1 {
+        try request.validate()
+        try RecurringRoundStartFrontierBoundaryV1.validate(request: request,
+            currentRoundSession: currentRoundSession, exactWorkPacket: exactWorkPacket)
+        try readiness.requireReady()
+        guard readiness.workspaceID == request.event.workspaceID,
+              readiness.requestSHA256 == request.requestSHA256,
+              readiness.workInstance == request.event.workInstance else {
+            throw RecurringRoundExperienceFailureV1.staleSource
+        }
+        return try .init(request: request,
+                         scheduleReceipt: start(request.event, predecessor: request.predecessor,
+                                                release: request.release))
+    }
+
     func generate(definition: ScheduleDefinitionReleaseV1,
                   history: [OccurrenceHistoryEventV1],
                   completionHistory: [OccurrenceHistoryEventV1],
