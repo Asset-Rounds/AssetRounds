@@ -25,15 +25,33 @@ struct ImportBulkMaterializerRegistrationV1: Sendable {
         materializer: any ImportWorkspaceCommandMaterializingV1,
         allowedWorkspaceCommandKinds: Set<WorkspaceCommandKindV1>? = nil
     ) throws {
-        let allowed = allowedWorkspaceCommandKinds ?? Self.legacyAllowedWorkspaceCommandKinds(for: kind)
-        guard !allowed.isEmpty,
-              !(kind.createsAggregate && allowedWorkspaceCommandKinds == nil) else {
-            throw ImportBulkFailureV1.adapterCollision
+        let allowed: Set<WorkspaceCommandKindV1>
+        if kind.createsAggregate {
+            guard let explicit = allowedWorkspaceCommandKinds,
+                  explicit.count == 1,
+                  let commandKind = explicit.first,
+                  !Self.aggregateForbiddenWorkspaceCommandKinds.contains(commandKind),
+                  try MutationReversalPolicyRegistryV1.policy(for: commandKind).disposition
+                    == .compensatable else {
+                throw ImportBulkFailureV1.adapterCollision
+            }
+            allowed = explicit
+        } else {
+            guard allowedWorkspaceCommandKinds == nil else {
+                throw ImportBulkFailureV1.adapterCollision
+            }
+            allowed = Self.legacyAllowedWorkspaceCommandKinds(for: kind)
         }
         self.kind = kind
         self.materializer = materializer
         self.allowedWorkspaceCommandKinds = allowed
     }
+
+    private static let aggregateForbiddenWorkspaceCommandKinds: Set<WorkspaceCommandKindV1> = [
+        .deleteAsset, .deleteSite, .eraseWorkspace, .restoreWorkspace,
+        .archiveEntities, .finalizeCheck, .finalizeCorrection, .recordWork,
+        .applyImportBulk, .applyWorkspaceExperience,
+    ]
 
     private static func legacyAllowedWorkspaceCommandKinds(
         for kind: ImportCommandKindV1

@@ -107,7 +107,7 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
     let lifecycle: ImportBulkLifecycleAdapterV1
     let coordinator: ImportBulkCoordinatorV1
 
-    init() throws {
+    convenience init() throws {
         try self.init(
             atomicMaterializer: C08RejectingMaterializer(),
             atomicAllowedWorkspaceCommandKinds: [.applyAssetSemantics]
@@ -218,6 +218,21 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
             kind: .applyAtomicWorkspaceBundle,
             materializer: rejecting,
             allowedWorkspaceCommandKinds: []
+        ))
+        XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(
+            kind: .applyAtomicWorkspaceBundle,
+            materializer: rejecting,
+            allowedWorkspaceCommandKinds: [.applyAssetSemantics, .applyAssetPlacementChange]
+        ))
+        XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(
+            kind: .applyAtomicWorkspaceBundle,
+            materializer: rejecting,
+            allowedWorkspaceCommandKinds: [.eraseWorkspace]
+        ))
+        XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(
+            kind: .createAsset,
+            materializer: rejecting,
+            allowedWorkspaceCommandKinds: [.eraseWorkspace]
         ))
 
         let legacy = try ImportCommandKindV1.allCases.filter { !$0.createsAggregate }.map {
