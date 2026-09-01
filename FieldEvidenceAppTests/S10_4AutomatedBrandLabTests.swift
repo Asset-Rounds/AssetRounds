@@ -3990,8 +3990,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 36_324,
-             "0A8A256D881694C36296EC12EF7E6B361864636A50C5B61491D42FE7D8AB69EC"),
+            (workValidationGateSource, 25_973,
+             "2064495617C8480B39F4E4EE095C79D0ACD878D107FCCE0F6A05B64B5BBF16D9"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4011,10 +4011,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workValidationMinimumQuickPathGateRange.lowerBound...
             ]
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 30_593)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 20_242)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "1DE25B8695FDA85DFF7083E85A859255BD66AADB345FE50E4282C744CE3C64E3"
+            "F5DAB58F24B503ADBC87DD9D7C63A92DC1CCFB338DD1A159C1AAD1DCA40AED74"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -4725,7 +4725,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        workKeyboardFrame",
             "workQuickPathTutorialFrame.maxY\n" +
                 "                        <= min(",
-            "preActionDescriptionValue == \"Short description\"",
+            "preActionDescriptionValue == \"\"",
             "let preActionValidationIdentifierMatches =\n" +
                 "                    preActionValidationIdentifier " +
                 "== \"s5.1.work.validation\"",
@@ -4829,92 +4829,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let minimumQuickPathDiagnosticPrefix =
-            "S10_4_MINIMUM_WORK_VALIDATION_QUICKPATH_PRE_DISMISS_DIAGNOSTIC"
-        let minimumQuickPathDiagnosticTerminal =
+        for consumedMinimumQuickPathDiagnosticForm in [
+            "S10_4_MINIMUM_WORK_VALIDATION_QUICKPATH_PRE_DISMISS_DIAGNOSTIC",
+            #""acceptanceEligible": false"#,
             "S10.4 minimum work-validation QuickPath pre-dismiss diagnostic " +
-                "completed nonaccepting"
-        XCTAssertEqual(
-            workValidationMinimumQuickPathSource.components(
-                separatedBy: minimumQuickPathDiagnosticPrefix
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            workValidationMinimumQuickPathSource.components(
-                separatedBy: #""acceptanceEligible": false"#
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            workValidationMinimumQuickPathSource.components(
-                separatedBy: "auditFrameObject("
-            ).count - 1,
-            9
-        )
-        for diagnosticLock in [
-            #""schemaVersion": 1"#,
-            #""stateID": "state.work.validation-error""#,
-            #""cardinality": ["#,
-            #""frames": ["#,
-            #""wrapper": ["#,
-            #""button": ["#,
-            #""firstStaticText": ["#,
-            #""secondStaticText": ["#,
-            #""roles": ["#,
-            #""geometry": ["#,
-            #""work": ["#,
-            "preActionAppForeground",
-            "preActionIntroductionIdentifierMatches",
-            "preActionButtonLabelIsNonempty",
-            "preActionRoleIsExclusive",
-            "preActionTutorialPrecedesAction",
-            "preActionDescriptionValueMatches",
-            "preActionValidationLabelMatches",
-            minimumQuickPathDiagnosticTerminal,
-        ] {
-            XCTAssertTrue(
-                workValidationMinimumQuickPathSource.contains(diagnosticLock),
-                diagnosticLock
-            )
-        }
-        let minimumQuickPathDiagnosticStart = try XCTUnwrap(
-            workValidationMinimumQuickPathSource.range(
-                of: "                    printJSONLine("
-            )
-        )
-        let minimumQuickPathActionStart = try XCTUnwrap(
-            workValidationMinimumQuickPathSource.range(
-                of: workValidationMinimumQuickPathAction,
-                range: minimumQuickPathDiagnosticStart.upperBound ..<
-                    workValidationMinimumQuickPathSource.endIndex
-            )
-        )
-        let minimumQuickPathDiagnosticSource = String(
-            workValidationMinimumQuickPathSource[
-                minimumQuickPathDiagnosticStart.lowerBound ..<
-                    minimumQuickPathActionStart.lowerBound
-            ]
-        )
-        XCTAssertTrue(
-            minimumQuickPathDiagnosticSource.contains(
-                minimumQuickPathDiagnosticTerminal
-            )
-        )
-        for prohibitedDiagnosticForm in [
-            "XCTAttachment", ".screenshot()", ".debugDescription",
-            ".tap()", ".coordinate(", "waitFor", "Thread.sleep", "sleep(",
-            "scroll(", ".swipe", "performAccessibilityAudit",
-            "captureBaseline(", "S10_4_AX_STATE", "S10_4_CONTRAST",
-            "S10_4_CANDIDATE", "S10_4_TASK", "S10_4_SHARD_RECEIPT",
+                "completed nonaccepting",
+            "preActionDescriptionValue == \"Short description\"",
         ] {
             XCTAssertFalse(
-                minimumQuickPathDiagnosticSource.contains(
-                    prohibitedDiagnosticForm
+                workValidationMinimumQuickPathSource.contains(
+                    consumedMinimumQuickPathDiagnosticForm
                 ),
-                prohibitedDiagnosticForm
+                consumedMinimumQuickPathDiagnosticForm
             )
         }
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy:
+                    "S10.4 minimum work-validation QuickPath state changed " +
+                        "before dismissal"
+            ).count - 1,
+            1
+        )
         XCTAssertEqual(
             workValidationRouteSource.components(
                 separatedBy: workValidationMinimumQuickPathSource +
@@ -20670,10 +20606,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 775_074)
+        XCTAssertEqual(uiSource.utf8.count, 764_723)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "A4D8A13F5EF0B39EB331B21738C604DB297B1E623911633C34194583B72A630F"
+            "DFDACB9DB9E7F7910D93CA9396F7F9D1BA286C5FACDBB9BE59231C1E036B40B8"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

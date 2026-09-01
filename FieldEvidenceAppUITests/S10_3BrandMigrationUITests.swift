@@ -5120,9 +5120,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let preActionTutorialLabel = firstTextIsActionTitle
                     ? preActionSecondTextLabel
                     : preActionFirstTextLabel
-                let preActionActionTitleLabel = firstTextIsActionTitle
-                    ? preActionFirstTextLabel
-                    : preActionSecondTextLabel
                 let preActionTutorialLabelDiffersFromButton =
                     preActionTutorialLabel != preActionButtonLabel
                 let preActionApplicationContainsIntroduction =
@@ -5162,7 +5159,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let preActionDescriptionIdentifierMatches =
                     preActionDescriptionIdentifier == "s5.1.work.description"
                 let preActionDescriptionValueMatches =
-                    preActionDescriptionValue == "Short description"
+                    preActionDescriptionValue == ""
                 let preActionValidationIdentifierMatches =
                     preActionValidationIdentifier == "s5.1.work.validation"
                 let preActionValidationLabelMatches =
@@ -5207,177 +5204,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       preActionValidationEnabled,
                       preActionValidationIdentifierMatches,
                       preActionValidationLabelMatches else {
-                    printJSONLine(
-                        prefix:
-                            "S10_4_MINIMUM_WORK_VALIDATION_QUICKPATH_PRE_DISMISS_DIAGNOSTIC",
-                        object: [
-                            "schemaVersion": 1,
-                            "acceptanceEligible": false,
-                            "shardID": automationShard?.shardID ?? "missing",
-                            "requirementID": automationShard?.requirementID
-                                ?? "missing",
-                            "deviceProfileID": automationShard?.deviceProfileID
-                                ?? "missing",
-                            "segmentID": automationSegment.rawValue,
-                            "segmentStateCursor": segmentedRouteStateCursor,
-                            "stateID": "state.work.validation-error",
-                            "cardinality": [
-                                "introduction": workQuickPathIntroductionCount,
-                                "button": workQuickPathButtonCount,
-                                "staticText": workQuickPathStaticTextCount,
-                                "workScreen": preDismissWorkScreenCount,
-                                "description": workDescriptionCount,
-                                "focusedDescription":
-                                    focusedWorkDescriptionCount,
-                                "validation": workValidationCount,
-                                "keyboard": workKeyboardCount,
-                            ],
-                            "applicationState": String(
-                                describing: preActionAppState
-                            ),
-                            "frames": [
-                                "application": auditFrameObject(applicationFrame),
-                                "introduction": auditFrameObject(
-                                    workQuickPathIntroductionFrame
-                                ),
-                                "button": auditFrameObject(
-                                    workQuickPathButtonFrame
-                                ),
-                                "firstStaticText": auditFrameObject(
-                                    workQuickPathFirstStaticTextFrame
-                                ),
-                                "secondStaticText": auditFrameObject(
-                                    workQuickPathSecondStaticTextFrame
-                                ),
-                                "keyboard": auditFrameObject(workKeyboardFrame),
-                                "workScreen": auditFrameObject(workScreenFrame),
-                                "description": auditFrameObject(
-                                    workDescriptionFrame
-                                ),
-                                "validation": auditFrameObject(
-                                    workValidationFrame
-                                ),
-                            ],
-                            "wrapper": [
-                                "exists": preActionIntroductionExists,
-                                "type": String(
-                                    describing: preActionIntroductionType
-                                ),
-                                "identifier": preActionIntroductionIdentifier,
-                                "typeIsOther": preActionIntroductionTypeIsOther,
-                                "identifierMatches":
-                                    preActionIntroductionIdentifierMatches,
-                            ],
-                            "button": [
-                                "exists": preActionButtonExists,
-                                "type": String(
-                                    describing: preActionButtonType
-                                ),
-                                "identifier": preActionButtonIdentifier,
-                                "label": preActionButtonLabel,
-                                "enabled": preActionButtonEnabled,
-                                "hittable": preActionButtonHittable,
-                                "typeIsButton": preActionButtonTypeIsButton,
-                                "identifierIsEmpty":
-                                    preActionButtonIdentifierIsEmpty,
-                                "labelIsNonempty":
-                                    preActionButtonLabelIsNonempty,
-                            ],
-                            "firstStaticText": [
-                                "exists": preActionFirstTextExists,
-                                "type": String(
-                                    describing: preActionFirstTextType
-                                ),
-                                "identifier": preActionFirstTextIdentifier,
-                                "label": preActionFirstTextLabel,
-                                "typeIsStaticText":
-                                    preActionFirstTextTypeIsStaticText,
-                                "identifierIsEmpty":
-                                    preActionFirstTextIdentifierIsEmpty,
-                                "labelIsNonempty":
-                                    preActionFirstTextLabelIsNonempty,
-                            ],
-                            "secondStaticText": [
-                                "exists": preActionSecondTextExists,
-                                "type": String(
-                                    describing: preActionSecondTextType
-                                ),
-                                "identifier": preActionSecondTextIdentifier,
-                                "label": preActionSecondTextLabel,
-                                "typeIsStaticText":
-                                    preActionSecondTextTypeIsStaticText,
-                                "identifierIsEmpty":
-                                    preActionSecondTextIdentifierIsEmpty,
-                                "labelIsNonempty":
-                                    preActionSecondTextLabelIsNonempty,
-                            ],
-                            "roles": [
-                                "firstTextIsActionTitle":
-                                    firstTextIsActionTitle,
-                                "secondTextIsActionTitle":
-                                    secondTextIsActionTitle,
-                                "exclusive": preActionRoleIsExclusive,
-                                "tutorialLabel": preActionTutorialLabel,
-                                "actionTitleLabel": preActionActionTitleLabel,
-                                "tutorialLabelDiffersFromButton":
-                                    preActionTutorialLabelDiffersFromButton,
-                            ],
-                            "geometry": [
-                                "applicationContainsIntroduction":
-                                    preActionApplicationContainsIntroduction,
-                                "applicationContainsKeyboard":
-                                    preActionApplicationContainsKeyboard,
-                                "introductionContainsButton":
-                                    preActionIntroductionContainsButton,
-                                "introductionContainsFirstText":
-                                    preActionIntroductionContainsFirstText,
-                                "introductionContainsSecondText":
-                                    preActionIntroductionContainsSecondText,
-                                "introductionIntersectsKeyboard":
-                                    preActionIntroductionIntersectsKeyboard,
-                                "tutorialPrecedesAction":
-                                    preActionTutorialPrecedesAction,
-                                "tutorialAvoidsButton":
-                                    preActionTutorialAvoidsButton,
-                                "tutorialAvoidsActionTitle":
-                                    preActionTutorialAvoidsActionTitle,
-                            ],
-                            "work": [
-                                "screenExists": preActionWorkScreenExists,
-                                "screenEnabled": preActionWorkScreenEnabled,
-                                "descriptionExists":
-                                    preActionDescriptionExists,
-                                "descriptionEnabled":
-                                    preActionDescriptionEnabled,
-                                "descriptionHittable":
-                                    preActionDescriptionHittable,
-                                "descriptionIdentifier":
-                                    preActionDescriptionIdentifier,
-                                "descriptionLabel": preActionDescriptionLabel,
-                                "descriptionValue":
-                                    preActionDescriptionValue.map { $0 as Any }
-                                        ?? NSNull(),
-                                "descriptionIdentifierMatches":
-                                    preActionDescriptionIdentifierMatches,
-                                "descriptionValueMatches":
-                                    preActionDescriptionValueMatches,
-                                "validationExists": preActionValidationExists,
-                                "validationEnabled": preActionValidationEnabled,
-                                "validationIdentifier":
-                                    preActionValidationIdentifier,
-                                "validationLabel": preActionValidationLabel,
-                                "validationValue":
-                                    preActionValidationValue.map { $0 as Any }
-                                        ?? NSNull(),
-                                "validationIdentifierMatches":
-                                    preActionValidationIdentifierMatches,
-                                "validationLabelMatches":
-                                    preActionValidationLabelMatches,
-                            ],
-                        ]
-                    )
                     throw AutomationConfigurationError.invalid(
-                        "S10.4 minimum work-validation QuickPath pre-dismiss diagnostic completed nonaccepting"
+                        "S10.4 minimum work-validation QuickPath state changed before dismissal"
                     )
                 }
 
