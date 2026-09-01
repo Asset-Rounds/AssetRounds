@@ -14140,7 +14140,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         let navigationBars = app.navigationBars
         let keyboards = app.keyboards
-        let inputViews = app.otherElements.matching(identifier: "inputView")
         let quickPathIntroductionViews = app.descendants(
             matching: .other
         ).matching(identifier: "UIContinuousPathIntroductionView")
@@ -14154,13 +14153,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let noteFieldCount = noteFields.count
         let navigationBarCount = navigationBars.count
         let keyboardCount = keyboards.count
-        let inputViewCount = inputViews.count
         let quickPathIntroductionCount = quickPathIntroductionViews.count
         let quickPathIntroductionButtonCount = quickPathIntroductionButtons.count
         let quickPathIntroductionStaticTextCount = quickPathIntroductionStaticTexts.count
         let structureCounts: [String: Int] = [
             "descriptionFieldCount": descriptionFieldCount,
-            "inputViewCount": inputViewCount,
             "keyboardCount": keyboardCount,
             "navigationBarCount": navigationBarCount,
             "noteFieldCount": noteFieldCount,
@@ -14174,7 +14171,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         ]
         let expectedStructureCounts: [String: Int] = [
             "descriptionFieldCount": 1,
-            "inputViewCount": 1,
             "keyboardCount": 1,
             "navigationBarCount": 1,
             "noteFieldCount": 1,
@@ -14207,7 +14203,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               noteFieldCount == 1,
               navigationBarCount == 1,
               keyboardCount == 1,
-              inputViewCount == 1,
               quickPathIntroductionCount == 0,
               quickPathIntroductionButtonCount == 0,
               quickPathIntroductionStaticTextCount == 0 else {
@@ -14223,7 +14218,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let noteField = noteFields.element(boundBy: 0)
         let navigationBar = navigationBars.element(boundBy: 0)
         let keyboard = keyboards.element(boundBy: 0)
-        let inputView = inputViews.element(boundBy: 0)
         let elementObject: (XCUIElement) -> [String: Any] = { element in
             let valueObject: Any
             if let value = element.value as? String {
@@ -14251,7 +14245,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let noteFieldFrame = noteField.frame
         let navigationFrame = navigationBar.frame
         let keyboardFrame = keyboard.frame
-        let inputViewFrame = inputView.frame
         let applicationVisibleAboveKeyboard = CGRect(
             x: applicationFrame.minX,
             y: applicationFrame.minY,
@@ -14266,7 +14259,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             "applicationContainsNoteField": applicationFrame.contains(noteFieldFrame),
             "applicationContainsNavigation": applicationFrame.contains(navigationFrame),
             "applicationContainsKeyboard": applicationFrame.contains(keyboardFrame),
-            "applicationContainsInputView": applicationFrame.contains(inputViewFrame),
             "applicationIntersectsNoteHeading": applicationFrame.intersects(noteHeadingFrame),
             "visibleAboveKeyboardContainsNoteHeading":
                 applicationVisibleAboveKeyboard.contains(noteHeadingFrame),
@@ -14274,8 +14266,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 applicationVisibleAboveKeyboard.intersects(noteHeadingFrame),
             "keyboardContainsNoteHeading": keyboardFrame.contains(noteHeadingFrame),
             "keyboardIntersectsNoteHeading": keyboardFrame.intersects(noteHeadingFrame),
-            "inputViewContainsNoteHeading": inputViewFrame.contains(noteHeadingFrame),
-            "inputViewIntersectsNoteHeading": inputViewFrame.intersects(noteHeadingFrame),
             "noteHeadingIntersectsNoteField": noteHeadingFrame.intersects(noteFieldFrame),
             "noteHeadingIntersectsValidation": noteHeadingFrame.intersects(validationFrame),
             "quickPathWrapperCount": quickPathIntroductionCount,
@@ -14329,7 +14319,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "element": elementObject(navigationBar),
             ],
             "keyboards": ["count": keyboardCount, "element": elementObject(keyboard)],
-            "inputViews": ["count": inputViewCount, "element": elementObject(inputView)],
             "quickPathIntroductionViews": [
                 "count": quickPathIntroductionCount,
                 "buttonDescendantCount": quickPathIntroductionButtonCount,

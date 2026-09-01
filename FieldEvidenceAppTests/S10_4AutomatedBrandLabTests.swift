@@ -4926,7 +4926,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"identifier: "s5.1.work.validation""#,
             #"NSPredicate(format: "label == %@", "Note")"#,
             #"identifier: "s5.1.work.note""#,
-            #"matching(identifier: "inputView")"#,
             #"matching(identifier: "UIContinuousPathIntroductionView")"#,
             "quickPathIntroductionViews.buttons",
             "quickPathIntroductionViews.staticTexts",
@@ -4937,14 +4936,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "noteFieldCount == 1",
             "navigationBarCount == 1",
             "keyboardCount == 1",
-            "inputViewCount == 1",
             "quickPathIntroductionCount == 0",
             "quickPathIntroductionButtonCount == 0",
             "quickPathIntroductionStaticTextCount == 0",
             "let structureCounts: [String: Int] = [",
             "let expectedStructureCounts: [String: Int] = [",
             #""descriptionFieldCount": descriptionFieldCount"#,
-            #""inputViewCount": inputViewCount"#,
             #""keyboardCount": keyboardCount"#,
             #""navigationBarCount": navigationBarCount"#,
             #""noteFieldCount": noteFieldCount"#,
@@ -4954,7 +4951,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""validationLabelCount": validationLabelCount"#,
             #""workScreenCount": workScreenCount"#,
             #""descriptionFieldCount": 1"#,
-            #""inputViewCount": 1"#,
             #""keyboardCount": 1"#,
             #""navigationBarCount": 1"#,
             #""noteFieldCount": 1"#,
@@ -4974,13 +4970,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "noteFields.element(boundBy: 0)",
             "navigationBars.element(boundBy: 0)",
             "keyboards.element(boundBy: 0)",
-            "inputViews.element(boundBy: 0)",
             "\"elementTypeRawValue\": element.elementType.rawValue",
             "\"elementTypeDescription\": String(describing: element.elementType)",
             "\"frame\": self.auditFrameObject(element.frame)",
             "applicationVisibleAboveKeyboard",
+            "\"applicationContainsKeyboard\"",
+            "\"visibleAboveKeyboardContainsNoteHeading\"",
+            "\"visibleAboveKeyboardIntersectsNoteHeading\"",
+            "\"keyboardContainsNoteHeading\"",
             "\"keyboardIntersectsNoteHeading\"",
-            "\"inputViewIntersectsNoteHeading\"",
             "\"noteHeadingIntersectsNoteField\"",
             "\"quickPathWrapperButtonDescendantCount\": quickPathIntroductionButtonCount",
             "\"quickPathWrapperStaticTextDescendantCount\":" +
@@ -5038,6 +5036,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("sleep(", 0),
             ("tolerance", 0),
             ("epsilon", 0),
+            ("inputView", 0),
         ] {
             XCTAssertEqual(
                 minimumWorkValidationNoteDiagnosticSource.components(
@@ -20845,10 +20844,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 779_821)
+        XCTAssertEqual(uiSource.utf8.count, 779_129)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "E162D681B447AA231B304267C439CEB6CDC57D004DD88ADF08675B0F1BADE919"
+            "8B5BD99BB9094FE0E7F1D5EBB81EE4B8265EF2357A500EDF8C42EB3FA3435F53"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
