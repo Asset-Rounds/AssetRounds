@@ -4941,6 +4941,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "quickPathIntroductionCount == 0",
             "quickPathIntroductionButtonCount == 0",
             "quickPathIntroductionStaticTextCount == 0",
+            "let structureCounts: [String: Int] = [",
+            "let expectedStructureCounts: [String: Int] = [",
+            #""descriptionFieldCount": descriptionFieldCount"#,
+            #""inputViewCount": inputViewCount"#,
+            #""keyboardCount": keyboardCount"#,
+            #""navigationBarCount": navigationBarCount"#,
+            #""noteFieldCount": noteFieldCount"#,
+            #""noteHeadingCount": noteHeadingCount"#,
+            #""quickPathWrapperButtonDescendantCount": quickPathIntroductionButtonCount"#,
+            #""quickPathWrapperCount": quickPathIntroductionCount"#,
+            #""validationLabelCount": validationLabelCount"#,
+            #""workScreenCount": workScreenCount"#,
+            #""descriptionFieldCount": 1"#,
+            #""inputViewCount": 1"#,
+            #""keyboardCount": 1"#,
+            #""navigationBarCount": 1"#,
+            #""noteFieldCount": 1"#,
+            #""noteHeadingCount": 1"#,
+            #""quickPathWrapperButtonDescendantCount": 0"#,
+            #""quickPathWrapperCount": 0"#,
+            #""quickPathWrapperStaticTextDescendantCount": 0"#,
+            #""validationLabelCount": 1"#,
+            #""workScreenCount": 1"#,
+            #""expectedCounts": expectedStructureCounts"#,
+            #""observedCounts": structureCounts"#,
+            "S10_4_MINIMUM_WORK_VALIDATION_NOTE_STRUCTURE_DIAGNOSTIC",
             "workScreens.element(boundBy: 0)",
             "descriptionFields.element(boundBy: 0)",
             "validationLabels.element(boundBy: 0)",
@@ -4990,7 +5016,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (token, count) in [
             ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
             ("return true", 1),
-            ("printJSONLine(", 1),
+            ("printJSONLine(", 2),
             ("XCTAttachment(", 4),
             (".lifetime = .keepAlways", 4),
             ("add(", 4),
@@ -5021,7 +5047,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 token
             )
         }
-        guard let minimumWorkValidationNoteCardinalityRange =
+        guard let minimumWorkValidationNoteObservedMapRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "let structureCounts: [String: Int] = ["
+                ),
+              let minimumWorkValidationNoteExpectedMapRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "let expectedStructureCounts: [String: Int] = ["
+                ),
+              let minimumWorkValidationNoteStructureRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "S10_4_MINIMUM_WORK_VALIDATION_NOTE_STRUCTURE_DIAGNOSTIC"
+                ),
+              let minimumWorkValidationNoteCardinalityRange =
                 minimumWorkValidationNoteDiagnosticSource.range(
                     of: "guard workScreenCount == 1,"
                 ),
@@ -5048,6 +5086,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("Missing the bounded minimum work-validation Note diagnostic ordering")
             return
         }
+        XCTAssertLessThan(
+            minimumWorkValidationNoteObservedMapRange.lowerBound,
+            minimumWorkValidationNoteExpectedMapRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumWorkValidationNoteExpectedMapRange.lowerBound,
+            minimumWorkValidationNoteStructureRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumWorkValidationNoteStructureRange.lowerBound,
+            minimumWorkValidationNoteCardinalityRange.lowerBound
+        )
         XCTAssertLessThan(
             minimumWorkValidationNoteCardinalityRange.lowerBound,
             minimumWorkValidationNoteFirstElementRange.lowerBound

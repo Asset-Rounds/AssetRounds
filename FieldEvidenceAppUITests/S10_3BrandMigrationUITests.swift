@@ -14158,6 +14158,48 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let quickPathIntroductionCount = quickPathIntroductionViews.count
         let quickPathIntroductionButtonCount = quickPathIntroductionButtons.count
         let quickPathIntroductionStaticTextCount = quickPathIntroductionStaticTexts.count
+        let structureCounts: [String: Int] = [
+            "descriptionFieldCount": descriptionFieldCount,
+            "inputViewCount": inputViewCount,
+            "keyboardCount": keyboardCount,
+            "navigationBarCount": navigationBarCount,
+            "noteFieldCount": noteFieldCount,
+            "noteHeadingCount": noteHeadingCount,
+            "quickPathWrapperButtonDescendantCount": quickPathIntroductionButtonCount,
+            "quickPathWrapperCount": quickPathIntroductionCount,
+            "quickPathWrapperStaticTextDescendantCount":
+                quickPathIntroductionStaticTextCount,
+            "validationLabelCount": validationLabelCount,
+            "workScreenCount": workScreenCount,
+        ]
+        let expectedStructureCounts: [String: Int] = [
+            "descriptionFieldCount": 1,
+            "inputViewCount": 1,
+            "keyboardCount": 1,
+            "navigationBarCount": 1,
+            "noteFieldCount": 1,
+            "noteHeadingCount": 1,
+            "quickPathWrapperButtonDescendantCount": 0,
+            "quickPathWrapperCount": 0,
+            "quickPathWrapperStaticTextDescendantCount": 0,
+            "validationLabelCount": 1,
+            "workScreenCount": 1,
+        ]
+        printJSONLine(
+            prefix: "S10_4_MINIMUM_WORK_VALIDATION_NOTE_STRUCTURE_DIAGNOSTIC",
+            object: [
+                "acceptanceEligible": false,
+                "deviceProfileID": shard.deviceProfileID,
+                "expectedCounts": expectedStructureCounts,
+                "observedCounts": structureCounts,
+                "requirementID": shard.requirementID,
+                "schemaVersion": 1,
+                "segmentID": automationSegment.rawValue,
+                "shardID": shard.shardID,
+                "stateID": stateID,
+                "stateOrdinal": 23,
+            ]
+        )
         guard workScreenCount == 1,
               descriptionFieldCount == 1,
               validationLabelCount == 1,
