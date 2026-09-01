@@ -18,9 +18,24 @@ def _coord_git(coord,*args): return subprocess.run(['git',*args],cwd=coord,captu
 def _coord_json(coord,revision,path): return json.loads(subprocess.run(['git','show',revision+':'+path],cwd=coord,capture_output=True,check=True).stdout)
 def _coord_blob(coord,revision,path): return _coord_git(coord,'rev-parse',revision+':'+path)
 def _coord_is_ancestor(coord,ancestor,descendant): return subprocess.run(['git','merge-base','--is-ancestor',ancestor,descendant],cwd=coord,capture_output=True).returncode==0
+def _app_git(*args): return subprocess.run(['git',*args],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
+def _app_is_ancestor(ancestor,descendant): return subprocess.run(['git','merge-base','--is-ancestor',ancestor,descendant],cwd=ROOT,capture_output=True).returncode==0
 def _checkpointed_c26_entry(entries):
  matches=[entry for entry in entries if entry.get('cardID')==CARD and entry.get('state')=='CHECKPOINTED']
  return matches[-1] if matches else None
+def _post_checkpoint_tuple(coord,head,ledger_entry,projection_entry,sealed_ledger,sealed_projection):
+ keys=('postCheckpointToolingCorrectionDigest','postCheckpointToolingVerificationHead','postCheckpointToolingVerificationTree')
+ if any(ledger_entry.get(key)!=sealed_ledger.get(key) for key in sealed_ledger) or any(projection_entry.get(key)!=sealed_projection.get(key) for key in sealed_projection) or set(ledger_entry)-set(sealed_ledger)-set(keys) or set(projection_entry)-set(sealed_projection)-set(keys): raise ValueError('C26 sealed row mutation differs')
+ present=[key for key in keys if key in ledger_entry or key in projection_entry]
+ if not present: return
+ if len(present)!=len(keys) or any(key not in ledger_entry or key not in projection_entry or ledger_entry[key]!=projection_entry[key] for key in keys): raise ValueError('C26 post-checkpoint tuple differs')
+ digest,post_head,post_tree=(ledger_entry[key] for key in keys); receipt_paths=[path for path in _coord_git(coord,'ls-tree','-r','--name-only',head,'--','receipts').splitlines() if re.fullmatch(r'receipts/V23-P04-C26-post-checkpoint-tooling-verification-correction-v[1-9][0-9]*\.json',path)]
+ receipts=[_coord_json(coord,head,path) for path in receipt_paths]; matches=[receipt for receipt in receipts if receipt.get('correctionDigest')==digest]
+ if len(matches)!=1: raise ValueError('C26 post-checkpoint receipt differs')
+ receipt=matches[0]; fixed={'cardID':CARD,'correctionDigest':digest,'originalAcceptedCandidateHead':ACCEPTED,'originalAcceptedCandidateTree':ACCEPTED_TREE,'originalCheckpointDigest':CHECKPOINT,'originalVerificationReceiptDigest':VERIFICATION,'postCheckpointToolingVerificationHead':post_head,'postCheckpointToolingVerificationTree':post_tree,'checkpointImmutable':True,'flagsAllFalse':True,'normalVerifierStatus':'PASS_STATIC_PROVISIONAL','portableVerifierStatus':'PASS_STATIC_PROVISIONAL'}
+ false_flags=('acceptanceCredit','acceptanceEnabled','adoptionEnabled','hostedDispatchEnabled','hostedDispatchRan','nativeCompileRan','phase10PollingDuringParallelExecution','physicalDeviceEnabled','publicationEnabled','releaseCredit','releaseReady')
+ receipt_basis=dict(receipt); receipt_basis.pop('correctionDigest',None); canonical_digest=sha((json.dumps(receipt_basis,sort_keys=True,separators=(',',':'))+'\n').encode())
+ if any(receipt.get(key)!=value for key,value in fixed.items()) or canonical_digest!=digest or any(receipt.get(key) is not False for key in false_flags) or receipt.get('changedPaths')!=['Scripts/v23/p04_c26_contracts.py'] or not _app_is_ancestor(ACCEPTED,post_head) or not _app_is_ancestor(post_head,_app_git('rev-parse','HEAD')) or _app_git('rev-parse',post_head+'^{tree}')!=post_tree or _app_git('rev-parse',post_head+'^')!=receipt.get('directParentHead') or not _app_is_ancestor(ACCEPTED,receipt.get('directParentHead')) or set(_app_git('diff','--name-only',ACCEPTED,post_head).splitlines())!={'Scripts/v23/p04_c26_contracts.py'}: raise ValueError('C26 post-checkpoint receipt authority differs')
 def authority():
  coord=coordination_root()
  if coord:
@@ -34,9 +49,10 @@ def authority():
   if context.get('contextDigest')!=CONTEXT or context.get('pathFenceDigest')!=FENCE or context.get('ownerAuthorizedPathAllocationDigest')!=ALLOCATION or tuple(f.get('allowedCreateOrReplacePaths',()))!=PATH_FENCE or f.get('fenceDigest')!=FENCE or correction.get('receiptDigest')!=CORRECTION or correction.get('contextDigest')!=CONTEXT or correction.get('fenceDigest')!=FENCE or correction.get('allocationReceiptDigest')!=ALLOCATION: raise ValueError('C26 hydration authority differs')
   tuple_fields={'cardID':CARD,'acceptedCandidateHead':ACCEPTED,'acceptedCandidateTree':ACCEPTED_TREE,'checkpointDigest':CHECKPOINT,'verificationReceiptDigest':VERIFICATION}
   if any(checkpoint.get(key)!=value for key,value in tuple_fields.items()) or any(verification.get(key)!=value for key,value in {'cardID':CARD,'acceptedCandidateHead':ACCEPTED,'acceptedCandidateTree':ACCEPTED_TREE,'receiptDigest':VERIFICATION}.items()): raise ValueError('C26 sealed checkpoint differs')
-  ledger=_coord_json(coord,head,'state/BootstrapExecutionLedgerEnvelopeV1.json'); projection=_coord_json(coord,head,'projections/ActiveWorkSetProjectionV1.json'); ledger_entry=_checkpointed_c26_entry(ledger.get('attempts',())); projection_entry=_checkpointed_c26_entry(projection.get('activeEntries',()))
+  ledger=_coord_json(coord,head,'state/BootstrapExecutionLedgerEnvelopeV1.json'); projection=_coord_json(coord,head,'projections/ActiveWorkSetProjectionV1.json'); sealed_ledger=_coord_json(coord,SEALED_HEAD,'state/BootstrapExecutionLedgerEnvelopeV1.json'); sealed_projection=_coord_json(coord,SEALED_HEAD,'projections/ActiveWorkSetProjectionV1.json'); ledger_entry=_checkpointed_c26_entry(ledger.get('attempts',())); projection_entry=_checkpointed_c26_entry(projection.get('activeEntries',()))
   required={'cardID':CARD,'attemptID':1,'state':'CHECKPOINTED','acceptedCandidateHead':ACCEPTED,'acceptedCandidateTree':ACCEPTED_TREE,'contextDigest':CONTEXT,'pathFenceDigest':FENCE,'ownerAuthorizedPathAllocationDigest':ALLOCATION,'provisionalPrerequisiteDigest':PREREQ,'provisionalCheckpointDigest':CHECKPOINT,'provisionalVerificationDigest':VERIFICATION}
-  if ledger_entry is None or any(ledger_entry.get(key)!=value for key,value in required.items()) or projection_entry is None or not _json_equal(projection_entry,_checkpointed_c26_entry(_coord_json(coord,SEALED_HEAD,'projections/ActiveWorkSetProjectionV1.json').get('activeEntries',()))) or projection.get('ledgerDigest')!=ledger.get('ledgerDigest'): raise ValueError('C26 sealed ledger/projection differs')
+  if ledger_entry is None or any(ledger_entry.get(key)!=value for key,value in required.items()) or projection_entry is None or projection.get('ledgerDigest')!=ledger.get('ledgerDigest'): raise ValueError('C26 sealed ledger/projection differs')
+  _post_checkpoint_tuple(coord,head,ledger_entry,projection_entry,_checkpointed_c26_entry(sealed_ledger.get('attempts',())),_checkpointed_c26_entry(sealed_projection.get('activeEntries',())))
   return f
  manifest=json.loads((ROOT/MANIFEST).read_bytes()); a=manifest['authority']; reserved=a['frozenS10ReservedPaths']
  if tuple(manifest['pathFence'])!=PATH_FENCE or a['frozenS10ReservedPathsSHA256']!=FROZEN_S10_SHA or sha((json.dumps(reserved,separators=(',',':'))+'\n').encode())!=FROZEN_S10_SHA or set(reserved)&set(PATH_FENCE): raise ValueError('C26 portable fence differs')
