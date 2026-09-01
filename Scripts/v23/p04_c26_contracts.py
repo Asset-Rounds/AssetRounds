@@ -30,12 +30,33 @@ def _post_checkpoint_tuple(coord,head,ledger_entry,projection_entry,sealed_ledge
  if not present: return
  if len(present)!=len(keys) or any(key not in ledger_entry or key not in projection_entry or ledger_entry[key]!=projection_entry[key] for key in keys): raise ValueError('C26 post-checkpoint tuple differs')
  digest,post_head,post_tree=(ledger_entry[key] for key in keys); receipt_paths=[path for path in _coord_git(coord,'ls-tree','-r','--name-only',head,'--','receipts').splitlines() if re.fullmatch(r'receipts/V23-P04-C26-post-checkpoint-tooling-verification-correction-v[1-9][0-9]*\.json',path)]
- receipts=[_coord_json(coord,head,path) for path in receipt_paths]; matches=[receipt for receipt in receipts if receipt.get('correctionDigest')==digest]
- if len(matches)!=1: raise ValueError('C26 post-checkpoint receipt differs')
- receipt=matches[0]; fixed={'cardID':CARD,'correctionDigest':digest,'originalAcceptedCandidateHead':ACCEPTED,'originalAcceptedCandidateTree':ACCEPTED_TREE,'originalCheckpointDigest':CHECKPOINT,'originalVerificationReceiptDigest':VERIFICATION,'postCheckpointToolingVerificationHead':post_head,'postCheckpointToolingVerificationTree':post_tree,'checkpointImmutable':True,'flagsAllFalse':True,'normalVerifierStatus':'PASS_STATIC_PROVISIONAL','portableVerifierStatus':'PASS_STATIC_PROVISIONAL'}
+ records=[]
+ for path in receipt_paths:
+  records.append((int(re.search(r'-v([1-9][0-9]*)\.json$',path).group(1)),_coord_json(coord,head,path)))
+ by_digest={}
+ for record in records: by_digest.setdefault(record[1].get('correctionDigest'),[]).append(record)
+ v1_keys={'acceptanceCredit','acceptanceEnabled','adoptionEnabled','cardID','changedPaths','checkpointImmutable','correctionDigest','createdAt','directParentHead','flagsAllFalse','hostedDispatchEnabled','hostedDispatchRan','nativeCompileRan','nextEligibleCardID','nextEligibleRegisterOrdinal','normalVerifierStatus','originalAcceptedCandidateHead','originalAcceptedCandidateTree','originalCheckpointDigest','originalVerificationReceiptDigest','phase10PollingDuringParallelExecution','physicalDeviceEnabled','portableVerifierStatus','postCheckpointToolingVerificationHead','postCheckpointToolingVerificationTree','publicationEnabled','releaseCredit','releaseReady','schema'}
+ v2_keys={'acceptanceCredit','acceptanceEnabled','adoptionEnabled','cardID','correctionDigest','createdAt','cumulativeChangedPaths','directParentHead','flagsAllFalse','hostedDispatchEnabled','hostedDispatchRan','nativeCompileRan','nextEligibleCardID','nextEligibleRegisterOrdinal','normalAndPortableVerifierStatus','originalCheckpointDigest','originalVerificationReceiptDigest','phase10PollingDuringParallelExecution','physicalDeviceEnabled','postCheckpointToolingVerificationHead','postCheckpointToolingVerificationTree','priorPostCheckpointToolingVerificationHead','publicationEnabled','releaseCredit','releaseReady','schema','supersedesCorrectionDigest'}
  false_flags=('acceptanceCredit','acceptanceEnabled','adoptionEnabled','hostedDispatchEnabled','hostedDispatchRan','nativeCompileRan','phase10PollingDuringParallelExecution','physicalDeviceEnabled','publicationEnabled','releaseCredit','releaseReady')
- receipt_basis=dict(receipt); receipt_basis.pop('correctionDigest',None); canonical_digest=sha((json.dumps(receipt_basis,sort_keys=True,separators=(',',':'))+'\n').encode())
- if any(receipt.get(key)!=value for key,value in fixed.items()) or canonical_digest!=digest or any(receipt.get(key) is not False for key in false_flags) or receipt.get('changedPaths')!=['Scripts/v23/p04_c26_contracts.py'] or not _app_is_ancestor(ACCEPTED,post_head) or not _app_is_ancestor(post_head,_app_git('rev-parse','HEAD')) or _app_git('rev-parse',post_head+'^{tree}')!=post_tree or _app_git('rev-parse',post_head+'^')!=receipt.get('directParentHead') or not _app_is_ancestor(ACCEPTED,receipt.get('directParentHead')) or set(_app_git('diff','--name-only',ACCEPTED,post_head).splitlines())!={'Scripts/v23/p04_c26_contracts.py'}: raise ValueError('C26 post-checkpoint receipt authority differs')
+ def validate(record,seen=()):
+  version,receipt=record; receipt_digest=receipt.get('correctionDigest'); receipt_basis=dict(receipt); receipt_basis.pop('correctionDigest',None)
+  if receipt_digest in seen or sha((json.dumps(receipt_basis,sort_keys=True,separators=(',',':'))+'\n').encode())!=receipt_digest or any(receipt.get(key) is not False for key in false_flags) or receipt.get('cardID')!=CARD or receipt.get('originalCheckpointDigest')!=CHECKPOINT or receipt.get('originalVerificationReceiptDigest')!=VERIFICATION: raise ValueError('C26 post-checkpoint receipt authority differs')
+  receipt_head=receipt.get('postCheckpointToolingVerificationHead'); receipt_tree=receipt.get('postCheckpointToolingVerificationTree')
+  if not _app_is_ancestor(ACCEPTED,receipt_head) or not _app_is_ancestor(receipt_head,_app_git('rev-parse','HEAD')) or _app_git('rev-parse',receipt_head+'^{tree}')!=receipt_tree or _app_git('rev-parse',receipt_head+'^')!=receipt.get('directParentHead') or not _app_is_ancestor(ACCEPTED,receipt.get('directParentHead')) or set(_app_git('diff','--name-only',ACCEPTED,receipt_head).splitlines())!={'Scripts/v23/p04_c26_contracts.py'}: raise ValueError('C26 post-checkpoint receipt lineage differs')
+  if version==1:
+   fixed={'schema':'PostCheckpointToolingVerificationCorrectionReceiptV1','originalAcceptedCandidateHead':ACCEPTED,'originalAcceptedCandidateTree':ACCEPTED_TREE,'checkpointImmutable':True,'normalVerifierStatus':'PASS_STATIC_PROVISIONAL','portableVerifierStatus':'PASS_STATIC_PROVISIONAL','changedPaths':['Scripts/v23/p04_c26_contracts.py'],'directParentHead':ACCEPTED}
+   if set(receipt)!=v1_keys or any(receipt.get(key)!=value for key,value in fixed.items()): raise ValueError('C26 post-checkpoint v1 receipt differs')
+  else:
+   fixed={'schema':'PostCheckpointToolingVerificationCorrectionV2ReceiptV1','normalAndPortableVerifierStatus':'PASS_STATIC_PROVISIONAL','cumulativeChangedPaths':['Scripts/v23/p04_c26_contracts.py']}
+   prior_matches=by_digest.get(receipt.get('supersedesCorrectionDigest'),[])
+   if set(receipt)!=v2_keys or any(receipt.get(key)!=value for key,value in fixed.items()) or len(prior_matches)!=1 or prior_matches[0][0]>=version: raise ValueError('C26 post-checkpoint v2 receipt differs')
+   prior=validate(prior_matches[0],seen+(receipt_digest,))
+   if receipt.get('priorPostCheckpointToolingVerificationHead')!=prior.get('postCheckpointToolingVerificationHead') or receipt.get('directParentHead')!=prior.get('postCheckpointToolingVerificationHead'): raise ValueError('C26 post-checkpoint supersession differs')
+  return receipt
+ matches=by_digest.get(digest,[])
+ if len(matches)!=1: raise ValueError('C26 post-checkpoint receipt differs')
+ receipt=validate(matches[0])
+ if receipt.get('postCheckpointToolingVerificationHead')!=post_head or receipt.get('postCheckpointToolingVerificationTree')!=post_tree: raise ValueError('C26 post-checkpoint tuple receipt differs')
 def authority():
  coord=coordination_root()
  if coord:
