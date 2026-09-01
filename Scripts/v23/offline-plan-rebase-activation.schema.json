@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "V23 P04 C19 Offline Plan Rebase Activation",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {"cardID":{"const":"V23-P04-C19"},"persistentSchema":{"const":"V53"},"activeModelCount":{"const":168},"newDurableRecordCount":{"const":0},"statusFlags":{"type":"object","additionalProperties":{"const":false}}},
+  "required": ["cardID","persistentSchema","activeModelCount","newDurableRecordCount","statusFlags"]
+}

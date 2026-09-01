@@ -41,12 +41,61 @@ final class PlanLifecycleAdapterV1 {
         return .retryRequired
     }
 
+    /// The rebase review is derived from an immutable preview and, when
+    /// present, its immutable receipt. It never activates a preview or writes
+    /// a plan revision.
+    func reviewState(
+        preview: RebasePreviewV1,
+        receipt: RebaseReceiptV1?,
+        evaluatedAt: Date
+    ) throws -> RebaseReviewStateV1 {
+        try RebaseReviewStateV1(
+            preview: preview,
+            receipt: receipt,
+            evaluatedAt: evaluatedAt
+        )
+    }
+
+    /// Builds a device-local display state from the caller's already resolved
+    /// exact source. Historic, withdrawn, or expired sources remain
+    /// displayable, but they cannot carry a resume draft into a claim or
+    /// mutation path.
+    func workSurface(
+        source: PlanOfflineWorkSourceV1,
+        selectedPageID: UUID,
+        selectedPlacementID: UUID?,
+        viewport: PlanViewportPresentationV1,
+        resumeDraft: FieldDraftReferenceProjectionV1?,
+        poseSnapshots: [PlanMaterializedPoseSnapshotV1],
+        evaluatedAt: Date
+    ) throws -> PlanWorkSurfaceStateV1 {
+        try source.validate()
+        if resumeDraft != nil {
+            guard source.revisionDisposition == .current,
+                  source.fieldReference.availability == .readyOffline,
+                  source.openability.state == .openable,
+                  source.access.protectedDataAvailable else {
+                throw PlanOfflineWorkFailureV1.staleSource
+            }
+        }
+        return try PlanWorkSurfaceStateV1(
+            source: source,
+            selectedPageID: selectedPageID,
+            selectedPlacementID: selectedPlacementID,
+            viewport: viewport,
+            resumeDraft: resumeDraft,
+            poseSnapshots: poseSnapshots,
+            evaluatedAt: evaluatedAt
+        )
+    }
+
     func approve(preview: RebasePreviewV1, newRevision: PlanRevisionV1,
                  predecessorRevision: PlanRevisionV1, placements: [PlanPlacementV1],
                  predecessorPlacements: [PlanPlacementV1], receiptID: UUID,
                  prerequisites: PlanPrerequisiteClosureV1,
                  predecessorReceipt: RebaseReceiptV1?, mutationID: MutationIDV1,
-                 reviewedBy: ActorSnapshotV1, recordedAt: Date) throws
+                 reviewedBy: ActorSnapshotV1, recordedAt: Date,
+                 poseEffects: PlacementPoseMutationV1? = nil) throws
         -> PlanRebaseApprovalOutcomeV1 {
         try coordinator.approve(preview: preview, newRevision: newRevision,
                                 predecessorRevision: predecessorRevision,
@@ -55,7 +104,7 @@ final class PlanLifecycleAdapterV1 {
                                 receiptID: receiptID, prerequisites: prerequisites,
                                 predecessorReceipt: predecessorReceipt,
                                 mutationID: mutationID, reviewedBy: reviewedBy,
-                                recordedAt: recordedAt)
+                                recordedAt: recordedAt, poseEffects: poseEffects)
     }
 
     func reject(preview: RebasePreviewV1, receiptID: UUID,

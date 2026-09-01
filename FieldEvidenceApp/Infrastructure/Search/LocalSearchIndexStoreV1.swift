@@ -1455,6 +1455,37 @@ extension LocalSearchIndexStoreV1 {
     }
 }
 
+// MARK: - C19 current plan-document search adapter
+
+extension LocalSearchIndexStoreV1 {
+    static func planDocumentSearchRecord(
+        currentDocument: PlanDocumentV1,
+        currentRevision: PlanRevisionV1,
+        currentPlacementCount: Int,
+        offlineReadiness: [PlanOfflineReadinessSearchMetadataV1] = [],
+        workSurfaces: [PlanWorkSurfaceSearchMetadataV1] = []
+    ) throws -> PlanDocumentSearchRecordV1 {
+        let record = try PlanDocumentSearchRecordV1(
+            currentDocument: currentDocument,
+            currentRevision: currentRevision,
+            currentPlacementCount: currentPlacementCount,
+            offlineReadiness: offlineReadiness,
+            workSurfaces: workSurfaces
+        )
+        try PlanDocumentSearchProjectionPolicyV1.validate(record)
+        try PlanDocumentSearchPersistencePolicyV1().validate()
+        return record
+    }
+
+    static func validatePlanDocumentSearchRecord(
+        _ record: PlanDocumentSearchRecordV1
+    ) throws -> PlanDocumentSearchRecordV1 {
+        try PlanDocumentSearchProjectionPolicyV1.validate(record)
+        try PlanDocumentSearchPersistencePolicyV1().validate()
+        return record
+    }
+}
+
 // MARK: - C37 current placement-pose search adapter
 
 extension LocalSearchIndexStoreV1 {

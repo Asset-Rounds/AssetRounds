@@ -2008,6 +2008,40 @@ extension ReportProjectionRegistryV1 {
         )
         return try validatePlanProjection(projection)
     }
+
+    static func c19ReadinessDetail(
+        _ readiness: OfflineWorkPacketReadinessV1
+    ) throws -> C19PlanReadinessDetailProjectionV1 {
+        try C19PlanReadinessDetailProjectionV1(readiness)
+    }
+
+    static func c19WorkSurfaceDetail(
+        _ surface: PlanWorkSurfaceStateV1
+    ) throws -> C19PlanWorkSurfaceDetailProjectionV1 {
+        try C19PlanWorkSurfaceDetailProjectionV1(surface)
+    }
+
+    static func c19RebaseReviewDetail(
+        _ review: RebaseReviewStateV1
+    ) throws -> C19RebaseReviewDetailProjectionV1 {
+        try C19RebaseReviewDetailProjectionV1(review)
+    }
+
+    static func c19AccessibleDocument(
+        surface: PlanWorkSurfaceStateV1,
+        readiness: OfflineWorkPacketReadinessV1,
+        review: RebaseReviewStateV1?
+    ) throws -> C19PlanAccessibleDocumentProjectionV1 {
+        try C19PlanAccessibleDocumentProjectionV1(
+            surface: surface, readiness: readiness, review: review
+        )
+    }
+
+    static func c19HistoricOpenRequest(
+        report: PlanReportProjectionV1
+    ) throws -> C19HistoricPlanRevisionOpenRequestV1 {
+        try C19HistoricPlanRevisionOpenRequestV1(report: report)
+    }
 }
 
 // MARK: - C21 client capability and package lifecycle consumer enrollment

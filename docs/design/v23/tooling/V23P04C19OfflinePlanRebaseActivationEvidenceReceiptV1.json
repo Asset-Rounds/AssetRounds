@@ -1,0 +1,194 @@
+{
+  "authority": {
+    "allocationDigest": "8d5b867def83ef995184aa4792fe06f7992e77110b5c14edcca29e16db94154e",
+    "appBaseHead": "e22788314918ff294bf5b36cd851c7451a0286d7",
+    "appBaseTree": "df4cb890392f8e1b990bcbc8bfb66e59e9179958",
+    "authorizedOverlapCount": 38,
+    "cardID": "V23-P04-C19",
+    "contextDigest": "e58e8f9ee9b6a428a2b33e5d4a207d7a0438eee5588a88f3244dd56b39a8e23a",
+    "coordinationHead": "1e24865f21476cb7cec0cc1e6d59a6240d96ab34",
+    "coordinationTree": "16dc58b2dad13bdb6f843f2a3295c088d8584744",
+    "existingPathCount": 17,
+    "fencePathCount": 31,
+    "finalHashesSealed": true,
+    "ledgerDigest": "eb8b99796d669a0506a37aaab93a229dda4a11fdf9ca7019a21cae4c7eb58d96",
+    "newPathCount": 14,
+    "pathFenceDigest": "1104061fdd8d36142f3c658336b19b6eff6ea973c60dae33dc86ffda246bd038",
+    "prerequisiteDigest": "18741e6f8e2d63fde37fa106491ef69c2fbedd1a7e3f5d563c0f1ed5f6b9004d",
+    "projectionDigest": "8b46411ead75754d52f71a6737e3466d31dbd62dac936c5f989c75718b0d92db",
+    "s10OverlapCount": 0,
+    "sequence": 464,
+    "transitionDigest": "b8282cdccac21c3dd0665cbfe17fcfe0caad27520b409e3694387ebda5a93976"
+  },
+  "cardID": "V23-P04-C19",
+  "contractDigest": "af3a25b5afb08c53beb04fc5e2a736f11f084b912b4f4f3a6f74e11fbf2062f2",
+  "provisional": true,
+  "schema": "V23P04C19OfflinePlanRebaseActivationEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 31,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C19G01ColdLaunchPreparedPacketProvesExactOfflineReadiness",
+      "testV23P04C19A01PlacementCreateMoveResumeAndAccessiblePoseParity",
+      "testV23P04C19H01MissingCorruptWithdrawnEncryptedAndUnsupportedReferencesFailClosed",
+      "testV23P04C19I01RebaseApproveRejectAndInterruptedActivationAreIdempotent",
+      "testV23P04C19R01RestoreRebuildAndHistoricReportRetainOriginalPlanRevision"
+    ],
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C19",
+        "path": "docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+        "sha256": "5a3e97e6933edfbc75d47f32f05880105a662c4c1be4f6ea8a33feaaec399094",
+        "utf8Length": 7303
+      },
+      {
+        "anchor": "V21-P04-C19",
+        "path": "docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+        "sha256": "45c3b2b94968db2ace6a1208b3169f339a2251337f42d00e76f501b6c4bfb263",
+        "utf8Length": 5837
+      },
+      {
+        "anchor": "V23-P04-C19-register",
+        "path": "docs/design/v23/EXPANSION_V23_FOUNDATION_PLAN.md",
+        "sha256": "835cdf48ede8154b1f3357788c7c2cbc65a94d242cec2bd5394bf9eadd322b39",
+        "utf8Length": 314
+      }
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "FieldEvidenceApp/Application/Rounds/OfflineReadinessPreflightCoordinatorV1.swift",
+        "sha256": "2c9f53a6f35ea49011ccf846f02de97642a5a0e0a96a18345cdc11b93d12c1f2",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift",
+        "sha256": "0cebba50b55791df639147f665ed97373b73717cff00a2c2830ef42033e4b48b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+        "sha256": "4705471c567e1498c9ffff73c03074656015eef7b04ee98aa6d21e0d81bd9a72",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "sha256": "a25be6bc0da8b24bf8638aa51eba54c52dc69a57169ceca3b475df485601e91a",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/OfflineReadiness/OfflineReadinessManifestContractsV1.swift",
+        "sha256": "5df831adde90c55f438edf7c49515f6c07257681cfbde0bfe5219aa3c01755fa",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+        "sha256": "c93397b381510e40c37716336d1c6e14c4e02e21b74b76834ad1c1af984a815f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift",
+        "sha256": "5fec4b78b7bf67a358d400afe6a260912e78a7e3472c694579172eb5207665dc",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Search/SearchContractsV1.swift",
+        "sha256": "1f993b3bd818be0a0a3a6e9470a6fae6d02218b42caea53bb9ef8100232a0e8f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Search/SearchPersistenceModelsV1.swift",
+        "sha256": "5c790c044a48a7aeb763678df191a63525547fa0191341e99a6edb3269452b1d",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "sha256": "d84b830678354217e3158866b53fca5708df7323069167f54429ece8c03149e7",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/OfflineReadiness/OfflineReadinessManifestBuilderV1.swift",
+        "sha256": "4811fcacc2e9add76c56d34fb8e60e2e81135fb34d3cb14241ff76336a8ecf0a",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Plans/PlanLifecycleAdapterV1.swift",
+        "sha256": "a3ffcef4e790f411ce9d20ff44224a678a4bf6df50179f04096f02b04962cfeb",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+        "sha256": "5ffdde6eb0f4a1540be28a1527e2f9b69b3044743380f59ea518667733ac84ad",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift",
+        "sha256": "1a3b2362041a48b0ab300429df82a4d38feea0a1f4f109f7acf5e53ed57ed433",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+        "sha256": "016d3239f5c1602929b2eff6c354cb41973bfd1cc2bce1b988ccc7db41f23ea2",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/WorkPacket/WorkPacketManifestLifecycleAdapterV1.swift",
+        "sha256": "7c056595eb1bade861062065ea91b4659b8983bab6934117ae18da734a6fc84c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "sha256": "af0f38fa0359ea6b6cd63187a5d7f464315d180c97e696156ce1d566052463c5",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Plans/PlanOfflineWorkCoordinatorV1.swift",
+        "sha256": "c502d0a7810c54a1617a3778ab014a17d150ac16906006069e6d4e05f1868bdd",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Plans/PlanOfflineWorkContractsV1.swift",
+        "sha256": "6e8e116e7c5ccff9c7c4b14e737510fc7501839296c17fae7d184601d33b65f5",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Plans/PlanOfflineWorkLifecycleAdapterV1.swift",
+        "sha256": "7bd39efbc69545a9c0c016be1fe3a94cc34dfe7e1793601a01da29d8d7439e19",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V23/Plans/V23P04C19PlanOfflineWorkCorpusV1.json",
+        "sha256": "033f3a7cf3bab306854961637457f46d92df9759e5f0311ebe8a467d7594c122",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_82PlanOfflineWorkTests.swift",
+        "sha256": "a247aa43c7bc3526ec7cf7aa67dc2317d7dd4206f571c14f5c283b7207d4fb97",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C19PlanOfflineWorkRebaseUITests.swift",
+        "sha256": "cbbb902d076ca05cd7022bf2d8c90bf4ae1e13ea40c008ab69bad1e5a9c3fd56",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publish": false,
+    "release": false
+  }
+}

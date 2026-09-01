@@ -51,6 +51,58 @@ enum C51WorkPacketScheduleLifecycleBoundaryV1 {
         return value
     }
 
+    /// Resolves a historic packet only by its complete immutable reference.
+    /// It deliberately has no fallback to the newest packet for an ID.
+    func manifest(
+        workspaceID: WorkspaceID,
+        reference: WorkPacketManifestReferenceV1
+    ) throws -> WorkPacketManifestV1 {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw WorkPacketFailureV1.invalidValue
+        }
+        let matches = try source.manifests(workspaceID: workspaceID).filter {
+            $0.workspaceID == workspaceID &&
+                $0.manifestID == reference.manifestID &&
+                $0.packetID == reference.packetID &&
+                $0.packetVersion == reference.packetVersion &&
+                $0.manifestSHA256 == reference.manifestSHA256
+        }
+        guard matches.count == 1, let value = matches.first,
+              try WorkPacketManifestReferenceV1(value) == reference else {
+            throw WorkPacketFailureV1.divergentReplay
+        }
+        return value
+    }
+
+    /// Returns a displayable historic item only when it remains exactly bound
+    /// to the selected immutable packet reference. This is read-only; claims,
+    /// resumes, and writes remain outside this adapter.
+    func item(
+        workspaceID: WorkspaceID,
+        manifestReference: WorkPacketManifestReferenceV1,
+        itemReference: WorkPacketItemReferenceV1
+    ) throws -> (manifest: WorkPacketManifestV1, item: WorkPacketItemV1) {
+        let manifest = try manifest(workspaceID: workspaceID, reference: manifestReference)
+        try itemReference.validate()
+        guard itemReference.workspaceID == workspaceID,
+              itemReference.packetID == manifest.packetID,
+              itemReference.packetVersion == manifest.packetVersion,
+              itemReference.manifestSHA256 == manifest.manifestSHA256 else {
+            throw WorkPacketFailureV1.invalidValue
+        }
+        let matches = manifest.items.filter {
+            $0.itemID == itemReference.itemID &&
+                $0.expectedRevision == itemReference.expectedRevision &&
+                $0.itemSHA256 == itemReference.itemSHA256
+        }
+        guard matches.count == 1, let item = matches.first,
+              try WorkPacketItemReferenceV1(manifest: manifest, item: item) == itemReference else {
+            throw WorkPacketFailureV1.divergentReplay
+        }
+        return (manifest, item)
+    }
+
     func projection(
         workspaceID: WorkspaceID,
         manifestID: UUID,

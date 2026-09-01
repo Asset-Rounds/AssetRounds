@@ -77,6 +77,15 @@ struct OfflineReadinessSnapshotV1: Sendable {
 }
 
 enum OfflineReadinessManifestBuilderV1 {
+    /// C19 composes an explicit historic source tuple. The result is derived
+    /// on demand and records no durable readiness Boolean.
+    static func buildPlanOfflineWork(
+        source: PlanOfflineWorkSourceV1
+    ) throws -> OfflineWorkPacketReadinessV1 {
+        try source.validate()
+        return try OfflineWorkPacketReadinessV1(source: source)
+    }
+
     static func build(snapshot: OfflineReadinessSnapshotV1, previous: OfflineReadinessManifestV1? = nil) throws -> OfflineReadinessManifestV1 {
         let referenceObservations = try snapshot.fieldReferenceReadiness
             .map(OfflineReadinessReferenceObservationV1.init)

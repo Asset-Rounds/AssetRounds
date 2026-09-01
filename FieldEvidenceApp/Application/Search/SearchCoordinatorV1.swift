@@ -505,6 +505,64 @@ extension SearchCoordinatorV1 {
     }
 }
 
+// MARK: - C19 current plan-document metadata search
+
+extension SearchCoordinatorV1 {
+    private static func searchPlanDocumentMetadataAfterAccess(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [PlanDocumentSearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [PlanDocumentSearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords,
+              records.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              records.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        try records.forEach { try PlanDocumentSearchProjectionPolicyV1.validate($0) }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        return Array(records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains {
+                    $0 == queryToken || $0.hasPrefix(queryToken)
+                }
+            }
+        }.sorted { $0.projectionIdentity < $1.projectionIdentity }
+            .prefix(maximumResults))
+    }
+
+    /// Access is checked before any record validation or query normalization,
+    /// so denied callers cannot probe index shape through error differences.
+    static func searchPlanDocumentMetadata(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [PlanDocumentSearchRecordV1],
+        maximumResults: Int = 100,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> [PlanDocumentSearchRecordV1] {
+        let permit = try await accessGate.requireContentAccess(for: .search)
+        guard permit.surface == .search, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: .search, state: permit.state)
+        }
+        return try searchPlanDocumentMetadataAfterAccess(
+            query: query,
+            workspaceID: workspaceID,
+            records: records,
+            maximumResults: maximumResults
+        )
+    }
+}
+
+enum C19PlanDocumentSearchCoordinatorBoundaryV1 {
+    static let currentTipsComeOnlyFromCanonicalHistoryRebuild = true
+    static let historicOpenSelectionIsNeverPublishedAsCurrent = true
+    static let zeroPlacementDocumentsRemainSearchable = true
+    static let queryTextIsNeverDurable = true
+    static let accessSurface: AppAccessContentReadSurfaceV1 = .search
+}
+
 // MARK: - C27 asset-locator metadata search
 
 extension SearchCoordinatorV1 {

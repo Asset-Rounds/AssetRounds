@@ -4296,8 +4296,11 @@ extension BundledLocalizationCatalogV1 {
                  .placementDisposition, .coordinate, .reference, .contentBinding,
                  .spatialFrame, .rebasePreview, .rebaseReceipt, .rebaseDecision,
                  .rebaseWarning, .rebaseComponent, .residual, .expectedRevision,
-                 .historyImmutable, .previewNotApplied: role = .heading
-            case .nextStep: role = .button
+                 .historyImmutable, .previewNotApplied, .placementList,
+                 .pageNavigation, .thumbnailNavigation, .rebaseReview: role = .heading
+            case .nextStep, .assetsRoute, .workRoute, .placementCreate,
+                 .placementMove, .placementLink, .resumeWork, .rebaseApprove,
+                 .rebaseReject, .openOriginalRevision: role = .button
             case .documentActive, .documentRetired, .revisionDraft,
                  .revisionReleased, .revisionWithdrawn, .placementAccepted,
                  .placementReviewRequired, .placementOrphaned,
@@ -4308,8 +4311,13 @@ extension BundledLocalizationCatalogV1 {
                  .warningCalibrationUnavailable,
                  .warningComponentReviewRequired, .errorStalePreview,
                  .errorWrongReference, .errorComponentConflict,
-                 .errorReviewRequired, .errorInvalidDigest: role = .status
-            case .claimBoundary: role = .group
+                 .errorReviewRequired, .errorInvalidDigest, .offlineReady,
+                 .offlineMissingPlan, .offlineMissingReference,
+                 .offlineReferenceUnavailable, .offlineStorageInsufficient,
+                 .offlineOpenabilityFailed, .offlineProtectedDataUnavailable,
+                 .offlineHistoricReadOnly: role = .status
+            case .claimBoundary, .placementRow,
+                 .viewportDirectionBoundary: role = .group
             }
             return AccessibilityContractV1(
                 semanticID: id.rawValue,

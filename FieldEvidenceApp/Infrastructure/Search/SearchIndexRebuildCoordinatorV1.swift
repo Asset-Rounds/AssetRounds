@@ -2537,6 +2537,109 @@ extension SearchIndexRebuildCoordinatorV1 {
         "DROP_AND_REBUILD_AFTER_PLAN_ERASE"
 }
 
+// MARK: - C19 current plan-document search rebuild
+
+extension SearchIndexRebuildCoordinatorV1 {
+    /// Computes current document, content-revision, and placement tips from
+    /// complete canonical histories. No caller-provided historic selection is
+    /// accepted, and documents with zero current placements still emit a row.
+    static func planDocumentSearchRecords(
+        documentHistory: [PlanDocumentV1],
+        revisionHistory: [PlanRevisionV1],
+        placementHistory: [PlanPlacementV1],
+        offlineReadiness: [OfflineWorkPacketReadinessV1] = [],
+        workSurfaces: [PlanWorkSurfaceStateV1] = []
+    ) throws -> [PlanDocumentSearchRecordV1] {
+        try PlanDocumentSearchPersistencePolicyV1().validate()
+        guard documentHistory.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              revisionHistory.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              placementHistory.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              offlineReadiness.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              workSurfaces.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        try PlanLifecycleClosureV1(
+            documentHistory: documentHistory,
+            revisionHistory: revisionHistory,
+            placementHistory: placementHistory,
+            receipts: []
+        ).validate()
+        let workspaceIDs = Set(documentHistory.map(\.workspaceID)
+            + revisionHistory.map(\.workspaceID)
+            + placementHistory.map(\.workspaceID))
+        let documentReferences = try documentHistory.map { try $0.reference }
+        guard workspaceIDs.count <= 1,
+              revisionHistory.allSatisfy({ documentReferences.contains($0.planDocument) }) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+
+        let currentDocuments = Dictionary(grouping: documentHistory, by: \.planDocumentID)
+            .values.compactMap { $0.max(by: { $0.revision < $1.revision }) }
+            .sorted { $0.planDocumentID.uuidString < $1.planDocumentID.uuidString }
+        let revisionsByDocument = Dictionary(
+            grouping: revisionHistory,
+            by: { $0.planDocument.planDocumentID }
+        )
+        let currentPlacements = Dictionary(grouping: placementHistory, by: \.placementID)
+            .values.compactMap { $0.max(by: { $0.revision < $1.revision }) }
+        try offlineReadiness.forEach { try $0.validateIntrinsic() }
+        try workSurfaces.forEach { try $0.validateIntrinsic() }
+        let allRevisionReferences = try revisionHistory.map { try $0.reference }
+        let currentRevisionReferences = try revisionsByDocument.values.compactMap {
+            try $0.max(by: { $0.revision < $1.revision }).map { try $0.reference }
+        }
+        guard offlineReadiness.allSatisfy({
+                  workspaceIDs.contains($0.workspaceID)
+                      && allRevisionReferences.contains($0.planRevision)
+                      && ($0.revisionDisposition == .historic
+                          || currentRevisionReferences.contains($0.planRevision))
+              }),
+              workSurfaces.allSatisfy({
+                  workspaceIDs.contains($0.workspaceID)
+                      && allRevisionReferences.contains($0.planRevision)
+              }) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+
+        var records: [PlanDocumentSearchRecordV1] = []
+        for document in currentDocuments {
+            guard let revision = revisionsByDocument[document.planDocumentID]?
+                .max(by: { $0.revision < $1.revision }) else {
+                throw SearchContractFailureV1.staleIndex
+            }
+            let reference = try revision.reference
+            let placementCount = currentPlacements.filter { $0.planRevision == reference }.count
+            let readinessMetadata = try offlineReadiness.filter {
+                $0.revisionDisposition == .current && $0.planRevision == reference
+            }.map(PlanOfflineReadinessSearchMetadataV1.init)
+            let workSurfaceMetadata = try workSurfaces.filter {
+                $0.planRevision == reference
+            }.map(PlanWorkSurfaceSearchMetadataV1.init)
+            records.append(try LocalSearchIndexStoreV1.planDocumentSearchRecord(
+                currentDocument: document,
+                currentRevision: revision,
+                currentPlacementCount: placementCount,
+                offlineReadiness: readinessMetadata,
+                workSurfaces: workSurfaceMetadata
+            ))
+        }
+        records.sort { $0.projectionIdentity < $1.projectionIdentity }
+        guard records.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              Set(records.map(\.projectionIdentity)).count == records.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try records.forEach { try PlanDocumentSearchProjectionPolicyV1.validate($0) }
+        return records
+    }
+
+    static let planDocumentReplayDisposition =
+        "DROP_AND_REBUILD_FROM_CANONICAL_PLAN_HISTORY"
+    static let planDocumentRestoreDisposition =
+        "EXCLUDE_DERIVED_PLAN_DOCUMENT_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
+    static let planDocumentEraseDisposition =
+        "DROP_AND_REBUILD_AFTER_PLAN_DELETE_OR_ERASE"
+}
+
 // MARK: - C37 current placement-pose search rebuild
 
 extension SearchIndexRebuildCoordinatorV1 {

@@ -3383,6 +3383,398 @@ enum PlanPlacementSearchProjectionPolicyV1 {
     }
 }
 
+// MARK: - C19 current plan-document search projection
+
+/// One disposable row per current plan-document tip. Unlike the placement
+/// projection, this row exists even when the current plan revision has no
+/// placements. Currentness is established only by the canonical-history
+/// rebuild route; a historic-open selection cannot construct this value.
+enum PlanDocumentSearchFieldV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case workspaceID = "plan_document_workspace_id"
+    case planDocumentID = "plan_document_current_id"
+    case stablePlanKey = "plan_document_stable_key"
+    case displayName = "plan_document_display_name"
+    case documentState = "plan_document_current_state"
+    case documentRevision = "plan_document_current_revision"
+    case documentSHA256 = "plan_document_current_sha256"
+    case planRevisionID = "plan_content_current_revision_id"
+    case revisionState = "plan_content_current_state"
+    case planRevision = "plan_content_current_revision"
+    case revisionSHA256 = "plan_content_current_sha256"
+    case contentID = "plan_content_id"
+    case mediaType = "plan_content_media_type"
+    case contentSHA256 = "plan_content_sha256"
+    case fieldReferenceReleaseID = "plan_content_release_id"
+    case fieldReferenceReleaseRevision = "plan_content_release_revision"
+    case fieldReferenceReleaseSHA256 = "plan_content_release_sha256"
+    case currentPlacementCount = "plan_current_placement_count"
+}
+
+struct PlanOfflineReadinessSearchMetadataV1: Codable, Equatable, Hashable, Comparable, Sendable {
+    let workspaceID: WorkspaceID
+    let manifestID: UUID
+    let packetID: UUID
+    let packetVersion: UInt64
+    let manifestSHA256: String
+    let itemID: String
+    let itemKind: WorkPacketItemKindV1
+    let itemExpectedRevision: UInt64
+    let itemSHA256: String
+    let planRevision: PlanRevisionReferenceV1
+    let revisionDisposition: PlanRevisionSelectionDispositionV1
+    let sourceSnapshotSHA256: String
+    let findingCodes: [PlanOfflineReadinessFindingCodeV1]
+
+    init(_ value: OfflineWorkPacketReadinessV1) throws {
+        try value.validateIntrinsic()
+        workspaceID = value.workspaceID
+        manifestID = value.packet.manifestID
+        packetID = value.packet.packetID
+        packetVersion = value.packet.packetVersion
+        manifestSHA256 = value.packet.manifestSHA256
+        itemID = value.item.itemID
+        itemKind = value.item.itemKind
+        itemExpectedRevision = value.item.expectedRevision
+        itemSHA256 = value.item.itemSHA256
+        planRevision = value.planRevision
+        revisionDisposition = value.revisionDisposition
+        sourceSnapshotSHA256 = value.sourceSnapshotSHA256
+        findingCodes = Array(Set(value.findings.map(\.code))).sorted {
+            $0.rawValue < $1.rawValue
+        }
+        try validate()
+    }
+
+    func validate() throws {
+        try planRevision.validate()
+        try PlanOfflineWorkLimitsV1.id(manifestID)
+        try PlanOfflineWorkLimitsV1.id(packetID)
+        try PlanOfflineWorkLimitsV1.text(itemID)
+        try PlanOfflineWorkLimitsV1.digest(manifestSHA256)
+        try PlanOfflineWorkLimitsV1.digest(itemSHA256)
+        try PlanOfflineWorkLimitsV1.digest(sourceSnapshotSHA256)
+        guard workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              packetVersion > 0, itemExpectedRevision > 0,
+              findingCodes == findingCodes.sorted(by: { $0.rawValue < $1.rawValue }),
+              Set(findingCodes).count == findingCodes.count else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        (lhs.packetID.uuidString, lhs.packetVersion, lhs.itemID, lhs.sourceSnapshotSHA256) <
+            (rhs.packetID.uuidString, rhs.packetVersion, rhs.itemID, rhs.sourceSnapshotSHA256)
+    }
+}
+
+struct PlanWorkSurfacePageSearchMetadataV1: Codable, Equatable, Hashable, Comparable, Sendable {
+    let pageID: UUID
+    let presentedPageOrdinal: Int
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        (lhs.presentedPageOrdinal, lhs.pageID.uuidString) <
+            (rhs.presentedPageOrdinal, rhs.pageID.uuidString)
+    }
+}
+
+struct PlanWorkSurfacePlacementSearchMetadataV1: Codable, Equatable, Hashable, Comparable, Sendable {
+    let placementID: UUID
+    let revision: UInt64
+    let placementSHA256: String
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        (lhs.placementID.uuidString, lhs.revision, lhs.placementSHA256) <
+            (rhs.placementID.uuidString, rhs.revision, rhs.placementSHA256)
+    }
+}
+
+struct PlanWorkSurfaceSearchMetadataV1: Codable, Equatable, Hashable, Comparable, Sendable {
+    let workspaceID: WorkspaceID
+    let manifestID: UUID
+    let packetID: UUID
+    let packetVersion: UInt64
+    let manifestSHA256: String
+    let itemID: String
+    let itemKind: WorkPacketItemKindV1
+    let itemExpectedRevision: UInt64
+    let itemSHA256: String
+    let planRevision: PlanRevisionReferenceV1
+    let pages: [PlanWorkSurfacePageSearchMetadataV1]
+    let placements: [PlanWorkSurfacePlacementSearchMetadataV1]
+    let poseEvents: [AssetPoseEventReferenceV1]
+    let stateSHA256: String
+
+    init(_ value: PlanWorkSurfaceStateV1) throws {
+        try value.validateIntrinsic()
+        workspaceID = value.workspaceID
+        manifestID = value.packet.manifestID
+        packetID = value.packet.packetID
+        packetVersion = value.packet.packetVersion
+        manifestSHA256 = value.packet.manifestSHA256
+        itemID = value.item.itemID
+        itemKind = value.item.itemKind
+        itemExpectedRevision = value.item.expectedRevision
+        itemSHA256 = value.item.itemSHA256
+        planRevision = value.planRevision
+        pages = value.pages.map {
+            .init(pageID: $0.page.pageID,
+                  presentedPageOrdinal: $0.page.presentedPageOrdinal)
+        }.sorted()
+        placements = value.placements.map {
+            .init(placementID: $0.placement.placementID,
+                  revision: $0.placement.revision,
+                  placementSHA256: $0.placement.placementSHA256)
+        }.sorted()
+        poseEvents = value.poseSnapshots.map(\.event).sorted {
+            ($0.eventID.uuidString, $0.axisID.rawValue, $0.revision, $0.eventSHA256) <
+                ($1.eventID.uuidString, $1.axisID.rawValue, $1.revision, $1.eventSHA256)
+        }
+        stateSHA256 = value.stateSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        try planRevision.validate()
+        try PlanOfflineWorkLimitsV1.id(manifestID)
+        try PlanOfflineWorkLimitsV1.id(packetID)
+        try PlanOfflineWorkLimitsV1.text(itemID)
+        try PlanOfflineWorkLimitsV1.digest(manifestSHA256)
+        try PlanOfflineWorkLimitsV1.digest(itemSHA256)
+        try PlanOfflineWorkLimitsV1.digest(stateSHA256)
+        try pages.forEach { try PlanOfflineWorkLimitsV1.id($0.pageID) }
+        try poseEvents.forEach { try $0.validate() }
+        try placements.forEach {
+            try PlanOfflineWorkLimitsV1.id($0.placementID)
+            try PlanOfflineWorkLimitsV1.digest($0.placementSHA256)
+        }
+        guard workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              packetVersion > 0, itemExpectedRevision > 0,
+              pages.allSatisfy({ $0.presentedPageOrdinal >= 0 }),
+              pages == pages.sorted(), Set(pages.map(\.pageID)).count == pages.count,
+              placements == placements.sorted(),
+              placements.allSatisfy({ $0.revision > 0 }),
+              Set(placements.map(\.placementID)).count == placements.count,
+              poseEvents == poseEvents.sorted(by: {
+                  ($0.eventID.uuidString, $0.axisID.rawValue, $0.revision, $0.eventSHA256) <
+                      ($1.eventID.uuidString, $1.axisID.rawValue, $1.revision, $1.eventSHA256)
+              }), Set(poseEvents).count == poseEvents.count else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        (lhs.packetID.uuidString, lhs.packetVersion, lhs.itemID, lhs.stateSHA256) <
+            (rhs.packetID.uuidString, rhs.packetVersion, rhs.itemID, rhs.stateSHA256)
+    }
+}
+
+struct PlanDocumentSearchRecordV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let planDocumentID: UUID
+    let stablePlanKey: String
+    let displayName: String
+    let documentState: PlanDocumentStateV1
+    let documentRevision: UInt64
+    let documentSHA256: String
+    let planRevisionID: UUID
+    let revisionState: PlanRevisionStateV1
+    let planRevision: UInt64
+    let revisionSHA256: String
+    let contentID: String
+    let mediaType: String
+    let contentSHA256: String
+    let fieldReferenceReleaseID: UUID
+    let fieldReferenceReleaseRevision: UInt64
+    let fieldReferenceReleaseSHA256: String
+    let currentPlacementCount: Int
+    let offlineReadiness: [PlanOfflineReadinessSearchMetadataV1]
+    let workSurfaces: [PlanWorkSurfaceSearchMetadataV1]
+    let normalizedTokens: [String]
+
+    init(
+        currentDocument: PlanDocumentV1,
+        currentRevision: PlanRevisionV1,
+        currentPlacementCount: Int,
+        offlineReadiness: [PlanOfflineReadinessSearchMetadataV1] = [],
+        workSurfaces: [PlanWorkSurfaceSearchMetadataV1] = []
+    ) throws {
+        try currentDocument.validateIntrinsic()
+        try currentRevision.validateIntrinsic()
+        guard currentDocument.workspaceID == currentRevision.workspaceID,
+              currentDocument.planDocumentID == currentRevision.planDocument.planDocumentID,
+              currentPlacementCount >= 0,
+              currentPlacementCount <= PlanLimitsV1.maximumPlacements else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        schemaVersion = Self.schemaVersion
+        workspaceID = currentDocument.workspaceID
+        planDocumentID = currentDocument.planDocumentID
+        stablePlanKey = currentDocument.stablePlanKey
+        displayName = currentDocument.displayName
+        documentState = currentDocument.state
+        documentRevision = currentDocument.revision
+        documentSHA256 = currentDocument.documentSHA256
+        planRevisionID = currentRevision.planRevisionID
+        revisionState = currentRevision.state
+        planRevision = currentRevision.revision
+        revisionSHA256 = currentRevision.revisionSHA256
+        contentID = currentRevision.contentBinding.contentID
+        mediaType = currentRevision.contentBinding.mediaType
+        contentSHA256 = currentRevision.contentBinding.contentSHA256
+        fieldReferenceReleaseID = currentRevision.contentBinding.fieldReferenceReleaseID
+        fieldReferenceReleaseRevision = currentRevision.contentBinding.fieldReferenceReleaseRevision
+        fieldReferenceReleaseSHA256 = currentRevision.contentBinding.fieldReferenceReleaseSHA256
+        self.currentPlacementCount = currentPlacementCount
+        self.offlineReadiness = offlineReadiness.sorted()
+        self.workSurfaces = workSurfaces.sorted()
+        normalizedTokens = Self.tokens(
+            workspaceID: workspaceID,
+            planDocumentID: planDocumentID,
+            stablePlanKey: stablePlanKey,
+            displayName: displayName,
+            documentState: documentState,
+            planRevisionID: planRevisionID,
+            revisionState: revisionState,
+            contentID: contentID,
+            mediaType: mediaType,
+            offlineReadiness: self.offlineReadiness,
+            workSurfaces: self.workSurfaces
+        )
+        try validate()
+    }
+
+    var projectionIdentity: String {
+        "plan-document:\(workspaceID.rawValue.uuidString.lowercased()):\(planDocumentID.uuidString.lowercased())"
+    }
+
+    var boundedFieldValues: [PlanDocumentSearchFieldV1: String] {
+        [
+            .workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            .planDocumentID: planDocumentID.uuidString.lowercased(),
+            .stablePlanKey: stablePlanKey,
+            .displayName: displayName,
+            .documentState: documentState.rawValue,
+            .documentRevision: String(documentRevision),
+            .documentSHA256: documentSHA256,
+            .planRevisionID: planRevisionID.uuidString.lowercased(),
+            .revisionState: revisionState.rawValue,
+            .planRevision: String(planRevision),
+            .revisionSHA256: revisionSHA256,
+            .contentID: contentID,
+            .mediaType: mediaType,
+            .contentSHA256: contentSHA256,
+            .fieldReferenceReleaseID: fieldReferenceReleaseID.uuidString.lowercased(),
+            .fieldReferenceReleaseRevision: String(fieldReferenceReleaseRevision),
+            .fieldReferenceReleaseSHA256: fieldReferenceReleaseSHA256,
+            .currentPlacementCount: String(currentPlacementCount),
+        ]
+    }
+
+    func validate() throws {
+        try PlanLimitsV1.token(stablePlanKey)
+        try PlanLimitsV1.token(displayName)
+        try PlanLimitsV1.token(contentID)
+        try PlanLimitsV1.token(mediaType)
+        guard schemaVersion == Self.schemaVersion,
+              workspaceID.rawValue != SearchContractValidationV1.zeroUUID,
+              planDocumentID != SearchContractValidationV1.zeroUUID,
+              planRevisionID != SearchContractValidationV1.zeroUUID,
+              fieldReferenceReleaseID != SearchContractValidationV1.zeroUUID,
+              documentRevision > 0, planRevision > 0,
+              fieldReferenceReleaseRevision > 0,
+              currentPlacementCount >= 0,
+              currentPlacementCount <= PlanLimitsV1.maximumPlacements,
+              offlineReadiness == offlineReadiness.sorted(),
+              Set(offlineReadiness).count == offlineReadiness.count,
+              workSurfaces == workSurfaces.sorted(),
+              Set(workSurfaces).count == workSurfaces.count,
+              offlineReadiness.allSatisfy({
+                  $0.workspaceID == workspaceID && $0.planRevision.planRevisionID == planRevisionID
+                      && $0.planRevision.revision == planRevision
+                      && $0.planRevision.revisionSHA256 == revisionSHA256
+                      && $0.revisionDisposition == .current
+              }),
+              workSurfaces.allSatisfy({
+                  $0.workspaceID == workspaceID && $0.planRevision.planRevisionID == planRevisionID
+                      && $0.planRevision.revision == planRevision
+                      && $0.planRevision.revisionSHA256 == revisionSHA256
+              }),
+              KernelCanonicalHashV1.validSHA256(documentSHA256),
+              KernelCanonicalHashV1.validSHA256(revisionSHA256),
+              KernelCanonicalHashV1.validSHA256(contentSHA256),
+              KernelCanonicalHashV1.validSHA256(fieldReferenceReleaseSHA256),
+              normalizedTokens.count <= SearchContractLimitsV1.maximumQueryTokens,
+              normalizedTokens == normalizedTokens.sorted(),
+              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              boundedFieldValues.count == PlanDocumentSearchFieldV1.allCases.count else {
+            throw SearchContractFailureV1.invalidField
+        }
+        try offlineReadiness.forEach { try $0.validate() }
+        try workSurfaces.forEach { try $0.validate() }
+    }
+
+    private static func tokens(
+        workspaceID: WorkspaceID,
+        planDocumentID: UUID,
+        stablePlanKey: String,
+        displayName: String,
+        documentState: PlanDocumentStateV1,
+        planRevisionID: UUID,
+        revisionState: PlanRevisionStateV1,
+        contentID: String,
+        mediaType: String,
+        offlineReadiness: [PlanOfflineReadinessSearchMetadataV1],
+        workSurfaces: [PlanWorkSurfaceSearchMetadataV1]
+    ) -> [String] {
+        let values = [displayName, stablePlanKey, contentID, mediaType,
+                      documentState.rawValue, revisionState.rawValue,
+                      planDocumentID.uuidString, planRevisionID.uuidString,
+                      workspaceID.rawValue.uuidString]
+            + offlineReadiness.flatMap {
+                [$0.itemID, $0.itemKind.rawValue, $0.packetID.uuidString]
+                    + $0.findingCodes.map(\.rawValue)
+            }
+            + workSurfaces.flatMap {
+                [$0.itemID, $0.itemKind.rawValue, $0.packetID.uuidString]
+            }
+        var seen: Set<String> = []
+        var bounded: [String] = []
+        for token in values.flatMap({ value in
+            SearchContractValidationV1.normalizeSearchText(value)
+                .split { !CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+        }) where seen.insert(token).inserted {
+            guard bounded.count < SearchContractLimitsV1.maximumQueryTokens else { break }
+            bounded.append(token)
+        }
+        return bounded.sorted()
+    }
+}
+
+enum PlanDocumentSearchProjectionPolicyV1 {
+    static let sourceKind = "PLAN_DOCUMENT_CURRENT_TIP"
+    static let semanticLabel = "PLAN_DOCUMENT_CURRENT_METADATA_V1"
+    static let fieldIDs = PlanDocumentSearchFieldV1.allCases.map(\.rawValue).sorted()
+    static let derivedOnly = true
+    static let currentTipsOnly = true
+    static let includesZeroPlacementDocuments = true
+    static let historicOpenSelectionIsNeverCurrent = true
+    static let offlineReadinessBooleanIsNeverIndexed = true
+    static let dropAndRebuildAfterRestoreReplayDelete = true
+    static let excludesSourceBytesActorsPrivateLocatorsAndUnsupportedClaims = true
+
+    static func validate(_ record: PlanDocumentSearchRecordV1) throws {
+        try record.validate()
+        guard derivedOnly, currentTipsOnly, includesZeroPlacementDocuments,
+              historicOpenSelectionIsNeverCurrent, offlineReadinessBooleanIsNeverIndexed,
+              dropAndRebuildAfterRestoreReplayDelete,
+              excludesSourceBytesActorsPrivateLocatorsAndUnsupportedClaims else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+    }
+}
+
 // MARK: - C37 current placement-pose search projection
 
 /// Search is limited to the current qualified tip per axis. Full immutable

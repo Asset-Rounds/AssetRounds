@@ -4170,6 +4170,30 @@ enum PlanLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
     case planPreviewNotApplied = "plan.rebase.preview.not_applied"
     case planClaimBoundary = "plan.claim_boundary"
     case planNextStep = "plan.next_step"
+    case workSurfaceAssetsRoute = "plan.work_surface.route.assets"
+    case workSurfaceWorkRoute = "plan.work_surface.route.work"
+    case offlineReady = "plan.offline.ready"
+    case offlineMissingPlan = "plan.offline.missing_plan"
+    case offlineMissingReference = "plan.offline.missing_reference"
+    case offlineReferenceUnavailable = "plan.offline.reference_unavailable"
+    case offlineStorageInsufficient = "plan.offline.storage_insufficient"
+    case offlineOpenabilityFailed = "plan.offline.openability_failed"
+    case offlineProtectedDataUnavailable = "plan.offline.protected_data_unavailable"
+    case offlineHistoricReadOnly = "plan.offline.historic_read_only"
+    case placementList = "plan.placement.list"
+    case placementItem = "plan.placement.item"
+    case placementRow = "plan.placement.row"
+    case pageNavigation = "plan.page.navigation"
+    case thumbnailNavigation = "plan.thumbnail.navigation"
+    case placementCreate = "plan.placement.create"
+    case placementMove = "plan.placement.move"
+    case placementLink = "plan.placement.link"
+    case resumeWork = "plan.work_surface.resume"
+    case rebaseReview = "plan.rebase.review"
+    case rebaseApprove = "plan.rebase.approve"
+    case rebaseReject = "plan.rebase.reject"
+    case openOriginalRevision = "plan.history.open_original_revision"
+    case viewportDirectionBoundary = "plan.viewport.not_physical_direction"
 
     case documentActive = "plan.document.state.active"
     case documentRetired = "plan.document.state.retired"
@@ -4223,6 +4247,30 @@ enum PlanLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
         case .planPreviewNotApplied: return "Preview only; it is not applied or saved"
         case .planClaimBoundary: return "Recorded plan metadata only"
         case .planNextStep: return "Review the recorded plan preview"
+        case .workSurfaceAssetsRoute: return "Open plan from Assets"
+        case .workSurfaceWorkRoute: return "Open plan for this work"
+        case .offlineReady: return "Required plan and reference material is available offline"
+        case .offlineMissingPlan: return "The required plan revision is not available offline"
+        case .offlineMissingReference: return "Required reference material is missing"
+        case .offlineReferenceUnavailable: return "Required reference material is expired, withdrawn, or out of date"
+        case .offlineStorageInsufficient: return "There is not enough local storage for this work packet"
+        case .offlineOpenabilityFailed: return "Required local material could not be opened"
+        case .offlineProtectedDataUnavailable: return "Unlock the device to check required local material"
+        case .offlineHistoricReadOnly: return "This historic plan revision is available for read-only review"
+        case .placementList: return "Plan placements"
+        case .placementItem: return "Plan placement item"
+        case .placementRow: return "Plan placement"
+        case .pageNavigation: return "Plan pages"
+        case .thumbnailNavigation: return "Page thumbnails"
+        case .placementCreate: return "Create placement"
+        case .placementMove: return "Move placement"
+        case .placementLink: return "Link recorded work"
+        case .resumeWork: return "Resume plan work"
+        case .rebaseReview: return "Review plan revision changes"
+        case .rebaseApprove: return "Approve rebase"
+        case .rebaseReject: return "Reject rebase"
+        case .openOriginalRevision: return "Open the original plan revision"
+        case .viewportDirectionBoundary: return "Display rotation does not indicate physical direction"
         case .documentActive: return "Active"
         case .documentRetired: return "Retired"
         case .revisionDraft: return "Draft"
@@ -4295,6 +4343,20 @@ enum PlanLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
         case .componentReviewRequired: return .warningComponentReviewRequired
         }
     }
+
+    static func readinessFindingKey(_ finding: PlanOfflineReadinessFindingCodeV1) -> Self {
+        switch finding {
+        case .referenceMissing: return .offlineMissingReference
+        case .referenceExpired, .referenceWithdrawn, .referenceSuperseded,
+             .referenceStale: return .offlineReferenceUnavailable
+        case .contentMissing, .contentPartial: return .offlineMissingPlan
+        case .contentCorrupt, .documentEncrypted, .documentUnsupported,
+             .documentUncheckable: return .offlineOpenabilityFailed
+        case .protectedDataUnavailable: return .offlineProtectedDataUnavailable
+        case .insufficientStorage, .storageUncheckable: return .offlineStorageInsufficient
+        case .historicSource: return .offlineHistoricReadOnly
+        }
+    }
 }
 
 enum PlanLocalizationPolicyV1 {
@@ -4305,6 +4367,8 @@ enum PlanLocalizationPolicyV1 {
     static let englishOnly = true
     static let previewIsNotApplied = true
     static let historicDisplayIsFrozen = true
+    static let contextualRoutesDoNotReplaceCompleteListOrSearch = true
+    static let viewportOrDisplayRotationConveysPhysicalDirection = false
     static let denyByDefault = true
     static let keys = PlanLocalizationKeyV1.allCases.map(\.rawValue).sorted()
     static let documentStateKeys = PlanDocumentStateV1.allCases.map {
@@ -4318,6 +4382,9 @@ enum PlanLocalizationPolicyV1 {
     }.sorted()
     static let warningKeys = PlanRebaseWarningCodeV1.allCases.map {
         PlanLocalizationKeyV1.warningKey($0).rawValue
+    }.sorted()
+    static let readinessFindingKeys = PlanOfflineReadinessFindingCodeV1.allCases.map {
+        PlanLocalizationKeyV1.readinessFindingKey($0).rawValue
     }.sorted()
     static let prohibitedClaimPhrases = [
         "approval", "approved", "authorization", "authorized", "verified",
@@ -4345,9 +4412,12 @@ enum PlanLocalizationPolicyV1 {
               revisionStateKeys.count == PlanRevisionStateV1.allCases.count,
               placementDispositionKeys.count == PlanPlacementDispositionV1.allCases.count,
               warningKeys.count == PlanRebaseWarningCodeV1.allCases.count,
+              readinessFindingKeys.count == PlanOfflineReadinessFindingCodeV1.allCases.count,
               sourceLocale == "en", shippingRuntimeLocales == ["en"],
               metadataLocale == "en-US", pseudoLocalesAreTestOnly,
               englishOnly, previewIsNotApplied, historicDisplayIsFrozen,
+              contextualRoutesDoNotReplaceCompleteListOrSearch,
+              !viewportOrDisplayRotationConveysPhysicalDirection,
               denyByDefault, values.allSatisfy({
                   !$0.isEmpty && !containsProhibitedClaim([$0])
               }) else {

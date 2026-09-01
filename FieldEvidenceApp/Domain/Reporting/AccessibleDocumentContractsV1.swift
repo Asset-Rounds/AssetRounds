@@ -14,6 +14,104 @@ struct C18LightingAccessibleDocumentProjectionV1:Codable,Equatable,Sendable{
     func validate()throws{let allowed=Set(C18LightingNightLocalizationKeyV1.allCases.map(\.rawValue));guard headingKey==C18LightingNightLocalizationKeyV1.title.rawValue,Array(orderedStateKeys.prefix(2))==[C18LightingNightLocalizationKeyV1.expectedState.rawValue,C18LightingNightLocalizationKeyV1.observedState.rawValue],Set(orderedStateKeys).count==orderedStateKeys.count,Set(orderedStateKeys).isSubset(of:allowed),limitationKey==C18LightingNightLocalizationKeyV1.claimBoundary.rawValue,!stateUsesColorAlone,!conformanceClaimed else{throw SnapshotProjectionFailureV1.unsupportedAccessibilityClaim}}
 }
 
+// MARK: - C19 accessible plan work and historic revision opening
+
+struct C19PlanAccessibleDocumentProjectionV1: Codable, Equatable, Sendable {
+    let planRevision: PlanRevisionReferenceV1
+    let orderedPlacementIDs: [UUID]
+    let orderedPlacementLabelKeys: [String]
+    let readinessFindingCodes: [PlanOfflineReadinessFindingCodeV1]
+    let rebaseDisposition: RebaseReviewDispositionV1?
+    let viewportConveysPhysicalDirection: Bool
+    let stateUsesColorAlone: Bool
+
+    init(surface: PlanWorkSurfaceStateV1,
+         readiness: OfflineWorkPacketReadinessV1,
+         review: RebaseReviewStateV1?) throws {
+        let reviewMatchesSurface = review.map { value in
+            guard value.workspaceID == surface.workspaceID,
+                  value.preview.oldRevision.planDocumentID == surface.planRevision.planDocumentID else {
+                return false
+            }
+            switch value.disposition {
+            case .pending, .rejected:
+                return surface.planRevision == value.preview.oldRevision
+            case .approvedActivated:
+                return surface.planRevision == value.preview.newRevision
+            }
+        } ?? true
+        guard surface.workspaceID == readiness.workspaceID,
+              surface.planRevision == readiness.planRevision,
+              reviewMatchesSurface else {
+            throw AccessibleDocumentFailureV1.missingEvidence
+        }
+        planRevision = surface.planRevision
+        orderedPlacementIDs = surface.placements.map(\.placement.placementID)
+        orderedPlacementLabelKeys = surface.placements.map(\.accessibilityLabelKey)
+        readinessFindingCodes = readiness.findings.map(\.code).sorted { $0.rawValue < $1.rawValue }
+        rebaseDisposition = review?.disposition
+        viewportConveysPhysicalDirection = PlanViewportPresentationV1.conveysPhysicalDirection
+        stateUsesColorAlone = false
+        try validate()
+    }
+
+    func validate() throws {
+        try planRevision.validate()
+        guard orderedPlacementIDs.count == orderedPlacementLabelKeys.count,
+              Set(orderedPlacementIDs).count == orderedPlacementIDs.count,
+              orderedPlacementLabelKeys.allSatisfy({
+                  $0 == PlanLocalizationKeyV1.placementItem.rawValue
+              }),
+              !viewportConveysPhysicalDirection, !stateUsesColorAlone else {
+            throw AccessibleDocumentFailureV1.invalidValue
+        }
+    }
+}
+
+struct C19HistoricPlanRevisionOpenRequestV1: Codable, Equatable, Sendable {
+    let workspaceID: UUID
+    let originalRevision: PlanRevisionReferenceV1
+    let originalProjectionSHA256: String
+    let allowsLatestRevisionFallback: Bool
+
+    init(report: PlanReportProjectionV1) throws {
+        try report.validate()
+        workspaceID = report.workspaceID
+        originalRevision = report.revisionReference
+        originalProjectionSHA256 = report.projectionSHA256
+        allowsLatestRevisionFallback = false
+    }
+
+    func validate(report: PlanReportProjectionV1) throws {
+        try report.validate()
+        guard workspaceID == report.workspaceID,
+              originalRevision == report.revisionReference,
+              originalProjectionSHA256 == report.projectionSHA256,
+              !allowsLatestRevisionFallback else {
+            throw AccessibleDocumentFailureV1.digestMismatch
+        }
+    }
+
+    func resolve(report: PlanReportProjectionV1,
+                 from revisions: [PlanRevisionV1]) throws -> PlanRevisionV1 {
+        try validate(report: report)
+        guard !allowsLatestRevisionFallback,
+              let exact = revisions.first(where: {
+                  $0.workspaceID.rawValue == workspaceID
+                      && $0.planRevisionID == originalRevision.planRevisionID
+                      && $0.revision == originalRevision.revision
+                      && $0.revisionSHA256 == originalRevision.revisionSHA256
+              }),
+              revisions.filter({ $0.planRevisionID == originalRevision.planRevisionID
+                  && $0.revision == originalRevision.revision
+                  && $0.revisionSHA256 == originalRevision.revisionSHA256 }).count == 1 else {
+            throw AccessibleDocumentFailureV1.missingEvidence
+        }
+        try exact.validateIntrinsic()
+        return exact
+    }
+}
+
 enum AccessibleDocumentFailureV1: Error, Equatable, Sendable {
     case invalidValue, incompatibleVersion, duplicateIdentity, missingParent, invalidOrder
     case invalidHeading, invalidTable, inventedAlternateText, privacyViolation, missingEvidence

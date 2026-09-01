@@ -134,6 +134,16 @@ final class OfflineReadinessPreflightCoordinatorV1 {
         )
     }
 
+    /// C19's plan-work preflight accepts only a fully materialized immutable
+    /// source. It does not select a current plan revision, claim an item, or
+    /// persist a readiness Boolean.
+    func rebuildPlanOfflineWork(
+        source: PlanOfflineWorkSourceV1
+    ) throws -> OfflineWorkPacketReadinessV1 {
+        try authority.checkCancellation()
+        return try OfflineReadinessManifestBuilderV1.buildPlanOfflineWork(source: source)
+    }
+
     private func materialize(
         session: RoundSessionV1,
         previous: OfflineReadinessManifestV1?

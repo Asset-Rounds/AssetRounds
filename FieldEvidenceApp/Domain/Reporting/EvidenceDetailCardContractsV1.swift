@@ -2006,6 +2006,128 @@ enum EvidenceDetailPlanProjectionGuardV1 {
         }
     }
 }
+
+// MARK: - C19 offline plan work detail projections
+
+struct C19PlanReadinessDetailProjectionV1: Codable, Equatable, Sendable {
+    static let persistenceMode = "DERIVED_ONLY"
+    let workspaceID: WorkspaceID
+    let packetID: UUID
+    let packetVersion: UInt64
+    let planRevision: PlanRevisionReferenceV1
+    let contentSHA256: String
+    let fieldReferenceSHA256: String
+    let sourceSnapshotSHA256: String
+    let readinessSHA256: String
+    let revisionDisposition: PlanRevisionSelectionDispositionV1
+    let findingCodes: [PlanOfflineReadinessFindingCodeV1]
+
+    init(_ value: OfflineWorkPacketReadinessV1) throws {
+        workspaceID = value.workspaceID
+        packetID = value.packet.packetID
+        packetVersion = value.packet.packetVersion
+        planRevision = value.planRevision
+        contentSHA256 = value.contentBinding.contentSHA256
+        fieldReferenceSHA256 = value.fieldReference.readinessSHA256
+        sourceSnapshotSHA256 = value.sourceSnapshotSHA256
+        readinessSHA256 = value.readinessSHA256
+        revisionDisposition = value.revisionDisposition
+        findingCodes = value.findings.map(\.code).sorted { $0.rawValue < $1.rawValue }
+        try validate(source: value)
+    }
+
+    func validate(source: OfflineWorkPacketReadinessV1) throws {
+        try planRevision.validate()
+        guard Self.persistenceMode == "DERIVED_ONLY",
+              workspaceID == source.workspaceID,
+              packetID == source.packet.packetID,
+              packetVersion == source.packet.packetVersion,
+              planRevision == source.planRevision,
+              contentSHA256 == source.contentBinding.contentSHA256,
+              fieldReferenceSHA256 == source.fieldReference.readinessSHA256,
+              sourceSnapshotSHA256 == source.sourceSnapshotSHA256,
+              readinessSHA256 == source.readinessSHA256,
+              revisionDisposition == source.revisionDisposition,
+              findingCodes == source.findings.map(\.code).sorted(by: { $0.rawValue < $1.rawValue }) else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+    }
+}
+
+struct C19PlanPlacementDetailRowV1: Codable, Equatable, Sendable {
+    let placementID: UUID
+    let ordinal: Int
+    let spatialFrameID: UUID
+    let disposition: PlanPlacementDispositionV1
+    let accessibilityLabelKey: String
+
+    init(_ value: PlanAccessiblePlacementV1) {
+        placementID = value.placement.placementID
+        ordinal = value.accessibilityOrdinal
+        spatialFrameID = value.placement.spatialFrameID
+        disposition = value.placement.disposition
+        accessibilityLabelKey = value.accessibilityLabelKey
+    }
+}
+
+struct C19PlanWorkSurfaceDetailProjectionV1: Codable, Equatable, Sendable {
+    static let persistenceMode = "DERIVED_ONLY"
+    let workspaceID: WorkspaceID
+    let planRevision: PlanRevisionReferenceV1
+    let orderedPlacements: [C19PlanPlacementDetailRowV1]
+    let selectedPlacementID: UUID?
+    let sourceSnapshotSHA256: String
+    let stateSHA256: String
+    let viewportConveysPhysicalDirection: Bool
+
+    init(_ value: PlanWorkSurfaceStateV1) throws {
+        workspaceID = value.workspaceID
+        planRevision = value.planRevision
+        orderedPlacements = value.placements.map(C19PlanPlacementDetailRowV1.init)
+        selectedPlacementID = value.selectedPlacementID
+        sourceSnapshotSHA256 = value.sourceSnapshotSHA256
+        stateSHA256 = value.stateSHA256
+        viewportConveysPhysicalDirection = PlanViewportPresentationV1.conveysPhysicalDirection
+        try validate(source: value)
+    }
+
+    func validate(source: PlanWorkSurfaceStateV1) throws {
+        guard Self.persistenceMode == "DERIVED_ONLY",
+              workspaceID == source.workspaceID,
+              planRevision == source.planRevision,
+              orderedPlacements == source.placements.map(C19PlanPlacementDetailRowV1.init),
+              orderedPlacements.map(\.ordinal) == orderedPlacements.indices.map { $0 + 1 },
+              selectedPlacementID == source.selectedPlacementID,
+              sourceSnapshotSHA256 == source.sourceSnapshotSHA256,
+              stateSHA256 == source.stateSHA256,
+              !viewportConveysPhysicalDirection else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
+    }
+}
+
+struct C19RebaseReviewDetailProjectionV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let originalRevision: PlanRevisionReferenceV1
+    let proposedRevision: PlanRevisionReferenceV1
+    let previewSHA256: String
+    let disposition: RebaseReviewDispositionV1
+    let receiptSHA256: String?
+    let stateSHA256: String
+    let previewIsNotApplied: Bool
+
+    init(_ value: RebaseReviewStateV1) throws {
+        try value.validate()
+        workspaceID = value.workspaceID
+        originalRevision = value.preview.oldRevision
+        proposedRevision = value.preview.newRevision
+        previewSHA256 = value.preview.previewSHA256
+        disposition = value.disposition
+        receiptSHA256 = value.receipt?.receiptSHA256
+        stateSHA256 = value.stateSHA256
+        previewIsNotApplied = value.disposition != .approvedActivated
+    }
+}
 // C30: this seam consumes only the frozen, metadata-only operating-context projection.
 enum C30ConsumerBoundaryV1_Domain_Reporting_EvidenceDetailCardContractsV1 {
     static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift", role: .report)

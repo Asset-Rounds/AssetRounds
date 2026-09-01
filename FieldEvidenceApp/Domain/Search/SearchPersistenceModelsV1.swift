@@ -1175,6 +1175,60 @@ extension SearchPersistenceReleaseV1 {
     static let planPlacementPolicy = PlanPlacementSearchPersistencePolicyV1()
 }
 
+// MARK: - C19 current plan-document search persistence boundary
+
+/// Policy only: C19 adds no persistent model or canonical store. These rows
+/// live in the incumbent backup-excluded V7 derived index and are discarded
+/// whenever canonical plan history changes.
+struct PlanDocumentSearchPersistencePolicyV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let sourceSchema: String
+    let searchPersistenceRelease: SearchPersistenceReleaseV1
+    let fieldIDs: [String]
+    let derivedOnly: Bool
+    let currentTipsOnly: Bool
+    let includesZeroPlacementDocuments: Bool
+    let excludesHistoricOpenSelection: Bool
+    let excludesOfflineReadinessBoolean: Bool
+    let backupDisposition: String
+    let replayDisposition: String
+    let deleteDisposition: String
+
+    init() {
+        schemaVersion = Self.schemaVersion
+        sourceSchema = PlanDocumentSearchProjectionPolicyV1.semanticLabel
+        searchPersistenceRelease = .v7
+        fieldIDs = PlanDocumentSearchProjectionPolicyV1.fieldIDs
+        derivedOnly = true
+        currentTipsOnly = true
+        includesZeroPlacementDocuments = true
+        excludesHistoricOpenSelection = true
+        excludesOfflineReadinessBoolean = true
+        backupDisposition = "EXCLUDED_DERIVED_REBUILD"
+        replayDisposition = "DROP_AND_REBUILD_FROM_CANONICAL_PLAN_HISTORY"
+        deleteDisposition = "DROP_AND_REBUILD_AFTER_PLAN_DELETE_OR_ERASE"
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              sourceSchema == PlanDocumentSearchProjectionPolicyV1.semanticLabel,
+              searchPersistenceRelease == .v7,
+              fieldIDs == PlanDocumentSearchProjectionPolicyV1.fieldIDs,
+              derivedOnly, currentTipsOnly, includesZeroPlacementDocuments,
+              excludesHistoricOpenSelection, excludesOfflineReadinessBoolean,
+              backupDisposition == "EXCLUDED_DERIVED_REBUILD",
+              replayDisposition == "DROP_AND_REBUILD_FROM_CANONICAL_PLAN_HISTORY",
+              deleteDisposition == "DROP_AND_REBUILD_AFTER_PLAN_DELETE_OR_ERASE" else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+}
+
+extension SearchPersistenceReleaseV1 {
+    static let planDocumentPolicy = PlanDocumentSearchPersistencePolicyV1()
+}
+
 // MARK: - C37 current placement-pose search persistence boundary
 
 /// Pose rows are disposable, current-tip-only metadata. The canonical pose

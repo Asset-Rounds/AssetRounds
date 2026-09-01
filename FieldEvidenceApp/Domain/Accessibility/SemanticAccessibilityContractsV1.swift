@@ -1982,6 +1982,29 @@ enum PlanAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
     case previewNotApplied = "plan.rebase.preview.not_applied"
     case claimBoundary = "plan.claim_boundary"
     case nextStep = "plan.next_step"
+    case assetsRoute = "plan.work_surface.route.assets"
+    case workRoute = "plan.work_surface.route.work"
+    case offlineReady = "plan.offline.ready"
+    case offlineMissingPlan = "plan.offline.missing_plan"
+    case offlineMissingReference = "plan.offline.missing_reference"
+    case offlineReferenceUnavailable = "plan.offline.reference_unavailable"
+    case offlineStorageInsufficient = "plan.offline.storage_insufficient"
+    case offlineOpenabilityFailed = "plan.offline.openability_failed"
+    case offlineProtectedDataUnavailable = "plan.offline.protected_data_unavailable"
+    case offlineHistoricReadOnly = "plan.offline.historic_read_only"
+    case placementList = "plan.placement.list"
+    case placementRow = "plan.placement.row"
+    case pageNavigation = "plan.page.navigation"
+    case thumbnailNavigation = "plan.thumbnail.navigation"
+    case placementCreate = "plan.placement.create"
+    case placementMove = "plan.placement.move"
+    case placementLink = "plan.placement.link"
+    case resumeWork = "plan.work_surface.resume"
+    case rebaseReview = "plan.rebase.review"
+    case rebaseApprove = "plan.rebase.approve"
+    case rebaseReject = "plan.rebase.reject"
+    case openOriginalRevision = "plan.history.open_original_revision"
+    case viewportDirectionBoundary = "plan.viewport.not_physical_direction"
 
     case documentActive = "plan.document.state.active"
     case documentRetired = "plan.document.state.retired"
@@ -2031,6 +2054,29 @@ enum PlanAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
         case .previewNotApplied: key = .planPreviewNotApplied
         case .claimBoundary: key = .planClaimBoundary
         case .nextStep: key = .planNextStep
+        case .assetsRoute: key = .workSurfaceAssetsRoute
+        case .workRoute: key = .workSurfaceWorkRoute
+        case .offlineReady: key = .offlineReady
+        case .offlineMissingPlan: key = .offlineMissingPlan
+        case .offlineMissingReference: key = .offlineMissingReference
+        case .offlineReferenceUnavailable: key = .offlineReferenceUnavailable
+        case .offlineStorageInsufficient: key = .offlineStorageInsufficient
+        case .offlineOpenabilityFailed: key = .offlineOpenabilityFailed
+        case .offlineProtectedDataUnavailable: key = .offlineProtectedDataUnavailable
+        case .offlineHistoricReadOnly: key = .offlineHistoricReadOnly
+        case .placementList: key = .placementList
+        case .placementRow: key = .placementItem
+        case .pageNavigation: key = .pageNavigation
+        case .thumbnailNavigation: key = .thumbnailNavigation
+        case .placementCreate: key = .placementCreate
+        case .placementMove: key = .placementMove
+        case .placementLink: key = .placementLink
+        case .resumeWork: key = .resumeWork
+        case .rebaseReview: key = .rebaseReview
+        case .rebaseApprove: key = .rebaseApprove
+        case .rebaseReject: key = .rebaseReject
+        case .openOriginalRevision: key = .openOriginalRevision
+        case .viewportDirectionBoundary: key = .viewportDirectionBoundary
         case .documentActive: key = .documentActive
         case .documentRetired: key = .documentRetired
         case .revisionDraft: key = .revisionDraft
@@ -2069,6 +2115,10 @@ enum PlanAccessibilityPolicyV1 {
             .placementAccepted, .placementReviewRequired,
             .placementOrphaned, .placementOutOfBounds,
             .decisionApplyRecorded, .decisionRejectRecorded,
+            .offlineReady, .offlineMissingPlan, .offlineMissingReference,
+            .offlineReferenceUnavailable, .offlineStorageInsufficient,
+            .offlineOpenabilityFailed, .offlineProtectedDataUnavailable,
+            .offlineHistoricReadOnly,
         ]).map(\.rawValue)
     )
     static let indeterminateSemanticIDs: Set<String> = Set(
@@ -2079,6 +2129,9 @@ enum PlanAccessibilityPolicyV1 {
             .warningCalibrationUnavailable, .warningComponentReviewRequired,
             .errorStalePreview, .errorWrongReference, .errorComponentConflict,
             .errorReviewRequired, .errorInvalidDigest,
+            .offlineMissingPlan, .offlineMissingReference,
+            .offlineReferenceUnavailable, .offlineStorageInsufficient,
+            .offlineOpenabilityFailed, .offlineProtectedDataUnavailable,
         ]).map(\.rawValue)
     )
     static let denyByDefault = true
@@ -2089,6 +2142,8 @@ enum PlanAccessibilityPolicyV1 {
     static let colorOnlyStateAllowed = false
     static let iconOnlyStateAllowed = false
     static let motionOnlyStateAllowed = false
+    static let placementListOrderMustBeStable = true
+    static let viewportOrDisplayRotationConveysPhysicalDirection = false
 
     static func requiresTextAndIcon(for semanticID: String) -> Bool {
         indeterminateSemanticIDs.contains(semanticID)

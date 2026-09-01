@@ -754,3 +754,43 @@ struct C18LightingNightReadinessSourceV1:Codable,Equatable,Sendable{
 }
 
 struct C18LightingNightOfflineReadinessProjectionV1:Codable,Equatable,Sendable{static let persistenceMode="DERIVED_ONLY";let source:C18LightingNightReadinessSourceV1;let manifest:OfflineReadinessManifestV1;let projectionSHA256:String;init(source:C18LightingNightReadinessSourceV1,manifest:OfflineReadinessManifestV1)throws{try manifest.validate();let selectedAssetIDs=Set(manifest.selectedAssets.map(\.assetID));guard manifest.session.workspaceID==source.workspaceID,Set(source.assetIDs).isSubset(of:selectedAssetIDs),manifest.sourceSnapshotSHA256==source.planFrontier.readinessSourceSHA256,manifest.manifestSHA256==source.planFrontier.readinessManifestSHA256 else{throw OfflineReadinessManifestFailureV1.invalidValue};self.source=source;self.manifest=manifest;projectionSHA256=try OfflineReadinessManifestCanonicalCodecV1.sha256(Basis(persistenceMode:Self.persistenceMode,sourceSHA256:source.sourceSHA256,manifestSHA256:manifest.manifestSHA256))}func validate()throws{guard try Self(source:source,manifest:manifest)==self else{throw OfflineReadinessManifestFailureV1.digestMismatch}}private struct Basis:Codable{let persistenceMode:String;let sourceSHA256:String;let manifestSHA256:String}}
+
+/// C19 bridge into the incumbent readiness owner. It carries only the exact
+/// derived proof identity and is rebuilt from OfflineWorkPacketReadinessV1.
+/// No readiness Boolean or additional durable family is introduced.
+struct PlanOfflineReadinessManifestBindingV1: Codable, Equatable, Sendable {
+    static let persistenceMode = "DERIVED_ONLY"
+    let persistenceMode: String
+    let workspaceID: WorkspaceID
+    let packet: WorkPacketManifestReferenceV1
+    let item: WorkPacketItemReferenceV1
+    let planRevision: PlanRevisionReferenceV1
+    let revisionDisposition: PlanRevisionSelectionDispositionV1
+    let sourceSnapshotSHA256: String
+    let readinessSHA256: String
+    let evaluatedAt: Date
+    let bindingSHA256: String
+
+    init(_ value: OfflineWorkPacketReadinessV1) throws {
+        try value.validateIntrinsic()
+        persistenceMode = Self.persistenceMode; workspaceID = value.workspaceID
+        packet = value.packet; item = value.item; planRevision = value.planRevision
+        revisionDisposition = value.revisionDisposition
+        sourceSnapshotSHA256 = value.sourceSnapshotSHA256
+        readinessSHA256 = value.readinessSHA256; evaluatedAt = value.checkedAt
+        bindingSHA256 = try OfflineReadinessManifestCanonicalCodecV1.sha256(Basis(
+            persistenceMode: Self.persistenceMode, workspaceID: value.workspaceID,
+            packet: value.packet, item: value.item, planRevision: value.planRevision,
+            revisionDisposition: value.revisionDisposition,
+            sourceSnapshotSHA256: value.sourceSnapshotSHA256,
+            readinessSHA256: value.readinessSHA256, evaluatedAt: value.checkedAt
+        ))
+    }
+
+    func validate(_ value: OfflineWorkPacketReadinessV1) throws {
+        try value.validateIntrinsic()
+        guard self == (try Self(value)) else { throw OfflineReadinessManifestFailureV1.digestMismatch }
+    }
+
+    private struct Basis: Codable { let persistenceMode: String; let workspaceID: WorkspaceID; let packet: WorkPacketManifestReferenceV1; let item: WorkPacketItemReferenceV1; let planRevision: PlanRevisionReferenceV1; let revisionDisposition: PlanRevisionSelectionDispositionV1; let sourceSnapshotSHA256: String; let readinessSHA256: String; let evaluatedAt: Date }
+}
