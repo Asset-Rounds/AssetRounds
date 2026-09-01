@@ -1,0 +1,385 @@
+{
+  "appIconRevisionReceipt": {
+    "adopted": false,
+    "appIconReleaseManifestContract": "AppIconReleaseManifestV1",
+    "authorizedChange": false,
+    "contract": "AppIconRevisionReceiptV1",
+    "disposition": "NOT_EMITTED_NO_AUTHORIZED_CHANGE",
+    "preservesBuildIdentity": true,
+    "receiptSHA256": null
+  },
+  "brandRevisionImplementationReceipt": {
+    "activated": false,
+    "approvedDecisionDigest": null,
+    "authorizedChange": false,
+    "brandRevisionContract": "BrandRevisionV1",
+    "contract": "BrandRevisionImplementationReceiptV1",
+    "disposition": "NOT_ACTIVATED_NO_APPROVED_DECISION",
+    "implementationReceiptSHA256": null,
+    "revisionID": null
+  },
+  "candidate": {
+    "head": null,
+    "sealDisposition": "UNSEALED_PROVISIONAL",
+    "tree": null
+  },
+  "cardID": "V23-P04-C28",
+  "deferredAcceptedS10_6Clusters": [
+    {
+      "adopted": false,
+      "clusterID": "all-other-shipping-phase-number-ids-in-S10-reserved-ui-root-paths",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        {
+          "acceptedBaseByteLength": 16376,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+          "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5029,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
+          "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 21447,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
+          "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5429,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8",
+          "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 14478,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "dd5d6dddb6e58fbc86e9cbbf7318a8ad6d3271bd93117b4c72ac52d058381fd8",
+          "path": "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 17499,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+          "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5089,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "e869176ccc9a768f1c351442c3e22d4a560bd7b39ab2ea209d85774c1079d26a",
+          "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 31769,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+          "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 7881,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "82f4862beabd981422629fad66065086571fc66d1f79d982df3deec683ade1a0",
+          "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 8831,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "007303e9c3ac6125a0833ecd045b5d4338ccc7c49832cd03a9692dcdac7ccc34",
+          "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 9050,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "955f13980acd330d98aaa0ee13735bb6f6f2b3c45772fbe8e7ebf8b5c2269c1f",
+          "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 13156,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+          "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 4320,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+          "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 12438,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "ecf83578f59beef12e9aa03a0324acc7779f9847ff163d1ba5271c84a7f230af",
+          "path": "FieldEvidenceApp/Features/Signs/NewSignView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 10408,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "7f4ff80b1949f0d851358c732a6add07d9567f1e2f50f7701810fccf657e2b39",
+          "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 31571,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "4b59bad89665bbf0b1b7c6189c09090f93e78d1b963152f344b9611490cf527f",
+          "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 10974,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "28c95fc0a9c84f29ef3e26f758f6c22eee92927ee5e9a40a650e62db1d9f11a7",
+          "path": "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 12050,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "7b25a78ebd2a216ef538bc22260f8b85d1ef2b8d239e94c5f0e93c03eee24a04",
+          "path": "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift"
+        }
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "adopted": false,
+      "clusterID": "visual-DesignTokens-and-WorklightComponents",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        {
+          "acceptedBaseByteLength": 3120,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "59ad0c6445779814d0b621dc2ba47a660052b8bc289d1c9dd773caa1aaf58164",
+          "path": "FieldEvidenceApp/DesignSystem/DesignTokens.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5181,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+          "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift"
+        }
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "adopted": false,
+      "clusterID": "saved-photo-RecordWork-and-IssueDetail",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        {
+          "acceptedBaseByteLength": 13065,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6",
+          "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5611,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "9978ab0b437f7d5c37afa3c7e867f2a46bcd57339efc23e4633a1e9e1af0e789",
+          "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift"
+        }
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "adopted": false,
+      "clusterID": "app-icon-and-artwork",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        {
+          "acceptedBaseByteLength": null,
+          "acceptedBasePresence": false,
+          "acceptedBaseSHA256": null,
+          "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png"
+        },
+        {
+          "acceptedBaseByteLength": null,
+          "acceptedBasePresence": false,
+          "acceptedBaseSHA256": null,
+          "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png"
+        },
+        {
+          "acceptedBaseByteLength": null,
+          "acceptedBasePresence": false,
+          "acceptedBaseSHA256": null,
+          "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png"
+        },
+        {
+          "acceptedBaseByteLength": null,
+          "acceptedBasePresence": false,
+          "acceptedBaseSHA256": null,
+          "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json"
+        }
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    }
+  ],
+  "hostileAndInterruptionRecords": [
+    {
+      "expectedDisposition": "FAIL_CLOSED_NO_PARTIAL_RECEIPT",
+      "recordID": "HOSTILE_SHARED_ROOT_BREAKS_INHERITED_STATE",
+      "scenario": "A shared correction changes an inherited role, focus, contrast, localization, claim, or historic report byte."
+    },
+    {
+      "expectedDisposition": "FAIL_CLOSED_SEPARATE_CORRECTIONS_REQUIRED",
+      "recordID": "HOSTILE_UNRELATED_ROOT_OR_SIGNATURE_GROUPING",
+      "scenario": "Corrections without the same owner, renderer, and normalized signature are grouped into one receipt."
+    },
+    {
+      "expectedDisposition": "PRESERVE_ACCEPTED_C27_BASELINE_NO_PARTIAL_RECEIPT",
+      "recordID": "INTERRUPTION_BEFORE_EFFECT_AND_RECEIPT",
+      "scenario": "Execution stops before both the exact correction effect and its digest-bound evidence receipt exist."
+    },
+    {
+      "expectedDisposition": "RECOVER_IDEMPOTENTLY_OR_FAIL_CLOSED",
+      "recordID": "INTERRUPTION_EFFECT_BEFORE_EVIDENCE_RECEIPT",
+      "scenario": "The correction effect exists but its repository evidence receipt is not yet sealed."
+    },
+    {
+      "expectedDisposition": "NOT_ACTIVATED_NO_APPROVED_DECISION",
+      "recordID": "HOSTILE_REJECTED_OR_DEFERRED_BRAND_DIRECTION",
+      "scenario": "An intentional brand direction lacks an approved BrandRevision decision."
+    }
+  ],
+  "lifecycle": {
+    "backupRestore": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "cloneFork": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "deleteErase": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "journalReplay": "NOT_APPLICABLE_NO_WORKSPACE_MUTATION",
+    "migrationCount": 0,
+    "persistentKindCount": 0,
+    "searchRebuild": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "workspaceMutationReceiptCreated": false,
+    "writerCount": 0
+  },
+  "preservation": {
+    "historicReportBytesRewritten": false,
+    "publicCopyChanged": false,
+    "publicCopyPolicy": "PRESERVE_UNLESS_EXACT_CORRECTION_EXPLICITLY_OWNS_COPY",
+    "technicalIdentityChanged": false,
+    "technicalIdentityPolicy": "PRESERVE_STABLE_TECHNICAL_IDENTIFIERS_AND_BUILD_IDENTITY"
+  },
+  "schema": "V23P04C28BrandHIGSharedRootCorrectionLedgerV1",
+  "schemaVersion": 1,
+  "selectors": [
+    "testV23P04C28G01LowestOwnerCorrectionsCloseC27FindingsAndPreserveHistoricReports",
+    "testV23P04C28A01NativeSemanticParityPreservesTasksIdentityAndHistoricBytes",
+    "testV23P04C28H01SharedStateRoleAXContrastClaimsAndReportDriftFailClosed",
+    "testV23P04C28I01InterruptedCorrectionPreservesAcceptedC27BaselineAndNoPartialReceipt",
+    "testV23P04C28R01RejectedDirectionAndFailedRetryPreserveAcceptedBrandRevision"
+  ],
+  "sharedBrandCorrectionReceipt": {
+    "afterSemanticMappings": [
+      {
+        "legacyID": "s8.4.mail.screen",
+        "localizationKey": "feedback.mail.composer.title",
+        "role": "SCREEN",
+        "stableID": "feedback.mail.screen"
+      },
+      {
+        "legacyID": "s8.4.mail.recipient",
+        "localizationKey": "feedback.mail.recipient",
+        "role": "GROUP",
+        "stableID": "feedback.mail.recipient"
+      },
+      {
+        "legacyID": "s8.4.mail.attachment-count",
+        "localizationKey": "feedback.mail.attachment_count",
+        "role": "STATUS",
+        "stableID": "feedback.mail.attachment-count"
+      },
+      {
+        "legacyID": "s8.4.mail.body",
+        "localizationKey": "feedback.mail.message.label",
+        "role": "TEXT_FIELD",
+        "stableID": "feedback.mail.body"
+      },
+      {
+        "legacyID": "s8.4.mail.done",
+        "localizationKey": "common.done",
+        "role": "BUTTON",
+        "stableID": "feedback.mail.done"
+      }
+    ],
+    "beforeSources": [
+      {
+        "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+        "sha256": "4f1936ed6674adca8ce1ec330dcd8f206ca9cccc4e6b40f67e5d4a04f9ed82b5",
+        "utf8Length": 193525
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "sha256": "9dd2c970827dcae05f8f05acec0fe4bf6650b66fe05cb218f2eaadddfee0a4aa",
+        "utf8Length": 330313
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+        "sha256": "80c29226890dd1d2a50deb491548b0e657c14e5e1cbd392aa9b6519c9f42ad59",
+        "utf8Length": 10968
+      }
+    ],
+    "contract": "SharedBrandCorrectionReceiptV1",
+    "correctionID": "FEEDBACK_MAIL_SEMANTIC_ACCESSIBILITY_LOWEST_OWNER",
+    "effectDisposition": "EXPECTED_AFTER_MAPPING_UNSEALED_PROVISIONAL",
+    "normalizedFailureSignature": "SHIPPING_PHASE_NUMBER_ACCESSIBILITY_ID_AT_FEEDBACK_MAIL_SHARED_ROOT",
+    "ownerGraph": {
+      "edges": [
+        {
+          "consumerPath": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "ownerPath": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+          "relation": "BINDS_STABLE_SEMANTIC_ID_ROLE_AND_LOCALIZATION_KEY"
+        },
+        {
+          "consumerPath": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+          "ownerPath": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "relation": "RENDERS_LOCALIZED_ACCESSIBLE_FEEDBACK_MAIL_SEMANTICS"
+        }
+      ],
+      "lowestTruthfulOwner": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+      "renderer": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift"
+    },
+    "receiptSHA256": null,
+    "supersedesReceiptSHA256": null
+  },
+  "sourcePins": {
+    "acceptedAppHead": "803f75bc94a46b7b0ca50b14f1a49401f38550f1",
+    "acceptedAppTree": "6f1cc0077cf74a1adb532124880b1cd5e4a031cc",
+    "allocationRevision": 2,
+    "c27CheckpointDigest": "f0be43c24a0a88989a795cc288892165bda6f612af84168bff407f036ece7cd1",
+    "c27Inventory": {
+      "path": "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json",
+      "sha256": "b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2",
+      "utf8Length": 13934
+    },
+    "c27VerificationReceiptDigest": "d7325ff7763660b5a24d79e4a7174b00b825c30352a1b4972f4343a3d36d5c60",
+    "casSequence": 507,
+    "contextDigest": "1b2bff5c876c8f618dae7015b12d4dd51d431c6756678824d72421b4d55a80a9",
+    "coordinationAuthorityHead": "b30a1640d495bd2d6641ea2dbd816d8d4d23a186",
+    "coordinationAuthorityTree": "f5b3106d41380a906cfa1c0cbf9cdcc8268b4d22",
+    "coordinationCorrectionTransitionDigest": "2b610d2031667696ba09337e194c8b42e39e09265fc6245a3f94fdd6271ac294",
+    "coordinationLedgerDigest": "5dd37b9b75422a8366b9e052781d09d022951ed2b3cbe51492765ab58cf2eb5f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "ownerAuthorizedPathAllocationDigest": "27c242e6c316767b3731c3bda81948ad8a8dc5258b54c385994248c24033f48c",
+    "pathFenceDigest": "52a48f30deafc62962e99607f690e84fb393f668c548a01fe496b96b450d3817",
+    "provisionalPrerequisiteDigest": "83888037dd5c9762466f711f232ef5ecad7f34ffce1d773795f10dd8920763ce",
+    "sourceProjectionDigest": "a7064d17aa0bdd7ef1401b411087ff38c64ecefff7a3a9515039aa009d963df5",
+    "supersedesOwnerAuthorizedPathAllocationDigest": "f296173b2ae29f892447395bba5d2a48817607375e8da8d3173faf5ff739f3c1"
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "activation": false,
+    "adoption": false,
+    "completion": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false,
+    "releaseCredit": false,
+    "releaseReady": false
+  }
+}

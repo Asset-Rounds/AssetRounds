@@ -348,26 +348,27 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
             XCTAssertEqual(error as? LocalizationContractFailureV1, .missingKey)
         }
 
-        XCTAssertEqual(value.legacyAllowlist.baseline, value.legacyAllowlist.current)
+        XCTAssertEqual(value.legacyAllowlist.baseline, value.legacyAllowlist.testSupportAliases)
+        XCTAssertTrue(value.legacyAllowlist.current.isEmpty)
         XCTAssertTrue(value.legacyAllowlist.newEntries.isEmpty)
         XCTAssertFalse(value.legacyAllowlist.growthAllowed)
-        XCTAssertEqual(
-            Set(BundledLocalizationCatalogV1.inheritedMailAccessibilityIDs),
-            Set(value.legacyAllowlist.baseline)
-        )
+        XCTAssertFalse(value.legacyAllowlist.productionParserEnabled)
+        XCTAssertTrue(accessibility.entries.allSatisfy { $0.deprecatedAliases.isEmpty })
+        XCTAssertTrue(try productionMailLegacyReferences().isEmpty)
 
         let legacy = try legacyAllowlist()
         try legacy.validate()
-        XCTAssertEqual(legacy.entries.count, value.legacyAllowlist.baseline.count)
+        XCTAssertTrue(legacy.entries.isEmpty)
+        XCTAssertNoThrow(try legacy.validateObserved([]))
         let growth = LegacyLocalizationAccessibilityEntryV1(
             kind: .phaseAccessibilityID,
             stableFingerprint: KernelCanonicalHashV1.sha256(Data("s8.4.mail.new".utf8))
         )
-        XCTAssertThrowsError(try legacy.validateObserved(legacy.entries + [growth])) { error in
+        XCTAssertThrowsError(try legacy.validateObserved([growth])) { error in
             XCTAssertEqual(error as? LocalizationContractFailureV1, .legacyAllowlistGrowth)
         }
         let grownLegacy = try LegacyLocalizationAccessibilityAllowlistV1(
-            entries: legacy.entries + [growth]
+            entries: [growth]
         )
         XCTAssertThrowsError(
             try BundledLocalizationCatalogV1.publish(
@@ -1762,7 +1763,31 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
     }
 
     private func legacyAllowlist() throws -> LegacyLocalizationAccessibilityAllowlistV1 {
-        try BundledLocalizationCatalogV1.mailLegacyAllowlist()
+        try LegacyLocalizationAccessibilityAllowlistV1(entries: [])
+    }
+
+    private func productionMailLegacyReferences() throws -> [String] {
+        let root = repositoryRootURL().appendingPathComponent("FieldEvidenceApp")
+        let enumerator = try XCTUnwrap(
+            FileManager.default.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+        )
+        var matches: [String] = []
+        for case let url as URL in enumerator {
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+            guard values.isRegularFile == true,
+                  ["swift", "json", "xcstrings", "plist"].contains(url.pathExtension) else {
+                continue
+            }
+            if String(decoding: try Data(contentsOf: url), as: UTF8.self)
+                .contains("s8.4.mail.") {
+                matches.append(url.path)
+            }
+        }
+        return matches.sorted()
     }
 
     private func publishedShippingPackage() throws -> InspectionPackagePublishedReleaseV1 {
@@ -1885,8 +1910,10 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         let version: Int
         let baseline: [String]
         let current: [String]
+        let testSupportAliases: [String]
         let newEntries: [String]
         let growthAllowed: Bool
+        let productionParserEnabled: Bool
     }
 
     private struct PackageBinding: Decodable {

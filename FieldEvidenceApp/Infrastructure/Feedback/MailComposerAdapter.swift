@@ -226,7 +226,7 @@ private final class FeedbackUITestMailViewController: UIViewController {
         title.font = .preferredFont(forTextStyle: .title2)
         title.adjustsFontForContentSizeCategory = true
         title.accessibilityTraits.insert(.header)
-        title.accessibilityIdentifier = "s8.4.mail.screen"
+        title.accessibilityIdentifier = FeedbackMailAccessibilityIDV1.screen.rawValue
 
         let recipient = UILabel()
         recipient.text = String(
@@ -236,7 +236,7 @@ private final class FeedbackUITestMailViewController: UIViewController {
         recipient.font = .preferredFont(forTextStyle: .body)
         recipient.adjustsFontForContentSizeCategory = true
         recipient.numberOfLines = 0
-        recipient.accessibilityIdentifier = "s8.4.mail.recipient"
+        recipient.accessibilityIdentifier = FeedbackMailAccessibilityIDV1.recipient.rawValue
 
         let attachment = UILabel()
         attachment.text = String.localizedStringWithFormat(
@@ -246,7 +246,7 @@ private final class FeedbackUITestMailViewController: UIViewController {
         attachment.font = .preferredFont(forTextStyle: .body)
         attachment.adjustsFontForContentSizeCategory = true
         attachment.numberOfLines = 0
-        attachment.accessibilityIdentifier = "s8.4.mail.attachment-count"
+        attachment.accessibilityIdentifier = FeedbackMailAccessibilityIDV1.attachmentCount.rawValue
         attachment.accessibilityValue = BundledLocalizationCatalogV1.formattedInteger(
             draft.attachments.count
         )
@@ -264,7 +264,7 @@ private final class FeedbackUITestMailViewController: UIViewController {
         message.layer.borderWidth = 1
         message.layer.cornerRadius = 8
         message.accessibilityLabel = BundledLocalizationCatalogV1.localized(.mailMessageLabel)
-        message.accessibilityIdentifier = "s8.4.mail.body"
+        message.accessibilityIdentifier = FeedbackMailAccessibilityIDV1.body.rawValue
         message.heightAnchor.constraint(greaterThanOrEqualToConstant: 180)
             .isActive = true
 
@@ -272,7 +272,7 @@ private final class FeedbackUITestMailViewController: UIViewController {
         done.setTitle(BundledLocalizationCatalogV1.localized(.commonDone), for: .normal)
         done.titleLabel?.font = .preferredFont(forTextStyle: .headline)
         done.titleLabel?.adjustsFontForContentSizeCategory = true
-        done.accessibilityIdentifier = "s8.4.mail.done"
+        done.accessibilityIdentifier = FeedbackMailAccessibilityIDV1.done.rawValue
         done.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
             .isActive = true
         done.addAction(UIAction { [weak self] _ in

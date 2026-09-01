@@ -1,0 +1,208 @@
+{
+  "c27InventorySHA256": "b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2",
+  "cardID": "V23-P04-C28",
+  "deferredAcceptedS10_6Clusters": [
+    {
+      "adopted": false,
+      "clusterID": "all-other-shipping-phase-number-ids-in-S10-reserved-ui-root-paths",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        {
+          "acceptedBaseByteLength": 16376,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+          "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5029,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
+          "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 21447,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
+          "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5429,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8",
+          "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 14478,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "dd5d6dddb6e58fbc86e9cbbf7318a8ad6d3271bd93117b4c72ac52d058381fd8",
+          "path": "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 17499,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+          "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5089,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "e869176ccc9a768f1c351442c3e22d4a560bd7b39ab2ea209d85774c1079d26a",
+          "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 31769,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+          "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 7881,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "82f4862beabd981422629fad66065086571fc66d1f79d982df3deec683ade1a0",
+          "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 8831,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "007303e9c3ac6125a0833ecd045b5d4338ccc7c49832cd03a9692dcdac7ccc34",
+          "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 9050,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "955f13980acd330d98aaa0ee13735bb6f6f2b3c45772fbe8e7ebf8b5c2269c1f",
+          "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 13156,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+          "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 4320,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+          "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 12438,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "ecf83578f59beef12e9aa03a0324acc7779f9847ff163d1ba5271c84a7f230af",
+          "path": "FieldEvidenceApp/Features/Signs/NewSignView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 10408,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "7f4ff80b1949f0d851358c732a6add07d9567f1e2f50f7701810fccf657e2b39",
+          "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 31571,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "4b59bad89665bbf0b1b7c6189c09090f93e78d1b963152f344b9611490cf527f",
+          "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 10974,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "28c95fc0a9c84f29ef3e26f758f6c22eee92927ee5e9a40a650e62db1d9f11a7",
+          "path": "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 12050,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "7b25a78ebd2a216ef538bc22260f8b85d1ef2b8d239e94c5f0e93c03eee24a04",
+          "path": "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift"
+        }
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "adopted": false,
+      "clusterID": "visual-DesignTokens-and-WorklightComponents",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        {
+          "acceptedBaseByteLength": 3120,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "59ad0c6445779814d0b621dc2ba47a660052b8bc289d1c9dd773caa1aaf58164",
+          "path": "FieldEvidenceApp/DesignSystem/DesignTokens.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5181,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+          "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift"
+        }
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "adopted": false,
+      "clusterID": "saved-photo-RecordWork-and-IssueDetail",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        {
+          "acceptedBaseByteLength": 13065,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6",
+          "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
+        },
+        {
+          "acceptedBaseByteLength": 5611,
+          "acceptedBasePresence": true,
+          "acceptedBaseSHA256": "9978ab0b437f7d5c37afa3c7e867f2a46bcd57339efc23e4633a1e9e1af0e789",
+          "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift"
+        }
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "adopted": false,
+      "clusterID": "app-icon-and-artwork",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        {
+          "acceptedBaseByteLength": null,
+          "acceptedBasePresence": false,
+          "acceptedBaseSHA256": null,
+          "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png"
+        },
+        {
+          "acceptedBaseByteLength": null,
+          "acceptedBasePresence": false,
+          "acceptedBaseSHA256": null,
+          "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png"
+        },
+        {
+          "acceptedBaseByteLength": null,
+          "acceptedBasePresence": false,
+          "acceptedBaseSHA256": null,
+          "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png"
+        },
+        {
+          "acceptedBaseByteLength": null,
+          "acceptedBasePresence": false,
+          "acceptedBaseSHA256": null,
+          "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json"
+        }
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    }
+  ],
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "nativeOrHostedAdoption": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "BrandImpactManifestV1"
+}

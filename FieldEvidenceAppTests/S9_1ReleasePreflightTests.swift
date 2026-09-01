@@ -1710,7 +1710,11 @@ extension S9_1ReleasePreflightTests {
         ] {
             XCTAssertEqual(root["cardID"] as? String, "V23-P04-C27", path)
             XCTAssertEqual(root["schemaVersion"] as? Int, 1, path)
-            let flags = try XCTUnwrap(root["statusFlags"] as? [String: Bool], path)
+            let flags = try XCTUnwrap(
+                (root["statusFlags"] as? [String: Bool])
+                    ?? (root["flags"] as? [String: Bool]),
+                path
+            )
             XCTAssertFalse(flags.isEmpty, path)
             XCTAssertTrue(flags.values.allSatisfy { !$0 }, path)
         }
@@ -1769,6 +1773,292 @@ extension S9_1ReleasePreflightTests {
     }
 
     private func c27Digest(_ bytes: Data) -> String {
+        SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension S9_1ReleasePreflightTests {
+    func testV23P04C28ReleasePreflightMirrorsProvisionalSharedRootCorrection() throws {
+        let ledger = try c28JSON(
+            "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json"
+        )
+        let corpus = try c28JSON(
+            "FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C28BrandHIGSharedRootCorrectionCorpusV1.json"
+        )
+        let contract = try c28JSON(
+            "docs/design/v23/tooling/V23P04C28BrandHIGSharedRootCorrectionContractV1.json"
+        )
+        let evidence = try c28JSON(
+            "docs/design/v23/tooling/V23P04C28BrandHIGSharedRootCorrectionEvidenceReceiptV1.json"
+        )
+        let impact = try c28JSON(
+            "docs/design/v23/tooling/V23P04C28BrandImpactManifestV1.json"
+        )
+        let manifest = try c28JSON(
+            "docs/design/v23/tooling/V23-P04-C28-tooling-manifest.json"
+        )
+        let schema = try c28JSON("Scripts/v23/brand-hig-shared-root-correction.schema.json")
+
+        for (path, root) in [
+            ("ledger", ledger), ("corpus", corpus), ("contract", contract),
+            ("evidence", evidence), ("impact", impact), ("manifest", manifest),
+        ] {
+            XCTAssertEqual(root["cardID"] as? String, "V23-P04-C28", path)
+            if root["schemaVersion"] != nil {
+                XCTAssertEqual(root["schemaVersion"] as? Int, 1, path)
+            }
+            let flags = try XCTUnwrap(
+                (root["statusFlags"] as? [String: Bool])
+                    ?? (root["flags"] as? [String: Bool]),
+                path
+            )
+            XCTAssertFalse(flags.isEmpty, path)
+            XCTAssertTrue(flags.values.allSatisfy { !$0 }, path)
+        }
+        XCTAssertEqual(
+            schema["$schema"] as? String,
+            "https://json-schema.org/draft/2020-12/schema"
+        )
+
+        let selectors = [
+            "testV23P04C28G01LowestOwnerCorrectionsCloseC27FindingsAndPreserveHistoricReports",
+            "testV23P04C28A01NativeSemanticParityPreservesTasksIdentityAndHistoricBytes",
+            "testV23P04C28H01SharedStateRoleAXContrastClaimsAndReportDriftFailClosed",
+            "testV23P04C28I01InterruptedCorrectionPreservesAcceptedC27BaselineAndNoPartialReceipt",
+            "testV23P04C28R01RejectedDirectionAndFailedRetryPreserveAcceptedBrandRevision",
+        ]
+        XCTAssertEqual(ledger["selectors"] as? [String], selectors)
+        XCTAssertEqual(corpus["selectors"] as? [String], selectors)
+        XCTAssertEqual(contract["selectors"] as? [String], selectors)
+        XCTAssertEqual(evidence["selectors"] as? [String], selectors)
+        let c28Tests = try text(
+            "FieldEvidenceAppTests/V9_91BrandHIGSharedRootCorrectionTests.swift"
+        )
+        for selector in selectors {
+            XCTAssertTrue(c28Tests.contains("func \(selector)"), selector)
+        }
+
+        let predecessor = try XCTUnwrap(corpus["predecessor"] as? [String: Any])
+        XCTAssertEqual(predecessor["cardID"] as? String, "V23-P04-C27")
+        XCTAssertEqual(
+            predecessor["inventorySHA256"] as? String,
+            c28Digest(try data("docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json"))
+        )
+        let sourcePins = try XCTUnwrap(ledger["sourcePins"] as? [String: Any])
+        let c27Binding = try XCTUnwrap(sourcePins["c27Inventory"] as? [String: Any])
+        XCTAssertEqual(
+            c27Binding["path"] as? String,
+            "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json"
+        )
+        XCTAssertEqual(
+            c27Binding["sha256"] as? String,
+            c28Digest(try data("docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json"))
+        )
+        XCTAssertEqual(c27Binding["utf8Length"] as? Int, 13934)
+        let expectedSourcePinKeys: Set<String> = [
+            "acceptedAppHead", "acceptedAppTree", "allocationRevision",
+            "c27CheckpointDigest", "c27Inventory", "c27VerificationReceiptDigest",
+            "casSequence", "contextDigest", "coordinationAuthorityHead",
+            "coordinationAuthorityTree", "coordinationCorrectionTransitionDigest",
+            "coordinationLedgerDigest", "frozenS10ReservationDigest",
+            "ownerAuthorizedPathAllocationDigest", "pathFenceDigest",
+            "provisionalPrerequisiteDigest", "sourceProjectionDigest",
+            "supersedesOwnerAuthorizedPathAllocationDigest",
+        ]
+        XCTAssertEqual(Set(sourcePins.keys), expectedSourcePinKeys)
+        XCTAssertEqual(
+            sourcePins["acceptedAppHead"] as? String,
+            "803f75bc94a46b7b0ca50b14f1a49401f38550f1"
+        )
+        XCTAssertEqual(
+            sourcePins["acceptedAppTree"] as? String,
+            "6f1cc0077cf74a1adb532124880b1cd5e4a031cc"
+        )
+        XCTAssertEqual(
+            sourcePins["coordinationAuthorityHead"] as? String,
+            "b30a1640d495bd2d6641ea2dbd816d8d4d23a186"
+        )
+        XCTAssertEqual(
+            sourcePins["coordinationAuthorityTree"] as? String,
+            "f5b3106d41380a906cfa1c0cbf9cdcc8268b4d22"
+        )
+        XCTAssertEqual(sourcePins["casSequence"] as? Int, 507)
+        XCTAssertEqual(sourcePins["allocationRevision"] as? Int, 2)
+        XCTAssertEqual(
+            sourcePins["ownerAuthorizedPathAllocationDigest"] as? String,
+            "27c242e6c316767b3731c3bda81948ad8a8dc5258b54c385994248c24033f48c"
+        )
+        XCTAssertEqual(
+            sourcePins["supersedesOwnerAuthorizedPathAllocationDigest"] as? String,
+            "f296173b2ae29f892447395bba5d2a48817607375e8da8d3173faf5ff739f3c1"
+        )
+        XCTAssertEqual(
+            sourcePins["contextDigest"] as? String,
+            "1b2bff5c876c8f618dae7015b12d4dd51d431c6756678824d72421b4d55a80a9"
+        )
+        XCTAssertEqual(
+            sourcePins["pathFenceDigest"] as? String,
+            "52a48f30deafc62962e99607f690e84fb393f668c548a01fe496b96b450d3817"
+        )
+        XCTAssertEqual(
+            sourcePins["provisionalPrerequisiteDigest"] as? String,
+            "83888037dd5c9762466f711f232ef5ecad7f34ffce1d773795f10dd8920763ce"
+        )
+        XCTAssertEqual(
+            sourcePins["coordinationCorrectionTransitionDigest"] as? String,
+            "2b610d2031667696ba09337e194c8b42e39e09265fc6245a3f94fdd6271ac294"
+        )
+        XCTAssertEqual(
+            sourcePins["coordinationLedgerDigest"] as? String,
+            "5dd37b9b75422a8366b9e052781d09d022951ed2b3cbe51492765ab58cf2eb5f"
+        )
+        XCTAssertEqual(
+            sourcePins["sourceProjectionDigest"] as? String,
+            "a7064d17aa0bdd7ef1401b411087ff38c64ecefff7a3a9515039aa009d963df5"
+        )
+        XCTAssertEqual(
+            sourcePins["frozenS10ReservationDigest"] as? String,
+            "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        )
+        XCTAssertEqual(
+            sourcePins["c27CheckpointDigest"] as? String,
+            "f0be43c24a0a88989a795cc288892165bda6f612af84168bff407f036ece7cd1"
+        )
+        XCTAssertEqual(
+            sourcePins["c27VerificationReceiptDigest"] as? String,
+            "d7325ff7763660b5a24d79e4a7174b00b825c30352a1b4972f4343a3d36d5c60"
+        )
+
+        let expectedStableIDs: Set<String> = [
+            "feedback.mail.attachment-count", "feedback.mail.body",
+            "feedback.mail.done", "feedback.mail.recipient", "feedback.mail.screen",
+        ]
+        let receipt = try XCTUnwrap(ledger["sharedBrandCorrectionReceipt"] as? [String: Any])
+        let mappings = try XCTUnwrap(receipt["afterSemanticMappings"] as? [[String: Any]])
+        XCTAssertEqual(Set(mappings.compactMap { $0["stableID"] as? String }), expectedStableIDs)
+        XCTAssertTrue(mappings.allSatisfy {
+            guard let stableID = $0["stableID"] as? String,
+                  let legacyID = $0["legacyID"] as? String else { return false }
+            return stableID != legacyID
+        })
+        let semantics = try XCTUnwrap(corpus["stableFeedbackSemantics"] as? [[String: Any]])
+        XCTAssertEqual(Set(semantics.compactMap { $0["id"] as? String }), expectedStableIDs)
+        XCTAssertTrue(semantics.allSatisfy {
+            ($0["deprecatedAliases"] as? [String] ?? []).isEmpty
+        })
+
+        let expectedClusterIDs = [
+            "all-other-shipping-phase-number-ids-in-S10-reserved-ui-root-paths",
+            "visual-DesignTokens-and-WorklightComponents",
+            "saved-photo-RecordWork-and-IssueDetail",
+            "app-icon-and-artwork",
+        ]
+        let expectedClusterCounts = [18, 2, 2, 4]
+        let deferred = try XCTUnwrap(ledger["deferredAcceptedS10_6Clusters"] as? [[String: Any]])
+        XCTAssertEqual(deferred.count, expectedClusterIDs.count)
+        XCTAssertEqual(deferred.map { $0["clusterID"] as? String }, expectedClusterIDs)
+        XCTAssertEqual(
+            deferred.compactMap { ($0["memberPaths"] as? [[String: Any]])?.count },
+            expectedClusterCounts
+        )
+        XCTAssertTrue(deferred.allSatisfy {
+            $0["adopted"] as? Bool == false
+                && $0["disposition"] as? String == "DEFERRED_PENDING_ACCEPTED_S10_6"
+                && $0["reservationDigest"] as? String
+                    == "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        })
+        var deferredPaths = Set<String>()
+        for row in deferred {
+            let members = try XCTUnwrap(row["memberPaths"] as? [[String: Any]])
+            let paths = try members.map { try XCTUnwrap($0["path"] as? String) }
+            XCTAssertEqual(paths.count, Set(paths).count)
+            paths.forEach { deferredPaths.insert($0) }
+        }
+        XCTAssertEqual(deferredPaths.count, 26)
+        let corpusDeferred = try XCTUnwrap(corpus["deferredS10Clusters"] as? [[String: Any]])
+        XCTAssertEqual(corpusDeferred.count, expectedClusterIDs.count)
+        XCTAssertEqual(corpusDeferred.map { $0["clusterID"] as? String }, expectedClusterIDs)
+        XCTAssertEqual(
+            corpusDeferred.compactMap { ($0["memberPaths"] as? [[String: Any]])?.count },
+            expectedClusterCounts
+        )
+        XCTAssertTrue(corpusDeferred.allSatisfy {
+            $0["adopted"] as? Bool == false
+                && $0["acceptanceCredit"] as? Bool == false
+                && $0["disposition"] as? String == "DEFERRED_PENDING_ACCEPTED_S10_6"
+                && $0["reservationDigest"] as? String
+                    == "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        })
+        var corpusDeferredPaths = Set<String>()
+        for row in corpusDeferred {
+            let members = try XCTUnwrap(row["memberPaths"] as? [[String: Any]])
+            let paths = try members.map { try XCTUnwrap($0["path"] as? String) }
+            XCTAssertEqual(paths.count, Set(paths).count)
+            paths.forEach { _ = corpusDeferredPaths.insert($0) }
+        }
+        XCTAssertEqual(corpusDeferredPaths, deferredPaths)
+
+        let brandRevision = try XCTUnwrap(
+            ledger["brandRevisionImplementationReceipt"] as? [String: Any]
+        )
+        XCTAssertEqual(brandRevision["activated"] as? Bool, false)
+        XCTAssertEqual(brandRevision["authorizedChange"] as? Bool, false)
+        XCTAssertEqual(brandRevision["disposition"] as? String, "NOT_ACTIVATED_NO_APPROVED_DECISION")
+        let appIcon = try XCTUnwrap(ledger["appIconRevisionReceipt"] as? [String: Any])
+        XCTAssertEqual(appIcon["adopted"] as? Bool, false)
+        XCTAssertEqual(appIcon["authorizedChange"] as? Bool, false)
+        XCTAssertEqual(appIcon["disposition"] as? String, "NOT_EMITTED_NO_AUTHORIZED_CHANGE")
+        XCTAssertEqual(
+            corpus["brandRevisionDisposition"] as? String,
+            "UNCHANGED_NO_ACCEPTED_DIRECTION"
+        )
+        XCTAssertEqual(
+            corpus["appIconDisposition"] as? String,
+            "NO_CHANGE_NO_ACCEPTED_BRAND_INTENT"
+        )
+
+        let historic = try XCTUnwrap(corpus["historicReportBindings"] as? [[String: Any]])
+        XCTAssertEqual(historic.count, 2)
+        for binding in historic {
+            let path = try XCTUnwrap(binding["path"] as? String)
+            let expected = try XCTUnwrap(binding["sha256"] as? String)
+            XCTAssertEqual(c28Digest(try data(path)), expected, path)
+        }
+        let preservation = try XCTUnwrap(ledger["preservation"] as? [String: Any])
+        XCTAssertEqual(preservation["historicReportBytesRewritten"] as? Bool, false)
+        XCTAssertEqual(preservation["technicalIdentityChanged"] as? Bool, false)
+        let lifecycle = try XCTUnwrap(ledger["lifecycle"] as? [String: Any])
+        XCTAssertEqual(lifecycle["persistentKindCount"] as? Int, 0)
+        XCTAssertEqual(lifecycle["writerCount"] as? Int, 0)
+        XCTAssertEqual(lifecycle["workspaceMutationReceiptCreated"] as? Bool, false)
+        let candidate = try XCTUnwrap(ledger["candidate"] as? [String: Any])
+        XCTAssertTrue(candidate["head"] is NSNull)
+        XCTAssertEqual(candidate["sealDisposition"] as? String, "UNSEALED_PROVISIONAL")
+        XCTAssertTrue(candidate["tree"] is NSNull)
+
+        let preflight = try text("Scripts/release-preflight.sh")
+        for token in [
+            "c28_generator_script=\"Scripts/v23/generate_p04_c28_contracts.py\"",
+            "c28_verifier_script=\"Scripts/v23/verify_p04_c28_contracts.py\"",
+            "--check", "--self-test --json", "--complete --json",
+            "recoveryAcceptedSetCount", "secondRetryAcceptedSetCount",
+            "recoveryTreeDigest", "secondRetryTreeDigest",
+            "c28_fence_path_count", "c28_required_fence_path_count",
+            "missingPathCount", "unownedChangedPathCount", "s10ReservationOverlapCount",
+            "finalHashesSealed", "flagsAllFalse", "s8.4.mail",
+            "deferredAcceptedS10_6Clusters", "BrandRevision", "AppIcon",
+        ] {
+            XCTAssertTrue(preflight.contains(token), token)
+        }
+        XCTAssertFalse(preflight.contains("fencePathCount == 21"))
+        XCTAssertFalse(preflight.contains("changedPathCount == 21"))
+    }
+
+    private func c28JSON(_ relativePath: String) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: data(relativePath)) as? [String: Any])
+    }
+
+    private func c28Digest(_ bytes: Data) -> String {
         SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
     }
 }

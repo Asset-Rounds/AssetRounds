@@ -780,26 +780,6 @@ enum BundledLocalizationCatalogV1 {
     static let runtimeLanguage = "en"
     static let appStorePrimaryMetadataLocale = "en-US"
     static let runtimeDownloadsAllowed = false
-    static let inheritedMailAccessibilityIDs = [
-        "s8.4.mail.attachment-count",
-        "s8.4.mail.body",
-        "s8.4.mail.done",
-        "s8.4.mail.recipient",
-        "s8.4.mail.screen",
-    ]
-
-    static func mailLegacyAllowlist() throws
-        -> LegacyLocalizationAccessibilityAllowlistV1 {
-        try LegacyLocalizationAccessibilityAllowlistV1(
-            entries: inheritedMailAccessibilityIDs.map {
-                LegacyLocalizationAccessibilityEntryV1(
-                    kind: .phaseAccessibilityID,
-                    stableFingerprint: KernelCanonicalHashV1.sha256(Data($0.utf8))
-                )
-            }
-        )
-    }
-
     static func registry() throws -> LocalizationKeyRegistryV1 {
         try LocalizationKeyRegistryV1(definitions: [
             try definition(.commonDone, "common.action.done", "Done", "Completes and closes the current task."),
@@ -1690,18 +1670,18 @@ enum BundledLocalizationCatalogV1 {
     static func accessibilityRegistry(
         localization: LocalizationKeyRegistryV1
     ) throws -> SemanticAccessibilityIDRegistryV1 {
-        let values: [(String, String, SemanticAccessibilityRoleV1, BundledLocalizationKeyV1)] = [
-            ("feedback.mail.screen", "s8.4.mail.screen", .screen, .mailComposerTitle),
-            ("feedback.mail.recipient", "s8.4.mail.recipient", .group, .mailRecipient),
-            ("feedback.mail.attachment-count", "s8.4.mail.attachment-count", .status, .mailAttachmentCount),
-            ("feedback.mail.body", "s8.4.mail.body", .textField, .mailMessageLabel),
-            ("feedback.mail.done", "s8.4.mail.done", .button, .commonDone),
+        let values: [(id: FeedbackMailAccessibilityIDV1, label: BundledLocalizationKeyV1)] = [
+            (.screen, .mailComposerTitle),
+            (.recipient, .mailRecipient),
+            (.attachmentCount, .mailAttachmentCount),
+            (.body, .mailMessageLabel),
+            (.done, .commonDone),
         ]
-        let entries = try values.map {
+        let entries = try values.map { value in
             AccessibilityContractV1(
-                semanticID: $0.0, role: $0.2, reachability: .always,
-                labelKey: try LocalizationKeyV1($0.3.rawValue), hintKey: nil,
-                valueKey: nil, dynamicSuffixPolicy: .none, deprecatedAliases: [$0.1]
+                semanticID: value.id.rawValue, role: value.id.role, reachability: .always,
+                labelKey: try LocalizationKeyV1(value.label.rawValue), hintKey: nil,
+                valueKey: nil, dynamicSuffixPolicy: .none, deprecatedAliases: []
             )
         }
         return try SemanticAccessibilityIDRegistryV1(
@@ -2720,7 +2700,7 @@ enum BundledLocalizationCatalogV1 {
         }
         try validateSourceCatalog(sourceCatalogBytes, registry: keys)
         if let previousRegistry { try keys.validateSuccessor(of: previousRegistry) }
-        let requiredMailLegacy = try mailLegacyAllowlist()
+        let requiredMailLegacy = try LegacyLocalizationAccessibilityAllowlistV1(entries: [])
         guard legacy == requiredMailLegacy else {
             throw LocalizationContractFailureV1.legacyAllowlistGrowth
         }

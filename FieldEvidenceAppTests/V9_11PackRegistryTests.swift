@@ -358,7 +358,7 @@ final class V9_11PackRegistryTests: XCTestCase {
         let originalPackage = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
         let sourceCatalog = try Data(contentsOf: repositoryRootURL()
             .appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings"))
-        let legacy = try BundledLocalizationCatalogV1.mailLegacyAllowlist()
+        let legacy = try LegacyLocalizationAccessibilityAllowlistV1(entries: [])
         let publication = try BundledLocalizationCatalogV1.publish(
             sourceCatalogBytes: sourceCatalog,
             packagePublications: [published],

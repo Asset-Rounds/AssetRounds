@@ -237,6 +237,19 @@ extension S8_2GoldenAccessibilityTests {
             localization: localization
         )
         try accessibility.validate()
+        let exactRoles: [String: SemanticAccessibilityRoleV1] = [
+            "feedback.mail.screen": .screen,
+            "feedback.mail.recipient": .group,
+            "feedback.mail.attachment-count": .status,
+            "feedback.mail.body": .textField,
+            "feedback.mail.done": .button,
+        ]
+        XCTAssertEqual(Set(accessibility.entries.map(\.semanticID)), Set(exactRoles.keys))
+        for entry in accessibility.entries {
+            XCTAssertEqual(entry.role, try XCTUnwrap(exactRoles[entry.semanticID]))
+            XCTAssertEqual(entry.reachability, .always)
+            XCTAssertTrue(entry.deprecatedAliases.isEmpty)
+        }
 
         for scenario in scenarios {
             XCTAssertTrue(scenario.operations.contains { $0.kind == .verifyReleaseExclusion })
@@ -248,10 +261,10 @@ extension S8_2GoldenAccessibilityTests {
                 accessibility.entries.first { $0.semanticID == semanticID }
             )
             XCTAssertEqual(identifier, semanticID)
-            XCTAssertEqual(entry.role, .button)
+            XCTAssertEqual(entry.role, try XCTUnwrap(exactRoles[semanticID]))
             XCTAssertEqual(entry.reachability, .always)
             XCTAssertEqual(BundledLocalizationCatalogV1.localized(.commonDone), "Done")
-            XCTAssertEqual(entry.deprecatedAliases, ["s8.4.mail.done"])
+            XCTAssertTrue(entry.deprecatedAliases.isEmpty)
         }
     }
 }

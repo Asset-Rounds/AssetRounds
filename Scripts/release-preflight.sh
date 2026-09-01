@@ -37,6 +37,17 @@ c27_contract="docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryContractV1.
 c27_evidence="docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryEvidenceReceiptV1.json"
 c27_impact="docs/design/v23/tooling/V23P04C27BrandImpactManifestV1.json"
 c27_tooling_manifest="docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json"
+c28_ledger="docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json"
+c28_corpus="FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C28BrandHIGSharedRootCorrectionCorpusV1.json"
+c28_contract="docs/design/v23/tooling/V23P04C28BrandHIGSharedRootCorrectionContractV1.json"
+c28_evidence="docs/design/v23/tooling/V23P04C28BrandHIGSharedRootCorrectionEvidenceReceiptV1.json"
+c28_impact="docs/design/v23/tooling/V23P04C28BrandImpactManifestV1.json"
+c28_tooling_manifest="docs/design/v23/tooling/V23-P04-C28-tooling-manifest.json"
+c28_schema="Scripts/v23/brand-hig-shared-root-correction.schema.json"
+c28_contracts_script="Scripts/v23/p04_c28_contracts.py"
+c28_generator_script="Scripts/v23/generate_p04_c28_contracts.py"
+c28_verifier_script="Scripts/v23/verify_p04_c28_contracts.py"
+c28_required_fence_path_count=22
 export_options="Release/TestFlightExportOptions.plist"
 workflow=".github/workflows/testflight.yml"
 project="FieldEvidenceApp.xcodeproj/project.pbxproj"
@@ -60,6 +71,16 @@ for path in \
   "$c27_evidence" \
   "$c27_impact" \
   "$c27_tooling_manifest" \
+  "$c28_ledger" \
+  "$c28_corpus" \
+  "$c28_contract" \
+  "$c28_evidence" \
+  "$c28_impact" \
+  "$c28_tooling_manifest" \
+  "$c28_schema" \
+  "$c28_contracts_script" \
+  "$c28_generator_script" \
+  "$c28_verifier_script" \
   "$export_options" \
   "$workflow" \
   "$project"
@@ -595,7 +616,11 @@ jq -e '
     "AFTER_MANIFEST"
   ]
   and [.rows[].acceptedSetCount] == [0, 0, 1]
-  and ([.rows[].retryAcceptedSetCount] | all(. == 1))
+  and ([.rows[] | (
+    .recoveryAcceptedSetCount == 1
+    and .secondRetryAcceptedSetCount == 1
+    and .recoveryTreeDigest == .secondRetryTreeDigest
+  )] | all)
   and ([.rows[].manifestLast] | all(. == true))
   and ([.rows[].retryDeterministic] | all(. == true))
   and ([.rows[].realWorktreeUnchanged] | all(. == true))
@@ -693,6 +718,237 @@ assert len(manifest["authority"]["sourcePins"]) == 3
 assert manifest["sources"] == contract["sourceProjection"]["sourceRows"]
 for row in manifest["files"]:
     assert hashlib.sha256((root / row["path"]).read_bytes()).hexdigest() == row["sha256"]
+PY
+
+python -B "$c28_generator_script" --check >/dev/null
+c28_generator_self_test="$(python -B "$c28_generator_script" --self-test --json)"
+jq -e '
+  .result == "PASS"
+  and .protocol == "MANIFEST_LAST_ATOMIC_REPLACE"
+  and [.rows[].boundary] == [
+    "BEFORE_ARTIFACTS",
+    "AFTER_ARTIFACTS_BEFORE_MANIFEST",
+    "AFTER_MANIFEST"
+  ]
+  and [.rows[].acceptedSetCount] == [0, 0, 1]
+  and ([.rows[] | (
+    .recoveryAcceptedSetCount == 1
+    and .secondRetryAcceptedSetCount == 1
+    and .recoveryTreeDigest == .secondRetryTreeDigest
+  )] | all)
+  and ([.rows[].manifestLast] | all(. == true))
+  and ([.rows[].retryDeterministic] | all(. == true))
+  and ([.rows[].realWorktreeUnchanged] | all(. == true))
+  and .deterministicRerun == true
+  and .realWorktreeUnchanged == true
+' <<<"$c28_generator_self_test" >/dev/null
+
+c28_contract_result="$(python -B "$c28_verifier_script" --complete --json)"
+c28_fence_path_count="$(jq -er '
+  if (.fencePathCount | type) == "number" then .fencePathCount
+  elif (.counts.changedPathCount | type) == "number" then .counts.changedPathCount
+  else error("C28 verifier omitted a numeric fence path count")
+  end
+' <<<"$c28_contract_result")"
+test "$c28_fence_path_count" -eq "$c28_required_fence_path_count"
+jq --argjson fencePathCount "$c28_fence_path_count" -e '
+  .cardID == "V23-P04-C28"
+  and .result == "PASS_STATIC_PROVISIONAL"
+  and .sourceReady == true
+  and .finalHashesSealed == false
+  and .flagsAllFalse == true
+  and ((.fencePathCount // .counts.changedPathCount) == $fencePathCount)
+  and (.existingPathCount | type) == "number"
+  and (.newPathCount | type) == "number"
+  and ((.existingPathCount + .newPathCount) == $fencePathCount)
+  and .counts.changedPathCount == $fencePathCount
+  and .counts.missingPathCount == 0
+  and .counts.unownedChangedPathCount == 0
+  and .counts.s10ReservationOverlapCount == 0
+  and .selectors == [
+    "testV23P04C28G01LowestOwnerCorrectionsCloseC27FindingsAndPreserveHistoricReports",
+    "testV23P04C28A01NativeSemanticParityPreservesTasksIdentityAndHistoricBytes",
+    "testV23P04C28H01SharedStateRoleAXContrastClaimsAndReportDriftFailClosed",
+    "testV23P04C28I01InterruptedCorrectionPreservesAcceptedC27BaselineAndNoPartialReceipt",
+    "testV23P04C28R01RejectedDirectionAndFailedRetryPreserveAcceptedBrandRevision"
+  ]
+  and (.failures | length) == 0
+' <<<"$c28_contract_result" >/dev/null
+
+python -B - \
+  "$c28_ledger" "$c28_corpus" "$c28_contract" \
+  "$c28_evidence" "$c28_impact" "$c28_tooling_manifest" \
+  "$c28_schema" "$c27_inventory" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+root = pathlib.Path.cwd()
+ledger, corpus, contract, evidence, impact, manifest, schema, c27_inventory = (
+    json.loads((root / path).read_bytes()) for path in sys.argv[1:]
+)
+documents = (ledger, corpus, contract, evidence, impact, manifest)
+for document in documents:
+    assert document["cardID"] == "V23-P04-C28"
+    if "schemaVersion" in document:
+        assert document["schemaVersion"] == 1
+    flags = document.get("statusFlags", document.get("flags"))
+    assert isinstance(flags, dict) and flags
+    assert all(value is False for value in flags.values())
+    if "provisional" in document:
+        assert document["provisional"] is True
+
+assert ledger["schema"] == "V23P04C28BrandHIGSharedRootCorrectionLedgerV1"
+assert corpus["schema"] == "V23P04C28BrandHIGSharedRootCorrectionCorpusV1"
+assert contract["schema"] == "V23P04C28BrandHIGSharedRootCorrectionToolingV1"
+assert contract["contract"] == "BrandHIGSharedRootCorrectionContractV1"
+assert evidence["schema"] == "V23P04C28BrandHIGSharedRootCorrectionToolingV1"
+assert evidence["receipt"] == "BrandHIGSharedRootCorrectionEvidenceReceiptV1"
+assert impact["schema"] == "BrandImpactManifestV1"
+assert manifest["schema"] == "V23P04C28ToolingManifestV1"
+assert schema.get("$schema") == "https://json-schema.org/draft/2020-12/schema"
+assert contract["sourceReady"] is True
+assert evidence["sourceReady"] is True
+
+selectors = [
+    "testV23P04C28G01LowestOwnerCorrectionsCloseC27FindingsAndPreserveHistoricReports",
+    "testV23P04C28A01NativeSemanticParityPreservesTasksIdentityAndHistoricBytes",
+    "testV23P04C28H01SharedStateRoleAXContrastClaimsAndReportDriftFailClosed",
+    "testV23P04C28I01InterruptedCorrectionPreservesAcceptedC27BaselineAndNoPartialReceipt",
+    "testV23P04C28R01RejectedDirectionAndFailedRetryPreserveAcceptedBrandRevision",
+]
+assert ledger["selectors"] == selectors
+assert corpus["selectors"] == selectors
+assert contract["selectors"] == selectors
+assert evidence["selectors"] == selectors
+
+source_pins = ledger["sourcePins"]
+assert set(source_pins) == {
+    "acceptedAppHead", "acceptedAppTree", "allocationRevision",
+    "c27CheckpointDigest", "c27Inventory", "c27VerificationReceiptDigest",
+    "casSequence", "contextDigest", "coordinationAuthorityHead",
+    "coordinationAuthorityTree", "coordinationCorrectionTransitionDigest",
+    "coordinationLedgerDigest", "frozenS10ReservationDigest",
+    "ownerAuthorizedPathAllocationDigest", "pathFenceDigest",
+    "provisionalPrerequisiteDigest", "sourceProjectionDigest",
+    "supersedesOwnerAuthorizedPathAllocationDigest",
+}
+assert source_pins["acceptedAppHead"] == "803f75bc94a46b7b0ca50b14f1a49401f38550f1"
+assert source_pins["acceptedAppTree"] == "6f1cc0077cf74a1adb532124880b1cd5e4a031cc"
+assert source_pins["coordinationAuthorityHead"] == "b30a1640d495bd2d6641ea2dbd816d8d4d23a186"
+assert source_pins["coordinationAuthorityTree"] == "f5b3106d41380a906cfa1c0cbf9cdcc8268b4d22"
+assert source_pins["casSequence"] == 507
+assert source_pins["allocationRevision"] == 2
+assert source_pins["ownerAuthorizedPathAllocationDigest"] == "27c242e6c316767b3731c3bda81948ad8a8dc5258b54c385994248c24033f48c"
+assert source_pins["supersedesOwnerAuthorizedPathAllocationDigest"] == "f296173b2ae29f892447395bba5d2a48817607375e8da8d3173faf5ff739f3c1"
+assert source_pins["contextDigest"] == "1b2bff5c876c8f618dae7015b12d4dd51d431c6756678824d72421b4d55a80a9"
+assert source_pins["pathFenceDigest"] == "52a48f30deafc62962e99607f690e84fb393f668c548a01fe496b96b450d3817"
+assert source_pins["provisionalPrerequisiteDigest"] == "83888037dd5c9762466f711f232ef5ecad7f34ffce1d773795f10dd8920763ce"
+assert source_pins["coordinationCorrectionTransitionDigest"] == "2b610d2031667696ba09337e194c8b42e39e09265fc6245a3f94fdd6271ac294"
+assert source_pins["coordinationLedgerDigest"] == "5dd37b9b75422a8366b9e052781d09d022951ed2b3cbe51492765ab58cf2eb5f"
+assert source_pins["sourceProjectionDigest"] == "a7064d17aa0bdd7ef1401b411087ff38c64ecefff7a3a9515039aa009d963df5"
+assert source_pins["frozenS10ReservationDigest"] == "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+c27_binding = source_pins["c27Inventory"]
+assert c27_binding == {
+    "path": "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json",
+    "sha256": "b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2",
+    "utf8Length": 13934,
+}
+assert hashlib.sha256((root / c27_binding["path"]).read_bytes()).hexdigest() == c27_binding["sha256"]
+assert c27_inventory["cardID"] == "V23-P04-C27"
+
+expected_stable = {
+    "feedback.mail.attachment-count",
+    "feedback.mail.body",
+    "feedback.mail.done",
+    "feedback.mail.recipient",
+    "feedback.mail.screen",
+}
+receipt = ledger["sharedBrandCorrectionReceipt"]
+mappings = receipt["afterSemanticMappings"]
+assert {row["stableID"] for row in mappings} == expected_stable
+assert all(row["stableID"] != row["legacyID"] for row in mappings)
+semantics = corpus["stableFeedbackSemantics"]
+assert {row["id"] for row in semantics} == expected_stable
+assert all(row["deprecatedAliases"] == [] for row in semantics)
+assert {row["id"] for row in corpus["affectedConsumerGraph"]} == expected_stable
+
+legacy_literals = []
+for path in (root / "FieldEvidenceApp").rglob("*"):
+    if path.is_file() and path.suffix in {".swift", ".json", ".plist", ".xcstrings"}:
+        if "s8.4.mail" in path.read_text(encoding="utf-8"):
+            legacy_literals.append(path)
+assert not legacy_literals, legacy_literals
+
+assert len(ledger["deferredAcceptedS10_6Clusters"]) == 4
+assert len(corpus["deferredS10Clusters"]) == 4
+assert [row["clusterID"] for row in ledger["deferredAcceptedS10_6Clusters"]] == [
+    "all-other-shipping-phase-number-ids-in-S10-reserved-ui-root-paths",
+    "visual-DesignTokens-and-WorklightComponents",
+    "saved-photo-RecordWork-and-IssueDetail",
+    "app-icon-and-artwork",
+]
+assert [row["clusterID"] for row in corpus["deferredS10Clusters"]] == [
+    "all-other-shipping-phase-number-ids-in-S10-reserved-ui-root-paths",
+    "visual-DesignTokens-and-WorklightComponents",
+    "saved-photo-RecordWork-and-IssueDetail",
+    "app-icon-and-artwork",
+]
+expected_cluster_counts = [18, 2, 2, 4]
+expected_cluster_ids = [row["clusterID"] for row in ledger["deferredAcceptedS10_6Clusters"]]
+all_member_paths = []
+for rows in (ledger["deferredAcceptedS10_6Clusters"], corpus["deferredS10Clusters"]):
+    assert [len(row["memberPaths"]) for row in rows] == expected_cluster_counts
+    for row, expected_count in zip(rows, expected_cluster_counts):
+        assert row["clusterID"] in expected_cluster_ids
+        assert row["adopted"] is False
+        assert row["disposition"] == "DEFERRED_PENDING_ACCEPTED_S10_6"
+        assert row["reservationDigest"] == "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        paths = [member["path"] for member in row["memberPaths"]]
+        assert len(paths) == expected_count and len(paths) == len(set(paths))
+        all_member_paths.extend(paths)
+assert len(all_member_paths) == len(set(all_member_paths)) * 2
+assert all(
+    row["adopted"] is False
+    and row["disposition"] == "DEFERRED_PENDING_ACCEPTED_S10_6"
+    for row in ledger["deferredAcceptedS10_6Clusters"]
+)
+assert all(
+    row["acceptanceCredit"] is False
+    and row["disposition"] == "DEFERRED_PENDING_ACCEPTED_S10_6"
+    for row in corpus["deferredS10Clusters"]
+)
+
+brand_receipt = ledger["brandRevisionImplementationReceipt"]
+assert brand_receipt["activated"] is False
+assert brand_receipt["authorizedChange"] is False
+assert brand_receipt["disposition"] == "NOT_ACTIVATED_NO_APPROVED_DECISION"
+icon_receipt = ledger["appIconRevisionReceipt"]
+assert icon_receipt["adopted"] is False
+assert icon_receipt["authorizedChange"] is False
+assert icon_receipt["disposition"] == "NOT_EMITTED_NO_AUTHORIZED_CHANGE"
+assert corpus["brandRevisionDisposition"] == "UNCHANGED_NO_ACCEPTED_DIRECTION"
+assert corpus["appIconDisposition"] == "NO_CHANGE_NO_ACCEPTED_BRAND_INTENT"
+
+assert ledger["preservation"]["historicReportBytesRewritten"] is False
+assert ledger["preservation"]["technicalIdentityChanged"] is False
+for binding in corpus["historicReportBindings"]:
+    path = pathlib.PurePosixPath(binding["path"])
+    assert not path.is_absolute() and ".." not in path.parts
+    assert hashlib.sha256((root / path).read_bytes()).hexdigest() == binding["sha256"]
+
+assert ledger["lifecycle"]["persistentKindCount"] == 0
+assert ledger["lifecycle"]["writerCount"] == 0
+assert ledger["lifecycle"]["workspaceMutationReceiptCreated"] is False
+assert corpus["persistentKinds"] == []
+assert ledger["candidate"]["sealDisposition"] == "UNSEALED_PROVISIONAL"
+assert not any(
+    value is True
+    for document in documents
+    for flags in [document.get("statusFlags", document.get("flags", {}))]
+    for value in flags.values()
+)
 PY
 
 jq -e '

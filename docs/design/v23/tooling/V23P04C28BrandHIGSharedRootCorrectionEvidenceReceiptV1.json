@@ -1,0 +1,302 @@
+{
+  "authority": {
+    "activeS10ReservedPaths": [
+      ".github/workflows/ios-ci-worker.yml",
+      ".github/workflows/ios-ci.yml",
+      "AGENTS.md",
+      "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "FieldEvidenceApp/App/LaunchView.swift",
+      "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+      "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+      "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+      "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+      "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+      "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+      "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+      "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+      "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+      "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+      "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+      "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift",
+      "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsAccentTeal.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandCanvas.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsCheckpointGreen.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsDeepTeal.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsInk.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsSlate.colorset/Contents.json",
+      "FieldEvidenceAppTests/S10_1BrandInventoryTests.swift",
+      "FieldEvidenceAppTests/S10_2BrandComponentTests.swift",
+      "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+      "FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift",
+      "FieldEvidenceAppUITests/S10_2BrandComponentUITests.swift",
+      "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+      "Scripts/ci-selection.json",
+      "Scripts/s10-4-segment-assembler.sh",
+      "Scripts/s10-4-segment-plan.json",
+      "Scripts/s10-4-shards.json",
+      "Scripts/ui-smoke.sh",
+      "docs/design/s10/authority/asset-manifest.json",
+      "docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+      "docs/design/s10/s10-accessibility-common-tasks.json",
+      "docs/design/s10/s10-activation.json",
+      "docs/design/s10/s10-experience-validation.json",
+      "docs/design/s10/s10-screen-state-inventory.json",
+      "docs/design/s10/s10-stage-checkpoints.json",
+      "docs/design/s10/s10-store-readiness.json",
+      "docs/design/s10/s10-token-coverage.json",
+      "docs/design/s10/s10-visual-regression.json",
+      "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+      "docs/execution/CURRENT_TASK.md",
+      "docs/execution/HANDOFF.md",
+      "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+      "docs/product/BUILD_PLAN_V4.md"
+    ],
+    "allocationCorrectionTransitionDigest": "2b610d2031667696ba09337e194c8b42e39e09265fc6245a3f94fdd6271ac294",
+    "allocationDigest": "27c242e6c316767b3731c3bda81948ad8a8dc5258b54c385994248c24033f48c",
+    "appBaseHead": "803f75bc94a46b7b0ca50b14f1a49401f38550f1",
+    "appBaseTree": "6f1cc0077cf74a1adb532124880b1cd5e4a031cc",
+    "c27": {
+      "checkpointDigest": "f0be43c24a0a88989a795cc288892165bda6f612af84168bff407f036ece7cd1",
+      "head": "803f75bc94a46b7b0ca50b14f1a49401f38550f1",
+      "inventoryPath": "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json",
+      "inventorySHA256": "b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2",
+      "inventoryUTF8Length": 13934,
+      "tree": "6f1cc0077cf74a1adb532124880b1cd5e4a031cc",
+      "verificationReceiptDigest": "d7325ff7763660b5a24d79e4a7174b00b825c30352a1b4972f4343a3d36d5c60"
+    },
+    "cardID": "V23-P04-C28",
+    "contextDigest": "1b2bff5c876c8f618dae7015b12d4dd51d431c6756678824d72421b4d55a80a9",
+    "coordinationHead": "b30a1640d495bd2d6641ea2dbd816d8d4d23a186",
+    "coordinationTree": "f5b3106d41380a906cfa1c0cbf9cdcc8268b4d22",
+    "existingPathCount": 10,
+    "fencePathCount": 22,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "newPathCount": 12,
+    "orderedPathFence": [
+      "Scripts/release-preflight.sh",
+      "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+      "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "FieldEvidenceAppTests/V9_11PackRegistryTests.swift",
+      "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V21/Localization/V21P03C16LocalizationAccessibilityCorpusV1.json",
+      "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift",
+      "FieldEvidenceAppUITests/S8_4FeedbackUITests.swift",
+      "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json",
+      "FieldEvidenceAppTests/V9_91BrandHIGSharedRootCorrectionTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C28BrandHIGSharedRootCorrectionCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C28BrandHIGSharedRootCorrectionUITests.swift",
+      "Scripts/v23/p04_c28_contracts.py",
+      "Scripts/v23/generate_p04_c28_contracts.py",
+      "Scripts/v23/verify_p04_c28_contracts.py",
+      "Scripts/v23/brand-hig-shared-root-correction.schema.json",
+      "docs/design/v23/tooling/V23P04C28BrandHIGSharedRootCorrectionContractV1.json",
+      "docs/design/v23/tooling/V23P04C28BrandHIGSharedRootCorrectionEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C28BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C28-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "52a48f30deafc62962e99607f690e84fb393f668c548a01fe496b96b450d3817",
+    "prerequisiteDigest": "83888037dd5c9762466f711f232ef5ecad7f34ffce1d773795f10dd8920763ce",
+    "priorFenceProof": {
+      "authorizedOverlapEdgeCount": 251,
+      "fenceCount": 119,
+      "priorOwnedPathCount": 22,
+      "s10ReservedOverlapCount": 0,
+      "unauthorizedOverlapCount": 0
+    },
+    "s10OverlapCount": 0,
+    "sequence": 507,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C28",
+        "sha256": "7642f788dc38d78493268c7f40a26b0a5dd4eedb4aecc575e241e50fc11edf13",
+        "utf8Length": 7439
+      },
+      {
+        "anchor": "V21-P04-C28",
+        "sha256": "a6fcb975546e6a238448edfc1c7c97afa27cb0178318cb9677efcdfab1031d8f",
+        "utf8Length": 11261
+      },
+      {
+        "anchor": "V23-P04-C28-register",
+        "sha256": "8f923df7b59c3ce767689bbd31cbe41039d1b0654ae3a117b4866c8a7fd04acf",
+        "utf8Length": 304
+      }
+    ]
+  },
+  "cardID": "V23-P04-C28",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "generatorInterruptionProtocol": {
+    "acceptedSetCounts": [
+      0,
+      0,
+      1
+    ],
+    "boundaries": [
+      "BEFORE_ARTIFACTS",
+      "AFTER_ARTIFACTS_BEFORE_MANIFEST",
+      "AFTER_MANIFEST"
+    ],
+    "observedSecondRetry": true,
+    "protocol": "MANIFEST_LAST_ATOMIC_REPLACE"
+  },
+  "ledgerSHA256": "3edc52a47c91c4b79238380bdad92f6a2a1e0ebd0d1084a2e1ad7ae0e6238e14",
+  "lifecycle": {
+    "persistentKindCount": 0,
+    "workspaceMutationReceiptCreated": false,
+    "writerCount": 0
+  },
+  "portableAuthorityHostile": {
+    "count": 6,
+    "rejected": [
+      "coordination",
+      "context",
+      "fence",
+      "s10",
+      "c27",
+      "pins"
+    ],
+    "result": "PASS"
+  },
+  "receipt": "BrandHIGSharedRootCorrectionEvidenceReceiptV1",
+  "schema": "V23P04C28BrandHIGSharedRootCorrectionToolingV1",
+  "schemaHostile": {
+    "count": 4,
+    "rejected": [
+      "extra-nested-property",
+      "wrong-type",
+      "wrong-disposition",
+      "extra-root-property"
+    ],
+    "result": "PASS"
+  },
+  "selectors": [
+    "testV23P04C28G01LowestOwnerCorrectionsCloseC27FindingsAndPreserveHistoricReports",
+    "testV23P04C28A01NativeSemanticParityPreservesTasksIdentityAndHistoricBytes",
+    "testV23P04C28H01SharedStateRoleAXContrastClaimsAndReportDriftFailClosed",
+    "testV23P04C28I01InterruptedCorrectionPreservesAcceptedC27BaselineAndNoPartialReceipt",
+    "testV23P04C28R01RejectedDirectionAndFailedRetryPreserveAcceptedBrandRevision"
+  ],
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "Scripts/release-preflight.sh",
+      "sha256": "4291a0f998f51b956fbfef78649f54b99f07305d98e62ee51c0ca1b716cbf4e1",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "sha256": "8d04ba57df704a02a3083131458558951b15c6216cb50606f9ae00c7576f254a",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+      "sha256": "6dffb68fd94398664e9ca9a77a52ab8104be3763df03c061fc806438f93940c4",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "sha256": "c52cfb7a59f8a016c0a5b4dfb9e2b55a09ec73a94411eb3f09e1039c05ca5788",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "sha256": "5eb0d7928d4a757e65a0355657fb8b1f0f8d0eefe5c294bb575fb6a02289d1a2",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_11PackRegistryTests.swift",
+      "sha256": "2de175ad2a923d604a548efd4fd84f1afe5ce512e0990f1a0f6b9ed6b36b8a53",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "sha256": "7b1c9163359202e97558078c3a782a03faa543ce7c14198ab1893e2fd65da5df",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Localization/V21P03C16LocalizationAccessibilityCorpusV1.json",
+      "sha256": "d7208e1ca2b8707ee671aab7f8fb4f52651a4ce812c5357ddeac87d9bf9fe757",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift",
+      "sha256": "fdd82805952e37a313c5f156aed6d53c48511a9e038fdeb8a7272ba611eb2694",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/S8_4FeedbackUITests.swift",
+      "sha256": "7b893679e617dba2de72a2cce106185cdb20fddfc9c33499c74f42c7de037de8",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json",
+      "sha256": "3edc52a47c91c4b79238380bdad92f6a2a1e0ebd0d1084a2e1ad7ae0e6238e14",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_91BrandHIGSharedRootCorrectionTests.swift",
+      "sha256": "9c59dedb0a76d8179010a32fb328455316066a879a87d2cf783f26befa179216",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C28BrandHIGSharedRootCorrectionCorpusV1.json",
+      "sha256": "e1a6230e1f4b0b0e758a6a48fe764e1e2fce5a1dc17d9752c0f1e7e774c01dee",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C28BrandHIGSharedRootCorrectionUITests.swift",
+      "sha256": "cea5b23f6c7e0f68a3197f0777c2d74673a358c66a84c0c7388373d3ef11710d",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

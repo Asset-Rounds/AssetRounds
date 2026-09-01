@@ -9,6 +9,24 @@ enum SemanticAccessibilityRoleV1: String, Codable, CaseIterable, Sendable {
     case group = "GROUP"
 }
 
+enum FeedbackMailAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "feedback.mail.screen"
+    case recipient = "feedback.mail.recipient"
+    case attachmentCount = "feedback.mail.attachment-count"
+    case body = "feedback.mail.body"
+    case done = "feedback.mail.done"
+
+    var role: SemanticAccessibilityRoleV1 {
+        switch self {
+        case .screen: .screen
+        case .recipient: .group
+        case .attachmentCount: .status
+        case .body: .textField
+        case .done: .button
+        }
+    }
+}
+
 // MARK: - V23 P04 C17 exterior-lighting day inventory accessibility
 
 enum C17LightingDayAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {

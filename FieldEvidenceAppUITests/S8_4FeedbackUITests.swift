@@ -152,16 +152,16 @@ final class S8_4FeedbackUITests: XCTestCase {
         attachmentCount: String
     ) {
         XCTAssertTrue(
-            element("s8.4.mail.screen", in: app)
+            element("feedback.mail.screen", in: app)
                 .waitForExistence(timeout: 20)
         )
         XCTAssertEqual(
-            element("s8.4.mail.recipient", in: app).label,
+            element("feedback.mail.recipient", in: app).label,
             "To: support@example.invalid"
         )
-        let attachment = element("s8.4.mail.attachment-count", in: app)
+        let attachment = element("feedback.mail.attachment-count", in: app)
         XCTAssertEqual(attachment.value as? String, attachmentCount)
-        let body = element("s8.4.mail.body", in: app)
+        let body = element("feedback.mail.body", in: app)
         XCTAssertEqual(body.elementType, .textView)
         XCTAssertTrue(body.isEnabled)
         let value = body.value as? String ?? ""
@@ -173,12 +173,12 @@ final class S8_4FeedbackUITests: XCTestCase {
 
     @MainActor
     private func closeComposer(in app: XCUIApplication) {
-        let done = element("s8.4.mail.done", in: app)
+        let done = element("feedback.mail.done", in: app)
         scroll(done, in: app)
         assertControl(done, label: "Done", in: app)
         done.tap()
         XCTAssertFalse(
-            element("s8.4.mail.screen", in: app)
+            element("feedback.mail.screen", in: app)
                 .waitForExistence(timeout: 10)
         )
     }

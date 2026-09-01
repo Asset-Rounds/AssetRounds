@@ -173,9 +173,7 @@
         "hintKey": null,
         "valueKey": null,
         "dynamicOpaqueSuffixPolicy": "NONE",
-        "deprecatedAliases": [
-          "s8.4.mail.screen"
-        ]
+        "deprecatedAliases": []
       },
       {
         "id": "feedback.mail.recipient",
@@ -185,9 +183,7 @@
         "hintKey": null,
         "valueKey": null,
         "dynamicOpaqueSuffixPolicy": "NONE",
-        "deprecatedAliases": [
-          "s8.4.mail.recipient"
-        ]
+        "deprecatedAliases": []
       },
       {
         "id": "feedback.mail.attachment-count",
@@ -197,9 +193,7 @@
         "hintKey": null,
         "valueKey": null,
         "dynamicOpaqueSuffixPolicy": "NONE",
-        "deprecatedAliases": [
-          "s8.4.mail.attachment-count"
-        ]
+        "deprecatedAliases": []
       },
       {
         "id": "feedback.mail.body",
@@ -209,9 +203,7 @@
         "hintKey": null,
         "valueKey": null,
         "dynamicOpaqueSuffixPolicy": "NONE",
-        "deprecatedAliases": [
-          "s8.4.mail.body"
-        ]
+        "deprecatedAliases": []
       },
       {
         "id": "feedback.mail.done",
@@ -221,9 +213,7 @@
         "hintKey": null,
         "valueKey": null,
         "dynamicOpaqueSuffixPolicy": "NONE",
-        "deprecatedAliases": [
-          "s8.4.mail.done"
-        ]
+        "deprecatedAliases": []
       }
     ]
   },
@@ -237,7 +227,8 @@
       "s8.4.mail.body",
       "s8.4.mail.done"
     ],
-    "current": [
+    "current": [],
+    "testSupportAliases": [
       "s8.4.mail.screen",
       "s8.4.mail.recipient",
       "s8.4.mail.attachment-count",
@@ -245,7 +236,8 @@
       "s8.4.mail.done"
     ],
     "newEntries": [],
-    "growthAllowed": false
+    "growthAllowed": false,
+    "productionParserEnabled": false
   },
   "packageBindings": [
     {
