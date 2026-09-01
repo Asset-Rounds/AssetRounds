@@ -442,6 +442,44 @@ extension SemanticReversalPresenterV1: Hashable {}
 extension TechnicianWorkflowBudgetV1: Hashable {}
 extension FirstRealJobConductorProjectionV1: Hashable {}
 extension TodayUpdateProjectionV1: Hashable {}
+
+/// A contained projection under the already-declared Today root. It neither
+/// creates a shell root nor persists a second copy of My Day or due truth.
+struct TodayMyDayCompositionV1: Codable, Equatable, Sendable {
+    let root: WorkspaceExperienceRootV1
+    let summary: MyDaySummaryProjectionV1
+    let updates: [TodayUpdateProjectionV1]
+    let containedNonRoot: Bool
+    let canonicalWriteCount: Int
+
+    init(
+        summary: MyDaySummaryProjectionV1,
+        updates: [TodayUpdateProjectionV1]
+    ) throws {
+        try summary.validate()
+        guard updates.allSatisfy({ $0.workspaceID == summary.plan.key.workspaceID }),
+              Set(updates.map(\.updateID)).count == updates.count else {
+            throw WorkspaceExperienceFailureV1.wrongWorkspace
+        }
+        root = .today
+        self.summary = summary
+        self.updates = updates.sorted()
+        containedNonRoot = true
+        canonicalWriteCount = 0
+    }
+
+    func validate() throws {
+        try summary.validate()
+        guard root == .today,
+              containedNonRoot,
+              canonicalWriteCount == 0,
+              updates == updates.sorted(),
+              updates.allSatisfy({ $0.workspaceID == summary.plan.key.workspaceID }),
+              Set(updates.map(\.updateID)).count == updates.count else {
+            throw WorkspaceExperienceFailureV1.invalidValue
+        }
+    }
+}
 extension ProductChangeCatalogReleaseV1: Hashable {}
 extension ProductChangeNoticeV1: Hashable {}
 extension NoticeAcknowledgementV1: Hashable {}

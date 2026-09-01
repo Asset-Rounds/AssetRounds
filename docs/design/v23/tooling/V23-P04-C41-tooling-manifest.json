@@ -1,0 +1,300 @@
+{
+  "authority": {
+    "allocationDigest": "403254f93c8278d271623e978ee745050f14e0fa10d5b69e9c3c883249772703",
+    "appBaseHead": "4614507edcf811e9e6ac344b2a8b24aa8fd615ba",
+    "appBaseTree": "3ba84fa4c78c28a05713edf1e722da66f78b8512",
+    "attemptID": 1,
+    "authorizedOverlapCount": 5,
+    "cardID": "V23-P04-C41",
+    "contextDigest": "d3beeb077fbae5b2c3f89aae1b0a9bba0607cf33505faefd017f7bcce9b0f4b2",
+    "coordinationHead": "faff7da3f861319d97c6c5d340e31b6f71671027",
+    "coordinationTree": "56040236d7b4a3e46c632532a825d654ae4a7336",
+    "existingPathCount": 4,
+    "existingPaths": [
+      "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift",
+      "FieldEvidenceApp/Application/WorkspaceExperience/WorkspaceExperienceCoordinatorV1.swift",
+      "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift"
+    ],
+    "fencePathCount": 18,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "ledgerDigest": "71976ecf16483441a1f233e4cdcb0a89b93d15fd816150cd0b4c50e23e55135f",
+    "newPathCount": 14,
+    "newPaths": [
+      "FieldEvidenceApp/Domain/MyDay/MyDayWorkflowContractsV1.swift",
+      "FieldEvidenceApp/Application/MyDay/MyDayWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_104MyDayWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/MyDay/V23P04C41MyDayWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C41MyDayWorkflowUITests.swift",
+      "Scripts/v23/p04_c41_contracts.py",
+      "Scripts/v23/generate_p04_c41_contracts.py",
+      "Scripts/v23/verify_p04_c41_contracts.py",
+      "Scripts/v23/my-day-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C41MyDayWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C41MyDayWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C41BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C41-tooling-manifest.json"
+    ],
+    "orderedPathFence": [
+      "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift",
+      "FieldEvidenceApp/Application/WorkspaceExperience/WorkspaceExperienceCoordinatorV1.swift",
+      "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+      "FieldEvidenceApp/Domain/MyDay/MyDayWorkflowContractsV1.swift",
+      "FieldEvidenceApp/Application/MyDay/MyDayWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_104MyDayWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/MyDay/V23P04C41MyDayWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C41MyDayWorkflowUITests.swift",
+      "Scripts/v23/p04_c41_contracts.py",
+      "Scripts/v23/generate_p04_c41_contracts.py",
+      "Scripts/v23/verify_p04_c41_contracts.py",
+      "Scripts/v23/my-day-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C41MyDayWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C41MyDayWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C41BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C41-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "0fd62083ef3757e5d27f4e843b7f76560bfb101c5b10a7a355abb0237a3f3250",
+    "prerequisiteDigest": "191c39534f95436ba49d941d7fbacabcfda8262f31a05f04ae308e9cef98c1fb",
+    "productTestUIFixturePathCount": 7,
+    "projectionDigest": "f89e10337eea5cc59c27c9d6f93a13096c433f06277f1bd83e66fbc8b04958f9",
+    "registerOrdinal": 129,
+    "s10ReservationOverlapCount": 0,
+    "sequence": 564,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C41",
+        "sha256": "f47b86204b1bc08c9dfecad534787d50dd927479f021251427aba2b99b8ba634",
+        "utf8Length": 6916
+      },
+      {
+        "anchor": "V23-P04-C41-register",
+        "sha256": "3424fddd0018c1074502c726574498f027614a8ffe8413b4766c2bdd03357b35",
+        "utf8Length": 320
+      },
+      {
+        "anchor": "V23-P04-C41-acceptance-rows",
+        "sha256": "c0657188037c448e302d339c8a1f315824d1de9d01d3d59f3e70ea8d626b8551",
+        "utf8Length": 3061
+      },
+      {
+        "anchor": "V23-P04-C41-lineage",
+        "sha256": "539e9980753e30fa2acf0acde392e5e57f71b17af6de8ca52cc416c14103a6b8",
+        "utf8Length": 94
+      }
+    ],
+    "title": "My Day local planning, manual ordering, readiness/duration cues, resume, carryover, and due-work reconciliation",
+    "toolingPathCount": 8,
+    "transitionDigest": "37041917308eb3aca0cd0bbe285ceb53c1272d641ae62b26ebab976b49a5ae62",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C41",
+  "counts": {
+    "backendDeltaCount": 0,
+    "durableFamilyCount": 0,
+    "existingPathCount": 4,
+    "fencePathCount": 18,
+    "migrationCount": 0,
+    "modelDeltaCount": 0,
+    "newPathCount": 14,
+    "productTestUIFixturePathCount": 7,
+    "rendererDeltaCount": 0,
+    "s10ReservationOverlapCount": 0,
+    "schemaDeltaCount": 0,
+    "storeDeltaCount": 0,
+    "toolingPathCount": 8,
+    "writerDeltaCount": 0
+  },
+  "directPrerequisites": [
+    "V23-P03-C57",
+    "V23-P04-C12",
+    "V23-P04-C22"
+  ],
+  "files": [
+    {
+      "path": "Scripts/v23/my-day-workflow.schema.json",
+      "sha256": "aafa956ff07c4142b4a78f9ddc327a20a715d80c4e04b39a2a66368d642cd2df"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C41MyDayWorkflowContractV1.json",
+      "sha256": "f926490aac7dcd136b013a8d84ec5cf1521f2e382e3a60f9cec13875d88b2059"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C41MyDayWorkflowEvidenceReceiptV1.json",
+      "sha256": "f33c4e3478401a8a4cea8235da550f69a12b6f02fe33fd5909466d2b770f547b"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C41BrandImpactManifestV1.json",
+      "sha256": "51b477bdfb72ee22542a216e2c2058e34eef13fa097401b0b4d766729cc687e3"
+    }
+  ],
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "independence": {
+    "automaticPrioritization": false,
+    "c22AndC12ReadOnly": true,
+    "c57WriterAndReplayReused": true,
+    "claimsFabricated": false,
+    "customerDataInTooling": false,
+    "dueAndReadinessAreReadOnlyInputs": true,
+    "entitlementIndependent": true,
+    "explicitCarryoverAndReconcile": true,
+    "hiddenScheduleMutation": false,
+    "manualOrderIsSoleAuthority": true,
+    "newBackend": false,
+    "newMigration": false,
+    "newModel": false,
+    "newNetwork": false,
+    "newRenderer": false,
+    "newRoot": false,
+    "newRouteEngine": false,
+    "newSchema": false,
+    "newStore": false,
+    "newTelemetry": false,
+    "newWriter": false,
+    "secretsInTooling": false,
+    "sourceMutation": false,
+    "summaryIsDerivedNonpersistent": true,
+    "typedStartResumeIntent": true
+  },
+  "lifecycle": {
+    "automaticPrioritization": false,
+    "backupRestoreDisposition": "PRESERVE_EXACT_PLANS",
+    "canonicalReplayOwner": "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+    "canonicalWriterOwner": "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+    "carryoverDisposition": "EXPLICIT_ONLY",
+    "cloneDisposition": "OMIT_PLANS",
+    "durableFamily": "NONE",
+    "eraseDisposition": "EXISTING_MY_DAY_TRUTH_PURGE_CONTRACT",
+    "fixtureHarnessOwner": "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+    "forkDisposition": "RETAIN_NONACTIVE_HISTORY_ONLY",
+    "manualOrderOnly": true,
+    "newBackendCount": 0,
+    "newDurableFamilyCount": 0,
+    "newMigrationCount": 0,
+    "newModelCount": 0,
+    "newRendererCount": 0,
+    "newRouteEngineCount": 0,
+    "newSchemaCount": 0,
+    "newStoreCount": 0,
+    "newWriterCount": 0,
+    "persistence": "NONPERSISTENT_DERIVED_REBUILDABLE_SUMMARY",
+    "persistentSchemaVersion": "UNCHANGED_EXISTING_C57_OWNER",
+    "policyProfile": "PERSISTENT_OR_PRODUCT_DELTA",
+    "projectionDerived": true,
+    "projectionPersistence": "NONPERSISTENT",
+    "projectionRebuildable": true,
+    "reconciliationDisposition": "INCUMBENT_SOURCE_RECONCILIATION",
+    "recordsSchemaVersion": "UNCHANGED_EXISTING_C57_OWNER",
+    "resetDisposition": "EXISTING_LIFECYCLE_CONTRACT",
+    "sourceHistoryDisposition": "NEVER_REWRITE",
+    "sourceTruthMutation": false,
+    "status": "IMPLEMENT_NOW",
+    "summaryProjection": "MyDaySummaryProjectionV1",
+    "todayCompositionContractOwner": "FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift",
+    "todayCompositionOwner": "FieldEvidenceApp/Application/WorkspaceExperience/WorkspaceExperienceCoordinatorV1.swift"
+  },
+  "optionalProvider": "NONE",
+  "ordinal": 129,
+  "pathFence": [
+    "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+    "FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift",
+    "FieldEvidenceApp/Application/WorkspaceExperience/WorkspaceExperienceCoordinatorV1.swift",
+    "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+    "FieldEvidenceApp/Domain/MyDay/MyDayWorkflowContractsV1.swift",
+    "FieldEvidenceApp/Application/MyDay/MyDayWorkflowCoordinatorV1.swift",
+    "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+    "FieldEvidenceAppTests/V9_104MyDayWorkflowTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V23/MyDay/V23P04C41MyDayWorkflowCorpusV1.json",
+    "FieldEvidenceAppUITests/V23_P04_C41MyDayWorkflowUITests.swift",
+    "Scripts/v23/p04_c41_contracts.py",
+    "Scripts/v23/generate_p04_c41_contracts.py",
+    "Scripts/v23/verify_p04_c41_contracts.py",
+    "Scripts/v23/my-day-workflow.schema.json",
+    "docs/design/v23/tooling/V23P04C41MyDayWorkflowContractV1.json",
+    "docs/design/v23/tooling/V23P04C41MyDayWorkflowEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P04C41BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P04-C41-tooling-manifest.json"
+  ],
+  "scenarioEvidenceIDs": [
+    "V23-P04-C41-G01",
+    "V23-P04-C41-A01",
+    "V23-P04-C41-H01",
+    "V23-P04-C41-I01",
+    "V23-P04-C41-R01"
+  ],
+  "schema": "V23P04C41ToolingManifestV1",
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+      "sha256": "afc9a65bbf84e83d5caf6ddd7b5a27bc482a69573ccc2a7f170e512a71b481b1",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift",
+      "sha256": "504a6392b8cbaca15854f8a5494bc972afdb683cad726dc41dc4adf2c690d9f6",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/WorkspaceExperience/WorkspaceExperienceCoordinatorV1.swift",
+      "sha256": "96ba550a16100664f1c9084de0b1fc6f644c3f0cd9b315ef15fed3b1180eb529",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+      "sha256": "680f26da84d7174ef0349890179649fb3d50f570bed35cdc9f3469a5738c726d",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/MyDay/MyDayWorkflowContractsV1.swift",
+      "sha256": "c15321b221bf7a53670d5ac0b3e07bc1ed1107cae979fd9df915b4004a521288",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/MyDay/MyDayWorkflowCoordinatorV1.swift",
+      "sha256": "473a4e55a0e216b2de4ce5e285f3251a8ac89103f270bfd1011a5df2e3389c32",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+      "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_104MyDayWorkflowTests.swift",
+      "sha256": "f769bbcdad5d70b441224eb31c58df87999f28fd1cf4a04d31bf7cb2f554746d",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/MyDay/V23P04C41MyDayWorkflowCorpusV1.json",
+      "sha256": "c803192b66e1771642f1d09c03d7b21f503de323cb979a8ac65e5fad1c6b3758",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C41MyDayWorkflowUITests.swift",
+      "sha256": "522bf7dd722bf62aa2a5c2cd079bb66b148efbe0a7a4ec0d2e8a7258355bec3d",
+      "status": "SOURCE_PRESENT"
+    }
+  ],
+  "successor": {
+    "cardID": "V23-P04-C42",
+    "registerOrdinal": 130
+  }
+}

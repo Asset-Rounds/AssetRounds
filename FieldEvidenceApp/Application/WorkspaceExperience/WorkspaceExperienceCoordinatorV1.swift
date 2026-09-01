@@ -83,6 +83,19 @@ struct WorkspaceExperienceCoordinatorV1: Sendable {
         return values.sorted()
     }
 
+    func todayMyDay(
+        summary: MyDaySummaryProjectionV1,
+        updates: [TodayUpdateProjectionV1]
+    ) throws -> TodayMyDayCompositionV1 {
+        let ordered = try todayUpdates(
+            workspaceID: summary.plan.key.workspaceID,
+            values: updates
+        )
+        let value = try TodayMyDayCompositionV1(summary: summary, updates: ordered)
+        try value.validate()
+        return value
+    }
+
     func conductor(
         profile: WorkspaceExperienceProfileV1,
         stage: FirstRealJobStageV1,

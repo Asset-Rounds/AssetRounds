@@ -215,6 +215,107 @@ enum C57MyDayExistingSuiteFixtureV1 {
     }
 }
 
+// MARK: - C41 schedule-occurrence projection fixture
+
+enum C41MyDayScheduleFixtureV1 {
+    struct Fixture {
+        let reference: MyDayEligibleReferenceV1
+        let dueQueue: OccurrenceDueQueueStateV1
+    }
+
+    static func make(workspaceID: WorkspaceID, actor: ActorSnapshotV1) throws -> Fixture {
+        func id(_ value: Int) -> UUID {
+            UUID(uuidString: String(format: "c4100000-0000-4000-8000-%012x", value))!
+        }
+        func digest(_ value: Character) -> String { String(repeating: String(value), count: 64) }
+        func mutation(_ value: Int) throws -> MutationIDV1 { try .init(rawValue: id(value)) }
+        let now = Date(timeIntervalSince1970: 1_735_776_000)
+        let fact = FactDefinitionV1(
+            factID: "fact", labelLocalizationKey: "c41.fact",
+            accessibilityLabelLocalizationKey: "c41.fact.a11y",
+            helpLocalizationKey: "c41.fact.help", required: true, defaultValue: nil,
+            visibility: nil, payload: .shortText(.init(maximumUTF8Bytes: 64))
+        )
+        let survey = try SurveyDefinitionReleaseV1(
+            releaseID: id(10), workspaceID: workspaceID, definitionID: id(11),
+            activityKind: .survey, ownerPackageID: ShippingIlluminatedSignAdapterV1.packageID,
+            sections: [.init(sectionID: "section", titleLocalizationKey: "c41.section",
+                accessibilityHeadingLocalizationKey: "c41.section.a11y", ordinal: 0,
+                facts: [fact])],
+            completionRules: [.init(ruleID: "complete",
+                expression: .allRequiredVisibleFactsAnswered,
+                failureLocalizationKey: "c41.complete")],
+            claimsProfile: .init(profileID: "claims", activityKind: .survey,
+                allowedClaimKeys: [], forbiddenClaimKeys: ["approval"],
+                limitationLocalizationKeys: ["c41.limit"]),
+            reportProjection: .init(projectionID: "report", projectionVersion: "1",
+                headingLocalizationKey: "c41.report", emptyValueLocalizationKey: "c41.empty",
+                sectionIDs: ["section"], includedFactIDs: ["fact"]),
+            localizationReleaseSHA256: digest("l"), revision: 1, mutationID: mutation(12),
+            authoredBy: actor, authoredAt: now
+        )
+        let workflow = try WorkflowDefinitionV1(
+            workflowID: "c41.workflow", entryNodeID: "start", declaredFieldIDs: [],
+            nodes: [
+                .init(nodeID: "start", kind: .section, localizationKey: "c41.start",
+                      outgoingNodeIDs: ["end"]),
+                .init(nodeID: "end", kind: .terminal, localizationKey: "c41.end",
+                      outgoingNodeIDs: [])
+            ]
+        )
+        let packageDraft = try InspectionPackageReleaseV1.makeDraft(
+            package: ShippingIlluminatedSignAdapterV1.inspectionPackage(), workflow: workflow
+        )
+        let package = try InspectionPackageReleasePublisherV1.publish(
+            InspectionPackageReleasePublisherV1.test(packageDraft)
+        ).release
+        let timeBasis = try FrozenScheduleTimeBasisV1(
+            ianaTimeZoneIdentifier: "America/New_York", timeZoneRuleSetVersion: "2026a",
+            timeZoneRuleSetSHA256: digest("t"), ambiguousTimePolicy: .earlierOffset,
+            nonexistentTimePolicy: .shiftForwardByGap,
+            calendarBasisSHA256: digest("c")
+        )
+        let rule = FixedCalendarScheduleRuleV1(
+            cadence: .daily, interval: 1,
+            anchor: .init(year: nil, month: nil, day: nil, weekday: nil,
+                          weekdayOrdinal: nil, hour: 9, minute: 0, second: 0)
+        )
+        let definition = try ScheduleDefinitionReleaseV1(
+            scheduleDefinitionID: id(20), releaseID: id(21), workspaceID: workspaceID,
+            occurrenceIdentityNamespaceID: id(22), action: .create, lifecycleState: .active,
+            recurrence: .fixedCalendar(rule), timeBasis: timeBasis, startsAtUTC: now,
+            generationHorizonDays: 30, maximumGeneratedOccurrences: 16,
+            readyLeadSeconds: 3_600, overdueGraceSeconds: 7_200,
+            subject: .init(kind: .asset, subjectID: id(23), revision: 1, ownerAssetID: nil),
+            workDefinition: .init(kind: .roundSession, definition: survey, packageRelease: package),
+            revision: 1, mutationID: mutation(24), authoredBy: actor, authoredAt: now
+        )
+        let basis = ResolvedOccurrenceBasisV1(
+            nominalLocalDate: "2026-09-01", nominalLocalTime: "09:00:00",
+            resolvedAtUTC: now, utcOffsetSeconds: -14_400, disposition: .unambiguous,
+            timeBasisSHA256: try timeBasis.canonicalSHA256(),
+            adjustmentProvenanceSHA256: nil
+        )
+        try basis.validate()
+        let occurrenceID = try OccurrenceIDV1(
+            scheduleDefinitionID: definition.scheduleDefinitionID,
+            identityNamespaceID: definition.occurrenceIdentityNamespaceID,
+            nominalKey: basis.nominalKey
+        )
+        let event = try OccurrenceHistoryEventV1(
+            eventID: id(25), workspaceID: workspaceID, occurrenceID: occurrenceID,
+            scheduleRelease: .init(definition), action: .generated,
+            nominalBasis: basis, effectiveBasis: basis, predecessor: nil, revision: 1,
+            mutationID: mutation(26), recordedBy: actor, recordedAt: now
+        )
+        let queue = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: now,
+            definitions: [definition], history: [event]).recurringRoundState()
+        return Fixture(reference: .scheduleOccurrence(try .init(event: event),
+                                                       sourceEventSHA256: event.eventSHA256),
+                       dueQueue: queue)
+    }
+}
+
 enum KernelConformanceFixtureFailureV1: Error, Equatable {
     case missingArtifact(String)
     case invalidArtifact(String)

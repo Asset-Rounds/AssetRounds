@@ -69,6 +69,16 @@ import Foundation
         return try commit(command, expectedPlan: successor)
     }
 
+    /// Relaunch recovery accepts the same frozen successor and predecessor.
+    /// It deliberately re-enters `save` so the existing command digest and
+    /// MutationID replay check remain the only recovery authority.
+    func recoverSave(
+        successor: MyDayPlanV1,
+        predecessor: MyDayPlanV1?
+    ) throws -> MyDayCommandResultV1 {
+        try save(successor: successor, predecessor: predecessor)
+    }
+
     /// Atomically carries explicitly selected memberships into another
     /// canonical natural key. The source plan is read-only history, while the
     /// target plan uses its own exact predecessor CAS token.
@@ -115,6 +125,17 @@ import Foundation
         try requireLiveSources(for: target, evaluatedAt: target.authoredAt)
 
         return try commit(command, expectedPlan: target)
+    }
+
+    /// Effect-before-receipt recovery reuses the exact carryover command body;
+    /// it never rebuilds the plans, receipt, timestamp, or MutationID.
+    func recoverCarryover(
+        plan: MyDayCarryoverPlanV1,
+        source: MyDayPlanV1,
+        target: MyDayPlanV1,
+        receipt: MyDayCarryoverReceiptV1
+    ) throws -> MyDayCommandResultV1 {
+        try carryover(plan: plan, source: source, target: target, receipt: receipt)
     }
 
     /// Rebuilds status, due, readiness, and source reconciliation from current
