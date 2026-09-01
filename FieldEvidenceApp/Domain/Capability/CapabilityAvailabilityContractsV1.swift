@@ -11,6 +11,22 @@ enum C51ScheduleCapabilityBoundaryV1 {
     static let scheduleClosureMetadataIsDerivedOnly = true
 }
 
+enum OCRProposalCapabilityBoundaryV1 {
+    static let capabilityID: CapabilityIDV1 = .scanOCR
+    static let featureID = "scanOCR"
+    static let providerIdentifier = "Vision.documentRecognition"
+    static let shippingActivationEnabled = false
+    static let manualFallback: ManualFallbackActionV1 = .typeManually
+    static func validate(_ resolution: FeaturePolicyResolutionV1) throws {
+        guard resolution.featureID == featureID,
+              resolution.policyState == .preparedDisabled,
+              resolution.requiredCapabilities == [capabilityID],
+              resolution.safeFallback == manualFallback else {
+            throw CapabilityContractFailureV1.invalidValue
+        }
+    }
+}
+
 enum CapabilityContractFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case duplicateCapability

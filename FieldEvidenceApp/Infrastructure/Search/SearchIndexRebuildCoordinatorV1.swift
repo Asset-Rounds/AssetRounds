@@ -2908,6 +2908,38 @@ enum C32AssistanceCompatibility_Search_SearchIndexRebuildCoordinatorV1 {
     static let createsParallelStoreOrWriter = false
 }
 
+/// C23 adds no OCR index row. Only the already-accepted canonical target fact
+/// may flow through its incumbent search projection after the durable receipt
+/// proves the exact OCR request/proposal/source/target closure.
+enum OCRProposalSearchRebuildBoundaryV1 {
+    static let rawObservationIndexed = false
+    static let rejectedOrUnreviewedProposalIndexed = false
+    static let confidenceIndexed = false
+    static let scratchOrSourceCropIndexed = false
+    static let customWordsIndexed = false
+    static let acceptedReceiptIndexedAsFact = false
+    static let acceptedCanonicalTargetUsesIncumbentProjection = true
+
+    static func acceptsCanonicalTargetFact(
+        receipt: AssistanceAcceptanceReceiptV1,
+        evidence: OCRProposalEvidenceV1
+    ) throws -> Bool {
+        try receipt.validate(ocrEvidence: evidence)
+        guard !rawObservationIndexed, !rejectedOrUnreviewedProposalIndexed,
+              !confidenceIndexed, !scratchOrSourceCropIndexed,
+              !customWordsIndexed, !acceptedReceiptIndexedAsFact,
+              acceptedCanonicalTargetUsesIncumbentProjection else {
+            throw SearchContractFailureV1.forbiddenField
+        }
+        return true
+    }
+
+    static func mayIndex(_ evidence: OCRProposalEvidenceV1) throws -> Bool {
+        try evidence.validate()
+        return false
+    }
+}
+
 enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Search_SearchIndexRebuildCoordinatorV1_swift {
     static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
     static func validate(clip: TemporalEvidenceClipV1,

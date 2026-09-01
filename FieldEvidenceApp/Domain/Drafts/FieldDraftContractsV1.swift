@@ -377,6 +377,95 @@ protocol VoiceReviewedFieldDraftReceiptReadingV1: AnyObject {
     func reviewedVoiceFieldReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1?
 }
 
+// MARK: - C23 reviewed OCR field checkpoint integration
+
+struct OCRReviewedFieldDraftPayloadApplicationV1: Equatable, Sendable {
+    let codec: DraftPayloadCodecReleaseV1
+    let predecessorPayloadSHA256: String
+    let fieldID: String
+    let value: ResponseValueV1
+    let successorPayloadData: Data
+    let successorPayloadSHA256: String
+
+    init(predecessor: FieldDraftCheckpointV1, fieldID: String,
+         value: ResponseValueV1, successorPayloadData: Data) throws {
+        try predecessor.validate(); try value.validate()
+        guard !fieldID.isEmpty, fieldID.utf8.count <= 128,
+              successorPayloadData.count <= FieldDraftLimitsV1.maximumPayloadBytes else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        codec = predecessor.codec; predecessorPayloadSHA256 = predecessor.payloadSHA256
+        self.fieldID = fieldID; self.value = value; self.successorPayloadData = successorPayloadData
+        successorPayloadSHA256 = FieldDraftCanonicalCodecV1.sha256(successorPayloadData)
+        guard successorPayloadSHA256 != predecessor.payloadSHA256 else { throw FieldDraftFailureV1.invalidValue }
+    }
+    func validate(predecessor: FieldDraftCheckpointV1) throws {
+        try predecessor.validate(); try value.validate()
+        guard codec == predecessor.codec, predecessorPayloadSHA256 == predecessor.payloadSHA256,
+              successorPayloadSHA256 == FieldDraftCanonicalCodecV1.sha256(successorPayloadData),
+              successorPayloadSHA256 != predecessorPayloadSHA256 else { throw FieldDraftFailureV1.invalidValue }
+    }
+}
+
+@MainActor protocol OCRReviewedFieldDraftPayloadApplyingV1: AnyObject {
+    var registeredCodec: DraftPayloadCodecReleaseV1 { get }
+    func applyReviewedOCRField(to predecessor: FieldDraftCheckpointV1,
+        fieldID: String, value: ResponseValueV1) throws -> OCRReviewedFieldDraftPayloadApplicationV1
+    func validateReviewedOCRFieldApplication(_ application: OCRReviewedFieldDraftPayloadApplicationV1,
+        predecessor: FieldDraftCheckpointV1) throws
+}
+
+struct OCRProposalDraftCheckpointUpdateV1: Equatable, Sendable {
+    let evidence: OCRProposalEvidenceV1
+    let review: OCRFieldReviewV1
+    let predecessor: FieldDraftCheckpointV1
+    let mutationID: MutationIDV1
+
+    init(evidence: OCRProposalEvidenceV1, review: OCRFieldReviewV1,
+         predecessor: FieldDraftCheckpointV1, mutationID: MutationIDV1) throws {
+        try evidence.validate(); try review.validate(evidence: evidence); try predecessor.validate()
+        guard review.disposition != .rejected, let value = review.reviewedValue,
+              evidence.request.workspaceID == predecessor.workspaceID,
+              evidence.proposal.target.entity.kind == .fieldDraftCheckpoint,
+              evidence.proposal.target.entity.id == predecessor.draftID,
+              evidence.proposal.target.revision == predecessor.draftRevision,
+              value != .noValue else { throw FieldDraftFailureV1.staleDraftRevision }
+        self.evidence = evidence; self.review = review; self.predecessor = predecessor
+        self.mutationID = mutationID
+    }
+}
+
+struct OCRReviewedFieldDraftCheckpointEffectV1: Equatable, Sendable {
+    let update: OCRProposalDraftCheckpointUpdateV1
+    let mutation: FieldDraftMutationV1
+    let mutationReceipt: MutationReceiptV1
+    let successor: FieldDraftCheckpointV1
+    let application: OCRReviewedFieldDraftPayloadApplicationV1
+
+    init(update: OCRProposalDraftCheckpointUpdateV1, mutation: FieldDraftMutationV1,
+         mutationReceipt: MutationReceiptV1, successor: FieldDraftCheckpointV1,
+         application: OCRReviewedFieldDraftPayloadApplicationV1) throws {
+        _ = try FieldDraftMutationReceiptV1(mutation: mutation, mutationReceipt: mutationReceipt)
+        try application.validate(predecessor: update.predecessor)
+        try successor.validateSuccessor(of: update.predecessor,
+            expectedDraftRevision: update.predecessor.draftRevision,
+            expectedBaseRevision: update.predecessor.baseCanonicalRevision)
+        guard application.fieldID == update.evidence.proposal.target.fieldID,
+              application.value == update.review.reviewedValue,
+              mutation.mutationID == update.mutationID,
+              mutation.postImage == .reviseCheckpoint(successor),
+              successor.payloadData == application.successorPayloadData else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        self.update=update;self.mutation=mutation;self.mutationReceipt=mutationReceipt
+        self.successor=successor;self.application=application
+    }
+}
+
+@MainActor protocol OCRReviewedFieldDraftReceiptReadingV1: AnyObject {
+    func reviewedOCRFieldReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1?
+}
+
 // MARK: - C23 field-reference binding at the round-session boundary
 
 /// A draft carries only a derived reference projection. The durable release

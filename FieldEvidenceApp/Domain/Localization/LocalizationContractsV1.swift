@@ -5000,6 +5000,29 @@ enum C32AssistanceLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
     case manualAvailable = "assistance.manual.available"
     case permissionDenied = "assistance.permission.denied"
     case interrupted = "assistance.interrupted"
+    case ocrHeading = "assistance.ocr.heading"
+    case explicitExtract = "assistance.ocr.action.extract"
+    case sourceCrop = "assistance.ocr.source_crop"
+    case language = "assistance.ocr.language"
+    case supported = "assistance.ocr.supported"
+    case unsupportedLanguage = "assistance.ocr.unsupported_language"
+    case unsupportedDevice = "assistance.ocr.unsupported_device"
+    case lowConfidence = "assistance.ocr.low_confidence"
+    case conflict = "assistance.ocr.conflict"
+    case staleTarget = "assistance.ocr.stale_target"
+    case fieldAccept = "assistance.ocr.field.accept"
+    case fieldEdit = "assistance.ocr.field.edit"
+    case fieldReject = "assistance.ocr.field.reject"
+    case acceptedReviewedFact = "assistance.ocr.accepted_reviewed_fact"
+    case noAutomaticWrite = "assistance.ocr.no_automatic_write"
+    case scratchCleanup = "assistance.ocr.scratch_cleanup"
+    case cancelled = "assistance.ocr.cancelled"
+    case memoryPressure = "assistance.ocr.memory_pressure"
+    case manualEntry = "assistance.ocr.manual_entry"
+    case customWordsNontruth = "assistance.ocr.custom_words_nontruth"
+    case capabilityUnavailable = "assistance.ocr.capability_unavailable"
+    case accessLocked = "assistance.ocr.access_locked"
+    case errorFocus = "assistance.ocr.error_focus"
 
     var localizationKey: LocalizationKeyV1 {
         // The closed raw values are validated by C32AssistanceLocalizationPolicyV1.
@@ -5018,7 +5041,7 @@ enum C32AssistanceLocalizationPolicyV1 {
 
     static func validate() throws {
         let keys = C32AssistanceLocalizationKeyV1.allCases.map(\.localizationKey)
-        guard keys.count == 8,
+        guard keys.count == C32AssistanceLocalizationKeyV1.allCases.count,
               Set(keys).count == keys.count,
               englishOnly,
               proposalAlwaysLabeledUnverified,
@@ -5027,6 +5050,43 @@ enum C32AssistanceLocalizationPolicyV1 {
               permissionAndInterruptionStatesAreTruthful,
               stateIsNotColorOnly else {
             throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+
+
+    static func english(_ key: C32AssistanceLocalizationKeyV1) -> String {
+        switch key {
+        case .unverified: return "Unverified proposal"
+        case .review: return "Review proposed text"
+        case .accept: return "Accept proposal"
+        case .reject: return "Reject proposal"
+        case .expired: return "This proposal is no longer current"
+        case .manualAvailable: return "Manual entry remains available"
+        case .permissionDenied: return "Text extraction is unavailable; enter the value manually"
+        case .interrupted: return "Text extraction was interrupted; nothing was accepted"
+        case .ocrHeading: return "Extract text"
+        case .explicitExtract: return "Extract text from this image"
+        case .sourceCrop: return "Source image area"
+        case .language: return "Recognition language"
+        case .supported: return "On-device text extraction is available"
+        case .unsupportedLanguage: return "This language is unavailable; enter the value manually"
+        case .unsupportedDevice: return "Text extraction is unavailable on this device"
+        case .lowConfidence: return "Review this uncertain proposal"
+        case .conflict: return "The proposal conflicts with the current field value"
+        case .staleTarget: return "The target changed; extract or enter the value again"
+        case .fieldAccept: return "Accept this field"
+        case .fieldEdit: return "Edit this field"
+        case .fieldReject: return "Reject this field"
+        case .acceptedReviewedFact: return "Accepted reviewed field fact"
+        case .noAutomaticWrite: return "Extracted text is never saved automatically"
+        case .scratchCleanup: return "Temporary extraction data was removed"
+        case .cancelled: return "Text extraction was cancelled; nothing was accepted"
+        case .memoryPressure: return "Text extraction stopped; enter the value manually"
+        case .manualEntry: return "Enter the field manually"
+        case .customWordsNontruth: return "Suggested vocabulary does not make extracted text a fact"
+        case .capabilityUnavailable: return "Text extraction is not enabled"
+        case .accessLocked: return "Unlock the app to review extracted text"
+        case .errorFocus: return "Review this field issue before continuing"
         }
     }
 }

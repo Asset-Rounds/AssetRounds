@@ -17,6 +17,18 @@ import SwiftData
 }
 
 extension FieldDraftLifecycleAdapterV1: VoiceReviewedFieldDraftReceiptReadingV1 {}
+extension FieldDraftLifecycleAdapterV1: OCRReviewedFieldDraftReceiptReadingV1 {
+    func reviewedOCRFieldReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1? {
+        try journal.receipt(mutationID: mutationID)
+    }
+}
+
+enum C23OCRFieldDraftLifecycleBoundaryV1 {
+    static let addedRowCount = OCRProposalPersistenceBoundaryV1.addedDurableRowCount
+    static let proposalOrReviewIsBackedUp = false
+    static let scratchCleanupUsesAssistanceLifecycle = true
+    static let effectBeforeReceiptRecoveryUsesMutationJournal = true
+}
 
 extension FieldDraftLifecycleAdapterV1 {
     /// Resolves the C21 capture plan against the physical checkpoint row, so

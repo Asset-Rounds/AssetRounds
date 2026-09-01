@@ -59,6 +59,20 @@ enum PrivateSystemDiscoveryFeaturePolicyBoundaryV1 {
     }
 }
 
+enum OCRProposalFeaturePolicyBoundaryV1 {
+    static let featureID = "scanOCR"
+    static func resolve(using loader: FeaturePolicyLoaderV1) throws -> FeaturePolicyResolutionV1 {
+        let value = try loader.resolve(featureID: featureID)
+        guard value.policyState == .preparedDisabled,
+              value.requiredCapabilities == [.scanOCR],
+              value.requiredPackageIDs.isEmpty,
+              value.safeFallback == .typeManually else {
+            throw CapabilityContractFailureV1.invalidValue
+        }
+        return value
+    }
+}
+
 struct FeaturePolicyLoaderV1: Sendable {
     private let provider: any BundledFeaturePolicyDataPortV1
 

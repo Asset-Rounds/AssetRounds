@@ -339,6 +339,50 @@ enum C32AssistanceCompatibility_Content_LocalContentStoreContractsV1 {
     static let createsParallelStoreOrWriter = false
 }
 
+/// C23 uses this existing content-store authority only to resolve an immutable
+/// source identity. OCR scratch is capability-owned memory/lease state and is
+/// deliberately absent from this store.
+enum OCRProposalLocalContentStoreBoundaryV1 {
+    static let scratchIsStoredInLocalContentStore = false
+    static let scratchDeletionUsesAssistanceLifecycle = true
+
+    static func immutableSourceEntry(
+        request: OCRExtractionRequestV1,
+        store: LocalContentStoreV1
+    ) throws -> LocalContentStoreEntryV1 {
+        try request.validate()
+        guard request.source.kind == .immutableContent,
+              let entry = store.entries[request.source.sourceID] else {
+            throw ContentContractFailureV1.missingContent
+        }
+        try OCRProposalContentReferenceBoundaryV1.validateImmutableSource(
+            request: request,
+            reference: entry.reference
+        )
+        guard entry.locator.locatorRevision >= 0,
+              request.source.revision == UInt64(entry.locator.locatorRevision) else {
+            throw ContentContractFailureV1.staleReference
+        }
+        return entry
+    }
+
+    static func validateLeasedScratch(
+        request: OCRExtractionRequestV1,
+        scratch: AssistanceCapabilityScratchV1,
+        store: LocalContentStoreV1
+    ) throws {
+        try OCRProposalContentReferenceBoundaryV1.validateLeasedScratch(
+            request: request,
+            scratch: scratch
+        )
+        guard store.entries[scratch.source.sourceID] == nil,
+              !scratchIsStoredInLocalContentStore,
+              scratchDeletionUsesAssistanceLifecycle else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}
+
 // MARK: - C33 incremental temporal-media admission
 
 /// Admission is incremental and uses the current store capacity at every

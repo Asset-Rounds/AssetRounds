@@ -696,6 +696,48 @@ enum C32AssistanceCompatibility_Content_ContentIntegrityV1 {
     static let createsParallelStoreOrWriter = false
 }
 
+/// C23 validates the exact source bytes before an on-device OCR provider can
+/// inspect them. The result is a check only: it does not write a derivative,
+/// content receipt, or proposal payload to any store.
+enum OCRProposalContentIntegrityBoundaryV1 {
+    static let createsOCRContentReceipt = false
+    static let writesOCRSourceBytes = false
+
+    static func verifyImmutableSource(
+        request: OCRExtractionRequestV1,
+        entry: LocalContentStoreEntryV1
+    ) throws {
+        try OCRProposalContentReferenceBoundaryV1.validateImmutableSource(
+            request: request,
+            reference: entry.reference
+        )
+        guard entry.locator.locatorRevision >= 0,
+              request.source.revision == UInt64(entry.locator.locatorRevision),
+              !createsOCRContentReceipt,
+              !writesOCRSourceBytes else {
+            throw ContentContractFailureV1.staleReference
+        }
+        try ContentIntegrityV1.verify(
+            reference: entry.reference,
+            locator: entry.locator,
+            observed: entry.observed
+        )
+    }
+
+    static func validateLeasedScratch(
+        request: OCRExtractionRequestV1,
+        scratch: AssistanceCapabilityScratchV1
+    ) throws {
+        try OCRProposalContentReferenceBoundaryV1.validateLeasedScratch(
+            request: request,
+            scratch: scratch
+        )
+        guard !writesOCRSourceBytes else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}
+
 // MARK: - C33 temporal evidence integrity
 
 enum TemporalEvidenceContentIntegrityV1 {

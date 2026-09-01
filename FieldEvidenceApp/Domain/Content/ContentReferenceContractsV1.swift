@@ -447,6 +447,41 @@ enum C34RouteAdoptionBoundary_ContentReferenceContractsV1 {
     static let canonicalTargetType = NavigationTargetV1.self
     static let routeStoresContentBytes = false
 }
+
+/// C23 OCR may read an existing immutable source by its exact content
+/// identity. Leased scratch never becomes a ContentReference or a hidden
+/// duplicate of the retained source.
+enum OCRProposalContentReferenceBoundaryV1 {
+    static let scratchCreatesCanonicalContentReference = false
+    static let sourceBytesAreCopiedIntoProposal = false
+
+    static func validateImmutableSource(
+        request: OCRExtractionRequestV1,
+        reference: ContentReferenceV1
+    ) throws {
+        try request.validate()
+        guard request.source.kind == .immutableContent,
+              reference.byteRole == .immutableOriginal,
+              reference.workspaceID == request.workspaceID.rawValue.uuidString.lowercased(),
+              reference.contentID == request.source.sourceID,
+              reference.digests.digest(for: .sha256)?.hexadecimalValue == request.source.contentSHA256,
+              !sourceBytesAreCopiedIntoProposal else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+
+    static func validateLeasedScratch(
+        request: OCRExtractionRequestV1,
+        scratch: AssistanceCapabilityScratchV1
+    ) throws {
+        try request.validate()
+        guard request.source.kind == .leasedScratch,
+              scratch.source == request.source,
+              !scratchCreatesCanonicalContentReference else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}
 enum C52ServiceRequestBoundary_ContentReferenceContractsV1 {
     static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
     static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self

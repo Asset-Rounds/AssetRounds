@@ -308,6 +308,62 @@ extension FieldDraftCoordinatorV1 {
 }
 
 extension FieldDraftCoordinatorV1 {
+    func applyReviewedOCRField(
+        _ update: OCRProposalDraftCheckpointUpdateV1,
+        codec: any OCRReviewedFieldDraftPayloadApplyingV1
+    ) throws -> OCRReviewedFieldDraftCheckpointEffectV1 {
+        guard let value = update.review.reviewedValue,
+              codec.registeredCodec == update.predecessor.codec else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let application = try codec.applyReviewedOCRField(to: update.predecessor,
+            fieldID: update.evidence.proposal.target.fieldID, value: value)
+        try codec.validateReviewedOCRFieldApplication(application, predecessor: update.predecessor)
+        if let recovered = try existingReviewedOCRFieldEffect(update, application: application) {
+            return recovered
+        }
+        guard
+              let current = try writer.currentCheckpoint(workspaceID: update.predecessor.workspaceID,
+                  draftID: update.predecessor.draftID),
+              current.checkpointSHA256 == update.predecessor.checkpointSHA256,
+              codec.registeredCodec == current.codec else { throw FieldDraftFailureV1.staleDraftRevision }
+        let next = current.draftRevision.addingReportingOverflow(1)
+        guard !next.overflow else { throw FieldDraftFailureV1.staleDraftRevision }
+        let successor = try FieldDraftCheckpointV1(draftID:current.draftID,workspaceID:current.workspaceID,
+            scope:current.scope,purpose:current.purpose,codec:current.codec,
+            baseCanonicalRevision:current.baseCanonicalRevision,draftRevision:next.partialValue,
+            payloadData:application.successorPayloadData,stageIDs:current.stageIDs,
+            resumeAnchor:current.resumeAnchor,state:.active,lastDurableMutationID:current.lastDurableMutationID,
+            lastReceiptSHA256:current.lastReceiptSHA256,updatedAt:update.review.reviewedAt,
+            mutationID:update.mutationID)
+        let mutation = try FieldDraftMutationV1(workspaceID:current.workspaceID,
+            expectedRevision:current.draftRevision,expectedBaseCanonicalRevision:current.baseCanonicalRevision,
+            mutationID:update.mutationID,postImage:.reviseCheckpoint(successor))
+        let receipt = try checkpoint(successor, expectedDraftRevision:current.draftRevision,
+            expectedBaseRevision:current.baseCanonicalRevision)
+        return try OCRReviewedFieldDraftCheckpointEffectV1(update:update,mutation:mutation,
+            mutationReceipt:receipt,successor:successor,application:application)
+    }
+
+    func existingReviewedOCRFieldEffect(
+        _ update: OCRProposalDraftCheckpointUpdateV1,
+        application: OCRReviewedFieldDraftPayloadApplicationV1
+    ) throws -> OCRReviewedFieldDraftCheckpointEffectV1? {
+        guard let current = try writer.currentCheckpoint(workspaceID:update.predecessor.workspaceID,
+                draftID:update.predecessor.draftID), current.mutationID == update.mutationID else { return nil }
+        guard let reader = writer as? any OCRReviewedFieldDraftReceiptReadingV1,
+              let receipt = try reader.reviewedOCRFieldReceipt(mutationID:update.mutationID),
+              current.payloadData == application.successorPayloadData else { throw FieldDraftFailureV1.missingReceipt }
+        let mutation = try FieldDraftMutationV1(workspaceID:current.workspaceID,
+            expectedRevision:update.predecessor.draftRevision,
+            expectedBaseCanonicalRevision:update.predecessor.baseCanonicalRevision,
+            mutationID:update.mutationID,postImage:.reviseCheckpoint(current))
+        return try .init(update:update,mutation:mutation,mutationReceipt:receipt,
+            successor:current,application:application)
+    }
+}
+
+extension FieldDraftCoordinatorV1 {
     /// C23-aware checkpoint entry point. The reference tuple is checked before
     /// the existing checkpoint CAS and is never copied into the draft row.
     @MainActor

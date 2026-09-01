@@ -45,6 +45,13 @@ struct NoOpHapticRuntimeAdapterV1: HapticRuntimePortV1 {
     func emitWarning() async {}
 }
 
+struct PreparedDisabledOCRProposalExtractorV1: OCRProposalExtractingV1 {
+    func extract(_ request: OCRExtractionRequestV1) async throws -> [OCRProposalEvidenceV1] {
+        try request.validate()
+        throw OCRProposalFailureV1.capabilityUnavailable
+    }
+}
+
 struct UIKitHapticRuntimeAdapterV1: HapticRuntimePortV1 {
     func isAvailable() async -> Bool { true }
 

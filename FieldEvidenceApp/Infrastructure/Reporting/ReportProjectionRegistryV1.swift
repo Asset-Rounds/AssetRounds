@@ -2602,6 +2602,40 @@ enum AssistanceReportProjectionBoundaryV1 {
     }
 }
 
+/// C23 report routing never creates an OCR projection. A reviewed accepted
+/// field is rendered only through the incumbent target projection, after the
+/// durable assistance receipt proves its exact OCR evidence binding.
+enum OCRProposalReportProjectionBoundaryV1 {
+    static let proposalProjectionVersion: Int? = nil
+    static let rawObservationReported = false
+    static let rejectedOrUnreviewedProposalReported = false
+    static let confidenceReported = false
+    static let scratchOrSourceCropReported = false
+    static let customWordsReported = false
+    static let acceptedReceiptRenderedAsFieldFact = false
+    static let acceptedCanonicalTargetUsesIncumbentProjection = true
+
+    static func acceptsCanonicalTargetFact(
+        receipt: AssistanceAcceptanceReceiptV1,
+        evidence: OCRProposalEvidenceV1
+    ) throws -> Bool {
+        try receipt.validate(ocrEvidence: evidence)
+        guard proposalProjectionVersion == nil, !rawObservationReported,
+              !rejectedOrUnreviewedProposalReported, !confidenceReported,
+              !scratchOrSourceCropReported, !customWordsReported,
+              !acceptedReceiptRenderedAsFieldFact,
+              acceptedCanonicalTargetUsesIncumbentProjection else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return true
+    }
+
+    static func mayProject(_ evidence: OCRProposalEvidenceV1) throws -> Bool {
+        try evidence.validate()
+        return false
+    }
+}
+
 
 // MARK: - C33 temporal evidence projection registry
 

@@ -161,6 +161,64 @@ final class FastSurveyInboxCoordinatorV1 {
 
     func cancel() -> ActionResult { .cancelled }
 
+    /// Commits only explicitly accepted/edited values. The complete batch is
+    /// validated before the first write, and each request is bound to the same
+    /// exact target mutation used by keyboard/paste/manual entry.
+    func applyReviewedOCRFields(
+        _ batch: FastSurveyInboxOCRReviewBatchV1,
+        targetMutations: [UUID: AssistanceCanonicalTargetMutationV1],
+        manualEquivalentMutations: [UUID: AssistanceCanonicalTargetMutationV1],
+        expectedRevision: WorkspaceExpectedRevisionV1,
+        mutationIDs: [UUID: MutationIDV1],
+        workspaceWriter: WorkspaceWriterV1
+    ) throws -> FastSurveyInboxOCRReviewOutcomeV1 {
+        guard batch.workspaceID == expectedRevision.workspaceID,
+              Set(mutationIDs.values.map { $0.rawValue }).count == mutationIDs.count else {
+            throw FastSurveyInboxFailureV1.staleRevision
+        }
+        var requests: [AssistanceAcceptanceRequestV1] = []
+        var rejected: [UUID] = []
+        for index in batch.evidence.indices {
+            let review = batch.reviews[index]
+            guard let proposal = try batch.reviewedProposal(at: index) else {
+                rejected.append(review.proposalID)
+                continue
+            }
+            guard let target = targetMutations[review.proposalID],
+                  let manual = manualEquivalentMutations[review.proposalID],
+                  let mutationID = mutationIDs[review.proposalID], target == manual else {
+                throw FastSurveyInboxFailureV1.invalidPromotion
+            }
+            let request = try AssistanceAcceptanceRequestV1(
+                proposal: proposal, targetMutation: target,
+                expectedRevision: expectedRevision, mutationID: mutationID,
+                acceptedBy: review.reviewedBy, acceptedAt: review.reviewedAt
+            )
+            try request.validateManualPathEquivalence(to: manual)
+            requests.append(request)
+        }
+        let acceptedIDs = Set(requests.map { $0.proposal.proposalID })
+        guard Set(targetMutations.keys) == acceptedIDs,
+              Set(manualEquivalentMutations.keys) == acceptedIDs,
+              Set(mutationIDs.keys) == acceptedIDs else {
+            throw FastSurveyInboxFailureV1.invalidPromotion
+        }
+        let evidenceByProposal = Dictionary(uniqueKeysWithValues:
+            batch.evidence.map { ($0.proposal.proposalID, $0) })
+        let reviewByProposal = Dictionary(uniqueKeysWithValues:
+            batch.reviews.map { ($0.proposalID, $0) })
+        let receipts = try requests.map { request -> AssistanceAcceptanceReceiptV1 in
+            let receipt = try workspaceWriter.commitAssistanceAcceptance(request)
+            try receipt.validate(request: request)
+            if reviewByProposal[request.proposal.proposalID]?.disposition == .accepted,
+               let evidence = evidenceByProposal[request.proposal.proposalID] {
+                try receipt.validate(ocrEvidence: evidence)
+            }
+            return receipt
+        }
+        return .reviewed(receipts: receipts, rejectedProposalIDs: rejected.sorted { $0.uuidString < $1.uuidString })
+    }
+
     private func submitOrRecover(
         _ command: FastSurveyInboxMutationCommandV1
     ) throws -> FastSurveyInboxMutationReceiptV1 {

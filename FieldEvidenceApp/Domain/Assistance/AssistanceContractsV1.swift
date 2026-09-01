@@ -786,6 +786,45 @@ struct AssistanceAcceptanceReceiptV1: Codable, Equatable, Sendable {
     }
 }
 
+extension AssistanceAcceptanceReceiptV1 {
+    /// OCR-specific closure remains inside the incumbent durable receipt family.
+    /// The receipt binds the complete proposal, whose source/value/target are
+    /// independently bound by the OCR evidence digest.
+    func validate(ocrEvidence: OCRProposalEvidenceV1) throws {
+        try ocrEvidence.validate(); try validate()
+        guard proposalID == ocrEvidence.proposal.proposalID,
+              proposalSHA256 == (try ocrEvidence.proposal.proposalSHA256),
+              capability == ocrEvidence.proposal.capability,
+              target == ocrEvidence.proposal.target,
+              source == ocrEvidence.proposal.source else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+    }
+    func validate(ocrEvidence: OCRProposalEvidenceV1, review: OCRFieldReviewV1,
+                  acceptedProposal: AssistanceProposalV1) throws {
+        try ocrEvidence.validate();try review.validate(evidence:ocrEvidence);try acceptedProposal.validate();try validate()
+        guard review.disposition != .rejected,review.reviewedValue==acceptedProposal.value,
+              acceptedProposal.target==ocrEvidence.proposal.target,
+              acceptedProposal.source==ocrEvidence.proposal.source,
+              acceptedProposal.capability==ocrEvidence.proposal.capability,
+              acceptedProposal.quality==ocrEvidence.proposal.quality,
+              proposalID==acceptedProposal.proposalID,
+              proposalSHA256==(try acceptedProposal.proposalSHA256),
+              acceptedValue==acceptedProposal.value else{throw AssistanceContractFailureV1.invalidReceipt}
+    }
+}
+
+extension AssistanceProposalV1 {
+    func correctedForOCR(proposalID: UUID, value: ResponseValueV1,
+                         createdAt: Date, expiresAt: Date) throws -> Self {
+        try .init(proposalID:proposalID,capability:capability,target:target,value:value,
+            source:source,confidence:confidence,quality:quality,
+            packageReleaseSHA256:packageReleaseSHA256,
+            definitionReleaseSHA256:definitionReleaseSHA256,
+            createdAt:createdAt,expiresAt:expiresAt,privacyClass:privacyClass)
+    }
+}
+
 enum AssistanceCanonicalCodecV1 {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
         let data = try WorkspaceMutationCanonicalV1.data(value)

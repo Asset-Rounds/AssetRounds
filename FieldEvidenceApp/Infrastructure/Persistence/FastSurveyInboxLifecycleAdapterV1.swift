@@ -201,6 +201,14 @@ struct FastSurveyInboxLifecycleAdapterV1 {
     }
 }
 
+enum C23FastSurveyInboxOCRLifecycleBoundaryV1 {
+    static let proposalRows = OCRProposalPersistenceBoundaryV1.addedDurableRowCount
+    static let acceptedReceiptRowType = OCRProposalPersistenceBoundaryV1.acceptanceRowType
+    static let scratchCleanupUsesAssistanceLifecycle = true
+    static let rejectedCorpusIsPersistent = false
+    static let replaceRestoreAddsOCRProposalRecords = false
+}
+
 @MainActor
 final class FastSurveyInboxSwiftDataQuerySourceV1 {
     private let modelContext: ModelContext

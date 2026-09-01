@@ -743,6 +743,20 @@ enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Assistance
     static let noContactProjectionOrNetworkDelivery = true
 }
 
+enum OCRProposalAssistanceLifecycleBoundaryV1 {
+    static let proposalsAreEphemeral = true
+    static let acceptedReceiptUsesExistingWriter = true
+    static let rejectionDeletesOwnedScratch = true
+    static let cancellationDeletesOwnedScratch = true
+    static let expiryDeletesOwnedScratch = true
+    static let deletionIsIdempotent = true
+    static let latestTargetFallbackAllowed = false
+    static func validateAccepted(_ receipt: AssistanceAcceptanceReceiptV1,
+                                 evidence: OCRProposalEvidenceV1) throws {
+        try receipt.validate(ocrEvidence: evidence)
+    }
+}
+
 // MARK: - C52 lifecycle and privacy boundary
 enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Assistance_AssistanceLifecycleAdapterV1_swift {
     static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent

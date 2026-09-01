@@ -64,6 +64,18 @@ enum AssistancePersistenceEnrollmentV1 {
     static let rejectedProposalCorpusIsPersistent = false
 }
 
+enum OCRProposalPersistenceEnrollmentV1 {
+    static let activeSchemaVersion = 53
+    static let activeModelCount = 168
+    static let addedModelCount = 0
+    static let receiptRow = AssistanceAcceptanceReceiptRow.self
+    static let proposalAndEvidenceArePersistent = false
+    static func validate(_ row: AssistanceAcceptanceReceiptRow,
+                         evidence: OCRProposalEvidenceV1) throws {
+        try row.value().validate(ocrEvidence: evidence)
+    }
+}
+
 enum C33TemporalEvidenceBoundary_Domain_Models_AssistancePersistenceModelsV1_V1 {
     static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
     static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self

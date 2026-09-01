@@ -118,6 +118,11 @@ final class AssistanceCoordinatorV1 {
     func recoverAfterInterruption() async throws {
         try await lifecycle.recoverAfterInterruption()
     }
+
+    func validateOCRAcceptance(_ receipt: AssistanceAcceptanceReceiptV1,
+                               evidence: OCRProposalEvidenceV1) throws {
+        try receipt.validate(ocrEvidence: evidence)
+    }
 }
 
 enum C33TemporalEvidenceBoundary_Application_Assistance_AssistanceCoordinatorV1_V1 {

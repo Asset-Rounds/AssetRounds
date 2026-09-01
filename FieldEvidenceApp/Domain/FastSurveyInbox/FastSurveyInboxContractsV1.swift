@@ -1011,6 +1011,70 @@ struct FastSurveyInboxMutationReceiptV1: Codable, Equatable, Sendable {
     private struct Basis: Codable { let schemaVersion: Int; let receiptID: UUID; let workspaceID: WorkspaceID; let generationID: UUID; let mutationID: MutationIDV1; let commandSHA256: String; let semanticSHA256s: [String]; let priorWorkspaceRevision: UInt64; let resultingWorkspaceRevision: UInt64; let recoveryState: FastSurveyInboxRecoveryStateV1; let committedAt: Date }
 }
 
+// MARK: - C23 ephemeral OCR review integration
+
+/// Complete review closure for one OCR request. Every proposal is reviewed
+/// exactly once before any accepted/edited field may reach a canonical writer.
+/// This value is deliberately not persistence-enrolled.
+struct FastSurveyInboxOCRReviewBatchV1: Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let requestSHA256: String
+    let evidence: [OCRProposalEvidenceV1]
+    let reviews: [OCRFieldReviewV1]
+
+    init(evidence: [OCRProposalEvidenceV1], reviews: [OCRFieldReviewV1]) throws {
+        guard let first = evidence.first, !reviews.isEmpty else {
+            throw FastSurveyInboxFailureV1.invalidValue
+        }
+        try evidence.forEach { try $0.validate() }
+        let orderedEvidence = evidence.sorted { $0.proposal.proposalID.uuidString < $1.proposal.proposalID.uuidString }
+        let orderedReviews = reviews.sorted { $0.proposalID.uuidString < $1.proposalID.uuidString }
+        for (proposalEvidence, review) in zip(orderedEvidence, orderedReviews) {
+            try review.validate(evidence: proposalEvidence)
+        }
+        guard Set(orderedEvidence.map { $0.proposal.proposalID }).count == orderedEvidence.count,
+              Set(orderedReviews.map(\.proposalID)).count == orderedReviews.count,
+              orderedEvidence.map({ $0.proposal.proposalID }) == orderedReviews.map(\.proposalID),
+              orderedEvidence.allSatisfy({ $0.request == first.request }),
+              zip(orderedEvidence, orderedReviews).allSatisfy({ pair in
+                  pair.1.evidenceSHA256 == pair.0.evidenceSHA256 &&
+                  pair.1.reviewedBy.workspaceID == first.request.workspaceID
+              }) else { throw FastSurveyInboxFailureV1.invalidValue }
+        workspaceID = first.request.workspaceID
+        requestSHA256 = first.request.requestSHA256
+        self.evidence = orderedEvidence
+        self.reviews = orderedReviews
+    }
+
+    func reviewedProposal(at index: Int) throws -> AssistanceProposalV1? {
+        guard evidence.indices.contains(index), reviews.indices.contains(index) else {
+            throw FastSurveyInboxFailureV1.invalidValue
+        }
+        let source = evidence[index].proposal
+        let review = reviews[index]
+        guard review.evidenceSHA256 == evidence[index].evidenceSHA256,
+              review.proposalID == source.proposalID else {
+            throw FastSurveyInboxFailureV1.staleRevision
+        }
+        guard let value = review.reviewedValue else { return nil }
+        if review.disposition == .accepted, value != source.value {
+            throw FastSurveyInboxFailureV1.invalidValue
+        }
+        return try source.correctedForOCR(
+            proposalID: source.proposalID, value: value,
+            createdAt: source.createdAt, expiresAt: source.expiresAt
+        )
+    }
+
+    static let isPersistent = false
+    static let customWordsAreIdentity = false
+    static let rejectedOrUnreviewedFieldsAreCanonical = false
+}
+
+enum FastSurveyInboxOCRReviewOutcomeV1: Equatable, Sendable {
+    case reviewed(receipts: [AssistanceAcceptanceReceiptV1], rejectedProposalIDs: [UUID])
+}
+
 struct FastSurveyInboxStoragePressureV1: Codable, Equatable, Sendable {
     let workspaceID: WorkspaceID; let currentBytes: Int64; let proposedAdditionalBytes: Int64
     let maximumBytes: Int64; let admitsCapture: Bool

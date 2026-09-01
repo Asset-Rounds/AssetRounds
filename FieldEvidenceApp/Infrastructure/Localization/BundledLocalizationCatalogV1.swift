@@ -5150,6 +5150,47 @@ enum C32AssistanceCompatibility_Localization_BundledLocalizationCatalogV1 {
     static let createsParallelStoreOrWriter = false
 }
 
+extension BundledLocalizationCatalogV1 {
+    static func ocrProposalRegistry() throws -> LocalizationKeyRegistryV1 {
+        try C32AssistanceLocalizationPolicyV1.validate()
+        let base = try scanToWorkRegistry()
+        let additions = C32AssistanceLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey, meaningID: key.rawValue,
+                translatorComment: "C23 on-device OCR proposal text; proposals remain unverified until explicit field review and acceptance.",
+                englishDefaultValue: C32AssistanceLocalizationPolicyV1.english(key),
+                arguments: [], requiredEnglishPluralCategories: [], state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func ocrProposalAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try C32AssistanceAccessibilityPolicyV1.validate()
+        let base = try scanToWorkAccessibilityRegistry(localization: localization)
+        let entries = try C32AssistanceAccessibilityIDV1.allCases.map { id in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .ocrScreen: role = .screen
+            case .review, .accept, .reject, .manualAvailable, .extract,
+                 .acceptField, .editField, .rejectField, .manualEntry: role = .button
+            case .unverified, .expired, .permissionDenied, .interrupted,
+                 .confidenceWarning, .conflict, .scratchCleanup, .error: role = .status
+            case .sourceCrop, .language, .proposal: role = .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue, role: role, reachability: .whenAvailable,
+                labelKey: id.localizationKey, hintKey: nil, valueKey: nil,
+                dynamicSuffixPolicy: .none, deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+}
+
 enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Localization_BundledLocalizationCatalogV1_swift {
     static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
     static func validate(clip: TemporalEvidenceClipV1,

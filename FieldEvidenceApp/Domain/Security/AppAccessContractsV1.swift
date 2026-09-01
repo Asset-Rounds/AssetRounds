@@ -98,6 +98,26 @@ enum AppAccessContentReadSurfaceV1: String, CaseIterable, Codable, Hashable, Sen
     case diagnosticExport = "DIAGNOSTIC_EXPORT"
     case bulkImport = "BULK_IMPORT"
     case render = "RENDER"
+    case ocrProposal = "OCR_PROPOSAL"
+}
+
+/// OCR must obtain the same ephemeral content permit as every other protected
+/// read surface. The permit deliberately carries neither OCR text nor a
+/// content identifier, so access telemetry cannot become an OCR side channel.
+enum OCRProposalAppAccessBoundaryV1 {
+    static let proposalRequiresContentPermit = true
+    static let accessLogContainsRecognizedText = false
+    static let accessLogContainsSourceBytes = false
+
+    static func validate(_ permit: AppAccessContentPermitV1) throws {
+        guard proposalRequiresContentPermit,
+              !accessLogContainsRecognizedText,
+              !accessLogContainsSourceBytes,
+              permit.surface == .ocrProposal,
+              permit.state.permitsContentAccess else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
 }
 
 enum AppAccessContentReadFailureV1: Error, Equatable, Sendable {

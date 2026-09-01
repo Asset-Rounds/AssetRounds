@@ -2591,11 +2591,46 @@ enum C32AssistanceAccessibilityIDV1: String, CaseIterable, Codable, Sendable {
     case manualAvailable = "assistance.manual.available"
     case permissionDenied = "assistance.permission.denied"
     case interrupted = "assistance.interrupted"
+    case ocrScreen = "assistance.ocr.screen"
+    case extract = "assistance.ocr.extract"
+    case sourceCrop = "assistance.ocr.source_crop"
+    case language = "assistance.ocr.language"
+    case proposal = "assistance.ocr.proposal"
+    case confidenceWarning = "assistance.ocr.confidence_warning"
+    case conflict = "assistance.ocr.conflict"
+    case acceptField = "assistance.ocr.accept_field"
+    case editField = "assistance.ocr.edit_field"
+    case rejectField = "assistance.ocr.reject_field"
+    case manualEntry = "assistance.ocr.manual_entry"
+    case scratchCleanup = "assistance.ocr.scratch_cleanup"
+    case error = "assistance.ocr.error"
 
     var localizationKey: LocalizationKeyV1 {
-        // Accessibility semantics reuse the exact visible C32 review labels.
-        // swiftlint:disable:next force_try
-        try! LocalizationKeyV1(rawValue)
+        let key: C32AssistanceLocalizationKeyV1
+        switch self {
+        case .unverified: key = .unverified
+        case .review: key = .review
+        case .accept: key = .accept
+        case .reject: key = .reject
+        case .expired: key = .expired
+        case .manualAvailable: key = .manualAvailable
+        case .permissionDenied: key = .permissionDenied
+        case .interrupted: key = .interrupted
+        case .ocrScreen: key = .ocrHeading
+        case .extract: key = .explicitExtract
+        case .sourceCrop: key = .sourceCrop
+        case .language: key = .language
+        case .proposal: key = .unverified
+        case .confidenceWarning: key = .lowConfidence
+        case .conflict: key = .conflict
+        case .acceptField: key = .fieldAccept
+        case .editField: key = .fieldEdit
+        case .rejectField: key = .fieldReject
+        case .manualEntry: key = .manualEntry
+        case .scratchCleanup: key = .scratchCleanup
+        case .error: key = .errorFocus
+        }
+        return key.localizationKey
     }
 }
 
@@ -2607,6 +2642,13 @@ enum C32AssistanceAccessibilityPolicyV1 {
     static let permissionAndInterruptionHaveText = true
     static let colorOnlyStateAllowed = false
     static let motionOnlyStateAllowed = false
+    static let voiceOverSourceOrderRequired = true
+    static let voiceControlVisibleNamesRequired = true
+    static let dynamicTypeThroughAX5Required = true
+    static let rightToLeftReadingOrderRequired = true
+    static let errorFocusRequired = true
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6AndPhysicalDeviceEvidence = true
 
     static func requiresActionableNextStep(
         for id: C32AssistanceAccessibilityIDV1
@@ -2625,6 +2667,13 @@ enum C32AssistanceAccessibilityPolicyV1 {
               permissionAndInterruptionHaveText,
               !colorOnlyStateAllowed,
               !motionOnlyStateAllowed,
+              voiceOverSourceOrderRequired,
+              voiceControlVisibleNamesRequired,
+              dynamicTypeThroughAX5Required,
+              rightToLeftReadingOrderRequired,
+              errorFocusRequired,
+              !uiAdoptionClaimed,
+              requiresAcceptedS10_6AndPhysicalDeviceEvidence,
               requiresActionableNextStep(for: .expired),
               requiresActionableNextStep(for: .permissionDenied),
               requiresActionableNextStep(for: .interrupted) else {

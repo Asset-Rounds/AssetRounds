@@ -62,6 +62,14 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         try AppAccessContentPermitV1(surface: surface, state: state)
     }
 
+    /// Concrete actor entry point for C23. State inspection and permit minting
+    /// occur in this single actor turn before any OCR source can be resolved.
+    func requireOCRProposalContentAccess() throws -> AppAccessContentPermitV1 {
+        let permit = try AppAccessContentPermitV1(surface: .ocrProposal, state: state)
+        try OCRProposalAppAccessBoundaryV1.validate(permit)
+        return permit
+    }
+
     func lock(reason: AppLockReasonV1) async {
         // Lock is also the cancellation boundary for an in-flight opt-in
         // attempt. Invalidate its generation before consulting the currently

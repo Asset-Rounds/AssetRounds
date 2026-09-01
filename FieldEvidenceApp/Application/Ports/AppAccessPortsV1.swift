@@ -347,4 +347,12 @@ extension AppAccessGatePortV1 {
     func requirePrivateSystemDiscoveryAccess() async throws {
         _ = try await requireContentAccess(for: .privateSystemDiscovery)
     }
+
+    /// C23's OCR provider may inspect source bytes only after this ephemeral,
+    /// actor-atomic permit is minted. It is not a proposal, source, or log.
+    func requireOCRProposalContentAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .ocrProposal)
+        try OCRProposalAppAccessBoundaryV1.validate(permit)
+        return permit
+    }
 }

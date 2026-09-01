@@ -1,0 +1,42 @@
+{
+  "schema": "V23P04C23OCRProposalCorpusV1",
+  "schemaVersion": 1,
+  "sourceLocale": "en",
+  "selectors": ["V23-P04-C23-G01", "V23-P04-C23-A01", "V23-P04-C23-H01", "V23-P04-C23-I01", "V23-P04-C23-R01"],
+  "featureDisposition": "PREPARED_DISABLED",
+  "fieldReviewActions": ["ACCEPT", "EDIT", "REJECT"],
+  "bindings": ["REQUEST", "LANGUAGE", "SOURCE", "CROP", "TARGET"],
+  "manualFallbackCases": ["UNSUPPORTED_LANGUAGE", "UNSUPPORTED_DEVICE", "CAPABILITY_DENIED", "ACCESS_LOCKED", "MEMORY_PRESSURE"],
+  "hostileCases": ["LOW_CONFIDENCE", "CONFLICTING_TEXT", "STALE_TARGET", "REQUEST_OBSERVATION_CROP_MISMATCH", "POLICY_TEXT_BYTE_LIMIT_EXCEEDED", "ROTATED", "BLURRED", "MULTIPLE_LABELS", "MALICIOUS_LONG_TEXT", "SERIAL_AMBIGUITY", "SOURCE_DELETED"],
+  "interruptionCases": ["BEFORE_REQUEST", "SCRATCH_PREPARE_ALLOCATES_THEN_THROWS", "DURING_RECOGNITION", "BEFORE_REVIEW", "DURING_FIELD_REVIEW", "AFTER_REVIEW_BEFORE_ACCEPTANCE_RECEIPT"],
+  "privacy": {
+    "onDeviceOnly": true,
+    "networkAllowed": false,
+    "rawObservationSearchable": false,
+    "rejectedObservationSearchable": false,
+    "unreviewedObservationReportable": false,
+    "confidenceSearchableOrReportable": false,
+    "sourceCropSearchableOrReportable": false,
+    "scratchSearchableOrReportable": false,
+    "customWordsAreTruth": false
+  },
+  "persistence": {
+    "proposalDurable": false,
+    "scratchDurable": false,
+    "acceptedReceiptDurable": true,
+    "terminalScratchCleanupRequired": true,
+    "restoreKeepsAcceptedReceipt": true,
+    "restoreKeepsEphemeralProposal": false,
+    "restoreKeepsScratch": false
+  },
+  "accessibility": {
+    "voiceOverOrderIsSourceOrder": true,
+    "voiceControlUsesVisibleNames": true,
+    "dynamicTypeMaximum": "AX5",
+    "rightToLeftSupported": true,
+    "stateUsesTextNotColorOnly": true,
+    "reduceMotionUsesStaticPresentation": true,
+    "errorFocusIsDeterministic": true
+  },
+  "statusFlags": {"shippingUIAdopted": false, "physicalDeviceEvidenceAccepted": false, "requiresAcceptedS10_6Reconciliation": true}
+}
