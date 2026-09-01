@@ -48,6 +48,92 @@ enum C51SurveySessionScheduleCoordinatorBoundaryV1 {
         ))
     }
 
+    /// Starts only a root, exactly pinned survey session.  There is no
+    /// current-definition lookup in this path: authority was captured by the
+    /// caller before the session value was constructed.
+    func start(
+        session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws -> SurveySessionMutationReceiptV1 {
+        guard session.revision == 1, session.state == .draft,
+              session.transition == .create, session.predecessorSessionSHA256 == nil else {
+            throw SurveySessionFailureV1.invalidTransition
+        }
+        return try apply(session: session, definition: definition, packageRelease: packageRelease)
+    }
+
+    /// Applies one explicit, append-only nonterminal session successor.  This
+    /// is shared by pause, resume, and review submission; terminal completion
+    /// remains exclusively in the atomic publication mutation below.
+    func applyLifecycleSuccessor(
+        previous: SurveySessionV1,
+        successor: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws -> SurveySessionMutationReceiptV1 {
+        guard successor.transition != .complete,
+              successor.state != .completed else {
+            throw SurveySessionFailureV1.invalidTransition
+        }
+        try previous.validate(definition: definition)
+        try successor.validateSuccessor(of: previous)
+        return try apply(session: successor, definition: definition, packageRelease: packageRelease)
+    }
+
+    func pause(
+        previous: SurveySessionV1,
+        successor: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws -> SurveySessionMutationReceiptV1 {
+        guard previous.state == .draft, successor.state == .paused,
+              successor.transition == .pause else { throw SurveySessionFailureV1.invalidTransition }
+        return try applyLifecycleSuccessor(
+            previous: previous, successor: successor, definition: definition,
+            packageRelease: packageRelease
+        )
+    }
+
+    func resume(
+        previous: SurveySessionV1,
+        successor: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws -> SurveySessionMutationReceiptV1 {
+        guard previous.state == .paused, successor.state == .draft,
+              successor.transition == .resume else { throw SurveySessionFailureV1.invalidTransition }
+        return try applyLifecycleSuccessor(
+            previous: previous, successor: successor, definition: definition,
+            packageRelease: packageRelease
+        )
+    }
+
+    func submitForReview(
+        previous: SurveySessionV1,
+        successor: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws -> SurveySessionMutationReceiptV1 {
+        guard (previous.state == .draft || previous.state == .amended),
+              successor.state == .reviewRequired,
+              successor.transition == .submitForReview else {
+            throw SurveySessionFailureV1.invalidTransition
+        }
+        return try applyLifecycleSuccessor(
+            previous: previous, successor: successor, definition: definition,
+            packageRelease: packageRelease
+        )
+    }
+
+    /// Review comes from the closed exact-source projection.  Callers cannot
+    /// supply a latest release, a partial capture set, or their own missing
+    /// requirement calculation.
+    func review(source: GuidedSurveyFlowSourceV1) throws -> SurveyReviewStateV1 {
+        try source.validate()
+        return try source.projection().review
+    }
+
     func capture(
         _ capture: FactCaptureV1,
         session: SurveySessionV1,

@@ -41,6 +41,90 @@ final class SurveyDefinitionLifecycleAdapterV1: SurveyDefinitionWritingV1 {
         let receipt = try writer.commitSurveyDefinition(mutation)
         return try SurveyDefinitionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
     }
+
+    /// Opens only the caller-specified lifecycle revision.  The journal is
+    /// consulted by the exact mutation ID, so a current identity is never
+    /// substituted for historic draft, withdrawn, or retired content.
+    func exactLibraryRow(
+        workspaceID: WorkspaceID,
+        identity: SurveyDefinitionIdentityV1,
+        release: SurveyDefinitionReleaseV1,
+        event: SurveyDefinitionLifecycleEventV1,
+        overlay: SurveyDefinitionDeviceLocalOverlayV1?
+    ) async throws -> SurveyDefinitionLibraryRowV1 {
+        try identity.validate(currentRelease: release, event: event)
+        try overlay?.validate()
+        guard identity.workspaceID == workspaceID,
+              release.workspaceID == workspaceID,
+              event.workspaceID == workspaceID,
+              overlay.map({ $0.definitionID == identity.definitionID }) ?? true,
+              let recorded = try journalStore.surveyDefinitionMutation(
+                mutationID: identity.mutationID
+              ),
+              recorded.identity == identity,
+              recorded.release == release,
+              recorded.event == event,
+              let receipt = try await acceptedSurveyDefinitionMutation(identity.mutationID) else {
+            throw GuidedSurveyFlowFailureV1.missingExactSource
+        }
+        try receipt.validate(mutation: recorded)
+        return try SurveyDefinitionLibraryRowV1(
+            identity: identity, release: release, event: event, overlay: overlay
+        )
+    }
+
+    /// Revalidates the C20 exact source after the core flow resolver has
+    /// assembled it.  This keeps the flow's historic reader and the sole
+    /// canonical journal in agreement without introducing a second query
+    /// store or a latest-release fallback.
+    func validateExactSource(_ source: GuidedSurveyFlowSourceV1) async throws {
+        try source.validate()
+        _ = try await exactLibraryRow(
+            workspaceID: source.request.workspaceID, identity: source.identity,
+            release: source.definition, event: source.lifecycleEvent,
+            overlay: nil
+        )
+        guard let sessionMutation = try journalStore.surveySessionMutation(
+            mutationID: source.session.mutationID
+        ), try journalStore.receipt(mutationID: source.session.mutationID) != nil,
+              sessionMutation.workspaceID == source.request.workspaceID else {
+            throw GuidedSurveyFlowFailureV1.missingExactSource
+        }
+        switch sessionMutation.payload {
+        case let .applySession(value, definition, publication):
+            guard value == source.session, definition == source.definition,
+                  publication == nil else { throw GuidedSurveyFlowFailureV1.staleSource }
+        case let .publish(value, publication, definition, _):
+            guard value == source.session, definition == source.definition,
+                  source.publication == publication else {
+                throw GuidedSurveyFlowFailureV1.staleSource
+            }
+        default:
+            throw GuidedSurveyFlowFailureV1.staleSource
+        }
+        for capture in source.captures {
+            guard let mutation = try journalStore.surveySessionMutation(
+                mutationID: capture.mutationID
+            ), try journalStore.receipt(mutationID: capture.mutationID) != nil,
+                  mutation.workspaceID == source.request.workspaceID else {
+                throw GuidedSurveyFlowFailureV1.missingExactSource
+            }
+            guard case let .captureFact(value, session, definition, _) = mutation.payload,
+                  value == capture, session.sessionID == source.session.sessionID,
+                  definition == source.definition else {
+                throw GuidedSurveyFlowFailureV1.staleSource
+            }
+        }
+        if let publication = source.publication {
+            guard let mutation = try journalStore.surveySessionMutation(
+                mutationID: publication.mutationID
+            ), try journalStore.receipt(mutationID: publication.mutationID) != nil,
+                  case let .publish(_, value, definition, _) = mutation.payload,
+                  value == publication, definition == source.definition else {
+                throw GuidedSurveyFlowFailureV1.staleSource
+            }
+        }
+    }
 }
 
 extension SurveyDefinitionLifecycleAdapterV1 {

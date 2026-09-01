@@ -1886,6 +1886,63 @@ extension ReportProjectionRegistryV1 {
     }
 }
 
+// MARK: - C20 guided-survey derived surface registry
+
+extension ReportProjectionRegistryV1 {
+    static func c20LibraryDetail(
+        _ row: SurveyDefinitionLibraryRowV1
+    ) throws -> C20SurveyLibraryDetailProjectionV1 {
+        try C20SurveyLibraryDetailProjectionV1(row)
+    }
+
+    static func c20AuthoringDetail(
+        _ policy: SurveyAuthoringPolicyV1
+    ) throws -> C20SurveyAuthoringDetailProjectionV1 {
+        try C20SurveyAuthoringDetailProjectionV1(policy)
+    }
+
+    static func c20SemanticPreviewDetail(
+        _ preview: SurveyDefinitionAdoptionPreviewV1,
+        source: SurveyDefinitionReleaseV1,
+        target: SurveyDefinitionReleaseV1,
+        currentDraftIDs: [UUID],
+        currentActiveWorkCount: Int
+    ) throws -> C20SurveySemanticPreviewDetailProjectionV1 {
+        try C20SurveySemanticPreviewDetailProjectionV1(
+            preview, source: source, target: target,
+            currentDraftIDs: currentDraftIDs,
+            currentActiveWorkCount: currentActiveWorkCount
+        )
+    }
+
+    static func c20FlowDetail(
+        _ flow: GuidedSurveyFlowV1,
+        frozenReport: SurveyPublicationReportProjectionV1?
+    ) throws -> C20GuidedSurveyFlowDetailProjectionV1 {
+        try C20GuidedSurveyFlowDetailProjectionV1(
+            flow: flow, frozenReport: frozenReport
+        )
+    }
+
+    static func c20PromotionConflictDetail(
+        preview: SubjectPromotionPreviewV1,
+        receipt: SubjectPromotionReceiptV1?
+    ) throws -> C20PromotionConflictDetailProjectionV1 {
+        try C20PromotionConflictDetailProjectionV1(
+            preview: preview, receipt: receipt
+        )
+    }
+
+    static func c20AccessibleDocument(
+        _ flow: GuidedSurveyFlowV1,
+        frozenReport: SurveyPublicationReportProjectionV1?
+    ) throws -> C20GuidedSurveyAccessibleDocumentProjectionV1 {
+        try C20GuidedSurveyAccessibleDocumentProjectionV1(
+            flow: flow, frozenReport: frozenReport
+        )
+    }
+}
+
 
 enum PrivateSystemDiscoveryReportProjectionRegistryV1 {
     static let exposesWorkspaceIdentifiers = false

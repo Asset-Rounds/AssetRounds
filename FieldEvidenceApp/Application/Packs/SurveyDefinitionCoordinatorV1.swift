@@ -91,6 +91,77 @@ actor SurveyDefinitionCoordinatorV1 {
         return try await apply(.init(identity: identity, release: release, event: event))
     }
 
+    /// A duplicate is deliberately a new draft identity.  It never rewrites
+    /// the source definition or turns an imported/archive value into a live
+    /// definition without the normal canonical writer transaction.
+    func duplicateAsDraft(
+        policy: SurveyAuthoringPolicyV1,
+        sourceIdentity: SurveyDefinitionIdentityV1,
+        sourceRelease: SurveyDefinitionReleaseV1,
+        sourceEvent: SurveyDefinitionLifecycleEventV1,
+        identity: SurveyDefinitionIdentityV1,
+        release: SurveyDefinitionReleaseV1,
+        event: SurveyDefinitionLifecycleEventV1
+    ) async throws -> SurveyDefinitionMutationReceiptV1 {
+        try policy.validate()
+        try sourceIdentity.validate(currentRelease: sourceRelease, event: sourceEvent)
+        guard sourceIdentity.workspaceID == identity.workspaceID,
+              sourceRelease.workspaceID == release.workspaceID,
+              sourceIdentity.definitionID != identity.definitionID,
+              identity.lifecycleState == .draft,
+              identity.revision == 1,
+              release.revision == 1,
+              event.action == .duplicateAsDraft,
+              event.sourceDefinitionID == sourceIdentity.definitionID,
+              event.sourceReleaseID == sourceRelease.releaseID,
+              event.sourceReleaseSHA256 == sourceRelease.releaseSHA256 else {
+            throw SurveyDefinitionFailureV1.invalidTransition
+        }
+        return try await apply(.init(identity: identity, release: release, event: event))
+    }
+
+    /// Publication is an immutable lifecycle successor.  The release is
+    /// retained exactly; the identity/event alone advance from draft.
+    func publish(
+        previousIdentity: SurveyDefinitionIdentityV1,
+        previousRelease: SurveyDefinitionReleaseV1,
+        previousEvent: SurveyDefinitionLifecycleEventV1,
+        identity: SurveyDefinitionIdentityV1,
+        event: SurveyDefinitionLifecycleEventV1
+    ) async throws -> SurveyDefinitionMutationReceiptV1 {
+        guard previousIdentity.lifecycleState == .draft,
+              identity.lifecycleState == .published,
+              event.action == .publish else {
+            throw SurveyDefinitionFailureV1.invalidTransition
+        }
+        return try await applySuccessor(
+            previousIdentity: previousIdentity, previousRelease: previousRelease,
+            previousEvent: previousEvent, identity: identity,
+            release: previousRelease, event: event
+        )
+    }
+
+    /// Retirement is likewise a successor of the published identity and has
+    /// no mutable release payload.
+    func retire(
+        previousIdentity: SurveyDefinitionIdentityV1,
+        previousRelease: SurveyDefinitionReleaseV1,
+        previousEvent: SurveyDefinitionLifecycleEventV1,
+        identity: SurveyDefinitionIdentityV1,
+        event: SurveyDefinitionLifecycleEventV1
+    ) async throws -> SurveyDefinitionMutationReceiptV1 {
+        guard previousIdentity.lifecycleState == .published,
+              identity.lifecycleState == .retired,
+              event.action == .retire else {
+            throw SurveyDefinitionFailureV1.invalidTransition
+        }
+        return try await applySuccessor(
+            previousIdentity: previousIdentity, previousRelease: previousRelease,
+            previousEvent: previousEvent, identity: identity,
+            release: previousRelease, event: event
+        )
+    }
+
     func applySuccessor(
         previousIdentity: SurveyDefinitionIdentityV1,
         previousRelease: SurveyDefinitionReleaseV1,
@@ -145,6 +216,9 @@ actor SurveyDefinitionCoordinatorV1 {
         return try await apply(.init(identity: identity, release: currentTarget, event: event))
     }
 
+    /// Compatibility entry point retained for incumbent quarantine callers.
+    /// The closed C20 authoring policy is still enforced before any writer
+    /// submission.
     func importAsNewDraft(
         candidate: SurveyTemplateQuarantineCandidateV1,
         newDefinitionID: UUID,
@@ -155,6 +229,26 @@ actor SurveyDefinitionCoordinatorV1 {
         mutationID: MutationIDV1,
         recordedAt: Date
     ) async throws -> SurveyDefinitionMutationReceiptV1 {
+        try await importAsNewDraft(
+            policy: try SurveyAuthoringPolicyV1(), candidate: candidate,
+            newDefinitionID: newDefinitionID, newReleaseID: newReleaseID,
+            newEventID: newEventID, workspaceID: workspaceID, actor: actor,
+            mutationID: mutationID, recordedAt: recordedAt
+        )
+    }
+
+    func importAsNewDraft(
+        policy: SurveyAuthoringPolicyV1,
+        candidate: SurveyTemplateQuarantineCandidateV1,
+        newDefinitionID: UUID,
+        newReleaseID: UUID,
+        newEventID: UUID,
+        workspaceID: WorkspaceID,
+        actor: ActorSnapshotV1,
+        mutationID: MutationIDV1,
+        recordedAt: Date
+    ) async throws -> SurveyDefinitionMutationReceiptV1 {
+        try policy.validate()
         let source = candidate.importedRelease
         guard newDefinitionID != source.definitionID,
               newReleaseID != source.releaseID,

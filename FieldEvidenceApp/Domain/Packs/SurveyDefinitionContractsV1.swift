@@ -372,6 +372,93 @@ struct SurveyTemplateQuarantineAssessmentV1:Codable,Equatable,Sendable{let quara
 enum SurveyDefinitionCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];e.dateEncodingStrategy = .millisecondsSince1970;let d=try e.encode(value);guard !d.isEmpty,d.count<=SurveyDefinitionLimitsV1.maximumCanonicalBytes else{throw SurveyDefinitionFailureV1.limitExceeded};return d}static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=SurveyDefinitionLimitsV1.maximumCanonicalBytes else{throw SurveyDefinitionFailureV1.limitExceeded};let d=JSONDecoder();d.dateDecodingStrategy = .millisecondsSince1970;let v=try d.decode(type,from:data);guard try encode(v)==data else{throw SurveyDefinitionFailureV1.invalidDigest};return v}}
 enum SurveyDefinitionLifecycleV1{static let persistentFamilies=["SurveyDefinitionIdentityV1","SurveyDefinitionReleaseV1"];static let lifecycleEventPersistence="CANONICAL_MUTATION_JOURNAL_ENVELOPE";static let semanticDiffPersistence="NONPERSISTENT";static let adoptionPreviewPersistence="NONPERSISTENT";static let quarantinePersistence="DERIVED_ONLY";static let writer="SOLE_CANONICAL_WORKSPACE_WRITER";static let importDisposition="QUARANTINE_THEN_NEW_DRAFT_IDENTITY"}
 
+struct SurveyDefinitionDeviceLocalOverlayV1: Codable, Equatable, Hashable, Sendable {
+    let definitionID: UUID
+    let favorite: Bool
+    let recentOrdinal: Int?
+    func validate() throws {
+        guard definitionID != SurveyDefinitionLimitsV1.zero,
+              recentOrdinal.map({ $0 >= 0 }) ?? true else {
+            throw SurveyDefinitionFailureV1.invalidValue
+        }
+    }
+}
+
+struct SurveyDefinitionLibraryRowV1: Codable, Equatable, Sendable {
+    static let persistenceMode = "DERIVED_WITH_DEVICE_LOCAL_OVERLAY"
+    let identity: SurveyDefinitionIdentityV1
+    let release: SurveyDefinitionReleaseReferenceV1
+    let lifecycleState: SurveyDefinitionLifecycleStateV1
+    let favorite: Bool
+    let recentOrdinal: Int?
+    let availableActions: [SurveyDefinitionLibraryActionV1]
+
+    init(identity: SurveyDefinitionIdentityV1, release: SurveyDefinitionReleaseV1,
+         event: SurveyDefinitionLifecycleEventV1,
+         overlay: SurveyDefinitionDeviceLocalOverlayV1?) throws {
+        try identity.validate(currentRelease: release, event: event); try overlay?.validate()
+        guard overlay?.definitionID == nil || overlay?.definitionID == identity.definitionID else {
+            throw SurveyDefinitionFailureV1.wrongWorkspace
+        }
+        self.identity = identity; self.release = try .init(release)
+        lifecycleState = identity.lifecycleState; favorite = overlay?.favorite ?? false
+        recentOrdinal = overlay?.recentOrdinal
+        let actions: [SurveyDefinitionLibraryActionV1]
+        let favoriteAction: SurveyDefinitionLibraryActionV1 = favorite ? .unfavorite : .favorite
+        switch lifecycleState {
+        case .draft:
+            actions = [.open, favoriteAction, .duplicateAsDraft,
+                                .publish, .export, .importAsFreshDraft,
+                                .previewSemanticAdoption]
+        case .published:
+            actions = [.open, favoriteAction, .duplicateAsDraft,
+                                .retire, .export, .importAsFreshDraft,
+                                .previewSemanticAdoption]
+        case .retired:
+            actions = [.open, favoriteAction, .duplicateAsDraft,
+                                .export, .importAsFreshDraft]
+        }
+        availableActions = actions.sorted { $0.rawValue < $1.rawValue }
+        guard Set(availableActions).count == availableActions.count else {
+            throw SurveyDefinitionFailureV1.invalidValue
+        }
+    }
+}
+
+struct SurveyTemplateExportPlanV1: Codable, Equatable, Sendable {
+    static let persistenceMode = "NONPERSISTENT_FILE_WRITE_PLAN"
+    let definitionRelease: SurveyDefinitionReleaseReferenceV1
+    let canonicalReleaseSHA256: String
+    let fileExtension: String
+    let manifest: SurveyTemplateArchiveManifestV1
+
+    init(release: SurveyDefinitionReleaseV1, archiveID: UUID,
+         entries: [SurveyTemplateArchiveEntryV1], archiveByteCount: Int64,
+         archiveSHA256: String) throws {
+        try release.validate()
+        definitionRelease = try .init(release)
+        canonicalReleaseSHA256 = KernelCanonicalHashV1.sha256(
+            try SurveyDefinitionCanonicalCodecV1.encode(release)
+        )
+        fileExtension = SurveyTemplateArchiveManifestV1.fileExtension
+        manifest = try .init(archiveID: archiveID, definitionRelease: definitionRelease,
+                             entries: entries, archiveByteCount: archiveByteCount,
+                             archiveSHA256: archiveSHA256)
+        try validate(release: release)
+    }
+
+    func validate(release: SurveyDefinitionReleaseV1) throws {
+        try release.validate(); try manifest.validate()
+        guard definitionRelease == (try SurveyDefinitionReleaseReferenceV1(release)),
+              canonicalReleaseSHA256 == KernelCanonicalHashV1.sha256(
+                try SurveyDefinitionCanonicalCodecV1.encode(release)
+              ), fileExtension == "arsurveytemplate",
+              manifest.definitionRelease == definitionRelease else {
+            throw SurveyDefinitionFailureV1.invalidDigest
+        }
+    }
+}
+
 /// C29 typed integration anchor: this owner consumes an exact immutable plan
 /// revision reference and may not reinterpret current plan state implicitly.
 enum C29PlanIntegration_Domain_Packs_SurveyDefinitionContractsV1 {

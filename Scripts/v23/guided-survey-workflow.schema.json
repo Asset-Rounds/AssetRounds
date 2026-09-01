@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "V23 P04 C20 Guided Survey Workflow generated artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schemaVersion", "cardID", "provisional", "authority", "statusFlags"],
+  "properties": {
+    "schema": {"type": "string", "minLength": 1},
+    "schemaVersion": {"const": 1},
+    "cardID": {"const": "V23-P04-C20"},
+    "provisional": {"const": true},
+    "authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cardID", "appBaseHead", "appBaseTree", "coordinationHead", "coordinationTree", "sequence", "contextDigest", "pathFenceDigest", "allocationDigest", "prerequisiteDigest", "transitionDigest", "ledgerDigest", "projectionDigest", "finalHashesSealed", "fencePathCount", "existingPathCount", "newPathCount", "authorizedOverlapCount", "s10OverlapCount"],
+      "properties": {
+        "cardID": {"const": "V23-P04-C20"}, "appBaseHead": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "appBaseTree": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "coordinationHead": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "coordinationTree": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "sequence": {"const": 467}, "contextDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "pathFenceDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "allocationDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "prerequisiteDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "transitionDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "ledgerDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "projectionDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "finalHashesSealed": {"const": true}, "fencePathCount": {"const": 29}, "existingPathCount": {"const": 15}, "newPathCount": {"const": 14}, "authorizedOverlapCount": {"const": 57}, "s10OverlapCount": {"const": 0}
+      }
+    },
+    "statusFlags": {"type": "object", "additionalProperties": {"const": false}}
+  }
+}

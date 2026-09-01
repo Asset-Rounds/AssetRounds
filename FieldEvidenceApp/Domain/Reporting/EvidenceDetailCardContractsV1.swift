@@ -2381,3 +2381,161 @@ enum C57MyDayEvidenceDetailProjectionGuardV1 {
         }
     }
 }
+
+// MARK: - C20 guided-survey library and flow detail
+
+struct C20SurveyLibraryDetailProjectionV1: Codable, Equatable, Sendable {
+    static let persistenceMode = "DERIVED_ONLY"
+    let workspaceID: WorkspaceID
+    let definitionID: UUID
+    let release: SurveyDefinitionReleaseReferenceV1
+    let lifecycleState: SurveyDefinitionLifecycleStateV1
+    let favorite: Bool
+    let recentOrdinal: Int?
+    let availableActions: [SurveyDefinitionLibraryActionV1]
+
+    init(_ row: SurveyDefinitionLibraryRowV1) throws {
+        try row.identity.validateIntrinsic(); try row.release.validate()
+        workspaceID = row.identity.workspaceID
+        definitionID = row.identity.definitionID; release = row.release
+        lifecycleState = row.lifecycleState; favorite = row.favorite
+        recentOrdinal = row.recentOrdinal; availableActions = row.availableActions
+        guard Self.persistenceMode == "DERIVED_ONLY",
+              lifecycleState == row.identity.lifecycleState,
+              release == row.identity.currentRelease,
+              Set(availableActions).count == availableActions.count,
+              recentOrdinal.map({ $0 >= 0 }) ?? true else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+    }
+}
+
+struct C20SurveyAuthoringDetailProjectionV1: Codable, Equatable, Sendable {
+    let policySHA256: String
+    let allowedFieldKinds: [SurveyFieldKindV1]
+    let genericEAVAllowed: Bool
+    let scriptingAllowed: Bool
+    let passFailAllowed: Bool
+    let privateDirectionFieldAllowed: Bool
+    let importDisposition: String
+
+    init(_ policy: SurveyAuthoringPolicyV1) throws {
+        try policy.validate()
+        policySHA256 = policy.policySHA256; allowedFieldKinds = policy.allowedFieldKinds
+        genericEAVAllowed = policy.allowsGenericEAV; scriptingAllowed = policy.allowsScripting
+        passFailAllowed = policy.allowsPassFail
+        privateDirectionFieldAllowed = policy.allowsPrivateDirectionField
+        importDisposition = policy.importDisposition
+    }
+}
+
+struct C20SurveySemanticPreviewDetailProjectionV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let source: SurveyDefinitionReleaseReferenceV1
+    let target: SurveyDefinitionReleaseReferenceV1
+    let changeKinds: [SurveySemanticChangeKindV1]
+    let compatibility: SurveySemanticCompatibilityV1
+    let disposition: SurveyAdoptionDispositionV1
+    let affectedDraftCount: Int
+    let pinnedActiveWorkCount: Int
+    let diffSHA256: String
+    let previewSHA256: String
+
+    init(_ preview: SurveyDefinitionAdoptionPreviewV1,
+         source: SurveyDefinitionReleaseV1,
+         target: SurveyDefinitionReleaseV1,
+         currentDraftIDs: [UUID],
+         currentActiveWorkCount: Int) throws {
+        try preview.validate(source: source, target: target,
+                             currentDraftIDs: currentDraftIDs,
+                             currentActiveWorkCount: currentActiveWorkCount)
+        workspaceID = preview.workspaceID
+        self.source = preview.semanticDiff.source; self.target = preview.semanticDiff.target
+        changeKinds = preview.semanticDiff.changes.map(\.kind)
+        compatibility = preview.semanticDiff.compatibility; disposition = preview.disposition
+        affectedDraftCount = preview.affectedDraftIDs.count
+        pinnedActiveWorkCount = preview.pinnedActiveWorkCount
+        diffSHA256 = preview.semanticDiff.diffSHA256; previewSHA256 = preview.previewSHA256
+    }
+}
+
+struct C20GuidedSurveyFlowDetailProjectionV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let definition: SurveyDefinitionReleaseReferenceV1
+    let definitionState: SurveyDefinitionLifecycleStateV1
+    let sessionID: UUID
+    let sessionRevision: UInt64
+    let sessionSHA256: String
+    let stage: GuidedSurveyStageV1
+    let progressMillionths: Int64
+    let missingRequirementCount: Int
+    let conflictFactIDs: [String]
+    let primaryAction: GuidedSurveyPrimaryActionV1
+    let reviewSHA256: String
+    let flowSHA256: String
+    let frozenPublication: SurveyPublicationReferenceV1?
+    let frozenReportProjection: SurveyPublicationReportProjectionV1?
+    let passFailClaimed: Bool
+    let poseDirectionInferred: Bool
+
+    init(flow: GuidedSurveyFlowV1,
+         frozenReport: SurveyPublicationReportProjectionV1?) throws {
+        try flow.validate(); try frozenReport?.validate()
+        if let publication = flow.review.frozenPublication {
+            guard let frozenReport,
+                  frozenReport.workspaceID == flow.workspaceID,
+                  frozenReport.sessionID == flow.sessionID,
+                  frozenReport.sessionRevision == flow.sessionRevision,
+                  frozenReport.snapshotID == publication.snapshotID,
+                  frozenReport.publicationRevision == publication.revision,
+                  frozenReport.publicationSHA256 == publication.snapshotSHA256,
+                  frozenReport.definitionReleaseID == flow.definition.releaseID,
+                  frozenReport.definitionRevision == flow.definition.revision,
+                  frozenReport.definitionSHA256 == flow.definition.releaseSHA256 else {
+                throw SnapshotProjectionFailureV1.missingBinding
+            }
+        } else if frozenReport != nil {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        workspaceID = flow.workspaceID
+        definition = flow.definition; definitionState = flow.definitionState
+        sessionID = flow.sessionID; sessionRevision = flow.sessionRevision
+        sessionSHA256 = flow.sessionSHA256; stage = flow.stage
+        progressMillionths = flow.sectionProgressMillionths
+        missingRequirementCount = flow.missingRequirements.count
+        conflictFactIDs = flow.review.conflictFactIDs
+        primaryAction = flow.primaryAction; reviewSHA256 = flow.review.reviewSHA256
+        flowSHA256 = flow.flowSHA256; frozenPublication = flow.review.frozenPublication
+        frozenReportProjection = frozenReport
+        passFailClaimed = false; poseDirectionInferred = false
+    }
+}
+
+struct C20PromotionConflictDetailProjectionV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let provisionalSubject: ProvisionalSubjectReferenceV1
+    let canonicalSubject: WorkSubjectReferenceV1
+    let previewSHA256: String
+    let action: SubjectPromotionActionV1
+    let affectedSessionIDs: [UUID]
+    let safeToReverse: Bool
+    let receiptSHA256: String?
+    let explicitReviewStillRequired: Bool
+
+    init(preview: SubjectPromotionPreviewV1,
+         receipt: SubjectPromotionReceiptV1?) throws {
+        try preview.validate(); try receipt?.validateIntrinsic()
+        if let receipt {
+            let reconstructed = try receipt.reconstructedPreview
+            guard reconstructed == preview else {
+                throw SnapshotProjectionFailureV1.projectionDisagreement
+            }
+        }
+        workspaceID = preview.workspaceID
+        provisionalSubject = preview.provisionalSubject
+        canonicalSubject = preview.canonicalSubject
+        previewSHA256 = preview.previewSHA256; action = preview.action
+        affectedSessionIDs = preview.affectedSessionIDs; safeToReverse = preview.safeToReverse
+        receiptSHA256 = receipt?.receiptSHA256; explicitReviewStillRequired = receipt == nil
+    }
+}

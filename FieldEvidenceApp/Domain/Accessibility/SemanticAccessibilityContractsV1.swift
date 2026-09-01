@@ -3418,3 +3418,55 @@ enum C16ShellAccessibilityPolicyV1 {
         }
     }
 }
+// MARK: - C20 guided-survey flow accessibility
+
+enum GuidedSurveyFlowAccessibilityIDV1: String, CaseIterable, Codable, Sendable {
+    case screen = "survey.template.flow.screen"
+    case run = "survey.template.action.run"
+    case resume = "survey.template.action.resume"
+    case review = "survey.template.action.review"
+    case report = "survey.template.action.report"
+    case manualPath = "survey.template.manual_path"
+    case interruption = "survey.template.interruption"
+    case primaryAction = "survey.template.primary_action"
+    case frozenReport = "survey.template.report.frozen"
+    case reviewConflict = "survey.template.review.conflict"
+    case promotionConflict = "survey.template.promotion.conflict"
+    case claimBoundary = "survey.template.claim_boundary"
+
+    var localizationKey: SurveyDefinitionLocalizationKeyV1 {
+        switch self {
+        case .screen: return .libraryHeading
+        case .run: return .actionRun
+        case .resume: return .actionResume
+        case .review: return .actionReview
+        case .report: return .actionReport
+        case .manualPath: return .manualPath
+        case .interruption: return .interruption
+        case .primaryAction: return .primaryAction
+        case .frozenReport: return .frozenReport
+        case .reviewConflict: return .reviewConflict
+        case .promotionConflict: return .promotionConflict
+        case .claimBoundary: return .flowClaimBoundary
+        }
+    }
+}
+
+enum GuidedSurveyFlowAccessibilityPolicyV1 {
+    static let semanticIDs = GuidedSurveyFlowAccessibilityIDV1.allCases.map(\.rawValue)
+    static let onePrimaryActionRequired = true
+    static let manualPathRequired = true
+    static let errorFocusRequired = true
+    static let nonColorStateRequired = true
+    static let poseDirectionMayBeInferred = false
+    static let passFailClaimAllowed = false
+
+    static func validate() throws {
+        guard semanticIDs.count == Set(semanticIDs).count,
+              onePrimaryActionRequired, manualPathRequired,
+              errorFocusRequired, nonColorStateRequired,
+              !poseDirectionMayBeInferred, !passFailClaimAllowed else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

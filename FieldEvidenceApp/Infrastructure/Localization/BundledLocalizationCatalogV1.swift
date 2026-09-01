@@ -4599,9 +4599,15 @@ extension BundledLocalizationCatalogV1 {
             let role: SemanticAccessibilityRoleV1
             switch id {
             case .screen: role = .screen
-            case .heading: role = .heading
-            case .nextStep: role = .button
-            case .lifecycle, .notObserved, .claimBoundary: role = .status
+            case .heading, .library, .semanticPreview: role = .heading
+            case .nextStep, .browse, .search, .favorites, .recents,
+                 .duplicate, .publish, .retire, .export,
+                 .importAsDraft: role = .button
+            case .lifecycle, .notObserved, .claimBoundary,
+                 .compatibilityNoChange, .compatibilityAdditiveDraftSafe,
+                 .compatibilityDraftMigrationRequired,
+                 .compatibilityActiveWorkPinned,
+                 .compatibilityBlocked: role = .status
             default: role = .group
             }
             let labelKey = try LocalizationKeyV1(id.localizationKey.rawValue)
@@ -4624,7 +4630,29 @@ extension BundledLocalizationCatalogV1 {
                 deprecatedAliases: []
             )
         }
-        return try base.appending(entries, localization: localization)
+        try GuidedSurveyFlowAccessibilityPolicyV1.validate()
+        let flowEntries = try GuidedSurveyFlowAccessibilityIDV1.allCases.map { id
+            -> AccessibilityContractV1 in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .run, .resume, .review, .report, .primaryAction: role = .button
+            case .interruption, .frozenReport, .reviewConflict,
+                 .promotionConflict, .claimBoundary: role = .status
+            case .manualPath: role = .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: try LocalizationKeyV1(id.localizationKey.rawValue),
+                hintKey: nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries + flowEntries, localization: localization)
     }
 
     static func surveyDefinitionDisplayLabel(

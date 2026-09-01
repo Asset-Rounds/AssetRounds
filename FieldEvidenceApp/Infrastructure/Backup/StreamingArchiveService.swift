@@ -621,6 +621,67 @@ struct StreamingArchiveService: Sendable {
         }
     }
 
+    /// C20 uses the incumbent streaming writer for `.arsurveytemplate` bytes.
+    /// The export plan contains no new persistence authority: it only binds
+    /// the exact canonical release and the manifest expected from this one
+    /// generic archive write.
+    func writeSurveyTemplate(
+        _ export: SurveyTemplateExportPlanV1,
+        release: SurveyDefinitionReleaseV1,
+        archivePlan: StreamingArchiveWritePlanV1,
+        to destinationURL: URL,
+        cancellation: StreamingArchiveCancellationV1 = .none,
+        storageCheck: (Int64) throws -> Void = { _ in }
+    ) throws -> StreamingArchiveWriteReceiptV1 {
+        try export.validate(release: release)
+        guard pathProfile == .surveyTemplate,
+              destinationURL.isFileURL,
+              destinationURL.pathExtension == export.fileExtension else {
+            throw StreamingArchiveFailureV1.invalidDestination
+        }
+        let receipt = try write(
+            archivePlan, to: destinationURL, cancellation: cancellation,
+            storageCheck: storageCheck
+        )
+        let entries = receipt.index.entries.map {
+            SurveyTemplateArchiveEntryV1(
+                path: $0.path, mediaType: $0.mimeType,
+                byteCount: $0.uncompressedByteCount, sha256: $0.contentSHA256,
+                compressedByteCount: $0.storedByteCount, storedSHA256: $0.storedSHA256
+            )
+        }.sorted { $0.path < $1.path }
+        guard receipt.archiveSHA256 == export.manifest.archiveSHA256,
+              receipt.index.uncompressedPayloadByteCount == export.manifest.archiveByteCount,
+              entries == export.manifest.entries else {
+            throw StreamingArchiveFailureV1.invalidArchive
+        }
+        return receipt
+    }
+
+    func writeSurveyTemplateOffMain(
+        _ export: SurveyTemplateExportPlanV1,
+        release: SurveyDefinitionReleaseV1,
+        archivePlan: StreamingArchiveWritePlanV1,
+        to destinationURL: URL,
+        context: ResumableLocalJobExecutionContextV1? = nil,
+        storageCheck: @escaping @Sendable (Int64) throws -> Void = { _ in }
+    ) async throws -> StreamingArchiveWriteReceiptV1 {
+        try export.validate(release: release)
+        try await context?.cancellationBoundary()
+        try context?.validateGenerationLease()
+        let taskContext = context
+        return try await BackupOffMainWorkV1.run {
+            try self.writeSurveyTemplate(
+                export, release: release, archivePlan: archivePlan,
+                to: destinationURL,
+                cancellation: StreamingArchiveCancellationV1 {
+                    guard !Task.isCancelled else { throw StreamingArchiveFailureV1.cancelled }
+                    try taskContext?.validateGenerationLease()
+                }, storageCheck: storageCheck
+            )
+        }
+    }
+
     func extract(
         _ archiveURL: URL,
         to extractedDirectoryURL: URL,

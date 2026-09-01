@@ -2235,37 +2235,88 @@ extension SearchIndexRebuildCoordinatorV1 {
     /// prompt, locator, or actor value is accepted by this consumer.
     static func surveyDefinitionSearchRecords(
         from releases: [SurveyDefinitionReleaseV1],
+        identities: [SurveyDefinitionIdentityV1]
+    ) throws -> [SurveyDefinitionSearchRecordV1] {
+        try SurveyDefinitionSearchPersistencePolicyV1().validate()
+        guard releases.count <= 4_096, identities.count <= 4_096 else {
+            throw SurveyDefinitionConsumerFailureV1.limitExceeded
+        }
+        try releases.forEach { try $0.validate() }
+        try identities.forEach { try $0.validateIntrinsic() }
+
+        let sortedReleases = releases.sorted {
+            $0.releaseID.uuidString.lowercased() < $1.releaseID.uuidString.lowercased()
+        }
+        let sortedIdentities = identities.sorted {
+            $0.definitionID.uuidString.lowercased() < $1.definitionID.uuidString.lowercased()
+        }
+        guard Set(sortedReleases.map(\.releaseID)).count == sortedReleases.count,
+              Set(sortedIdentities.map(\.definitionID)).count == sortedIdentities.count else {
+            throw SurveyDefinitionConsumerFailureV1.duplicateIdentity
+        }
+
+        let releasesByID = Dictionary(uniqueKeysWithValues: sortedReleases.map { ($0.releaseID, $0) })
+        let records = try sortedIdentities.map { identity in
+            guard let release = releasesByID[identity.currentRelease.releaseID],
+                  release.workspaceID == identity.workspaceID,
+                  release.definitionID == identity.definitionID,
+                  release.activityKind == identity.activityKind,
+                  identity.currentRelease == (try SurveyDefinitionReleaseReferenceV1(release)) else {
+                throw SurveyDefinitionConsumerFailureV1.staleBinding
+            }
+            return try LocalSearchIndexStoreV1.surveyDefinitionSearchRecord(
+                from: release,
+                lifecycleState: identity.lifecycleState
+            )
+        }
+        return records.sorted { $0.releaseID < $1.releaseID }
+    }
+
+    /// Binds the C20 derived library to the same current-tip rebuild without
+    /// admitting favorite/recent overlay values into search rows.
+    static func surveyDefinitionSearchRecords(
+        from releases: [SurveyDefinitionReleaseV1],
+        libraryRows: [SurveyDefinitionLibraryRowV1],
+        authoringPolicy: SurveyAuthoringPolicyV1
+    ) throws -> [SurveyDefinitionSearchRecordV1] {
+        try authoringPolicy.validate()
+        guard libraryRows.count <= 4_096,
+              Set(libraryRows.map { $0.identity.definitionID }).count == libraryRows.count else {
+            throw SurveyDefinitionConsumerFailureV1.duplicateIdentity
+        }
+        try libraryRows.forEach { row in
+            try row.identity.validateIntrinsic()
+            try row.release.validate()
+            guard row.identity.currentRelease == row.release,
+                  row.identity.lifecycleState == row.lifecycleState else {
+                throw SurveyDefinitionConsumerFailureV1.staleBinding
+            }
+        }
+        return try surveyDefinitionSearchRecords(
+            from: releases,
+            identities: libraryRows.map(\.identity)
+        )
+    }
+
+    /// Compatibility entry point retained for source compatibility. A state
+    /// map cannot prove which immutable release is current, so any nonempty
+    /// request fails closed and must use the identity-bound overload above.
+    static func surveyDefinitionSearchRecords(
+        from releases: [SurveyDefinitionReleaseV1],
         lifecycleStates: [UUID: SurveyDefinitionLifecycleStateV1]
     ) throws -> [SurveyDefinitionSearchRecordV1] {
         try SurveyDefinitionSearchPersistencePolicyV1().validate()
         guard releases.count <= 4_096 else {
             throw SurveyDefinitionConsumerFailureV1.limitExceeded
         }
-        let sorted = releases.sorted {
-            $0.releaseID.uuidString.lowercased() < $1.releaseID.uuidString.lowercased()
+        guard releases.isEmpty, lifecycleStates.isEmpty else {
+            throw SurveyDefinitionConsumerFailureV1.staleBinding
         }
-        guard Set(sorted.map(\.releaseID)).count == sorted.count else {
-            throw SurveyDefinitionConsumerFailureV1.duplicateIdentity
-        }
-        let records = try sorted.map { release in
-            guard let state = lifecycleStates[release.definitionID] else {
-                throw SurveyDefinitionConsumerFailureV1.staleBinding
-            }
-            return try LocalSearchIndexStoreV1.surveyDefinitionSearchRecord(
-                from: release,
-                lifecycleState: state
-            )
-        }
-        guard records == records.sorted(by: {
-            $0.releaseID < $1.releaseID
-        }) else {
-            throw SurveyDefinitionConsumerFailureV1.invalidValue
-        }
-        return records
+        return []
     }
 
     static let surveyDefinitionReplayDisposition =
-        "DROP_AND_REBUILD_FROM_CANONICAL_SURVEY_DEFINITION_RELEASES"
+        "DROP_AND_REBUILD_FROM_CANONICAL_SURVEY_DEFINITION_IDENTITY_TIPS"
     static let surveyDefinitionRestoreDisposition =
         "EXCLUDE_INDEX_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
 }
@@ -2291,11 +2342,37 @@ extension SearchIndexRebuildCoordinatorV1 {
             throw SearchContractFailureV1.limitExceeded
         }
 
-        let orderedSessions = sessions.sorted {
+        try sessions.forEach { try $0.validateIntrinsic() }
+        let sessionsByID = Dictionary(grouping: sessions, by: \.sessionID)
+        let orderedSessions = try sessionsByID.values.map { history -> SurveySessionV1 in
+            let ordered = history.sorted {
+                if $0.revision != $1.revision { return $0.revision < $1.revision }
+                return $0.sessionSHA256 < $1.sessionSHA256
+            }
+            guard Set(ordered.map(\.revision)).count == ordered.count,
+                  Set(ordered.map(\.sessionSHA256)).count == ordered.count,
+                  let current = ordered.last else {
+                throw SearchContractFailureV1.duplicateProjection
+            }
+            if ordered.count > 1 {
+                for (prior, successor) in zip(ordered, ordered.dropFirst()) {
+                    guard successor.workspaceID == prior.workspaceID,
+                          successor.sessionID == prior.sessionID,
+                          successor.authority == prior.authority,
+                          successor.activityKind == prior.activityKind,
+                          successor.subject == prior.subject,
+                          successor.startedBy == prior.startedBy,
+                          successor.startedAt == prior.startedAt,
+                          successor.revision == prior.revision + 1,
+                          successor.mutationID != prior.mutationID,
+                          successor.predecessorSessionSHA256 == prior.sessionSHA256 else {
+                        throw SearchContractFailureV1.staleIndex
+                    }
+                }
+            }
+            return current
+        }.sorted {
             $0.sessionID.uuidString.lowercased() < $1.sessionID.uuidString.lowercased()
-        }
-        guard Set(orderedSessions.map(\.sessionID)).count == orderedSessions.count else {
-            throw SearchContractFailureV1.duplicateProjection
         }
 
         var subjectsByID: [UUID: ProvisionalSubjectV1] = [:]
@@ -2328,24 +2405,27 @@ extension SearchIndexRebuildCoordinatorV1 {
                 provisional = nil
             }
             let sessionPublications = publicationsBySession[session.sessionID] ?? []
-            if sessionPublications.isEmpty {
-                records.append(try LocalSearchIndexStoreV1.surveySessionSearchRecord(
-                    from: session,
-                    provisionalSubject: provisional,
-                    factState: factStates[session.sessionID],
-                    publicationState: publicationStates[session.sessionID]
-                ))
-            } else {
-                for publication in sessionPublications {
-                    records.append(try LocalSearchIndexStoreV1.surveySessionSearchRecord(
-                        from: session,
-                        publication: publication,
-                        provisionalSubject: provisional,
-                        factState: factStates[session.sessionID],
-                        publicationState: publicationStates[session.sessionID]
-                    ))
+            let currentPublication: SurveyPublicationSnapshotV1?
+            if let reference = session.latestPublication {
+                let matches = sessionPublications.filter {
+                    $0.snapshotID == reference.snapshotID
+                        && $0.revision == reference.revision
+                        && $0.snapshotSHA256 == reference.snapshotSHA256
                 }
+                guard matches.count <= 1 else {
+                    throw SearchContractFailureV1.duplicateProjection
+                }
+                currentPublication = matches.first
+            } else {
+                currentPublication = nil
             }
+            records.append(try LocalSearchIndexStoreV1.surveySessionSearchRecord(
+                from: session,
+                publication: currentPublication,
+                provisionalSubject: provisional,
+                factState: factStates[session.sessionID],
+                publicationState: publicationStates[session.sessionID]
+            ))
         }
         records.sort { $0.projectionIdentity < $1.projectionIdentity }
         guard Set(records.map(\.projectionIdentity)).count == records.count else {
@@ -2356,7 +2436,7 @@ extension SearchIndexRebuildCoordinatorV1 {
     }
 
     static let surveySessionReplayDisposition =
-        "DROP_AND_REBUILD_FROM_CANONICAL_SURVEY_SESSION_SNAPSHOTS"
+        "DROP_AND_REBUILD_FROM_CANONICAL_SURVEY_SESSION_TERMINAL_TIPS"
     static let surveySessionRestoreDisposition =
         "EXCLUDE_SESSION_ROWS_AND_REBUILD_AFTER_CANONICAL_RESTORE"
 }

@@ -15,13 +15,19 @@ enum C51SurveySessionScheduleLifecycleBoundaryV1 {
 
 /// C26 lifecycle bridge. The journal is the idempotency authority and the
 /// existing workspace writer remains the sole mutation transaction boundary.
-@MainActor final class SurveySessionLifecycleAdapterV1: SurveySessionWritingV1 {
+@MainActor final class SurveySessionLifecycleAdapterV1: SurveySessionWritingV1, GuidedSurveyFlowSourceResolvingV1 {
     private let writer: WorkspaceWriterV1
     private let journalStore: MutationJournalStoreV1
+    private let flowSource: (any GuidedSurveyFlowSourceResolvingV1)?
 
-    init(writer: WorkspaceWriterV1, journalStore: MutationJournalStoreV1) {
+    init(
+        writer: WorkspaceWriterV1,
+        journalStore: MutationJournalStoreV1,
+        flowSource: (any GuidedSurveyFlowSourceResolvingV1)? = nil
+    ) {
         self.writer = writer
         self.journalStore = journalStore
+        self.flowSource = flowSource
     }
 
     func acceptedSurveySessionMutation(
@@ -44,6 +50,74 @@ enum C51SurveySessionScheduleLifecycleBoundaryV1 {
             mutation: mutation,
             mutationReceipt: receipt
         )
+    }
+
+    /// Resolves the core C20 source only by its pinned identity/revision/SHA,
+    /// then proves every returned durable session effect is present in the
+    /// incumbent journal. This intentionally has no latest-session fallback.
+    func resolveExactFlow(
+        _ request: GuidedSurveyFlowRequestV1,
+        using sourceResolver: any GuidedSurveyFlowSourceResolvingV1
+    ) async throws -> GuidedSurveyFlowSourceV1 {
+        let source = try await sourceResolver.source(for: request)
+        try source.validate()
+        guard let sessionMutation = try journalStore.surveySessionMutation(
+            mutationID: source.session.mutationID
+        ), try journalStore.receipt(mutationID: source.session.mutationID) != nil,
+              sessionMutation.workspaceID == request.workspaceID else {
+            throw GuidedSurveyFlowFailureV1.missingExactSource
+        }
+        switch sessionMutation.payload {
+        case let .applySession(value, definition, publication):
+            guard value == source.session, definition == source.definition,
+                  publication == nil else { throw GuidedSurveyFlowFailureV1.staleSource }
+        case let .publish(value, publication, definition, _):
+            guard value == source.session, publication == source.publication,
+                  definition == source.definition else { throw GuidedSurveyFlowFailureV1.staleSource }
+        default:
+            throw GuidedSurveyFlowFailureV1.staleSource
+        }
+        for capture in source.captures {
+            guard let mutation = try journalStore.surveySessionMutation(
+                mutationID: capture.mutationID
+            ), try journalStore.receipt(mutationID: capture.mutationID) != nil,
+                  case let .captureFact(value, session, definition, _) = mutation.payload,
+                  mutation.workspaceID == request.workspaceID,
+                  value == capture, session.sessionID == source.session.sessionID,
+                  definition == source.definition else {
+                throw GuidedSurveyFlowFailureV1.missingExactSource
+            }
+        }
+        if let publication = source.publication {
+            guard let mutation = try journalStore.surveySessionMutation(
+                mutationID: publication.mutationID
+            ), try journalStore.receipt(mutationID: publication.mutationID) != nil,
+                  case let .publish(_, value, definition, _) = mutation.payload,
+                  value == publication, definition == source.definition else {
+                throw GuidedSurveyFlowFailureV1.missingExactSource
+            }
+        }
+        return source
+    }
+
+    /// Production composition supplies the core exact-source adapter here.
+    /// Absent composition fails closed; it never substitutes a current row.
+    func source(for request: GuidedSurveyFlowRequestV1) async throws -> GuidedSurveyFlowSourceV1 {
+        guard let flowSource else { throw GuidedSurveyFlowFailureV1.missingExactSource }
+        return try await resolveExactFlow(request, using: flowSource)
+    }
+
+    func openExactFlow(
+        _ request: GuidedSurveyFlowRequestV1,
+        using sourceResolver: any GuidedSurveyFlowSourceResolvingV1
+    ) async throws -> GuidedSurveyFlowV1 {
+        let source = try await resolveExactFlow(request, using: sourceResolver)
+        return try source.projection()
+    }
+
+    func openExactFlow(_ request: GuidedSurveyFlowRequestV1) async throws -> GuidedSurveyFlowV1 {
+        let source = try await source(for: request)
+        return try source.projection()
     }
 }
 

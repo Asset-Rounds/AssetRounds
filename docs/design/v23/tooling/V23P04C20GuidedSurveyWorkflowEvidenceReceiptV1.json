@@ -1,0 +1,184 @@
+{
+  "authority": {
+    "allocationDigest": "ce937444460ff08c13fc6000c20ece559cf6795903a225617532f37f28fec8f0",
+    "appBaseHead": "1867095815c1b8b5f9fd2be0df884303fa5447e3",
+    "appBaseTree": "ed68387293bd76ac892cd27c6c25a4f58ebdd050",
+    "authorizedOverlapCount": 57,
+    "cardID": "V23-P04-C20",
+    "contextDigest": "a6a8a7f3a2c206605526b475199bedb5bc9cafc13fc8b90c97b096eb8e91744e",
+    "coordinationHead": "4d8c5b95986f8e9220db3a8ca77d4873b7ad31e3",
+    "coordinationTree": "3608c8e1e6fe33db7253bb485e47c11bb3da05bf",
+    "existingPathCount": 15,
+    "fencePathCount": 29,
+    "finalHashesSealed": true,
+    "ledgerDigest": "2ab7e90162c84e64038fa4cefaba5cbb6f1a6f88e8d5d30b52030d9367bea971",
+    "newPathCount": 14,
+    "pathFenceDigest": "07541220f2c3ba690b954234b14073f15277775e1944e2ddc9c763541cb81636",
+    "prerequisiteDigest": "8b6af1031df3fe4c859a19a3027c73c48a4046198b73b5c991b647a9a18ce867",
+    "projectionDigest": "7e07e153b2d11dd0060ababb4b7c93c341a17b5a9e2c613df1d14fe7ed4f492e",
+    "s10OverlapCount": 0,
+    "sequence": 467,
+    "transitionDigest": "075b5c78c24fac90f2747bd42ad31ef89972d9463f5b7deb44dcb0e304bea2f5"
+  },
+  "cardID": "V23-P04-C20",
+  "contractDigest": "6106b13c40e868692230208de0dc04b8ce4208dec6eba441b2d7eea928912f7b",
+  "provisional": true,
+  "schema": "V23P04C20GuidedSurveyWorkflowEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 29,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C20G01TwoReleasesAuthorRunReviewPublishAndOfflineReport",
+      "testV23P04C20A01AllClosedFieldsConditionalRepeatUnknownAndPoseParity",
+      "testV23P04C20H01HostileDefinitionsImportsConflictsAndPrivacyFailClosed",
+      "testV23P04C20I01PauseKillResumeAndPublishRecoveryRemainIdempotent",
+      "testV23P04C20R01RestoreSearchReportAndPromotionPreserveFrozenPublication"
+    ],
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C20",
+        "path": "docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+        "sha256": "dff1da05b257e4233ebaa4d0bf4c92957a63008fda3cc99744b1f1c831845201",
+        "utf8Length": 7333
+      },
+      {
+        "anchor": "V21-P04-C20",
+        "path": "docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+        "sha256": "04e6423fccad7e14ee10306aa9e852ef26be46a2e41ace73d2ff5034b43545ff",
+        "utf8Length": 5862
+      },
+      {
+        "anchor": "V23-P04-C20-register",
+        "path": "docs/design/v23/EXPANSION_V23_FOUNDATION_PLAN.md",
+        "sha256": "a2358435b6bb48cb5f21dab8020c49e4696900a6be82e74d0e2bffc77182bc6e",
+        "utf8Length": 342
+      }
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "FieldEvidenceApp/Application/Packs/SurveyDefinitionCoordinatorV1.swift",
+        "sha256": "4d081d00c3c9b4dec0849594faf08a40ed86cf3d4966986f8c889e939ba87f59",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift",
+        "sha256": "b2c25d4ab3e1857830f4358d02c07f823a309f04c46d6a9b276c91acbad95c6b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Workflow/SurveySessionCoordinatorV1.swift",
+        "sha256": "15971b4a8fe7262c6c94ae2e583018a4aa696c37a153be39afd6c058634f9872",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+        "sha256": "32d849472ad70c17498671e15f35b2ed84f29e1a6606798af215c29ee9bae91f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "sha256": "866946b3b3b525b8d099ebda6bb50d619d6429b102af6593ebdbec6584ffaa4c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift",
+        "sha256": "29a7de7e0efdf546ba87674f5730b62e07f8d5a6329fc93852fc675da0a613cd",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+        "sha256": "a0065b15ef7059867bb00377bd5b97cbcd2e9ac98c74ea0e154297410773f8bb",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift",
+        "sha256": "3edaf65125081e227f8e3c3428875b5a912bf8b8f20677af9ad1b9108b03f046",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift",
+        "sha256": "03cfe4e421016895cd1fd6cef4075eb2ff8ac464e7f888c6d382b649770aae3e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "sha256": "c55b6a937935a1e57a50853000a69eab4cabef8b0916a9054985afe2d9160770",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Packs/SurveyDefinitionLifecycleAdapterV1.swift",
+        "sha256": "b5a7892156cb4fae3b2ae47b98af78c353e63033bb5d6ad6dbdc4bb022462756",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+        "sha256": "db6649567c30d8ca6e4ae3bad778021815140e6550383e44448b39b254124404",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+        "sha256": "2a817b61745b2e01e7934d664362a6a3fb95eb8552dc4f0dbd61c59ab306d094",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Workflow/SurveySessionLifecycleAdapterV1.swift",
+        "sha256": "e31c71f1daf0aafa291a3de75c916da54825f8de0266fd7edafd5cc491f59803",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "sha256": "1b2cb143d21874518d1202ef238e71d5c875bfe2a67248532dd1f351e58fe4ae",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Workflow/GuidedSurveyFlowContractsV1.swift",
+        "sha256": "3e82d5be53ef4410ecaf9a97e9ad25fa8e480c9c86bab385aafe28b1ed4e64fb",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Workflow/GuidedSurveyFlowCoordinatorV1.swift",
+        "sha256": "f27aad32f9645e242cfbe5592c7f15a0f65141e62d0b6df9adacc09955593501",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Workflow/GuidedSurveyFlowLifecycleAdapterV1.swift",
+        "sha256": "9276fa303cc3fbb19f63fe72557be1b518bad282e3e39b71fa18d413d8d0326e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_83GuidedSurveyFlowTests.swift",
+        "sha256": "f896b0fd27c5ca0c038e2ca4324a0f2a677a2ab43f57a7b770c987ed3a480802",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V23/Surveys/V23P04C20GuidedSurveyFlowCorpusV1.json",
+        "sha256": "6aee2280712853cfc24ed08e28d54899951c7fe415c25b741c700a7b943724f9",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C20GuidedSurveyFlowUITests.swift",
+        "sha256": "f8918ea697cb6366bb54b280e07e00b06de82eead3f5661b40e96c95161e5845",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publish": false,
+    "release": false
+  }
+}

@@ -400,6 +400,132 @@ private extension SearchCoordinatorV1 {
 // MARK: - C26 guided-survey session metadata search
 
 extension SearchCoordinatorV1 {
+    private static func searchSurveyDefinitionMetadataAfterAccess(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [SurveyDefinitionSearchRecordV1],
+        identities: [SurveyDefinitionIdentityV1],
+        maximumResults: Int
+    ) throws -> [SurveyDefinitionSearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords,
+              records.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              identities.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              identities.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        try records.forEach { try SurveyDefinitionSearchProjectionPolicyV1.validate($0) }
+        try identities.forEach { try $0.validateIntrinsic() }
+        guard Set(identities.map(\.definitionID)).count == identities.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        let currentByDefinitionID = Dictionary(uniqueKeysWithValues: identities.map {
+            ($0.definitionID.uuidString.lowercased(), $0)
+        })
+        guard records.allSatisfy({ record in
+                  guard let identity = currentByDefinitionID[record.definitionID] else { return false }
+                  return record.releaseID == identity.currentRelease.releaseID.uuidString.lowercased()
+                      && record.releaseRevision == identity.currentRelease.revision
+                      && record.releaseSHA256 == identity.currentRelease.releaseSHA256
+                      && record.lifecycleState == identity.lifecycleState
+              }) else {
+            throw SearchContractFailureV1.staleIndex
+        }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        return Array(records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains {
+                    $0 == queryToken || $0.hasPrefix(queryToken)
+                }
+            }
+        }.sorted { ($0.definitionID, $0.releaseID) < ($1.definitionID, $1.releaseID) }
+            .prefix(maximumResults))
+    }
+
+    /// Searches the derived current-template library only. Identity bindings
+    /// prove workspace scope and prevent a historical release from being
+    /// presented as the current definition. Favorites and recents are caller
+    /// overlays and never enter this index contract.
+    static func searchSurveyDefinitionMetadata(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [SurveyDefinitionSearchRecordV1],
+        identities: [SurveyDefinitionIdentityV1],
+        maximumResults: Int = 100,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> [SurveyDefinitionSearchRecordV1] {
+        let permit = try await accessGate.requireContentAccess(for: .search)
+        guard permit.surface == .search, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: .search, state: permit.state)
+        }
+        return try searchSurveyDefinitionMetadataAfterAccess(
+            query: query,
+            workspaceID: workspaceID,
+            records: records,
+            identities: identities,
+            maximumResults: maximumResults
+        )
+    }
+
+    /// Returns the C20 derived library rows corresponding to current-tip
+    /// search matches. Device-local favorite/recent values may order the
+    /// presentation result but are never copied into an index record.
+    static func searchSurveyDefinitionLibrary(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [SurveyDefinitionSearchRecordV1],
+        libraryRows: [SurveyDefinitionLibraryRowV1],
+        authoringPolicy: SurveyAuthoringPolicyV1,
+        maximumResults: Int = 100,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> [SurveyDefinitionLibraryRowV1] {
+        let permit = try await accessGate.requireContentAccess(for: .search)
+        guard permit.surface == .search, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: .search, state: permit.state)
+        }
+        try authoringPolicy.validate()
+        guard libraryRows.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              libraryRows.allSatisfy({ $0.identity.workspaceID == workspaceID }),
+              Set(libraryRows.map { $0.identity.definitionID }).count == libraryRows.count else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        try libraryRows.forEach { row in
+            try row.identity.validateIntrinsic()
+            try row.release.validate()
+            guard row.identity.currentRelease == row.release,
+                  row.identity.lifecycleState == row.lifecycleState else {
+                throw SearchContractFailureV1.staleIndex
+            }
+        }
+        let matches = try searchSurveyDefinitionMetadataAfterAccess(
+            query: query,
+            workspaceID: workspaceID,
+            records: records,
+            identities: libraryRows.map(\.identity),
+            maximumResults: SearchContractLimitsV1.maximumCanonicalRecords
+        )
+        let matchedIDs = Set(matches.map(\.definitionID))
+        let ordered = libraryRows.filter {
+            matchedIDs.contains($0.identity.definitionID.uuidString.lowercased())
+        }.sorted {
+            if $0.favorite != $1.favorite { return $0.favorite && !$1.favorite }
+            switch ($0.recentOrdinal, $1.recentOrdinal) {
+            case let (left?, right?) where left != right: return left < right
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default:
+                return $0.identity.definitionID.uuidString.lowercased()
+                    < $1.identity.definitionID.uuidString.lowercased()
+            }
+        }
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        return Array(ordered.prefix(maximumResults))
+    }
+
     /// Searches only the C26 disposable metadata rows.  This path is kept
     /// separate from the general index response so it cannot accidentally
     /// surface answers, prompts, actor identity, or evidence references.
@@ -429,6 +555,94 @@ extension SearchCoordinatorV1 {
         }
         return Array(matches.prefix(maximumResults))
     }
+
+    /// Access is checked before scope, record, or query validation so a denied
+    /// caller cannot probe another workspace through error differences.
+    static func searchSurveySessionMetadata(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [SurveySessionSearchRecordV1],
+        maximumResults: Int = 100,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> [SurveySessionSearchRecordV1] {
+        let permit = try await accessGate.requireContentAccess(for: .search)
+        guard permit.surface == .search, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: .search, state: permit.state)
+        }
+        guard records.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              records.allSatisfy({ $0.workspaceID == workspaceID.rawValue }) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        return try searchSurveySessionMetadata(
+            query: query,
+            records: records,
+            maximumResults: maximumResults
+        )
+    }
+
+    /// Resolves session metadata matches to C20 nonpersistent flow projections.
+    /// Exact session revision and definition bindings prevent a historic flow
+    /// from being surfaced as current; overlay ordering remains device-local.
+    static func searchGuidedSurveyFlows(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [SurveySessionSearchRecordV1],
+        flows: [GuidedSurveyFlowV1],
+        authoringPolicy: SurveyAuthoringPolicyV1,
+        maximumResults: Int = 100,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> [GuidedSurveyFlowV1] {
+        let permit = try await accessGate.requireContentAccess(for: .search)
+        guard permit.surface == .search, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: .search, state: permit.state)
+        }
+        try authoringPolicy.validate()
+        try flows.forEach { try $0.validate() }
+        guard flows.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              flows.allSatisfy({ $0.workspaceID == workspaceID }),
+              Set(flows.map(\.sessionID)).count == flows.count,
+              records.allSatisfy({ $0.workspaceID == workspaceID.rawValue }),
+              Set(records.map(\.sessionID)).count == records.count else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        let recordsBySessionID = Dictionary(uniqueKeysWithValues: records.map { ($0.sessionID, $0) })
+        guard flows.allSatisfy({ flow in
+                  guard let record = recordsBySessionID[flow.sessionID] else { return false }
+                  return record.sessionRevision == flow.sessionRevision
+                      && record.definitionID == flow.definition.definitionID
+                      && record.definitionReleaseID == flow.definition.releaseID
+              }) else {
+            throw SearchContractFailureV1.staleIndex
+        }
+        let matches = try searchSurveySessionMetadata(
+            query: query,
+            records: records,
+            maximumResults: SearchContractLimitsV1.maximumCanonicalRecords
+        )
+        let matchedIDs = Set(matches.map(\.sessionID))
+        let ordered = flows.filter { matchedIDs.contains($0.sessionID) }.sorted {
+            if $0.favorite != $1.favorite { return $0.favorite && !$1.favorite }
+            switch ($0.recentOrdinal, $1.recentOrdinal) {
+            case let (left?, right?) where left != right: return left < right
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return $0.sessionID.uuidString < $1.sessionID.uuidString
+            }
+        }
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        return Array(ordered.prefix(maximumResults))
+    }
+}
+
+enum C20GuidedSurveySearchBoundaryV1 {
+    static let definitionRowsAreCurrentIdentityTipsOnly = true
+    static let sessionRowsAreTerminalCurrentTipsOnly = true
+    static let historicOpeningIsSeparateFromCurrentSearch = true
+    static let favoritesAndRecentsAreDeviceLocalOverlays = true
+    static let accessSurface: AppAccessContentReadSurfaceV1 = .search
 }
 
 extension SearchCoordinatorV1 {

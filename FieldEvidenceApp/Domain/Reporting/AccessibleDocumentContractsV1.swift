@@ -395,6 +395,22 @@ enum SurveyDefinitionAccessibilityIDV1: String, CaseIterable, Codable, Hashable,
     case claimBoundary = "survey.definition.claim_boundary"
     case notObserved = "survey.definition.not_observed"
     case nextStep = "survey.definition.next_step"
+    case library = "survey.template.library"
+    case browse = "survey.template.library.browse"
+    case search = "survey.template.library.search"
+    case favorites = "survey.template.library.favorites"
+    case recents = "survey.template.library.recents"
+    case duplicate = "survey.template.action.duplicate"
+    case publish = "survey.template.action.publish"
+    case retire = "survey.template.action.retire"
+    case export = "survey.template.action.export"
+    case importAsDraft = "survey.template.action.import_as_draft"
+    case semanticPreview = "survey.template.semantic_preview"
+    case compatibilityNoChange = "survey.template.compatibility.no_change"
+    case compatibilityAdditiveDraftSafe = "survey.template.compatibility.additive_draft_safe"
+    case compatibilityDraftMigrationRequired = "survey.template.compatibility.draft_migration_required"
+    case compatibilityActiveWorkPinned = "survey.template.compatibility.active_work_pinned"
+    case compatibilityBlocked = "survey.template.compatibility.blocked"
 
     var localizationKey: SurveyDefinitionLocalizationKeyV1 {
         switch self {
@@ -408,6 +424,22 @@ enum SurveyDefinitionAccessibilityIDV1: String, CaseIterable, Codable, Hashable,
         case .claimBoundary: return .reportClaimBoundary
         case .notObserved: return .reportNotObserved
         case .nextStep: return .nextStepReviewRecordedFacts
+        case .library: return .libraryHeading
+        case .browse: return .libraryBrowse
+        case .search: return .librarySearch
+        case .favorites: return .libraryFavorites
+        case .recents: return .libraryRecents
+        case .duplicate: return .actionDuplicate
+        case .publish: return .actionPublish
+        case .retire: return .actionRetire
+        case .export: return .actionExport
+        case .importAsDraft: return .actionImportAsDraft
+        case .semanticPreview: return .semanticPreview
+        case .compatibilityNoChange: return .compatibilityNoChange
+        case .compatibilityAdditiveDraftSafe: return .compatibilityAdditiveDraftSafe
+        case .compatibilityDraftMigrationRequired: return .compatibilityDraftMigrationRequired
+        case .compatibilityActiveWorkPinned: return .compatibilityActiveWorkPinned
+        case .compatibilityBlocked: return .compatibilityBlocked
         }
     }
 }
@@ -418,6 +450,9 @@ enum SurveyDefinitionAccessibilityPolicyV1 {
         SurveyDefinitionAccessibilityIDV1.lifecycle.rawValue,
         SurveyDefinitionAccessibilityIDV1.notObserved.rawValue,
         SurveyDefinitionAccessibilityIDV1.claimBoundary.rawValue,
+        SurveyDefinitionAccessibilityIDV1.compatibilityDraftMigrationRequired.rawValue,
+        SurveyDefinitionAccessibilityIDV1.compatibilityActiveWorkPinned.rawValue,
+        SurveyDefinitionAccessibilityIDV1.compatibilityBlocked.rawValue,
     ]
     static let requiresTextAndIconForIndeterminateStates = true
     static let requiresNonColorStateText = true
@@ -445,6 +480,58 @@ enum SurveyDefinitionAccessibilityPolicyV1 {
               excludesAnswers, excludesPromptText, excludesActorIdentity,
               excludesPrivateLocators, excludesEvidenceBytes else {
             throw SurveyDefinitionConsumerFailureV1.privacyViolation
+        }
+    }
+}
+
+struct C20GuidedSurveyAccessibleDocumentProjectionV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let definition: SurveyDefinitionReleaseReferenceV1
+    let sessionID: UUID
+    let orderedStateKeys: [String]
+    let primaryAction: GuidedSurveyPrimaryActionV1
+    let primaryActionKey: String
+    let frozenPublication: SurveyPublicationReferenceV1?
+    let frozenReportSHA256: String?
+    let stateUsesColorAlone: Bool
+    let passFailClaimed: Bool
+    let poseDirectionInferred: Bool
+
+    init(flow: GuidedSurveyFlowV1,
+         frozenReport: SurveyPublicationReportProjectionV1?) throws {
+        let detail = try C20GuidedSurveyFlowDetailProjectionV1(
+            flow: flow, frozenReport: frozenReport
+        )
+        workspaceID = detail.workspaceID
+        definition = detail.definition; sessionID = detail.sessionID
+        var keys = [SurveyDefinitionLocalizationKeyV1.libraryHeading.rawValue]
+        keys.append(SurveyDefinitionLocalizationKeyV1.lifecycleKey(flow.definitionState).rawValue)
+        if !flow.review.conflictFactIDs.isEmpty {
+            keys.append(SurveyDefinitionLocalizationKeyV1.reviewConflict.rawValue)
+        }
+        if flow.review.frozenPublication != nil {
+            keys.append(SurveyDefinitionLocalizationKeyV1.frozenReport.rawValue)
+        }
+        keys.append(SurveyDefinitionLocalizationKeyV1.flowClaimBoundary.rawValue)
+        orderedStateKeys = keys
+        primaryAction = flow.primaryAction
+        primaryActionKey = SurveyDefinitionLocalizationKeyV1.primaryAction.rawValue
+        frozenPublication = detail.frozenPublication
+        frozenReportSHA256 = detail.frozenReportProjection?.publicationSHA256
+        stateUsesColorAlone = false; passFailClaimed = false; poseDirectionInferred = false
+        try validate()
+    }
+
+    func validate() throws {
+        try definition.validate(); try frozenPublication?.validate()
+        guard sessionID != UUID.zero,
+              Set(orderedStateKeys).count == orderedStateKeys.count,
+              !orderedStateKeys.isEmpty,
+              GuidedSurveyPrimaryActionV1.allCases.contains(primaryAction),
+              primaryActionKey == SurveyDefinitionLocalizationKeyV1.primaryAction.rawValue,
+              (frozenPublication == nil) == (frozenReportSHA256 == nil),
+              !stateUsesColorAlone, !passFailClaimed, !poseDirectionInferred else {
+            throw AccessibleDocumentFailureV1.invalidValue
         }
     }
 }
