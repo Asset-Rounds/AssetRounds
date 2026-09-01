@@ -30,6 +30,8 @@ private enum C19TestSupportV1 {
         let page: PlanPageReferenceV1
         let frame: SpatialReferenceFrameV1
         let placement: PlanPlacementV1
+        let assetLocator: AssetLocatorV1
+        let locatorReceipt: LocatorBindingReceiptV1
         let manifest: WorkPacketManifestV1
         let item: WorkPacketItemV1
         let referenceProjection: WorkPacketFieldReferenceProjectionV1
@@ -91,11 +93,29 @@ private enum C19TestSupportV1 {
             mutationID: try mutation(41),
             recordedBy: try actor(.recordedBy, slot: 42), recordedAt: now
         )
+        let assetID = id(51)
+        let assetLocator = try AssetLocatorV1(
+            locatorID: id(45), workspaceID: workspace, assetID: assetID,
+            representation: .externalKey(try .init(namespaceID: "c19.fixture",
+                                                     normalization: .exactNFC,
+                                                     suppliedValue: "asset-51")),
+            state: .active, revision: 1, mutationID: try mutation(46), recordedAt: now
+        )
+        let locatorPreview = try LocatorBindingPreviewV1(
+            workspaceID: workspace, action: .bind, before: nil,
+            after: assetLocator.reference, replacement: nil, generatedAt: now
+        )
+        let locatorReceipt = try LocatorBindingReceiptV1(
+            receiptID: id(47), preview: locatorPreview,
+            recordedBy: try actor(.recordedBy, slot: 48), predecessor: nil,
+            revision: 1, mutationID: try mutation(49), recordedAt: now
+        )
         let placement = try PlanPlacementV1(
-            placementID: id(50), workspaceID: workspace, subjectKind: .location,
-            subjectID: id(51), planRevision: try revision.reference,
+            placementID: id(50), workspaceID: workspace, subjectKind: .asset,
+            subjectID: assetID, planRevision: try revision.reference,
             spatialFrameID: frame.frameID,
             x: try .init(millionths: 300_000), y: try .init(millionths: 400_000),
+            assetLocatorBinding: try .init(locator: assetLocator, receipt: locatorReceipt),
             revision: 1, mutationID: try mutation(52), recordedAt: now
         )
         let item = try WorkPacketItemV1(itemID: "c19-item", kind: .inspection,
@@ -126,11 +146,12 @@ private enum C19TestSupportV1 {
         )
         let prerequisites = PlanPrerequisiteClosureV1(
             content: content, contentLocator: locator, fieldReferenceRelease: release,
-            assetLocators: [], locatorBindingReceipts: []
+            assetLocators: [assetLocator], locatorBindingReceipts: [locatorReceipt]
         )
         return .init(content: content, locator: locator, release: release,
                      fieldBinding: fieldBinding, document: document, revision: revision,
-                     page: page, frame: frame, placement: placement, manifest: manifest,
+                     page: page, frame: frame, placement: placement,
+                     assetLocator: assetLocator, locatorReceipt: locatorReceipt, manifest: manifest,
                      item: item, referenceProjection: referenceProjection,
                      prerequisites: prerequisites)
     }
@@ -138,7 +159,9 @@ private enum C19TestSupportV1 {
     static func source(openability: PlanDocumentOpenabilityStateV1 = .openable,
                        disposition: PlanRevisionSelectionDispositionV1 = .current,
                        availableBytes: Int64? = 10_000,
-                       protectedDataAvailable: Bool = true) throws -> PlanOfflineWorkSourceV1 {
+                       protectedDataAvailable: Bool = true,
+                       applicability: PlanApplicabilityV1 = .required,
+                       planAbsent: Bool = false) throws -> PlanOfflineWorkSourceV1 {
         let fixture = try fixture()
         let observation = try PlanDocumentOpenabilityObservationV1(
             contentBinding: fixture.revision.contentBinding,
@@ -151,13 +174,15 @@ private enum C19TestSupportV1 {
             availableBytes: availableBytes, operationReserveBytes: 64
         )
         return PlanOfflineWorkSourceV1(
-            applicability: .required, manifest: fixture.manifest, item: fixture.item,
-            fieldReferenceProjection: fixture.referenceProjection,
-            fieldReference: fixture.referenceProjection.references[0],
-            planRevision: fixture.revision, placements: [fixture.placement],
-            prerequisites: fixture.prerequisites, openability: observation,
+            applicability: applicability, manifest: fixture.manifest, item: fixture.item,
+            fieldReferenceProjection: planAbsent ? nil : fixture.referenceProjection,
+            fieldReference: planAbsent ? nil : fixture.referenceProjection.references[0],
+            planRevision: planAbsent ? nil : fixture.revision,
+            placements: planAbsent ? [] : [fixture.placement],
+            prerequisites: planAbsent ? nil : fixture.prerequisites,
+            openability: planAbsent ? nil : observation,
             storage: storage, access: .init(protectedDataAvailable: protectedDataAvailable),
-            revisionDisposition: disposition, checkedAt: now
+            revisionDisposition: planAbsent ? nil : disposition, checkedAt: now
         )
     }
 
@@ -186,7 +211,7 @@ private enum C19TestSupportV1 {
         }
         let eventID = observed ? id(80) : id(81)
         return try AssetPoseEventV1(
-            eventID: eventID, workspaceID: workspace(), assetID: id(82),
+            eventID: eventID, workspaceID: workspace(), assetID: fixture.placement.subjectID,
             axisDescriptor: descriptor,
             placementEpisodeID: try .init(rawValue: id(83)), placementEventID: id(84),
             locationPathSnapshot: try .init(siteID: id(85), siteDisplay: "C19 site", nodes: []),
@@ -262,23 +287,38 @@ final class V9_82PlanOfflineWorkTests: XCTestCase {
         let value = try OfflineWorkPacketReadinessV1(source: source)
         try value.validateIntrinsic(); try value.validate(source: source)
         XCTAssertEqual(value.status, .ready)
-        XCTAssertEqual(value.contentBinding.byteLength, 4)
-        XCTAssertEqual(value.openability.state, .openable)
-        XCTAssertEqual(value.fieldReference.availability, .readyOffline)
+        XCTAssertEqual(value.contentBinding?.byteLength, 4)
+        XCTAssertEqual(value.openability?.state, .openable)
+        XCTAssertEqual(value.fieldReference?.availability, .readyOffline)
         XCTAssertEqual(try PlanOfflineReadinessManifestBindingV1(value).readinessSHA256,
                        value.readinessSHA256)
+        let absent = try C19TestSupportV1.source(applicability: .notApplicable, planAbsent: true)
+        let noPlan = try OfflineWorkPacketReadinessV1(source: absent)
+        XCTAssertNil(noPlan.planRevision)
+        XCTAssertNil(noPlan.contentBinding)
+        XCTAssertEqual(noPlan.status, .ready)
+        XCTAssertThrowsError(try C19TestSupportV1.source(applicability: .required,
+                                                         planAbsent: true).validate())
     }
 
     func testV23P04C19A01PlacementCreateMoveResumeAndAccessiblePoseParity() throws {
         let source = try C19TestSupportV1.source()
         let fixture = try C19TestSupportV1.fixture()
+        let binding = try PlanPlacementPoseBindingV1(
+            placementID: fixture.placement.placementID, assetID: fixture.placement.subjectID,
+            placementEventID: C19TestSupportV1.id(84),
+            physicalEpisodeID: .init(rawValue: C19TestSupportV1.id(83))
+        )
+        let revision = try fixture.revision.reference
         let observed = try PlanMaterializedPoseSnapshotV1(
-            placementID: fixture.placement.placementID,
-            event: C19TestSupportV1.poseEvent(fixture: fixture, observed: true, axis: "forward")
+            placement: fixture.placement, binding: binding,
+            event: C19TestSupportV1.poseEvent(fixture: fixture, observed: true, axis: "forward"),
+            planRevision: revision
         )
         let notObserved = try PlanMaterializedPoseSnapshotV1(
-            placementID: fixture.placement.placementID,
-            event: C19TestSupportV1.poseEvent(fixture: fixture, observed: false, axis: "secondary")
+            placement: fixture.placement, binding: binding,
+            event: C19TestSupportV1.poseEvent(fixture: fixture, observed: false, axis: "secondary"),
+            planRevision: revision
         )
         let viewport = try PlanViewportPresentationV1(
             pageID: fixture.page.pageID, zoomMillionths: 1_000_000,
@@ -294,6 +334,14 @@ final class V9_82PlanOfflineWorkTests: XCTestCase {
         XCTAssertEqual(surface.placements.map(\.accessibilityOrdinal), [1])
         XCTAssertEqual(surface.poseSnapshots.map(\.disposition), [.observed, .notObserved])
         XCTAssertFalse(PlanViewportPresentationV1.conveysPhysicalDirection)
+        let foreignBinding = try PlanPlacementPoseBindingV1(
+            placementID: fixture.placement.placementID, assetID: fixture.placement.subjectID,
+            placementEventID: C19TestSupportV1.id(999),
+            physicalEpisodeID: .init(rawValue: C19TestSupportV1.id(83))
+        )
+        XCTAssertThrowsError(try observed.validate(placement: fixture.placement,
+                                                    binding: foreignBinding,
+                                                    planRevision: revision))
     }
 
     func testV23P04C19H01MissingCorruptWithdrawnEncryptedAndUnsupportedReferencesFailClosed() throws {
@@ -312,6 +360,30 @@ final class V9_82PlanOfflineWorkTests: XCTestCase {
         XCTAssertTrue(cases.contains(where: { $0.scenario == "expired field reference" }))
         XCTAssertTrue(cases.contains(where: { $0.scenario == "withdrawn field reference" }))
         XCTAssertTrue(cases.contains(where: { $0.scenario == "concurrent placement move and rebase" }))
+        let fixture = try C19TestSupportV1.fixture()
+        XCTAssertNoThrow(try PlanOfflineWorkRequestV1(
+            workspaceID: C19TestSupportV1.workspace(),
+            packet: WorkPacketManifestReferenceV1(fixture.manifest),
+            item: WorkPacketItemReferenceV1(manifest: fixture.manifest, item: fixture.item),
+            applicability: .notApplicable, exactPlanRevision: nil,
+            checkedAt: C19TestSupportV1.now
+        ))
+        XCTAssertThrowsError(try PlanOfflineWorkRequestV1(
+            workspaceID: C19TestSupportV1.workspace(),
+            packet: WorkPacketManifestReferenceV1(fixture.manifest),
+            item: WorkPacketItemReferenceV1(manifest: fixture.manifest, item: fixture.item),
+            applicability: .required, exactPlanRevision: nil,
+            checkedAt: C19TestSupportV1.now
+        ))
+        XCTAssertThrowsError(try PlanOfflineWorkCoordinatorV1.validateResumeEligibility(
+            source: C19TestSupportV1.source(disposition: .historic), hasResumeDraft: true
+        ))
+        XCTAssertThrowsError(try PlanOfflineWorkCoordinatorV1.validateResumeEligibility(
+            source: C19TestSupportV1.source(protectedDataAvailable: false), hasResumeDraft: true
+        ))
+        XCTAssertNoThrow(try PlanOfflineWorkCoordinatorV1.validateResumeEligibility(
+            source: C19TestSupportV1.source(), hasResumeDraft: true
+        ))
     }
 
     func testV23P04C19I01RebaseApproveRejectAndInterruptedActivationAreIdempotent() throws {
@@ -343,9 +415,9 @@ final class V9_82PlanOfflineWorkTests: XCTestCase {
         let readiness = try OfflineWorkPacketReadinessV1(source: source)
         try readiness.validateIntrinsic()
         XCTAssertEqual(readiness.revisionDisposition, .historic)
-        XCTAssertEqual(readiness.planRevision, try source.planRevision.reference)
-        XCTAssertEqual(readiness.contentBinding.contentSHA256,
-                       source.planRevision.contentBinding.contentSHA256)
+        XCTAssertEqual(readiness.planRevision, try source.planRevision?.reference)
+        XCTAssertEqual(readiness.contentBinding?.contentSHA256,
+                       source.planRevision?.contentBinding.contentSHA256)
         XCTAssertTrue(readiness.findings.contains(where: { $0.code == .historicSource }))
         let encoded = try PlanCanonicalCodecV1.encode(readiness)
         let restored = try PlanCanonicalCodecV1.decode(OfflineWorkPacketReadinessV1.self,

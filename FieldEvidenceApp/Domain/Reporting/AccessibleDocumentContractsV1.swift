@@ -28,6 +28,14 @@ struct C19PlanAccessibleDocumentProjectionV1: Codable, Equatable, Sendable {
     init(surface: PlanWorkSurfaceStateV1,
          readiness: OfflineWorkPacketReadinessV1,
          review: RebaseReviewStateV1?) throws {
+        guard readiness.applicability != .notApplicable,
+              let readinessPlanRevision = readiness.planRevision,
+              readiness.contentBinding != nil,
+              readiness.fieldReference != nil,
+              readiness.openability != nil,
+              readiness.revisionDisposition != nil else {
+            throw AccessibleDocumentFailureV1.missingEvidence
+        }
         let reviewMatchesSurface = review.map { value in
             guard value.workspaceID == surface.workspaceID,
                   value.preview.oldRevision.planDocumentID == surface.planRevision.planDocumentID else {
@@ -41,7 +49,7 @@ struct C19PlanAccessibleDocumentProjectionV1: Codable, Equatable, Sendable {
             }
         } ?? true
         guard surface.workspaceID == readiness.workspaceID,
-              surface.planRevision == readiness.planRevision,
+              surface.planRevision == readinessPlanRevision,
               reviewMatchesSurface else {
             throw AccessibleDocumentFailureV1.missingEvidence
         }

@@ -2023,31 +2023,45 @@ struct C19PlanReadinessDetailProjectionV1: Codable, Equatable, Sendable {
     let findingCodes: [PlanOfflineReadinessFindingCodeV1]
 
     init(_ value: OfflineWorkPacketReadinessV1) throws {
+        guard value.applicability != .notApplicable,
+              let planRevision = value.planRevision,
+              let contentBinding = value.contentBinding,
+              let fieldReference = value.fieldReference,
+              value.openability != nil,
+              let revisionDisposition = value.revisionDisposition else {
+            throw SnapshotProjectionFailureV1.missingBinding
+        }
         workspaceID = value.workspaceID
         packetID = value.packet.packetID
         packetVersion = value.packet.packetVersion
-        planRevision = value.planRevision
-        contentSHA256 = value.contentBinding.contentSHA256
-        fieldReferenceSHA256 = value.fieldReference.readinessSHA256
+        self.planRevision = planRevision
+        contentSHA256 = contentBinding.contentSHA256
+        fieldReferenceSHA256 = fieldReference.readinessSHA256
         sourceSnapshotSHA256 = value.sourceSnapshotSHA256
         readinessSHA256 = value.readinessSHA256
-        revisionDisposition = value.revisionDisposition
+        self.revisionDisposition = revisionDisposition
         findingCodes = value.findings.map(\.code).sorted { $0.rawValue < $1.rawValue }
         try validate(source: value)
     }
 
     func validate(source: OfflineWorkPacketReadinessV1) throws {
         try planRevision.validate()
-        guard Self.persistenceMode == "DERIVED_ONLY",
+        guard source.applicability != .notApplicable,
+              let sourcePlanRevision = source.planRevision,
+              let sourceContentBinding = source.contentBinding,
+              let sourceFieldReference = source.fieldReference,
+              source.openability != nil,
+              let sourceRevisionDisposition = source.revisionDisposition,
+              Self.persistenceMode == "DERIVED_ONLY",
               workspaceID == source.workspaceID,
               packetID == source.packet.packetID,
               packetVersion == source.packet.packetVersion,
-              planRevision == source.planRevision,
-              contentSHA256 == source.contentBinding.contentSHA256,
-              fieldReferenceSHA256 == source.fieldReference.readinessSHA256,
+              planRevision == sourcePlanRevision,
+              contentSHA256 == sourceContentBinding.contentSHA256,
+              fieldReferenceSHA256 == sourceFieldReference.readinessSHA256,
               sourceSnapshotSHA256 == source.sourceSnapshotSHA256,
               readinessSHA256 == source.readinessSHA256,
-              revisionDisposition == source.revisionDisposition,
+              revisionDisposition == sourceRevisionDisposition,
               findingCodes == source.findings.map(\.code).sorted(by: { $0.rawValue < $1.rawValue }) else {
             throw SnapshotProjectionFailureV1.missingBinding
         }

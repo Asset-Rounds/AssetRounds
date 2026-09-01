@@ -14,7 +14,7 @@
     { "category": "CONTENT", "expected": "BLOCKED", "id": "H01-010", "scenario": "unsupported document" },
     { "category": "CONTENT", "expected": "BLOCKED", "id": "H01-011", "scenario": "document openability uncheckable" },
     { "category": "CONTENT", "expected": "BLOCKED", "id": "H01-012", "scenario": "removed page" },
-    { "category": "CONTENT", "expected": "BLOCKED", "id": "H01-013", "scenario": "duplicate page identity" },
+    { "category": "PLAN", "expected": "BLOCKED", "id": "H01-013", "scenario": "not applicable packet carries fake plan revision" },
     { "category": "CONTENT", "expected": "BLOCKED", "id": "H01-014", "scenario": "forged source page digest" },
     { "category": "REFERENCE", "expected": "BLOCKED", "id": "H01-015", "scenario": "missing field reference" },
     { "category": "REFERENCE", "expected": "BLOCKED", "id": "H01-016", "scenario": "expired field reference" },

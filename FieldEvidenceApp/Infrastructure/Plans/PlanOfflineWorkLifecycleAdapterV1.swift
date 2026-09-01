@@ -11,6 +11,7 @@ struct PlanOfflineWorkLifecycleOperationsV1: Sendable {
     let storage: @Sendable (WorkspaceID) async throws -> OfflineReadinessStorageObservationV1
     let access: @Sendable (WorkspaceID) async throws -> OfflineReadinessAccessObservationV1
     let exactPoseEvent: @Sendable (AssetPoseEventReferenceV1) async throws -> AssetPoseEventV1?
+    let exactPlacementEvent: @Sendable (WorkspaceID, UUID) async throws -> AssetPlacementEventV1?
 }
 
 struct PlanMaterializedPoseRequestV1: Codable, Equatable, Hashable, Comparable, Sendable {
@@ -46,13 +47,26 @@ final class PlanOfflineWorkLifecycleAdapterV1: PlanOfflineWorkSourceResolvingV1,
                   (try? WorkPacketItemReferenceV1(manifest: manifest, item: candidate)) == request.item
               }) else { throw PlanOfflineWorkFailureV1.staleSource }
 
+        let storage = try await operations.storage(request.workspaceID)
+        let access = try await operations.access(request.workspaceID)
+        guard let requestedRevision = request.exactPlanRevision else {
+            let value = PlanOfflineWorkSourceV1(
+                applicability: request.applicability, manifest: manifest, item: item,
+                fieldReferenceProjection: nil, fieldReference: nil, planRevision: nil,
+                placements: [], prerequisites: nil,
+                openability: nil, storage: storage, access: access,
+                revisionDisposition: nil, checkedAt: request.checkedAt
+            )
+            try value.validate(); return value
+        }
+
         let packetProjection = try await operations.fieldReferenceProjection(manifest, request.checkedAt)
         try packetProjection.validate()
         guard let planRevision = try await operations.exactPlanRevision(
-            request.workspaceID, request.exactPlanRevision
+            request.workspaceID, requestedRevision
         ) else { throw PlanOfflineWorkFailureV1.missingExactSource }
         try planRevision.validateIntrinsic()
-        guard try planRevision.reference == request.exactPlanRevision else {
+        guard try planRevision.reference == requestedRevision else {
             throw PlanOfflineWorkFailureV1.staleSource
         }
         let matchingReferences = packetProjection.references.filter {
@@ -70,25 +84,23 @@ final class PlanOfflineWorkLifecycleAdapterV1: PlanOfflineWorkSourceResolvingV1,
         }
 
         guard let current = try await operations.currentPlanRevision(
-            request.workspaceID, request.exactPlanRevision.planDocumentID
+            request.workspaceID, requestedRevision.planDocumentID
         ) else { throw PlanOfflineWorkFailureV1.missingExactSource }
         try current.validate()
-        guard current.planDocumentID == request.exactPlanRevision.planDocumentID else {
+        guard current.planDocumentID == requestedRevision.planDocumentID else {
             throw PlanOfflineWorkFailureV1.staleSource
         }
         let disposition: PlanRevisionSelectionDispositionV1 =
-            current == request.exactPlanRevision ? .current : .historic
+            current == requestedRevision ? .current : .historic
 
         let placements = try await operations.placements(
-            request.workspaceID, request.exactPlanRevision
+            request.workspaceID, requestedRevision
         )
         let sortedPlacements = placements.sorted { $0.placementID.uuidString < $1.placementID.uuidString }
         try sortedPlacements.forEach { try $0.validate(planRevision: planRevision) }
         let prerequisites = try await operations.prerequisites(planRevision, sortedPlacements)
         try prerequisites.validate(revision: planRevision, placements: sortedPlacements)
         let openability = try await operations.openability(planRevision.contentBinding, request.checkedAt)
-        let storage = try await operations.storage(request.workspaceID)
-        let access = try await operations.access(request.workspaceID)
         let value = PlanOfflineWorkSourceV1(
             applicability: request.applicability, manifest: manifest, item: item,
             fieldReferenceProjection: packetProjection, fieldReference: reference,
@@ -106,17 +118,34 @@ final class PlanOfflineWorkLifecycleAdapterV1: PlanOfflineWorkSourceResolvingV1,
     ) async throws -> [PlanMaterializedPoseSnapshotV1] {
         try source.validate()
         let requests = requests.sorted()
-        guard Set(requests).count == requests.count else { throw PlanOfflineWorkFailureV1.invalidValue }
+        guard Set(requests).count == requests.count, let planRevision = source.planRevision else {
+            throw PlanOfflineWorkFailureV1.invalidValue
+        }
         var values: [PlanMaterializedPoseSnapshotV1] = []
         for request in requests {
-            guard source.placements.contains(where: { $0.placementID == request.placementID }),
+            guard let placement = source.placements.first(where: { $0.placementID == request.placementID }),
                   request.event.workspaceID == source.manifest.workspaceID,
                   let event = try await operations.exactPoseEvent(request.event) else {
                 throw PlanOfflineWorkFailureV1.missingExactSource
             }
             try event.validateIntrinsic()
-            guard event.reference == request.event else { throw PlanOfflineWorkFailureV1.staleSource }
-            values.append(try .init(placementID: request.placementID, event: event))
+            guard event.reference == request.event,
+                  let physical = try await operations.exactPlacementEvent(
+                    source.manifest.workspaceID, event.placementEventID
+                  ) else { throw PlanOfflineWorkFailureV1.staleSource }
+            try physical.validate()
+            guard physical.workspaceID == source.manifest.workspaceID,
+                  physical.id == event.placementEventID, physical.assetID == event.assetID,
+                  physical.physicalEpisodeID == event.placementEpisodeID,
+                  physical.pathSnapshot == event.locationPathSnapshot else {
+                throw PlanOfflineWorkFailureV1.staleSource
+            }
+            let binding = try PlanPlacementPoseBindingV1(
+                placementID: placement.placementID, assetID: physical.assetID,
+                placementEventID: physical.id, physicalEpisodeID: physical.physicalEpisodeID
+            )
+            values.append(try .init(placement: placement, binding: binding,
+                                    event: event, planRevision: planRevision.reference))
         }
         return values.sorted()
     }

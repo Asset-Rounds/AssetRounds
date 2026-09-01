@@ -2585,14 +2585,39 @@ extension SearchIndexRebuildCoordinatorV1 {
         try offlineReadiness.forEach { try $0.validateIntrinsic() }
         try workSurfaces.forEach { try $0.validateIntrinsic() }
         let allRevisionReferences = try revisionHistory.map { try $0.reference }
+        let revisionByReference = Dictionary(uniqueKeysWithValues:
+            try revisionHistory.map { (try $0.reference, $0) })
+        func packetItemKey(
+            workspaceID: WorkspaceID,
+            packet: WorkPacketManifestReferenceV1,
+            item: WorkPacketItemReferenceV1
+        ) -> String {
+            "\(workspaceID.rawValue.uuidString)|\(packet.packetID.uuidString)|" +
+                "\(packet.packetVersion)|\(item.itemID)|\(item.itemSHA256)"
+        }
+        let absentPlanItemKeys = Set(offlineReadiness.compactMap { readiness in
+            guard readiness.planRevision == nil || readiness.applicability == .notApplicable else {
+                return nil
+            }
+            return packetItemKey(
+                workspaceID: readiness.workspaceID,
+                packet: readiness.packet,
+                item: readiness.item
+            )
+        })
         let currentRevisionReferences = try revisionsByDocument.values.compactMap {
             try $0.max(by: { $0.revision < $1.revision }).map { try $0.reference }
         }
-        guard offlineReadiness.allSatisfy({
-                  workspaceIDs.contains($0.workspaceID)
-                      && allRevisionReferences.contains($0.planRevision)
-                      && ($0.revisionDisposition == .historic
-                          || currentRevisionReferences.contains($0.planRevision))
+        guard offlineReadiness.allSatisfy({ readiness in
+                  guard let planRevision = readiness.planRevision else {
+                      return readiness.applicability != .required
+                  }
+                  guard let disposition = readiness.revisionDisposition else { return false }
+                  return workspaceIDs.contains(readiness.workspaceID)
+                      && allRevisionReferences.contains(planRevision)
+                      && readiness.contentBinding == revisionByReference[planRevision]?.contentBinding
+                      && (disposition == .historic
+                          || currentRevisionReferences.contains(planRevision))
               }),
               workSurfaces.allSatisfy({
                   workspaceIDs.contains($0.workspaceID)
@@ -2610,10 +2635,17 @@ extension SearchIndexRebuildCoordinatorV1 {
             let reference = try revision.reference
             let placementCount = currentPlacements.filter { $0.planRevision == reference }.count
             let readinessMetadata = try offlineReadiness.filter {
-                $0.revisionDisposition == .current && $0.planRevision == reference
+                $0.revisionDisposition == .current
+                    && $0.planRevision == reference
             }.map(PlanOfflineReadinessSearchMetadataV1.init)
             let workSurfaceMetadata = try workSurfaces.filter {
                 $0.planRevision == reference
+                    && $0.applicability != .notApplicable
+                    && !absentPlanItemKeys.contains(packetItemKey(
+                        workspaceID: $0.workspaceID,
+                        packet: $0.packet,
+                        item: $0.item
+                    ))
             }.map(PlanWorkSurfaceSearchMetadataV1.init)
             records.append(try LocalSearchIndexStoreV1.planDocumentSearchRecord(
                 currentDocument: document,

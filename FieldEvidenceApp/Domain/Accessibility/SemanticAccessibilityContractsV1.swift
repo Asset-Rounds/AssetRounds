@@ -1985,6 +1985,7 @@ enum PlanAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
     case assetsRoute = "plan.work_surface.route.assets"
     case workRoute = "plan.work_surface.route.work"
     case offlineReady = "plan.offline.ready"
+    case offlineNotApplicable = "plan.offline.not_applicable"
     case offlineMissingPlan = "plan.offline.missing_plan"
     case offlineMissingReference = "plan.offline.missing_reference"
     case offlineReferenceUnavailable = "plan.offline.reference_unavailable"
@@ -2057,6 +2058,7 @@ enum PlanAccessibilityIDV1: String, Codable, CaseIterable, Sendable {
         case .assetsRoute: key = .workSurfaceAssetsRoute
         case .workRoute: key = .workSurfaceWorkRoute
         case .offlineReady: key = .offlineReady
+        case .offlineNotApplicable: key = .offlineNotApplicable
         case .offlineMissingPlan: key = .offlineMissingPlan
         case .offlineMissingReference: key = .offlineMissingReference
         case .offlineReferenceUnavailable: key = .offlineReferenceUnavailable
@@ -2115,7 +2117,7 @@ enum PlanAccessibilityPolicyV1 {
             .placementAccepted, .placementReviewRequired,
             .placementOrphaned, .placementOutOfBounds,
             .decisionApplyRecorded, .decisionRejectRecorded,
-            .offlineReady, .offlineMissingPlan, .offlineMissingReference,
+            .offlineReady, .offlineNotApplicable, .offlineMissingPlan, .offlineMissingReference,
             .offlineReferenceUnavailable, .offlineStorageInsufficient,
             .offlineOpenabilityFailed, .offlineProtectedDataUnavailable,
             .offlineHistoricReadOnly,

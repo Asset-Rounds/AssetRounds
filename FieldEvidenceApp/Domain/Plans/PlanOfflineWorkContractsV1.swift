@@ -68,24 +68,51 @@ struct PlanOfflineWorkRequestV1: Codable, Equatable, Hashable, Sendable {
     let packet: WorkPacketManifestReferenceV1
     let item: WorkPacketItemReferenceV1
     let applicability: PlanApplicabilityV1
-    let exactPlanRevision: PlanRevisionReferenceV1
+    let exactPlanRevision: PlanRevisionReferenceV1?
     let checkedAt: Date
 
     init(workspaceID: WorkspaceID, packet: WorkPacketManifestReferenceV1,
          item: WorkPacketItemReferenceV1,
-         applicability: PlanApplicabilityV1, exactPlanRevision: PlanRevisionReferenceV1,
+         applicability: PlanApplicabilityV1, exactPlanRevision: PlanRevisionReferenceV1?,
          checkedAt: Date) throws {
         self.workspaceID = workspaceID; self.packet = packet; self.item = item
         self.applicability = applicability; self.exactPlanRevision = exactPlanRevision
         self.checkedAt = checkedAt
-        try packet.validate(); try item.validate(); try exactPlanRevision.validate()
+        try packet.validate(); try item.validate(); try exactPlanRevision?.validate()
         try PlanOfflineWorkLimitsV1.instant(checkedAt)
-        guard applicability != .notApplicable, packet.workspaceID == workspaceID,
+        let hasRequiredPlan = applicability != .required || exactPlanRevision != nil
+        let hasNoInapplicablePlan = applicability != .notApplicable || exactPlanRevision == nil
+        guard hasRequiredPlan, hasNoInapplicablePlan, packet.workspaceID == workspaceID,
               item.workspaceID == workspaceID, item.packetID == packet.packetID,
               item.packetVersion == packet.packetVersion,
               item.manifestSHA256 == packet.manifestSHA256 else {
             throw PlanOfflineWorkFailureV1.invalidValue
         }
+    }
+}
+
+struct PlanPlacementPoseBindingV1: Codable, Equatable, Hashable, Comparable, Sendable {
+    let placementID: UUID
+    let assetID: UUID
+    let placementEventID: UUID
+    let physicalEpisodeID: PhysicalPlacementEpisodeIDV1
+
+    init(placementID: UUID, assetID: UUID, placementEventID: UUID,
+         physicalEpisodeID: PhysicalPlacementEpisodeIDV1) throws {
+        self.placementID = placementID; self.assetID = assetID
+        self.placementEventID = placementEventID; self.physicalEpisodeID = physicalEpisodeID
+        try PlanOfflineWorkLimitsV1.id(placementID); try PlanOfflineWorkLimitsV1.id(assetID)
+        try PlanOfflineWorkLimitsV1.id(placementEventID)
+    }
+
+    func validate(placement: PlanPlacementV1) throws {
+        try placement.validateIntrinsic()
+        guard placement.placementID == placementID, placement.subjectKind == .asset,
+              placement.subjectID == assetID else { throw PlanOfflineWorkFailureV1.staleSource }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        lhs.placementID.uuidString < rhs.placementID.uuidString
     }
 }
 
@@ -225,40 +252,53 @@ struct PlanOfflineWorkSourceV1: Sendable {
     let applicability: PlanApplicabilityV1
     let manifest: WorkPacketManifestV1
     let item: WorkPacketItemV1
-    let fieldReferenceProjection: WorkPacketFieldReferenceProjectionV1
-    let fieldReference: WorkSessionFieldReferenceProjectionV1
-    let planRevision: PlanRevisionV1
+    let fieldReferenceProjection: WorkPacketFieldReferenceProjectionV1?
+    let fieldReference: WorkSessionFieldReferenceProjectionV1?
+    let planRevision: PlanRevisionV1?
     let placements: [PlanPlacementV1]
-    let prerequisites: PlanPrerequisiteClosureV1
-    let openability: PlanDocumentOpenabilityObservationV1
+    let prerequisites: PlanPrerequisiteClosureV1?
+    let openability: PlanDocumentOpenabilityObservationV1?
     let storage: OfflineReadinessStorageObservationV1
     let access: OfflineReadinessAccessObservationV1
-    let revisionDisposition: PlanRevisionSelectionDispositionV1
+    let revisionDisposition: PlanRevisionSelectionDispositionV1?
     let checkedAt: Date
 
     func validate() throws {
-        try manifest.validate(); try item.validate(); try fieldReferenceProjection.validate()
-        try fieldReference.validate(expectedWorkspaceID: manifest.workspaceID,
+        try manifest.validate(); try item.validate(); try fieldReferenceProjection?.validate()
+        if let fieldReference, let fieldReferenceProjection {
+            try fieldReference.validate(expectedWorkspaceID: manifest.workspaceID,
                                     expectedSubjectKind: .workPacket,
                                     expectedSubjectID: manifest.packetID,
                                     expectedSubjectRevision: manifest.packetVersion,
                                     expectedSubjectState: fieldReferenceProjection.subjectState)
-        try planRevision.validateIntrinsic()
-        try prerequisites.validate(revision: planRevision, placements: placements)
-        try openability.validate(contentBinding: planRevision.contentBinding)
+        }
+        try planRevision?.validateIntrinsic()
+        if let planRevision, let prerequisites, let openability {
+            try prerequisites.validate(revision: planRevision, placements: placements)
+            try openability.validate(contentBinding: planRevision.contentBinding)
+        }
         try PlanOfflineWorkLimitsV1.instant(checkedAt)
-        guard applicability != .notApplicable, manifest.items.contains(item),
-              manifest.workspaceID == planRevision.workspaceID,
-              fieldReferenceProjection.workspaceID == manifest.workspaceID,
-              fieldReferenceProjection.packetID == manifest.packetID,
-              fieldReferenceProjection.packetVersion == manifest.packetVersion,
-              fieldReferenceProjection.manifestSHA256 == manifest.manifestSHA256,
-              fieldReferenceProjection.references.contains(fieldReference),
-              fieldReference.workspaceID == manifest.workspaceID,
-              checkedAt == openability.checkedAt,
+        let hasPlan = fieldReferenceProjection != nil && fieldReference != nil &&
+            planRevision != nil && prerequisites != nil && openability != nil &&
+            revisionDisposition != nil
+        let hasNoPlan = fieldReferenceProjection == nil && fieldReference == nil &&
+            planRevision == nil && prerequisites == nil && openability == nil &&
+            revisionDisposition == nil
+        let hasNoPartialPlan = hasPlan || hasNoPlan
+        guard hasNoPartialPlan, (applicability != .required || hasPlan),
+              (applicability != .notApplicable || !hasPlan), manifest.items.contains(item),
+              (!hasPlan || manifest.workspaceID == planRevision?.workspaceID),
+              (!hasPlan || fieldReferenceProjection?.workspaceID == manifest.workspaceID),
+              (!hasPlan || fieldReferenceProjection?.packetID == manifest.packetID),
+              (!hasPlan || fieldReferenceProjection?.packetVersion == manifest.packetVersion),
+              (!hasPlan || fieldReferenceProjection?.manifestSHA256 == manifest.manifestSHA256),
+              (!hasPlan || fieldReferenceProjection?.references.contains(fieldReference!) == true),
+              (!hasPlan || fieldReference?.workspaceID == manifest.workspaceID),
+              (!hasPlan || checkedAt == openability?.checkedAt),
               placements.count <= PlanOfflineWorkLimitsV1.maximumPlacements,
               Set(placements.map(\.placementID)).count == placements.count,
-              placements == placements.sorted(by: { $0.placementID.uuidString < $1.placementID.uuidString }) else {
+              placements == placements.sorted(by: { $0.placementID.uuidString < $1.placementID.uuidString }),
+              hasPlan || placements.isEmpty else {
             throw PlanOfflineWorkFailureV1.staleSource
         }
     }
@@ -274,13 +314,13 @@ struct OfflineWorkPacketReadinessV1: Codable, Equatable, Sendable {
     let applicability: PlanApplicabilityV1
     let packet: WorkPacketManifestReferenceV1
     let item: WorkPacketItemReferenceV1
-    let planRevision: PlanRevisionReferenceV1
-    let contentBinding: PlanContentBindingV1
-    let fieldReference: PlanOfflineFieldReferenceProofV1
-    let openability: PlanDocumentOpenabilityObservationV1
+    let planRevision: PlanRevisionReferenceV1?
+    let contentBinding: PlanContentBindingV1?
+    let fieldReference: PlanOfflineFieldReferenceProofV1?
+    let openability: PlanDocumentOpenabilityObservationV1?
     let storage: OfflineReadinessStorageObservationV1
     let protectedDataAvailable: Bool
-    let revisionDisposition: PlanRevisionSelectionDispositionV1
+    let revisionDisposition: PlanRevisionSelectionDispositionV1?
     let requiredBytes: Int64?
     let findings: [PlanOfflineReadinessFindingV1]
     let status: OfflineReadinessStatusV1
@@ -292,19 +332,24 @@ struct OfflineWorkPacketReadinessV1: Codable, Equatable, Sendable {
         try source.validate()
         let packet = try WorkPacketManifestReferenceV1(source.manifest)
         let item = try WorkPacketItemReferenceV1(manifest: source.manifest, item: source.item)
-        let revision = try source.planRevision.reference
-        let reference = try PlanOfflineFieldReferenceProofV1(source.fieldReference)
-        let requiredBytes = Self.requiredBytes(content: source.planRevision.contentBinding,
-                                               storage: source.storage)
-        let findings = try Self.findings(reference: reference, openability: source.openability,
-                                        storage: source.storage, requiredBytes: requiredBytes,
-                                        access: source.access,
-                                        revisionDisposition: source.revisionDisposition)
+        let revision = try source.planRevision?.reference
+        let reference = try source.fieldReference.map(PlanOfflineFieldReferenceProofV1.init)
+        let requiredBytes = source.planRevision.map {
+            Self.requiredBytes(content: $0.contentBinding, storage: source.storage)
+        } ?? nil
+        let findings: [PlanOfflineReadinessFindingV1]
+        if let reference, let openability = source.openability,
+           let revisionDisposition = source.revisionDisposition {
+            findings = try Self.findings(reference: reference, openability: openability,
+                                         storage: source.storage, requiredBytes: requiredBytes,
+                                         access: source.access,
+                                         revisionDisposition: revisionDisposition)
+        } else { findings = [] }
         let status: OfflineReadinessStatusV1 = findings.isEmpty ? .ready :
             (findings.contains(where: { $0.code == .referenceStale || $0.code == .historicSource }) ? .stale : .blocked)
         let sourceSHA = try PlanCanonicalCodecV1.sha256(SourceBasis(
             workspaceID: source.manifest.workspaceID, packet: packet, item: item,
-            planRevision: revision, contentBinding: source.planRevision.contentBinding,
+            planRevision: revision, contentBinding: source.planRevision?.contentBinding,
             fieldReference: reference, openability: source.openability,
             storage: source.storage, protectedDataAvailable: source.access.protectedDataAvailable,
             revisionDisposition: source.revisionDisposition, checkedAt: source.checkedAt
@@ -312,7 +357,7 @@ struct OfflineWorkPacketReadinessV1: Codable, Equatable, Sendable {
         schemaVersion = Self.schemaVersion; persistenceMode = Self.persistenceMode
         workspaceID = source.manifest.workspaceID; applicability = source.applicability
         self.packet = packet; self.item = item; planRevision = revision
-        contentBinding = source.planRevision.contentBinding; fieldReference = reference
+        contentBinding = source.planRevision?.contentBinding; fieldReference = reference
         openability = source.openability; storage = source.storage
         protectedDataAvailable = source.access.protectedDataAvailable
         revisionDisposition = source.revisionDisposition; self.requiredBytes = requiredBytes
@@ -337,9 +382,9 @@ struct OfflineWorkPacketReadinessV1: Codable, Equatable, Sendable {
     }
 
     func validateIntrinsic() throws {
-        try packet.validate(); try item.validate(); try planRevision.validate()
-        try contentBinding.validate(); try fieldReference.validate()
-        try openability.validate(contentBinding: contentBinding)
+        try packet.validate(); try item.validate(); try planRevision?.validate()
+        try contentBinding?.validate(); try fieldReference?.validate()
+        if let openability, let contentBinding { try openability.validate(contentBinding: contentBinding) }
         try findings.forEach { try PlanOfflineWorkLimitsV1.text($0.remediationKey) }
         try PlanOfflineWorkLimitsV1.instant(checkedAt)
         try PlanOfflineWorkLimitsV1.digest(sourceSnapshotSHA256)
@@ -351,10 +396,17 @@ struct OfflineWorkPacketReadinessV1: Codable, Equatable, Sendable {
             storage: storage, protectedDataAvailable: protectedDataAvailable,
             revisionDisposition: revisionDisposition, checkedAt: checkedAt
         ))
+        let hasPlan = planRevision != nil && contentBinding != nil &&
+            fieldReference != nil && openability != nil && revisionDisposition != nil
+        let hasNoPlan = planRevision == nil && contentBinding == nil &&
+            fieldReference == nil && openability == nil && revisionDisposition == nil
+        let hasNoPartialPlan = hasPlan || hasNoPlan
         guard schemaVersion == Self.schemaVersion, persistenceMode == Self.persistenceMode,
               packet.workspaceID == workspaceID, item.workspaceID == workspaceID,
               item.packetID == packet.packetID, item.packetVersion == packet.packetVersion,
               item.manifestSHA256 == packet.manifestSHA256,
+              hasNoPartialPlan, (applicability != .required || hasPlan),
+              (applicability != .notApplicable || !hasPlan),
               findings == findings.sorted(), Set(findings).count == findings.count,
               findings.count <= PlanOfflineWorkLimitsV1.maximumFindings,
               (status == .ready) == findings.isEmpty,
@@ -418,8 +470,8 @@ struct OfflineWorkPacketReadinessV1: Codable, Equatable, Sendable {
     }
 
     private var basis: Basis { .init(schemaVersion: schemaVersion, persistenceMode: persistenceMode, workspaceID: workspaceID, applicability: applicability, packet: packet, item: item, planRevision: planRevision, contentBinding: contentBinding, fieldReference: fieldReference, openability: openability, storage: storage, protectedDataAvailable: protectedDataAvailable, revisionDisposition: revisionDisposition, requiredBytes: requiredBytes, findings: findings, status: status, checkedAt: checkedAt, sourceSnapshotSHA256: sourceSnapshotSHA256) }
-    private struct SourceBasis: Codable { let workspaceID: WorkspaceID; let packet: WorkPacketManifestReferenceV1; let item: WorkPacketItemReferenceV1; let planRevision: PlanRevisionReferenceV1; let contentBinding: PlanContentBindingV1; let fieldReference: PlanOfflineFieldReferenceProofV1; let openability: PlanDocumentOpenabilityObservationV1; let storage: OfflineReadinessStorageObservationV1; let protectedDataAvailable: Bool; let revisionDisposition: PlanRevisionSelectionDispositionV1; let checkedAt: Date }
-    private struct Basis: Codable { let schemaVersion: Int; let persistenceMode: String; let workspaceID: WorkspaceID; let applicability: PlanApplicabilityV1; let packet: WorkPacketManifestReferenceV1; let item: WorkPacketItemReferenceV1; let planRevision: PlanRevisionReferenceV1; let contentBinding: PlanContentBindingV1; let fieldReference: PlanOfflineFieldReferenceProofV1; let openability: PlanDocumentOpenabilityObservationV1; let storage: OfflineReadinessStorageObservationV1; let protectedDataAvailable: Bool; let revisionDisposition: PlanRevisionSelectionDispositionV1; let requiredBytes: Int64?; let findings: [PlanOfflineReadinessFindingV1]; let status: OfflineReadinessStatusV1; let checkedAt: Date; let sourceSnapshotSHA256: String }
+    private struct SourceBasis: Codable { let workspaceID: WorkspaceID; let packet: WorkPacketManifestReferenceV1; let item: WorkPacketItemReferenceV1; let planRevision: PlanRevisionReferenceV1?; let contentBinding: PlanContentBindingV1?; let fieldReference: PlanOfflineFieldReferenceProofV1?; let openability: PlanDocumentOpenabilityObservationV1?; let storage: OfflineReadinessStorageObservationV1; let protectedDataAvailable: Bool; let revisionDisposition: PlanRevisionSelectionDispositionV1?; let checkedAt: Date }
+    private struct Basis: Codable { let schemaVersion: Int; let persistenceMode: String; let workspaceID: WorkspaceID; let applicability: PlanApplicabilityV1; let packet: WorkPacketManifestReferenceV1; let item: WorkPacketItemReferenceV1; let planRevision: PlanRevisionReferenceV1?; let contentBinding: PlanContentBindingV1?; let fieldReference: PlanOfflineFieldReferenceProofV1?; let openability: PlanDocumentOpenabilityObservationV1?; let storage: OfflineReadinessStorageObservationV1; let protectedDataAvailable: Bool; let revisionDisposition: PlanRevisionSelectionDispositionV1?; let requiredBytes: Int64?; let findings: [PlanOfflineReadinessFindingV1]; let status: OfflineReadinessStatusV1; let checkedAt: Date; let sourceSnapshotSHA256: String }
 }
 
 struct PlanViewportPresentationV1: Codable, Equatable, Hashable, Sendable {
@@ -475,41 +527,60 @@ struct PlanAccessiblePlacementV1: Codable, Equatable, Hashable, Comparable, Send
 struct PlanMaterializedPoseSnapshotV1: Codable, Equatable, Hashable, Comparable, Sendable {
     let placementID: UUID
     let event: AssetPoseEventReferenceV1
+    let placementEventID: UUID
+    let physicalEpisodeID: PhysicalPlacementEpisodeIDV1
     let disposition: PoseObservationDispositionV1
     let source: PoseObservationSourceV1
     let notObservedReason: PoseNotObservedReasonV1?
     let planFrame: PlanRelativePoseFrameBindingV1?
     let snapshotSHA256: String
 
-    init(placementID: UUID, event value: AssetPoseEventV1) throws {
-        try value.validateIntrinsic(); try PlanOfflineWorkLimitsV1.id(placementID)
+    init(placement: PlanPlacementV1, binding: PlanPlacementPoseBindingV1,
+         event value: AssetPoseEventV1, planRevision: PlanRevisionReferenceV1) throws {
+        try value.validateIntrinsic(); try placement.validateIntrinsic()
+        try binding.validate(placement: placement); try planRevision.validate()
         let frame: PlanRelativePoseFrameBindingV1?
         if case .planRelative(let binding) = value.pose.referenceFrame { frame = binding } else { frame = nil }
-        self.placementID = placementID; event = value.reference
+        self.placementID = placement.placementID; event = value.reference
+        placementEventID = value.placementEventID; physicalEpisodeID = value.placementEpisodeID
         disposition = value.pose.disposition; source = value.source
         notObservedReason = value.pose.notObservedReason; planFrame = frame
         snapshotSHA256 = try PlanCanonicalCodecV1.sha256(Basis(
-            placementID: placementID, event: value.reference,
+            placementID: placement.placementID, event: value.reference,
+            placementEventID: value.placementEventID, physicalEpisodeID: value.placementEpisodeID,
             disposition: value.pose.disposition, source: value.source,
             notObservedReason: value.pose.notObservedReason, planFrame: frame
         ))
-        try validate()
+        try validate(placement: placement, binding: binding, planRevision: planRevision)
     }
 
     func validate() throws {
-        try PlanOfflineWorkLimitsV1.id(placementID); try event.validate(); try planFrame?.validate()
+        try PlanOfflineWorkLimitsV1.id(placementID); try event.validate()
+        try PlanOfflineWorkLimitsV1.id(placementEventID); try planFrame?.validate()
         guard (disposition == .notObserved) == (notObservedReason != nil),
               disposition != .notObserved || planFrame == nil,
               snapshotSHA256 == (try PlanCanonicalCodecV1.sha256(basis)) else {
             throw PlanOfflineWorkFailureV1.invalidValue
         }
     }
+    func validate(placement: PlanPlacementV1, binding: PlanPlacementPoseBindingV1,
+                  planRevision: PlanRevisionReferenceV1) throws {
+        try validate(); try binding.validate(placement: placement); try planRevision.validate()
+        guard event.workspaceID == placement.workspaceID, event.assetID == placement.subjectID,
+              placement.planRevision == planRevision, binding.placementID == placementID,
+              placementEventID == binding.placementEventID,
+              physicalEpisodeID == binding.physicalEpisodeID,
+              planFrame.map({ $0.planRevision == planRevision &&
+                              $0.spatialFrameID == placement.spatialFrameID }) ?? true else {
+            throw PlanOfflineWorkFailureV1.staleSource
+        }
+    }
     static func < (lhs: Self, rhs: Self) -> Bool {
         (lhs.placementID.uuidString, lhs.event.axisID.rawValue, lhs.event.revision) <
             (rhs.placementID.uuidString, rhs.event.axisID.rawValue, rhs.event.revision)
     }
-    private var basis: Basis { .init(placementID: placementID, event: event, disposition: disposition, source: source, notObservedReason: notObservedReason, planFrame: planFrame) }
-    private struct Basis: Codable { let placementID: UUID; let event: AssetPoseEventReferenceV1; let disposition: PoseObservationDispositionV1; let source: PoseObservationSourceV1; let notObservedReason: PoseNotObservedReasonV1?; let planFrame: PlanRelativePoseFrameBindingV1? }
+    private var basis: Basis { .init(placementID: placementID, event: event, placementEventID: placementEventID, physicalEpisodeID: physicalEpisodeID, disposition: disposition, source: source, notObservedReason: notObservedReason, planFrame: planFrame) }
+    private struct Basis: Codable { let placementID: UUID; let event: AssetPoseEventReferenceV1; let placementEventID: UUID; let physicalEpisodeID: PhysicalPlacementEpisodeIDV1; let disposition: PoseObservationDispositionV1; let source: PoseObservationSourceV1; let notObservedReason: PoseNotObservedReasonV1?; let planFrame: PlanRelativePoseFrameBindingV1? }
 }
 
 struct PlanWorkSurfaceStateV1: Codable, Equatable, Sendable {
@@ -537,14 +608,38 @@ struct PlanWorkSurfaceStateV1: Codable, Equatable, Sendable {
          resumeDraft: FieldDraftReferenceProjectionV1?,
          poseSnapshots: [PlanMaterializedPoseSnapshotV1], evaluatedAt: Date) throws {
         try source.validate(); try resumeDraft?.validate(); try PlanOfflineWorkLimitsV1.instant(evaluatedAt)
-        let pages = source.planRevision.pages.map { PlanPagePresentationV1(page: $0, thumbnailAvailable: true) }.sorted()
+        guard source.applicability != .notApplicable,
+              let planRevisionValue = source.planRevision,
+              let fieldReference = source.fieldReference,
+              let openability = source.openability,
+              let revisionDisposition = source.revisionDisposition else {
+            throw PlanOfflineWorkFailureV1.invalidValue
+        }
+        if resumeDraft != nil {
+            guard revisionDisposition == .current, fieldReference.availability == .readyOffline,
+                  openability.state == .openable, source.access.protectedDataAvailable else {
+                throw PlanOfflineWorkFailureV1.staleSource
+            }
+        }
+        let pages = planRevisionValue.pages.map { PlanPagePresentationV1(page: $0, thumbnailAvailable: true) }.sorted()
         let placements = try source.placements.enumerated().map {
             try PlanAccessiblePlacementV1(placement: $0.element,
                                           accessibilityLabelKey: "plan.placement.item",
                                           accessibilityOrdinal: $0.offset + 1)
         }.sorted()
         let poses = poseSnapshots.sorted()
-        try poses.forEach { try $0.validate() }
+        let revision = try planRevisionValue.reference
+        try poses.forEach { pose in
+            guard let placement = source.placements.first(where: { $0.placementID == pose.placementID }) else {
+                throw PlanOfflineWorkFailureV1.staleSource
+            }
+            let binding = try PlanPlacementPoseBindingV1(
+                placementID: pose.placementID, assetID: pose.event.assetID,
+                placementEventID: pose.placementEventID,
+                physicalEpisodeID: pose.physicalEpisodeID
+            )
+            try pose.validate(placement: placement, binding: binding, planRevision: revision)
+        }
         guard selectedPageID == viewport.pageID,
               pages.contains(where: { $0.page.pageID == selectedPageID }),
               selectedPlacementID.map({ id in placements.contains(where: { $0.placement.placementID == id }) }) ?? true,
@@ -554,7 +649,6 @@ struct PlanWorkSurfaceStateV1: Codable, Equatable, Sendable {
         }
         let packet = try WorkPacketManifestReferenceV1(source.manifest)
         let item = try WorkPacketItemReferenceV1(manifest: source.manifest, item: source.item)
-        let revision = try source.planRevision.reference
         let sourceSHA = try PlanCanonicalCodecV1.sha256(SourceBasis(
             packet: packet, item: item, planRevision: revision,
             placements: placements.map(\.placement), poseSnapshots: poses

@@ -1190,6 +1190,7 @@ struct PlanDocumentSearchPersistencePolicyV1: Codable, Equatable, Sendable {
     let currentTipsOnly: Bool
     let includesZeroPlacementDocuments: Bool
     let excludesHistoricOpenSelection: Bool
+    let excludesAbsentPlanAndNotApplicableItems: Bool
     let excludesOfflineReadinessBoolean: Bool
     let backupDisposition: String
     let replayDisposition: String
@@ -1204,6 +1205,7 @@ struct PlanDocumentSearchPersistencePolicyV1: Codable, Equatable, Sendable {
         currentTipsOnly = true
         includesZeroPlacementDocuments = true
         excludesHistoricOpenSelection = true
+        excludesAbsentPlanAndNotApplicableItems = true
         excludesOfflineReadinessBoolean = true
         backupDisposition = "EXCLUDED_DERIVED_REBUILD"
         replayDisposition = "DROP_AND_REBUILD_FROM_CANONICAL_PLAN_HISTORY"
@@ -1216,7 +1218,9 @@ struct PlanDocumentSearchPersistencePolicyV1: Codable, Equatable, Sendable {
               searchPersistenceRelease == .v7,
               fieldIDs == PlanDocumentSearchProjectionPolicyV1.fieldIDs,
               derivedOnly, currentTipsOnly, includesZeroPlacementDocuments,
-              excludesHistoricOpenSelection, excludesOfflineReadinessBoolean,
+              excludesHistoricOpenSelection,
+              excludesAbsentPlanAndNotApplicableItems,
+              excludesOfflineReadinessBoolean,
               backupDisposition == "EXCLUDED_DERIVED_REBUILD",
               replayDisposition == "DROP_AND_REBUILD_FROM_CANONICAL_PLAN_HISTORY",
               deleteDisposition == "DROP_AND_REBUILD_AFTER_PLAN_DELETE_OR_ERASE" else {

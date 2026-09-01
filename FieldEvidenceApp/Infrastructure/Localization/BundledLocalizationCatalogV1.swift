@@ -4312,6 +4312,7 @@ extension BundledLocalizationCatalogV1 {
                  .warningComponentReviewRequired, .errorStalePreview,
                  .errorWrongReference, .errorComponentConflict,
                  .errorReviewRequired, .errorInvalidDigest, .offlineReady,
+                 .offlineNotApplicable,
                  .offlineMissingPlan, .offlineMissingReference,
                  .offlineReferenceUnavailable, .offlineStorageInsufficient,
                  .offlineOpenabilityFailed, .offlineProtectedDataUnavailable,

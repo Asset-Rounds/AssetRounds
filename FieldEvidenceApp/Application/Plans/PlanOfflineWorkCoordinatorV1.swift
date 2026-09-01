@@ -20,6 +20,17 @@ final class PlanOfflineWorkCoordinatorV1 {
         self.draftCoordinator = draftCoordinator
     }
 
+    static func validateResumeEligibility(source: PlanOfflineWorkSourceV1,
+                                          hasResumeDraft: Bool) throws {
+        guard hasResumeDraft else { return }
+        guard source.revisionDisposition == .current,
+              source.fieldReference?.availability == .readyOffline,
+              source.openability?.state == .openable,
+              source.access.protectedDataAvailable else {
+            throw PlanOfflineWorkFailureV1.staleSource
+        }
+    }
+
     func readiness(for request: PlanOfflineWorkRequestV1) async throws -> OfflineWorkPacketReadinessV1 {
         let source = try await sourceResolver.source(for: request)
         return try OfflineWorkPacketReadinessV1(source: source)
@@ -33,6 +44,7 @@ final class PlanOfflineWorkCoordinatorV1 {
                      materializedPoseSnapshots: [PlanMaterializedPoseSnapshotV1],
                      evaluatedAt: Date) async throws -> PlanWorkSurfaceStateV1 {
         let source = try await sourceResolver.source(for: request)
+        try Self.validateResumeEligibility(source: source, hasResumeDraft: resumeDraft != nil)
         return try PlanWorkSurfaceStateV1(
             source: source, selectedPageID: selectedPageID,
             selectedPlacementID: selectedPlacementID, viewport: viewport,

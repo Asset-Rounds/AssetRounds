@@ -3427,6 +3427,14 @@ struct PlanOfflineReadinessSearchMetadataV1: Codable, Equatable, Hashable, Compa
 
     init(_ value: OfflineWorkPacketReadinessV1) throws {
         try value.validateIntrinsic()
+        guard value.applicability != .notApplicable,
+              let exactPlanRevision = value.planRevision,
+              value.contentBinding != nil,
+              value.fieldReference != nil,
+              value.openability != nil,
+              let exactRevisionDisposition = value.revisionDisposition else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
         workspaceID = value.workspaceID
         manifestID = value.packet.manifestID
         packetID = value.packet.packetID
@@ -3436,8 +3444,8 @@ struct PlanOfflineReadinessSearchMetadataV1: Codable, Equatable, Hashable, Compa
         itemKind = value.item.itemKind
         itemExpectedRevision = value.item.expectedRevision
         itemSHA256 = value.item.itemSHA256
-        planRevision = value.planRevision
-        revisionDisposition = value.revisionDisposition
+        planRevision = exactPlanRevision
+        revisionDisposition = exactRevisionDisposition
         sourceSnapshotSHA256 = value.sourceSnapshotSHA256
         findingCodes = Array(Set(value.findings.map(\.code))).sorted {
             $0.rawValue < $1.rawValue
@@ -3760,6 +3768,7 @@ enum PlanDocumentSearchProjectionPolicyV1 {
     static let currentTipsOnly = true
     static let includesZeroPlacementDocuments = true
     static let historicOpenSelectionIsNeverCurrent = true
+    static let absentPlanAndNotApplicableItemsAreExcluded = true
     static let offlineReadinessBooleanIsNeverIndexed = true
     static let dropAndRebuildAfterRestoreReplayDelete = true
     static let excludesSourceBytesActorsPrivateLocatorsAndUnsupportedClaims = true
@@ -3767,7 +3776,9 @@ enum PlanDocumentSearchProjectionPolicyV1 {
     static func validate(_ record: PlanDocumentSearchRecordV1) throws {
         try record.validate()
         guard derivedOnly, currentTipsOnly, includesZeroPlacementDocuments,
-              historicOpenSelectionIsNeverCurrent, offlineReadinessBooleanIsNeverIndexed,
+              historicOpenSelectionIsNeverCurrent,
+              absentPlanAndNotApplicableItemsAreExcluded,
+              offlineReadinessBooleanIsNeverIndexed,
               dropAndRebuildAfterRestoreReplayDelete,
               excludesSourceBytesActorsPrivateLocatorsAndUnsupportedClaims else {
             throw SearchContractFailureV1.forbiddenField

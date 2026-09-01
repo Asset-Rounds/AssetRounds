@@ -764,8 +764,8 @@ struct PlanOfflineReadinessManifestBindingV1: Codable, Equatable, Sendable {
     let workspaceID: WorkspaceID
     let packet: WorkPacketManifestReferenceV1
     let item: WorkPacketItemReferenceV1
-    let planRevision: PlanRevisionReferenceV1
-    let revisionDisposition: PlanRevisionSelectionDispositionV1
+    let planRevision: PlanRevisionReferenceV1?
+    let revisionDisposition: PlanRevisionSelectionDispositionV1?
     let sourceSnapshotSHA256: String
     let readinessSHA256: String
     let evaluatedAt: Date
@@ -792,5 +792,5 @@ struct PlanOfflineReadinessManifestBindingV1: Codable, Equatable, Sendable {
         guard self == (try Self(value)) else { throw OfflineReadinessManifestFailureV1.digestMismatch }
     }
 
-    private struct Basis: Codable { let persistenceMode: String; let workspaceID: WorkspaceID; let packet: WorkPacketManifestReferenceV1; let item: WorkPacketItemReferenceV1; let planRevision: PlanRevisionReferenceV1; let revisionDisposition: PlanRevisionSelectionDispositionV1; let sourceSnapshotSHA256: String; let readinessSHA256: String; let evaluatedAt: Date }
+    private struct Basis: Codable { let persistenceMode: String; let workspaceID: WorkspaceID; let packet: WorkPacketManifestReferenceV1; let item: WorkPacketItemReferenceV1; let planRevision: PlanRevisionReferenceV1?; let revisionDisposition: PlanRevisionSelectionDispositionV1?; let sourceSnapshotSHA256: String; let readinessSHA256: String; let evaluatedAt: Date }
 }

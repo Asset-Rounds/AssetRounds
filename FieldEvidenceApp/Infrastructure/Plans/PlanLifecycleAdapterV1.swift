@@ -70,10 +70,15 @@ final class PlanLifecycleAdapterV1 {
         evaluatedAt: Date
     ) throws -> PlanWorkSurfaceStateV1 {
         try source.validate()
+        guard source.applicability != .notApplicable else {
+            throw PlanOfflineWorkFailureV1.staleSource
+        }
         if resumeDraft != nil {
             guard source.revisionDisposition == .current,
-                  source.fieldReference.availability == .readyOffline,
-                  source.openability.state == .openable,
+                  let fieldReference = source.fieldReference,
+                  let openability = source.openability,
+                  fieldReference.availability == .readyOffline,
+                  openability.state == .openable,
                   source.access.protectedDataAvailable else {
                 throw PlanOfflineWorkFailureV1.staleSource
             }
