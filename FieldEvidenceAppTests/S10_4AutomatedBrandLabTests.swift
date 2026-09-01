@@ -3700,7 +3700,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (#"automationSegment == .none"#, 1),
             (#"segmentedRouteStateCursor == 0"#, 1),
             (#"automationContrastExceptions.isEmpty"#, 1),
-            (#"app.state == .runningForeground"#, 1),
+            (#"app.state == .runningForeground"#, 2),
             (#"try app.performAccessibilityAudit(for: .contrast)"#, 1),
             (#"return true"#, 1),
             (#"auditCompleted = true"#, 1),
@@ -22666,7 +22666,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    private func diagnoseSegment3AXTextSignSelectionNativeContrast(",
             before:
                 "\n\n    @MainActor\n" +
-                    "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
+                    "    private func diagnoseMinimumRTLReportsIndexNativeContrast("
         )
         XCTAssertEqual(signSelectionDiagnosticSource.utf8.count, 11_417)
         XCTAssertEqual(
