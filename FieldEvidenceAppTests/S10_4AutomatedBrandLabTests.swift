@@ -3990,8 +3990,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 36_294,
-             "3044BCAFB95BE81E5B177AF19B75FA959882EE7C6DB5A56A69FB43D5357B4C2A"),
+            (workValidationGateSource, 36_324,
+             "0A8A256D881694C36296EC12EF7E6B361864636A50C5B61491D42FE7D8AB69EC"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4011,10 +4011,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workValidationMinimumQuickPathGateRange.lowerBound...
             ]
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 30_563)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 30_593)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "9DF43839368E8E3208D623FC91256C252FEE3BCA8FA7FD34D57D06A3C606600A"
+            "1DE25B8695FDA85DFF7083E85A859255BD66AADB345FE50E4282C744CE3C64E3"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -4703,7 +4703,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "workQuickPathIntroductionCount == 1",
             "let workQuickPathButtonCount = workQuickPathButtons.count",
             "let workQuickPathStaticTextCount = workQuickPathStaticTexts.count",
-            "let workScreenCount = workScreens.count",
+            "let preDismissWorkScreenCount = workScreens.count",
             "let workDescriptionCount = workDescriptionFields.count",
             "let focusedWorkDescriptionCount =\n" +
                 "                    focusedWorkDescriptionFields.count",
@@ -20670,10 +20670,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 775_044)
+        XCTAssertEqual(uiSource.utf8.count, 775_074)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "C5C80C90A36F6C7A7965140261B9DC3A4FB28F39072645BE06D14DB2C7012FF9"
+            "A4D8A13F5EF0B39EB331B21738C604DB297B1E623911633C34194583B72A630F"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

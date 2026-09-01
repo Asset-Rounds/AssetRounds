@@ -4962,7 +4962,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let workKeyboards = app.keyboards
                 let workQuickPathButtonCount = workQuickPathButtons.count
                 let workQuickPathStaticTextCount = workQuickPathStaticTexts.count
-                let workScreenCount = workScreens.count
+                let preDismissWorkScreenCount = workScreens.count
                 let workDescriptionCount = workDescriptionFields.count
                 let focusedWorkDescriptionCount =
                     focusedWorkDescriptionFields.count
@@ -4971,7 +4971,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 guard workQuickPathIntroductionCount == 1,
                       workQuickPathButtonCount == 1,
                       workQuickPathStaticTextCount == 2,
-                      workScreenCount == 1,
+                      preDismissWorkScreenCount == 1,
                       workDescriptionCount == 1,
                       focusedWorkDescriptionCount == 1,
                       workValidationCount == 1,
@@ -5225,7 +5225,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 "introduction": workQuickPathIntroductionCount,
                                 "button": workQuickPathButtonCount,
                                 "staticText": workQuickPathStaticTextCount,
-                                "workScreen": workScreenCount,
+                                "workScreen": preDismissWorkScreenCount,
                                 "description": workDescriptionCount,
                                 "focusedDescription":
                                     focusedWorkDescriptionCount,
