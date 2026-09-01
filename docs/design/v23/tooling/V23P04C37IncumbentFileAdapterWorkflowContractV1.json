@@ -1,0 +1,298 @@
+{
+  "authority": {
+    "allocationDigest": "6f10fa9ffd35e180f8780ed9623fc77904a921f45626d28d8d141b4f11e12663",
+    "appBaseHead": "2576e34fd399fa9800f696a82cc945ad8fa3b2d9",
+    "appBaseTree": "2687b0f59764f9fc8836e643768df8b2d6dac66b",
+    "attemptID": 1,
+    "authorizedOverlapCount": 0,
+    "cardID": "V23-P04-C37",
+    "contextDigest": "4f73c1c6b4009340df653eb0a4c61d50ebf764cc0f30008bdc33dd1c8e8da9dd",
+    "coordinationHead": "f0f3c599e3ec851e1f8b34a6bce808c2c192554c",
+    "coordinationTree": "5b7a0e436be6bbe88802f21465cae8dbf63319f3",
+    "existingPathCount": 0,
+    "fencePathCount": 13,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "ledgerDigest": "3ab274727f36594fb651d9c61e61d39a0ce8e91cebf356509364c764ec74dcf5",
+    "newPathCount": 13,
+    "orderedPathFence": [
+      "FieldEvidenceApp/Application/Integrations/IncumbentFileAdapterWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_100IncumbentFileAdapterWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/IncumbentExchange/V23P04C37IncumbentFileAdapterWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C37IncumbentFileAdapterWorkflowUITests.swift",
+      "Scripts/v23/p04_c37_contracts.py",
+      "Scripts/v23/generate_p04_c37_contracts.py",
+      "Scripts/v23/verify_p04_c37_contracts.py",
+      "Scripts/v23/incumbent-file-adapter-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C37BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C37-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "e273fb7e28d72993006a3bcae1478fb8d38523b4dc3a1a9826bcd2d31bb5e972",
+    "prerequisiteDigest": "fe9c955636d805f0c2fe1f235156e70725a1e3d0c2d398f947f46b5d53780734",
+    "productTestUIFixturePathCount": 5,
+    "projectionDigest": "bfddef3867d94bd22d11aba022806ac9303072cb00569b68cd13f190bc0cc215",
+    "registerOrdinal": 122,
+    "s10ReservationOverlapCount": 0,
+    "sequence": 546,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C37",
+        "sha256": "51c0ec0ab817454e36d99cd306ceb9e021c2a0ba744f890943792a2e7f976ad7",
+        "utf8Length": 7376
+      },
+      {
+        "anchor": "V21-P04-C37",
+        "sha256": "9d547f4219c6e4e8ffc62ad6bb2fd18f8f82e3f0d9ec15ef8a07dafa327e4996",
+        "utf8Length": 4011
+      },
+      {
+        "anchor": "V23-P04-C37-register",
+        "sha256": "c29ca85c4862586a5e4997f07fda7282962d2fa684264da2a1d5edb2903f540b",
+        "utf8Length": 327
+      }
+    ],
+    "title": "Evidence-selected first incumbent flat-file adapter with dry-run mapping and deterministic exchange",
+    "toolingPathCount": 8,
+    "transitionDigest": "c15a5d798078bc59952c0cba8ded6710c7171a266fa60ee2289be5600d21ac17",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C37",
+  "contract": "IncumbentFileAdapterWorkflowContractV1",
+  "corpusExpectations": {
+    "hostileCases": [
+      "UNKNOWN_VERSION",
+      "NEWER_VERSION",
+      "NON_UTF8_ENCODING",
+      "FORMULA_PREFIX",
+      "NON_NFC_UNICODE",
+      "BYTE_LIMIT",
+      "ROW_LIMIT",
+      "COLUMN_LIMIT",
+      "SCALAR_LIMIT",
+      "PATH_TRAVERSAL_FILENAME",
+      "ARCHIVE_LIKE_INPUT",
+      "MISSING_STABLE_KEY",
+      "AMBIGUOUS_STABLE_KEY",
+      "MULTIPLE_SELECTIONS",
+      "STALE_SELECTION"
+    ],
+    "production": {
+      "canonicalWriteCount": 0,
+      "fileActionCount": 0,
+      "providerName": null,
+      "providerSuccessClaim": false,
+      "selectedProfileCount": 0,
+      "status": "DISABLED_NO_SELECTED_PROFILE"
+    },
+    "recoveryCases": [
+      "CANCEL_BEFORE_EFFECT",
+      "KILL_BEFORE_EFFECT",
+      "EFFECT_BEFORE_RECEIPT",
+      "EXACT_RETRY_ONE_CANONICAL_EFFECT",
+      "DIVERGENT_MUTATION_REJECTED",
+      "DIVERGENT_SOURCE_REJECTED",
+      "DIVERGENT_MAPPING_REJECTED",
+      "DIVERGENT_FRONTIER_REJECTED",
+      "SCRATCH_CLEANUP_IDEMPOTENT"
+    ],
+    "schema": "V23P04C37IncumbentFileAdapterWorkflowCorpusV1",
+    "synthetic": true,
+    "syntheticAuthority": {
+      "deterministicExport": true,
+      "deterministicPreview": true,
+      "representation": "IN_MEMORY_SELECTED_PROFILE_SIMULATION",
+      "selectedProfileCount": 1,
+      "shippedProductionSelectedProfileCount": 0
+    }
+  },
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "independence": {
+    "c08ReadOnly": true,
+    "c16ReadOnly": true,
+    "c50ReadOnly": true,
+    "credentials": false,
+    "login": false,
+    "network": false,
+    "newBackend": false,
+    "newImporter": false,
+    "newRenderer": false,
+    "newStore": false,
+    "newWriter": false,
+    "profileSpecificStrings": false,
+    "providerSuccessClaim": false,
+    "sdk": false,
+    "selectedProfileCount": 0,
+    "selectionDisposition": "DISABLED_NO_SELECTED_PROFILE"
+  },
+  "lifecycle": {
+    "newDurableFamilyCount": 0,
+    "newMigrationCount": 0,
+    "newModelCount": 0,
+    "newSchemaCount": 0,
+    "newStoreCount": 0,
+    "newWriterCount": 0,
+    "persistence": "NONPERSISTENT",
+    "readOnlyOwners": [
+      "V23-P03-C50",
+      "V23-P04-C08",
+      "V23-P04-C16"
+    ],
+    "selectedProfileCount": 0,
+    "status": "DISABLED_NO_SELECTED_PROFILE"
+  },
+  "ordinal": 122,
+  "requirements": {
+    "adapterPortOwner": "V23-P03-C50",
+    "closedTypedWorkflow": true,
+    "deterministicClosedSeam": true,
+    "disabledState": "DISABLED_NO_SELECTED_PROFILE",
+    "disabledZeroAction": true,
+    "exactReleaseSelection": true,
+    "executeAPI": "IncumbentFileAdapterWorkflowCoordinatorV1.execute",
+    "finalHashesUnsealed": true,
+    "fiveEvidenceScenarios": true,
+    "futureReentry": "CLOSED_TYPED_REENTRY_REQUIRES_EXACT_PROFILE_SELECTION_AND_NEW_MAPPING_PREVIEW",
+    "importEngineOwner": "V23-P04-C08",
+    "manualCommandCases": [
+      "previewInbound",
+      "previewCanonicalImport",
+      "beginCanonicalImport",
+      "commitOrCancelCanonicalImport",
+      "export",
+      "recover"
+    ],
+    "noAutomaticImport": true,
+    "noCredentials": true,
+    "noFileMeansSyncOrDelivery": true,
+    "noLogin": true,
+    "noNetwork": true,
+    "noParallelBackend": true,
+    "noParallelImporter": true,
+    "noParallelRenderer": true,
+    "noParallelStore": true,
+    "noParallelWriter": true,
+    "noProfileSpecificStrings": true,
+    "noProviderSuccessClaim": true,
+    "noSDK": true,
+    "nonPersistent": true,
+    "optionalReadOnlyC08ImportEngine": true,
+    "optionalReadOnlyC50Exchange": true,
+    "previewAPI": "IncumbentFileExchangeCoordinatorV1.preview",
+    "previewZeroWrite": true,
+    "projectionAPI": "IncumbentFileAdapterWorkflowCoordinatorV1.projection",
+    "readOnlyC16Prerequisite": true,
+    "recoveryAPI": "IncumbentFileExchangeCoordinatorV1.recover",
+    "renderAPI": "IncumbentFileExchangeCoordinatorV1.render",
+    "selectedProfileCount": 0
+  },
+  "scenarioEvidenceIDs": [
+    "V23-P04-C37-G01",
+    "V23-P04-C37-A01",
+    "V23-P04-C37-H01",
+    "V23-P04-C37-I01",
+    "V23-P04-C37-R01"
+  ],
+  "scenarioRows": [
+    {
+      "evidenceID": "V23-P04-C37-G01",
+      "expectedEffects": {
+        "canonicalWrite": 0,
+        "productionFileAction": 0,
+        "selectedProfileCount": 0
+      },
+      "focus": "DISABLED_NO_SELECTED_PROFILE_ZERO_ACTIONS_AND_CLAIMS",
+      "id": "G01",
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P04-C37-A01",
+      "expectedEffects": {
+        "deterministicExport": true,
+        "previewZeroWrite": true,
+        "productionSelection": false
+      },
+      "focus": "IN_MEMORY_EXACT_PROFILE_DETERMINISTIC_PREVIEW_AND_EXPORT",
+      "id": "A01",
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P04-C37-H01",
+      "expectedEffects": {
+        "rejectedEffects": 0
+      },
+      "focus": "INVALID_FILE_RELEASE_SELECTION_MAPPING_AND_PRIVACY_INPUTS",
+      "id": "H01",
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P04-C37-I01",
+      "expectedEffects": {
+        "canonicalEffects": [
+          0,
+          1
+        ],
+        "lostCallback": "UNKNOWN"
+      },
+      "focus": "EFFECT_BEFORE_RECEIPT_AND_SCRATCH_RECOVERY_WITHOUT_REIMPORT",
+      "id": "I01",
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P04-C37-R01",
+      "expectedEffects": {
+        "quarantineEffects": 0,
+        "replayEffects": 1
+      },
+      "focus": "EXACT_REPLAY_DIVERGENT_SOURCE_QUARANTINE_AND_CLEANUP",
+      "id": "R01",
+      "kind": "RECOVERY"
+    }
+  ],
+  "schema": "V23P04C37IncumbentFileAdapterWorkflowToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Application/Integrations/IncumbentFileAdapterWorkflowCoordinatorV1.swift",
+      "sha256": "a34abd8de5572f0063c14ec96f4ddd16843d2736e3cbd1c9dfcb77443150d8c3",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+      "sha256": "f3557940a31b1251e7598c9384160a8da21f0057e1c5c660fb26817ea1226090",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_100IncumbentFileAdapterWorkflowTests.swift",
+      "sha256": "6eced588b7c3dd5db27c9f1fe8e6753f322603b5d22188948ab0f4569aab1c52",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/IncumbentExchange/V23P04C37IncumbentFileAdapterWorkflowCorpusV1.json",
+      "sha256": "5a7102e763b4101d6c7111793ee3b69cea8cf485462ef1be0fdf46cecb94950c",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C37IncumbentFileAdapterWorkflowUITests.swift",
+      "sha256": "c440f6e7d9d5e42a22216a6ebf19a14902ab2e9f45caa8c500c0ed1050827f76",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

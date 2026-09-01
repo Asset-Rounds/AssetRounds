@@ -1,0 +1,74 @@
+{
+  "schema": "V23P04C37IncumbentFileAdapterWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C37",
+  "corpusID": "v23-p04-c37-incumbent-file-adapter-workflow-corpus-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "evidenceIDs": [
+    "V23-P04-C37-G01",
+    "V23-P04-C37-A01",
+    "V23-P04-C37-H01",
+    "V23-P04-C37-I01",
+    "V23-P04-C37-R01"
+  ],
+  "production": {
+    "status": "DISABLED_NO_SELECTED_PROFILE",
+    "selectedProfileCount": 0,
+    "fileActionCount": 0,
+    "canonicalWriteCount": 0,
+    "providerName": null,
+    "providerSuccessClaim": false
+  },
+  "syntheticAuthority": {
+    "selectedProfileCount": 1,
+    "representation": "IN_MEMORY_SELECTED_PROFILE_SIMULATION",
+    "shippedProductionSelectedProfileCount": 0,
+    "deterministicPreview": true,
+    "deterministicExport": true
+  },
+  "hostileCases": [
+    "UNKNOWN_VERSION",
+    "NEWER_VERSION",
+    "NON_UTF8_ENCODING",
+    "FORMULA_PREFIX",
+    "NON_NFC_UNICODE",
+    "BYTE_LIMIT",
+    "ROW_LIMIT",
+    "COLUMN_LIMIT",
+    "SCALAR_LIMIT",
+    "PATH_TRAVERSAL_FILENAME",
+    "ARCHIVE_LIKE_INPUT",
+    "MISSING_STABLE_KEY",
+    "AMBIGUOUS_STABLE_KEY",
+    "MULTIPLE_SELECTIONS",
+    "STALE_SELECTION"
+  ],
+  "recoveryCases": [
+    "CANCEL_BEFORE_EFFECT",
+    "KILL_BEFORE_EFFECT",
+    "EFFECT_BEFORE_RECEIPT",
+    "EXACT_RETRY_ONE_CANONICAL_EFFECT",
+    "DIVERGENT_MUTATION_REJECTED",
+    "DIVERGENT_SOURCE_REJECTED",
+    "DIVERGENT_MAPPING_REJECTED",
+    "DIVERGENT_FRONTIER_REJECTED",
+    "SCRATCH_CLEANUP_IDEMPOTENT"
+  ],
+  "claims": {
+    "fileCreatedMeansSynced": false,
+    "fileCreatedMeansDelivered": false,
+    "fileCreatedMeansProviderAccepted": false,
+    "providerSDK": false,
+    "networkEndpoint": false,
+    "credentials": false,
+    "securityClaim": false,
+    "identityClaim": false,
+    "legalClaim": false,
+    "shippedProductionProfileSelected": false,
+    "previewWritesCanonicalData": false,
+    "automaticImport": false
+  }
+}
