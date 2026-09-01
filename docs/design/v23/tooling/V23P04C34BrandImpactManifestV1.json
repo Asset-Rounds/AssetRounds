@@ -1,0 +1,25 @@
+{
+  "cardID": "V23-P04-C34",
+  "claimsSafeCompliantPermittedApproved": false,
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false
+  },
+  "installationDependency": false,
+  "nativeOrHostedAdoption": false,
+  "ordinal": 119,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "BrandImpactManifestV1",
+  "uiAcceptanceCredit": false,
+  "uiAdoptionSkipped": true
+}

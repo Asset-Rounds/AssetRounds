@@ -2987,3 +2987,228 @@ enum InstallationWorkflowProjectionBoundaryV1 {
     static let completionClaimsSafetyCompliancePermitCommissioningApprovalOrService = false
     static let adoptsPhase10 = false
 }
+
+// MARK: - Standalone punch-review workflow projections
+
+enum PunchReviewWorkflowFailureV1: Error, Equatable, Sendable {
+    case invalidContext
+    case invalidCommand
+    case blockedReadiness
+    case unknownScopeItem
+    case duplicateDecision
+    case staleOrWrongAsset
+    case conflictingRecheck
+    case unresolvedCloseoutCount
+    case unavailableCapability
+}
+
+enum PunchReviewPlanDispositionV1: String, Codable, CaseIterable, Sendable {
+    case available = "AVAILABLE"
+    case manualFallback = "MANUAL_FALLBACK"
+    case externalLocal = "EXTERNAL_LOCAL"
+    case unavailable = "UNAVAILABLE"
+}
+
+/// Typed optional P03-C19 input. A missing provider is explicit and never
+/// prevents a standalone review from using its recorded no-plan fallback.
+struct PunchReviewPlanCapabilityV1: Equatable, Sendable {
+    static let providerID = "V23_P03_C19_PUNCH_PLAN_REFERENCE"
+    static let consumerID = "V23_P04_C34"
+    static let capabilityID: CapabilityIDV1 = .filesAndShare
+    let disposition: PunchReviewPlanDispositionV1
+    let planReference: PunchPlanReferenceV1?
+    let noPlanFallback: NoPlanFallbackV1?
+    let externalReference: ActivityExternalReferenceV1?
+    let availabilityReceipt: TypedAvailabilityAndFallbackReceiptV1?
+
+    init(disposition: PunchReviewPlanDispositionV1,
+         planReference: PunchPlanReferenceV1? = nil,
+         noPlanFallback: NoPlanFallbackV1? = nil,
+         externalReference: ActivityExternalReferenceV1? = nil,
+         availabilityReceipt: TypedAvailabilityAndFallbackReceiptV1? = nil) throws {
+        self.disposition = disposition; self.planReference = planReference
+        self.noPlanFallback = noPlanFallback; self.externalReference = externalReference
+        self.availabilityReceipt = availabilityReceipt
+        try validate()
+    }
+
+    func validate() throws {
+        try planReference?.validate(); try noPlanFallback?.validate()
+        try externalReference?.validate(); try availabilityReceipt?.validate()
+        if let availabilityReceipt {
+            guard availabilityReceipt.providerID == Self.providerID,
+                  availabilityReceipt.consumerID == Self.consumerID,
+                  availabilityReceipt.capabilityID == Self.capabilityID,
+                  (disposition == .available)
+                    == (availabilityReceipt.availabilityReason == .available) else {
+                throw PunchReviewWorkflowFailureV1.unavailableCapability
+            }
+        }
+        switch disposition {
+        case .available:
+            guard planReference != nil, noPlanFallback == nil, externalReference == nil else {
+                throw PunchReviewWorkflowFailureV1.invalidContext
+            }
+        case .manualFallback:
+            guard planReference == nil, noPlanFallback != nil, externalReference == nil else {
+                throw PunchReviewWorkflowFailureV1.invalidContext
+            }
+        case .externalLocal:
+            guard planReference == nil, noPlanFallback == nil, externalReference != nil else {
+                throw PunchReviewWorkflowFailureV1.invalidContext
+            }
+        case .unavailable:
+            guard planReference == nil, noPlanFallback != nil, externalReference == nil,
+                  availabilityReceipt != nil else {
+                throw PunchReviewWorkflowFailureV1.invalidContext
+            }
+        }
+    }
+}
+
+/// Optional installation truth is read-only and fully resolved. Its absence is
+/// a first-class standalone state and never blocks punch-review start.
+struct PunchReviewInstallationSnapshotContextV1: Equatable, Sendable {
+    let envelope: ActivitySessionEnvelopeV2
+    let asBuiltSnapshot: InstallationAsBuiltSnapshotV1
+    let completedSnapshot: CompletedActivitySnapshotV2
+
+    init(envelope: ActivitySessionEnvelopeV2,
+         asBuiltSnapshot: InstallationAsBuiltSnapshotV1,
+         completedSnapshot: CompletedActivitySnapshotV2) throws {
+        self.envelope = envelope; self.asBuiltSnapshot = asBuiltSnapshot
+        self.completedSnapshot = completedSnapshot
+        try validate()
+    }
+
+    func validate() throws {
+        try envelope.validateForRead(); try asBuiltSnapshot.validate(); try completedSnapshot.validate()
+        guard envelope.kind == .installation, envelope.state == .finalized,
+              asBuiltSnapshot.workspaceID == envelope.workspaceID,
+              asBuiltSnapshot.activityID == envelope.activityID,
+              let closeout = envelope.installationCloseout,
+              closeout.asBuiltSnapshotSHA256 == asBuiltSnapshot.snapshotSHA256,
+              let reference = envelope.completedSnapshotReference,
+              reference.workspaceID == envelope.workspaceID,
+              reference.activityID == envelope.activityID,
+              reference.sourceWorkspaceID == envelope.workspaceID,
+              reference.sourceActivityID == envelope.activityID,
+              reference.sourceSubjectID == envelope.subjectID,
+              reference.sourceCloseoutSHA256 == closeout.closeoutSHA256,
+              reference.targetCloseoutSHA256 == closeout.closeoutSHA256 else {
+            throw PunchReviewWorkflowFailureV1.invalidContext
+        }
+        try reference.validate(snapshot: completedSnapshot)
+    }
+}
+
+struct PunchReviewReadinessBlockerV1: Codable, Equatable, Comparable, Sendable {
+    let facetID: String
+    let kind: ActivityReadinessFacetKindV1
+    let disposition: ActivityReadinessDispositionV1
+    let reason: String
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.facetID < rhs.facetID }
+}
+
+struct PunchReviewScopeProjectionV1: Equatable, Sendable {
+    let definition: PunchReviewScopeItemV1
+    let decision: PunchItemProjectionV1?
+    let unresolvedFindingCount: Int
+    let resolvedFindingCount: Int
+    var hasRecordedDecision: Bool { decision != nil }
+}
+
+enum PunchReviewCloseoutActionV1: String, Codable, CaseIterable, Sendable {
+    case recordFieldComplete = "RECORD_FIELD_COMPLETE"
+    case submitForReview = "SUBMIT_FOR_REVIEW"
+    case finalizeRecordedCloseout = "FINALIZE_RECORDED_CLOSEOUT"
+}
+
+enum PunchReviewReportReadinessV1: String, Codable, CaseIterable, Sendable {
+    case reviewIncomplete = "REVIEW_INCOMPLETE"
+    case reviewRequired = "REVIEW_REQUIRED"
+    case readyForExistingRenderer = "READY_FOR_EXISTING_RENDERER"
+}
+
+/// Renderer-neutral input only. Every approval, compliance, safety, delivery,
+/// and identity claim stays false regardless of closeout disposition.
+struct PunchReviewReportProjectionV1: Codable, Equatable, Sendable {
+    let activityID: UUID
+    let envelopeSHA256: String
+    let state: ActivityStateV2
+    let basisSHA256: String
+    let scopeItemIDs: [String]
+    let findingSHA256s: [String]
+    let correctiveActionSHA256s: [String]
+    let verifiedRecheckSHA256s: [String]
+    let unresolvedScopeCount: Int
+    let unresolvedFindingCount: Int
+    let resolvedFindingCount: Int
+    let closeoutSHA256: String?
+    let installationSnapshotSHA256: String?
+    let claimsSafe: Bool
+    let claimsCompliant: Bool
+    let claimsApproved: Bool
+    let claimsAccepted: Bool
+    let claimsDelivered: Bool
+    let claimsIdentityVerified: Bool
+    let projectionSHA256: String
+
+    init(activityID: UUID, envelopeSHA256: String, state: ActivityStateV2,
+         basisSHA256: String, scopeItemIDs: [String], findingSHA256s: [String],
+         correctiveActionSHA256s: [String], verifiedRecheckSHA256s: [String],
+         unresolvedScopeCount: Int, unresolvedFindingCount: Int,
+         resolvedFindingCount: Int, closeoutSHA256: String?,
+         installationSnapshotSHA256: String?) throws {
+        let basis = Basis(activityID:activityID,envelopeSHA256:envelopeSHA256,state:state,
+            basisSHA256:basisSHA256,scopeItemIDs:scopeItemIDs,findingSHA256s:findingSHA256s,
+            correctiveActionSHA256s:correctiveActionSHA256s,
+            verifiedRecheckSHA256s:verifiedRecheckSHA256s,
+            unresolvedScopeCount:unresolvedScopeCount,unresolvedFindingCount:unresolvedFindingCount,
+            resolvedFindingCount:resolvedFindingCount,closeoutSHA256:closeoutSHA256,
+            installationSnapshotSHA256:installationSnapshotSHA256,
+            claimsSafe:false,claimsCompliant:false,claimsApproved:false,claimsAccepted:false,
+            claimsDelivered:false,claimsIdentityVerified:false)
+        self.activityID=activityID;self.envelopeSHA256=envelopeSHA256;self.state=state
+        self.basisSHA256=basisSHA256;self.scopeItemIDs=scopeItemIDs
+        self.findingSHA256s=findingSHA256s;self.correctiveActionSHA256s=correctiveActionSHA256s
+        self.verifiedRecheckSHA256s=verifiedRecheckSHA256s
+        self.unresolvedScopeCount=unresolvedScopeCount;self.unresolvedFindingCount=unresolvedFindingCount
+        self.resolvedFindingCount=resolvedFindingCount;self.closeoutSHA256=closeoutSHA256
+        self.installationSnapshotSHA256=installationSnapshotSHA256
+        claimsSafe=false;claimsCompliant=false;claimsApproved=false;claimsAccepted=false
+        claimsDelivered=false;claimsIdentityVerified=false
+        projectionSHA256=try WorkspaceMutationCanonicalV1.sha256(basis)
+    }
+    private struct Basis:Codable{let activityID:UUID;let envelopeSHA256:String;let state:ActivityStateV2
+        let basisSHA256:String;let scopeItemIDs:[String];let findingSHA256s:[String]
+        let correctiveActionSHA256s:[String];let verifiedRecheckSHA256s:[String]
+        let unresolvedScopeCount:Int;let unresolvedFindingCount:Int;let resolvedFindingCount:Int
+        let closeoutSHA256:String?;let installationSnapshotSHA256:String?
+        let claimsSafe:Bool;let claimsCompliant:Bool;let claimsApproved:Bool;let claimsAccepted:Bool
+        let claimsDelivered:Bool;let claimsIdentityVerified:Bool}
+}
+
+struct PunchReviewWorkflowProjectionV1: Equatable, Sendable {
+    let envelope: ActivitySessionEnvelopeV2
+    let blockers: [PunchReviewReadinessBlockerV1]
+    let scope: [PunchReviewScopeProjectionV1]
+    let nextScopeItemID: String?
+    let planDisposition: PunchReviewPlanDispositionV1
+    let installationSnapshotAvailable: Bool
+    let canStart: Bool
+    let canCloseout: Bool
+    let nextCloseoutAction: PunchReviewCloseoutActionV1?
+    let reportReadiness: PunchReviewReportReadinessV1
+    let reportReady: Bool
+    let report: PunchReviewReportProjectionV1
+}
+
+enum PunchReviewWorkflowProjectionBoundaryV1 {
+    static let persistentFamilyAdded = false
+    static let schemaStoreWriterOrBackendAdded = false
+    static let reportRendererAdded = false
+    static let installationRequiredForStart = false
+    static let installationTruthInferred = false
+    static let claimsComplianceApprovalSafetyDeliveryOrIdentity = false
+}

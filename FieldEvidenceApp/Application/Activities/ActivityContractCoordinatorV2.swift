@@ -184,6 +184,10 @@ struct ActivityContractAcceptanceRequestV2: Equatable, Sendable {
             } == true
         let hasPunchPayload = mutation.punchReviewBasisSnapshot != nil
             || mutation.successorEnvelope.punchReviewCloseout != nil
+            || mutation.successorEnvelope.currentBasisReference.map {
+                if case .punchReview = $0 { return true }
+                return false
+            } == true
         switch payload {
         case .shared:
             guard !hasInstallationPayload, !hasPunchPayload else {
