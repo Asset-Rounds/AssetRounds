@@ -595,6 +595,8 @@ enum KernelDeletionEraseRegistryV4 {
               lightingDayInventoryDeleteKinds.count
                 == LightingDayInventoryBackupEnrollmentV1.durableFamilyCount,
               LightingDayInventoryPersistenceEnrollmentV1.persistentSchemaVersion == 52,
+              LightingNightWorkflowBackupEnrollmentV1.durableFamilyCount == 1,
+              LightingNightWorkflowPersistenceEnrollmentV1.persistentSchemaVersion == 53,
               LightingDayInventoryPersistenceEnrollmentV1.durableModelCount == 1,
               !LightingDayInventoryPersistenceEnrollmentV1.offlineReadinessManifestIsPersistent else {
             throw KernelPersistenceV4Failure.incompleteCoverage

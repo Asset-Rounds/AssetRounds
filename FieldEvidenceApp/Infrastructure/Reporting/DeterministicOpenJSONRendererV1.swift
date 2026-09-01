@@ -344,6 +344,12 @@ struct ReportProjectionOutputV1: Equatable, Sendable {
     let taggedPDFAccessibilityEvidence: Bool
 }
 
+private struct C18LightingOpenJSONEnvelopeV1:Codable,Equatable,Sendable{let schemaVersion:String;let projection:LightingReportProjectionV1;let projectionSHA256:String}
+extension DeterministicOpenJSONRendererV1{
+ static func renderC18LightingNight(_ p:LightingReportProjectionV1)throws->ReportProjectionOutputV1{try C18LightingReportProjectionSupportV1.validate(p);let d=try C18LightingReportProjectionSupportV1.digest(p);let v=C18LightingOpenJSONEnvelopeV1(schemaVersion:C18LightingReportProjectionSupportV1.projectionVersion,projection:p,projectionSHA256:d);let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];let data=try e.encode(v);guard try reopenC18LightingNight(data)==p else{throw SnapshotProjectionFailureV1.projectionDisagreement};return .init(format:.openJSON,data:data,sha256:KernelCanonicalHashV1.sha256(data),semanticSHA256:d,orderedSemanticIDs:[p.workflowID.uuidString.lowercased()],taggedPDFAccessibilityEvidence:false)}
+ static func reopenC18LightingNight(_ data:Data)throws->LightingReportProjectionV1{guard !data.isEmpty,data.count<=SnapshotProjectionLimitsV1.maximumProjectionBytes else{throw SnapshotProjectionFailureV1.limitExceeded};let v=try JSONDecoder().decode(C18LightingOpenJSONEnvelopeV1.self,from:data);let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];guard v.schemaVersion==C18LightingReportProjectionSupportV1.projectionVersion,v.projectionSHA256==(try C18LightingReportProjectionSupportV1.digest(v.projection)),try e.encode(v)==data else{throw SnapshotProjectionFailureV1.projectionDisagreement};return v.projection}
+}
+
 // MARK: - C30 operating-context report output
 
 /// Deterministic, frozen C30 output.  Only the consumer projection is

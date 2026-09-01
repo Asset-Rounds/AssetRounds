@@ -20,7 +20,7 @@ enum C50IncumbentFileExchangeStreamingArchiveServiceBoundaryV1 {
 enum GuidedSurveyStreamingArchiveDispositionV1 {
     static func validate(records: V4BackupRecordsV1) throws {
         guard records.recordsSchemaVersion < 24 ||
-                ((24...C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) &&
+                ((24...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) &&
                  records.guidedSurveys.count <= 200_000) else {
             throw StreamingArchiveFailureV1.invalidArchive
         }
@@ -60,6 +60,10 @@ enum GuidedSurveyStreamingArchiveDispositionV1 {
         if records.recordsSchemaVersion >= 30 {
             do {
                 try C31LightingStreamingArchivePolicyV1.validate(records: records)
+                try LightingDayInventoryBackupEnrollmentV1.validate(records)
+                try records.validateC17LightingDayInventoryClosure()
+                try LightingNightWorkflowBackupEnrollmentV1.validate(records)
+                try records.validateC18LightingNightWorkflowClosure()
             } catch {
                 throw StreamingArchiveFailureV1.invalidArchive
             }

@@ -518,7 +518,8 @@ enum KernelMutationReceiptRegistryV4 {
               C12ReinspectionExceptionKernelMutationReceiptBoundaryV1.validate(),
               C13EntityIdentityResolutionKernelMutationReceiptBoundaryV1.validate(),
               C16WorkspaceExperienceKernelMutationReceiptBoundaryV1.validate(),
-              C17LightingDayInventoryKernelMutationReceiptBoundaryV1.validate() else {
+              C17LightingDayInventoryKernelMutationReceiptBoundaryV1.validate(),
+              C18LightingNightWorkflowKernelMutationReceiptBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
         try validate(registrations)
@@ -664,6 +665,18 @@ enum C17LightingDayInventoryKernelMutationReceiptBoundaryV1 {
             && durableReceiptRequired
             && effectBeforeReceiptRecovery
             && !typedReceiptRowExists
+    }
+}
+
+/// C18 retains the incumbent generic receipt and postimage recovery path.
+enum C18LightingNightWorkflowKernelMutationReceiptBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyLightingNightWorkflow
+    static let durableReceiptRequired = true
+    static let effectBeforeReceiptRecovery = true
+    static func validate() -> Bool {
+        commandKind == .applyLightingNightWorkflow && durableReceiptRequired
+            && effectBeforeReceiptRecovery
+            && LightingNightWorkflowPersistenceEnrollmentV1.usesGenericMutationReceiptOnly
     }
 }
 

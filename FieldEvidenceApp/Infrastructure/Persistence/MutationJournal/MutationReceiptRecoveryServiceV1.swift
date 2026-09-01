@@ -22,6 +22,7 @@ final class MutationReceiptRecoveryServiceV1 {
             try validateEntityIdentityResolutionRecoveryParity()
             try validateWorkspaceExperienceRecoveryParity()
             try validateLightingDayInventoryRecoveryParity()
+            try validateLightingNightWorkflowRecoveryParity()
         }
     }
 
@@ -69,6 +70,11 @@ final class MutationReceiptRecoveryServiceV1 {
     /// aggregate. Safety stops remain durable audit truth, never permission to
     /// start a daylight or night observation.
     func recoverLightingDayInventoryEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
+    /// C18 revalidates its single append-only night aggregate through the
+    /// incumbent generic receipt before any writer is made available.
+    func recoverLightingNightWorkflowEffectsBeforeWriterActivation() throws {
         try recoverBeforeWriterActivation()
     }
     /// C33 repairs clip/anchor effects and their canonical receipt together.
@@ -205,6 +211,11 @@ final class MutationReceiptRecoveryServiceV1 {
             )
         }
     }
+    private func validateLightingNightWorkflowRecoveryParity() throws {
+        for pair in try store.lightingNightWorkflowRecoveryPairs() {
+            try LightingNightWorkflowMutationReceiptRecoveryPolicyV1.validateRecovered(operation: pair.operation, receipt: pair.receipt)
+        }
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -222,6 +233,11 @@ enum LightingDayInventoryMutationReceiptRecoveryPolicyV1 {
         receipt: MutationReceiptV1
     ) throws {
         _ = try LightingDayInventoryMutationReceiptV1(operation: operation, mutationReceipt: receipt)
+    }
+}
+enum LightingNightWorkflowMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(operation: LightingNightWorkflowWriteOperationV1, receipt: MutationReceiptV1) throws {
+        _ = try LightingNightWorkflowMutationReceiptV1(operation: operation, mutationReceipt: receipt)
     }
 }
 enum EntityIdentityResolutionMutationReceiptRecoveryPolicyV1 {

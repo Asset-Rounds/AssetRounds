@@ -155,6 +155,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case lightingMeasurementPlan
     case lightingClaimState
     case lightingDayInventoryWorkflow
+    case lightingNightWorkflow
     case temporalEvidenceClip
     case timecodedEvidenceAnchor
     case acceptedLabelGenerationSnapshot
@@ -1705,6 +1706,32 @@ extension LightingDayInventoryWriteOperationV1 {
     }
 }
 
+/// C18 serializes the immutable night-workflow successor chain against its
+/// predecessor record while the new record remains the sole effect identity.
+extension LightingNightWorkflowWriteOperationV1 {
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws { try .init(kind: .lightingNightWorkflow, id: workflow.recordID) }
+    }
+
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .appendWorkflow(value, predecessor, _):
+                return try .init(
+                    kind: .lightingNightWorkflow,
+                    id: predecessor?.recordID ?? value.recordID
+                )
+            }
+        }
+    }
+
+    var expectedRevision: UInt64 {
+        switch self {
+        case let .appendWorkflow(_, predecessor, _): return predecessor?.revision ?? 0
+        }
+    }
+}
+
 enum TemporalEvidenceMutationPayloadV1: Codable, Equatable, Sendable {
     case acceptClip(TemporalEvidenceClipV1, review:TemporalEvidenceCaptureReviewV1, predecessor: TemporalEvidenceClipV1?)
     case appendAnchor(TimecodedEvidenceAnchorV1, clip: TemporalEvidenceClipV1, predecessor: TimecodedEvidenceAnchorV1?)
@@ -2662,6 +2689,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyEvidenceContext(EvidenceContextWriteOperationV1)
     case applyLighting(LightingWriteOperationV1)
     case applyLightingDayInventory(LightingDayInventoryWriteOperationV1)
+    case applyLightingNightWorkflow(LightingNightWorkflowWriteOperationV1)
     case applyAssistanceAcceptance(AssistanceAcceptanceRequestV1)
     case applyTemporalEvidence(TemporalEvidenceMutationV1)
     case applyAssetLabel(AssetLabelMutationV1)
@@ -2725,6 +2753,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyEvidenceContext:.applyEvidenceContext
         case .applyLighting:.applyLighting
         case .applyLightingDayInventory: .applyLightingDayInventory
+        case .applyLightingNightWorkflow: .applyLightingNightWorkflow
         case .applyAssistanceAcceptance:.applyAssistanceAcceptance
         case .applyTemporalEvidence:.applyTemporalEvidence
         case .applyAssetLabel:.applyAssetLabel
@@ -2790,6 +2819,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyEvidenceContext="apply_evidence_context"
     case applyLighting="apply_lighting"
     case applyLightingDayInventory="apply_lighting_day_inventory"
+    case applyLightingNightWorkflow="apply_lighting_night_workflow"
     case applyAssistanceAcceptance="apply_assistance_acceptance"
     case applyTemporalEvidence="apply_temporal_evidence"
     case applyAssetLabel="apply_asset_label"
@@ -3782,6 +3812,8 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyPlacementPose,disposition:.compensatable,stableReason:"append_pose_history_successor_only"),
         .init(commandKind:.applyEvidenceContext,disposition:.compensatable,stableReason:"append_evidence_context_history_successor_only"),
         .init(commandKind:.applyLighting,disposition:.compensatable,stableReason:"append_lighting_history_successor_only"),
+        .init(commandKind:.applyLightingDayInventory,disposition:.compensatable,stableReason:"append_day_inventory_workflow_successor_only"),
+        .init(commandKind:.applyLightingNightWorkflow,disposition:.compensatable,stableReason:"append_night_workflow_successor_only"),
         .init(commandKind:.applyAssistanceAcceptance,disposition:.compensatable,stableReason:"explicit_review_expected_revision_target_mutation"),
         .init(commandKind:.applyTemporalEvidence,disposition:.compensatable,stableReason:"immutable_original_with_governed_successor_or_tombstone_retention"),
         .init(commandKind:.applyAssetLabel,disposition:.compensatable,stableReason:"immutable_accepted_label_snapshot_with_historic_reprint_only"),
@@ -3800,11 +3832,16 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind:.applyFastSurveyInbox,disposition:.compensatable,stableReason:"append_inbox_promotion_and_snippet_successors_preserve_original_content_provenance"),
         .init(commandKind:.applyReinspectionException,disposition:.irreversible,stableReason:"append_reinspection_plan_attestation_and_acknowledgement_history_preserves_canonical_source_truth"),
         .init(commandKind:.applyEntityIdentityResolution,disposition:.compensatable,stableReason:"append_entity_alias_or_consolidation_successor_with_explicit_reversal_only"),
+        .init(commandKind:.applyWorkspaceExperience,disposition:.compensatable,stableReason:"append_workspace_experience_provenance_successor_only"),
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {
-        guard policies.count == WorkspaceCommandKindV1.allCases.count,
+        guard policies.count == 61,
+              policies.count == WorkspaceCommandKindV1.allCases.count,
               Set(policies.map(\.commandKind)).count == policies.count,
+              policies.first(where: { $0.commandKind == .applyLightingDayInventory })?.disposition == .compensatable,
+              policies.first(where: { $0.commandKind == .applyLightingNightWorkflow })?.disposition == .compensatable,
+              policies.first(where: { $0.commandKind == .applyWorkspaceExperience })?.disposition == .compensatable,
               let policy = policies.first(where: { $0.commandKind == kind }) else {
             throw WorkspaceMutationContractFailureV1.invalidPlan
         }

@@ -279,6 +279,8 @@ private extension BackupCanonicalDecoderV1 {
         do {
             try LightingDayInventoryBackupEnrollmentV1.validate(records)
             try records.validateC17LightingDayInventoryClosure()
+            try LightingNightWorkflowBackupEnrollmentV1.validate(records)
+            try records.validateC18LightingNightWorkflowClosure()
         }
         catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
     }
@@ -396,7 +398,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard (30...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
+        guard (30...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion) else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
@@ -497,7 +499,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion <= LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion else {
+        guard records.recordsSchemaVersion <= LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         var locators: [UUID: AssetLocatorV1] = [:]
@@ -1384,7 +1386,8 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
                 || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion),
+                || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }

@@ -980,6 +980,7 @@ final class BackupRestoreService {
         // only in the C17 materialization branch below.
         expectedRecords.lightingDayInventoryWorkflows =
             validatedPackage.records.lightingDayInventoryWorkflows
+        expectedRecords.lightingNightWorkflows = validatedPackage.records.lightingNightWorkflows
         guard uniqueModelIDs(in: expectedRecords) else {
             throw BackupRestoreServiceError.invalidRestoreAuthority
         }
@@ -1041,6 +1042,7 @@ final class BackupRestoreService {
                 }
             }
             let lightingDayInventoryWorkflows = expectedRecords.lightingDayInventoryWorkflows
+            let lightingNightWorkflows = expectedRecords.lightingNightWorkflows
             let accessibleDocumentAssessments=try await preparedAccessibleDocumentAssessments(expectedRecords.accessibleDocumentAssessments,identityDecision:preliminaryIdentityDecision)
             expectedRecords=expectedRecords.replacingAccessibleDocumentAssessments(accessibleDocumentAssessments)
             // The incumbent C22 copy helper predates the independent C17
@@ -1048,6 +1050,7 @@ final class BackupRestoreService {
             // where replace is byte exact and clone/fork performs its
             // canonical destination rebound.
             expectedRecords.lightingDayInventoryWorkflows = lightingDayInventoryWorkflows
+            expectedRecords.lightingNightWorkflows = lightingNightWorkflows
             guard uniqueModelIDs(in: expectedRecords) else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
@@ -2048,6 +2051,7 @@ private extension BackupRestoreService {
         // C17 bytes, so restore that family before the idempotency comparison.
         recoveredRecords.lightingDayInventoryWorkflows =
             target.lightingDayInventoryWorkflows
+        recoveredRecords.lightingNightWorkflows = target.lightingNightWorkflows
         guard recoveredRecords == target else { return false }
         if target.recordsSchemaVersion
             >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
@@ -2381,6 +2385,8 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
+            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: records.lightingNightWorkflows,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
@@ -2426,6 +2432,7 @@ private extension BackupRestoreService {
             + records.placementPoses.map(\.id)
             + records.lighting.map(\.id)
             + records.lightingDayInventoryWorkflows.map(\.id)
+            + records.lightingNightWorkflows.map(\.id)
             + records.temporalEvidence.map(\.id)
         return Set(ids).count == ids.count
     }
@@ -2472,6 +2479,8 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
+            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: records.lightingNightWorkflows,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
@@ -2981,6 +2990,7 @@ private extension BackupRestoreService {
         normalized.entityIdentityResolution = records.entityIdentityResolution
         normalized.practiceWorkspaceProvenance = records.practiceWorkspaceProvenance
         normalized.lightingDayInventoryWorkflows = records.lightingDayInventoryWorkflows
+        normalized.lightingNightWorkflows = records.lightingNightWorkflows
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -3012,6 +3022,7 @@ private extension BackupRestoreService {
         reset.entityIdentityResolution = records.entityIdentityResolution
         reset.practiceWorkspaceProvenance = records.practiceWorkspaceProvenance
         reset.lightingDayInventoryWorkflows = records.lightingDayInventoryWorkflows
+        reset.lightingNightWorkflows = records.lightingNightWorkflows
         return reset
     }
 
@@ -3243,6 +3254,8 @@ private extension BackupRestoreService {
             savedSmartViews: records.savedSmartViews, sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
+            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: records.lightingNightWorkflows,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: records.temporalEvidence,
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
@@ -3577,6 +3590,8 @@ private extension BackupRestoreService {
                 savedSmartViews: savedSmartViews,
                 workflowRecords: records.workflowRecords,
                 lighting: records.lighting,
+                lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+                lightingNightWorkflows: records.lightingNightWorkflows,
                 assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
                 temporalEvidence: temporalEvidence,
                 acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
@@ -3681,6 +3696,8 @@ private extension BackupRestoreService {
             sites: records.sites,
             workflowRecords: records.workflowRecords,
             lighting: records.lighting,
+            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: records.lightingNightWorkflows,
             assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
             temporalEvidence: temporalEvidence,
             acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
@@ -8325,6 +8342,8 @@ private extension BackupRestoreService {
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: workflowRecords,
+            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: records.lightingNightWorkflows,
             activityContracts: records.activityContracts,
             workResources: records.workResources,
             serviceRequests: records.serviceRequests,
@@ -9754,6 +9773,7 @@ private extension BackupRestoreService {
                 // the inserts so no caller can bypass the evidence join.
                 try records.validateC31LightingClosure()
                 try records.validateC17LightingDayInventoryClosure()
+                try records.validateC18LightingNightWorkflowClosure()
                 let expectedWorkspaceID = identityDecision.map {
                     WorkspaceID(rawValue: $0.targetPointer.workspaceID)
                 } ?? legacyDestinationIdentity.workspaceID
@@ -9761,12 +9781,16 @@ private extension BackupRestoreService {
                 let dayInventoryWorkflows = try LightingDayInventoryBackupRecordSetV1.decode(
                     records.lightingDayInventoryWorkflows
                 )
+                let nightWorkflows = try LightingNightWorkflowBackupRecordSetV1.decode(
+                    records.lightingNightWorkflows
+                )
                 let workspaces = lighting.systems.map(\.workspaceID)
                     + lighting.observations.map(\.workspaceID)
                     + lighting.issues.map(\.workspaceID)
                     + lighting.plans.map(\.workspaceID)
                     + lighting.claims.map(\.workspaceID)
                     + dayInventoryWorkflows.map(\.workspaceID)
+                    + nightWorkflows.map(\.workspaceID)
                 let replaceExact = workspaces.allSatisfy({ $0 == expectedWorkspaceID })
                 if !replaceExact {
                     guard let sourceWorkspaceID = workspaces.first,
@@ -9794,6 +9818,9 @@ private extension BackupRestoreService {
                                                        by: \.workflowID).values.compactMap {
                         $0.max(by: { $0.revision < $1.revision })
                     }.sorted { $0.workflowID.uuidString < $1.workflowID.uuidString }
+                    var destinationSystemByDayWorkflowID: [UUID: LightingSystemV1] = [:]
+                    var destinationDayBySourceWorkflowID: [UUID: LightingDayInventoryWorkflowV1] = [:]
+                    var destinationObservationBySourceID: [UUID: LightingObservationV1] = [:]
                     for sourceWorkflow in terminalWorkflows {
                         guard let sourceSystem = lighting.systems.first(where: {
                             $0.systemID == sourceWorkflow.systemID
@@ -9851,6 +9878,7 @@ private extension BackupRestoreService {
                                 recordedBy: observationActor, recordedAt: sourceObservation.recordedAt
                             )
                             context.insert(try LightingObservationRow(destinationObservation))
+                            destinationObservationBySourceID[sourceObservation.observationID] = destinationObservation
                             let media = try sourceSnapshot.contextualMedia.map {
                                 try ContentReferenceV1(
                                     workspaceID: expectedWorkspaceID.rawValue.uuidString.lowercased(),
@@ -9897,10 +9925,114 @@ private extension BackupRestoreService {
                             recordedAt: sourceWorkflow.recordedAt
                         )
                         context.insert(try LightingDayInventoryWorkflowRowV1(rebound))
+                        destinationSystemByDayWorkflowID[sourceWorkflow.workflowID] = destinationSystem
+                        destinationDayBySourceWorkflowID[sourceWorkflow.workflowID] = rebound
                     }
-                    // C17 clone/fork intentionally carries only the validated
-                    // day facts. Source issue/measurement/claim and night
-                    // occurrence activation remain absent in the new identity.
+                    let destinationOccurrences = try context.fetch(
+                        FetchDescriptor<OccurrenceHistoryEventRow>()
+                    ).map { try $0.value() }.filter { $0.workspaceID == expectedWorkspaceID }
+                    let destinationPackets = try context.fetch(
+                        FetchDescriptor<WorkPacketManifestRow>()
+                    ).map { try $0.value() }.filter { $0.workspaceID == expectedWorkspaceID }
+                    let terminalNight = Dictionary(grouping: nightWorkflows, by: \.workflowID).values
+                        .compactMap { $0.max(by: { $0.revision < $1.revision }) }
+                        .sorted { $0.workflowID.uuidString < $1.workflowID.uuidString }
+                    for sourceNight in terminalNight {
+                        guard sourceNight.deltas.allSatisfy({ $0.measurement == nil }),
+                              let sourceDay = dayInventoryWorkflows.first(where: {
+                                  $0.workflowID == sourceNight.day.workflowID
+                                    && $0.revision == sourceNight.day.workflowRevision
+                                    && $0.workflowSHA256 == sourceNight.day.workflowSHA256
+                              }), let sourcePlan = sourceDay.nightFollowupPlan,
+                              let destinationSystem = destinationSystemByDayWorkflowID[sourceDay.workflowID],
+                              let destinationDayV1 = destinationDayBySourceWorkflowID[sourceDay.workflowID],
+                              let occurrence = destinationOccurrences.first(where: {
+                                  $0.eventID == sourcePlan.occurrence.eventID
+                              }), let packet = destinationPackets.first(where: {
+                                  $0.manifestID == sourcePlan.workPacket.manifestID
+                              }) else { throw BackupRestoreServiceError.invalidPackage }
+                        let destinationPlan = try LightingNightFollowupPlanV1(
+                            planID: makeUUID(), workspaceID: expectedWorkspaceID,
+                            sourceSystemID: destinationSystem.systemID,
+                            sourceSystemRevision: destinationSystem.revision,
+                            sourceSystemSHA256: destinationSystem.systemSHA256,
+                            sourceDayInventoryContentSHA256: destinationDayV1.dayInventoryContentSHA256,
+                            selectedLuminaireIDs: sourcePlan.selectedLuminaireIDs,
+                            occurrence: LightingNightOccurrenceBindingV1(occurrence),
+                            workPacket: WorkPacketManifestReferenceV1(packet),
+                            offlineReadinessSourceSHA256: sourcePlan.offlineReadinessSourceSHA256,
+                            offlineReadinessManifestSHA256: sourcePlan.offlineReadinessManifestSHA256,
+                            readinessCheckedAt: sourcePlan.readinessCheckedAt,
+                            createdBy: try actor(sourcePlan.createdBy), createdAt: sourcePlan.createdAt
+                        )
+                        let destinationDayV2 = try LightingDayInventoryWorkflowV1(
+                            recordID: makeUUID(), workflowID: destinationDayV1.workflowID,
+                            workspaceID: expectedWorkspaceID, system: destinationSystem,
+                            safetyIntake: destinationDayV1.safetyIntake,
+                            conditionSnapshots: destinationDayV1.conditionSnapshots,
+                            state: .nightFollowupPrepared, nightFollowupPlan: destinationPlan,
+                            predecessor: destinationDayV1, revision: 2,
+                            mutationID: MutationIDV1(rawValue: makeUUID()),
+                            recordedBy: try actor(sourceDay.recordedBy), recordedAt: sourceDay.recordedAt
+                        )
+                        context.insert(try LightingDayInventoryWorkflowRowV1(destinationDayV2))
+                        let destinationDeltas = try sourceNight.deltas.map { sourceDelta in
+                            guard let observation = destinationObservationBySourceID[
+                                sourceDelta.observation.observationID
+                            ] else { throw BackupRestoreServiceError.invalidPackage }
+                            let media = try sourceDelta.comparableMedia.map {
+                                try ContentReferenceV1(
+                                    workspaceID: expectedWorkspaceID.rawValue.uuidString.lowercased(),
+                                    contentID: $0.contentID, byteLength: $0.byteLength,
+                                    mediaType: $0.mediaType, digests: $0.digests,
+                                    byteRole: $0.byteRole, createdAt: $0.createdAt
+                                )
+                            }
+                            return try LightingNightDeltaV1(
+                                luminaireID: sourceDelta.luminaireID, assetID: sourceDelta.assetID,
+                                assetRevision: sourceDelta.assetRevision, zoneID: sourceDelta.zoneID,
+                                controlGroupID: sourceDelta.controlGroupID,
+                                observation: LightingObservationReferenceV1(observation),
+                                expectedControl: sourceDelta.expectedControl,
+                                observedControl: sourceDelta.observedControl,
+                                issueKinds: sourceDelta.issueKinds, comparableMedia: media,
+                                temporaryLight: sourceDelta.temporaryLight,
+                                weatherContext: sourceDelta.weatherContext,
+                                surfaceContext: sourceDelta.surfaceContext, measurement: nil,
+                                cameraBandingRecordedWithoutFlickerClaim:
+                                    sourceDelta.cameraBandingRecordedWithoutFlickerClaim
+                            )
+                        }
+                        let sourceSafety = sourceNight.safety.intake
+                        let destinationSafetyIntake = try LightingSafetyIntakeV1(
+                            intakeID: makeUUID(), workspaceID: expectedWorkspaceID,
+                            systemID: destinationSystem.systemID,
+                            systemRevision: destinationSystem.revision,
+                            systemSHA256: destinationSystem.systemSHA256,
+                            area: sourceSafety.area, route: sourceSafety.route,
+                            timeContext: sourceSafety.timeContext,
+                            siteAuthority: sourceSafety.siteAuthority,
+                            requiredPPE: sourceSafety.requiredPPE,
+                            confirmedPPE: sourceSafety.confirmedPPE,
+                            emergencyReadiness: sourceSafety.emergencyReadiness,
+                            trafficSafety: sourceSafety.trafficSafety,
+                            observerSafety: sourceSafety.observerSafety,
+                            recordedBy: try actor(sourceSafety.recordedBy),
+                            recordedAt: sourceSafety.recordedAt
+                        )
+                        let destinationNightSafety = try LightingNightSafetyIntakeV1(
+                            intake: destinationSafetyIntake, nightPlan: destinationPlan
+                        )
+                        let reboundNight = try sourceNight.rebound(
+                            recordID: makeUUID(), workflowID: makeUUID(), to: expectedWorkspaceID,
+                            system: destinationSystem, dayWorkflow: destinationDayV2,
+                            safety: destinationNightSafety, deltas: destinationDeltas,
+                            mutationID: MutationIDV1(rawValue: makeUUID()),
+                            recordedBy: try actor(sourceNight.recordedBy),
+                            recordedAt: sourceNight.recordedAt
+                        )
+                        context.insert(try LightingNightWorkflowRowV1(reboundNight))
+                    }
                 }
                 if replaceExact {
                 for value in lighting.systems.sorted(by: {
@@ -9939,6 +10071,12 @@ private extension BackupRestoreService {
                 }) {
                     context.insert(try LightingDayInventoryWorkflowRowV1(value))
                 }
+                for value in nightWorkflows.sorted(by: {
+                    ($0.workflowID.uuidString, $0.revision)
+                        < ($1.workflowID.uuidString, $1.revision)
+                }) {
+                    context.insert(try LightingNightWorkflowRowV1(value))
+                }
                 }
             } catch let error as BackupRestoreServiceError {
                 throw error
@@ -9946,7 +10084,8 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         } else {
-            guard records.lighting.isEmpty else {
+            guard records.lighting.isEmpty, records.lightingDayInventoryWorkflows.isEmpty,
+                  records.lightingNightWorkflows.isEmpty else {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
@@ -10565,7 +10704,9 @@ private extension BackupRestoreService {
                     || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
                     || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion
-                    || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion else {
+                    || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
+                    || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
+                    || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
                 throw BackupRestoreServiceError.invalidPackage
             }
             do {
@@ -11899,6 +12040,7 @@ private extension BackupRestoreService {
         // the generic merge helper cannot carry the later V52 archive family.
         recoveredRecords.lightingDayInventoryWorkflows =
             replacement.lightingDayInventoryWorkflows
+        recoveredRecords.lightingNightWorkflows = replacement.lightingNightWorkflows
         return recoveredRecords == replacement
     }
 
@@ -11984,6 +12126,8 @@ private extension BackupRestoreService {
             lighting: schemaVersion >= 30 ? records.lighting : [],
             lightingDayInventoryWorkflows: schemaVersion >= 51
                 ? records.lightingDayInventoryWorkflows : [],
+            lightingNightWorkflows: schemaVersion >= 52
+                ? records.lightingNightWorkflows : [],
             activityContracts: records.activityContracts,
             workResources: records.workResources,
             serviceRequests: records.serviceRequests,
@@ -12042,6 +12186,8 @@ private extension BackupRestoreService {
                 ? expected.lighting : [],
             lightingDayInventoryWorkflows: expected.recordsSchemaVersion >= 51
                 ? expected.lightingDayInventoryWorkflows : [],
+            lightingNightWorkflows: expected.recordsSchemaVersion >= 52
+                ? expected.lightingNightWorkflows : [],
             activityContracts: expected.activityContracts,
             workResources: expected.workResources,
             serviceRequests: expected.serviceRequests,
@@ -12327,6 +12473,9 @@ private extension BackupRestoreService {
         let lightingDayInventoryWorkflowRows = try context.fetch(
             FetchDescriptor<LightingDayInventoryWorkflowRowV1>()
         )
+        let lightingNightWorkflowRows = try context.fetch(
+            FetchDescriptor<LightingNightWorkflowRowV1>()
+        )
         let assistanceAcceptanceReceiptRows = try context.fetch(
             FetchDescriptor<AssistanceAcceptanceReceiptRow>()
         )
@@ -12579,6 +12728,20 @@ private extension BackupRestoreService {
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
             }
         _ = try LightingDayInventoryBackupRecordSetV1.decode(lightingDayInventoryRecords)
+        let lightingNightWorkflowRecords: [V53BackupLightingNightWorkflowRecordV1] =
+            mutationHistory == nil ? [] : try lightingNightWorkflowRows.map { row in
+                let value = try row.value()
+                return V53BackupLightingNightWorkflowRecordV1(
+                    kind: .workflow, id: value.recordID,
+                    workspaceID: value.workspaceID.rawValue,
+                    revision: value.revision,
+                    canonicalData: try LightingCanonicalCodecV1.encode(value)
+                )
+            }.sorted {
+                "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                    < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+            }
+        _ = try LightingNightWorkflowBackupRecordSetV1.decode(lightingNightWorkflowRecords)
         let assistanceAcceptanceReceiptRecords = try assistanceAcceptanceReceiptRows
             .map { try V32BackupAssistanceAcceptanceRecordV1($0.value()) }
             .sorted { $0.receiptID.uuidString.lowercased() < $1.receiptID.uuidString.lowercased() }
@@ -12943,6 +13106,8 @@ private extension BackupRestoreService {
                 : !acceptedLabelSnapshotRecords.isEmpty ? 33
                 : !temporalEvidenceRecords.isEmpty ? 32
                 : !assistanceAcceptanceReceiptRecords.isEmpty ? 31
+                : !lightingNightWorkflowRecords.isEmpty
+                    ? LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
                 : !lightingDayInventoryRecords.isEmpty
                     ? LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
                 : !lightingRecords.isEmpty ? 30
@@ -13021,6 +13186,7 @@ private extension BackupRestoreService {
             }.sorted { canonical($0.id) < canonical($1.id) },
             lighting: lightingRecords,
             lightingDayInventoryWorkflows: lightingDayInventoryRecords,
+            lightingNightWorkflows: lightingNightWorkflowRecords,
             assistanceAcceptanceReceipts: assistanceAcceptanceReceiptRecords,
             temporalEvidence: temporalEvidenceRecords,
             acceptedLabelGenerationSnapshots: acceptedLabelSnapshotRecords,

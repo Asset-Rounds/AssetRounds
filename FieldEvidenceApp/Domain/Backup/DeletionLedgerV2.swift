@@ -576,6 +576,18 @@ enum C31LightingDeletionLedgerPolicyV1 {
     }
 }
 
+enum LightingNightWorkflowDeletionLedgerPolicyV1 {
+    static let ordinaryDeletionPreservesImmutableHistory = true
+    static let workspaceEraseRemovesCompleteClosure = true
+    static func validate(rows: [V53BackupLightingNightWorkflowRecordV1] = []) throws {
+        guard ordinaryDeletionPreservesImmutableHistory,
+              workspaceEraseRemovesCompleteClosure else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+        _ = try LightingNightWorkflowBackupRecordSetV1.decode(rows)
+    }
+}
+
 /// Accepted Assistance receipts are immutable mutation history. Entity
 /// deletion never creates a partial/orphan receipt; workspace Erase removes
 /// the receipt and its canonical mutation receipt together. Proposals have no

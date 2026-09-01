@@ -245,7 +245,9 @@ enum C31LightingStreamingArchivePolicyV1 {
                 || records.recordsSchemaVersion == 32
                 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
                 || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
-                || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion,
+                || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
               archiveKinds.count == durableFamilyCount,
               canonicalRowsOnly,
               derivedProjectionDisposition == "DROP_AND_REBUILD",
@@ -753,4 +755,19 @@ enum C52ServiceRequestBoundary_StreamingArchiveContracts {
     static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}
+
+enum LightingNightWorkflowStreamingArchiveBoundaryV1 {
+    static let recordsSchemaVersion = 52
+    static let persistentSchemaVersion = 53
+    static let separateRecordFamily = true
+    static func validate(records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion <= recordsSchemaVersion,
+              persistentSchemaVersion == recordsSchemaVersion + 1,
+              separateRecordFamily else { throw StreamingArchiveFailureV1.invalidArchive }
+        do {
+            try LightingNightWorkflowBackupEnrollmentV1.validate(records)
+            try records.validateC18LightingNightWorkflowClosure()
+        } catch { throw StreamingArchiveFailureV1.invalidArchive }
+    }
 }

@@ -937,6 +937,21 @@ enum C31LightingRestoreIdentityPolicyV1 {
     }
 }
 
+enum LightingNightWorkflowRestoreIdentityPolicyV1 {
+    static func validate(_ records: V4BackupRecordsV1, mode: BackupRestoreMode) throws {
+        try LightingNightWorkflowBackupEnrollmentV1.validate(records)
+        try records.validateC18LightingNightWorkflowClosure()
+        if mode == .clone || mode == .fork {
+            let values = try LightingNightWorkflowBackupRecordSetV1.decode(
+                records.lightingNightWorkflows
+            )
+            guard values.allSatisfy({ $0.workspaceID.rawValue != UUID.zero }) else {
+                throw RestoreIdentityDecisionErrorV1.invalidPointerIdentity
+            }
+        }
+    }
+}
+
 /// C32 receipts are immutable canonical-mutation provenance. Same-workspace
 /// restore preserves them as active history. Clone/fork preserves the exact
 /// source receipt and its outer journal receipt as historic source provenance;

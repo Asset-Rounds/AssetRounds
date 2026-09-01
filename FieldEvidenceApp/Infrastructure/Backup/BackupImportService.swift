@@ -75,7 +75,7 @@ enum C31LightingBackupImportPolicyV1 {
                 || (manifest.persistentSchemaVersion == 40 && records.recordsSchemaVersion == 39)
                 || (manifest.persistentSchemaVersion == 41 && records.recordsSchemaVersion == 40)
                 || (manifest.persistentSchemaVersion == 42 && records.recordsSchemaVersion == 41)
-                || (records.recordsSchemaVersion <= LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
+                || (records.recordsSchemaVersion <= LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
                     && manifest.persistentSchemaVersion == records.recordsSchemaVersion + 1)) else {
             throw BackupImportServiceError.invalidGeneration
         }
@@ -90,6 +90,8 @@ enum C31LightingBackupImportPolicyV1 {
             try records.validateC31LightingClosure()
             try LightingDayInventoryBackupEnrollmentV1.validate(records)
             try records.validateC17LightingDayInventoryClosure()
+            try LightingNightWorkflowBackupEnrollmentV1.validate(records)
+            try records.validateC18LightingNightWorkflowClosure()
         } catch {
             throw BackupImportServiceError.invalidGeneration
         }

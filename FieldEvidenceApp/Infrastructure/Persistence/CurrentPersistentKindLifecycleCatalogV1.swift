@@ -37,6 +37,7 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
         try C13EntityIdentityResolutionPersistentKindPolicyV1.validateDeclaration()
         try C16WorkspaceExperiencePersistentKindPolicyV1.validateDeclaration()
         try C17LightingDayInventoryPersistentKindPolicyV1.validateDeclaration()
+        try C18LightingNightWorkflowPersistentKindPolicyV1.validateDeclaration()
         let compatibility = ReleasedDataCompatibilityPolicyV1.exactHead(
             candidateHead: candidateHead
         )
@@ -53,7 +54,7 @@ struct CurrentPersistentKindLifecycleCatalogV1: Sendable {
             $0.stableKindID < $1.stableKindID
         }
         try SurveyDefinitionPersistentKindPolicyV1.validate(descriptors)
-        let descriptorIDs=Set(descriptors.map(\.stableKindID));guard SurveySessionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),SurveySessionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssetLocatorPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),AssetLocatorPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),SchedulePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),SchedulePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.nonpersistentKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.journalSupportingKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.contentKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.nonpersistentKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssetLabelPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),OperationalContactPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05EvidenceCurationPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05EvidenceCurationPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C04ShopReportProfilePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C04ShopReportProfilePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C05RoundSessionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05RoundSessionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C08ImportBulkPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C08ImportBulkPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C10EvidenceQualityPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C10EvidenceQualityPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C11FastSurveyInboxPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C11FastSurveyInboxPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C12ReinspectionExceptionPersistentKindCatalogDeclarationV1.durableKindIDs.isSubset(of:descriptorIDs),C12ReinspectionExceptionPersistentKindCatalogDeclarationV1.derivedKindIDs.isSubset(of:descriptorIDs),C13EntityIdentityResolutionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C13EntityIdentityResolutionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C16WorkspaceExperiencePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C16WorkspaceExperiencePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C17LightingDayInventoryPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C17LightingDayInventoryPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs)else{throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage}
+        let descriptorIDs=Set(descriptors.map(\.stableKindID));guard SurveySessionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),SurveySessionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssetLocatorPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),AssetLocatorPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),SchedulePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),SchedulePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.nonpersistentKindIDs.isSubset(of:descriptorIDs),AssistancePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.journalSupportingKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.contentKindIDs.isSubset(of:descriptorIDs),TemporalEvidencePersistentKindPolicyV1.nonpersistentKindIDs.isSubset(of:descriptorIDs),AssetLabelPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),OperationalContactPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05EvidenceCurationPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05EvidenceCurationPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C04ShopReportProfilePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C04ShopReportProfilePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C05RoundSessionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C05RoundSessionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C08ImportBulkPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C08ImportBulkPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C10EvidenceQualityPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C10EvidenceQualityPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C11FastSurveyInboxPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C11FastSurveyInboxPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C12ReinspectionExceptionPersistentKindCatalogDeclarationV1.durableKindIDs.isSubset(of:descriptorIDs),C12ReinspectionExceptionPersistentKindCatalogDeclarationV1.derivedKindIDs.isSubset(of:descriptorIDs),C13EntityIdentityResolutionPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C13EntityIdentityResolutionPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C16WorkspaceExperiencePersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C16WorkspaceExperiencePersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C17LightingDayInventoryPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C17LightingDayInventoryPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs),C18LightingNightWorkflowPersistentKindPolicyV1.durableKindIDs.isSubset(of:descriptorIDs),C18LightingNightWorkflowPersistentKindPolicyV1.derivedKindIDs.isSubset(of:descriptorIDs)else{throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage}
         let routes = Dictionary(
             uniqueKeysWithValues: source.lifecycleRoutes.map {
                 ($0.subject, $0)
@@ -273,7 +274,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
     }
 
     static let acceptedTemporalUniverseDigest =
-        "d31b1d5b034bd06f93976a2b071973a57719a86d6476da838b271de336638044"
+        "9c6bb0a73e59bcd49485940ffd33ad489d96514761a39e4706872f0fa306df0a"
     static let baselineTemporalOrigin = TemporalOriginV1(
         card: "PRE_V23_BASELINE", ordinal: 0
     )
@@ -507,6 +508,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             (TemporalOriginV1(card:"V23_P04_C13",ordinal:101),["PERSISTENT_MODEL:EntityAliasLinkRowV1","PERSISTENT_MODEL:EntityConsolidationReceiptRowV1","PERSISTENT_MODEL:EntityIdentityResolutionMutationReceiptRowV1","PROJECTION:StoreSemanticEnvelopeV50"]),
             (TemporalOriginV1(card:"V23_P04_C16",ordinal:104),["PERSISTENT_MODEL:PracticeWorkspaceProvenanceRowV1","PROJECTION:StoreSemanticEnvelopeV51"]),
             (TemporalOriginV1(card:"V23_P04_C17",ordinal:105),["PERSISTENT_MODEL:LightingDayInventoryWorkflowRowV1","PROJECTION:StoreSemanticEnvelopeV52"]),
+            (TemporalOriginV1(card:"V23_P04_C18",ordinal:106),["PERSISTENT_MODEL:LightingNightWorkflowRowV1","PROJECTION:StoreSemanticEnvelopeV53"]),
         ]
         return groups.reduce(into: [:]) { result, group in
             for kindID in group.1 {
@@ -612,6 +614,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
         let c13EntityIdentityResolutionKindIDs=C13EntityIdentityResolutionPersistentKindPolicyV1.durableKindIDs.union(C13EntityIdentityResolutionPersistentKindPolicyV1.derivedKindIDs)
         let c16WorkspaceExperienceKindIDs=C16WorkspaceExperiencePersistentKindPolicyV1.durableKindIDs.union(C16WorkspaceExperiencePersistentKindPolicyV1.derivedKindIDs)
         let c17LightingDayInventoryKindIDs=C17LightingDayInventoryPersistentKindPolicyV1.durableKindIDs.union(C17LightingDayInventoryPersistentKindPolicyV1.derivedKindIDs)
+        let c18LightingNightWorkflowKindIDs=C18LightingNightWorkflowPersistentKindPolicyV1.durableKindIDs.union(C18LightingNightWorkflowPersistentKindPolicyV1.derivedKindIDs)
         let c17KindIDs = Set([
             "PROJECTION:IntegrationConformanceConsumerV1",
             "PROJECTION:IntegrationContractRegistryV1",
@@ -620,9 +623,9 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
             "PROJECTION:IntegrationProjectionCheckpointStoreV1",
             "PROJECTION:ProjectionCheckpointV1",
         ])
-        guard kindIDs.count == 451,
+        guard kindIDs.count == 453,
               Set(kindIDs).count == kindIDs.count,
-              laterTemporalOrigins.count == 370,
+              laterTemporalOrigins.count == 372,
               c09KindIDs.isSubset(of: Set(kindIDs)),
               c12KindIDs.isSubset(of: Set(kindIDs)),
               c38KindIDs.isSubset(of: Set(kindIDs)),
@@ -661,6 +664,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
               c13EntityIdentityResolutionKindIDs.isSubset(of:Set(kindIDs)),
               c16WorkspaceExperienceKindIDs.isSubset(of:Set(kindIDs)),
               c17LightingDayInventoryKindIDs.isSubset(of:Set(kindIDs)),
+              c18LightingNightWorkflowKindIDs.isSubset(of:Set(kindIDs)),
               Set(laterTemporalOrigins.keys).isSubset(of: Set(kindIDs)) else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
@@ -669,7 +673,7 @@ private extension CurrentPersistentKindLifecycleCatalogV1 {
                 registration.subject
             ) ? registration.subject.canonicalKey : nil
         })
-        guard durableKindIDs.count == 226 else {
+        guard durableKindIDs.count == 227 else {
             throw CurrentPersistentKindLifecycleCatalogFailureV1.incompleteCoverage
         }
         // Full, sorted current universe: no later durable family is omitted

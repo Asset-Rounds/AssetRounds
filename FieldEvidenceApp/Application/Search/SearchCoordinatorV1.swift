@@ -791,3 +791,23 @@ enum C17LightingDaySearchCoordinatorBoundaryV1 {
     static let workspaceScopeIsRequired = true
     static let privateSafetyRouteActorNotesAndMediaAreExcluded = true
 }
+
+extension SearchCoordinatorV1 {
+    static func searchC18LightingNightMetadata(query:String,workspaceID:WorkspaceID,
+        records:[C18LightingNightSearchRecordV1],maximumResults:Int=100)throws->[C18LightingNightSearchRecordV1]{
+        guard maximumResults>0,maximumResults<=SearchContractLimitsV1.maximumCanonicalRecords,
+              records.allSatisfy({$0.workspaceID==workspaceID}) else{throw SearchContractFailureV1.scopeMismatch}
+        try records.forEach{$0.validate()};let tokens=normalizedTokens(query)
+        guard !tokens.isEmpty else{throw SearchContractFailureV1.invalidQuery}
+        return Array(records.filter{r in tokens.allSatisfy{q in r.normalizedTokens.contains{$0==q||$0.hasPrefix(q)}}}.sorted().prefix(maximumResults))
+    }
+    static func searchC18LightingNightMetadata(query:String,workspaceID:WorkspaceID,
+        records:[C18LightingNightSearchRecordV1],maximumResults:Int=100,
+        accessGate:any AppAccessGatePortV1)async throws->[C18LightingNightSearchRecordV1]{
+        let permit=try await accessGate.requireContentAccess(for:.search)
+        guard permit.surface == .search,permit.state.permitsContentAccess else{throw AppAccessContentReadFailureV1.denied(surface:.search,state:permit.state)}
+        return try searchC18LightingNightMetadata(query:query,workspaceID:workspaceID,records:records,maximumResults:maximumResults)
+    }
+}
+
+enum C18LightingNightSearchCoordinatorBoundaryV1{static let currentTipOnly=true;static let queryTextIsNeverDurable=true;static let excludesActorRouteNotesMeterSerialPrivateLocatorsAndMedia=true}

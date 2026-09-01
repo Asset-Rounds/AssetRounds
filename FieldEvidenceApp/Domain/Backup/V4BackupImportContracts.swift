@@ -548,3 +548,16 @@ enum C05RoundSessionBackupImportBoundaryV1 {
         try C05RoundSessionBackupEnrollmentV1.validate(records)
     }
 }
+
+enum LightingNightWorkflowBackupImportBoundaryV1 {
+    static let persistentSchemaVersion = 53
+    static let recordsSchemaVersion = 52
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard records.recordsSchemaVersion <= recordsSchemaVersion,
+              persistentSchemaVersion == recordsSchemaVersion + 1 else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        try LightingNightWorkflowBackupEnrollmentV1.validate(records)
+        try records.validateC18LightingNightWorkflowClosure()
+    }
+}

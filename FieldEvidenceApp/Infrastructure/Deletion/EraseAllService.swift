@@ -122,6 +122,14 @@ enum LightingDayInventoryEraseAllPolicyV1 {
         ) == 0 else { throw EraseAllServiceError.invalidAuthority }
     }
 }
+
+enum LightingNightWorkflowEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<LightingNightWorkflowRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}
 import SwiftData
 
 enum IntegrationProjectionEraseAllPolicyV1 {
@@ -1707,6 +1715,9 @@ private extension EraseAllService {
             session.modelContext
         )
         try LightingDayInventoryEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
+        try LightingNightWorkflowEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)

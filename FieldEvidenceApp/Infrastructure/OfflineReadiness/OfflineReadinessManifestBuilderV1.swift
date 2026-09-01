@@ -144,3 +144,5 @@ enum OfflineReadinessManifestBuilderV1 {
     }
 
 }
+
+extension OfflineReadinessManifestBuilderV1{static func buildC18LightingNight(workflow:LightingNightWorkflowV1,source:C18LightingNightReadinessSourceV1,storage:OfflineReadinessStorageObservationV1,manifest:OfflineReadinessManifestV1)throws->C18LightingNightOfflineReadinessProjectionV1{try source.validate(workflow:workflow,storage:storage);return try .init(source:source,manifest:manifest)}}

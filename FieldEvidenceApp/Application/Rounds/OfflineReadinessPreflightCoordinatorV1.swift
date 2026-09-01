@@ -287,3 +287,5 @@ enum C17LightingDayOfflineReadinessCoordinatorV1 {
         )
     }
 }
+
+enum C18LightingNightOfflineReadinessCoordinatorV1{static let persistenceMode=C18LightingNightOfflineReadinessProjectionV1.persistenceMode;static func preflight(workflow:LightingNightWorkflowV1,source:C18LightingNightReadinessSourceV1,storage:OfflineReadinessStorageObservationV1,manifest:OfflineReadinessManifestV1)throws->C18LightingNightOfflineReadinessProjectionV1{try workflow.validateIntrinsic();try source.validate(workflow:workflow,storage:storage);return try C18LightingNightOfflineReadinessProjectionV1(source:source,manifest:manifest)}}

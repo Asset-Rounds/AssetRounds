@@ -268,6 +268,7 @@ struct SnapshotValidatorV1 {
         try validateInspectionReviewHistory(snapshot)
         try validateWorkPacket(snapshot)
         try validateC17LightingDayInventory(snapshot)
+        try validateC18LightingNightWorkflow(snapshot)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
               snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
@@ -657,6 +658,15 @@ struct SnapshotValidatorV1 {
         } catch {
             throw SnapshotValidationErrorV1.invalidAuthority
         }
+    }
+
+    private func validateC18LightingNightWorkflow(_ snapshot:ReportSnapshotV1)throws{
+        guard let value=snapshot.lightingNightWorkflow else{return}
+        do{try value.validate();guard snapshot.snapshotSchemaVersion>=4,
+              value.projection.limitationKey==C18LightingReportProjectionSupportV1.limitationKey,
+              !value.projection.safetyOrComplianceConclusionAllowed else{throw SnapshotValidationErrorV1.invalidAuthority}
+            if case .live(let dependencies,_)=lifecycleRoute{guard value.projection.workspaceID==WorkspaceID(rawValue:dependencies.workspaceID) else{throw SnapshotValidationErrorV1.invalidAuthority}}
+        }catch{throw SnapshotValidationErrorV1.invalidAuthority}
     }
 
     private func validateWorkspaceScope(report: Report, source: WorkflowRecord) throws {

@@ -1,6 +1,8 @@
 import CryptoKit
 import Darwin
 import Foundation
+
+enum C18LightingNightReportRenderBoundaryV1{static func render(_ w:LightingNightWorkflowV1)throws->(openJSON:ReportProjectionOutputV1,pdf:ReportProjectionOutputV1){try C18LightingNightReportProjectionRegistryV1.render(w)};static func render(_ w:LightingNightWorkflowV1,accessGate:any AppAccessGatePortV1)async throws->(openJSON:ReportProjectionOutputV1,pdf:ReportProjectionOutputV1){let permit=try await accessGate.requireContentAccess(for:.render);guard permit.surface == .render,permit.state.permitsContentAccess else{throw AppAccessContentReadFailureV1.denied(surface:.render,state:permit.state)};return try render(w)}}
 import SwiftData
 
 enum GuidedSurveyRenderServiceBoundaryV1 {

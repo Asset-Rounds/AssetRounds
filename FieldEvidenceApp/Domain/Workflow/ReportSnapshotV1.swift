@@ -171,6 +171,9 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// safety intake detail, route, actors, notes, and media remain excluded.
     var lightingDayInventory: C17LightingDayInventoryFrozenSnapshotV1? = nil
 
+    /// Optional C18 immutable, metadata-only night-workflow projection.
+    var lightingNightWorkflow: C18LightingNightFrozenSnapshotV1? = nil
+
     /// Optional C33 typed links into canonical temporal evidence. The snapshot
     /// carries bounded metadata and manual accessible text, never original
     /// bytes or private content locators.
@@ -310,6 +313,25 @@ extension ReportSnapshotV1 {
         return copy
     }
 }
+
+struct C18LightingNightFrozenSnapshotV1:Codable,Equatable,Sendable{
+    static let projectionVersion=C18LightingReportProjectionSupportV1.projectionVersion
+    let sourceRecordID:UUID;let sourceWorkflowSHA256:String;let capturedAt:Date
+    let patrol:LightingPatrolReferenceV1?;let projection:LightingReportProjectionV1;let projectionSHA256:String;let snapshotSHA256:String
+    init(workflow:LightingNightWorkflowV1,capturedAt:Date)throws{
+        try workflow.validateIntrinsic();try LightingLimitsV1.instant(capturedAt)
+        sourceRecordID=workflow.recordID;sourceWorkflowSHA256=workflow.workflowSHA256;self.capturedAt=capturedAt;patrol=workflow.patrol
+        projection=try C18LightingReportProjectionSupportV1.projection(workflow)
+        projectionSHA256=try C18LightingReportProjectionSupportV1.digest(projection)
+        snapshotSHA256=try LightingCanonicalCodecV1.sha256(Basis(sourceRecordID:workflow.recordID,sourceWorkflowSHA256:workflow.workflowSHA256,capturedAt:capturedAt,patrol:patrol,projection:projection,projectionSHA256:projectionSHA256))
+        try validate()
+    }
+    func validate()throws{try LightingLimitsV1.id(sourceRecordID);try [sourceWorkflowSHA256,projectionSHA256,snapshotSHA256].forEach(LightingLimitsV1.digest);try LightingLimitsV1.instant(capturedAt);try patrol?.validate(workspaceID:projection.workspaceID);try C18LightingReportProjectionSupportV1.validate(projection);guard projection.workflowSHA256==sourceWorkflowSHA256,projection.patrol==patrol,projectionSHA256==(try C18LightingReportProjectionSupportV1.digest(projection)),snapshotSHA256==(try LightingCanonicalCodecV1.sha256(basis)) else{throw SnapshotProjectionFailureV1.digestMismatch}}
+    private var basis:Basis{.init(sourceRecordID:sourceRecordID,sourceWorkflowSHA256:sourceWorkflowSHA256,capturedAt:capturedAt,patrol:patrol,projection:projection,projectionSHA256:projectionSHA256)}
+    private struct Basis:Codable{let sourceRecordID:UUID;let sourceWorkflowSHA256:String;let capturedAt:Date;let patrol:LightingPatrolReferenceV1?;let projection:LightingReportProjectionV1;let projectionSHA256:String}
+}
+
+extension ReportSnapshotV1{func withC18LightingNightWorkflow(_ value:C18LightingNightFrozenSnapshotV1)throws->ReportSnapshotV1{try value.validate();var copy=self;copy.lightingNightWorkflow=value;return copy}}
 
 struct AcknowledgementSnapshotV1: Codable, Equatable, Sendable {
     let accepted: Bool

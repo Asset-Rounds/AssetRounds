@@ -109,6 +109,7 @@ final class BackupExportService {
         let lightingPlans: [MeasurementPlanRow]
         let lightingClaims: [LightingClaimStateRow]
         let lightingDayInventoryWorkflows: [LightingDayInventoryWorkflowRowV1]
+        let lightingNightWorkflows: [LightingNightWorkflowRowV1]
         let assistanceAcceptanceReceipts: [AssistanceAcceptanceReceiptRow]
         let temporalEvidenceClips: [TemporalEvidenceClipRow]
         let timecodedEvidenceAnchors: [TimecodedEvidenceAnchorRow]
@@ -853,6 +854,7 @@ private extension BackupExportService {
                 workflowRecords: records.workflowRecords,
                 lighting: records.lighting,
                 lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+                lightingNightWorkflows: records.lightingNightWorkflows,
                 assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
                 temporalEvidence: records.temporalEvidence,
                 acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
@@ -1769,6 +1771,7 @@ private extension BackupExportService {
                  lightingPlans: try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>()),
                  lightingClaims: try modelContext.fetch(FetchDescriptor<LightingClaimStateRow>()),
                  lightingDayInventoryWorkflows: try modelContext.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>()),
+                 lightingNightWorkflows: try modelContext.fetch(FetchDescriptor<LightingNightWorkflowRowV1>()),
                  assistanceAcceptanceReceipts: try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>()),
                  temporalEvidenceClips: try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()),
                  timecodedEvidenceAnchors: try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()),
@@ -2727,7 +2730,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion,
+                : LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2760,6 +2763,7 @@ private extension BackupExportService {
             }.sorted(by: dtoOrder),
             lighting: lighting,
             lightingDayInventoryWorkflows: try lightingDayInventoryRecords(rows),
+            lightingNightWorkflows: try lightingNightWorkflowRecords(rows),
             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
             temporalEvidence: temporalEvidence,
             acceptedLabelGenerationSnapshots: acceptedLabelGenerationSnapshots,
@@ -3225,6 +3229,28 @@ private extension BackupExportService {
                 < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
         }
         _ = try LightingDayInventoryBackupRecordSetV1.decode(result)
+        return result
+    }
+
+    private func lightingNightWorkflowRecords(
+        _ rows: Rows
+    ) throws -> [V53BackupLightingNightWorkflowRecordV1] {
+        let workspaceID = try currentStreamingWorkspaceIdentity().workspaceID
+        let values = try rows.lightingNightWorkflows.map { try $0.value() }
+        guard values.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let result = try values.map {
+            V53BackupLightingNightWorkflowRecordV1(
+                kind: .workflow, id: $0.recordID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try LightingCanonicalCodecV1.encode($0)
+            )
+        }.sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        _ = try LightingNightWorkflowBackupRecordSetV1.decode(result)
         return result
     }
 

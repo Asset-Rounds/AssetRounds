@@ -742,6 +742,13 @@ final class WholeSignDeletionService {
                 throw WholeSignDeletionServiceError.graphInvalid
             }
         }
+        let nightWorkflowRows = try modelContext.fetch(FetchDescriptor<LightingNightWorkflowRowV1>())
+        for row in nightWorkflowRows {
+            let workflow = try row.value()
+            guard !workflow.deltas.contains(where: { $0.luminaireID == assetID }) else {
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        }
         try validateLocationDeletionNoCascade(
             rows: rows,
             deletingAssetID: assetID,

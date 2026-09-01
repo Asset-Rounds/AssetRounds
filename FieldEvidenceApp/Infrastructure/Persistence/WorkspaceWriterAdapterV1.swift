@@ -45,6 +45,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyEvidenceContext,
             .applyLighting,
             .applyLightingDayInventory,
+            .applyLightingNightWorkflow,
             .applyAssistanceAcceptance,
             .applyTemporalEvidence,
             .applyAssetLabel,
@@ -231,6 +232,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case let .applyEvidenceContext(value):return try applyEvidenceContext(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyLighting(value):return try applyLighting(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyLightingDayInventory(value):return try applyLightingDayInventory(value,temporaryRelativePath:temporaryRelativePath)
+        case let .applyLightingNightWorkflow(value):return try applyLightingNightWorkflow(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyAssistanceAcceptance(request):
             try request.validate()
             switch request.targetMutation {
@@ -350,6 +352,18 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         let matching = values.filter { $0.recordID == operation.workflow.recordID }
+        guard matching.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        return matching.first == operation.workflow
+    }
+
+    func persistedLightingNightWorkflowEffectMatches(
+        _ operation: LightingNightWorkflowWriteOperationV1
+    ) throws -> Bool {
+        try operation.validate()
+        let rows = try modelContext.fetch(FetchDescriptor<LightingNightWorkflowRowV1>())
+        let matching = try rows.map { try $0.value() }.filter {
+            $0.recordID == operation.workflow.recordID
+        }
         guard matching.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         return matching.first == operation.workflow
     }
@@ -3406,6 +3420,78 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         } catch {
             modelContext.rollback()
             throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private func applyLightingNightWorkflow(
+        _ operation: LightingNightWorkflowWriteOperationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try operation.validate()
+            try LightingNightWorkflowPersistedAdmissionV1.validate(operation, in: modelContext)
+            let value = operation.workflow
+            let rows = try modelContext.fetch(FetchDescriptor<LightingNightWorkflowRowV1>())
+            let existing = try rows.map { try $0.value() }
+            guard Set(existing.map(\.recordID)).count == existing.count,
+                  !existing.contains(where: { $0.recordID == value.recordID }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            let family = existing.filter {
+                $0.workspaceID == value.workspaceID && $0.workflowID == value.workflowID
+            }
+            switch operation {
+            case let .appendWorkflow(_, predecessor, _):
+                if let predecessor {
+                    guard family.filter({ $0 == predecessor }).count == 1,
+                          !family.contains(where: { $0.supersedesRecordID == predecessor.recordID }) else {
+                        throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+                    }
+                    try value.validateSuccessor(of: predecessor)
+                } else {
+                    guard family.isEmpty, value.revision == 1,
+                          value.supersedesRecordID == nil,
+                          value.predecessorSHA256 == nil else {
+                        throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+                    }
+                }
+            }
+            modelContext.insert(try LightingNightWorkflowRowV1(value))
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: [operation.affectedIdentity],
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback(); throw failure
+        } catch {
+            modelContext.rollback(); throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private enum LightingNightWorkflowPersistedAdmissionV1 {
+        static func validate(
+            _ operation: LightingNightWorkflowWriteOperationV1,
+            in context: ModelContext
+        ) throws {
+            try operation.validate()
+            let workflow = operation.workflow
+            let admission: LightingNightWorkflowAdmissionClosureV1
+            switch operation {
+            case let .appendWorkflow(_, _, value): admission = value
+            }
+            try admission.validate(workflow)
+            let systems = try context.fetch(FetchDescriptor<LightingSystemRow>()).map { try $0.value() }
+            let days = try context.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>()).map { try $0.value() }
+            let observations = try context.fetch(FetchDescriptor<LightingObservationRow>()).map { try $0.value() }
+            let issues = try context.fetch(FetchDescriptor<LightingIssueRow>()).map { try $0.value() }
+            let patrolSessions = try context.fetch(FetchDescriptor<RoundSessionRevisionRowV1>()).map { try $0.value() }
+            guard systems.filter({ $0 == admission.system }).count == 1,
+                  days.filter({ $0 == admission.dayWorkflow }).count == 1,
+                  admission.observations.allSatisfy({ source in observations.filter { $0 == source }.count == 1 }),
+                  admission.issues.allSatisfy({ source in issues.filter { $0 == source }.count == 1 }),
+                  admission.patrolSessions.allSatisfy({ source in patrolSessions.filter { $0 == source }.count == 1 }) else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         }
     }
 

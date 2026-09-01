@@ -70,6 +70,62 @@ enum C17LightingDayAccessibilityPolicyV1 {
     }
 }
 
+// MARK: - V23 P04 C18 exterior-lighting night workflow accessibility
+
+enum C18LightingNightAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "lighting.night_workflow.screen"
+    case expectedState = "lighting.night_workflow.expected_state"
+    case observedState = "lighting.night_workflow.observed_state"
+    case resultState = "lighting.night_workflow.result_state"
+    case issueState = "lighting.night_workflow.issue_state"
+    case rootCauseGroup = "lighting.night_workflow.root_cause_group"
+    case offlineReadiness = "lighting.night_workflow.offline_readiness"
+    case claimBoundary = "lighting.night_workflow.claim_boundary"
+
+    var localizationKey: C18LightingNightLocalizationKeyV1 {
+        switch self {
+        case .screen: return .title
+        case .expectedState: return .expectedState
+        case .observedState: return .observedState
+        case .resultState: return .inconclusive
+        case .issueState: return .issueReopened
+        case .rootCauseGroup: return .groupRetainsChildren
+        case .offlineReadiness: return .offlineBlocked
+        case .claimBoundary: return .claimBoundary
+        }
+    }
+}
+
+enum C18LightingNightAccessibilityPolicyV1 {
+    static let voiceOverOrder: [C18LightingNightAccessibilityIDV1] = [
+        .screen, .expectedState, .observedState, .resultState, .issueState,
+        .rootCauseGroup, .offlineReadiness, .claimBoundary,
+    ]
+    static let dynamicTypeThroughAX5Required = true
+    static let stateNeverUsesColorAlone = true
+    static let expectedAndObservedAreSeparateLabels = true
+    static let unknownAndInconclusiveRemainDistinct = true
+    static let reopenIsAnnounced = true
+    static let groupNeverHidesChildState = true
+    static let reduceMotionUsesStaticPresentation = true
+    static let rightToLeftMirroringRequired = true
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6Reconciliation = true
+
+    static func validate() throws {
+        let ids = C18LightingNightAccessibilityIDV1.allCases.map(\.rawValue)
+        guard ids.count == Set(ids).count,
+              Set(voiceOverOrder) == Set(C18LightingNightAccessibilityIDV1.allCases),
+              dynamicTypeThroughAX5Required, stateNeverUsesColorAlone,
+              expectedAndObservedAreSeparateLabels, unknownAndInconclusiveRemainDistinct,
+              reopenIsAnnounced, groupNeverHidesChildState,
+              reduceMotionUsesStaticPresentation, rightToLeftMirroringRequired,
+              !uiAdoptionClaimed, requiresAcceptedS10_6Reconciliation else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}
+
 enum C50IncumbentAccessibilityBoundaryV1 {
     static let previewAnnouncesIncludedOmittedAndUnresolvedCounts = true
     static let quarantineAndDisabledStatesAreNotColorOnly = true

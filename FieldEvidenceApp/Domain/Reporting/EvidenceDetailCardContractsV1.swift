@@ -54,6 +54,14 @@ enum EvidenceDetailSensitivityV1: String, Codable, CaseIterable, Hashable, Senda
     case diagnostic = "DIAGNOSTIC"
 }
 
+struct C18LightingEvidenceDetailProjectionV1:Codable,Equatable,Sendable{
+    let workspaceID:WorkspaceID;let workflowSHA256:String;let deltaCount:Int;let openIssueCount:Int;let resolvedIssueCount:Int
+    let reopenedIssueCount:Int;let rootCauseGroupCount:Int;let measurementDispositions:[LightingNightMeasurementDispositionV1];let patrol:LightingPatrolReferenceV1?
+    let limitationKey:String;let containsActorRouteNotesMeterSerialPrivateLocatorsOrMediaBytes:Bool
+    init(_ value:LightingReportProjectionV1)throws{try C18LightingReportProjectionSupportV1.validate(value);workspaceID=value.workspaceID;workflowSHA256=value.workflowSHA256;deltaCount=value.deltaCount;openIssueCount=value.openIssueIDs.count;resolvedIssueCount=value.resolvedForRecordedScopeIssueIDs.count;reopenedIssueCount=value.reopenedIssueIDs.count;rootCauseGroupCount=value.rootCauseGroupIDs.count;measurementDispositions=value.measurementDispositions;patrol=value.patrol;limitationKey=value.limitationKey;containsActorRouteNotesMeterSerialPrivateLocatorsOrMediaBytes=false;try validate()}
+    func validate()throws{try LightingLimitsV1.digest(workflowSHA256);try patrol?.validate(workspaceID:workspaceID);guard deltaCount>0,[openIssueCount,resolvedIssueCount,reopenedIssueCount,rootCauseGroupCount].allSatisfy({$0>=0}),measurementDispositions==measurementDispositions.sorted(by:{$0.rawValue<$1.rawValue}),limitationKey==C18LightingReportProjectionSupportV1.limitationKey,!containsActorRouteNotesMeterSerialPrivateLocatorsOrMediaBytes else{throw SnapshotProjectionFailureV1.privacyViolation}}
+}
+
 enum C50IncumbentEvidenceDetailBoundaryV1 {
     static let profileAndVersionMayBeShownAsProvenance = true
     static let externalAcceptanceOrSyncStateMayNotBeShown = true

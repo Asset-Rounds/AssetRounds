@@ -62,6 +62,9 @@ protocol WorkspaceWriterAdapterPortV1: AnyObject {
     func persistedLightingDayInventoryEffectMatches(
         _ operation: LightingDayInventoryWriteOperationV1
     ) throws -> Bool
+    func persistedLightingNightWorkflowEffectMatches(
+        _ operation: LightingNightWorkflowWriteOperationV1
+    ) throws -> Bool
     func persistAppliedActivityContractEffect(
         _ mutation: ActivityContractMutationV2
     ) throws
@@ -126,6 +129,7 @@ extension WorkspaceWriterAdapterPortV1 {
     func entityIdentityResolutionQuery(_ request: EntityIdentityResolutionQueryV1) throws -> EntityIdentityResolutionQueryResultV1 { throw WorkspaceMutationFailureV1.unsupportedCommand }
     func persistedWorkspaceExperienceEffectMatches(_ command: WorkspaceExperienceMutationCommandV1) throws -> Bool { false }
     func persistedLightingDayInventoryEffectMatches(_ operation: LightingDayInventoryWriteOperationV1) throws -> Bool { false }
+    func persistedLightingNightWorkflowEffectMatches(_ operation: LightingNightWorkflowWriteOperationV1) throws -> Bool { false }
 
     func persistedActivityContractEffectMatches(
         _ mutation: ActivityContractMutationV2
@@ -1033,6 +1037,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             do{try value.validate();guard value.workspaceID==identity.workspaceID,value.mutationID==request.mutationID,sourceKind == .importedHistory || occurredAtOverride != nil || request.expectedRevision.entityRevisions.first(where:{$0.identity==(try value.concurrencyIdentity)})?.revision==value.expectedRevision else{throw WorkspaceMutationFailureV1.invalidCommand}}catch let failure as WorkspaceMutationFailureV1{throw failure}catch{throw WorkspaceMutationFailureV1.invalidCommand}
         case .applyLightingDayInventory(let value):
             do { try value.validate(); guard value.workspaceID == identity.workspaceID, value.mutationID == request.mutationID, sourceKind == .importedHistory || occurredAtOverride != nil || request.expectedRevision.entityRevisions.first(where: { $0.identity == (try value.concurrencyIdentity) })?.revision == value.expectedRevision else { throw WorkspaceMutationFailureV1.invalidCommand } } catch let failure as WorkspaceMutationFailureV1 { throw failure } catch { throw WorkspaceMutationFailureV1.invalidCommand }
+        case .applyLightingNightWorkflow(let value):
+            do { try value.validate(); guard value.workspaceID == identity.workspaceID, value.mutationID == request.mutationID, sourceKind == .importedHistory || occurredAtOverride != nil || request.expectedRevision.entityRevisions.first(where: { $0.identity == (try value.concurrencyIdentity) })?.revision == value.expectedRevision else { throw WorkspaceMutationFailureV1.invalidCommand } } catch let failure as WorkspaceMutationFailureV1 { throw failure } catch { throw WorkspaceMutationFailureV1.invalidCommand }
         case .applyAssistanceAcceptance(let acceptance):
             do {
                 try acceptance.validate()
@@ -1419,6 +1425,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         } else if case let .applyLighting(operation) = request.command {
             entityRevisions[try operation.affectedIdentity]=operation.revision
         } else if case let .applyLightingDayInventory(operation) = request.command {
+            entityRevisions[try operation.affectedIdentity] = operation.workflow.revision
+        } else if case let .applyLightingNightWorkflow(operation) = request.command {
             entityRevisions[try operation.affectedIdentity] = operation.workflow.revision
         } else if case let .applyAssistanceAcceptance(acceptance) = request.command {
             switch acceptance.targetMutation {
@@ -1990,6 +1998,8 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             try value.validate();values=[try value.affectedIdentity]
         case let .applyLightingDayInventory(value):
             try value.validate(); values = [try value.affectedIdentity]
+        case let .applyLightingNightWorkflow(value):
+            try value.validate(); values = [try value.affectedIdentity]
         case let .applyAssistanceAcceptance(value):
             try value.validate();values=try value.targetMutation.affectedIdentities
         case let .applyTemporalEvidence(value):
@@ -2081,6 +2091,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyEvidenceContext(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyLighting(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyLightingDayInventory(value)=command{try value.validate();return[try value.concurrencyIdentity]}
+        if case let .applyLightingNightWorkflow(value)=command{try value.validate();return[try value.concurrencyIdentity]}
         if case let .applyAssistanceAcceptance(value)=command{try value.validate();return try value.targetMutation.concurrencyIdentities}
         if case let .applyTemporalEvidence(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyAssetLabel(value)=command{try value.validate();return[try value.affectedIdentity]}
@@ -2467,6 +2478,41 @@ extension WorkspaceWriterV1: LightingDayInventoryCanonicalWorkspaceWritingV1 {
         }
         _ = try LightingDayInventoryMutationReceiptV1(operation: operation, mutationReceipt: receipt)
         guard try adapter.persistedLightingDayInventoryEffectMatches(operation) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return receipt
+    }
+}
+
+extension WorkspaceWriterV1: LightingNightWorkflowCanonicalWorkspaceWritingV1 {
+    func commitLightingNightWorkflow(_ operation: LightingNightWorkflowWriteOperationV1) throws -> MutationReceiptV1 {
+        try operation.validate()
+        let current = try currentRevision()
+        let target = try operation.concurrencyIdentity
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        guard known[target, default: 0] == operation.expectedRevision else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        if let existing = try journalStore.lightingNightWorkflowReceipt(for: operation) {
+            _ = try LightingNightWorkflowMutationReceiptV1(operation: operation, mutationReceipt: existing)
+            guard try adapter.persistedLightingNightWorkflowEffectMatches(operation) else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return existing
+        }
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: current.workspaceID, generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision,
+            entityRevisions: [.init(identity: target, revision: operation.expectedRevision)]
+        )
+        _ = try execute(.init(mutationID: operation.mutationID, expectedRevision: expected,
+                              command: .applyLightingNightWorkflow(operation)))
+        guard let receipt = try journalStore.lightingNightWorkflowReceipt(for: operation) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        _ = try LightingNightWorkflowMutationReceiptV1(operation: operation, mutationReceipt: receipt)
+        guard try adapter.persistedLightingNightWorkflowEffectMatches(operation) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         return receipt

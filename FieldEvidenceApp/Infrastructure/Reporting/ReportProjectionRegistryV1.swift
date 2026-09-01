@@ -1,5 +1,7 @@
 import Foundation
 
+enum C18LightingNightReportProjectionRegistryV1{static let persistent=false;static let soleRenderer=true;static func projection(_ w:LightingNightWorkflowV1)throws->LightingReportProjectionV1{try C18LightingReportProjectionSupportV1.projection(w)};static func render(_ w:LightingNightWorkflowV1)throws->(openJSON:ReportProjectionOutputV1,pdf:ReportProjectionOutputV1){let p=try projection(w);let j=try DeterministicOpenJSONRendererV1.renderC18LightingNight(p);let d=try DeterministicPDFRendererV1.renderC18LightingNight(p);guard j.semanticSHA256==d.semanticSHA256 else{throw SnapshotProjectionFailureV1.projectionDisagreement};return(j,d)}}
+
 /// C11 is reviewable inbox provenance, not an inspection outcome surface.
 /// Its unpromoted captures are explicitly excluded from completed reports and
 /// completeness projections; promoted destination records remain authoritative.

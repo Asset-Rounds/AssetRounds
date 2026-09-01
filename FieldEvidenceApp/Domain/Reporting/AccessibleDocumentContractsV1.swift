@@ -7,6 +7,13 @@ enum GuidedSurveyAccessibleDocumentBoundaryV1 {
     static let laterPromotionMayRewriteExistingTree = false
 }
 
+struct C18LightingAccessibleDocumentProjectionV1:Codable,Equatable,Sendable{
+    let headingKey:String;let orderedStateKeys:[String];let limitationKey:String
+    let stateUsesColorAlone:Bool;let conformanceClaimed:Bool
+    init(_ value:LightingReportProjectionV1)throws{try C18LightingReportProjectionSupportV1.validate(value);headingKey=C18LightingNightLocalizationKeyV1.title.rawValue;var keys=[C18LightingNightLocalizationKeyV1.expectedState.rawValue,C18LightingNightLocalizationKeyV1.observedState.rawValue];if !value.openIssueIDs.isEmpty{keys.append(C18LightingNightLocalizationKeyV1.issueOpen.rawValue)};if !value.resolvedForRecordedScopeIssueIDs.isEmpty{keys.append(C18LightingNightLocalizationKeyV1.issueResolved.rawValue)};if !value.reopenedIssueIDs.isEmpty{keys.append(C18LightingNightLocalizationKeyV1.issueReopened.rawValue)};if value.measurementDispositions.contains(.inconclusiveUncertaintyCrossesCriterion){keys.append(C18LightingNightLocalizationKeyV1.inconclusive.rawValue)};orderedStateKeys=keys;limitationKey=C18LightingNightLocalizationKeyV1.claimBoundary.rawValue;stateUsesColorAlone=false;conformanceClaimed=false;try validate()}
+    func validate()throws{let allowed=Set(C18LightingNightLocalizationKeyV1.allCases.map(\.rawValue));guard headingKey==C18LightingNightLocalizationKeyV1.title.rawValue,Array(orderedStateKeys.prefix(2))==[C18LightingNightLocalizationKeyV1.expectedState.rawValue,C18LightingNightLocalizationKeyV1.observedState.rawValue],Set(orderedStateKeys).count==orderedStateKeys.count,Set(orderedStateKeys).isSubset(of:allowed),limitationKey==C18LightingNightLocalizationKeyV1.claimBoundary.rawValue,!stateUsesColorAlone,!conformanceClaimed else{throw SnapshotProjectionFailureV1.unsupportedAccessibilityClaim}}
+}
+
 enum AccessibleDocumentFailureV1: Error, Equatable, Sendable {
     case invalidValue, incompatibleVersion, duplicateIdentity, missingParent, invalidOrder
     case invalidHeading, invalidTable, inventedAlternateText, privacyViolation, missingEvidence

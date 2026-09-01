@@ -629,6 +629,11 @@ extension ReportSnapshotEncoderV1 {
     }
 }
 
+extension ReportSnapshotEncoderV1{
+    func encodeC18LightingNightWorkflow(_ value:C18LightingNightFrozenSnapshotV1)throws->Data{try value.validate();let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];let data=try e.encode(value);guard data.count<=SnapshotProjectionLimitsV1.maximumProjectionBytes else{throw SnapshotProjectionFailureV1.limitExceeded};return data}
+    func decodeC18LightingNightWorkflow(_ data:Data)throws->C18LightingNightFrozenSnapshotV1{guard !data.isEmpty,data.count<=SnapshotProjectionLimitsV1.maximumProjectionBytes else{throw SnapshotProjectionFailureV1.limitExceeded};let value=try JSONDecoder().decode(C18LightingNightFrozenSnapshotV1.self,from:data);try value.validate();guard try encodeC18LightingNightWorkflow(value)==data else{throw SnapshotProjectionFailureV1.projectionDisagreement};return value}
+}
+
 // MARK: - C17 exterior-lighting day inventory frozen snapshot codec
 
 extension ReportSnapshotEncoderV1 {

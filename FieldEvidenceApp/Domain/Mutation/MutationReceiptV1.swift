@@ -169,6 +169,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case lightingMeasurementPlan(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case lightingClaimState(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case lightingDayInventoryWorkflow(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case lightingNightWorkflow(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case temporalEvidenceClip(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case timecodedEvidenceAnchor(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case acceptedLabelGenerationSnapshot(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
@@ -303,6 +304,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .lightingMeasurementPlan(id,_,_,_):return try .init(kind:.lightingMeasurementPlan,id:id)
             case let .lightingClaimState(id,_,_,_):return try .init(kind:.lightingClaimState,id:id)
             case let .lightingDayInventoryWorkflow(id,_,_,_):return try .init(kind:.lightingDayInventoryWorkflow,id:id)
+            case let .lightingNightWorkflow(id,_,_,_):return try .init(kind:.lightingNightWorkflow,id:id)
             case let .temporalEvidenceClip(id,_,_,_):return try .init(kind:.temporalEvidenceClip,id:id)
             case let .timecodedEvidenceAnchor(id,_,_,_):return try .init(kind:.timecodedEvidenceAnchor,id:id)
             case let .acceptedLabelGenerationSnapshot(id,_,_,_):return try .init(kind:.acceptedLabelGenerationSnapshot,id:id)
@@ -348,7 +350,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         case let .evidenceAssociationEvent(_,_,_,value),
              let .evidenceSequenceRevision(_,_,_,value),
              let .shopReportProfile(_,_,_,value), let .roundSession(_,_,_,value),
-             let .evidenceQuality(_,_,_,_,value), let .fastSurveyInbox(_,_,_,_,value), let .reinspectionException(_,_,_,_,value), let .entityIdentityResolution(_,_,_,_,value), let .workspaceExperience(_,_,_,value), let .lightingDayInventoryWorkflow(_,_,_,value): return value
+             let .evidenceQuality(_,_,_,_,value), let .fastSurveyInbox(_,_,_,_,value), let .reinspectionException(_,_,_,_,value), let .entityIdentityResolution(_,_,_,_,value), let .workspaceExperience(_,_,_,value), let .lightingDayInventoryWorkflow(_,_,_,value), let .lightingNightWorkflow(_,_,_,value): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .exceptionCalendarRelease(_,_,_,value),let .scheduleOverrideEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .myDayPlan(_,_,_,value),let .myDayCarryoverReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .lightingDayInventoryWorkflow(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value),let .serviceContactPoint(_,_,_,value),let .systemHandoffIntent(_,_,_,value),let .activitySessionEnvelope(_,_,_,value),let .activityStateTransition(_,_,_,value),let .installationTaskResult(_,_,_,value),let .installationAsBuiltSnapshot(_,_,_,value),let .punchReviewBasisSnapshot(_,_,_,value),let .workResourceEntry(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
@@ -490,7 +492,8 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .lightingIssue(_,v,_,_):guard v.kind == .lightingIssue else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .lightingMeasurementPlan(_,v,_,_):guard v.kind == .lightingMeasurementPlan else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .lightingClaimState(_,v,_,_):guard v.kind == .lightingClaimState else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
-            case let .lightingDayInventoryWorkflow(_,v,_,_):guard v.kind == .lightingDayInventoryWorkflow else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+        case let .lightingDayInventoryWorkflow(_,v,_,_):guard v.kind == .lightingDayInventoryWorkflow else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+        case let .lightingNightWorkflow(_,v,_,_):guard v.kind == .lightingNightWorkflow else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .temporalEvidenceClip(_,v,_,_):guard v.kind == .temporalEvidenceClip else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .timecodedEvidenceAnchor(_,v,_,_):guard v.kind == .timecodedEvidenceAnchor else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .acceptedLabelGenerationSnapshot(_,v,_,_):guard v.kind == .acceptedLabelGenerationSnapshot else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
@@ -535,7 +538,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         case let .evidenceAssociationEvent(_,_,value,_),
              let .evidenceSequenceRevision(_,_,value,_),
              let .shopReportProfile(_,_,value,_), let .roundSession(_,_,value,_),
-             let .evidenceQuality(_,_,_,value,_), let .fastSurveyInbox(_,_,_,value,_), let .reinspectionException(_,_,_,value,_), let .entityIdentityResolution(_,_,_,value,_), let .workspaceExperience(_,_,value,_), let .lightingDayInventoryWorkflow(_,_,value,_): return value
+             let .evidenceQuality(_,_,_,value,_), let .fastSurveyInbox(_,_,_,value,_), let .reinspectionException(_,_,_,value,_), let .entityIdentityResolution(_,_,_,value,_), let .workspaceExperience(_,_,value,_), let .lightingDayInventoryWorkflow(_,_,value,_), let .lightingNightWorkflow(_,_,value,_): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .exceptionCalendarRelease(_,_,value,_),let .scheduleOverrideEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .myDayPlan(_,_,value,_),let .myDayCarryoverReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .lightingDayInventoryWorkflow(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_),let .serviceContactPoint(_,_,value,_),let .systemHandoffIntent(_,_,value,_),let .activitySessionEnvelope(_,_,value,_),let .activityStateTransition(_,_,value,_),let .installationTaskResult(_,_,value,_),let .installationAsBuiltSnapshot(_,_,value,_),let .punchReviewBasisSnapshot(_,_,value,_),let .workResourceEntry(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
@@ -1736,6 +1739,20 @@ extension LightingDayInventoryWriteOperationV1 {
     }
 }
 
+extension LightingNightWorkflowWriteOperationV1 {
+    var mutationPostImage: MutationPostImageV1 {
+        get throws {
+            let value = workflow
+            return .lightingNightWorkflow(
+                id: value.recordID,
+                concurrencyIdentity: try concurrencyIdentity,
+                revision: value.revision,
+                semanticSHA256: value.workflowSHA256
+            )
+        }
+    }
+}
+
 /// C17 deliberately has no typed receipt persistence family.  This wrapper is
 /// validation-only and proves the incumbent generic receipt is the sole owner.
 struct LightingDayInventoryMutationReceiptV1: Codable, Equatable, Sendable {
@@ -1757,6 +1774,31 @@ struct LightingDayInventoryMutationReceiptV1: Codable, Equatable, Sendable {
             throw WorkspaceMutationFailureV1.invalidReceipt
         }
         operationSHA256 = try LightingDayInventoryCanonicalCodecV1.sha256(operation)
+        self.mutationReceipt = mutationReceipt
+    }
+}
+
+/// C18 remains generic-receipt-only. This validation wrapper binds the one
+/// append-only effect to its canonical journal receipt without a typed row.
+struct LightingNightWorkflowMutationReceiptV1: Codable, Equatable, Sendable {
+    let operationSHA256: String
+    let mutationReceipt: MutationReceiptV1
+
+    init(operation: LightingNightWorkflowWriteOperationV1,
+         mutationReceipt: MutationReceiptV1) throws {
+        try operation.validate(); try mutationReceipt.validate()
+        let image = try operation.mutationPostImage
+        guard mutationReceipt.mutationID == operation.mutationID,
+              mutationReceipt.identity.workspaceID == operation.workspaceID,
+              mutationReceipt.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(
+                WorkspaceCommandV1.applyLightingNightWorkflow(operation)
+              )),
+              mutationReceipt.postImages == [image],
+              mutationReceipt.expectedRevision.entityRevisions.first(where: { $0.identity == (try operation.concurrencyIdentity) })?.revision == operation.expectedRevision,
+              mutationReceipt.resultingRevision.entityRevisions.first(where: { $0.identity == (try operation.affectedIdentity) })?.revision == operation.workflow.revision else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        operationSHA256 = try LightingCanonicalCodecV1.sha256(operation)
         self.mutationReceipt = mutationReceipt
     }
 }

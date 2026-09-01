@@ -1,5 +1,20 @@
 import Foundation
 
+extension LightingCoordinatorV1 {
+    @MainActor
+    static func nightWorkflowCoordinator(
+        query: any LightingNightWorkflowQueryingV1,
+        sourceResolver: any LightingNightWorkflowSourceResolvingV1,
+        authority: any LightingNightWorkflowMutationAuthorityV1
+    ) -> LightingNightWorkflowCoordinatorV1 {
+        LightingNightWorkflowCoordinatorV1(
+            query: query,
+            sourceResolver: sourceResolver,
+            authority: authority
+        )
+    }
+}
+
 protocol LightingQueryingV1: Sendable {
     func latestSystem(workspaceID: WorkspaceID, systemID: UUID) async throws -> LightingSystemV1?
     func latestObservation(workspaceID: WorkspaceID, observationID: UUID) async throws -> LightingObservationV1?

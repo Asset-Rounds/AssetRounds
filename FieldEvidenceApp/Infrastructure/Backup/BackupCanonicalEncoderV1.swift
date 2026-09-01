@@ -304,6 +304,11 @@ struct BackupCanonicalEncoderV1: Sendable {
                 try records.lightingDayInventoryWorkflows.map(Self.lightingDayInventoryRecord)
             )
         }
+        if records.recordsSchemaVersion >= LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion {
+            fields["lightingNightWorkflows"] = .array(
+                try records.lightingNightWorkflows.map(Self.lightingNightWorkflowRecord)
+            )
+        }
         if records.recordsSchemaVersion >= 31 {
             fields["assistanceAcceptanceReceipts"] = .array(
                 records.assistanceAcceptanceReceipts.map(Self.assistanceAcceptanceReceiptRecord)
@@ -1738,6 +1743,18 @@ private extension BackupCanonicalEncoderV1 {
             "kind": .string(value.kind.rawValue),
             "revision": .integer(revision),
             "workspaceID": CanonicalJSONV1.uuid(value.workspaceID),
+        ])
+    }
+
+    static func lightingNightWorkflowRecord(
+        _ value: V53BackupLightingNightWorkflowRecordV1
+    ) throws -> CanonicalJSONValueV1 {
+        guard let revision = Int(exactly: value.revision), revision > 0,
+              !value.canonicalData.isEmpty else { throw BackupCanonicalEncodingErrorV1.invalidRecords }
+        return .object([
+            "canonicalData": .string(value.canonicalData.base64EncodedString()),
+            "id": CanonicalJSONV1.uuid(value.id), "kind": .string(value.kind.rawValue),
+            "revision": .integer(revision), "workspaceID": CanonicalJSONV1.uuid(value.workspaceID),
         ])
     }
 

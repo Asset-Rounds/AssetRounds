@@ -1473,6 +1473,23 @@ enum C17LightingDayInventoryPersistentKindPolicyV1 {
     static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
 }
 
+/// C18 persists only the append-only night aggregate. Repair policy and all
+/// report/search/readiness values are deterministic derived projections.
+enum C18LightingNightWorkflowPersistentKindPolicyV1 {
+    static let durableKindIDs = Set(["PERSISTENT_MODEL:LightingNightWorkflowRowV1"])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV53"])
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 1, derivedKindIDs.count == 1,
+              LightingNightWorkflowPersistenceEnrollmentV1.durableModelCount == 1,
+              LightingNightWorkflowPersistenceEnrollmentV1.usesGenericMutationReceiptOnly,
+              !LightingNightWorkflowPersistenceEnrollmentV1.repairPolicyIsPersistent,
+              !LightingNightWorkflowPersistenceEnrollmentV1.derivedProjectionIsPersistent,
+              !LightingNightWorkflowPersistenceEnrollmentV1.offlineReadinessManifestIsPersistent else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+}
+
 enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let persistentKindCount = 0
     static let lifecycleEnrollmentCount = 0

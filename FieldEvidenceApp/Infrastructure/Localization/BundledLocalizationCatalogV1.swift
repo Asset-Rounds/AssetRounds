@@ -665,6 +665,90 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+// MARK: - V23 P04 C18 exterior-lighting night workflow
+
+enum C18LightingNightLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case title = "lighting.night_workflow.title"
+    case expectedState = "lighting.night_workflow.expected_state"
+    case observedState = "lighting.night_workflow.observed_state"
+    case unknown = "lighting.night_workflow.state.unknown"
+    case inconclusive = "lighting.night_workflow.state.inconclusive"
+    case issueOpen = "lighting.night_workflow.issue.open"
+    case issueReopened = "lighting.night_workflow.issue.reopened"
+    case issueResolved = "lighting.night_workflow.issue.resolved"
+    case groupRetainsChildren = "lighting.night_workflow.group.retains_children"
+    case offlineReady = "lighting.night_workflow.offline.ready"
+    case offlineBlocked = "lighting.night_workflow.offline.blocked"
+    case claimBoundary = "lighting.night_workflow.claim_boundary"
+
+    var englishDefaultValue: String {
+        switch self {
+        case .title: return "Night lighting follow-up"
+        case .expectedState: return "Expected control state"
+        case .observedState: return "Observed state"
+        case .unknown: return "Unknown"
+        case .inconclusive: return "Inconclusive"
+        case .issueOpen: return "Open issue"
+        case .issueReopened: return "Issue reopened"
+        case .issueResolved: return "Resolved for recorded scope"
+        case .groupRetainsChildren: return "Grouped issues keep their individual history and closure requirements."
+        case .offlineReady: return "Required local material is available for this night visit."
+        case .offlineBlocked: return "Required local material is unavailable or out of date. Rebuild readiness before starting."
+        case .claimBoundary: return "This report records field observations and attributed measurements. It is not an app-originated safety, compliance, code, ADA, IES, electrical diagnosis, adequacy, or commissioning determination."
+        }
+    }
+}
+
+enum C18LightingNightLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocales = ["en"]
+    static let pseudoLocales = ["en-XA", "ar-XB"]
+    static let runtimeDownloadsAllowed = false
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6Reconciliation = true
+
+    static func validate() throws {
+        let keys = C18LightingNightLocalizationKeyV1.allCases.map(\.rawValue)
+        guard keys.count == Set(keys).count, keys.allSatisfy({ !$0.isEmpty }),
+              sourceLocale == "en", shippingLocales == ["en"],
+              pseudoLocales == ["en-XA", "ar-XB"], !runtimeDownloadsAllowed,
+              !uiAdoptionClaimed, requiresAcceptedS10_6Reconciliation else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
+extension BundledLocalizationCatalogV1 {
+    static func c18LightingNightEnglish(_ key: C18LightingNightLocalizationKeyV1) -> String {
+        key.englishDefaultValue
+    }
+
+    static func c18LightingNightLocalized(
+        _ key: C18LightingNightLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(localized: key.rawValue, defaultValue: key.englishDefaultValue,
+               bundle: bundle, locale: locale,
+               comment: "C18 cautious night-lighting copy; unknown, inconclusive, reopen, and child closure states remain explicit.")
+    }
+
+    static func c18LightingNightRegistry() throws -> LocalizationKeyRegistryV1 {
+        try C18LightingNightLocalizationPolicyV1.validate()
+        let base = try c17LightingDayRegistry()
+        let additions = try C18LightingNightLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(key.rawValue), meaningID: key.rawValue,
+                translatorComment: "C18 cautious night-workflow copy; no safety, compliance, code, diagnosis, adequacy, or commissioning claim.",
+                englishDefaultValue: key.englishDefaultValue, arguments: [],
+                requiredEnglishPluralCategories: [], state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
     case beforeValidation = "BEFORE_VALIDATION"
     case afterValidationBeforePublication = "AFTER_VALIDATION_BEFORE_PUBLICATION"

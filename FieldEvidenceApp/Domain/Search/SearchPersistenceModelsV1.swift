@@ -1878,3 +1878,60 @@ struct C17LightingDaySearchRecordV1: Codable, Equatable, Comparable, Sendable {
         let displayIdentity: String; let status: String
     }
 }
+
+// MARK: - C18 exterior-lighting night workflow disposable search metadata
+
+struct C18LightingNightSearchRecordV1: Codable, Equatable, Comparable, Sendable {
+    static let projectionVersion = "C18_LIGHTING_NIGHT_SEARCH_V1"
+    let workspaceID: WorkspaceID
+    let workflowID: UUID
+    let workflowRevision: UInt64
+    let workflowSHA256: String
+    let state: LightingNightWorkflowStateV1
+    let patrol: LightingPatrolReferenceV1?
+    let deltaCount: Int
+    let openIssueCount: Int
+    let resolvedIssueCount: Int
+    let reopenedIssueCount: Int
+    let inconclusiveMeasurementCount: Int
+    let normalizedTokens: [String]
+    let projectionSHA256: String
+
+    init(workflow: LightingNightWorkflowV1) throws {
+        let report = try LightingReportProjectionV1(workflow)
+        workspaceID=workflow.workspaceID;workflowID=workflow.workflowID
+        workflowRevision=workflow.revision;workflowSHA256=workflow.workflowSHA256
+        state=workflow.state;patrol=workflow.patrol;deltaCount=report.deltaCount;openIssueCount=report.openIssueIDs.count
+        resolvedIssueCount=report.resolvedForRecordedScopeIssueIDs.count
+        reopenedIssueCount=report.reopenedIssueIDs.count
+        inconclusiveMeasurementCount=report.measurementDispositions.filter{$0 == .inconclusiveUncertaintyCrossesCriterion}.count
+        let safe=["night lighting followup",workflow.state.rawValue,
+                  openIssueCount == 0 ? "no open issue" : "open issue",
+                  resolvedIssueCount == 0 ? "" : "resolved for recorded scope",
+                  reopenedIssueCount == 0 ? "" : "reopened issue",
+                  inconclusiveMeasurementCount == 0 ? "" : "inconclusive measurement"]
+            .joined(separator:" ")
+        normalizedTokens=Array(Set(SearchContractValidationV1.normalizeSearchText(safe).unicodeScalars
+            .split{!CharacterSet.alphanumerics.contains($0)}.map(String.init))).sorted()
+        projectionSHA256=try LightingCanonicalCodecV1.sha256(Basis(
+            workspaceID:workspaceID,workflowID:workflowID,workflowRevision:workflowRevision,
+            workflowSHA256:workflowSHA256,state:state,patrol:patrol,deltaCount:deltaCount,
+            openIssueCount:openIssueCount,resolvedIssueCount:resolvedIssueCount,
+            reopenedIssueCount:reopenedIssueCount,inconclusiveMeasurementCount:inconclusiveMeasurementCount,
+            normalizedTokens:normalizedTokens))
+        try validate()
+    }
+    var projectionIdentity:String{workspaceID.rawValue.uuidString.lowercased()+"|"+workflowID.uuidString.lowercased()}
+    func validate()throws{
+        try LightingLimitsV1.id(workflowID);try LightingLimitsV1.revision(workflowRevision)
+        try [workflowSHA256,projectionSHA256].forEach(LightingLimitsV1.digest);try patrol?.validate(workspaceID:workspaceID)
+        guard deltaCount>0,[openIssueCount,resolvedIssueCount,reopenedIssueCount,inconclusiveMeasurementCount].allSatisfy({$0>=0}),
+              normalizedTokens.count<=SearchContractLimitsV1.maximumProjectionTokens,
+              normalizedTokens==normalizedTokens.sorted(),Set(normalizedTokens).count==normalizedTokens.count,
+              !normalizedTokens.isEmpty,normalizedTokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken),
+              projectionSHA256==(try LightingCanonicalCodecV1.sha256(basis)) else{throw SearchContractFailureV1.invalidField}
+    }
+    static func <(lhs:Self,rhs:Self)->Bool{lhs.projectionIdentity<rhs.projectionIdentity}
+    private var basis:Basis{.init(workspaceID:workspaceID,workflowID:workflowID,workflowRevision:workflowRevision,workflowSHA256:workflowSHA256,state:state,patrol:patrol,deltaCount:deltaCount,openIssueCount:openIssueCount,resolvedIssueCount:resolvedIssueCount,reopenedIssueCount:reopenedIssueCount,inconclusiveMeasurementCount:inconclusiveMeasurementCount,normalizedTokens:normalizedTokens)}
+    private struct Basis:Codable{let workspaceID:WorkspaceID;let workflowID:UUID;let workflowRevision:UInt64;let workflowSHA256:String;let state:LightingNightWorkflowStateV1;let patrol:LightingPatrolReferenceV1?;let deltaCount:Int;let openIssueCount:Int;let resolvedIssueCount:Int;let reopenedIssueCount:Int;let inconclusiveMeasurementCount:Int;let normalizedTokens:[String]}
+}

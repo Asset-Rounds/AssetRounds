@@ -5310,6 +5310,42 @@ enum C31LightingProjectionPolicyV1 {
     }
 }
 
+// MARK: - C18 exterior-lighting night report projection
+
+enum C18LightingReportProjectionSupportV1 {
+    static let projectionVersion="C18_LIGHTING_NIGHT_REPORT_V1"
+    static let limitationKey="LIGHTING_VISUAL_FIELD_EVIDENCE_NOT_APP_ORIGINATED_SAFETY_OR_COMPLIANCE"
+    static let unroundedCanonicalMeasurementsRemainSourceBound=true
+    static let forbiddenClaimFragments=["compliant","safe to use","ada compliant","ies compliant","code compliant","electrical diagnosis","commissioning passed"]
+    static func projection(_ workflow:LightingNightWorkflowV1)throws->LightingReportProjectionV1{
+        let value=try LightingReportProjectionV1(workflow);try validate(value);return value
+    }
+    static func validate(_ value:LightingReportProjectionV1)throws{
+        try value.validate()
+        try LightingLimitsV1.id(value.workflowID);try LightingLimitsV1.revision(value.workflowRevision)
+        try LightingLimitsV1.digest(value.workflowSHA256);try value.system.validate();try value.day.validate()
+        try value.claims.forEach{$0.validate()}
+        let open=Set(value.openIssueIDs),resolved=Set(value.resolvedForRecordedScopeIssueIDs),reopened=Set(value.reopenedIssueIDs)
+        guard value.deltaCount>0,value.openIssueIDs==value.openIssueIDs.sorted(by:{$0.uuidString<$1.uuidString}),
+              value.resolvedForRecordedScopeIssueIDs==value.resolvedForRecordedScopeIssueIDs.sorted(by:{$0.uuidString<$1.uuidString}),
+              value.reopenedIssueIDs==value.reopenedIssueIDs.sorted(by:{$0.uuidString<$1.uuidString}),
+              value.rootCauseGroupIDs==value.rootCauseGroupIDs.sorted(by:{$0.uuidString<$1.uuidString}),
+              value.measurementDispositions==value.measurementDispositions.sorted(by:{$0.rawValue<$1.rawValue}),
+              open.count==value.openIssueIDs.count,resolved.count==value.resolvedForRecordedScopeIssueIDs.count,
+              reopened.count==value.reopenedIssueIDs.count,open.isDisjoint(with:resolved),reopened.isSubset(of:open),
+              Set(value.rootCauseGroupIDs).count==value.rootCauseGroupIDs.count,
+              value.claims==value.claims.sorted(by:{$0.claimID.uuidString<$1.claimID.uuidString}),
+              Set(value.claims.map(\.claimID)).count==value.claims.count,
+              value.claims.allSatisfy({$0.limitationKey==limitationKey}),
+              value.limitationKey==limitationKey,!value.safetyOrComplianceConclusionAllowed,
+              value.claims.allSatisfy({ claim in
+                  let folded=claim.textKey.lowercased()
+                  return !forbiddenClaimFragments.contains(where:folded.contains)
+              }) else{throw SnapshotProjectionFailureV1.privacyViolation}
+    }
+    static func digest(_ value:LightingReportProjectionV1)throws->String{try validate(value);return try LightingCanonicalCodecV1.sha256(value)}
+}
+
 // MARK: - C32 assistance report boundary
 
 /// Assistance proposals are review UI, not report facts. Even the durable
