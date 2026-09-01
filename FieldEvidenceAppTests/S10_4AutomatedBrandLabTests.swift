@@ -3483,7 +3483,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let reportsIndexStart =
-            "    private func assertReportsIndex(in app: XCUIApplication) {"
+            "    private func assertReportsIndex(in app: XCUIApplication) throws {"
         let reportsIndexEnd =
             "\n    @MainActor\n    private func positionLowerNorthCampusForAXText("
         guard let reportsIndexStartRange = uiSource.range(of: reportsIndexStart),
@@ -3499,10 +3499,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(reportsIndexSource.utf8.count, 1_825)
+        XCTAssertEqual(reportsIndexSource.utf8.count, 1_902)
         XCTAssertEqual(
             Data(reportsIndexSource.utf8).sha256,
-            "DF338BC6E4E207E544B9E88E7228D386A49660FBFD5AD0B628661F5461A2586A"
+            "2F1F6E9ABC7D6FCAA3FC9F8542AF48C75C98B090AD0A2A2C921520F02790FDC2"
         )
         let reportHistoryPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -3535,21 +3535,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(separatedBy: reportsIndexStart).count - 1,
             1
         )
-        let reportsIndexCall = "        assertReportsIndex(in: app)"
+        let reportsIndexCall = "        try assertReportsIndex(in: app)"
         XCTAssertEqual(
             uiSource.components(separatedBy: reportsIndexCall).count - 1,
             1
         )
-        for removedThrowingReportsIndexForm in [
-            "        try assertReportsIndex(in: app)",
-            "    private func assertReportsIndex(in app: XCUIApplication) throws {",
+        for removedNonthrowingReportsIndexForm in [
+            "        assertReportsIndex(in: app)",
+            "    private func assertReportsIndex(in app: XCUIApplication) {",
         ] {
             XCTAssertEqual(
                 uiSource.components(
-                    separatedBy: removedThrowingReportsIndexForm
+                    separatedBy: removedNonthrowingReportsIndexForm
                 ).count - 1,
                 0,
-                removedThrowingReportsIndexForm
+                removedNonthrowingReportsIndexForm
             )
         }
         let restoredReportsScreenWait =
@@ -3561,6 +3561,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"        if automationShard?.shardID == "s10.4.minimum.rtl" {"# + "\n" +
                 #"            let viewReport = element("s4.4.reports.view-report", in: app)"# + "\n" +
                 "            scroll(viewReport, in: app)\n" +
+                "            try diagnoseMinimumRTLReportsIndexNativeContrast(in: app)\n" +
                 "        }"
         let restoredReportsAcceptance =
             restoredReportsScreenWait + "\n" +
@@ -3662,6 +3663,137 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+
+        let minimumRTLReportsDiagnosticStart =
+            "    @MainActor\n" +
+                "    private func diagnoseMinimumRTLReportsIndexNativeContrast("
+        let minimumRTLReportsDiagnosticEnd =
+            "\n\n    @MainActor\n" +
+                "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
+        guard let minimumRTLReportsDiagnosticStartRange = uiSource.range(
+            of: minimumRTLReportsDiagnosticStart
+        ), let minimumRTLReportsDiagnosticEndRange = uiSource.range(
+            of: minimumRTLReportsDiagnosticEnd,
+            range: minimumRTLReportsDiagnosticStartRange.upperBound..<uiSource.endIndex
+        ) else {
+            XCTFail("Missing the minimum RTL reports-index diagnostic source")
+            return
+        }
+        let minimumRTLReportsDiagnosticSource = String(
+            uiSource[
+                minimumRTLReportsDiagnosticStartRange.lowerBound
+                    ..< minimumRTLReportsDiagnosticEndRange.lowerBound
+            ]
+        )
+        XCTAssertEqual(minimumRTLReportsDiagnosticSource.utf8.count, 9_184)
+        XCTAssertEqual(
+            Data(minimumRTLReportsDiagnosticSource.utf8).sha256,
+            "223E039F69910863A0F1DC590212362A91DC70816180901EE5EE78D989B3CE3B"
+        )
+        for (diagnosticContract, expectedCount) in [
+            (#"shard.ordinal == 10"#, 1),
+            (#"shard.shardID == "s10.4.minimum.rtl""#, 1),
+            (#"shard.requirementID == "rtl""#, 1),
+            (#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#, 1),
+            (#"Self.segmentedRouteStateIDs[20] == stateID"#, 1),
+            (#"Self.segmentedRouteStateIDs.prefix(20)"#, 1),
+            (#"automationSegment == .none"#, 1),
+            (#"segmentedRouteStateCursor == 0"#, 1),
+            (#"automationContrastExceptions.isEmpty"#, 1),
+            (#"app.state == .runningForeground"#, 1),
+            (#"try app.performAccessibilityAudit(for: .contrast)"#, 1),
+            (#"return true"#, 1),
+            (#"auditCompleted = true"#, 1),
+            (#"auditErrorDomain = auditError.domain"#, 1),
+            (#"auditErrorCode = auditError.code"#, 1),
+            (#"auditErrorDescription = auditError.localizedDescription"#, 1),
+            (#""acceptanceEligible": false"#, 1),
+            (#""stateOrdinal": 21"#, 1),
+            (#""predecessorStateID": "state.report-history.ready""#, 1),
+            (#""successorStateID": "state.sign-detail.open-issue""#, 1),
+            (#""observedIssueCount": observedIssueObjects.count"#, 1),
+            (#""auditedElementCount": auditedElementCount"#, 1),
+            (#""issues": observedIssueObjects"#, 1),
+            (#"S10_4_MINIMUM_RTL_REPORTS_INDEX_NATIVE_CONTRAST_DIAGNOSTIC"#, 1),
+            (#"S10.4 minimum RTL reports-index native contrast diagnostic completed nonaccepting"#, 1),
+        ] {
+            XCTAssertEqual(
+                minimumRTLReportsDiagnosticSource.components(
+                    separatedBy: diagnosticContract
+                ).count - 1,
+                expectedCount,
+                diagnosticContract
+            )
+        }
+        for queryIdentifier in [
+            "s4.4.reports.screen",
+            "s4.4.reports.header",
+            "s4.4.reports.site-filter",
+            "s4.4.reports.sign-filter",
+            "s4.4.reports.visit",
+            "s4.4.reports.view-report",
+            "s1.tab.reports",
+        ] {
+            XCTAssertEqual(
+                minimumRTLReportsDiagnosticSource.components(
+                    separatedBy: queryIdentifier
+                ).count - 1,
+                1,
+                queryIdentifier
+            )
+        }
+        for prohibitedDiagnosticForm in [
+            "XCTAttachment(",
+            ".screenshot()",
+            "debugDescription",
+            "captureBaseline(",
+            "add(",
+            "sleep(",
+            "waitForExistence(",
+            ".tap()",
+            ".swipe",
+            "scroll(",
+            "ContrastAuditExceptionSignature",
+            "migratedStateIDs.append(",
+            "automationAXTreeDigests[stateID] =",
+            "automationContrastExceptions[stateID] =",
+        ] {
+            XCTAssertFalse(
+                minimumRTLReportsDiagnosticSource.contains(
+                    prohibitedDiagnosticForm
+                ),
+                prohibitedDiagnosticForm
+            )
+        }
+        let diagnosticAuditRange = try XCTUnwrap(
+            minimumRTLReportsDiagnosticSource.range(
+                of: "try app.performAccessibilityAudit(for: .contrast)"
+            )
+        )
+        let diagnosticContextRange = try XCTUnwrap(
+            minimumRTLReportsDiagnosticSource.range(
+                of: "let diagnosticContext: [String: Any] = [",
+                range: diagnosticAuditRange.upperBound
+                    ..< minimumRTLReportsDiagnosticSource.endIndex
+            )
+        )
+        let diagnosticPrintRange = try XCTUnwrap(
+            minimumRTLReportsDiagnosticSource.range(
+                of: "printJSONLine(",
+                range: diagnosticContextRange.upperBound
+                    ..< minimumRTLReportsDiagnosticSource.endIndex
+            )
+        )
+        let diagnosticTerminalRange = try XCTUnwrap(
+            minimumRTLReportsDiagnosticSource.range(
+                of: "throw AutomationConfigurationError.invalid(",
+                range: diagnosticPrintRange.upperBound
+                    ..< minimumRTLReportsDiagnosticSource.endIndex
+            )
+        )
+        XCTAssertLessThan(diagnosticAuditRange.lowerBound, diagnosticContextRange.lowerBound)
+        XCTAssertLessThan(diagnosticContextRange.lowerBound, diagnosticPrintRange.lowerBound)
+        XCTAssertLessThan(diagnosticPrintRange.lowerBound, diagnosticTerminalRange.lowerBound)
 
         let signDetailOpenIssueCaller =
             "        try completeWorkAndResolvedRecheckAtXXXL(in: app)"
@@ -20362,10 +20494,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 749_461)
+        XCTAssertEqual(uiSource.utf8.count, 758_728)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "3897B07969C7EF52B48B87101B1F312C30A72F2E4CFAC827CEC24CD43201335D"
+            "6BDA86F14FD0AAC8A089D65B196C8A121E6C582DE40A03A750C91CFEE68D870B"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

@@ -884,7 +884,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertLightFirstSignValidationAndCreation(in: app)
         try completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
-        assertReportsIndex(in: app)
+        try assertReportsIndex(in: app)
 
         app.terminate()
         app.launchArguments.removeAll {
@@ -3838,7 +3838,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func assertReportsIndex(in app: XCUIApplication) {
+    private func assertReportsIndex(in app: XCUIApplication) throws {
         let history = element("s4.4.sign-detail.report-history", in: app)
         scroll(history, in: app)
         assertControl(history, label: "Report history")
@@ -3870,6 +3870,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         if automationShard?.shardID == "s10.4.minimum.rtl" {
             let viewReport = element("s4.4.reports.view-report", in: app)
             scroll(viewReport, in: app)
+            try diagnoseMinimumRTLReportsIndexNativeContrast(in: app)
         }
         captureBaseline("state.reports-index.ready", in: app)
 
@@ -13760,6 +13761,223 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         throw AutomationConfigurationError.invalid(
             "S10.4 AX-text sign-selection native contrast diagnostic completed nonaccepting"
+        )
+    }
+
+    @MainActor
+    private func diagnoseMinimumRTLReportsIndexNativeContrast(
+        in app: XCUIApplication
+    ) throws {
+        let stateID = "state.reports-index.ready"
+        let expectedMigratedStateIDs = Array(
+            Self.segmentedRouteStateIDs.prefix(20)
+        )
+        guard let shard = automationShard,
+              shard.ordinal == 10,
+              shard.shardID == "s10.4.minimum.rtl",
+              shard.requirementID == "rtl",
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+              automationSegment == .none,
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              Self.segmentedRouteStateIDs[20] == stateID,
+              segmentedRouteStateCursor == 0,
+              migratedStateIDs == expectedMigratedStateIDs,
+              automationAXTreeDigests.keys.sorted()
+                == expectedMigratedStateIDs.sorted(),
+              automationContrastExceptions.isEmpty,
+              !automatedSegmentFinished,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum RTL reports-index native contrast diagnostic gate is invalid"
+            )
+        }
+
+        let diagnosticQueryBindings: [(
+            name: String,
+            query: XCUIElementQuery
+        )] = [
+            (
+                "reportsScreens",
+                app.descendants(matching: .any).matching(
+                    identifier: "s4.4.reports.screen"
+                )
+            ),
+            (
+                "reportsHeaders",
+                app.descendants(matching: .any).matching(
+                    identifier: "s4.4.reports.header"
+                )
+            ),
+            (
+                "siteFilters",
+                app.descendants(matching: .any).matching(
+                    identifier: "s4.4.reports.site-filter"
+                )
+            ),
+            (
+                "signFilters",
+                app.descendants(matching: .any).matching(
+                    identifier: "s4.4.reports.sign-filter"
+                )
+            ),
+            (
+                "reportVisits",
+                app.descendants(matching: .any).matching(
+                    identifier: "s4.4.reports.visit"
+                )
+            ),
+            (
+                "viewReportControls",
+                app.descendants(matching: .any).matching(
+                    identifier: "s4.4.reports.view-report"
+                )
+            ),
+            (
+                "reportsTabs",
+                app.descendants(matching: .any).matching(
+                    identifier: "s1.tab.reports"
+                )
+            ),
+            ("tabBars", app.tabBars),
+            ("navigationBars", app.navigationBars),
+            ("scrollViews", app.scrollViews),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isEnabled": element.isEnabled,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+            query in
+            let count = query.count
+            var elements: [[String: Any]] = []
+            for index in 0..<count {
+                elements.append(
+                    diagnosticElementObject(query.element(boundBy: index))
+                )
+            }
+            return [
+                "count": count,
+                "elements": elements,
+            ]
+        }
+        var diagnosticQueryObjects: [String: Any] = [:]
+        for binding in diagnosticQueryBindings {
+            diagnosticQueryObjects[binding.name] = diagnosticQueryObject(binding.query)
+        }
+
+        var observedIssueObjects: [[String: Any]] = []
+        var auditedElementCount = 0
+        var auditCompleted = false
+        var auditErrorDomain: Any = NSNull()
+        var auditErrorCode: Any = NSNull()
+        var auditErrorDescription: Any = NSNull()
+        do {
+            try app.performAccessibilityAudit(for: .contrast) { issue in
+                let auditedElement = issue.element
+                var diagnosticIssue: [String: Any] = [
+                    "issueOrdinal": observedIssueObjects.count + 1,
+                    "auditTypeRawValue": String(issue.auditType.rawValue),
+                    "compactDescription": issue.compactDescription,
+                    "detailedDescription": issue.detailedDescription,
+                    "elementExists": NSNull(),
+                    "elementEnabled": NSNull(),
+                    "elementHittable": NSNull(),
+                    "elementIdentifier": NSNull(),
+                    "elementLabel": NSNull(),
+                    "elementValue": NSNull(),
+                    "elementTypeRawValue": NSNull(),
+                    "elementTypeDescription": NSNull(),
+                    "elementFrame": NSNull(),
+                    "applicationFrame": self.auditFrameObject(app.frame),
+                ]
+                if let auditedElement {
+                    auditedElementCount += 1
+                    let auditedElementObject = diagnosticElementObject(auditedElement)
+                    diagnosticIssue["elementExists"] =
+                        auditedElementObject["exists"]
+                    diagnosticIssue["elementEnabled"] =
+                        auditedElementObject["isEnabled"]
+                    diagnosticIssue["elementHittable"] =
+                        auditedElementObject["isHittable"]
+                    diagnosticIssue["elementIdentifier"] =
+                        auditedElementObject["identifier"]
+                    diagnosticIssue["elementLabel"] =
+                        auditedElementObject["label"]
+                    diagnosticIssue["elementValue"] =
+                        auditedElementObject["value"]
+                    diagnosticIssue["elementTypeRawValue"] =
+                        auditedElementObject["elementTypeRawValue"]
+                    diagnosticIssue["elementTypeDescription"] =
+                        auditedElementObject["elementTypeDescription"]
+                    diagnosticIssue["elementFrame"] =
+                        auditedElementObject["frame"]
+                }
+                observedIssueObjects.append(diagnosticIssue)
+                return true
+            }
+            auditCompleted = true
+        } catch {
+            let auditError = error as NSError
+            auditErrorDomain = auditError.domain
+            auditErrorCode = auditError.code
+            auditErrorDescription = auditError.localizedDescription
+        }
+
+        let diagnosticContext: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "segmentID": automationSegment.rawValue,
+            "segmentStateCursor": segmentedRouteStateCursor,
+            "stateID": stateID,
+            "stateOrdinal": 21,
+            "predecessorStateID": "state.report-history.ready",
+            "predecessorOrdinal": 20,
+            "successorStateID": "state.sign-detail.open-issue",
+            "successorOrdinal": 22,
+            "migratedStateIDs": migratedStateIDs,
+            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
+            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "application": diagnosticElementObject(app),
+            "queries": diagnosticQueryObjects,
+            "auditCompleted": auditCompleted,
+            "auditErrorDomain": auditErrorDomain,
+            "auditErrorCode": auditErrorCode,
+            "auditErrorDescription": auditErrorDescription,
+            "observedIssueCount": observedIssueObjects.count,
+            "auditedElementCount": auditedElementCount,
+            "issues": observedIssueObjects,
+        ]
+        printJSONLine(
+            prefix:
+                "S10_4_MINIMUM_RTL_REPORTS_INDEX_NATIVE_CONTRAST_DIAGNOSTIC",
+            object: diagnosticContext
+        )
+        throw AutomationConfigurationError.invalid(
+            "S10.4 minimum RTL reports-index native contrast diagnostic completed nonaccepting"
         )
     }
 
