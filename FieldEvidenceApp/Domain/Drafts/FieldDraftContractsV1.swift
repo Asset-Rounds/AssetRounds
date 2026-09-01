@@ -30,6 +30,9 @@ private enum FieldDraftValidationV1 {
 enum DraftPurposeV1:String,CaseIterable,Codable,Hashable,Sendable{
     case inspectionReview="INSPECTION_REVIEW",workPacket="WORK_PACKET",correctiveAction="CORRECTIVE_ACTION"
     case requirementEvaluation="REQUIREMENT_EVALUATION",evidenceCuration="EVIDENCE_CURATION",assetFieldEdit="ASSET_FIELD_EDIT"
+    /// C40 uses the existing universal draft checkpoint and codec boundary;
+    /// it does not introduce a second service-request draft family.
+    case serviceRequest="SERVICE_REQUEST"
 }
 enum DraftPrivacyClassV1:String,Codable,Hashable,Sendable{case workspacePrivate="WORKSPACE_PRIVATE",restrictedEvidence="RESTRICTED_EVIDENCE"}
 enum DraftRetentionPolicyV1:String,Codable,Hashable,Sendable{case explicitDiscardOnly="EXPLICIT_DISCARD_ONLY",retireAfterCommit="RETIRE_AFTER_COMMIT"}
@@ -74,6 +77,26 @@ struct FieldDraftCheckpointV1:Codable,Equatable,Hashable,Sendable{
     static func permits(_ from:FieldDraftStateV1,_ to:FieldDraftStateV1)->Bool{switch(from,to){case(.active,.active),(.active,.committing),(.active,.discardPending),(.committing,.committed),(.committing,.conflicted),(.committing,.recoveryRequired),(.conflicted,.active),(.conflicted,.discardPending),(.recoveryRequired,.active),(.recoveryRequired,.committing),(.recoveryRequired,.discardPending),(.discardPending,.discarded),(.discardPending,.recoveryRequired):return true;default:return false}}
     private var basis:Basis{.init(schemaVersion:schemaVersion,draftID:draftID,workspaceID:workspaceID,scope:scope,purpose:purpose,codec:codec,baseCanonicalRevision:baseCanonicalRevision,draftRevision:draftRevision,payloadSHA256:payloadSHA256,stageIDs:stageIDs,resumeAnchor:resumeAnchor,state:state,lastDurableMutationID:lastDurableMutationID,lastReceiptSHA256:lastReceiptSHA256,updatedAt:updatedAt,mutationID:mutationID)}
     private struct Basis:Codable{let schemaVersion:Int;let draftID:UUID;let workspaceID:WorkspaceID;let scope:DraftScopeKeyV1;let purpose:DraftPurposeV1;let codec:DraftPayloadCodecReleaseV1;let baseCanonicalRevision:UInt64;let draftRevision:UInt64;let payloadSHA256:String;let stageIDs:[UUID];let resumeAnchor:DraftResumeAnchorV1;let state:FieldDraftStateV1;let lastDurableMutationID:MutationIDV1?;let lastReceiptSHA256:String?;let updatedAt:Date;let mutationID:MutationIDV1}
+}
+
+extension FieldDraftCheckpointV1 {
+    /// Produces the proof-free C40 bridge only for the closed service-request
+    /// purpose.  The caller selects whether its persisted location is current
+    /// or still needs migration; the checkpoint digest remains the authority.
+    func serviceRequestDraftReference(
+        compatibility: ServiceRequestDraftCompatibilityV1
+    ) throws -> ServiceRequestDraftReferenceV1 {
+        try validate()
+        guard purpose == .serviceRequest else {
+            throw ServiceRequestWorkflowFailureV1.incompatibleDraft
+        }
+        return try ServiceRequestDraftReferenceV1(
+            draftID: draftID,
+            draftRevision: draftRevision,
+            draftSHA256: checkpointSHA256,
+            compatibility: compatibility
+        )
+    }
 }
 
 enum AttachmentStagingStateV1:String,CaseIterable,Codable,Hashable,Sendable{case capturing="CAPTURING",hashing="HASHING",processing="PROCESSING",readyLocal="READY_LOCAL",failedRetryable="FAILED_RETRYABLE",failedFinal="FAILED_FINAL",removePending="REMOVE_PENDING",committed="COMMITTED",orphanQuarantined="ORPHAN_QUARANTINED"}

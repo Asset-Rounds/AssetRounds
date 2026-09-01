@@ -145,6 +145,96 @@ struct PortableExchangeServiceRequestInvitationStageInputV2: Sendable {
     }
 }
 
+/// An isolated pre-C40 service-request draft.  Its checkpoint remains the
+/// source authority until a receipt proves that the exact cleartext manifest
+/// and its protected capability have been published by the sole C48 store.
+/// The capability is deliberately non-Codable and never enters the receipt.
+struct PortableExchangeServiceRequestDraftMigrationInputV2: Sendable {
+    let legacyCheckpoint: FieldDraftCheckpointV1
+    let legacyDraft: ServiceRequestDraftReferenceV1
+    let protocolRelease: PortableServiceRequestProtocolReleaseV1
+    let capability: ServiceRequestSubmissionCapabilityV1
+
+    init(
+        legacyCheckpoint: FieldDraftCheckpointV1,
+        legacyDraft: ServiceRequestDraftReferenceV1,
+        protocolRelease: PortableServiceRequestProtocolReleaseV1,
+        capability: ServiceRequestSubmissionCapabilityV1
+    ) {
+        self.legacyCheckpoint = legacyCheckpoint
+        self.legacyDraft = legacyDraft
+        self.protocolRelease = protocolRelease
+        self.capability = capability
+    }
+}
+
+enum PortableExchangeServiceRequestDraftMigrationDispositionV2: String, Equatable, Sendable {
+    case migrated = "MIGRATED"
+    case replayed = "REPLAYED"
+}
+
+/// This receipt is returned only after the C48 journal has published and the
+/// canonical envelope/artifacts have been read back.  It is the caller's
+/// authority to remove an isolated legacy source; this store never removes
+/// files it does not own.
+struct PortableExchangeServiceRequestDraftMigrationReceiptV2: Equatable, Sendable {
+    let migrationID: UUID
+    let legacyDraft: ServiceRequestDraftReferenceV1
+    let migratedDraft: ServiceRequestDraftReferenceV1
+    let invitationPublicID: ServiceRequestInvitationPublicIDV1
+    let canonicalSessionID: UUID
+    let sourceSHA256: String
+    let capabilitySHA256: String
+    let disposition: PortableExchangeServiceRequestDraftMigrationDispositionV2
+    let sourceDeletionAuthorized: Bool
+
+    fileprivate init(
+        migrationID: UUID,
+        legacyDraft: ServiceRequestDraftReferenceV1,
+        migratedDraft: ServiceRequestDraftReferenceV1,
+        invitationPublicID: ServiceRequestInvitationPublicIDV1,
+        canonicalSessionID: UUID,
+        sourceSHA256: String,
+        capabilitySHA256: String,
+        disposition: PortableExchangeServiceRequestDraftMigrationDispositionV2
+    ) throws {
+        try ServiceRequestLimitsV1.id(migrationID)
+        try ServiceRequestLimitsV1.id(canonicalSessionID)
+        try ServiceRequestLimitsV1.digest(sourceSHA256)
+        try ServiceRequestLimitsV1.digest(capabilitySHA256)
+        guard legacyDraft.draftID == migrationID,
+              legacyDraft.compatibility == .migrationRequired,
+              migratedDraft.draftID == legacyDraft.draftID,
+              migratedDraft.draftRevision == legacyDraft.draftRevision,
+              migratedDraft.draftSHA256 == legacyDraft.draftSHA256,
+              migratedDraft.compatibility == .current else {
+            throw ServiceRequestWorkflowFailureV1.receiptMismatch
+        }
+        self.migrationID = migrationID
+        self.legacyDraft = legacyDraft
+        self.migratedDraft = migratedDraft
+        self.invitationPublicID = invitationPublicID
+        self.canonicalSessionID = canonicalSessionID
+        self.sourceSHA256 = sourceSHA256
+        self.capabilitySHA256 = capabilitySHA256
+        self.disposition = disposition
+        sourceDeletionAuthorized = true
+    }
+}
+
+private struct PortableExchangeServiceRequestDraftMigrationV2 {
+    let migrationID: UUID
+    let legacyCheckpoint: FieldDraftCheckpointV1
+    let legacyDraft: ServiceRequestDraftReferenceV1
+    let migratedDraft: ServiceRequestDraftReferenceV1
+    let manifest: ServiceRequestInvitationManifestV1
+    let sourceBytes: Data
+    let sourceSHA256: String
+    let protocolReleaseDigest: Data
+    let capability: BearerResponseCapabilityV1
+    let capabilitySHA256: String
+}
+
 struct PortableExchangeServiceRequestImportPreviewV2: Equatable, Sendable {
     let invitationPublicID: ServiceRequestInvitationPublicIDV1
     let submissionPublicID: ServiceRequestSubmissionPublicIDV1
@@ -410,6 +500,9 @@ protocol PortableExchangeSessionStorePortV2: Sendable {
 /// Its typed methods keep service proofs and dispositions out of the review
 /// response grammar while retaining the same protected backup/restore root.
 protocol PortableExchangeServiceRequestStorePortV2: Sendable {
+    func migrateLegacyServiceRequestDraft(
+        _ input: PortableExchangeServiceRequestDraftMigrationInputV2
+    ) async throws -> PortableExchangeServiceRequestDraftMigrationReceiptV2
     func stageServiceRequestInvitation(
         _ input: PortableExchangeServiceRequestInvitationStageInputV2
     ) async throws -> PortableExchangeSessionRecordV2
@@ -3718,6 +3811,208 @@ extension PortableExchangeSessionStoreV2: PortableReviewSessionReconciliationV1 
 // MARK: - Type-separated C52 service-request exchange
 
 extension PortableExchangeSessionStoreV2 {
+    /// Publishes an isolated legacy universal draft into the existing
+    /// SERVICE_REQUEST namespace.  The source draft is intentionally never
+    /// deleted here: callers may do so only after this method has returned a
+    /// read-back receipt.  The draft ID is also the stable migration/journal
+    /// ID, which makes a post-publication retry an exact replay without a
+    /// second migration store.
+    func migrateLegacyServiceRequestDraft(
+        _ input: PortableExchangeServiceRequestDraftMigrationInputV2
+    ) async throws -> PortableExchangeServiceRequestDraftMigrationReceiptV2 {
+        try ensureLoaded()
+        let migration = try serviceRequestDraftMigration(input)
+
+        if let existing = envelope?.sessions.first(where: {
+            $0.sessionID == migration.migrationID
+        }) {
+            guard try matchesServiceRequestDraftMigration(existing, migration) else {
+                try quarantineDivergentServiceRequestDraftMigration(migration)
+            }
+            return try serviceRequestDraftMigrationReceipt(
+                migration,
+                record: existing,
+                disposition: .replayed
+            )
+        }
+
+        if let existing = envelope?.sessions.first(where: {
+            $0.namespace == .serviceRequest &&
+                $0.publicRequestID == migration.manifest.invitationPublicID.rawValue
+        }) {
+            guard try matchesServiceRequestDraftMigration(existing, migration) else {
+                try quarantineDivergentServiceRequestDraftMigration(migration)
+            }
+            return try serviceRequestDraftMigrationReceipt(
+                migration,
+                record: existing,
+                disposition: .replayed
+            )
+        }
+
+        let manifestReference = try persistImmutableBytes(
+            migration.sourceBytes,
+            role: .requestManifest,
+            sessionID: migration.migrationID
+        )
+        let protectedCapability = try persistCapability(
+            migration.capability,
+            sessionID: migration.migrationID,
+            state: .issuedNotExported
+        )
+        let now = clock.now()
+        let record = try PortableExchangeSessionRecordV2(
+            sessionID: migration.migrationID,
+            namespace: .serviceRequest,
+            publicRequestID: migration.manifest.invitationPublicID.rawValue,
+            revision: 1,
+            workspaceID: migration.legacyCheckpoint.workspaceID.rawValue,
+            canonicalReviewIdentity: migration.manifest.invitationPublicID.rawValue,
+            canonicalSubjectIdentity: nil,
+            protocolReleaseDigest: migration.protocolReleaseDigest,
+            createdAt: now,
+            updatedAt: now,
+            state: .openUnexported,
+            capabilityState: .issuedNotExported,
+            attemptCount: 0,
+            immutableBytes: [manifestReference],
+            protectedCapability: protectedCapability,
+            responseIDs: [],
+            requestManifestSHA256: manifestReference.sha256,
+            requestPackageSHA256: nil,
+            acceptedResponseSHA256: nil,
+            cloneOrForkGenerationID: nil,
+            escapedCopyAcknowledged: false
+        )
+        var next = try envelope ?? emptyEnvelope()
+        next.sessions.append(record)
+        next.updatedAt = now
+        next = try next.canonicalSorted()
+        try publishEnvelope(
+            next,
+            operation: .migrate,
+            operationID: migration.migrationID,
+            namespace: nil,
+            sessionID: nil
+        )
+        envelope = next
+        guard let published = envelope?.sessions.first(where: {
+            $0.sessionID == migration.migrationID
+        }), try matchesServiceRequestDraftMigration(published, migration) else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        return try serviceRequestDraftMigrationReceipt(
+            migration,
+            record: published,
+            disposition: .migrated
+        )
+    }
+
+    private func serviceRequestDraftMigration(
+        _ input: PortableExchangeServiceRequestDraftMigrationInputV2
+    ) throws -> PortableExchangeServiceRequestDraftMigrationV2 {
+        try input.legacyCheckpoint.validate()
+        try input.protocolRelease.validate()
+        let expectedLegacyDraft = try input.legacyCheckpoint
+            .serviceRequestDraftReference(compatibility: .migrationRequired)
+        guard input.legacyDraft == expectedLegacyDraft,
+              input.legacyCheckpoint.state == .active else {
+            throw ServiceRequestWorkflowFailureV1.incompatibleDraft
+        }
+        let sourceBytes = input.legacyCheckpoint.payloadData
+        let manifest = try ServiceRequestCanonicalCodecV1.decode(
+            ServiceRequestInvitationManifestV1.self,
+            from: sourceBytes
+        )
+        guard manifest.protocolReleaseSHA256 == input.protocolRelease.releaseSHA256,
+              let protocolReleaseDigest = Self.hexData(
+                  input.protocolRelease.releaseSHA256
+              ) else {
+            throw ServiceRequestWorkflowFailureV1.unsupportedMigration
+        }
+        let capability = try BearerResponseCapabilityV1(
+            rawBytes: input.capability.rawBytes
+        )
+        return PortableExchangeServiceRequestDraftMigrationV2(
+            migrationID: input.legacyCheckpoint.draftID,
+            legacyCheckpoint: input.legacyCheckpoint,
+            legacyDraft: input.legacyDraft,
+            migratedDraft: try input.legacyCheckpoint
+                .serviceRequestDraftReference(compatibility: .current),
+            manifest: manifest,
+            sourceBytes: sourceBytes,
+            sourceSHA256: ServiceRequestCanonicalCodecV1.sha256(sourceBytes),
+            protocolReleaseDigest: protocolReleaseDigest,
+            capability: capability,
+            capabilitySHA256: StoreMigrationCanonicalJSONV1.sha256(
+                capability.rawBytes
+            )
+        )
+    }
+
+    private func matchesServiceRequestDraftMigration(
+        _ record: PortableExchangeSessionRecordV2,
+        _ migration: PortableExchangeServiceRequestDraftMigrationV2
+    ) throws -> Bool {
+        guard record.sessionID == migration.migrationID,
+              record.namespace == .serviceRequest,
+              record.publicRequestID == migration.manifest.invitationPublicID.rawValue,
+              record.workspaceID == migration.legacyCheckpoint.workspaceID.rawValue,
+              record.canonicalReviewIdentity
+                == migration.manifest.invitationPublicID.rawValue,
+              record.canonicalSubjectIdentity == nil,
+              record.protocolReleaseDigest == migration.protocolReleaseDigest,
+              record.revision == 1,
+              record.requestManifestSHA256 == migration.sourceSHA256,
+              record.requestPackageSHA256 == nil else {
+            return false
+        }
+        let manifestReferences = record.immutableBytes.filter {
+            $0.role == .requestManifest
+        }
+        guard manifestReferences.count == 1,
+              let manifestReference = manifestReferences.first,
+              manifestReference.sha256 == migration.sourceSHA256,
+              manifestReference.byteCount == UInt64(migration.sourceBytes.count),
+              try readPayload(manifestReference.relativePath)
+                == migration.sourceBytes,
+              let protectedCapability = record.protectedCapability,
+              protectedCapability.sha256 == migration.capabilitySHA256,
+              try readCapability(protectedCapability.relativePath)
+                == migration.capability.rawBytes else {
+            return false
+        }
+        return true
+    }
+
+    private func serviceRequestDraftMigrationReceipt(
+        _ migration: PortableExchangeServiceRequestDraftMigrationV2,
+        record: PortableExchangeSessionRecordV2,
+        disposition: PortableExchangeServiceRequestDraftMigrationDispositionV2
+    ) throws -> PortableExchangeServiceRequestDraftMigrationReceiptV2 {
+        try PortableExchangeServiceRequestDraftMigrationReceiptV2(
+            migrationID: migration.migrationID,
+            legacyDraft: migration.legacyDraft,
+            migratedDraft: migration.migratedDraft,
+            invitationPublicID: migration.manifest.invitationPublicID,
+            canonicalSessionID: record.sessionID,
+            sourceSHA256: migration.sourceSHA256,
+            capabilitySHA256: migration.capabilitySHA256,
+            disposition: disposition
+        )
+    }
+
+    private func quarantineDivergentServiceRequestDraftMigration(
+        _ migration: PortableExchangeServiceRequestDraftMigrationV2
+    ) throws -> Never {
+        try quarantine(
+            migration.sourceBytes,
+            namespace: .serviceRequest,
+            reason: "SERVICE_REQUEST_DRAFT_MIGRATION_DIVERGENT"
+        )
+        throw PortableExchangePersistenceFailureV2.duplicateSession
+    }
+
     /// Stages the invitation manifest and its protected capability in the
     /// shared C48 store.  The invitation envelope itself is intentionally not
     /// persisted because it contains the bearer capability in cleartext.

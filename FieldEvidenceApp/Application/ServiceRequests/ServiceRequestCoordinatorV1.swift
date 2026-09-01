@@ -7,6 +7,7 @@ enum ServiceRequestCoordinatorFailureV1: Error, Equatable, Sendable {
     case receiptMismatch
     case contactPromotionUnavailable
     case statusHandoffInvalid
+    case invalidManualIntake
 }
 
 private enum ServiceRequestCoordinatorClosedCodingV1 {
@@ -489,6 +490,207 @@ final class ServiceRequestCoordinatorV1 {
         self.contactPromotion = contactPromotion
         self.clock = clock
         self.idSource = idSource
+    }
+
+    func previewManualIntake(
+        expectedRevision: WorkspaceExpectedRevisionV1,
+        intake: ServiceRequestManualIntakeV1,
+        decision: ServiceRequestManualDecisionV1,
+        mutationID: MutationIDV1,
+        projectDuplicates: (ServiceRequestRecordV1) throws -> ServiceRequestDuplicateProjectionV1
+    ) throws -> ServiceRequestManualPreviewV1 {
+        guard intake.source != .portableSubmission else {
+            throw ServiceRequestCoordinatorFailureV1.invalidManualIntake
+        }
+        let recordedAt = clock.now()
+        let record = try ServiceRequestRecordV1(
+            recordID: idSource.makeID(),
+            workspaceID: expectedRevision.workspaceID,
+            source: intake.source,
+            scope: intake.scope,
+            body: intake.body,
+            mediaManifest: intake.mediaManifest,
+            acceptedSourceBytes: nil,
+            capabilityAssessment: .init(
+                proofValidity: .unavailable,
+                importEligibility: .unavailable
+            ),
+            revision: 1,
+            mutationID: mutationID,
+            recordedAt: recordedAt
+        )
+        let duplicates = try projectDuplicates(record)
+        try duplicates.validate()
+        guard duplicates.basisRequestSHA256 == record.recordSHA256,
+              duplicates.candidates.allSatisfy({ candidate in
+                  candidate.sharedSiteID == intake.scope.siteID
+                      && (candidate.sharedAssetID.map { assetID in
+                          intake.scope.assets.contains(where: { $0.assetID == assetID })
+                      } ?? true)
+              }) else {
+            throw ServiceRequestCoordinatorFailureV1.duplicateDecisionMismatch
+        }
+
+        let event: ServiceRequestDispositionEventV1?
+        switch decision {
+        case .needsTriage:
+            event = nil
+        case let .disposition(disposition, selectedDuplicate, reason):
+            guard ServiceRequestImportPreviewV1.writesCanonical(disposition),
+                  (disposition == .acceptAndLinkDuplicate) == (selectedDuplicate != nil),
+                  (disposition == .declineWithReason) == (reason?.isEmpty == false),
+                  selectedDuplicate.map({ selected in
+                      duplicates.candidates.contains(where: { $0.record == selected })
+                  }) ?? true else {
+                throw ServiceRequestCoordinatorFailureV1.duplicateDecisionMismatch
+            }
+            event = try ServiceRequestDispositionEventV1(
+                eventID: idSource.makeID(),
+                workspaceID: expectedRevision.workspaceID,
+                request: record.reference,
+                disposition: disposition,
+                resultingState: Self.state(for: disposition),
+                reason: reason,
+                duplicateRecord: selectedDuplicate,
+                revision: 1,
+                mutationID: mutationID,
+                recordedAt: recordedAt
+            )
+        }
+        var payloads: [ServiceRequestMutationPayloadV1] = [.appendRecord(record)]
+        if let event { payloads.append(.appendDisposition(event)) }
+        let scoped = try Self.scopedExpectedRevision(expectedRevision, payloads: payloads)
+        return try ServiceRequestManualPreviewV1(
+            workspaceID: expectedRevision.workspaceID,
+            expectedRevision: scoped,
+            record: record,
+            dispositionEvent: event,
+            duplicateProjection: duplicates,
+            mutationID: mutationID
+        )
+    }
+
+    func commitManualIntake(
+        _ preview: ServiceRequestManualPreviewV1
+    ) throws -> ServiceRequestManualReceiptV1 {
+        try preview.validate()
+        var payloads: [ServiceRequestMutationPayloadV1] = [.appendRecord(preview.record)]
+        if let event = preview.dispositionEvent { payloads.append(.appendDisposition(event)) }
+        let mutation = try ServiceRequestMutationV1(
+            workspaceID: preview.workspaceID,
+            expectedRevision: preview.expectedRevision,
+            mutationID: preview.mutationID,
+            payloads: payloads
+        )
+        let canonical = try writer.durableServiceRequestReceipt(mutation: mutation)
+            ?? writer.commitServiceRequest(mutation)
+        let receipt = try ServiceRequestManualReceiptV1(
+            preview: preview,
+            canonicalMutationReceiptSHA256: WorkspaceMutationCanonicalV1.sha256(
+                canonical.mutationReceipt
+            )
+        )
+        try receipt.validate()
+        guard receipt.previewSHA256 == preview.previewSHA256,
+              receipt.mutationID == preview.mutationID else {
+            throw ServiceRequestCoordinatorFailureV1.receiptMismatch
+        }
+        return receipt
+    }
+
+    func recoverManualIntake(
+        _ preview: ServiceRequestManualPreviewV1
+    ) throws -> ServiceRequestManualReceiptV1 {
+        try commitManualIntake(preview)
+    }
+
+    func previewDisposition(
+        record: ServiceRequestRecordV1,
+        expectedRevision: WorkspaceExpectedRevisionV1,
+        disposition: ServiceRequestImportDispositionV1,
+        selectedDuplicate: ServiceRequestRevisionReferenceV1?,
+        reason: String?,
+        predecessor: ServiceRequestDispositionEventV1?,
+        duplicateProjection: ServiceRequestDuplicateProjectionV1,
+        mutationID: MutationIDV1
+    ) throws -> ServiceRequestDispositionPlanV1 {
+        try record.validate()
+        try predecessor?.validate()
+        try duplicateProjection.validate()
+        guard ServiceRequestImportPreviewV1.writesCanonical(disposition),
+              record.workspaceID == expectedRevision.workspaceID,
+              duplicateProjection.basisRequestSHA256 == record.recordSHA256,
+              duplicateProjection.candidates.allSatisfy({ candidate in
+                  candidate.sharedSiteID == record.scope.siteID
+                      && (candidate.sharedAssetID.map { assetID in
+                          record.scope.assets.contains(where: { $0.assetID == assetID })
+                      } ?? true)
+              }),
+              predecessor?.workspaceID == expectedRevision.workspaceID || predecessor == nil,
+              predecessor?.request.recordID == record.recordID || predecessor == nil,
+              (disposition == .acceptAndLinkDuplicate) == (selectedDuplicate != nil),
+              (disposition == .declineWithReason) == (reason?.isEmpty == false),
+              selectedDuplicate.map({ selected in
+                  duplicateProjection.candidates.contains(where: { $0.record == selected })
+              }) ?? true else {
+            throw ServiceRequestCoordinatorFailureV1.duplicateDecisionMismatch
+        }
+        let nextRevision = try predecessor.map { prior -> UInt64 in
+            guard prior.revision < UInt64.max else {
+                throw ServiceRequestCoordinatorFailureV1.invalidPreview
+            }
+            return prior.revision + 1
+        } ?? 1
+        let event = try ServiceRequestDispositionEventV1(
+            eventID: idSource.makeID(),
+            workspaceID: expectedRevision.workspaceID,
+            request: record.reference,
+            disposition: disposition,
+            resultingState: Self.state(for: disposition),
+            reason: reason,
+            duplicateRecord: selectedDuplicate,
+            predecessorEventID: predecessor?.eventID,
+            predecessorEventSHA256: predecessor?.eventSHA256,
+            revision: nextRevision,
+            mutationID: mutationID,
+            recordedAt: clock.now()
+        )
+        if let predecessor { try event.validateSuccessor(of: predecessor) }
+        let scoped = try Self.scopedExpectedRevision(
+            expectedRevision,
+            payloads: [.appendDisposition(event)]
+        )
+        return try ServiceRequestDispositionPlanV1(
+            workspaceID: expectedRevision.workspaceID,
+            expectedRevision: scoped,
+            event: event
+        )
+    }
+
+    func commitDisposition(
+        _ plan: ServiceRequestDispositionPlanV1
+    ) throws -> ServiceRequestDispositionReceiptV1 {
+        try plan.validate()
+        let mutation = try ServiceRequestMutationV1(
+            workspaceID: plan.workspaceID,
+            expectedRevision: plan.expectedRevision,
+            mutationID: plan.event.mutationID,
+            payloads: [.appendDisposition(plan.event)]
+        )
+        let canonical = try writer.durableServiceRequestReceipt(mutation: mutation)
+            ?? writer.commitServiceRequest(mutation)
+        return .init(
+            plan: plan,
+            canonicalMutationReceiptSHA256: WorkspaceMutationCanonicalV1.sha256(
+                canonical.mutationReceipt
+            )
+        )
+    }
+
+    func recoverDisposition(
+        _ plan: ServiceRequestDispositionPlanV1
+    ) throws -> ServiceRequestDispositionReceiptV1 {
+        try commitDisposition(plan)
     }
 
     func previewPortableImport(

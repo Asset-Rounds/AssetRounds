@@ -6503,6 +6503,7 @@ enum C36FieldDraftTestSupportV1 {
         case .requirementEvaluation: .applyRequirementAssurance
         case .evidenceCuration: .applyEvidenceAssurance
         case .assetFieldEdit: .applyAssetSemantics
+        case .serviceRequest: .applyServiceRequest
         }
     }
 

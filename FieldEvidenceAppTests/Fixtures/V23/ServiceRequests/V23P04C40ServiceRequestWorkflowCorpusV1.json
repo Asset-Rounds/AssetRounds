@@ -1,0 +1,110 @@
+{
+  "cardID": "V23-P04-C40",
+  "claims": {
+    "authenticatedRequester": false,
+    "automaticDuplicateMerge": false,
+    "automaticWorkCreation": false,
+    "deliveryConfirmed": false,
+    "emergencyIntake": false,
+    "encryptedServiceRequestV1": false,
+    "marketingConsent": false,
+    "portalAvailable": false,
+    "requesterAuthorityVerified": false,
+    "slaPromised": false,
+    "telemetryWritten": false,
+    "urgencyVerified": false
+  },
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "dispositions": [
+    "ACCEPT_AS_NEW",
+    "ACCEPT_AND_LINK_DUPLICATE",
+    "DECLINE_WITH_REASON",
+    "RECORD_HISTORY_ONLY",
+    "KEEP_QUARANTINED",
+    "DISCARD_UNIMPORTED"
+  ],
+  "evidenceIDs": [
+    "V23-P04-C40-G01",
+    "V23-P04-C40-A01",
+    "V23-P04-C40-H01",
+    "V23-P04-C40-I01",
+    "V23-P04-C40-R01"
+  ],
+  "hostileCases": [
+    "CORRUPT_CANONICAL_BYTES",
+    "UNKNOWN_PROTOCOL_RELEASE",
+    "STALE_WORKSPACE_FRONTIER",
+    "WRONG_INVITATION",
+    "WRONG_SCOPE",
+    "REBINDING",
+    "DIVERGENT_SAME_SUBMISSION_ID",
+    "CROSS_PURPOSE_REVIEW_NAMESPACE",
+    "ENCRYPTED_SERVICE_REQUEST_IN_V1",
+    "PATH_TRAVERSAL",
+    "SYMLINK",
+    "CASE_MISMATCH",
+    "TYPE_OR_MAGIC_MISMATCH",
+    "COMPRESSION_BOMB",
+    "HOSTILE_UNICODE",
+    "OVERSIZE_FILE_OR_MEDIA",
+    "MOVED_RETIRED_OR_DELETED_TARGET"
+  ],
+  "interruptionBoundaries": [
+    "DRAFT_CHECKPOINT",
+    "CANCEL_BEFORE_PREVIEW",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "STORAGE_UNAVAILABLE",
+    "AFTER_IMPORT_EFFECT_BEFORE_RECEIPT",
+    "AFTER_WORK_LINK_EFFECT_BEFORE_RECEIPT",
+    "RELAUNCH_WITH_PENDING_SESSION_FINALIZATION"
+  ],
+  "lifecycle": {
+    "backupReplaceRestorePreservesEligibleSessions": true,
+    "cloneAndForkInvalidateOutstandingCapabilities": true,
+    "eraseRemovesOwnedStagingAndCapabilities": true,
+    "escapedCopiesCanBeAcknowledgedButNotRecalled": true,
+    "reviewNamespaceIsIndependent": true,
+    "siblingSubmissionsArePreserved": true
+  },
+  "schema": "V23P04C40ServiceRequestWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "scenarios": [
+    { "id": "V23-P04-C40-G01", "kind": "GOLDEN", "canonicalEffects": 2 },
+    { "id": "V23-P04-C40-A01", "kind": "ALTERNATE", "manualChannels": 6 },
+    { "id": "V23-P04-C40-H01", "kind": "HOSTILE", "partialEffectsAllowed": false },
+    { "id": "V23-P04-C40-I01", "kind": "INTERRUPTION", "maximumEffectsPerMutation": 1 },
+    { "id": "V23-P04-C40-R01", "kind": "RECOVERY", "exactReplayRequired": true }
+  ],
+  "sources": [
+    "PORTABLE_SUBMISSION",
+    "PHONE",
+    "EMAIL",
+    "TEXT",
+    "PAPER",
+    "IN_PERSON",
+    "OTHER"
+  ],
+  "states": [
+    "OPEN_UNTRIAGED",
+    "OPEN_ACCEPTED",
+    "HANDLED_BY_LINKED_WORK",
+    "DECLINED",
+    "CLOSED_NO_WORK",
+    "SUPERSEDED"
+  ],
+  "synthetic": true,
+  "testOnly": true,
+  "truth": {
+    "contactPromotionPurpose": "OPERATIONAL_CONTACT_ONLY",
+    "portableFilesAreCleartext": true,
+    "previewWritesCanonical": false,
+    "recipientModeRequiresEntitlement": false,
+    "statusFormats": [
+      "PDF",
+      "TEXT"
+    ],
+    "statusProvesReceiptOrDelivery": false,
+    "workConversionIsSeparate": true
+  }
+}

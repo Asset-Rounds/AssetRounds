@@ -1,0 +1,475 @@
+{
+  "acceptanceCredit": false,
+  "authority": {
+    "allocationDigest": "aeb9ddfc4ec0a55f0b9eedf2da0e7cdee4d6d68a0c3853f07e550a5708cd4adf",
+    "appBaseHead": "43ac236be18334ba74072656697d138f0c6204bc",
+    "appBaseTree": "f1a12547aefcd668ef1938e79f1394a0a31d38bd",
+    "attemptID": 1,
+    "authorizedOverlapCount": 5,
+    "cardID": "V23-P04-C40",
+    "contextDigest": "340dd7bb2948d19f47ea390763ac904cfa700fb65f6e9f597eddf0fb2249910e",
+    "coordinationHead": "b0155f70e84f0626e739a3ce8fa0f04f380a658a",
+    "coordinationTree": "0cd0c67491b8f5f15140462618f5e893ef75da70",
+    "existingPathCount": 4,
+    "existingPaths": [
+      "FieldEvidenceApp/Application/ServiceRequests/ServiceRequestCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+      "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+      "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift"
+    ],
+    "fencePathCount": 18,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "ledgerDigest": "2908026c89704cddc72ad8abad83f1211964b2f15010230cd5e9ebcd70fd710c",
+    "newPathCount": 14,
+    "newPaths": [
+      "FieldEvidenceApp/Domain/ServiceRequests/ServiceRequestWorkflowContractsV1.swift",
+      "FieldEvidenceApp/Application/ServiceRequests/ServiceRequestWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_103ServiceRequestWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/ServiceRequests/V23P04C40ServiceRequestWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C40ServiceRequestWorkflowUITests.swift",
+      "Scripts/v23/p04_c40_contracts.py",
+      "Scripts/v23/generate_p04_c40_contracts.py",
+      "Scripts/v23/verify_p04_c40_contracts.py",
+      "Scripts/v23/service-request-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C40ServiceRequestWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C40ServiceRequestWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C40BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C40-tooling-manifest.json"
+    ],
+    "orderedPathFence": [
+      "FieldEvidenceApp/Application/ServiceRequests/ServiceRequestCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+      "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+      "FieldEvidenceApp/Domain/ServiceRequests/ServiceRequestWorkflowContractsV1.swift",
+      "FieldEvidenceApp/Application/ServiceRequests/ServiceRequestWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_103ServiceRequestWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/ServiceRequests/V23P04C40ServiceRequestWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C40ServiceRequestWorkflowUITests.swift",
+      "Scripts/v23/p04_c40_contracts.py",
+      "Scripts/v23/generate_p04_c40_contracts.py",
+      "Scripts/v23/verify_p04_c40_contracts.py",
+      "Scripts/v23/service-request-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C40ServiceRequestWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C40ServiceRequestWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C40BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C40-tooling-manifest.json",
+      "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift"
+    ],
+    "pathFenceDigest": "8cde48407a196fc41dabcef75b3e6311a7544f4bb00ebbbfd44e5f8b81a8bb99",
+    "prerequisiteDigest": "b8cfb626306dc7430aa38b25ac2920b6fd26d4489c9008676b5ebbb6ee7284ef",
+    "productTestUIFixturePathCount": 7,
+    "projectionDigest": "b616da4f5a76e163ae957efd3514e808d7bfe5f47c9cc4acbd699730c61d5518",
+    "registerOrdinal": 128,
+    "s10ReservationOverlapCount": 0,
+    "sequence": 560,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C40",
+        "sha256": "dfadca21d19ae2fafab31cb74da5b441d62412cf1aed042a86645aac25f63a02",
+        "utf8Length": 7105
+      },
+      {
+        "anchor": "V23-P04-C40-register",
+        "sha256": "0298a50940eb5652e77051e267454be847c4b042a577157ce0c45af9ef14ef13",
+        "utf8Length": 313
+      },
+      {
+        "anchor": "V23-P04-C41-register",
+        "sha256": "3424fddd0018c1074502c726574498f027614a8ffe8413b4766c2bdd03357b35",
+        "utf8Length": 320
+      }
+    ],
+    "title": "Manual and portable service-request capture, duplicate triage, accept/decline/convert, and customer-safe status handoff",
+    "toolingPathCount": 8,
+    "transitionDigest": "d0c9a2e3cc47688340b1def64e4f56dedccac430c779029f1cead494b3ec3381",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C40",
+  "claims": {
+    "authenticatedRequester": false,
+    "automaticDuplicateMerge": false,
+    "automaticWorkCreation": false,
+    "deliveryConfirmed": false,
+    "emergencyIntake": false,
+    "encryptedServiceRequestV1": false,
+    "marketingConsent": false,
+    "portalAvailable": false,
+    "requesterAuthorityVerified": false,
+    "slaPromised": false,
+    "telemetryWritten": false,
+    "urgencyVerified": false
+  },
+  "corpusExpectations": {
+    "cardID": "V23-P04-C40",
+    "claims": {
+      "authenticatedRequester": false,
+      "automaticDuplicateMerge": false,
+      "automaticWorkCreation": false,
+      "deliveryConfirmed": false,
+      "emergencyIntake": false,
+      "encryptedServiceRequestV1": false,
+      "marketingConsent": false,
+      "portalAvailable": false,
+      "requesterAuthorityVerified": false,
+      "slaPromised": false,
+      "telemetryWritten": false,
+      "urgencyVerified": false
+    },
+    "containsCustomerData": false,
+    "containsSecrets": false,
+    "dispositions": [
+      "ACCEPT_AS_NEW",
+      "ACCEPT_AND_LINK_DUPLICATE",
+      "DECLINE_WITH_REASON",
+      "RECORD_HISTORY_ONLY",
+      "KEEP_QUARANTINED",
+      "DISCARD_UNIMPORTED"
+    ],
+    "evidenceIDs": [
+      "V23-P04-C40-G01",
+      "V23-P04-C40-A01",
+      "V23-P04-C40-H01",
+      "V23-P04-C40-I01",
+      "V23-P04-C40-R01"
+    ],
+    "hostileCases": [
+      "CORRUPT_CANONICAL_BYTES",
+      "UNKNOWN_PROTOCOL_RELEASE",
+      "STALE_WORKSPACE_FRONTIER",
+      "WRONG_INVITATION",
+      "WRONG_SCOPE",
+      "REBINDING",
+      "DIVERGENT_SAME_SUBMISSION_ID",
+      "CROSS_PURPOSE_REVIEW_NAMESPACE",
+      "ENCRYPTED_SERVICE_REQUEST_IN_V1",
+      "PATH_TRAVERSAL",
+      "SYMLINK",
+      "CASE_MISMATCH",
+      "TYPE_OR_MAGIC_MISMATCH",
+      "COMPRESSION_BOMB",
+      "HOSTILE_UNICODE",
+      "OVERSIZE_FILE_OR_MEDIA",
+      "MOVED_RETIRED_OR_DELETED_TARGET"
+    ],
+    "interruptionBoundaries": [
+      "DRAFT_CHECKPOINT",
+      "CANCEL_BEFORE_PREVIEW",
+      "PROTECTED_DATA_UNAVAILABLE",
+      "STORAGE_UNAVAILABLE",
+      "AFTER_IMPORT_EFFECT_BEFORE_RECEIPT",
+      "AFTER_WORK_LINK_EFFECT_BEFORE_RECEIPT",
+      "RELAUNCH_WITH_PENDING_SESSION_FINALIZATION"
+    ],
+    "lifecycle": {
+      "backupReplaceRestorePreservesEligibleSessions": true,
+      "cloneAndForkInvalidateOutstandingCapabilities": true,
+      "eraseRemovesOwnedStagingAndCapabilities": true,
+      "escapedCopiesCanBeAcknowledgedButNotRecalled": true,
+      "reviewNamespaceIsIndependent": true,
+      "siblingSubmissionsArePreserved": true
+    },
+    "scenarios": [
+      {
+        "canonicalEffects": 2,
+        "id": "V23-P04-C40-G01",
+        "kind": "GOLDEN"
+      },
+      {
+        "id": "V23-P04-C40-A01",
+        "kind": "ALTERNATE",
+        "manualChannels": 6
+      },
+      {
+        "id": "V23-P04-C40-H01",
+        "kind": "HOSTILE",
+        "partialEffectsAllowed": false
+      },
+      {
+        "id": "V23-P04-C40-I01",
+        "kind": "INTERRUPTION",
+        "maximumEffectsPerMutation": 1
+      },
+      {
+        "exactReplayRequired": true,
+        "id": "V23-P04-C40-R01",
+        "kind": "RECOVERY"
+      }
+    ],
+    "schema": "V23P04C40ServiceRequestWorkflowCorpusV1",
+    "schemaVersion": 1,
+    "sources": [
+      "PORTABLE_SUBMISSION",
+      "PHONE",
+      "EMAIL",
+      "TEXT",
+      "PAPER",
+      "IN_PERSON",
+      "OTHER"
+    ],
+    "states": [
+      "OPEN_UNTRIAGED",
+      "OPEN_ACCEPTED",
+      "HANDLED_BY_LINKED_WORK",
+      "DECLINED",
+      "CLOSED_NO_WORK",
+      "SUPERSEDED"
+    ],
+    "synthetic": true,
+    "testOnly": true,
+    "truth": {
+      "contactPromotionPurpose": "OPERATIONAL_CONTACT_ONLY",
+      "portableFilesAreCleartext": true,
+      "previewWritesCanonical": false,
+      "recipientModeRequiresEntitlement": false,
+      "statusFormats": [
+        "PDF",
+        "TEXT"
+      ],
+      "statusProvesReceiptOrDelivery": false,
+      "workConversionIsSeparate": true
+    }
+  },
+  "corpusSchema": "V23P04C40ServiceRequestWorkflowCorpusV1",
+  "draftPurposeOwner": "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "independence": {
+    "c48SoleStore": true,
+    "canonicalManualCommitOwner": "FieldEvidenceApp/Application/ServiceRequests/ServiceRequestCoordinatorV1.swift",
+    "claimsFabricated": false,
+    "customerDataInTooling": false,
+    "draftPurposeExtensionOwner": "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+    "entitlementIndependent": true,
+    "newBackend": false,
+    "newContactWriter": false,
+    "newImporter": false,
+    "newMarketing": false,
+    "newNetwork": false,
+    "newRenderer": false,
+    "newRoot": false,
+    "newStore": false,
+    "newTelemetry": false,
+    "newWriter": false,
+    "portableDraftIsolation": "PURPOSE_NAMESPACED_WITHOUT_REVIEW_GRAMMAR_OR_QUOTA_MIXING",
+    "portableDraftMigrationOwner": "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+    "portableRecipientFlowIsolated": true,
+    "reviewNamespaceIndependent": true,
+    "secretsInTooling": false
+  },
+  "lifecycle": {
+    "backupReplaceRestorePreservesEligibleSessions": true,
+    "cloneAndForkInvalidateOutstandingCapabilities": true,
+    "eraseRemovesOwnedStagingAndCapabilities": true,
+    "escapedCopiesCanBeAcknowledgedButNotRecalled": true,
+    "reviewNamespaceIsIndependent": true,
+    "siblingSubmissionsArePreserved": true
+  },
+  "manualCanonicalOwner": "FieldEvidenceApp/Application/ServiceRequests/ServiceRequestCoordinatorV1.swift",
+  "ordinal": 128,
+  "portableStoreOwner": "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+  "prohibitedClaims": [
+    "requester identity verified",
+    "requester authority verified",
+    "contact verified",
+    "urgency verified",
+    "delivery confirmed",
+    "portal available",
+    "emergency intake",
+    "SLA promised",
+    "automatic duplicate merge",
+    "automatic work creation",
+    "encrypted service request V1",
+    "telemetry",
+    "network",
+    "marketing consent"
+  ],
+  "receipt": "ServiceRequestWorkflowEvidenceReceiptV1",
+  "receiptState": "PROVISIONAL_STATIC_TOOLING",
+  "scenarioEvidenceIDs": [
+    "V23-P04-C40-G01",
+    "V23-P04-C40-A01",
+    "V23-P04-C40-H01",
+    "V23-P04-C40-I01",
+    "V23-P04-C40-R01"
+  ],
+  "scenarioRows": [
+    {
+      "evidenceID": "V23-P04-C40-G01",
+      "expectedEffects": {
+        "availableDispositions": [
+          "ACCEPT_AS_NEW",
+          "ACCEPT_AND_LINK_DUPLICATE",
+          "DECLINE_WITH_REASON",
+          "RECORD_HISTORY_ONLY",
+          "KEEP_QUARANTINED",
+          "DISCARD_UNIMPORTED"
+        ],
+        "duplicateSuggestions": "EXPLAINABLE_ONLY",
+        "needsTriageProjection": "DERIVED_REBUILDABLE",
+        "previewWritesCanonical": false,
+        "sources": [
+          "PHONE",
+          "EMAIL",
+          "TEXT",
+          "PAPER",
+          "IN_PERSON",
+          "OTHER",
+          "PORTABLE_SUBMISSION"
+        ]
+      },
+      "focus": "MANUAL_AND_PORTABLE_CAPTURE_ZERO_WRITE_PREVIEW_DERIVED_TRIAGE_AND_EXPLICIT_DISPOSITION",
+      "id": "G01",
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P04-C40-A01",
+      "expectedEffects": {
+        "linkage": "IMMUTABLE_REQUEST_WORK_LINEAGE",
+        "portableFiles": "CLEARTEXT_V23",
+        "recipientModeEntitlementIndependent": true,
+        "statusDeliveryClaim": false,
+        "statusFormats": [
+          "PDF",
+          "TEXT"
+        ],
+        "workConversion": "SEPARATE_EXPLICIT_MUTATION"
+      },
+      "focus": "PURPOSE_NAMESPACED_PORTABLE_DRAFT_REVIEW_AND_SEPARATE_WORK_CONVERSION_STATUS_HANDOFF",
+      "id": "A01",
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P04-C40-H01",
+      "expectedEffects": {
+        "claims": "ALL_FALSE",
+        "duplicateMerge": "NEVER_AUTOMATIC",
+        "encryptedV1": "REJECT_UNSUPPORTED_PROTOCOL",
+        "unknownOrCorrupt": "FAIL_VISIBLE_NO_PARTIAL_CANONICAL_SUCCESS",
+        "wrongScope": "REJECT"
+      },
+      "focus": "HOSTILE_PORTABLE_INPUT_SCOPE_PROTOCOL_BYTES_DUPLICATE_FRONTIER_AND_PURPOSE_ISOLATION",
+      "id": "H01",
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P04-C40-I01",
+      "expectedEffects": {
+        "effectBeforeReceipt": "RECOVER_OR_ROLL_BACK_VISIBLY",
+        "pendingFinalization": "RESUME_OR_ROLL_BACK",
+        "preview": "ZERO_WRITE",
+        "retry": "SAME_EFFECT_OR_NO_EFFECT"
+      },
+      "focus": "DRAFT_CHECKPOINT_PREVIEW_CANCEL_STORAGE_PROTECTED_DATA_EFFECT_BEFORE_RECEIPT_AND_RELAUNCH",
+      "id": "I01",
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P04-C40-R01",
+      "expectedEffects": {
+        "backupRestore": "PRESERVE_ELIGIBLE_SESSIONS",
+        "cloneFork": "INVALIDATE_OUTSTANDING_CAPABILITIES",
+        "erase": "REMOVE_OWNED_STAGING_AND_CAPABILITIES",
+        "escapedCopies": "ACKNOWLEDGE_NOT_RECALL",
+        "search": "DERIVED_REBUILDABLE_NEEDS_TRIAGE"
+      },
+      "focus": "CANONICAL_RECEIPTS_BACKUP_RESTORE_CLONE_FORK_ERASE_SEARCH_REBUILD_AND_ESCAPED_COPY_TRUTH",
+      "id": "R01",
+      "kind": "RECOVERY"
+    }
+  ],
+  "schema": "V23P04C40ServiceRequestWorkflowToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Application/ServiceRequests/ServiceRequestCoordinatorV1.swift",
+      "sha256": "30cb9099a8a0c92cde63bc7e1f4a6e37898af57d8c59f655f554221d5b333cda",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+      "sha256": "5289b7974c144f3ede8e9cb6bfd19ced57a6846dd082518b434e33a7a086450c",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+      "sha256": "19705f38165e97015ba14bd8d0b4b0e75f004126c5300ac8f03f30df559e2f36",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+      "sha256": "2e1f63b055331f2aa594e6178129cb96e6cc6d814f9bf7c9e42893bb3e0d0ce6",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/ServiceRequests/ServiceRequestWorkflowContractsV1.swift",
+      "sha256": "eaf670d6fc2d87b0612441df78d3a7ac729862874d050efb4c747d34da2228b4",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/ServiceRequests/ServiceRequestWorkflowCoordinatorV1.swift",
+      "sha256": "02dff2349992e27be716e587facb35ab446da7ea1a7211002acbff53cbc44cf1",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift",
+      "sha256": "7b43b61c62700ab28e4f336371f911144235a00b85ee11339c5784b9591149a8",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_103ServiceRequestWorkflowTests.swift",
+      "sha256": "7b82ac918f08df253c969f1f55aeabcb8db6b7f2e745e23371ddfbf6f6b17b77",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/ServiceRequests/V23P04C40ServiceRequestWorkflowCorpusV1.json",
+      "sha256": "f9c4f2b2df263714ad108c4c12bf960d700a372b37a7440e2ab58704b9efaf4f",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C40ServiceRequestWorkflowUITests.swift",
+      "sha256": "c61268c82a70f93085c94cf36946dc159b53878679d16e64f44e99b4dd6105f9",
+      "status": "SOURCE_PRESENT"
+    }
+  ],
+  "sourceSlices": [
+    {
+      "byteCount": 7105,
+      "endLine": 8479,
+      "path": "C:\\Users\\palat\\OneDrive\\Desktop\\Asset Rounds Expansion Prompt\\EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+      "sha256": "dfadca21d19ae2fafab31cb74da5b441d62412cf1aed042a86645aac25f63a02",
+      "startLine": 8420
+    },
+    {
+      "byteCount": 313,
+      "endLine": 309,
+      "path": "C:\\Users\\palat\\OneDrive\\Desktop\\Asset Rounds Expansion Prompt\\EXPANSION_V23_FOUNDATION_PLAN.md",
+      "sha256": "0298a50940eb5652e77051e267454be847c4b042a577157ce0c45af9ef14ef13",
+      "startLine": 309
+    },
+    {
+      "byteCount": 320,
+      "endLine": 310,
+      "path": "C:\\Users\\palat\\OneDrive\\Desktop\\Asset Rounds Expansion Prompt\\EXPANSION_V23_FOUNDATION_PLAN.md",
+      "sha256": "3424fddd0018c1074502c726574498f027614a8ffe8413b4766c2bdd03357b35",
+      "startLine": 310
+    }
+  ],
+  "zeroWritePreview": true
+}
