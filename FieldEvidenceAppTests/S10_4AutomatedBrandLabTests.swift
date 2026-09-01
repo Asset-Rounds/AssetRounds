@@ -4886,13 +4886,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let minimumQuickPathActionStart = try XCTUnwrap(
             workValidationMinimumQuickPathSource.range(
                 of: workValidationMinimumQuickPathAction,
-                range: minimumQuickPathDiagnosticStart.upperBound..<
+                range: minimumQuickPathDiagnosticStart.upperBound ..<
                     workValidationMinimumQuickPathSource.endIndex
             )
         )
         let minimumQuickPathDiagnosticSource = String(
             workValidationMinimumQuickPathSource[
-                minimumQuickPathDiagnosticStart.lowerBound..<
+                minimumQuickPathDiagnosticStart.lowerBound ..<
                     minimumQuickPathActionStart.lowerBound
             ]
         )
