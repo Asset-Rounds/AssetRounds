@@ -1,0 +1,400 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "allocationDigest": {
+          "const": "29a5c339ad47a438561b91c66ee8c917262778443436e471d8f50ef233840efa"
+        },
+        "appBaseHead": {
+          "const": "681b0306887c5fe3cac61bbbe3301e3815890b4f"
+        },
+        "appBaseTree": {
+          "const": "43a2f696548480b7e9fd7b597316fe015301396a"
+        },
+        "cardID": {
+          "const": "V23-P04-C35"
+        },
+        "contextDigest": {
+          "const": "91d701f1461e7bd7193d948d2abbf7a252139c679ebd0e31632d79042dd0c288"
+        },
+        "coordinationHead": {
+          "const": "75d6e2d5692c2cc7548bbb9d45378b1ad6e3aaf1"
+        },
+        "coordinationTree": {
+          "const": "fb253e276ea5f338eacd53e8c9601bbe5de10b53"
+        },
+        "existingPathCount": {
+          "const": 1
+        },
+        "fencePathCount": {
+          "const": 14
+        },
+        "finalHashesSealed": {
+          "const": false
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "ledgerDigest": {
+          "const": "a79a7a1edbea2a75875dac4df4585bf6b4f8a8b73c1510a2ff1ee71751e8d26c"
+        },
+        "newPathCount": {
+          "const": 13
+        },
+        "orderedPathFence": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 14,
+          "minItems": 14,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "ordinal": {
+          "const": 120
+        },
+        "pathFenceDigest": {
+          "const": "d36c0a3c2b351a525358e23554a76466a7c0bdb12079e648f4da7b956e00b7fe"
+        },
+        "prerequisiteDigest": {
+          "const": "c85bd99436ad53a100ba4745d29ea08f1d7ca57ac993ffd8f05b4f0b960d5d32"
+        },
+        "priorFenceProof": {
+          "additionalProperties": false,
+          "properties": {
+            "authorizedOverlapEdgeCount": {
+              "const": 5
+            },
+            "fenceCount": {
+              "const": 125
+            },
+            "overlapEdgeCount": {
+              "const": 5
+            },
+            "priorOwnedPathCount": {
+              "const": 1
+            },
+            "s10ReservedOverlapCount": {
+              "const": 0
+            },
+            "unauthorizedOverlapCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "fenceCount",
+            "priorOwnedPathCount",
+            "overlapEdgeCount",
+            "authorizedOverlapEdgeCount",
+            "unauthorizedOverlapCount",
+            "s10ReservedOverlapCount"
+          ],
+          "type": "object"
+        },
+        "productTestUIFixturePathCount": {
+          "const": 5
+        },
+        "projectionDigest": {
+          "const": "fd6be7be53cc15cbe5455d181bf2a5ada2aa2124cc790d4e8b918937f50d2168"
+        },
+        "s10ReservationOverlapCount": {
+          "const": 0
+        },
+        "sequence": {
+          "const": 537
+        },
+        "sourcePins": {
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "toolingPathCount": {
+          "const": 8
+        },
+        "transitionDigest": {
+          "const": "02fae8c2b92fbf6fca3883f0ba963ea86261786b4d91183d005564ce144f03b0"
+        }
+      },
+      "required": [
+        "cardID",
+        "ordinal",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationHead",
+        "coordinationTree",
+        "sequence",
+        "contextDigest",
+        "pathFenceDigest",
+        "allocationDigest",
+        "prerequisiteDigest",
+        "transitionDigest",
+        "ledgerDigest",
+        "projectionDigest",
+        "fencePathCount",
+        "existingPathCount",
+        "newPathCount",
+        "productTestUIFixturePathCount",
+        "toolingPathCount",
+        "priorFenceProof",
+        "s10ReservationOverlapCount",
+        "frozenS10ReservationDigest",
+        "orderedPathFence",
+        "sourcePins",
+        "finalHashesSealed"
+      ],
+      "type": "object"
+    },
+    "flags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "activation": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "hostedAcceptance": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "nativeAcceptance": {
+          "const": false
+        },
+        "physicalDevice": {
+          "const": false
+        },
+        "physicalEvidence": {
+          "const": false
+        },
+        "publication": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        }
+      },
+      "required": [
+        "acceptance",
+        "activation",
+        "adoption",
+        "hosted",
+        "hostedAcceptance",
+        "native",
+        "nativeAcceptance",
+        "physicalDevice",
+        "physicalEvidence",
+        "publication",
+        "release"
+      ],
+      "type": "object"
+    },
+    "independence": {
+      "additionalProperties": false,
+      "properties": {
+        "c33SemanticDependency": {
+          "const": false
+        },
+        "entitlementIndependent": {
+          "const": true
+        },
+        "installationDependency": {
+          "const": false
+        },
+        "isolatedRecipientFlow": {
+          "const": true
+        },
+        "optionalEncryptionOnly": {
+          "const": true
+        },
+        "optionalEncryptionProvider": {
+          "const": "V23-P03-C54:ENCRYPTED_REVIEW"
+        },
+        "planDependency": {
+          "const": false
+        }
+      },
+      "required": [
+        "entitlementIndependent",
+        "isolatedRecipientFlow",
+        "installationDependency",
+        "planDependency",
+        "c33SemanticDependency",
+        "optionalEncryptionProvider",
+        "optionalEncryptionOnly"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "durableFamily": {
+          "const": "NONE"
+        },
+        "newBackendCount": {
+          "const": 0
+        },
+        "newDurableFamilyCount": {
+          "const": 0
+        },
+        "newKernelCount": {
+          "const": 0
+        },
+        "newMigrationCount": {
+          "const": 0
+        },
+        "newRendererCount": {
+          "const": 0
+        },
+        "newWriterCount": {
+          "const": 0
+        },
+        "persistentSchemaVersion": {
+          "const": 36
+        },
+        "projectionPersistence": {
+          "const": "NONPERSISTENT"
+        },
+        "recordsSchemaVersion": {
+          "const": 35
+        },
+        "reportOwner": {
+          "const": "EXISTING_WORKSPACE_WRITER_V1"
+        },
+        "sessionNamespace": {
+          "const": "REVIEW"
+        },
+        "sessionStore": {
+          "const": "PortableExchangeSessionStoreV2"
+        }
+      },
+      "required": [
+        "persistentSchemaVersion",
+        "recordsSchemaVersion",
+        "durableFamily",
+        "newDurableFamilyCount",
+        "newWriterCount",
+        "newMigrationCount",
+        "newKernelCount",
+        "newRendererCount",
+        "newBackendCount",
+        "projectionPersistence",
+        "reportOwner",
+        "sessionStore",
+        "sessionNamespace"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sourceRow": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "SOURCE_PRESENT",
+            "SOURCE_MISSING"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "cardID": {
+      "const": "V23-P04-C35"
+    },
+    "contract": {
+      "type": "string"
+    },
+    "finalHashesSealed": {
+      "const": false
+    },
+    "flags": {
+      "$ref": "#/$defs/flags"
+    },
+    "independence": {
+      "$ref": "#/$defs/independence"
+    },
+    "lifecycle": {
+      "$ref": "#/$defs/lifecycle"
+    },
+    "ordinal": {
+      "const": 120
+    },
+    "receipt": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "object"
+    },
+    "scenarioEvidenceIDs": {
+      "const": [
+        "V23-P04-C35-G01",
+        "V23-P04-C35-A01",
+        "V23-P04-C35-H01",
+        "V23-P04-C35-I01",
+        "V23-P04-C35-R01"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V23P04C35RecipientReviewWorkflowToolingV1"
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "sourceRows": {
+      "items": {
+        "$ref": "#/$defs/sourceRow"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "ordinal",
+    "authority",
+    "sourceRows",
+    "sourceReady",
+    "flags",
+    "finalHashesSealed",
+    "lifecycle",
+    "independence"
+  ],
+  "title": "V23P04C35RecipientReviewWorkflowToolingV1",
+  "type": "object"
+}

@@ -103,6 +103,25 @@ struct PortableExchangeImportReceiptV2: Codable, Equatable, Sendable {
     let appliedToCanonicalC14: Bool
 }
 
+enum PortableExchangeReviewRequestByteKindV2: String, Codable, CaseIterable, Sendable {
+    case manifest = "MANIFEST"
+    case package = "PACKAGE"
+
+    fileprivate var immutableRole: PortableExchangeImmutableByteRoleV2 {
+        switch self {
+        case .manifest: return .requestManifest
+        case .package: return .requestPackage
+        }
+    }
+}
+
+struct PortableExchangeReviewRequestBytesV2: Equatable, Sendable {
+    let publicRequestID: String
+    let kind: PortableExchangeReviewRequestByteKindV2
+    let bytes: Data
+    let sha256: String
+}
+
 /// Service-request staging is deliberately a typed facade over the C48
 /// session envelope.  The capability never appears in this value's encoded
 /// form; the store accepts it only long enough to place its raw bytes in the
@@ -381,6 +400,10 @@ protocol PortableExchangeSessionStorePortV2: Sendable {
         resultGenerationID: UUID
     ) async throws -> PortableExchangeCloneForkReceiptV2
     func erase(operationID: UUID) async throws -> PortableExchangeEraseReceiptV2
+    func exactReviewRequestBytes(
+        publicRequestID: String,
+        kind: PortableExchangeReviewRequestByteKindV2
+    ) async throws -> PortableExchangeReviewRequestBytesV2?
 }
 
 /// The service-request facade deliberately shares the C48 actor and journal.
@@ -518,6 +541,44 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
     ) throws -> PortableExchangeSessionRecordV2? {
         try ensureLoaded()
         return envelope?.sessions.first { $0.sessionID == id }
+    }
+
+    /// Replays only the already-persisted, released REVIEW request bytes. It
+    /// never exposes the protected bearer capability or another namespace.
+    func exactReviewRequestBytes(
+        publicRequestID: String,
+        kind: PortableExchangeReviewRequestByteKindV2
+    ) throws -> PortableExchangeReviewRequestBytesV2? {
+        try ensureLoaded()
+        try PortableReviewLimitsV1.canonicalASCII(publicRequestID)
+        guard let record = envelope?.sessions.first(where: {
+            $0.namespace == .review && $0.publicRequestID == publicRequestID
+        }) else { return nil }
+        let references = record.immutableBytes.filter {
+            $0.role == kind.immutableRole && $0.released
+        }
+        guard !references.isEmpty else { return nil }
+        guard references.count == 1, let reference = references.first else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        try reference.validate()
+        let recordedSHA256: String?
+        switch kind {
+        case .manifest: recordedSHA256 = record.requestManifestSHA256
+        case .package: recordedSHA256 = record.requestPackageSHA256
+        }
+        let bytes = try readPayload(reference.relativePath)
+        guard recordedSHA256 == reference.sha256,
+              UInt64(bytes.count) == reference.byteCount,
+              StoreMigrationCanonicalJSONV1.sha256(bytes) == reference.sha256 else {
+            throw PortableExchangePersistenceFailureV2.corruptStore
+        }
+        return PortableExchangeReviewRequestBytesV2(
+            publicRequestID: publicRequestID,
+            kind: kind,
+            bytes: bytes,
+            sha256: reference.sha256
+        )
     }
 
     func session(

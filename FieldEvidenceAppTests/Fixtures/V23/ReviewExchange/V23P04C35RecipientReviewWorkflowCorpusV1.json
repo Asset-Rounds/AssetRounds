@@ -1,0 +1,117 @@
+{
+  "schema": "V23P04C35RecipientReviewWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C35",
+  "ordinal": 120,
+  "testOnly": true,
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "persistence": {
+    "persistentSchemaVersion": 36,
+    "recordInventoryVersion": 35,
+    "addsRecordFamily": false,
+    "writer": "WorkspaceWriterV1",
+    "sessionStore": "PortableExchangeSessionStoreV2",
+    "namespace": "REVIEW"
+  },
+  "selectors": {
+    "requestMode": "ISOLATED_RECIPIENT_REVIEW",
+    "responseMode": "PORTABLE_FILE",
+    "encryption": "DISABLED_MANUAL_FALLBACK",
+    "decision": "ACCEPT_AND_APPLY",
+    "networkRequired": false,
+    "accountRequired": false,
+    "entitlementRequired": false,
+    "deliveryVerified": false,
+    "readVerified": false,
+    "identityVerified": false,
+    "securityClaimed": false,
+    "legalAcceptanceClaimed": false,
+    "automaticApply": false,
+    "automaticFinalize": false
+  },
+  "scenarios": [
+    {
+      "id": "G01",
+      "kind": "GOLDEN",
+      "steps": [
+        "CREATE_ISOLATED_REQUEST",
+        "OPEN_REQUEST_OFFLINE",
+        "CHECKPOINT_RESPONSE_DRAFT",
+        "EXPORT_RESPONSE",
+        "PREVIEW_IMPORT_ZERO_WRITE",
+        "ACCEPT_AND_APPLY"
+      ],
+      "expectedCanonicalEffects": 1
+    },
+    {
+      "id": "A01",
+      "kind": "ALTERNATE",
+      "cases": [
+        "LEGACY_CLEAR_RESPONSE",
+        "RESPONSE_RECEIVED_ELSEWHERE_UNVERIFIED_HISTORY",
+        "ENCRYPTION_DISABLED_MANUAL_FALLBACK"
+      ]
+    },
+    {
+      "id": "H01",
+      "kind": "HOSTILE",
+      "cases": [
+        "WRONG_PASSPHRASE_NEUTRAL_ERROR",
+        "TAMPER_NEUTRAL_ERROR",
+        "MISMATCHED_REQUEST",
+        "MISMATCHED_PROOF",
+        "CUSTOMER_UNSAFE_PAYLOAD",
+        "DUPLICATE_RESPONSE",
+        "DIVERGENT_SAME_RESPONSE_ID",
+        "STALE_PREVIEW"
+      ],
+      "automaticApply": false,
+      "expectedRejectedEffects": 0
+    },
+    {
+      "id": "I01",
+      "kind": "INTERRUPTION",
+      "boundaries": [
+        "DRAFT_CHECKPOINT",
+        "RESPONSE_SEAL",
+        "REQUEST_OPEN",
+        "QUARANTINE_VALIDATION",
+        "IMPORT_PREVIEW",
+        "CANONICAL_EFFECT_BEFORE_RECEIPT"
+      ],
+      "result": "ZERO_OR_ONE_EXACT_EFFECT",
+      "passphraseCleared": true
+    },
+    {
+      "id": "R01",
+      "kind": "RECOVERY",
+      "cases": [
+        "RELAUNCH_STORE_REPLAY",
+        "BYTE_IDENTICAL_REEXPORT",
+        "SAME_RECEIPT_OR_NO_EFFECT",
+        "DIVERGENT_SAME_ID_QUARANTINED"
+      ]
+    }
+  ],
+  "excludedFromStableExchange": [
+    "WorkspaceID",
+    "ReplicaID",
+    "local sequence",
+    "filesystem identity",
+    "raw originals",
+    "internal notes",
+    "contacts"
+  ],
+  "forbiddenClaims": [
+    "sent",
+    "delivered",
+    "read",
+    "verified identity",
+    "secure",
+    "signed",
+    "legal acceptance",
+    "customer approved"
+  ]
+}
