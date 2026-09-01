@@ -2869,4 +2869,27 @@ extension ReportProjectionRegistryV1 {
     ) throws {
         try projection.validate(source: session)
     }
+
+    /// Projects only reviewed/accepted round work. The flow proves exact asset,
+    /// site, readiness, and pose context; the journal-backed receipt proves the
+    /// accepted round frontier. No scan input or candidate payload is emitted.
+    static func scanToWorkReviewedRound(
+        flow: ScanToWorkFlowV1,
+        receipt: InstallationScanEntryReceiptV1,
+        session: RoundSessionV1
+    ) throws -> C05RoundSessionProgressReportProjectionV1 {
+        try flow.validateIntrinsic(); try session.validateIntrinsic()
+        let request = try ScanToWorkStartRequestV1(
+            flow: flow,
+            policy: receipt.policy,
+            roundMutation: receipt.roundMutationReceipt.mutation,
+            explicitUserConfirmation: true
+        )
+        try receipt.validate(request: request)
+        guard try session.reference == receipt.roundMutationReceipt.sessionFrontier else {
+            throw ScanToWorkFailureV1.stale
+        }
+        return try roundSessionProgress(session: session)
+    }
+
 }

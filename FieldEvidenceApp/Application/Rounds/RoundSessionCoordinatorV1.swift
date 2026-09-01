@@ -40,6 +40,34 @@ import Foundation
         return receipt
     }
 
+    /// C21's explicit start is an ordinary exact round successor. The
+    /// existing writer/journal remains responsible for atomic effect-before-
+    /// receipt recovery and idempotent mutation-ID replay.
+    func persistScanToWorkStart(
+        _ request: ScanToWorkStartRequestV1
+    ) throws -> InstallationScanEntryReceiptV1 {
+        try C21RoundSessionStartBoundaryV1.validate(request)
+        let receipt = try save(request.roundMutation)
+        return try InstallationScanEntryReceiptV1(
+            request: request,
+            roundMutationReceipt: receipt
+        )
+    }
+
+    /// Persists the sole C21 round successor before a caller navigates to the
+    /// derived next target. Retry/recovery remains the incumbent mutation-ID
+    /// and journal receipt behavior of `save`.
+    func persistRepetitiveCaptureCheckpoint(
+        _ request: RepetitiveCaptureCheckpointRequestV1
+    ) throws -> RepetitiveCaptureCheckpointReceiptV1 {
+        try C21RoundSessionCheckpointBoundaryV1.validate(request)
+        let receipt = try save(request.roundMutation)
+        return try RepetitiveCaptureCheckpointReceiptV1(
+            request: request,
+            roundReceipt: receipt
+        )
+    }
+
     func validateCurrentFrontier(_ reference: RoundSessionReferenceV1) throws -> RoundSessionV1 {
         try reference.validate(); guard reference.workspaceID == workspaceID,
               let current = try current(sessionID: reference.sessionID), try current.reference == reference else { throw RoundSessionFailureV1.staleRevision }

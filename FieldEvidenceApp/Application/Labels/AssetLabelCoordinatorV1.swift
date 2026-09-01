@@ -1,5 +1,15 @@
 import Foundation
 
+extension AssetLabelCoordinatorV1 {
+    func scanToWorkInput(payload: AssetLabelOpaqueQRPayloadV1,
+                         source: LocatorInputSourceV1 = .camera) throws -> LocatorResolutionInputV1 {
+        try payload.validate()
+        guard source != .imported else { throw AssetLocatorFailureV1.invalidValue }
+        return try .init(source: source, rawBytes: payload.canonicalBytes,
+                         decoded: .externalKey(payload.scanToWorkExternalKey()))
+    }
+}
+
 @MainActor protocol AssetLabelAuthoritativePlanValidatingV1: AnyObject {
     /// Re-reads the current locator state, binding receipt, asset revision and frozen release.
     func validateCurrent(_ plan: AssetLabelGenerationPlanV1) async throws

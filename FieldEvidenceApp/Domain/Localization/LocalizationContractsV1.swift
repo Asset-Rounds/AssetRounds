@@ -1929,6 +1929,7 @@ enum FieldDraftLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
         default: return "Accessible text for a recorded local draft or attachment state."
         }
     }
+
 }
 
 enum FieldDraftLocalizationPolicyV1 {
@@ -6440,6 +6441,159 @@ enum PrivateSystemDiscoveryLocalizationPolicyV1 {
               PrivateSystemDiscoveryLocalizationKeyV1.allCases.allSatisfy({
                   !$0.rawValue.isEmpty && !english($0).isEmpty
               }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
+// MARK: - C21 scan-to-work localization
+
+enum ScanToWorkLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case heading = "scan.work.heading"
+    case scanCode = "scan.work.action.scan"
+    case manualEntry = "scan.work.action.manual"
+    case search = "scan.work.action.search"
+    case permissionPurpose = "scan.work.permission.purpose"
+    case permissionDenied = "scan.work.permission.denied"
+    case cameraUnavailable = "scan.work.camera.unavailable"
+    case previewOnly = "scan.work.preview.only"
+    case explicitStart = "scan.work.action.start"
+    case stableAsset = "scan.work.preview.asset"
+    case siteContext = "scan.work.preview.site_context"
+    case requiredWork = "scan.work.preview.required_work"
+    case offlineReady = "scan.work.readiness.ready"
+    case offlineBlocked = "scan.work.readiness.blocked"
+    case posePreserved = "scan.work.pose.preserved"
+    case noPoseMutation = "scan.work.pose.no_mutation"
+    case ready = "scan.work.outcome.ready"
+    case duplicateInSelection = "scan.work.outcome.duplicate_in_selection"
+    case alreadyInRound = "scan.work.outcome.already_in_round"
+    case ambiguous = "scan.work.outcome.ambiguous"
+    case foreign = "scan.work.outcome.foreign"
+    case retiredOrReplaced = "scan.work.outcome.retired_or_replaced"
+    case notFound = "scan.work.outcome.not_found"
+    case notOfflineReady = "scan.work.outcome.not_offline_ready"
+    case stale = "scan.work.outcome.stale"
+    case damagedCode = "scan.work.input.damaged"
+    case revokedCode = "scan.work.input.revoked"
+    case assetChanged = "scan.work.preview.asset_changed"
+    case packetIncomplete = "scan.work.preview.packet_incomplete"
+    case multipleWorkItems = "scan.work.preview.multiple_work_items"
+    case batchReview = "scan.work.batch.review"
+    case batchCounts = "scan.work.batch.counts"
+    case completeAndNext = "scan.work.next.complete"
+    case deferAndNext = "scan.work.next.defer"
+    case keepOpenAndNext = "scan.work.next.keep_open"
+    case resume = "scan.work.action.resume"
+    case setupCopyRestriction = "scan.work.setup.nonsemantic_only"
+    case interrupted = "scan.work.state.interrupted"
+    case startFailed = "scan.work.state.start_failed"
+    case errorFocus = "scan.work.accessibility.error_focus"
+    case reducedMotion = "scan.work.accessibility.reduced_motion"
+
+    var localizationKey: LocalizationKeyV1 { try! LocalizationKeyV1(rawValue) }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Scan to work"
+        case .scanCode: return "Scan asset code"
+        case .manualEntry: return "Enter a code manually"
+        case .search: return "Search assets"
+        case .permissionPurpose: return "Camera access can scan an asset code. Manual entry and search remain available."
+        case .permissionDenied: return "Camera access is unavailable. Use manual entry or search."
+        case .cameraUnavailable: return "Scanning is unavailable on this device. Use manual entry or search."
+        case .previewOnly: return "Preview only — no work has started and no changes have been made."
+        case .explicitStart: return "Start required work"
+        case .stableAsset: return "Resolved asset"
+        case .siteContext: return "Site and context"
+        case .requiredWork: return "Required available work"
+        case .offlineReady: return "Required local work is ready"
+        case .offlineBlocked: return "Required local work is not ready"
+        case .posePreserved: return "Recorded qualified pose context will be preserved"
+        case .noPoseMutation: return "Scanning and preview do not change recorded pose"
+        case .ready: return "Ready for review"
+        case .duplicateInSelection: return "Already selected in this batch"
+        case .alreadyInRound: return "Already present in this round"
+        case .ambiguous: return "More than one asset matches; choose manually"
+        case .foreign: return "This code belongs to another workspace"
+        case .retiredOrReplaced: return "This asset was retired or replaced"
+        case .notFound: return "No local asset matches this code"
+        case .notOfflineReady: return "Required local work is not ready"
+        case .stale: return "This preview is stale; resolve the asset again"
+        case .damagedCode: return "The code could not be read. Enter it manually or search."
+        case .revokedCode: return "This code is no longer active"
+        case .assetChanged: return "The asset changed after preview. Review the current asset before starting."
+        case .packetIncomplete: return "The required local work packet is incomplete"
+        case .multipleWorkItems: return "Choose one of the matching required work items"
+        case .batchReview: return "Review selected assets before adding them"
+        case .batchCounts: return "Remaining, completed, deferred, and blocked"
+        case .completeAndNext: return "Complete and next"
+        case .deferAndNext: return "Defer and next"
+        case .keepOpenAndNext: return "Keep open and next"
+        case .resume: return "Resume recorded work"
+        case .setupCopyRestriction: return "Copy display setup only; answers, evidence, pose, notes, status, and completion are never copied"
+        case .interrupted: return "Work was interrupted. Resume from the recorded item and requirement."
+        case .startFailed: return "Work did not start. Review the reason and try again."
+        case .errorFocus: return "Review this issue before continuing"
+        case .reducedMotion: return "Motion is reduced; state changes remain available as text"
+        }
+    }
+
+    static func entrySourceKey(_ source: ScanToWorkEntrySourceV1) -> Self {
+        switch source {
+        case .scan: return .scanCode
+        case .manual: return .manualEntry
+        case .search: return .search
+        }
+    }
+
+    static func outcomeKey(_ outcome: ScanToWorkResolutionOutcomeV1) -> Self {
+        switch outcome {
+        case .ready: return .ready
+        case .duplicateInSelection: return .duplicateInSelection
+        case .alreadyInRound: return .alreadyInRound
+        case .ambiguous: return .ambiguous
+        case .foreign: return .foreign
+        case .retiredOrReplaced: return .retiredOrReplaced
+        case .notFound: return .notFound
+        case .notOfflineReady: return .notOfflineReady
+        case .stale: return .stale
+        }
+    }
+
+    static func primaryActionKey(_ action: ScanToWorkPrimaryActionV1) -> Self {
+        switch action {
+        case .startExplicitly: return .explicitStart
+        case .removeDuplicate: return .duplicateInSelection
+        case .openExistingRound: return .alreadyInRound
+        case .chooseCandidate: return .ambiguous
+        case .switchWorkspace: return .foreign
+        case .useReplacement: return .retiredOrReplaced
+        case .manualLookup: return .manualEntry
+        case .prepareOffline: return .offlineBlocked
+        case .refresh: return .stale
+        }
+    }
+}
+
+enum ScanToWorkLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocale = "en"
+    static let manualFallbackAlwaysAvailable = true
+    static let scanIsAuthorization = false
+    static let previewMutatesWorkspace = false
+    static let poseMayBeInferredFromCodeOrDisplay = false
+    static let uiAdoptionClaimed = false
+
+    static func validate() throws {
+        let keys = ScanToWorkLocalizationKeyV1.allCases
+        guard sourceLocale == "en", shippingLocale == "en",
+              keys.map(\.rawValue).count == Set(keys.map(\.rawValue)).count,
+              keys.allSatisfy({ !$0.englishDefaultValue.isEmpty }),
+              manualFallbackAlwaysAvailable,
+              !scanIsAuthorization, !previewMutatesWorkspace,
+              !poseMayBeInferredFromCodeOrDisplay,
+              !uiAdoptionClaimed else {
             throw LocalizationContractFailureV1.invalidValue
         }
     }

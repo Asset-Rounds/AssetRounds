@@ -336,6 +336,14 @@ struct AssetLabelOpaqueQRPayloadV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+extension AssetLabelOpaqueQRPayloadV1 {
+    /// C21 labels resolve through the same typed external-key namespace as
+    /// manual entry. The payload is data, never an executable URL.
+    func scanToWorkExternalKey() throws -> ExternalKeyV1 {
+        try validate(); return try shortCode.externalKey()
+    }
+}
+
 struct AssetLabelGeometryV1: Codable, Equatable, Hashable, Sendable {
     /// Five metres is intentionally above supported sheet media while keeping every
     /// integer micrometre-to-point intermediate far below Int64 overflow.

@@ -3104,6 +3104,48 @@ enum C05RoundSessionSearchRebuildBoundaryV1 {
         }
         return values
     }
+
+    /// Receipt provenance is journal-backed canonical evidence. Rebuild uses
+    /// it only to prove the existing round projection frontier; preview input
+    /// bytes, scan payloads, and locator candidate detail never enter search.
+    static func records(
+        progress: [C05RoundSessionProgressReportProjectionV1],
+        closeouts: [C05RoundSessionCloseoutReportProjectionV1],
+        scanEntryReceipts: [InstallationScanEntryReceiptV1],
+        flows: [ScanToWorkFlowV1]
+    ) throws -> [C05RoundSessionSearchProjectionV1] {
+        guard scanEntryReceipts.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              flows.count <= SearchContractLimitsV1.maximumCanonicalRecords,
+              Set(scanEntryReceipts.map(\.receiptSHA256)).count == scanEntryReceipts.count,
+              Set(flows.map { $0.preview.previewSHA256 }).count == flows.count,
+              Set(scanEntryReceipts.map(\.previewSHA256))
+                == Set(flows.map { $0.preview.previewSHA256 }) else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        try flows.forEach { try $0.validateIntrinsic() }
+        let flowsByPreview = Dictionary(uniqueKeysWithValues: flows.map {
+            ($0.preview.previewSHA256, $0)
+        })
+        try scanEntryReceipts.forEach { receipt in
+            guard let flow = flowsByPreview[receipt.previewSHA256] else {
+                throw SearchContractFailureV1.staleIndex
+            }
+            let request = try ScanToWorkStartRequestV1(
+                flow: flow,
+                policy: receipt.policy,
+                roundMutation: receipt.roundMutationReceipt.mutation,
+                explicitUserConfirmation: true
+            )
+            try receipt.validate(request: request)
+        }
+        let progressReferences = Set(progress.map(\.session))
+        guard scanEntryReceipts.allSatisfy({
+            progressReferences.contains($0.roundMutationReceipt.sessionFrontier)
+        }) else {
+            throw SearchContractFailureV1.staleIndex
+        }
+        return try records(progress: progress, closeouts: closeouts)
+    }
 }
 
 

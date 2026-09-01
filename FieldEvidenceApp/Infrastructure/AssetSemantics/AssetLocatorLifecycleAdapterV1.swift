@@ -45,6 +45,16 @@ struct AssetLocatorLifecycleAdapterV1{
     static let resolutionGrantsAccess=false
 }
 
+extension AssetLocatorLifecycleAdapterV1 {
+    func resolveScanToWork(_ input: LocatorResolutionInputV1,
+                           source: ScanToWorkEntrySourceV1,
+                           workspaceID: WorkspaceID,
+                           evaluatedAt: Date) async throws -> LocatorResolutionV1 {
+        guard input.source == source.locatorSource else { throw AssetLocatorFailureV1.invalidValue }
+        return try await resolve(input, workspaceID: workspaceID, evaluatedAt: evaluatedAt)
+    }
+}
+
 /// C29 typed integration anchor: this owner consumes an exact immutable plan
 /// revision reference and may not reinterpret current plan state implicitly.
 enum C29PlanIntegration_Infrastructure_AssetSemantics_AssetLocatorLifecycleAdapterV1 {

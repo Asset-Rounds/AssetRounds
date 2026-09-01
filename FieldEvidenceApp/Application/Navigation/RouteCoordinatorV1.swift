@@ -70,6 +70,83 @@ struct RouteCoordinatorV1: Sendable {
 }
 
 extension RouteCoordinatorV1 {
+    func resolveScanToWork(
+        _ flow: ScanToWorkFlowV1,
+        currentSession: RoundSessionReferenceV1,
+        requestedMode: NavigationRequestedModeV1 = .read,
+        context: RouteResolutionContextV1
+    ) throws -> ScanToWorkNavigationProjectionV1 {
+        try flow.validateIntrinsic(); try currentSession.validate()
+        guard flow.preview.workspaceID == context.currentWorkspaceID,
+              currentSession.workspaceID == context.currentWorkspaceID else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        guard flow.preview.outcome == .ready else {
+            return try ScanToWorkNavigationProjectionV1(flow: flow, route: nil, resolution: nil)
+        }
+        let route = try ScanToWorkRouteV1(flow: flow, requestedMode: requestedMode)
+        guard route.identity.session == currentSession else {
+            throw ScanToWorkFailureV1.stale
+        }
+        let resolution = try registry.resolve(route.target, context: context)
+        guard resolution.disposition == .resolved,
+              resolution.canonicalMutationCount == 0,
+              !resolution.startsAutomaticWork else {
+            throw ScanToWorkFailureV1.stale
+        }
+        return try ScanToWorkNavigationProjectionV1(
+            flow: flow, route: route, resolution: resolution
+        )
+    }
+
+    func resolveScanToWork(
+        _ flow: ScanToWorkFlowV1,
+        currentSession: RoundSessionReferenceV1,
+        requestedMode: NavigationRequestedModeV1 = .read,
+        context: RouteResolutionContextV1,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> ScanToWorkNavigationProjectionV1 {
+        _ = try await accessGate.requireContentAccess(for: .routeResolution)
+        return try resolveScanToWork(
+            flow, currentSession: currentSession,
+            requestedMode: requestedMode, context: context
+        )
+    }
+
+    /// Scan, manual-code, and search entry must converge on the same exact
+    /// asset/session/pose authority. Source-specific input digests may differ;
+    /// their canonical resolution and route identities may not.
+    func resolveEquivalentScanToWorkEntrances(
+        scan: ScanToWorkFlowV1,
+        manual: ScanToWorkFlowV1,
+        search: ScanToWorkFlowV1,
+        currentSession: RoundSessionReferenceV1,
+        requestedMode: NavigationRequestedModeV1 = .read,
+        context: RouteResolutionContextV1
+    ) throws -> [ScanToWorkNavigationProjectionV1] {
+        let flows = [scan, manual, search]
+        try flows.forEach { try $0.validateIntrinsic() }
+        guard Set(flows.map { $0.preview.source }) == Set(ScanToWorkEntrySourceV1.allCases),
+              Set(flows.map { $0.preview.outcome }).count == 1,
+              Set(flows.map { $0.preview.primaryAction }).count == 1,
+              flows.allSatisfy({ $0.preview.asset == scan.preview.asset }),
+              flows.allSatisfy({ $0.preview.candidateLocators == scan.preview.candidateLocators }) else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let projections = try flows.map {
+            try resolveScanToWork(
+                $0, currentSession: currentSession,
+                requestedMode: requestedMode, context: context
+            )
+        }
+        if let identity = projections.first?.route?.identity {
+            guard projections.allSatisfy({ $0.route?.identity == identity }) else {
+                throw ScanToWorkFailureV1.authorityMismatch
+            }
+        }
+        return projections
+    }
+
     func resolvePrivateSystemDiscovery(_ target: NavigationTargetV1,
                                        context: RouteResolutionContextV1) throws -> RouteResolutionResultV1 {
         try PrivateSystemDiscoveryRouteBoundaryV1.validate(target)

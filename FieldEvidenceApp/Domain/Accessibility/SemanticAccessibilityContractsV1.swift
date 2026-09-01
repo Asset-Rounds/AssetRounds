@@ -3470,3 +3470,81 @@ enum GuidedSurveyFlowAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - C21 scan-to-work accessibility
+
+enum ScanToWorkAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "scan.work.screen"
+    case scan = "scan.work.scan"
+    case manualEntry = "scan.work.manual_entry"
+    case search = "scan.work.search"
+    case permission = "scan.work.permission"
+    case resolution = "scan.work.resolution"
+    case warning = "scan.work.warning"
+    case preview = "scan.work.preview"
+    case requiredWork = "scan.work.required_work"
+    case poseContext = "scan.work.pose_context"
+    case start = "scan.work.start"
+    case batch = "scan.work.batch"
+    case counts = "scan.work.counts"
+    case completeAndNext = "scan.work.complete_next"
+    case deferAndNext = "scan.work.defer_next"
+    case keepOpenAndNext = "scan.work.keep_open_next"
+    case resume = "scan.work.resume"
+    case error = "scan.work.error"
+
+    var localizationKey: ScanToWorkLocalizationKeyV1 {
+        switch self {
+        case .screen: return .heading
+        case .scan: return .scanCode
+        case .manualEntry: return .manualEntry
+        case .search: return .search
+        case .permission: return .permissionPurpose
+        case .resolution: return .stableAsset
+        case .warning: return .previewOnly
+        case .preview: return .previewOnly
+        case .requiredWork: return .requiredWork
+        case .poseContext: return .posePreserved
+        case .start: return .explicitStart
+        case .batch: return .batchReview
+        case .counts: return .batchCounts
+        case .completeAndNext: return .completeAndNext
+        case .deferAndNext: return .deferAndNext
+        case .keepOpenAndNext: return .keepOpenAndNext
+        case .resume: return .resume
+        case .error: return .errorFocus
+        }
+    }
+}
+
+enum ScanToWorkAccessibilityPolicyV1 {
+    static let semanticIDs = ScanToWorkAccessibilityIDV1.allCases.map(\.rawValue)
+    static let sourceOrderIsVoiceOverOrder = true
+    static let voiceControlUsesVisibleLocalizedNames = true
+    static let dynamicTypeThroughAX5Required = true
+    static let rightToLeftMirroringRequired = true
+    static let nonColorStateRequired = true
+    static let reduceMotionUsesStaticPresentation = true
+    static let errorFocusRequired = true
+    static let qualifiedPoseParityRequired = true
+    static let poseMutationAllowed = false
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6Reconciliation = true
+
+    static func validate() throws {
+        guard semanticIDs.count == Set(semanticIDs).count,
+              sourceOrderIsVoiceOverOrder,
+              voiceControlUsesVisibleLocalizedNames,
+              dynamicTypeThroughAX5Required,
+              rightToLeftMirroringRequired,
+              nonColorStateRequired,
+              reduceMotionUsesStaticPresentation,
+              errorFocusRequired,
+              qualifiedPoseParityRequired,
+              !poseMutationAllowed,
+              !uiAdoptionClaimed,
+              requiresAcceptedS10_6Reconciliation else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

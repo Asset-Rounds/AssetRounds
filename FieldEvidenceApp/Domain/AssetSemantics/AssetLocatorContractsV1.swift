@@ -14,7 +14,7 @@ enum AssetLocatorLimitsV1 {
 }
 
 enum LocatorInputSourceV1: String, Codable, CaseIterable, Hashable, Sendable {
-    case camera = "CAMERA", manual = "MANUAL", imported = "IMPORTED"
+    case camera = "CAMERA", manual = "MANUAL", imported = "IMPORTED", search = "SEARCH"
 }
 
 enum ExternalKeyNormalizationV1: String, Codable, CaseIterable, Hashable, Sendable {

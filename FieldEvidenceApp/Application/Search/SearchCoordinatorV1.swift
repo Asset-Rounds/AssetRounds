@@ -200,6 +200,45 @@ struct SearchCoordinatorV1: Sendable {
     }
 }
 
+extension SearchCoordinatorV1 {
+    /// Converts an already-authorized safe asset result into the same canonical
+    /// preview used by scan and manual entry. The index contributes only its
+    /// stable asset identity; raw scan payloads are never accepted or stored.
+    static func scanToWorkPreview(
+        from result: SearchResultContextV1,
+        assetID: UUID,
+        workspaceID: WorkspaceID,
+        selectedAssetIDs: Set<UUID>,
+        existingRound: RoundSessionReferenceV1?,
+        resolver: any ScanToWorkExactResolvingV1,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> AssetPreviewStateV1 {
+        _ = try await accessGate.requireContentAccess(for: .search)
+        try result.validate()
+        let expectedStableID = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID).stableKey
+        guard result.workspaceID == workspaceID.rawValue,
+              result.sourceKind == .asset,
+              result.stableID == expectedStableID,
+              result.sourceRevision == result.indexRevision,
+              existingRound.map({ $0.workspaceID == workspaceID }) ?? true else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let preview = try await resolver.preview(
+            workspaceID: workspaceID,
+            source: .search,
+            rawBytes: Data(expectedStableID.utf8),
+            selectedAssetIDs: selectedAssetIDs,
+            existingRound: existingRound
+        )
+        try preview.validateIntrinsic()
+        guard preview.workspaceID == workspaceID, preview.source == .search,
+              preview.asset.map({ $0.assetID == assetID }) ?? (preview.outcome != .ready) else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        return preview
+    }
+}
+
 private extension SearchCoordinatorV1 {
     static func matchTier(
         plan: SearchQueryPlanV1,

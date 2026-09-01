@@ -1,5 +1,13 @@
 import Foundation
 
+extension AssetLabelOpaqueQRPayloadV1 {
+    func scanToWorkDecodedInput(source: LocatorInputSourceV1 = .camera) throws -> LocatorResolutionInputV1 {
+        guard source != .imported else { throw AssetLocatorFailureV1.invalidValue }
+        try .init(source: source, rawBytes: canonicalBytes,
+                  decoded: .externalKey(scanToWorkExternalKey()))
+    }
+}
+
 enum AssetLabelLifecycleFailureV1: Error, Equatable, Sendable {
     case currentAuthorityUnavailable
     case projectionNotStaged

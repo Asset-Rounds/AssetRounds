@@ -424,6 +424,12 @@ struct OfflineReadinessManifestV1: Codable, Equatable, Sendable {
     }
 }
 
+extension OfflineReadinessManifestV1 {
+    func scanToWorkProof(assetID: UUID) throws -> ScanToWorkOfflineReadinessProofV1 {
+        try .init(manifest: self, assetID: assetID)
+    }
+}
+
 struct OfflineReadinessManifestReductionInputV1: Equatable, Sendable {
     let session: RoundSessionReferenceV1; let expectedPackage: RoundPackageReleaseReferenceV1; let observedPackage: RoundPackageReleaseReferenceV1?
     let selectedAssets: [RoundAssetSelectionV1]; let observedAssetIDs: [UUID]

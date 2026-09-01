@@ -938,6 +938,28 @@ enum C31LightingPoseBoundaryV1 {
     static let uncertaintyRemainsRecorded = true
     static let poseDoesNotInferOrientationOrControlState = true
 }
+
+/// A C21 scan can carry only an already-qualified immutable pose reference.
+/// It never supplies pose values, rotation, preview text, or an inferred
+/// placement observation to the pose writer.
+enum C21ScanToWorkPoseBoundaryV1 {
+    static func qualifiedAnchor(
+        for binding: ScanToWorkAssetBindingV1
+    ) throws -> AssetPoseEventReferenceV1? {
+        try binding.validateIntrinsic()
+        guard let reference = binding.qualifiedPose else { return nil }
+        try reference.validate()
+        guard reference.workspaceID == binding.workspaceID,
+              reference.assetID == binding.assetID else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        return reference
+    }
+
+    static let scanPayloadMayWritePose = false
+    static let rotationMayWritePose = false
+    static let previewTextMayWritePose = false
+}
 // MARK: - C32 assistance placement pose boundary
 
 enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Pose_PlacementPoseContractsV1_swift {

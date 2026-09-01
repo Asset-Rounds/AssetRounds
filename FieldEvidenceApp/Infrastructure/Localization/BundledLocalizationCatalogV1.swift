@@ -5697,3 +5697,67 @@ extension BundledLocalizationCatalogV1 {
         return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
     }
 }
+
+// MARK: - C21 scan-to-work localization and accessibility
+
+extension BundledLocalizationCatalogV1 {
+    static func scanToWorkLocalized(
+        _ key: ScanToWorkLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: locale,
+            comment: "C21 scan-to-work state; scan is optional, preview is zero-write, and manual recovery remains complete."
+        )
+    }
+
+    static func scanToWorkRegistry() throws -> LocalizationKeyRegistryV1 {
+        try ScanToWorkLocalizationPolicyV1.validate()
+        let base = try surveyDefinitionRegistry()
+        let additions = ScanToWorkLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C21 scan-to-work state; do not imply authorization, automatic start, saved work, pose direction, or camera-only availability.",
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func scanToWorkAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try ScanToWorkAccessibilityPolicyV1.validate()
+        let base = try surveyDefinitionAccessibilityRegistry(localization: localization)
+        let entries = try ScanToWorkAccessibilityIDV1.allCases.map { id in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .scan, .manualEntry, .search, .start, .completeAndNext,
+                 .deferAndNext, .keepOpenAndNext, .resume: role = .button
+            case .permission, .warning, .counts, .error: role = .status
+            case .resolution, .preview, .requiredWork, .poseContext, .batch: role = .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue,
+                role: role,
+                reachability: .whenAvailable,
+                labelKey: id.localizationKey.localizationKey,
+                hintKey: nil,
+                valueKey: nil,
+                dynamicSuffixPolicy: .none,
+                deprecatedAliases: []
+            )
+        }
+        return try base.appending(entries, localization: localization)
+    }
+}

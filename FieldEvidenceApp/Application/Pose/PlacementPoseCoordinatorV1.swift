@@ -82,6 +82,25 @@ final class PlacementPoseCoordinatorV1 {
         return try await authority.appendSpatialAnchor(observation, predecessor: predecessor,
                                                         admissionClosure: admissionClosure)
     }
+
+    /// Resolves the same qualified pose reference used by C21's editor route.
+    /// This is read-only and fails closed if its immutable reference is no
+    /// longer represented in the canonical pose history.
+    func qualifiedScanToWorkPoseAnchor(
+        for binding: ScanToWorkAssetBindingV1
+    ) async throws -> AssetPoseEventReferenceV1? {
+        guard let reference = try C21ScanToWorkPoseBoundaryV1.qualifiedAnchor(for: binding) else {
+            return nil
+        }
+        let values = try await query.currentPoseEvents(
+            workspaceID: binding.workspaceID,
+            assetID: binding.assetID
+        )
+        guard values.contains(where: { $0.reference == reference }) else {
+            throw ScanToWorkFailureV1.stale
+        }
+        return reference
+    }
 }
 // C30: this seam consumes only the frozen, metadata-only operating-context projection.
 enum C30ConsumerBoundaryV1_Application_Pose_PlacementPoseCoordinatorV1 {

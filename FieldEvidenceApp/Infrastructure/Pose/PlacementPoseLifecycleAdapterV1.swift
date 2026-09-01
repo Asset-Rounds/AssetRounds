@@ -41,6 +41,14 @@ final class PlacementPoseLifecycleAdapterV1: PlacementPoseMutationAuthorityV1 {
         }
         return receipt
     }
+
+    /// C21's lifecycle may retain a pre-existing qualified pose anchor, but
+    /// cannot turn scan input into a pose event or spatial-anchor mutation.
+    func validateScanToWorkPoseAnchor(
+        for binding: ScanToWorkAssetBindingV1
+    ) throws -> AssetPoseEventReferenceV1? {
+        try C21ScanToWorkPoseBoundaryV1.qualifiedAnchor(for: binding)
+    }
 }
 // C30: this seam consumes only the frozen, metadata-only operating-context projection.
 enum C30ConsumerBoundaryV1_Infrastructure_Pose_PlacementPoseLifecycleAdapterV1 {

@@ -1,0 +1,246 @@
+{
+  "authority": {
+    "allocationDigest": "e8edd9c02713566e0165c22899b00571da355bf9eb2a2ea3d375667fedc3fffd",
+    "appBaseHead": "e82534cd6894138bf15085e2dc08e736aefb2531",
+    "appBaseTree": "a2265654e81a74be07557546c8edfdddb437e6f3",
+    "authorizedOverlapCount": 38,
+    "cardID": "V23-P04-C21",
+    "contextDigest": "cc589ec0eeeb0ff03dfd2ea66fae8e1d00d2f31c34534ac265f3d3660fa014c9",
+    "coordinationHead": "1e0da68c4a9b59426d6aac7cd826e3a41be212d5",
+    "coordinationTree": "316cd1cac446a99ea92fd4455d87b25a1f6baa4c",
+    "existingPathCount": 27,
+    "fencePathCount": 41,
+    "finalHashesSealed": true,
+    "newPathCount": 14,
+    "pathFenceDigest": "8df3b5997616bd07730a61f86ef56674e92f48bd5bbfc2feb5e4f1bf162a7f11",
+    "prerequisiteDigest": "43535f134b3a1e922466598452fc399aa4d7ca4dc5599962d365eaa7eda8326e",
+    "s10OverlapCount": 0,
+    "sequence": 472
+  },
+  "cardID": "V23-P04-C21",
+  "provisional": true,
+  "schema": "V23P04C21BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "activeModelCount": 168,
+    "derivedStates": [
+      "ScanToWorkFlowV1",
+      "AssetPreviewStateV1",
+      "NextAssetProjectionV1"
+    ],
+    "newDurableFamilies": [],
+    "newDurableRecordCount": 0,
+    "persistentSchema": "V53",
+    "statusFlags": {
+      "acceptance": false,
+      "activation": false,
+      "adoption": false,
+      "hosted": false,
+      "hostedAcceptance": false,
+      "native": false,
+      "nativeAcceptance": false,
+      "phase10PollingDuringParallelExecution": false,
+      "physicalEvidence": false,
+      "publish": false,
+      "release": false
+    }
+  },
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 41,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C21G01ScanManualSearchResolveIdenticallyAndExplicitStartIsSoleMutationBoundary",
+      "testV23P04C21A01PermissionAndCameraDenialKeepCompleteManualFallbackAndBatchBounds",
+      "testV23P04C21H01AllClosedOutcomesAndHostilePreviewChangesFailClosed",
+      "testV23P04C21I01NextActionsPersistBeforeNavigationAndCanonicalStateReopens",
+      "testV23P04C21R01ProjectionPoseAccessibilityAndNonsemanticSetupRemainExact"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "FieldEvidenceApp/Application/AssetSemantics/AssetLocatorCoordinatorV1.swift",
+        "sha256": "cbc7d90a787c88af4120792dcc5fc87c6bdefe4b623b85fcb8ef20d066faee43",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Drafts/FieldDraftCoordinatorV1.swift",
+        "sha256": "cf89e38c5368cf04b85cb3b3d47e6b45c1ccfb937af0cf3a5aa199d336880856",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift",
+        "sha256": "f9964963a642838adf677240c70dd272b1730d70238572aade876d5fa5e55d24",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Navigation/RouteCoordinatorV1.swift",
+        "sha256": "9e51780c8189550fd8db9aecf30a5d8616d5a54bafa4f5aec0cf6c64c2ae38f6",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Pose/PlacementPoseCoordinatorV1.swift",
+        "sha256": "67b309a7123dd7e127e6af6c1c9043241c859e31b147a9a444fdb5b5a561bb2b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Rounds/OfflineReadinessPreflightCoordinatorV1.swift",
+        "sha256": "f3f4dffa49bbcc37b665cfdba3b820f08d9074a08e7f396b3d46c12dfc9f6f8c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Rounds/RoundSessionCoordinatorV1.swift",
+        "sha256": "deba5f4bb032cba0c2389b91229cd078817e85cc94c4e9564e70e03fc9d146db",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift",
+        "sha256": "913a2505cd7ac9c52b1a7aea22cf286e02d29d0485a5137db20ad40a71a711a6",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+        "sha256": "fa9033e9b2dc4443a741f6637066ae7732ecaa8686b606d40a797b3dc9117c4c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/AssetSemantics/AssetLocatorContractsV1.swift",
+        "sha256": "74e9a3e7d5463d2dfc2a52869fa6f28d4f7b842ebd946788f6af101e0c5030aa",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+        "sha256": "b80976a188d83034f019b4ec2816acf1318b0e423af5d435a1b6abcd2432dd69",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift",
+        "sha256": "ed062fa1c2ab895c483799ad66fbc7e5f7ff7b2e0420092af7ea68cc0c5e32f9",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "sha256": "eafe3d13c1299dbccdc35ec66591e8a8f73c813747067b3f7da7cf54c1473073",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Navigation/RouteRegistryContractsV1.swift",
+        "sha256": "5c9e7df55b65ee374f8e399dd7f1b645cbb376f4843f8849fc9aae8acaaed669",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/OfflineReadiness/OfflineReadinessManifestContractsV1.swift",
+        "sha256": "18e3176e964a0ce3101477512e9e2bb2f798625fa65e3a44d6e4ef23e1acb27e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Pose/PlacementPoseContractsV1.swift",
+        "sha256": "992d23dfcd7418b9f4288d87faef3eb7574144195af6e76552cad0c4e6869e82",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Rounds/RoundSessionContractsV1.swift",
+        "sha256": "e3e72afd64ad9a560be424496453b5e8f4a219a304719c1a8d1b780cb8a1cb24",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/AssetSemantics/AssetLocatorLifecycleAdapterV1.swift",
+        "sha256": "bcd167215ecaddd790280529edc3a9252c187949f546c9f9afce0c24fe472f27",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Drafts/FieldDraftLifecycleAdapterV1.swift",
+        "sha256": "e47637762091796ce08e79d00fe7abf5ad6538cdfd0dd89a6ec7e1f0a0829dc5",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "sha256": "4e5f99c7f2526e0f67b9f4117af05f78b8badb7a8320f79cd007d52a219d1915",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/OfflineReadiness/OfflineReadinessManifestBuilderV1.swift",
+        "sha256": "0a064c679263a9d83a31e75ff272e7be1cc35cae123a58d0298f0135a8bbd791",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Pose/PlacementPoseLifecycleAdapterV1.swift",
+        "sha256": "7885db34e6ffe8061f0cb43285e082c60b1b0358d31d92412ee38aa03505a1a2",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+        "sha256": "d70e41a3daa867bf6bf2d135de01e43ddcbc8f65c11764eeaa4531a81ef9f42f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+        "sha256": "065fffe9fc17ef51e3e2759c7da9d22bcce13100825194ee909c6192cf8dd908",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Rounds/RoundSessionLifecycleAdapterV1.swift",
+        "sha256": "673658c6b4f2ad9e14b5e9960a8655c7da2a14169ab5a9455a6b39c33c2b4927",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+        "sha256": "4b61a4340b6e991ee529f7c72743f1d0c9ddd2bdeac17cfaab81e9e17aa2f23f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "sha256": "f31c8389a4117b3338296309bacb4570bfa446aacaea97ca4f02578b2c277735",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Workflow/ScanToWorkContractsV1.swift",
+        "sha256": "5284ac143d31a7e208f9f7f1cd6cd0b45b261cbdd5c7062591c863ef133bbf43",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Workflow/ScanToWorkCoordinatorV1.swift",
+        "sha256": "2500362ced68a2098e5cab51ddf02ebb8932a1da0131ef0bbabacc0f4ff9b811",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Workflow/ScanToWorkLifecycleAdapterV1.swift",
+        "sha256": "ddb91bd632293bcf5b4e821d07373b2376d5a27adffb08c947f264e801bbef01",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_84ScanToWorkTests.swift",
+        "sha256": "6ab7fc16573b8e981215472caea203e355d575b69ee77686a28976ce78c542a7",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V23/Rounds/V23P04C21ScanToWorkCorpusV1.json",
+        "sha256": "de2b6b49c37f19c495247bef9856c6162f7f99befe5d4471d9a6bc192fb7fa02",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C21ScanToWorkUITests.swift",
+        "sha256": "a7d1013bd020c59e74522581934cdea34e8754cc4bfd7a629abfe8e6f527bfc4",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publish": false,
+    "release": false
+  },
+  "uiAcceptanceCredit": false,
+  "uiAdoptionSkipped": true
+}

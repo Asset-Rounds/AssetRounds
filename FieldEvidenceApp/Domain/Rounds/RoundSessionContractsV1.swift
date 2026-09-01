@@ -360,6 +360,57 @@ struct RoundSessionV1: Codable, Equatable, Sendable {
     }
 }
 
+extension RoundSessionV1 {
+    /// C21 consumes only the existing immutable selection carried by round
+    /// items.  It is a deterministic view, not another round-selection row.
+    var selectedAssets: [RoundAssetSelectionV1] {
+        items.map(\.selection).sorted { lhs, rhs in
+            lhs.assetID.uuidString < rhs.assetID.uuidString
+        }
+    }
+}
+
+/// Binds C21's explicit start to the existing append-only round successor.
+/// The workflow contributes no second receipt, occurrence, or selection store.
+enum C21RoundSessionStartBoundaryV1 {
+    static func validate(_ request: ScanToWorkStartRequestV1) throws {
+        try request.flow.validateIntrinsic()
+        try request.policy.validateIntrinsic()
+        try request.roundMutation.validate()
+        guard let predecessor = request.roundMutation.session.predecessor,
+              request.explicitUserConfirmation,
+              request.policy.startAllowed,
+              request.flow.preview.outcome == .ready,
+              let asset = request.flow.preview.asset,
+              request.roundMutation.workspaceID == asset.workspaceID,
+              request.roundMutation.expectedRevision == asset.readiness.session.revision,
+              request.roundMutation.session.sessionID == asset.readiness.session.sessionID,
+              predecessor == asset.readiness.session,
+              request.roundMutation.session.transition == .start,
+              request.roundMutation.session.selectedAssets.contains(where: {
+                  $0.assetID == asset.assetID && $0.siteID == asset.siteID
+              }) else {
+            throw ScanToWorkFailureV1.notReady
+        }
+    }
+}
+
+enum C21RoundSessionCheckpointBoundaryV1 {
+    static func validate(_ request: RepetitiveCaptureCheckpointRequestV1) throws {
+        let exact = try RepetitiveCaptureCheckpointRequestV1(
+            plan: request.plan,
+            assetID: request.assetID,
+            disposition: request.disposition,
+            requirementFocus: request.requirementFocus,
+            resumeAnchor: request.resumeAnchor,
+            roundMutation: request.roundMutation
+        )
+        guard exact == request else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+    }
+}
+
 private extension RoundSessionTransitionV1 { var requiresItem: Bool { [.visitItem, .completeItem, .markInaccessible, .skipItem, .deferItem, .retryItem].contains(self) } }
 
 enum RoundSessionHistoryValidatorV1 {

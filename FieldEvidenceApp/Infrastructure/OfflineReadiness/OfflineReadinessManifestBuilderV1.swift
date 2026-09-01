@@ -77,6 +77,10 @@ struct OfflineReadinessSnapshotV1: Sendable {
 }
 
 enum OfflineReadinessManifestBuilderV1 {
+    static func scanToWorkProof(manifest: OfflineReadinessManifestV1,
+                                assetID: UUID) throws -> ScanToWorkOfflineReadinessProofV1 {
+        try manifest.scanToWorkProof(assetID: assetID)
+    }
     /// C19 composes an explicit historic source tuple. The result is derived
     /// on demand and records no durable readiness Boolean.
     static func buildPlanOfflineWork(

@@ -144,6 +144,12 @@ final class OfflineReadinessPreflightCoordinatorV1 {
         return try OfflineReadinessManifestBuilderV1.buildPlanOfflineWork(source: source)
     }
 
+    func scanToWorkProof(sessionID: UUID, assetID: UUID,
+                         previous: OfflineReadinessManifestV1? = nil) async throws -> ScanToWorkOfflineReadinessProofV1 {
+        let manifest = try await rebuild(sessionID: sessionID, previous: previous)
+        return try manifest.scanToWorkProof(assetID: assetID)
+    }
+
     private func materialize(
         session: RoundSessionV1,
         previous: OfflineReadinessManifestV1?

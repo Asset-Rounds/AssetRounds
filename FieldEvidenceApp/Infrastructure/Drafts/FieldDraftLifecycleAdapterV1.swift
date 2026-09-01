@@ -19,6 +19,34 @@ import SwiftData
 extension FieldDraftLifecycleAdapterV1: VoiceReviewedFieldDraftReceiptReadingV1 {}
 
 extension FieldDraftLifecycleAdapterV1 {
+    /// Resolves the C21 capture plan against the physical checkpoint row, so
+    /// a stale plan cannot be reused after a durable draft revision changes.
+    func validateRepetitiveCapturePlan(
+        _ plan: RepetitiveCapturePlanV1
+    ) throws -> FieldDraftCheckpointV1 {
+        try plan.validateIntrinsic()
+        guard let checkpoint = try currentCheckpoint(
+            workspaceID: plan.workspaceID,
+            draftID: plan.draftID
+        ) else {
+            throw ScanToWorkFailureV1.stale
+        }
+        try C21RepetitiveCaptureDraftBoundaryV1.validate(plan: plan, checkpoint: checkpoint)
+        return checkpoint
+    }
+
+    func validateRepetitiveCaptureConfigurationCopy(
+        _ copy: RepetitiveCaptureConfigurationCopyV1,
+        source: RepetitiveCapturePlanV1
+    ) throws {
+        let checkpoint = try validateRepetitiveCapturePlan(source)
+        try C21RepetitiveCaptureDraftBoundaryV1.validateConfigurationCopy(
+            copy,
+            source: source,
+            sourceCheckpoint: checkpoint
+        )
+    }
+
     /// C56 reuses the existing C36 journal read-back; no parallel receipt
     /// cache or writer is introduced for reviewed field checkpoints.
     func reviewedVoiceFieldReceipt(

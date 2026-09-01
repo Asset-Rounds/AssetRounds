@@ -242,6 +242,107 @@ struct SignoffHistoryRouteV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+/// Exact derived identity used by the incumbent route registry when a
+/// Scan-to-Work preview is ready. It deliberately excludes raw scan bytes and
+/// URLs while retaining every canonical frontier needed to reject stale,
+/// foreign, or mismatched resume attempts.
+struct ScanToWorkRouteIdentityV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let session: RoundSessionReferenceV1
+    let assetID: UUID
+    let siteID: UUID
+    let assetRevision: UInt64
+    let assetSHA256: String
+    let bindingSHA256: String
+    let qualifiedPose: AssetPoseEventReferenceV1?
+
+    init(flow: ScanToWorkFlowV1) throws {
+        try flow.validateIntrinsic()
+        guard flow.preview.outcome == .ready, let asset = flow.preview.asset else {
+            throw ScanToWorkFailureV1.notReady
+        }
+        workspaceID = asset.workspaceID
+        session = asset.readiness.session
+        assetID = asset.assetID
+        siteID = asset.siteID
+        assetRevision = asset.assetRevision
+        assetSHA256 = asset.assetSHA256
+        bindingSHA256 = asset.bindingSHA256
+        qualifiedPose = asset.qualifiedPose
+        try validate(flow: flow)
+    }
+
+    func validate(flow: ScanToWorkFlowV1) throws {
+        try flow.validateIntrinsic()
+        guard self == (try Self(unvalidatedFlow: flow)) else {
+            throw ScanToWorkFailureV1.stale
+        }
+    }
+
+    private init(unvalidatedFlow flow: ScanToWorkFlowV1) throws {
+        guard flow.preview.outcome == .ready, let asset = flow.preview.asset else {
+            throw ScanToWorkFailureV1.notReady
+        }
+        workspaceID = asset.workspaceID; session = asset.readiness.session
+        assetID = asset.assetID; siteID = asset.siteID
+        assetRevision = asset.assetRevision; assetSHA256 = asset.assetSHA256
+        bindingSHA256 = asset.bindingSHA256; qualifiedPose = asset.qualifiedPose
+    }
+}
+
+struct ScanToWorkRouteV1: Codable, Equatable, Sendable {
+    let identity: ScanToWorkRouteIdentityV1
+    let requestedMode: NavigationRequestedModeV1
+    let target: NavigationTargetV1
+
+    init(flow: ScanToWorkFlowV1, requestedMode: NavigationRequestedModeV1 = .read) throws {
+        identity = try ScanToWorkRouteIdentityV1(flow: flow)
+        self.requestedMode = requestedMode
+        target = try NavigationTargetV1(
+            workspaceID: identity.workspaceID,
+            destination: .work,
+            stableEntityID: identity.assetID,
+            stableSessionID: identity.session.sessionID,
+            stableLocationID: identity.siteID,
+            requestedMode: requestedMode
+        )
+        try validate(flow: flow)
+    }
+
+    func validate(flow: ScanToWorkFlowV1) throws {
+        try identity.validate(flow: flow); try target.validate()
+        guard target.workspaceID == identity.workspaceID,
+              target.destination == .work,
+              target.stableEntityID == identity.assetID,
+              target.stableSessionID == identity.session.sessionID,
+              target.stableLocationID == identity.siteID,
+              target.requestedMode == requestedMode,
+              target.expectedRevision == nil else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+    }
+}
+
+struct ScanToWorkNavigationProjectionV1: Codable, Equatable, Sendable {
+    let flow: ScanToWorkFlowV1
+    let route: ScanToWorkRouteV1?
+    let resolution: RouteResolutionResultV1?
+    let canonicalMutationCount: Int
+    let startsAutomaticWork: Bool
+
+    init(flow: ScanToWorkFlowV1, route: ScanToWorkRouteV1?, resolution: RouteResolutionResultV1?) throws {
+        try flow.validateIntrinsic(); try route?.validate(flow: flow)
+        self.flow = flow; self.route = route; self.resolution = resolution
+        canonicalMutationCount = 0; startsAutomaticWork = false
+        let ready = flow.preview.outcome == .ready
+        guard ready == (route != nil), ready == (resolution != nil),
+              resolution.map({ $0.disposition == .resolved && $0.target == route?.target
+                  && $0.canonicalMutationCount == 0 && !$0.startsAutomaticWork }) ?? !ready else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+    }
+}
+
 enum PackageSurfaceContributionKindV1: String, Codable, Hashable, Sendable {
     case destination = "DESTINATION"
     case navigationAction = "NAVIGATION_ACTION"

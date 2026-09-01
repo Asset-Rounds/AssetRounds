@@ -141,6 +141,37 @@ protocol DraftContentPromotionPortV1: Sendable {
 }
 
 extension FieldDraftCoordinatorV1 {
+    /// Produces C21's derived batch projection only after binding the plan to
+    /// the exact durable draft checkpoint. No draft payload is decoded,
+    /// copied, or mutated by this read path.
+    func repetitiveCaptureProjection(
+        for plan: RepetitiveCapturePlanV1,
+        checkpoint: FieldDraftCheckpointV1
+    ) throws -> RepetitiveCaptureProjectionV1 {
+        try C21RepetitiveCaptureDraftBoundaryV1.validate(
+            plan: plan,
+            checkpoint: checkpoint,
+            registry: registry
+        )
+        return try RepetitiveCaptureProjectionV1(plan: plan)
+    }
+
+    /// Configuration reuse is an explicit validation-only seam. The C21
+    /// value has no payload bytes, evidence, pose, timestamps, completion,
+    /// notes, or findings to pass to the canonical draft writer.
+    func validateRepetitiveCaptureConfigurationCopy(
+        _ copy: RepetitiveCaptureConfigurationCopyV1,
+        source: RepetitiveCapturePlanV1,
+        sourceCheckpoint: FieldDraftCheckpointV1
+    ) throws {
+        try C21RepetitiveCaptureDraftBoundaryV1.validateConfigurationCopy(
+            copy,
+            source: source,
+            sourceCheckpoint: sourceCheckpoint,
+            registry: registry
+        )
+    }
+
     /// C56 composes the registered C36 payload codec with the existing
     /// checkpoint CAS. The voice layer supplies only a typed reviewed value;
     /// it never decodes or serializes the draft's opaque payload itself.

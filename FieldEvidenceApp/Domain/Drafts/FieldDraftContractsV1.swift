@@ -608,6 +608,50 @@ enum C21CapabilityAdmissionBoundaryV1 {
     }
 }
 
+/// C21 may reuse a durable draft only through its exact checkpoint identity.
+/// The opaque payload remains the registered codec's concern: scan previews,
+/// labels, rotation hints, and pose references cannot be copied into it here.
+enum C21RepetitiveCaptureDraftBoundaryV1 {
+    static func validate(
+        plan: RepetitiveCapturePlanV1,
+        checkpoint: FieldDraftCheckpointV1,
+        registry: DraftPurposeRegistryV1? = nil
+    ) throws {
+        try plan.validateIntrinsic()
+        try checkpoint.validate(registry: registry)
+        guard checkpoint.workspaceID == plan.workspaceID,
+              checkpoint.draftID == plan.draftID,
+              checkpoint.draftRevision == plan.draftRevision,
+              checkpoint.checkpointSHA256 == plan.draftSHA256,
+              checkpoint.state == .active else {
+            throw ScanToWorkFailureV1.stale
+        }
+    }
+
+    static let copiesDraftPayload = false
+    static let copiesAnswers = false
+    static let copiesNotes = false
+    static let copiesFindings = false
+    static let copiesEvidence = false
+    static let copiesPose = false
+    static let copiesTimestamps = false
+    static let copiesDisposition = false
+
+    static func validateConfigurationCopy(
+        _ copy: RepetitiveCaptureConfigurationCopyV1,
+        source: RepetitiveCapturePlanV1,
+        sourceCheckpoint: FieldDraftCheckpointV1,
+        registry: DraftPurposeRegistryV1? = nil
+    ) throws {
+        try copy.validateIntrinsic()
+        try validate(plan: source, checkpoint: sourceCheckpoint, registry: registry)
+        guard copy.sourcePlanSHA256 == source.planSHA256,
+              !copy.copiedFactsOrEvidence else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+    }
+}
+
 enum C37PoseIntegration_FieldEvidenceApp_Domain_Drafts_FieldDraftContractsV1_swift {
     /// Typed C37 boundary: inherited owners may retain an immutable pose
     /// reference, but cannot infer pose, compliance, or current-state truth.

@@ -165,6 +165,50 @@ final class RoundSessionLifecycleAdapterV1 {
         return try handoffManifest(at: current.reference)
     }
 
+    /// Reconstructs C21's derived entry receipt from the sole generic round
+    /// receipt only after proving the referenced successor remains the
+    /// current canonical frontier. No retry writes a second effect.
+    func recoverScanToWorkStart(
+        _ receipt: InstallationScanEntryReceiptV1,
+        request: ScanToWorkStartRequestV1
+    ) throws -> InstallationScanEntryReceiptV1 {
+        try C21RoundSessionStartBoundaryV1.validate(request)
+        try receipt.validate(request: request)
+        let current = try roundCoordinator.validateCurrentFrontier(
+            receipt.roundMutationReceipt.sessionFrontier
+        )
+        guard current.sessionSHA256 == receipt.roundMutationReceipt.mutation.session.sessionSHA256,
+              current.mutationID == receipt.roundMutationReceipt.mutation.mutationID else {
+            throw ScanToWorkFailureV1.stale
+        }
+        return try InstallationScanEntryReceiptV1(
+            request: request,
+            roundMutationReceipt: receipt.roundMutationReceipt
+        )
+    }
+
+    /// Proves the retry result for C21's complete/defer/keep-open checkpoint
+    /// against the same exact generic round receipt; it never applies a
+    /// second successor while recovering a navigation continuation.
+    func recoverRepetitiveCaptureCheckpoint(
+        _ receipt: RepetitiveCaptureCheckpointReceiptV1,
+        request: RepetitiveCaptureCheckpointRequestV1
+    ) throws -> RepetitiveCaptureCheckpointReceiptV1 {
+        try C21RoundSessionCheckpointBoundaryV1.validate(request)
+        let current = try roundCoordinator.validateCurrentFrontier(
+            receipt.roundReceipt.sessionFrontier
+        )
+        guard receipt.roundReceipt.mutation == request.roundMutation,
+              current.sessionSHA256 == request.roundMutation.session.sessionSHA256,
+              current.mutationID == request.roundMutation.mutationID else {
+            throw ScanToWorkFailureV1.stale
+        }
+        return try RepetitiveCaptureCheckpointReceiptV1(
+            request: request,
+            roundReceipt: receipt.roundReceipt
+        )
+    }
+
     /// Captures the incumbent lifecycle closure as a derived proof scoped to
     /// one exact canonical frontier. It is not a second lifecycle registry.
     func lifecycleEvidence(
