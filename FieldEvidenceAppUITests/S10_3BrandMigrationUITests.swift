@@ -5293,6 +5293,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 }
             }
         }
+        if automationShard?.shardID == "s10.4.minimum.minimum-os" {
+            try diagnoseMinimumWorkValidationNoteContrast(in: app)
+        }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
         assertMinimumGeometry(description)
@@ -14089,6 +14092,273 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return false
         }
         return true
+    }
+
+    @MainActor
+    private func diagnoseMinimumWorkValidationNoteContrast(
+        in app: XCUIApplication
+    ) throws {
+        let stateID = "state.work.validation-error"
+        let expectedMigratedStateIDs = Array(
+            Self.segmentedRouteStateIDs.prefix(22)
+        )
+        guard let shard = automationShard,
+              shard.ordinal == 8,
+              shard.shardID == "s10.4.minimum.minimum-os",
+              shard.requirementID == "minimum_os",
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+              automationSegment == .none,
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              Self.segmentedRouteStateIDs[22] == stateID,
+              segmentedRouteStateCursor == 0,
+              migratedStateIDs == expectedMigratedStateIDs,
+              automationAXTreeDigests.keys.sorted()
+                == expectedMigratedStateIDs.sorted(),
+              automationContrastExceptions.isEmpty,
+              !automatedSegmentFinished,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation Note contrast diagnostic gate is invalid"
+            )
+        }
+
+        let workScreens = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.screen"
+        )
+        let descriptionFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.description"
+        )
+        let validationLabels = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.validation"
+        )
+        let noteHeadings = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "Note")
+        )
+        let noteFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.note"
+        )
+        let navigationBars = app.navigationBars
+        let keyboards = app.keyboards
+        let inputViews = app.otherElements.matching(identifier: "inputView")
+        let quickPathIntroductionViews = app.descendants(
+            matching: .other
+        ).matching(identifier: "UIContinuousPathIntroductionView")
+        let quickPathIntroductionButtons = quickPathIntroductionViews.buttons
+        let quickPathIntroductionStaticTexts = quickPathIntroductionViews.staticTexts
+
+        let workScreenCount = workScreens.count
+        let descriptionFieldCount = descriptionFields.count
+        let validationLabelCount = validationLabels.count
+        let noteHeadingCount = noteHeadings.count
+        let noteFieldCount = noteFields.count
+        let navigationBarCount = navigationBars.count
+        let keyboardCount = keyboards.count
+        let inputViewCount = inputViews.count
+        let quickPathIntroductionCount = quickPathIntroductionViews.count
+        let quickPathIntroductionButtonCount = quickPathIntroductionButtons.count
+        let quickPathIntroductionStaticTextCount = quickPathIntroductionStaticTexts.count
+        guard workScreenCount == 1,
+              descriptionFieldCount == 1,
+              validationLabelCount == 1,
+              noteHeadingCount == 1,
+              noteFieldCount == 1,
+              navigationBarCount == 1,
+              keyboardCount == 1,
+              inputViewCount == 1,
+              quickPathIntroductionCount == 0,
+              quickPathIntroductionButtonCount == 0,
+              quickPathIntroductionStaticTextCount == 0 else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation Note contrast diagnostic structure is invalid"
+            )
+        }
+
+        let workScreen = workScreens.element(boundBy: 0)
+        let descriptionField = descriptionFields.element(boundBy: 0)
+        let validationLabel = validationLabels.element(boundBy: 0)
+        let noteHeading = noteHeadings.element(boundBy: 0)
+        let noteField = noteFields.element(boundBy: 0)
+        let navigationBar = navigationBars.element(boundBy: 0)
+        let keyboard = keyboards.element(boundBy: 0)
+        let inputView = inputViews.element(boundBy: 0)
+        let elementObject: (XCUIElement) -> [String: Any] = { element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isEnabled": element.isEnabled,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let applicationFrame = app.frame
+        let workScreenFrame = workScreen.frame
+        let descriptionFrame = descriptionField.frame
+        let validationFrame = validationLabel.frame
+        let noteHeadingFrame = noteHeading.frame
+        let noteFieldFrame = noteField.frame
+        let navigationFrame = navigationBar.frame
+        let keyboardFrame = keyboard.frame
+        let inputViewFrame = inputView.frame
+        let applicationVisibleAboveKeyboard = CGRect(
+            x: applicationFrame.minX,
+            y: applicationFrame.minY,
+            width: applicationFrame.width,
+            height: max(0, keyboardFrame.minY - applicationFrame.minY)
+        )
+        let geometryRelations: [String: Any] = [
+            "applicationContainsWorkScreen": applicationFrame.contains(workScreenFrame),
+            "applicationContainsDescription": applicationFrame.contains(descriptionFrame),
+            "applicationContainsValidation": applicationFrame.contains(validationFrame),
+            "applicationContainsNoteHeading": applicationFrame.contains(noteHeadingFrame),
+            "applicationContainsNoteField": applicationFrame.contains(noteFieldFrame),
+            "applicationContainsNavigation": applicationFrame.contains(navigationFrame),
+            "applicationContainsKeyboard": applicationFrame.contains(keyboardFrame),
+            "applicationContainsInputView": applicationFrame.contains(inputViewFrame),
+            "applicationIntersectsNoteHeading": applicationFrame.intersects(noteHeadingFrame),
+            "visibleAboveKeyboardContainsNoteHeading":
+                applicationVisibleAboveKeyboard.contains(noteHeadingFrame),
+            "visibleAboveKeyboardIntersectsNoteHeading":
+                applicationVisibleAboveKeyboard.intersects(noteHeadingFrame),
+            "keyboardContainsNoteHeading": keyboardFrame.contains(noteHeadingFrame),
+            "keyboardIntersectsNoteHeading": keyboardFrame.intersects(noteHeadingFrame),
+            "inputViewContainsNoteHeading": inputViewFrame.contains(noteHeadingFrame),
+            "inputViewIntersectsNoteHeading": inputViewFrame.intersects(noteHeadingFrame),
+            "noteHeadingIntersectsNoteField": noteHeadingFrame.intersects(noteFieldFrame),
+            "noteHeadingIntersectsValidation": noteHeadingFrame.intersects(validationFrame),
+            "quickPathWrapperCount": quickPathIntroductionCount,
+            "quickPathWrapperButtonDescendantCount": quickPathIntroductionButtonCount,
+            "quickPathWrapperStaticTextDescendantCount":
+                quickPathIntroductionStaticTextCount,
+            "applicationVisibleAboveKeyboardFrame":
+                auditFrameObject(applicationVisibleAboveKeyboard),
+        ]
+
+        var issueObjects: [[String: Any]] = []
+        var auditedElements: [XCUIElement] = []
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            let auditedElement = issue.element
+            var issueObject: [String: Any] = [
+                "issueOrdinal": issueObjects.count + 1,
+                "auditTypeRawValue": String(issue.auditType.rawValue),
+                "compactDescription": issue.compactDescription,
+                "detailedDescription": issue.detailedDescription,
+                "element": NSNull(),
+                "applicationFrame": self.auditFrameObject(app.frame),
+            ]
+            if let auditedElement {
+                auditedElements.append(auditedElement)
+                issueObject["element"] = elementObject(auditedElement)
+            }
+            issueObjects.append(issueObject)
+            return true
+        }
+        guard issueObjects.count == 1,
+              auditedElements.count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation Note contrast diagnostic issue cardinality is invalid"
+            )
+        }
+
+        let queryObjects: [String: Any] = [
+            "workScreens": ["count": workScreenCount, "element": elementObject(workScreen)],
+            "descriptionFields": [
+                "count": descriptionFieldCount,
+                "element": elementObject(descriptionField),
+            ],
+            "validationLabels": [
+                "count": validationLabelCount,
+                "element": elementObject(validationLabel),
+            ],
+            "noteHeadings": ["count": noteHeadingCount, "element": elementObject(noteHeading)],
+            "noteFields": ["count": noteFieldCount, "element": elementObject(noteField)],
+            "navigationBars": [
+                "count": navigationBarCount,
+                "element": elementObject(navigationBar),
+            ],
+            "keyboards": ["count": keyboardCount, "element": elementObject(keyboard)],
+            "inputViews": ["count": inputViewCount, "element": elementObject(inputView)],
+            "quickPathIntroductionViews": [
+                "count": quickPathIntroductionCount,
+                "buttonDescendantCount": quickPathIntroductionButtonCount,
+                "staticTextDescendantCount": quickPathIntroductionStaticTextCount,
+            ],
+        ]
+        let diagnosticContext: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "segmentID": automationSegment.rawValue,
+            "segmentStateCursor": segmentedRouteStateCursor,
+            "stateID": stateID,
+            "stateOrdinal": 23,
+            "predecessorStateID": "state.sign-detail.open-issue",
+            "predecessorOrdinal": 22,
+            "successorStateID": "state.work.editing",
+            "successorOrdinal": 24,
+            "migratedStateIDs": migratedStateIDs,
+            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
+            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(applicationFrame),
+            "application": elementObject(app),
+            "queries": queryObjects,
+            "geometryRelations": geometryRelations,
+            "observedIssueCount": issueObjects.count,
+            "auditedElementCount": auditedElements.count,
+            "issues": issueObjects,
+        ]
+        printJSONLine(
+            prefix: "S10_4_MINIMUM_WORK_VALIDATION_NOTE_CONTRAST_DIAGNOSTIC",
+            object: diagnosticContext
+        )
+
+        let appAttachment = XCTAttachment(screenshot: app.screenshot())
+        appAttachment.name =
+            "S10.4 minimum work-validation Note contrast diagnostic app"
+        appAttachment.lifetime = .keepAlways
+        add(appAttachment)
+        let treeAttachment = XCTAttachment(string: app.debugDescription)
+        treeAttachment.name =
+            "S10.4 minimum work-validation Note contrast diagnostic tree"
+        treeAttachment.lifetime = .keepAlways
+        add(treeAttachment)
+        let contextData = try JSONSerialization.data(
+            withJSONObject: diagnosticContext,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let contextAttachment = XCTAttachment(
+            string: String(decoding: contextData, as: UTF8.self)
+        )
+        contextAttachment.name =
+            "S10.4 minimum work-validation Note contrast diagnostic context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+        let auditedElementAttachment = XCTAttachment(
+            screenshot: auditedElements[0].screenshot()
+        )
+        auditedElementAttachment.name =
+            "S10.4 minimum work-validation Note contrast diagnostic audited element"
+        auditedElementAttachment.lifetime = .keepAlways
+        add(auditedElementAttachment)
+
+        throw AutomationConfigurationError.invalid(
+            "S10.4 minimum work-validation Note contrast diagnostic completed nonaccepting"
+        )
     }
 
     @MainActor

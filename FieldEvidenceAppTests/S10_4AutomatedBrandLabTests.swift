@@ -3990,8 +3990,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 25_973,
-             "2064495617C8480B39F4E4EE095C79D0ACD878D107FCCE0F6A05B64B5BBF16D9"),
+            (workValidationGateSource, 26_118,
+             "9B2A5F4FC60DDCD1BDF4A8D576752D8EB533789236C48B22651850C538007D26"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4011,10 +4011,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workValidationMinimumQuickPathGateRange.lowerBound...
             ]
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 20_242)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 20_387)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "F5DAB58F24B503ADBC87DD9D7C63A92DC1CCFB338DD1A159C1AAD1DCA40AED74"
+            "CB142E3254AA504C169146A7E36E0F043FCFF86EE79A8022422FEB86EC6A2BB4"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -4851,6 +4851,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let minimumWorkValidationNoteDiagnosticCall =
+            "        if automationShard?.shardID " +
+                "== \"s10.4.minimum.minimum-os\" {\n" +
+                "            try diagnoseMinimumWorkValidationNoteContrast(in: app)\n" +
+                "        }\n"
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: minimumWorkValidationNoteDiagnosticCall
+            ).count - 1,
+            1
+        )
         XCTAssertEqual(
             workValidationRouteSource.components(
                 separatedBy: workValidationMinimumQuickPathSource +
@@ -4887,6 +4898,176 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 prohibitedMinimumQuickPathForm
             )
         }
+        let minimumWorkValidationNoteDiagnosticSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                "    private func diagnoseMinimumWorkValidationNoteContrast(",
+            before:
+                "\n\n    @MainActor\n" +
+                "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
+        )
+        let minimumWorkValidationNoteDiagnosticLocks = [
+            #"let stateID = "state.work.validation-error""#,
+            "Self.segmentedRouteStateIDs.prefix(22)",
+            "shard.ordinal == 8",
+            #"shard.shardID == "s10.4.minimum.minimum-os""#,
+            #"shard.requirementID == "minimum_os""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "automationSegment == .none",
+            "Self.segmentedRouteStateIDs[22] == stateID",
+            "migratedStateIDs == expectedMigratedStateIDs",
+            "automationAXTreeDigests.keys.sorted()",
+            "automationContrastExceptions.isEmpty",
+            "!automatedSegmentFinished",
+            "app.state == .runningForeground",
+            #"identifier: "s5.1.work.screen""#,
+            #"identifier: "s5.1.work.description""#,
+            #"identifier: "s5.1.work.validation""#,
+            #"NSPredicate(format: "label == %@", "Note")"#,
+            #"identifier: "s5.1.work.note""#,
+            #"matching(identifier: "inputView")"#,
+            #"matching(identifier: "UIContinuousPathIntroductionView")"#,
+            "quickPathIntroductionViews.buttons",
+            "quickPathIntroductionViews.staticTexts",
+            "workScreenCount == 1",
+            "descriptionFieldCount == 1",
+            "validationLabelCount == 1",
+            "noteHeadingCount == 1",
+            "noteFieldCount == 1",
+            "navigationBarCount == 1",
+            "keyboardCount == 1",
+            "inputViewCount == 1",
+            "quickPathIntroductionCount == 0",
+            "quickPathIntroductionButtonCount == 0",
+            "quickPathIntroductionStaticTextCount == 0",
+            "workScreens.element(boundBy: 0)",
+            "descriptionFields.element(boundBy: 0)",
+            "validationLabels.element(boundBy: 0)",
+            "noteHeadings.element(boundBy: 0)",
+            "noteFields.element(boundBy: 0)",
+            "navigationBars.element(boundBy: 0)",
+            "keyboards.element(boundBy: 0)",
+            "inputViews.element(boundBy: 0)",
+            "\"elementTypeRawValue\": element.elementType.rawValue",
+            "\"elementTypeDescription\": String(describing: element.elementType)",
+            "\"frame\": self.auditFrameObject(element.frame)",
+            "applicationVisibleAboveKeyboard",
+            "\"keyboardIntersectsNoteHeading\"",
+            "\"inputViewIntersectsNoteHeading\"",
+            "\"noteHeadingIntersectsNoteField\"",
+            "\"quickPathWrapperButtonDescendantCount\": quickPathIntroductionButtonCount",
+            "\"quickPathWrapperStaticTextDescendantCount\":" +
+                "\n                quickPathIntroductionStaticTextCount",
+            "try app.performAccessibilityAudit(for: .contrast) { issue in",
+            "\"auditTypeRawValue\": String(issue.auditType.rawValue)",
+            "\"compactDescription\": issue.compactDescription",
+            "\"detailedDescription\": issue.detailedDescription",
+            "issueObjects.count == 1",
+            "auditedElements.count == 1",
+            "\"schemaVersion\": 1",
+            "\"acceptanceEligible\": false",
+            "\"stateOrdinal\": 23",
+            #""predecessorStateID": "state.sign-detail.open-issue""#,
+            #""successorStateID": "state.work.editing""#,
+            "\"queries\": queryObjects",
+            "\"geometryRelations\": geometryRelations",
+            "\"issues\": issueObjects",
+            "S10_4_MINIMUM_WORK_VALIDATION_NOTE_CONTRAST_DIAGNOSTIC",
+            "S10.4 minimum work-validation Note contrast diagnostic app",
+            "S10.4 minimum work-validation Note contrast diagnostic tree",
+            "S10.4 minimum work-validation Note contrast diagnostic context",
+            "S10.4 minimum work-validation Note contrast diagnostic audited element",
+            "options: [.prettyPrinted, .sortedKeys]",
+            "S10.4 minimum work-validation Note contrast diagnostic completed nonaccepting",
+        ]
+        for lock in minimumWorkValidationNoteDiagnosticLocks {
+            XCTAssertTrue(
+                minimumWorkValidationNoteDiagnosticSource.contains(lock),
+                lock
+            )
+        }
+        for (token, count) in [
+            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
+            ("return true", 1),
+            ("printJSONLine(", 1),
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("add(", 4),
+            ("throw AutomationConfigurationError.invalid(", 4),
+            ("S10_4_CANDIDATE", 0),
+            ("S10_4_AX", 0),
+            ("S10_4_CONTRAST", 0),
+            ("S10_4_TASK", 0),
+            ("S10_4_SHARD_RECEIPT", 0),
+            ("ContrastAuditExceptionSignature", 0),
+            ("captureBaseline(", 0),
+            (".tap()", 0),
+            (".swipe", 0),
+            (".press(", 0),
+            (".coordinate(", 0),
+            ("waitForExistence", 0),
+            ("waitForNonExistence", 0),
+            ("Thread.sleep", 0),
+            ("sleep(", 0),
+            ("tolerance", 0),
+            ("epsilon", 0),
+        ] {
+            XCTAssertEqual(
+                minimumWorkValidationNoteDiagnosticSource.components(
+                    separatedBy: token
+                ).count - 1,
+                count,
+                token
+            )
+        }
+        guard let minimumWorkValidationNoteCardinalityRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "guard workScreenCount == 1,"
+                ),
+              let minimumWorkValidationNoteFirstElementRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "let workScreen = workScreens.element(boundBy: 0)"
+                ),
+              let minimumWorkValidationNoteAuditRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "try app.performAccessibilityAudit(for: .contrast)"
+                ),
+              let minimumWorkValidationNoteContextRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "let diagnosticContext: [String: Any] = ["
+                ),
+              let minimumWorkValidationNoteAttachmentRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "let appAttachment = XCTAttachment("
+                ),
+              let minimumWorkValidationNoteTerminalRange =
+                minimumWorkValidationNoteDiagnosticSource.range(
+                    of: "S10.4 minimum work-validation Note contrast diagnostic completed nonaccepting"
+                ) else {
+            XCTFail("Missing the bounded minimum work-validation Note diagnostic ordering")
+            return
+        }
+        XCTAssertLessThan(
+            minimumWorkValidationNoteCardinalityRange.lowerBound,
+            minimumWorkValidationNoteFirstElementRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumWorkValidationNoteFirstElementRange.lowerBound,
+            minimumWorkValidationNoteAuditRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumWorkValidationNoteAuditRange.lowerBound,
+            minimumWorkValidationNoteContextRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumWorkValidationNoteContextRange.lowerBound,
+            minimumWorkValidationNoteAttachmentRange.lowerBound
+        )
+        XCTAssertLessThan(
+            minimumWorkValidationNoteAttachmentRange.lowerBound,
+            minimumWorkValidationNoteTerminalRange.lowerBound
+        )
 
 
 
@@ -20606,10 +20787,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 764_723)
+        XCTAssertEqual(uiSource.utf8.count, 777_969)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "DFDACB9DB9E7F7910D93CA9396F7F9D1BA286C5FACDBB9BE59231C1E036B40B8"
+            "E20D0ADACDE4E386AC9253AE16931957BF5A75B2999FE9103EA48C36C57C9662"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
