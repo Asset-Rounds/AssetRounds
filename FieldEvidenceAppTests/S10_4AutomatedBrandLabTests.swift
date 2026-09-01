@@ -20845,10 +20845,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 777_969)
+        XCTAssertEqual(uiSource.utf8.count, 779_821)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "E20D0ADACDE4E386AC9253AE16931957BF5A75B2999FE9103EA48C36C57C9662"
+            "E162D681B447AA231B304267C439CEB6CDC57D004DD88ADF08675B0F1BADE919"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
