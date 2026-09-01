@@ -14,6 +14,36 @@ enum AssetLabelLifecycleFailureV1: Error, Equatable, Sendable {
     case publicationMismatch
 }
 
+/// Exact bytes prepared for a user-directed export or system share sheet.
+/// This value is not a delivery, print, affixing, or physical-scan receipt.
+struct AssetLabelPreparedExportV1: Equatable, Sendable {
+    let snapshot: AcceptedLabelGenerationSnapshotV1
+    let artifacts: [LabelProjectedArtifactV1]
+    let reprintEligibility: LabelReprintEligibilityV1
+    let requiresDoNotDeployWarning: Bool
+
+    static let claimsShareCompletion = false
+    static let claimsPrintOrDelivery = false
+    static let claimsPhysicalScan = false
+
+    init(
+        snapshot: AcceptedLabelGenerationSnapshotV1,
+        projection: LabelProjectionResultV1,
+        reprintEligibility: LabelReprintEligibilityV1
+    ) throws {
+        try snapshot.validate()
+        try projection.validate(plan: snapshot.plan)
+        guard projection.manifest == snapshot.manifest,
+              projection.planSHA256 == snapshot.plan.planSHA256 else {
+            throw AssetLabelLifecycleFailureV1.publicationMismatch
+        }
+        self.snapshot = snapshot
+        artifacts = projection.artifacts
+        self.reprintEligibility = reprintEligibility
+        requiresDoNotDeployWarning = reprintEligibility != .activeExactReprint
+    }
+}
+
 /// The live authority closure must re-read every asset revision, locator binding,
 /// template release, and renderer release represented by the plan. A cached plan
 /// is never sufficient authority to generate or accept labels.
@@ -147,9 +177,12 @@ struct AssetLabelArtifactOperationsV1: Sendable {
             removePublishedWorkspace: { workspaceID in try contentStore.removeAssetLabelPublishedWorkspace(workspaceID) },
             eraseAllPublished: { try contentStore.eraseAllAssetLabelPublishedArtifacts() },
             discardUncommitted: { job in
-                guard let staged = try scratch.load(id: job.id, planSHA256: job.immutableInputSHA256) else {
-                    throw AssetLabelLifecycleFailureV1.projectionNotStaged
-                }
+                // Terminal cleanup is replayed after interruption. Missing
+                // attempt scratch means the same cleanup already completed.
+                guard let staged = try scratch.load(
+                    id: job.id,
+                    planSHA256: job.immutableInputSHA256
+                ) else { return }
                 try contentStore.discardUncommittedAssetLabelArtifacts(
                     job: job, plan: staged.0, projection: staged.1
                 )
@@ -541,6 +574,48 @@ private final class AssetLabelArtifactScratchStoreV1: @unchecked Sendable {
         return try coordinator.reprintEligibility(for: snapshot, context: context)
     }
 
+    /// Reopens the canonical accepted snapshot and its exact published bytes.
+    /// No renderer is invoked, so an accepted export remains byte-identical.
+    /// Historic or otherwise non-current output is returned only with the
+    /// explicit do-not-deploy warning disposition.
+    func prepareExactAcceptedExport(
+        workspaceID: WorkspaceID,
+        snapshotID: UUID,
+        currentBindings: [AssetLabelCurrentBindingV1]
+    ) async throws -> AssetLabelPreparedExportV1 {
+        guard let snapshot = try await coordinator.acceptedSnapshot(
+            workspaceID: workspaceID,
+            snapshotID: snapshotID
+        ) else {
+            throw AssetLabelLifecycleFailureV1.currentAuthorityUnavailable
+        }
+        try snapshot.validate()
+        let publication = snapshot.outputReceipt.publicationBinding
+        guard let readback = try await artifacts.publishedReadback(
+            publication.jobID,
+            publication.planSHA256,
+            publication.outputSHA256
+        ) else {
+            throw AssetLabelLifecycleFailureV1.publicationMismatch
+        }
+        try readback.plan.validate()
+        try readback.projection.validate(plan: readback.plan)
+        guard readback.plan == snapshot.plan,
+              readback.projection.manifest == snapshot.manifest,
+              readback.publishedArtifacts == publication.publishedArtifacts else {
+            throw AssetLabelLifecycleFailureV1.publicationMismatch
+        }
+        let eligibility = try reprintEligibility(
+            for: snapshot,
+            currentBindings: currentBindings
+        )
+        return try AssetLabelPreparedExportV1(
+            snapshot: snapshot,
+            projection: readback.projection,
+            reprintEligibility: eligibility
+        )
+    }
+
     func eraseAllArtifacts() async throws {
         try await jobs.eraseAll()
         try await artifacts.eraseAllPublished()
@@ -555,7 +630,10 @@ private final class AssetLabelArtifactScratchStoreV1: @unchecked Sendable {
     }
 
     func discardTerminalScratch(jobID: LocalJobIDV1) async throws {
-        guard let job = try await jobs.job(id: jobID), job.state.isTerminal else {
+        // A repeated post-terminal cleanup observes the already-removed job
+        // and is the same successful no-effect outcome.
+        guard let job = try await jobs.job(id: jobID) else { return }
+        guard job.state.isTerminal else {
             throw LocalJobValidationFailureV1.invalidTransition
         }
         try await artifacts.discard(jobID)

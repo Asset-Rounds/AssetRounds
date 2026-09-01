@@ -1,0 +1,128 @@
+{
+  "authority": {
+    "allocationDigest": "9f66dad445adf0d9e942859dfa4af636009619c3f0a98083047157419de06ee4",
+    "appBaseHead": "8b97b33a0c83d639349d9c28806092fdeb79b95f",
+    "appBaseTree": "0c804ceb7b50a5b804b1380762408aedac644d2d",
+    "cardID": "V23-P04-C30",
+    "contextDigest": "c1ac4c3961fde5b1743f3703ee158720b9059b6af4538bf59d5df788e5327b02",
+    "coordinationHead": "1b902e448a0f38f7189e237e383f8567ffbf10c3",
+    "coordinationTree": "fa2dbae64b7ad67d72c1b6a6a02bcbf040c7a673",
+    "existingPathCount": 2,
+    "fencePathCount": 13,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "newPathCount": 11,
+    "orderedPathFence": [
+      "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
+      "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+      "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Labels/V23P04C30AssetLabelOutputCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C30AssetLabelOutputUITests.swift",
+      "Scripts/v23/p04_c30_contracts.py",
+      "Scripts/v23/generate_p04_c30_contracts.py",
+      "Scripts/v23/verify_p04_c30_contracts.py",
+      "Scripts/v23/asset-label-output.schema.json",
+      "docs/design/v23/tooling/V23P04C30AssetLabelOutputContractV1.json",
+      "docs/design/v23/tooling/V23P04C30AssetLabelOutputEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C30BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C30-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "72484e9d476b2c1cf858ebaecd1d08ef16e7e83e554f270991ac0d7351f68f3d",
+    "prerequisiteDigest": "33e53e92d05fb20c88b4758b3d73c1afefc1e12dd053bc3038de8cb3f2ad38d7",
+    "priorFenceProof": {
+      "authorizedOverlapEdgeCount": 9,
+      "fenceCount": 120,
+      "priorOwnedPathCount": 2,
+      "s10ReservedOverlapCount": 0,
+      "unauthorizedOverlapCount": 0
+    },
+    "s10OverlapCount": 0,
+    "sequence": 514,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C30",
+        "sha256": "b63376f7d1078ad6fb57b19a3431148b1472222e1766e6a04e4bd19de3aaf432",
+        "utf8Length": 7276
+      },
+      {
+        "anchor": "V21-P04-C30",
+        "sha256": "9d7b031827d7ecda404621f2ada667edfe1d297753352528bca1c7fd2b36c0fa",
+        "utf8Length": 4952
+      },
+      {
+        "anchor": "V23-P04-C30-register",
+        "sha256": "0ab9a0290f16f6df3f5d9a83f2fb17880316520e586f703b2dbe051556eed5f3",
+        "utf8Length": 330
+      }
+    ]
+  },
+  "cardID": "V23-P04-C30",
+  "files": [
+    {
+      "path": "docs/design/v23/tooling/V23P04C30AssetLabelOutputContractV1.json",
+      "sha256": "49875c81e0de8f6d155697263a5a142d43db7fd6175960c0496b2103c599b933"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C30AssetLabelOutputEvidenceReceiptV1.json",
+      "sha256": "ffba1a505b621246d9b696ad1663adcea4a822650076f277b75097dda19f4542"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C30BrandImpactManifestV1.json",
+      "sha256": "8c5b52772919cffaa0da1cb37e7faa664a3e3c72c4bb6555bcb47d08e27fdcf0"
+    }
+  ],
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "pathFence": [
+    "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+    "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V23/Labels/V23P04C30AssetLabelOutputCorpusV1.json",
+    "FieldEvidenceAppUITests/V23_P04_C30AssetLabelOutputUITests.swift",
+    "Scripts/v23/p04_c30_contracts.py",
+    "Scripts/v23/generate_p04_c30_contracts.py",
+    "Scripts/v23/verify_p04_c30_contracts.py",
+    "Scripts/v23/asset-label-output.schema.json",
+    "docs/design/v23/tooling/V23P04C30AssetLabelOutputContractV1.json",
+    "docs/design/v23/tooling/V23P04C30AssetLabelOutputEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P04C30BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P04-C30-tooling-manifest.json"
+  ],
+  "schema": "V23P04C30ToolingManifestV1",
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
+      "sha256": "eb483ac74e55a5c279333ca979b39ba79cfad99561ebf20040a1a0dd8ee99d02",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+      "sha256": "354f10a16f9173e583d361f27bd2341a5ab26e2c6ab4247109859fe837025818",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
+      "sha256": "973fd0ace49699d6fa8dfadbe0a94804b023c08c298b09ed20abe57602b937b3",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/Labels/V23P04C30AssetLabelOutputCorpusV1.json",
+      "sha256": "b3dbbe65df8babdb547506ff0360ceeb7c2ecb132e7f04ef7078995262fee42b",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C30AssetLabelOutputUITests.swift",
+      "sha256": "b6013303b14f1e466093e2d01af051415e64e39f01c4430b87fb6189cf8cdb0a",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}
