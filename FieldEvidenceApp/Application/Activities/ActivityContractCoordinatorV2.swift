@@ -178,6 +178,10 @@ struct ActivityContractAcceptanceRequestV2: Equatable, Sendable {
             || !mutation.installationTaskResults.isEmpty
             || mutation.installationAsBuiltSnapshot != nil
             || mutation.successorEnvelope.installationCloseout != nil
+            || mutation.successorEnvelope.currentBasisReference.map {
+                if case .installation = $0 { return true }
+                return false
+            } == true
         let hasPunchPayload = mutation.punchReviewBasisSnapshot != nil
             || mutation.successorEnvelope.punchReviewCloseout != nil
         switch payload {
@@ -291,6 +295,10 @@ final class ActivityContractCoordinatorV2 {
     private let writer: any ActivityContractCanonicalWorkspaceWritingV2
     private let conformanceAuthority: ActivityContractConformanceAuthorityV2
 
+    var sharedConformanceReceipt: SharedActivityEnvelopeReceiptV1 {
+        conformanceAuthority.sharedReceipt
+    }
+
     init(query: any ActivityContractCurrentStateQueryingV2,
          writer: any ActivityContractCanonicalWorkspaceWritingV2,
          conformanceAuthority: ActivityContractConformanceAuthorityV2) {
@@ -319,12 +327,34 @@ final class ActivityContractCoordinatorV2 {
             workspaceID: mutation.workspaceID,
             activityID: mutation.successorEnvelope.activityID
         ) else { throw ActivityContractCoordinatorFailureV2.targetMissing }
-        guard current.expectedRevision == mutation.expectedRevision,
-              current.envelope == mutation.predecessorEnvelope else {
+        let isOrdinaryPredecessor = current.expectedRevision == mutation.expectedRevision
+            && current.envelope == mutation.predecessorEnvelope
+        let isExactUnreceiptedEffect = Self.isExactUnreceiptedEffect(
+            current: current, mutation: mutation
+        )
+        guard isOrdinaryPredecessor || isExactUnreceiptedEffect else {
             throw ActivityContractCoordinatorFailureV2.staleExpectedRevision
         }
 
-        let committed = try await writer.commitActivityContract(mutation)
+        let committed: MutationReceiptV1
+        do {
+            committed = try await writer.commitActivityContract(mutation)
+        } catch {
+            if let recovered = try await writer.durableActivityContractReceipt(
+                workspaceID: mutation.workspaceID, mutationID: mutation.mutationID
+            ) {
+                let idempotent = try await writer.commitActivityContract(mutation)
+                guard recovered == idempotent else {
+                    throw ActivityContractCoordinatorFailureV2.durableReceiptMismatch
+                }
+                return result(for: request, durableReceipt: recovered, receipt: proposedReceipt)
+            }
+            // The effect may already be durable while its receipt is not. Do
+            // not hide the interruption or perform an implicit second write;
+            // explicit same-command recovery re-enters through the exact
+            // successor admission above and delegates reconciliation once.
+            throw error
+        }
         guard let durable = try await writer.durableActivityContractReceipt(
             workspaceID: mutation.workspaceID,
             mutationID: mutation.mutationID
@@ -332,6 +362,27 @@ final class ActivityContractCoordinatorV2 {
         guard durable == committed else { throw ActivityContractCoordinatorFailureV2.durableReceiptMismatch }
 
         return result(for: request, durableReceipt: durable, receipt: proposedReceipt)
+    }
+
+    /// The query can observe C47's saved row before the journal advances. This
+    /// is recoverable only for the byte-for-byte intended successor at the
+    /// still-current expected revision and MutationID. Auxiliary rows remain
+    /// subject to the writer's complete exact-effect reconciliation.
+    private static func isExactUnreceiptedEffect(
+        current: ActivityContractCurrentStateV2,
+        mutation: ActivityContractMutationV2
+    ) -> Bool {
+        guard current.expectedRevision == mutation.expectedRevision,
+              let envelope = current.envelope,
+              envelope == mutation.successorEnvelope,
+              envelope.workspaceID == mutation.workspaceID,
+              envelope.activityID == mutation.successorEnvelope.activityID,
+              envelope.mutationID == mutation.mutationID,
+              envelope.predecessorEnvelopeSHA256
+                == mutation.predecessorEnvelope?.envelopeSHA256 else {
+            return false
+        }
+        return true
     }
 
     private func result(for request: ActivityContractAcceptanceRequestV2,

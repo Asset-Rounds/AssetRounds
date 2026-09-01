@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "cardID": {
+      "const": "V23-P04-C33"
+    },
+    "flags": {
+      "type": "object"
+    },
+    "lifecycle": {
+      "type": "object"
+    },
+    "ordinal": {
+      "const": 118
+    },
+    "requirements": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "cardID",
+    "ordinal",
+    "authority",
+    "flags",
+    "lifecycle",
+    "requirements"
+  ],
+  "title": "InstallationWorkflowContractV1",
+  "type": "object"
+}

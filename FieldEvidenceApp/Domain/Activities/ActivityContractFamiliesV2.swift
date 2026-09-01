@@ -2384,11 +2384,11 @@ struct ActivityContractMutationV2: Codable, Equatable, Sendable {
                         throw ActivityContractFailureV2.missingReference
                     }
                 }
-                guard successorEnvelope.installationCloseout?.asBuiltSnapshotSHA256
-                        == installationAsBuiltSnapshot.snapshotSHA256,
-                    successorEnvelope.installationCloseout?.completion
-                        == installationAsBuiltSnapshot.completion else{
-                    throw ActivityContractFailureV2.missingReference
+                if let closeout = successorEnvelope.installationCloseout {
+                    guard closeout.asBuiltSnapshotSHA256 == installationAsBuiltSnapshot.snapshotSHA256,
+                          closeout.completion == installationAsBuiltSnapshot.completion else {
+                        throw ActivityContractFailureV2.missingReference
+                    }
                 }
             }
             try validateInstallationBasisLineage()
@@ -2769,4 +2769,221 @@ enum ActivityContractPersistenceEnrollmentV2 {
     static let inspectionNamedCanonicalStorageForbidden = true
     static let planOrScanProviderRequired = false
     static let completionClaimsCommissioningComplianceApprovalOrCertification = false
+}
+
+// MARK: - Installation workflow projections (nonpersistent)
+
+enum InstallationWorkflowFailureV1: Error, Equatable, Sendable {
+    case invalidContext
+    case blockedReadiness
+    case invalidCommand
+    case unknownTask
+    case incompleteRequiredTask
+    case divergentAsBuilt
+    case unavailableCapability
+}
+
+enum InstallationOptionalCapabilityDispositionV1: String, Codable, CaseIterable, Sendable {
+    case available = "AVAILABLE"
+    case manualFallback = "MANUAL_FALLBACK"
+    case unavailable = "UNAVAILABLE"
+}
+
+/// Typed optional C19 input. Absence never implies a plan exists.
+struct InstallationPlanCapabilityV1: Equatable, Sendable {
+    static let providerID = "V23_P03_C19_INSTALLATION_PLAN_REFERENCE"
+    static let consumerID = "V23_P04_C33"
+    static let capabilityID: CapabilityIDV1 = .filesAndShare
+    let disposition: InstallationOptionalCapabilityDispositionV1
+    let planReference: InstallationPlanReferenceV1?
+    let noPlanFallback: NoPlanFallbackV1?
+    let availabilityReceipt: TypedAvailabilityAndFallbackReceiptV1?
+
+    init(disposition: InstallationOptionalCapabilityDispositionV1,
+         planReference: InstallationPlanReferenceV1? = nil,
+         noPlanFallback: NoPlanFallbackV1? = nil,
+         availabilityReceipt: TypedAvailabilityAndFallbackReceiptV1? = nil) throws {
+        self.disposition = disposition; self.planReference = planReference
+        self.noPlanFallback = noPlanFallback; self.availabilityReceipt = availabilityReceipt
+        try validate()
+    }
+
+    func validate() throws {
+        try planReference?.validate(); try noPlanFallback?.validate(); try availabilityReceipt?.validate()
+        if let availabilityReceipt {
+            guard availabilityReceipt.providerID == Self.providerID,
+                  availabilityReceipt.consumerID == Self.consumerID,
+                  availabilityReceipt.capabilityID == Self.capabilityID,
+                  (disposition == .available) == (availabilityReceipt.availabilityReason == .available) else {
+                throw InstallationWorkflowFailureV1.unavailableCapability
+            }
+        }
+        switch disposition {
+        case .available:
+            guard planReference != nil, noPlanFallback == nil else { throw InstallationWorkflowFailureV1.invalidContext }
+        case .manualFallback:
+            guard planReference == nil, noPlanFallback != nil else { throw InstallationWorkflowFailureV1.invalidContext }
+        case .unavailable:
+            guard planReference == nil, noPlanFallback != nil, availabilityReceipt != nil else {
+                throw InstallationWorkflowFailureV1.invalidContext
+            }
+        }
+    }
+}
+
+/// Typed optional C21 input. Absence never fabricates a successful scan.
+struct InstallationScanCapabilityV1: Equatable, Sendable {
+    static let providerID = "V23_P04_C21_INSTALLATION_SCAN_ENTRY"
+    static let consumerID = "V23_P04_C33"
+    static let capabilityID: CapabilityIDV1 = .camera
+    let disposition: InstallationOptionalCapabilityDispositionV1
+    let scanReceipt: InstallationScanEntryReceiptV1?
+    let manualFallback: ManualLookupFallbackV1?
+    let availabilityReceipt: TypedAvailabilityAndFallbackReceiptV1?
+
+    init(disposition: InstallationOptionalCapabilityDispositionV1,
+         scanReceipt: InstallationScanEntryReceiptV1? = nil,
+         manualFallback: ManualLookupFallbackV1? = nil,
+         availabilityReceipt: TypedAvailabilityAndFallbackReceiptV1? = nil) throws {
+        self.disposition = disposition; self.scanReceipt = scanReceipt
+        self.manualFallback = manualFallback; self.availabilityReceipt = availabilityReceipt
+        try validate()
+    }
+
+    func validate() throws {
+        try manualFallback?.validateIntrinsic(); try availabilityReceipt?.validate()
+        if let availabilityReceipt {
+            guard availabilityReceipt.providerID == Self.providerID,
+                  availabilityReceipt.consumerID == Self.consumerID,
+                  availabilityReceipt.capabilityID == Self.capabilityID,
+                  (disposition == .available) == (availabilityReceipt.availabilityReason == .available) else {
+                throw InstallationWorkflowFailureV1.unavailableCapability
+            }
+        }
+        switch disposition {
+        case .available:
+            guard scanReceipt != nil, manualFallback == nil else { throw InstallationWorkflowFailureV1.invalidContext }
+        case .manualFallback:
+            guard scanReceipt == nil, manualFallback != nil else { throw InstallationWorkflowFailureV1.invalidContext }
+        case .unavailable:
+            guard scanReceipt == nil, manualFallback != nil, availabilityReceipt != nil else {
+                throw InstallationWorkflowFailureV1.invalidContext
+            }
+        }
+    }
+}
+
+struct InstallationReadinessBlockerV1: Codable, Equatable, Comparable, Sendable {
+    let facetID: String
+    let kind: ActivityReadinessFacetKindV1
+    let disposition: ActivityReadinessDispositionV1
+    let reason: String
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.facetID < rhs.facetID }
+}
+
+struct InstallationTaskProjectionV1: Equatable, Sendable {
+    let definition: InstallationTaskDefinitionV1
+    let currentResult: InstallationTaskResultV1?
+    var isTerminal: Bool {
+        guard let currentResult else { return false }
+        return ![.notStarted, .inProgress].contains(currentResult.outcome)
+    }
+}
+
+enum InstallationCloseoutActionV1: String, Codable, CaseIterable, Sendable {
+    case recordFieldComplete = "RECORD_FIELD_COMPLETE"
+    case submitForReview = "SUBMIT_FOR_REVIEW"
+    case finalizeRecordedCloseout = "FINALIZE_RECORDED_CLOSEOUT"
+}
+
+/// Renderer-neutral, deterministic report input. The sole report renderer may
+/// consume this value; this card does not create a renderer or report store.
+struct InstallationReportProjectionV1: Codable, Equatable, Sendable {
+    let activityID: UUID
+    let envelopeSHA256: String
+    let state: ActivityStateV2
+    let taskResultSHA256s: [String]
+    let variationSHA256s: [String]
+    let asBuiltSnapshotSHA256: String?
+    let closeoutSHA256: String?
+    let claimsSafe: Bool
+    let claimsCompliant: Bool
+    let claimsPermitted: Bool
+    let claimsCommissioned: Bool
+    let claimsApproved: Bool
+    let claimsInService: Bool
+    let projectionSHA256: String
+
+    init(envelope: ActivitySessionEnvelopeV2, taskResults: [InstallationTaskResultV1],
+         asBuiltSnapshot: InstallationAsBuiltSnapshotV1?) throws {
+        try envelope.validateForRead(); try taskResults.forEach { try $0.validate() }
+        try asBuiltSnapshot?.validate()
+        guard envelope.kind == .installation,
+              taskResults.allSatisfy({ $0.workspaceID == envelope.workspaceID && $0.activityID == envelope.activityID }),
+              Set(taskResults.map(\.taskID)).count == taskResults.count,
+              asBuiltSnapshot.map({ $0.workspaceID == envelope.workspaceID && $0.activityID == envelope.activityID }) ?? true,
+              envelope.installationCloseout.map({ closeout in
+                  asBuiltSnapshot.map({ $0.snapshotSHA256 == closeout.asBuiltSnapshotSHA256 }) ?? false
+              }) ?? true else {
+            throw InstallationWorkflowFailureV1.invalidContext
+        }
+        let resultSHA256s = taskResults.sorted().map(\.resultSHA256)
+        let variationSHA256s = envelope.variations.map(\.variationSHA256)
+        let basis = Basis(activityID: envelope.activityID, envelopeSHA256: envelope.envelopeSHA256,
+                          state: envelope.state, taskResultSHA256s: resultSHA256s,
+                          variationSHA256s: variationSHA256s,
+                          asBuiltSnapshotSHA256: asBuiltSnapshot?.snapshotSHA256,
+                          closeoutSHA256: envelope.installationCloseout?.closeoutSHA256,
+                          claimsSafe: false, claimsCompliant: false, claimsPermitted: false,
+                          claimsCommissioned: false, claimsApproved: false, claimsInService: false)
+        activityID = envelope.activityID; envelopeSHA256 = envelope.envelopeSHA256; state = envelope.state
+        taskResultSHA256s = resultSHA256s; self.variationSHA256s = variationSHA256s
+        asBuiltSnapshotSHA256 = asBuiltSnapshot?.snapshotSHA256
+        closeoutSHA256 = envelope.installationCloseout?.closeoutSHA256
+        claimsSafe = false; claimsCompliant = false; claimsPermitted = false
+        claimsCommissioned = false; claimsApproved = false; claimsInService = false
+        projectionSHA256 = try WorkspaceMutationCanonicalV1.sha256(basis)
+    }
+
+    private struct Basis: Codable {
+        let activityID: UUID; let envelopeSHA256: String; let state: ActivityStateV2
+        let taskResultSHA256s: [String]; let variationSHA256s: [String]
+        let asBuiltSnapshotSHA256: String?; let closeoutSHA256: String?
+        let claimsSafe: Bool; let claimsCompliant: Bool; let claimsPermitted: Bool
+        let claimsCommissioned: Bool; let claimsApproved: Bool; let claimsInService: Bool
+    }
+}
+
+enum InstallationReportReadinessV1: String, Codable, CaseIterable, Sendable {
+    case fieldWorkIncomplete = "FIELD_WORK_INCOMPLETE"
+    case reviewRequired = "REVIEW_REQUIRED"
+    case readyForExistingRenderer = "READY_FOR_EXISTING_RENDERER"
+}
+
+struct InstallationWorkflowProjectionV1: Equatable, Sendable {
+    let envelope: ActivitySessionEnvelopeV2
+    let blockers: [InstallationReadinessBlockerV1]
+    let tasks: [InstallationTaskProjectionV1]
+    let nextTaskID: String?
+    let planDisposition: InstallationOptionalCapabilityDispositionV1
+    let scanDisposition: InstallationOptionalCapabilityDispositionV1
+    let canStart: Bool
+    let canCloseout: Bool
+    let nextCloseoutAction: InstallationCloseoutActionV1?
+    let reportReadiness: InstallationReportReadinessV1
+    let reportReady: Bool
+    let closeoutRecorded: Bool
+    let report: InstallationReportProjectionV1
+}
+
+enum InstallationWorkflowProjectionBoundaryV1 {
+    static let persistentFamilyAdded = false
+    static let schemaOrStoreAdded = false
+    static let writerOrBackendAdded = false
+    static let reportRendererAdded = false
+    static let parallelKernelAdded = false
+    static let optionalPlanOrScanTruthFabricated = false
+    static let completionClaimsSafetyCompliancePermitCommissioningApprovalOrService = false
+    static let adoptsPhase10 = false
 }

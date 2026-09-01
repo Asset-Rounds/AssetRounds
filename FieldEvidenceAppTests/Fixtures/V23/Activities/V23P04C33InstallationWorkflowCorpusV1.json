@@ -1,0 +1,49 @@
+{
+  "cardID": "V23-P04-C33",
+  "expected": {
+    "asBuiltAndVariationEvidenceRequired": true,
+    "explicitStartRequired": true,
+    "finalizedHistoryImmutable": true,
+    "manualFallbackAvailable": true,
+    "oneBoundedResult": true,
+    "optionalPlanAndScan": true,
+    "reportRebuildDeterministic": true,
+    "retryIsIdempotent": true
+  },
+  "ordinal": 118,
+  "persistence": {
+    "durableFamily": "NONE",
+    "persistentSchemaVersion": 36,
+    "recordsSchemaVersion": 35
+  },
+  "scenarios": [
+    {"covers":["readiness","explicit_start","ordered_execution","as_built","variation","validated_closeout","report_ready"],"id":"G01","kind":"GOLDEN"},
+    {"covers":["manual_no_plan_fallback","optional_plan_unavailable","optional_scan_unavailable","blocked","stale","partial"],"id":"A01","kind":"ALTERNATE"},
+    {"covers":["wrong_revision","stale_revision","duplicate_id","invalid_transition","invalid_order","malformed_input","unbounded_input","unicode","identity","no_partial_success"],"id":"H01","kind":"HOSTILE"},
+    {"covers":["cancellation","interruption","effect_before_receipt","relaunch","resume"],"id":"I01","kind":"INTERRUPTION"},
+    {"covers":["retry","replay","receipt_recovery","same_authorized_receipt_or_effect","no_effect","immutable_finalized_history","deterministic_report_rebuild"],"id":"R01","kind":"RECOVERY"}
+  ],
+  "schema": "V23P04C33InstallationWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    {"id":"G01","selector":"V23-P04-C33-G01","tier":"GOLDEN"},
+    {"id":"A01","selector":"V23-P04-C33-A01","tier":"ALTERNATE"},
+    {"id":"H01","selector":"V23-P04-C33-H01","tier":"HOSTILE"},
+    {"id":"I01","selector":"V23-P04-C33-I01","tier":"INTERRUPTION"},
+    {"id":"R01","selector":"V23-P04-C33-R01","tier":"RECOVERY"}
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false
+  },
+  "synthetic": true
+}
