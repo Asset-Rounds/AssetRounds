@@ -3868,9 +3868,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(element("s4.4.reports.screen", in: app)
             .waitForExistence(timeout: 30))
         if automationShard?.shardID == "s10.4.minimum.rtl" {
-            let viewReport = element("s4.4.reports.view-report", in: app)
-            scroll(viewReport, in: app)
-            try diagnoseMinimumRTLReportsIndexNativeContrast(in: app)
+            guard positionMinimumRTLReportsViewReport(in: app) else {
+                throw AutomationConfigurationError.invalid(
+                    "S10.4 minimum RTL reports-index positioning failed"
+                )
+            }
         }
         captureBaseline("state.reports-index.ready", in: app)
 
@@ -13765,9 +13767,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func diagnoseMinimumRTLReportsIndexNativeContrast(
+    private func positionMinimumRTLReportsViewReport(
         in app: XCUIApplication
-    ) throws {
+    ) -> Bool {
         let stateID = "state.reports-index.ready"
         let expectedMigratedStateIDs = Array(
             Self.segmentedRouteStateIDs.prefix(20)
@@ -13788,197 +13790,222 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               automationContrastExceptions.isEmpty,
               !automatedSegmentFinished,
               app.state == .runningForeground else {
-            throw AutomationConfigurationError.invalid(
-                "S10.4 minimum RTL reports-index native contrast diagnostic gate is invalid"
+            XCTFail("S10.4 minimum RTL reports-index positioning gate is invalid.")
+            return false
+        }
+
+        let reportsScreens = app.descendants(matching: .any).matching(
+            identifier: "s4.4.reports.screen"
+        )
+        let viewReportControls = app.buttons.matching(
+            identifier: "s4.4.reports.view-report"
+        )
+        let reportsScrollViews = app.scrollViews.containing(
+            .button,
+            identifier: "s4.4.reports.view-report"
+        )
+        let reportsNavigationBars = app.navigationBars.matching(
+            identifier: "Reports"
+        )
+        let reportsTabBars = app.tabBars
+        let reportsScreen = reportsScreens.firstMatch
+        let viewReportControl = viewReportControls.firstMatch
+        let reportsScrollView = reportsScrollViews.firstMatch
+        let reportsNavigationBar = reportsNavigationBars.firstMatch
+        let reportsTabBar = reportsTabBars.firstMatch
+
+        func validFrame(_ frame: CGRect) -> Bool {
+            !frame.isNull
+                && !frame.isEmpty
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+
+        let contentInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        for _ in 0..<4 {
+            guard app.state == .runningForeground,
+                  reportsScreens.count == 1,
+                  viewReportControls.count == 1,
+                  reportsScrollViews.count == 1,
+                  reportsNavigationBars.count == 1,
+                  reportsTabBars.count == 1,
+                  reportsScreen.exists,
+                  viewReportControl.exists,
+                  viewReportControl.identifier == "s4.4.reports.view-report",
+                  viewReportControl.label == "View report",
+                  viewReportControl.elementType == .button,
+                  reportsScrollView.exists,
+                  reportsNavigationBar.exists,
+                  reportsTabBar.exists else {
+                XCTFail("Minimum RTL reports-index positioning route changed.")
+                return false
+            }
+            let applicationFrame = app.frame
+            let scrollFrame = reportsScrollView.frame
+            let navigationFrame = reportsNavigationBar.frame
+            let tabBarFrame = reportsTabBar.frame
+            let viewReportFrame = viewReportControl.frame
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            let liveTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let liveBottom = min(
+                liveScrollFrame.maxY,
+                min(applicationFrame.maxY, tabBarFrame.minY)
             )
-        }
-
-        let diagnosticQueryBindings: [(
-            name: String,
-            query: XCUIElementQuery
-        )] = [
-            (
-                "reportsScreens",
-                app.descendants(matching: .any).matching(
-                    identifier: "s4.4.reports.screen"
-                )
-            ),
-            (
-                "reportsHeaders",
-                app.descendants(matching: .any).matching(
-                    identifier: "s4.4.reports.header"
-                )
-            ),
-            (
-                "siteFilters",
-                app.descendants(matching: .any).matching(
-                    identifier: "s4.4.reports.site-filter"
-                )
-            ),
-            (
-                "signFilters",
-                app.descendants(matching: .any).matching(
-                    identifier: "s4.4.reports.sign-filter"
-                )
-            ),
-            (
-                "reportVisits",
-                app.descendants(matching: .any).matching(
-                    identifier: "s4.4.reports.visit"
-                )
-            ),
-            (
-                "viewReportControls",
-                app.descendants(matching: .any).matching(
-                    identifier: "s4.4.reports.view-report"
-                )
-            ),
-            (
-                "reportsTabs",
-                app.descendants(matching: .any).matching(
-                    identifier: "s1.tab.reports"
-                )
-            ),
-            ("tabBars", app.tabBars),
-            ("navigationBars", app.navigationBars),
-            ("scrollViews", app.scrollViews),
-        ]
-        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
-            element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
+            let safeTop = liveTop + contentInset
+            let safeBottom = liveBottom - contentInset
+            let receiverTop = liveTop + receiverInset
+            let receiverBottom = liveBottom - receiverInset
+            guard validFrame(applicationFrame),
+                  validFrame(scrollFrame),
+                  validFrame(navigationFrame),
+                  validFrame(tabBarFrame),
+                  validFrame(viewReportFrame),
+                  validFrame(liveScrollFrame),
+                  liveTop.isFinite,
+                  liveBottom.isFinite,
+                  safeTop.isFinite,
+                  safeBottom.isFinite,
+                  receiverTop.isFinite,
+                  receiverBottom.isFinite,
+                  safeBottom > safeTop,
+                  receiverBottom > receiverTop,
+                  viewReportFrame.height <= safeBottom - safeTop else {
+                XCTFail("Minimum RTL reports-index viewport geometry is invalid.")
+                return false
             }
-            return [
-                "exists": element.exists,
-                "isEnabled": element.isEnabled,
-                "isHittable": element.isHittable,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(describing: element.elementType),
-                "frame": self.auditFrameObject(element.frame),
-            ]
-        }
-        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
-            query in
-            let count = query.count
-            var elements: [[String: Any]] = []
-            for index in 0..<count {
-                elements.append(
-                    diagnosticElementObject(query.element(boundBy: index))
-                )
-            }
-            return [
-                "count": count,
-                "elements": elements,
-            ]
-        }
-        var diagnosticQueryObjects: [String: Any] = [:]
-        for binding in diagnosticQueryBindings {
-            diagnosticQueryObjects[binding.name] = diagnosticQueryObject(binding.query)
-        }
-
-        var observedIssueObjects: [[String: Any]] = []
-        var auditedElementCount = 0
-        var auditCompleted = false
-        var auditErrorDomain: Any = NSNull()
-        var auditErrorCode: Any = NSNull()
-        var auditErrorDescription: Any = NSNull()
-        do {
-            try app.performAccessibilityAudit(for: .contrast) { issue in
-                let auditedElement = issue.element
-                var diagnosticIssue: [String: Any] = [
-                    "issueOrdinal": observedIssueObjects.count + 1,
-                    "auditTypeRawValue": String(issue.auditType.rawValue),
-                    "compactDescription": issue.compactDescription,
-                    "detailedDescription": issue.detailedDescription,
-                    "elementExists": NSNull(),
-                    "elementEnabled": NSNull(),
-                    "elementHittable": NSNull(),
-                    "elementIdentifier": NSNull(),
-                    "elementLabel": NSNull(),
-                    "elementValue": NSNull(),
-                    "elementTypeRawValue": NSNull(),
-                    "elementTypeDescription": NSNull(),
-                    "elementFrame": NSNull(),
-                    "applicationFrame": self.auditFrameObject(app.frame),
-                ]
-                if let auditedElement {
-                    auditedElementCount += 1
-                    let auditedElementObject = diagnosticElementObject(auditedElement)
-                    diagnosticIssue["elementExists"] =
-                        auditedElementObject["exists"]
-                    diagnosticIssue["elementEnabled"] =
-                        auditedElementObject["isEnabled"]
-                    diagnosticIssue["elementHittable"] =
-                        auditedElementObject["isHittable"]
-                    diagnosticIssue["elementIdentifier"] =
-                        auditedElementObject["identifier"]
-                    diagnosticIssue["elementLabel"] =
-                        auditedElementObject["label"]
-                    diagnosticIssue["elementValue"] =
-                        auditedElementObject["value"]
-                    diagnosticIssue["elementTypeRawValue"] =
-                        auditedElementObject["elementTypeRawValue"]
-                    diagnosticIssue["elementTypeDescription"] =
-                        auditedElementObject["elementTypeDescription"]
-                    diagnosticIssue["elementFrame"] =
-                        auditedElementObject["frame"]
-                }
-                observedIssueObjects.append(diagnosticIssue)
+            if viewReportFrame.minY >= safeTop,
+               viewReportFrame.maxY <= safeBottom,
+               viewReportControl.isHittable {
                 return true
             }
-            auditCompleted = true
-        } catch {
-            let auditError = error as NSError
-            auditErrorDomain = auditError.domain
-            auditErrorCode = auditError.code
-            auditErrorDescription = auditError.localizedDescription
+
+            let minimumShift = safeTop - viewReportFrame.minY
+            let maximumShift = safeBottom - viewReportFrame.maxY
+            let receiverCapacity = receiverBottom - receiverTop
+            guard minimumShift.isFinite,
+                  maximumShift.isFinite,
+                  receiverCapacity.isFinite,
+                  minimumShift <= maximumShift,
+                  maximumShift < 0,
+                  receiverCapacity >= minimumGestureDistance else {
+                XCTFail("Minimum RTL reports-index has no feasible upward shift.")
+                return false
+            }
+            let recognizedMinimum = max(minimumShift, -receiverCapacity)
+            let recognizedMaximum = min(
+                maximumShift,
+                -minimumGestureDistance
+            )
+            guard recognizedMinimum <= recognizedMaximum,
+                  recognizedMaximum < 0 else {
+                XCTFail("Minimum RTL reports-index upward shift is not recognizable.")
+                return false
+            }
+            let dragDistance = max(
+                recognizedMinimum,
+                recognizedMaximum - minimumGestureDistance
+            )
+            guard dragDistance.isFinite,
+                  dragDistance <= recognizedMaximum,
+                  abs(dragDistance) >= minimumGestureDistance else {
+                XCTFail("Minimum RTL reports-index positioning gesture is invalid.")
+                return false
+            }
+            let scrollOrigin = reportsScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(
+                    dx: scrollFrame.width / 2,
+                    dy: receiverBottom - scrollFrame.minY
+                )
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: dragDistance)
+            )
+            let viewReportMinYBeforeDrag = viewReportFrame.minY
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            guard app.state == .runningForeground,
+                  reportsScreens.count == 1,
+                  viewReportControls.count == 1,
+                  reportsScrollViews.count == 1,
+                  reportsNavigationBars.count == 1,
+                  reportsTabBars.count == 1,
+                  reportsScreen.exists,
+                  viewReportControl.exists,
+                  reportsScrollView.exists,
+                  reportsNavigationBar.exists,
+                  reportsTabBar.exists else {
+                XCTFail("Minimum RTL reports-index route changed after positioning.")
+                return false
+            }
+            let observedShift =
+                viewReportControl.frame.minY - viewReportMinYBeforeDrag
+            guard observedShift.isFinite,
+                  observedShift < 0,
+                  observedShift * dragDistance > 0 else {
+                XCTFail("Minimum RTL reports-index gesture was not recognized.")
+                return false
+            }
         }
 
-        let diagnosticContext: [String: Any] = [
-            "schemaVersion": 1,
-            "acceptanceEligible": false,
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "segmentID": automationSegment.rawValue,
-            "segmentStateCursor": segmentedRouteStateCursor,
-            "stateID": stateID,
-            "stateOrdinal": 21,
-            "predecessorStateID": "state.report-history.ready",
-            "predecessorOrdinal": 20,
-            "successorStateID": "state.sign-detail.open-issue",
-            "successorOrdinal": 22,
-            "migratedStateIDs": migratedStateIDs,
-            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
-            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "applicationForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(app.frame),
-            "application": diagnosticElementObject(app),
-            "queries": diagnosticQueryObjects,
-            "auditCompleted": auditCompleted,
-            "auditErrorDomain": auditErrorDomain,
-            "auditErrorCode": auditErrorCode,
-            "auditErrorDescription": auditErrorDescription,
-            "observedIssueCount": observedIssueObjects.count,
-            "auditedElementCount": auditedElementCount,
-            "issues": observedIssueObjects,
-        ]
-        printJSONLine(
-            prefix:
-                "S10_4_MINIMUM_RTL_REPORTS_INDEX_NATIVE_CONTRAST_DIAGNOSTIC",
-            object: diagnosticContext
+        guard app.state == .runningForeground,
+              reportsScreens.count == 1,
+              viewReportControls.count == 1,
+              reportsScrollViews.count == 1,
+              reportsNavigationBars.count == 1,
+              reportsTabBars.count == 1,
+              reportsScreen.exists,
+              viewReportControl.exists,
+              viewReportControl.identifier == "s4.4.reports.view-report",
+              viewReportControl.label == "View report",
+              viewReportControl.elementType == .button,
+              reportsScrollView.exists,
+              reportsNavigationBar.exists,
+              reportsTabBar.exists else {
+            XCTFail("Minimum RTL reports-index final route changed.")
+            return false
+        }
+        let finalApplicationFrame = app.frame
+        let finalScrollFrame = reportsScrollView.frame.intersection(
+            finalApplicationFrame
         )
-        throw AutomationConfigurationError.invalid(
-            "S10.4 minimum RTL reports-index native contrast diagnostic completed nonaccepting"
-        )
+        let finalNavigationFrame = reportsNavigationBar.frame
+        let finalTabBarFrame = reportsTabBar.frame
+        let finalViewReportFrame = viewReportControl.frame
+        let finalSafeTop = max(
+            finalScrollFrame.minY,
+            finalNavigationFrame.maxY
+        ) + contentInset
+        let finalSafeBottom = min(
+            finalScrollFrame.maxY,
+            min(finalApplicationFrame.maxY, finalTabBarFrame.minY)
+        ) - contentInset
+        guard validFrame(finalApplicationFrame),
+              validFrame(finalScrollFrame),
+              validFrame(finalNavigationFrame),
+              validFrame(finalTabBarFrame),
+              validFrame(finalViewReportFrame),
+              finalSafeTop.isFinite,
+              finalSafeBottom.isFinite,
+              finalSafeBottom > finalSafeTop,
+              finalViewReportFrame.minY >= finalSafeTop,
+              finalViewReportFrame.maxY <= finalSafeBottom,
+              finalViewReportFrame.maxY <= finalTabBarFrame.minY - contentInset,
+              viewReportControl.isHittable else {
+            XCTFail("Minimum RTL View report is outside the safe viewport.")
+            return false
+        }
+        return true
     }
 
     @MainActor
