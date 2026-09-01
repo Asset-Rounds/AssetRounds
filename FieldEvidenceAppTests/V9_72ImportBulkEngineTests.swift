@@ -48,6 +48,25 @@ private enum C08 {
         let bulkPlanID = try BulkCommandPlanV1.deterministicBulkPlanID(importPlan: plan, atomicity: atomicity, chunks: chunks)
         return (plan, try BulkCommandPlanV1(bulkPlanID: bulkPlanID, importPlan: plan, atomicity: atomicity, chunks: chunks))
     }
+
+    static func atomicPlan(workspaceID: WorkspaceID = workspace()) throws -> (ImportPlanV1, BulkCommandPlanV1) {
+        let budget = try ImportStreamingBudgetV1(maximumSourceBytes: 1_024, maximumRows: 1, maximumColumns: 4, maximumCellBytes: 128, maximumScalarsPerCell: 128)
+        let schema = try ImportSchemaReleaseV1(releaseID: "c08_atomic_bundle", release: 1, entityKind: .atomicWorkspaceBundle, externalKeyColumn: "bundle_key", columns: [
+            try .init(key: "bundle_key", scalar: .identifier, required: true, editableOnExactUpdate: false, maximumCellBytes: 128, maximumScalars: 128)
+        ], budget: budget)
+        let source = try ImportSourceV1(sourceID: id(980_120), workspaceID: workspaceID, kind: .userSelectedFile, sourceSHA256: sourceSHA256, byteCount: 32, leaseID: id(980_121), importedAt: time)
+        let identity = try ImportRowIdentityV1(workspaceID: workspaceID, sourceSHA256: sourceSHA256, sourceOrdinal: 1, canonicalRowSHA256: String(format: "%064x", 980_122), stableExternalKey: "atomic_bundle", schemaReleaseID: schema.releaseID, schemaRelease: schema.release)
+        let mappedFields = [try ImportMappedFieldV1(key: "bundle_key", value: "atomic_bundle")]
+        let payloadSHA256 = try ImportProposedCommandV1.canonicalPayloadSHA256(commandID: "apply_atomic_bundle", kind: .applyAtomicWorkspaceBundle, targetStableID: nil, expectedRevision: nil, dependencyCommandIDs: [], rowIdentity: identity, schemaRelease: schema, mappedFields: mappedFields)
+        let command = try ImportProposedCommandV1(commandID: "apply_atomic_bundle", kind: .applyAtomicWorkspaceBundle, targetStableID: nil, expectedRevision: nil, dependencyCommandIDs: [], payloadSHA256: payloadSHA256)
+        let row = try ImportPlanRowV1(identity: identity, disposition: .create, reasons: [.exactStableKeyCreate], mappedFields: mappedFields, commands: [command], expectedTargetRevision: nil)
+        let planID = try ImportPlanV1.deterministicPlanID(workspaceID: workspaceID, source: source, schemaRelease: schema, mappingProfileSHA256: nil, workspaceRevisionSHA256: workspaceRevisionSHA256, rows: [row])
+        let plan = try ImportPlanV1(planID: planID, workspaceID: workspaceID, source: source, schemaRelease: schema, mappingProfileSHA256: nil, workspaceRevisionSHA256: workspaceRevisionSHA256, rows: [row])
+        let mutationID = try BulkCommandPlanV1.deterministicMutationID(importPlanID: plan.planID, chunkIndex: 0, rowIdentitySHA256: row.identity.identitySHA256)
+        let chunk = try BulkChunkPlanV1(chunkIndex: 0, rowIdentitySHA256s: [row.identity.identitySHA256], mutationIDs: [mutationID])
+        let bulkPlanID = try BulkCommandPlanV1.deterministicBulkPlanID(importPlan: plan, atomicity: .allOrNothing, chunks: [chunk])
+        return (plan, try BulkCommandPlanV1(bulkPlanID: bulkPlanID, importPlan: plan, atomicity: .allOrNothing, chunks: [chunk]))
+    }
 }
 
 @MainActor private final class C08WriterAdapter: WorkspaceWriterAdapterPortV1 {
@@ -89,6 +108,16 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
     let coordinator: ImportBulkCoordinatorV1
 
     init() throws {
+        try self.init(
+            atomicMaterializer: C08RejectingMaterializer(),
+            atomicAllowedWorkspaceCommandKinds: [.applyAssetSemantics]
+        )
+    }
+
+    init(
+        atomicMaterializer: any ImportWorkspaceCommandMaterializingV1,
+        atomicAllowedWorkspaceCommandKinds: Set<WorkspaceCommandKindV1>
+    ) throws {
         let models = PersistentSchemaV45.models + [ImportMappingProfileRowV1.self, BulkSessionRowV1.self, BulkCommitReceiptRowV1.self]
         let schema = Schema(models, version: PersistentSchemaV45.versionIdentifier)
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C08ImportBulk", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
@@ -101,7 +130,19 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
         writer = try WorkspaceWriterV1(identity: identity, generationID: generationID, initialRevision: journal.currentRevision(writerInstanceID: C08.id(980_092)), clock: C08Clock(), idSource: C08IDSource(value: C08.id(980_092)), fileAuthority: C08FileAuthority(), adapter: adapter, journalStore: journal)
         let registration = try C08Stack.registration()
         lifecycle = try ImportBulkLifecycleAdapterV1(registrations: [registration], modelContext: context)
-        let materializers = ImportCommandKindV1.allCases.map { ImportBulkMaterializerRegistrationV1(kind: $0, materializer: $0 == .createAsset ? C08CreateAssetMaterializer() : C08RejectingMaterializer()) }
+        let materializers = try ImportCommandKindV1.allCases.map { kind in
+            if kind == .applyAtomicWorkspaceBundle {
+                return try ImportBulkMaterializerRegistrationV1(
+                    kind: kind,
+                    materializer: atomicMaterializer,
+                    allowedWorkspaceCommandKinds: atomicAllowedWorkspaceCommandKinds
+                )
+            }
+            return try ImportBulkMaterializerRegistrationV1(
+                kind: kind,
+                materializer: kind == .createAsset ? C08CreateAssetMaterializer() : C08RejectingMaterializer()
+            )
+        }
         coordinator = try ImportBulkCoordinatorV1(writer: writer, lifecycle: lifecycle, materializers: materializers)
     }
 
@@ -165,6 +206,45 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
         XCTAssertEqual(correction.retryIdentitySHA256, correctionRepeat.retryIdentitySHA256)
         XCTAssertNotEqual(correction.artifactSHA256, correctionRepeat.artifactSHA256)
         XCTAssertEqual(plan.schemaRelease.entityKind, .asset)
+    }
+
+    func testV23P04C08AtomicBundleRegistrationIsExplicitAndFailClosed() throws {
+        let rejecting = C08RejectingMaterializer()
+        XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(
+            kind: .applyAtomicWorkspaceBundle,
+            materializer: rejecting
+        ))
+        XCTAssertThrowsError(try ImportBulkMaterializerRegistrationV1(
+            kind: .applyAtomicWorkspaceBundle,
+            materializer: rejecting,
+            allowedWorkspaceCommandKinds: []
+        ))
+
+        let legacy = try ImportCommandKindV1.allCases.filter { !$0.createsAggregate }.map {
+            try ImportBulkMaterializerRegistrationV1(kind: $0, materializer: rejecting)
+        }
+        XCTAssertEqual(Dictionary(uniqueKeysWithValues: legacy.map { ($0.kind, $0.allowedWorkspaceCommandKinds) }), [
+            .createLocationNode: [.applyLocationHierarchyChange],
+            .createAsset: [.createFirstSign, .applyAssetSemantics],
+            .placeAsset: [.applyAssetPlacementChange],
+            .updateAssetExactKey: [.applyAssetSemantics],
+            .appendPlacementPose: [.applyPlacementPose]
+        ])
+
+        let (plan, bulk) = try C08.atomicPlan()
+        XCTAssertTrue(plan.rows[0].commands[0].kind.createsAggregate)
+        XCTAssertNil(plan.rows[0].commands[0].expectedRevision)
+        XCTAssertNil(plan.rows[0].commands[0].targetStableID)
+        let stack = try C08Stack(
+            atomicMaterializer: C08CreateAssetMaterializer(),
+            atomicAllowedWorkspaceCommandKinds: [.applyAssetSemantics]
+        )
+        let preview = try stack.coordinator.preview(importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        let begun = try stack.coordinator.begin(sessionID: C08.id(980_123), preview: preview, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256)
+        XCTAssertThrowsError(try stack.coordinator.commitFirstMissingChunk(session: begun, importPlan: plan, bulkPlan: bulk, currentSourceSHA256: plan.source.sourceSHA256, currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256, cancellationRequested: false)) { error in
+            XCTAssertEqual(error as? ImportBulkFailureV1, .unsupportedSchema)
+        }
+        XCTAssertEqual(stack.adapter.applyCount, 0)
     }
 
     func testV23P04C08H01HostileBudgetIdentityAndFormulaSafety() throws {

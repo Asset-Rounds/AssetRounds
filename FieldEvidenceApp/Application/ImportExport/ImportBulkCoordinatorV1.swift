@@ -18,10 +18,40 @@ struct ImportBulkPreviewV1: Equatable, Sendable {
 struct ImportBulkMaterializerRegistrationV1: Sendable {
     let kind: ImportCommandKindV1
     let materializer: any ImportWorkspaceCommandMaterializingV1
+    let allowedWorkspaceCommandKinds: Set<WorkspaceCommandKindV1>
 
-    init(kind: ImportCommandKindV1, materializer: any ImportWorkspaceCommandMaterializingV1) {
+    init(
+        kind: ImportCommandKindV1,
+        materializer: any ImportWorkspaceCommandMaterializingV1,
+        allowedWorkspaceCommandKinds: Set<WorkspaceCommandKindV1>? = nil
+    ) throws {
+        let allowed = allowedWorkspaceCommandKinds ?? Self.legacyAllowedWorkspaceCommandKinds(for: kind)
+        guard !allowed.isEmpty,
+              !(kind.createsAggregate && allowedWorkspaceCommandKinds == nil) else {
+            throw ImportBulkFailureV1.adapterCollision
+        }
         self.kind = kind
         self.materializer = materializer
+        self.allowedWorkspaceCommandKinds = allowed
+    }
+
+    private static func legacyAllowedWorkspaceCommandKinds(
+        for kind: ImportCommandKindV1
+    ) -> Set<WorkspaceCommandKindV1> {
+        switch kind {
+        case .createLocationNode:
+            [.applyLocationHierarchyChange]
+        case .createAsset:
+            [.createFirstSign, .applyAssetSemantics]
+        case .placeAsset:
+            [.applyAssetPlacementChange]
+        case .updateAssetExactKey:
+            [.applyAssetSemantics]
+        case .appendPlacementPose:
+            [.applyPlacementPose]
+        case .applyAtomicWorkspaceBundle:
+            []
+        }
     }
 }
 
@@ -29,7 +59,7 @@ struct ImportBulkMaterializerRegistrationV1: Sendable {
 final class ImportBulkCoordinatorV1 {
     private let writer: WorkspaceWriterV1
     private let lifecycle: ImportBulkLifecycleAdapterV1
-    private let materializers: [ImportCommandKindV1: any ImportWorkspaceCommandMaterializingV1]
+    private let materializers: [ImportCommandKindV1: ImportBulkMaterializerRegistrationV1]
 
     /// ImportSourceV1 is external bounded scratch; zero canonical writes occur
     /// during preview and stable plan identities retain no source bytes.
@@ -49,9 +79,7 @@ final class ImportBulkCoordinatorV1 {
         self.writer = writer
         self.lifecycle = lifecycle
         lifecycle.bind(writer: writer)
-        self.materializers = Dictionary(uniqueKeysWithValues: materializers.map {
-            ($0.kind, $0.materializer)
-        })
+        self.materializers = Dictionary(uniqueKeysWithValues: materializers.map { ($0.kind, $0) })
     }
 
     /// Preview is validation-only: it never creates a session or calls writer.
@@ -228,7 +256,7 @@ final class ImportBulkCoordinatorV1 {
 
         let command = row.commands[0]
         try lifecycle.validate(registrationFor: command.kind)
-        guard let materializer = materializers[command.kind] else {
+        guard let registration = materializers[command.kind] else {
             throw ImportBulkFailureV1.unsupportedSchema
         }
         let expected = WorkspaceExpectedRevisionV1(snapshot: try writer.currentRevision())
@@ -241,8 +269,8 @@ final class ImportBulkCoordinatorV1 {
             mutationID: chunk.mutationIDs[0],
             expectedRevision: expected
         )
-        let request = try materializer.materializeValidated(context)
-        guard isPermittedImportedCommand(request.command, for: command.kind) else {
+        let request = try registration.materializer.materializeValidated(context)
+        guard registration.allowedWorkspaceCommandKinds.contains(request.command.kind) else {
             throw ImportBulkFailureV1.unsupportedSchema
         }
 
@@ -369,23 +397,6 @@ final class ImportBulkCoordinatorV1 {
             disposition: disposition,
             committedMutationIDs: committedMutationIDs
         )
-    }
-
-    private func isPermittedImportedCommand(
-        _ command: WorkspaceCommandV1,
-        for kind: ImportCommandKindV1
-    ) -> Bool {
-        switch (kind, command) {
-        case (.createLocationNode, .applyLocationHierarchyChange),
-             (.createAsset, .createFirstSign),
-             (.createAsset, .applyAssetSemantics),
-             (.placeAsset, .applyAssetPlacementChange),
-             (.updateAssetExactKey, .applyAssetSemantics),
-             (.appendPlacementPose, .applyPlacementPose):
-            true
-        default:
-            false
-        }
     }
 }
 

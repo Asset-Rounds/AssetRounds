@@ -209,6 +209,9 @@ enum ImportEntityKindV1: String, Codable, CaseIterable, Comparable, Hashable, Se
     case asset = "ASSET"
     case assetPlacement = "ASSET_PLACEMENT"
     case placementPose = "PLACEMENT_POSE"
+    /// A bounded, synthetic import row which materializes one already
+    /// allowlisted workspace command. It is not a canonical workspace entity.
+    case atomicWorkspaceBundle = "ATOMIC_WORKSPACE_BUNDLE"
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
@@ -591,6 +594,15 @@ enum ImportCommandKindV1: String, Codable, CaseIterable, Comparable, Hashable, S
     case placeAsset = "PLACE_ASSET"
     case updateAssetExactKey = "UPDATE_ASSET_EXACT_KEY"
     case appendPlacementPose = "APPEND_PLACEMENT_POSE"
+    /// One C08 row/chunk/request may stand for an already-defined compound
+    /// workspace command. The row has no fabricated entity revision.
+    case applyAtomicWorkspaceBundle = "APPLY_ATOMIC_WORKSPACE_BUNDLE"
+
+    var createsAggregate: Bool { self == .applyAtomicWorkspaceBundle }
+    var allowsNilExpectedRevision: Bool {
+        self == .createLocationNode || self == .createAsset || createsAggregate
+    }
+
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
@@ -657,7 +669,8 @@ struct ImportProposedCommandV1: Codable, Equatable, Hashable, Comparable, Sendab
         try ImportBulkCanonicalCodecV1.requireDigest(payloadSHA256)
         guard dependencyCommandIDs.count <= ImportBulkLimitsV1.maximumAdapterDependencies,
               !dependencyCommandIDs.contains(commandID),
-              (kind == .createLocationNode || kind == .createAsset) == (expectedRevision == nil) else {
+              kind.allowsNilExpectedRevision == (expectedRevision == nil),
+              !kind.createsAggregate || (targetStableID == nil && expectedRevision == nil) else {
             throw ImportBulkFailureV1.invalidValue
         }
     }
@@ -685,7 +698,9 @@ struct ImportProposedCommandV1: Codable, Equatable, Hashable, Comparable, Sendab
         guard dependencyCommandIDs.count <= ImportBulkLimitsV1.maximumAdapterDependencies,
               !dependencyCommandIDs.contains(commandID),
               mappedFields.count <= ImportBulkLimitsV1.maximumColumns,
-              (kind == .createLocationNode || kind == .createAsset) == (expectedRevision == nil),
+              kind.allowsNilExpectedRevision == (expectedRevision == nil),
+              !kind.createsAggregate || (targetStableID == nil && expectedRevision == nil),
+              kind.createsAggregate == (schemaRelease.entityKind == .atomicWorkspaceBundle),
               rowIdentity.schemaReleaseID == schemaRelease.releaseID,
               rowIdentity.schemaRelease == schemaRelease.release else {
             throw ImportBulkFailureV1.invalidValue
@@ -879,7 +894,11 @@ struct ImportPlanV1: Codable, Equatable, Hashable, Sendable {
               rows.allSatisfy({ $0.identity.workspaceID == workspaceID
                     && $0.identity.sourceSHA256 == source.sourceSHA256
                     && $0.identity.schemaReleaseID == schemaRelease.releaseID
-                    && $0.identity.schemaRelease == schemaRelease.release }),
+                    && $0.identity.schemaRelease == schemaRelease.release
+                    && $0.commands.allSatisfy {
+                        $0.kind.createsAggregate
+                            == (schemaRelease.entityKind == .atomicWorkspaceBundle)
+                    } }),
               !previewWritesCanonicalState,
               planSHA256 == (try ImportBulkCanonicalCodecV1.sha256(digestBasis)) else {
             throw ImportBulkFailureV1.digestMismatch
