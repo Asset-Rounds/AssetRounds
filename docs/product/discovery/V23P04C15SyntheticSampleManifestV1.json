@@ -1,0 +1,94 @@
+{
+  "acceptanceCredit": false,
+  "adoptionEnabled": false,
+  "cardID": "V23-P04-C15",
+  "containsCustomerData": false,
+  "containsRealUserData": false,
+  "defaultWatermark": "SYNTHETIC EXAMPLE — NO CUSTOMER DATA",
+  "networkProviderEnabled": false,
+  "practiceWatermark": "PRACTICE — NOT FOR FIELD USE",
+  "provisional": true,
+  "publicationEligible": false,
+  "publish": false,
+  "releaseCredit": false,
+  "samples": [
+    {
+      "containsCustomerData": false,
+      "contentSHA256": "2022b62e44de4615437b1fd8e7945719e20fac5992178dbbdbeee8e086da5bff",
+      "displayWatermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "practiceWorkspace": false,
+      "proofKind": "ACCESSIBILITY",
+      "sampleID": "c15-accessibility-proof-v1"
+    },
+    {
+      "containsCustomerData": false,
+      "contentSHA256": "caffd0044cfcbea7c8e4912a0ca285132bbe307eb5c2e7c66a8c5eff71b890a4",
+      "displayWatermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "practiceWorkspace": false,
+      "proofKind": "HOME",
+      "sampleID": "c15-home-proof-v1"
+    },
+    {
+      "containsCustomerData": false,
+      "contentSHA256": "812879325db35451ed1d0c8d99d65ef56c2e15d26711ff0e3fcc5d5e60244e08",
+      "displayWatermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "practiceWorkspace": false,
+      "proofKind": "PRIVACY",
+      "sampleID": "c15-privacy-proof-v1"
+    },
+    {
+      "containsCustomerData": false,
+      "contentSHA256": "34a61b3710c47efab86f8bebd4c9b7f1cd46fa6b1a742543b5e539ddd48618ae",
+      "displayWatermarks": [
+        "PRACTICE — NOT FOR FIELD USE",
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "practiceWorkspace": true,
+      "proofKind": "SAMPLE_REPORT",
+      "sampleID": "c15-sample-report-proof-v1"
+    },
+    {
+      "containsCustomerData": false,
+      "contentSHA256": "bbbc8d7a5089c4179f6be6b2ee5714a5e5d14d23c02a367cb231a0ee00f07df5",
+      "displayWatermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "practiceWorkspace": false,
+      "proofKind": "SUPPORT",
+      "sampleID": "c15-support-proof-v1"
+    },
+    {
+      "containsCustomerData": false,
+      "contentSHA256": "c99a32b68ac7cefff4d54fbf5d3765ee8ed3ffe92bcca156a5ad88410465527d",
+      "displayWatermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "practiceWorkspace": false,
+      "proofKind": "USE_CASE",
+      "sampleID": "c15-use-case-proof-v1"
+    }
+  ],
+  "schema": "V23P04C15SyntheticSampleManifestV1",
+  "schemaVersion": 1,
+  "status": "NONCANDIDATE_SYNTHETIC_ONLY",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publish": false,
+    "release": false
+  },
+  "upload": false
+}

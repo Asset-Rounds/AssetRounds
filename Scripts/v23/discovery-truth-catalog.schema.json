@@ -1,0 +1,631 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/contract"
+    },
+    {
+      "$ref": "#/$defs/evidence"
+    },
+    {
+      "$ref": "#/$defs/brand"
+    },
+    {
+      "$ref": "#/$defs/manifest"
+    }
+  ],
+  "$defs": {
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "activation",
+        "native",
+        "hosted",
+        "adoption",
+        "acceptance",
+        "release",
+        "publish",
+        "nativeAcceptance",
+        "hostedAcceptance",
+        "physicalEvidence",
+        "phase10PollingDuringParallelExecution"
+      ],
+      "properties": {
+        "activation": {
+          "const": true
+        },
+        "native": {
+          "const": true
+        },
+        "hosted": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "acceptance": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        },
+        "publish": {
+          "const": false
+        },
+        "nativeAcceptance": {
+          "const": false
+        },
+        "hostedAcceptance": {
+          "const": false
+        },
+        "physicalEvidence": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cardID",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationHead",
+        "coordinationTree",
+        "sequence",
+        "allocationDigest",
+        "prerequisiteDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "transitionDigest",
+        "ledgerDigest",
+        "projectionDigest",
+        "finalHashesSealed",
+        "fencePathCount",
+        "existingPathCount",
+        "newPathCount",
+        "priorFenceCount",
+        "priorOwnedPathCount",
+        "authorizedOverlapCount",
+        "s10OverlapCount"
+      ],
+      "properties": {
+        "cardID": {
+          "const": "V23-P04-C15"
+        },
+        "appBaseHead": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "appBaseTree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "coordinationHead": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "coordinationTree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "sequence": {
+          "const": 448
+        },
+        "allocationDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prerequisiteDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contextDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "pathFenceDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "transitionDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledgerDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "projectionDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "finalHashesSealed": {
+          "const": false
+        },
+        "fencePathCount": {
+          "const": 17
+        },
+        "existingPathCount": {
+          "const": 3
+        },
+        "newPathCount": {
+          "const": 14
+        },
+        "priorFenceCount": {
+          "const": 4
+        },
+        "priorOwnedPathCount": {
+          "const": 179
+        },
+        "authorizedOverlapCount": {
+          "const": 1
+        },
+        "s10OverlapCount": {
+          "const": 0
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changedPathCount",
+        "missingPathCount",
+        "unownedChangedPathCount",
+        "s10ReservationOverlapCount"
+      ],
+      "properties": {
+        "changedPathCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 17
+        },
+        "missingPathCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 17
+        },
+        "unownedChangedPathCount": {
+          "const": 0
+        },
+        "s10ReservationOverlapCount": {
+          "const": 0
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "status",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "SOURCE_PRESENT",
+            "SOURCE_MISSING"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "selector": {
+      "type": "string",
+      "enum": [
+        "testV23P04C15G01DiscoveryTruthCatalogValidatesLocalizedLimitsAndClosedArtifactSet",
+        "testV23P04C15A01CategoriesAndAppTagsRemainSeparateTypedSets",
+        "testV23P04C15H01HostileOpaqueStaleRealDataAndDraftPublishedInputsFailClosed",
+        "testV23P04C15I01InterruptedDeclarationGenerationLeavesZeroPartialOrCompleteArtifactSet",
+        "testV23P04C15R01DeletingAndRebuildingDeclarationArtifactsLeavesProductAndPublicStateUnchanged"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceReady",
+        "sourceRows",
+        "counts",
+        "selectors"
+      ],
+      "properties": {
+        "sourceReady": {
+          "type": "boolean"
+        },
+        "sourceRows": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "$ref": "#/$defs/row"
+          }
+        },
+        "counts": {
+          "$ref": "#/$defs/counts"
+        },
+        "selectors": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/selector"
+          }
+        }
+      }
+    },
+    "semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persistentContractMode",
+        "persistentContractSchema",
+        "publicationEligible",
+        "sixProofKinds",
+        "aggregateNoJoinKey",
+        "aggregateNoRealData",
+        "uiAdoption",
+        "statusFlags"
+      ],
+      "properties": {
+        "persistentContractMode": {
+          "const": "DECLARATION_ONLY"
+        },
+        "persistentContractSchema": {
+          "const": "DISCOVERY_TRUTH_CATALOG_V1"
+        },
+        "publicationEligible": {
+          "const": false
+        },
+        "sixProofKinds": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "string",
+            "enum": [
+              "CAPABILITY",
+              "EVIDENCE",
+              "BRAND",
+              "CANDIDATE",
+              "APPROVAL",
+              "EXPIRY_SUPERSESSION"
+            ]
+          }
+        },
+        "aggregateNoJoinKey": {
+          "const": true
+        },
+        "aggregateNoRealData": {
+          "const": true
+        },
+        "uiAdoption": {
+          "const": "POST_S10_6_SKIP_NO_CREDIT"
+        },
+        "statusFlags": {
+          "$ref": "#/$defs/flags"
+        }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "schemaVersion",
+        "cardID",
+        "provisional",
+        "authority",
+        "semantics",
+        "sourceProjection",
+        "testSelectors",
+        "statusFlags"
+      ],
+      "properties": {
+        "schema": {
+          "const": "V23P04C15DiscoveryTruthContractV1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "cardID": {
+          "const": "V23-P04-C15"
+        },
+        "provisional": {
+          "const": true
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "semantics": {
+          "$ref": "#/$defs/semantics"
+        },
+        "sourceProjection": {
+          "$ref": "#/$defs/source"
+        },
+        "testSelectors": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/selector"
+          }
+        },
+        "statusFlags": {
+          "$ref": "#/$defs/flags"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "schemaVersion",
+        "cardID",
+        "provisional",
+        "authority",
+        "sourceProjection",
+        "contractDigest",
+        "sourceContractsHostileSelfTest",
+        "interruptionAcceptanceEvidence",
+        "statusFlags"
+      ],
+      "properties": {
+        "schema": {
+          "const": "V23P04C15DiscoveryTruthEvidenceReceiptV1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "cardID": {
+          "const": "V23-P04-C15"
+        },
+        "provisional": {
+          "const": true
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "sourceProjection": {
+          "$ref": "#/$defs/source"
+        },
+        "contractDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceContractsHostileSelfTest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sourceContractsSelfTest",
+            "rejected",
+            "count"
+          ],
+          "properties": {
+            "sourceContractsSelfTest": {
+              "const": "PASS"
+            },
+            "count": {
+              "const": 8
+            },
+            "rejected": {
+              "type": "array",
+              "minItems": 8,
+              "maxItems": 8,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "interruptionAcceptanceEvidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol",
+            "noWorktreeMutation",
+            "rows"
+          ],
+          "properties": {
+            "protocol": {
+              "const": "MANIFEST_LAST_ATOMIC_REPLACE"
+            },
+            "noWorktreeMutation": {
+              "const": true
+            },
+            "rows": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "boundary",
+                  "acceptedSetCount"
+                ],
+                "properties": {
+                  "boundary": {
+                    "enum": [
+                      "BEFORE_ACCEPTED_ARTIFACT_WRITE",
+                      "AFTER_ARTIFACT_WRITE_BEFORE_RECEIPT",
+                      "AFTER_RECEIPT_BEFORE_RETURN"
+                    ]
+                  },
+                  "acceptedSetCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "statusFlags": {
+          "$ref": "#/$defs/flags"
+        }
+      }
+    },
+    "brand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "schemaVersion",
+        "cardID",
+        "provisional",
+        "authority",
+        "semantics",
+        "sourceProjection",
+        "uiAdoptionSkipped",
+        "uiAcceptanceCredit",
+        "statusFlags"
+      ],
+      "properties": {
+        "schema": {
+          "const": "V23P04C15BrandImpactManifestV1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "cardID": {
+          "const": "V23-P04-C15"
+        },
+        "provisional": {
+          "const": true
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "semantics": {
+          "$ref": "#/$defs/semantics"
+        },
+        "sourceProjection": {
+          "$ref": "#/$defs/source"
+        },
+        "uiAdoptionSkipped": {
+          "const": true
+        },
+        "uiAcceptanceCredit": {
+          "const": false
+        },
+        "statusFlags": {
+          "$ref": "#/$defs/flags"
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "schemaVersion",
+        "cardID",
+        "provisional",
+        "finalHashesSealed",
+        "authority",
+        "pathFence",
+        "files",
+        "sources",
+        "counts",
+        "toolingPaths",
+        "statusFlags"
+      ],
+      "properties": {
+        "schema": {
+          "const": "V23P04C15ToolingManifestV1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "cardID": {
+          "const": "V23-P04-C15"
+        },
+        "provisional": {
+          "const": true
+        },
+        "finalHashesSealed": {
+          "const": false
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "pathFence": {
+          "type": "array",
+          "minItems": 17,
+          "maxItems": 17,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "files": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "$ref": "#/$defs/row"
+          }
+        },
+        "counts": {
+          "$ref": "#/$defs/counts"
+        },
+        "toolingPaths": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "statusFlags": {
+          "$ref": "#/$defs/flags"
+        }
+      }
+    }
+  }
+}

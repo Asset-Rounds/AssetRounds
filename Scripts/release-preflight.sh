@@ -24,6 +24,7 @@ values="Release/ProvidedReleaseValuesV1.json"
 metadata="Release/UnsignedRCMetadataV1.json"
 privacy="FieldEvidenceApp/PrivacyInfo.xcprivacy"
 smokes="Release/LaunchSmokeEvidenceIndexV1.json"
+discovery_truth="FieldEvidenceAppTests/Fixtures/V21/DiscoveryTruth/V23P04C15DiscoveryTruthCorpusV1.json"
 export_options="Release/TestFlightExportOptions.plist"
 workflow=".github/workflows/testflight.yml"
 project="FieldEvidenceApp.xcodeproj/project.pbxproj"
@@ -34,6 +35,7 @@ for path in \
   "$metadata" \
   "$privacy" \
   "$smokes" \
+  "$discovery_truth" \
   "$export_options" \
   "$workflow" \
   "$project"
@@ -42,6 +44,323 @@ do
   test ! -L "$path"
   test -s "$path"
 done
+
+source_contract_result="$(python3 -B Scripts/v23/verify_p04_c15_contracts.py --source-contracts --json)"
+jq -e '
+  .cardID == "V23-P04-C15"
+  and .mode == "source-contracts"
+  and .result == "PASS_STATIC_PROVISIONAL"
+  and .sourceReady == true
+  and .sourceContracts.sourceReady == true
+  and .sourceContracts.sourceCount == 7
+  and .sourceContracts.proofCount == 6
+  and (.failures | length) == 0
+  and .flagsAllFalse == true
+' <<<"$source_contract_result" >/dev/null
+
+source_contract_self_test_result="$(python3 -B Scripts/v23/verify_p04_c15_contracts.py --source-contracts-self-test --json)"
+jq -e '
+  .cardID == "V23-P04-C15"
+  and .mode == "source-contracts-self-test"
+  and .result == "PASS_STATIC_PROVISIONAL"
+  and .sourceReady == true
+  and .sourceContracts.sourceCount == 7
+  and .sourceContracts.proofCount == 6
+  and .sourceContractsSelfTest.sourceContractsSelfTest == "PASS"
+  and .sourceContractsSelfTest.count == 8
+  and .sourceContractsSelfTest.rejected == [
+    "brand-root-opaque",
+    "synthetic-sample-opaque",
+    "aggregate-evidence-opaque",
+    "accessibility-root-opaque",
+    "privacy-artifact-opaque",
+    "catalog-ref-opaque",
+    "candidate-digest-wrong",
+    "approval-extra-key"
+  ]
+  and (.failures | length) == 0
+  and .flagsAllFalse == true
+' <<<"$source_contract_self_test_result" >/dev/null
+
+generator_interrupt_result="$(python3 -B Scripts/v23/generate_p04_c15_contracts.py --self-test)"
+case "$generator_interrupt_result" in
+  "C15 interruption self-test PASS "*) ;;
+  *) exit 65 ;;
+esac
+
+jq -e '
+  keys == [
+    "acquisition",
+    "artifacts",
+    "authority",
+    "cardID",
+    "catalog",
+    "containsCustomerData",
+    "containsSecrets",
+    "expectedDispositions",
+    "hostileCases",
+    "immutable",
+    "journalFaultBoundaries",
+    "lifecycleCoverage",
+    "ordinal",
+    "productState",
+    "publicState",
+    "publication",
+    "recovery",
+    "requirements",
+    "schema",
+    "schemaVersion",
+    "selectors",
+    "semantics",
+    "statusFlags",
+    "synthetic",
+    "testOnly",
+    "uiAdoptionSkipped"
+  ]
+  and .schema == "V23P04C15DiscoveryTruthCorpusV1"
+  and .schemaVersion == 1
+  and .cardID == "V23-P04-C15"
+  and .ordinal == 103
+  and .testOnly == true
+  and .synthetic == true
+  and .immutable == true
+  and .containsCustomerData == false
+  and .containsSecrets == false
+  and .uiAdoptionSkipped == true
+  and (.authority | keys) == ["contextDigest", "finalHashesSealed", "pathFenceDigest", "sequence"]
+  and (.authority.contextDigest | test("^[0-9a-f]{64}$"))
+  and (.authority.pathFenceDigest | test("^[0-9a-f]{64}$"))
+  and .authority.sequence == 448
+  and .authority.finalHashesSealed == false
+  and (.semantics | keys) == [
+    "aggregateNoJoinKey",
+    "aggregateNoRealData",
+    "persistentContractMode",
+    "persistentContractSchema",
+    "publicationEligible",
+    "sixProofKinds",
+    "uiAdoption"
+  ]
+  and .semantics.persistentContractMode == "DECLARATION_ONLY"
+  and .semantics.persistentContractSchema == "DISCOVERY_TRUTH_CATALOG_V1"
+  and .semantics.publicationEligible == false
+  and .semantics.sixProofKinds == [
+    "CAPABILITY",
+    "EVIDENCE",
+    "BRAND",
+    "CANDIDATE",
+    "APPROVAL",
+    "EXPIRY_SUPERSESSION"
+  ]
+  and .semantics.aggregateNoJoinKey == true
+  and .semantics.aggregateNoRealData == true
+  and .semantics.uiAdoption == "POST_S10_6_SKIP_NO_CREDIT"
+  and (.selectors | map(.id)) == ["G01", "A01", "H01", "I01", "R01"]
+  and (.selectors | map(.tier)) == ["GOLDEN", "ALTERNATE", "HOSTILE", "INTERRUPTION", "RECOVERY"]
+  and (.selectors | map(.selector)) == [
+    "testV23P04C15G01DiscoveryTruthCatalogValidatesLocalizedLimitsAndClosedArtifactSet",
+    "testV23P04C15A01CategoriesAndAppTagsRemainSeparateTypedSets",
+    "testV23P04C15H01HostileOpaqueStaleRealDataAndDraftPublishedInputsFailClosed",
+    "testV23P04C15I01InterruptedDeclarationGenerationLeavesZeroPartialOrCompleteArtifactSet",
+    "testV23P04C15R01DeletingAndRebuildingDeclarationArtifactsLeavesProductAndPublicStateUnchanged"
+  ]
+  and (.requirements | keys) == [
+    "aggregateEvidenceHasNoStableJoinKeys",
+    "candidateAndBrandRevisionBindExactly",
+    "categoriesAndAppTagsAreSeparate",
+    "closedLocalizedPlatformLimits",
+    "declarationDeletionPreservesProductAndPublicState",
+    "interruptionIsZeroPartialOrComplete",
+    "publicationProviderAndNetworkDisabled",
+    "staticProofKindsAreClosed",
+    "syntheticSamplesOnly",
+    "unapprovedClaimsDisabledOrDeferred"
+  ]
+  and all(.requirements[]; . == true)
+  and (.catalog | keys) == ["appTags", "candidate", "categories", "claims", "locales", "screenshots"]
+  and (.catalog.candidate | keys) == [
+    "brandBaselineID",
+    "brandRevision",
+    "brandRevisionSHA256",
+    "candidateID",
+    "status"
+  ]
+  and .catalog.candidate.candidateID == "c15-candidate-synthetic-v1"
+  and .catalog.candidate.status == "DRAFT_ONLY"
+  and .catalog.candidate.brandBaselineID == "c15-brand-baseline-synthetic-v1"
+  and .catalog.candidate.brandRevision == "c15-brand-revision-v1"
+  and (.catalog.candidate.brandRevisionSHA256 | test("^[0-9a-f]{64}$"))
+  and (.catalog.locales | map(.locale)) == ["en-US", "fr-FR"]
+  and all(.catalog.locales[];
+    (. | keys) == ["description", "keywords", "locale", "name", "promotionalText", "subtitle"]
+    and (.locale == "en-US" or .locale == "fr-FR")
+    and (.name | type) == "string"
+    and (.name | length) > 0
+    and (.name | length) <= 30
+    and (.subtitle | type) == "string"
+    and (.subtitle | length) > 0
+    and (.subtitle | length) <= 30
+    and (.keywords | type) == "string"
+    and (.keywords | utf8bytelength) <= 100
+    and (.promotionalText | type) == "string"
+    and (.promotionalText | length) <= 170
+    and (.description | type) == "string"
+    and (.description | length) <= 4000
+  )
+  and .catalog.categories == ["BUSINESS", "PRODUCTIVITY"]
+  and .catalog.appTags == ["EVIDENCE", "FIELD_WORK"]
+  and ((.catalog.categories | unique) - .catalog.appTags | length) == 2
+  and ((.catalog.appTags | unique) - .catalog.categories | length) == 2
+  and (.catalog.screenshots | map(.id)) == ["c15-shot-home-v1", "c15-shot-report-v1"]
+  and (.catalog.screenshots | map(.surface)) == ["HOME", "SAMPLE_REPORT"]
+  and all(.catalog.screenshots[];
+    (. | keys) == ["artifactID", "id", "publishable", "status", "surface"]
+    and .status == "DRAFT_ONLY"
+    and .publishable == false
+  )
+  and (.catalog.claims | map(.id)) == ["verified-outcomes", "ratings", "privacy-certification"]
+  and all(.catalog.claims[];
+    (. | keys) == ["enabled", "evidenceID", "id", "status"]
+    and .enabled == false
+    and .status == "DISABLED_OR_DEFERRED"
+    and .evidenceID == null
+  )
+  and (.artifacts | map(.kind)) == ["HOME", "USE_CASE", "PRIVACY", "ACCESSIBILITY", "SUPPORT", "SAMPLE_REPORT"]
+  and (.artifacts | map(.id)) == [
+    "c15-home-proof-v1",
+    "c15-use-case-proof-v1",
+    "c15-privacy-proof-v1",
+    "c15-accessibility-proof-v1",
+    "c15-support-proof-v1",
+    "c15-sample-report-proof-v1"
+  ]
+  and all(.artifacts[];
+    (. | keys) == [
+      "containsCustomerData",
+      "contentSHA256",
+      "id",
+      "kind",
+      "practiceWorkspace",
+      "publishable",
+      "status",
+      "watermarks"
+    ]
+    and (.id | test("^(c15-[a-z-]+-v1)$"))
+    and (.id | test("customer|person|device|workspace|entity|production|real"; "i") | not)
+    and .status == "DRAFT_ONLY"
+    and .publishable == false
+    and .containsCustomerData == false
+    and (.contentSHA256 | test("^[0-9a-f]{64}$"))
+    and (.watermarks | type) == "array"
+    and (.watermarks | index("SYNTHETIC EXAMPLE — NO CUSTOMER DATA")) != null
+    and (if .practiceWorkspace then (.watermarks | index("PRACTICE — NOT FOR FIELD USE")) != null else true end)
+  )
+  and (.acquisition | keys) == [
+    "claimStatus",
+    "containsRealData",
+    "deviceIdentifiers",
+    "enabled",
+    "entityIdentifiers",
+    "networkAccess",
+    "personIdentifiers",
+    "provider",
+    "source",
+    "stableJoinKeys",
+    "watermark",
+    "workspaceIdentifiers"
+  ]
+  and .acquisition.enabled == false
+  and .acquisition.claimStatus == "DISABLED_OR_DEFERRED"
+  and .acquisition.source == "AGGREGATE_SYNTHETIC_FIXTURE"
+  and .acquisition.provider == "NONE"
+  and .acquisition.networkAccess == false
+  and .acquisition.containsRealData == false
+  and .acquisition.stableJoinKeys == []
+  and .acquisition.personIdentifiers == []
+  and .acquisition.deviceIdentifiers == []
+  and .acquisition.workspaceIdentifiers == []
+  and .acquisition.entityIdentifiers == []
+  and .acquisition.watermark == "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+  and (.publication | keys) == ["deployment", "networkAccess", "provider", "publishable", "signing", "status", "upload"]
+  and .publication.status == "DRAFT_ONLY"
+  and .publication.publishable == false
+  and .publication.upload == false
+  and .publication.signing == false
+  and .publication.deployment == false
+  and .publication.networkAccess == false
+  and .publication.provider == "NONE"
+  and all(.expectedDispositions[];
+    (. | keys) == ["acceptedArtifactCount", "case", "disposition", "productWrites", "publicWrites"]
+    and (.acceptedArtifactCount | type) == "number"
+    and .acceptedArtifactCount >= 0
+    and .productWrites == 0
+    and .publicWrites == 0
+  )
+  and .hostileCases == [
+    "ARBITRARY_NONEMPTY_METADATA",
+    "PLATFORM_LIMIT_OVERFLOW",
+    "UNSUPPORTED_LOCALE",
+    "CATEGORY_AS_APP_TAG",
+    "STALE_BRAND_REVISION",
+    "UNIMPLEMENTED_ENABLED_CLAIM",
+    "REAL_DATA_IDENTIFIER",
+    "MISSING_SYNTHETIC_WATERMARK",
+    "MISSING_PRACTICE_WATERMARK",
+    "STABLE_JOIN_KEY",
+    "DRAFT_LABELED_PUBLISHED",
+    "PUBLICATION_PROVIDER_PATH",
+    "NETWORK_ACCESS_PATH"
+  ]
+  and .journalFaultBoundaries == [
+    "BEFORE_ACCEPTED_ARTIFACT_WRITE",
+    "AFTER_ARTIFACT_WRITE_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_RETURN"
+  ]
+  and .lifecycleCoverage == [
+    "DELETE_DECLARATION_DRAFTS",
+    "REBUILD_DECLARATION_DRAFTS",
+    "EXPORT_DECLARATION_REPORT",
+    "SEARCH_DECLARATION_FIXTURES",
+    "REPLAY_DECLARATION_RECEIPT"
+  ]
+  and (.recovery | keys) == [
+    "backupRestore",
+    "delete",
+    "noProviderConnection",
+    "noUpload",
+    "preservesProductState",
+    "preservesPublicState",
+    "rebuild",
+    "replay"
+  ]
+  and .recovery.backupRestore == "NOT_APPLICABLE_DECLARATION_ONLY"
+  and .recovery.delete == "DECLARATION_ONLY_ARTIFACTS"
+  and .recovery.rebuild == "EXACT_CATALOG_AND_ARTIFACT_SET"
+  and .recovery.replay == "ZERO_PARTIAL_OR_ONE_COMPLETE_RECEIPT"
+  and .recovery.preservesProductState == true
+  and .recovery.preservesPublicState == true
+  and .recovery.noProviderConnection == true
+  and .recovery.noUpload == true
+  and (.productState | keys) == ["canonicalWrites", "mutationReceipts", "publishedRecords", "workspaceRecords"]
+  and all(.productState[]; . == 0)
+  and (.publicState | keys) == ["networkRequests", "providerConnections", "publishedArtifacts", "uploads"]
+  and all(.publicState[]; . == 0)
+  and (.statusFlags | keys) == [
+    "acceptance",
+    "activation",
+    "adoption",
+    "hosted",
+    "hostedAcceptance",
+    "native",
+    "nativeAcceptance",
+    "phase10PollingDuringParallelExecution",
+    "physicalEvidence",
+    "publish",
+    "release",
+    "uiAcceptanceCredit"
+  ]
+  and all(.statusFlags[]; . == false)
+' "$discovery_truth" >/dev/null
 
 expected_input_keys="$(
   printf '%s\n' \

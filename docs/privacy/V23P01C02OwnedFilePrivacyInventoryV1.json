@@ -48,6 +48,91 @@
     "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
   },
   "cardID": "V23-P01-C02",
+  "c15DeclarationOnlyArtifacts": [
+    {
+      "classification": "DECLARATION_ONLY_SYNTHETIC_OR_AGGREGATE",
+      "id": "C15_DISCOVERY_TRUTH_CATALOG",
+      "path": "docs/product/discovery/DiscoveryTruthCatalogV1.json"
+    },
+    {
+      "classification": "DECLARATION_ONLY_STATIC_PROOF",
+      "id": "C15_BRANDED_STATIC_PROOF",
+      "path": "docs/product/discovery/V23P04C15BrandedStaticProofManifestV1.json"
+    },
+    {
+      "classification": "SYNTHETIC_SAMPLE_DECLARATION_ONLY",
+      "id": "C15_SYNTHETIC_SAMPLE",
+      "path": "docs/product/discovery/V23P04C15SyntheticSampleManifestV1.json"
+    },
+    {
+      "classification": "AGGREGATE_DECLARATION_ONLY",
+      "id": "C15_AGGREGATE_ACQUISITION",
+      "path": "docs/product/discovery/V23P04C15AggregateAcquisitionEvidenceV1.json"
+    },
+    {
+      "classification": "DECLARATION_ONLY_STATIC_PROOF",
+      "id": "C15_ACCESSIBILITY_STATIC_PROOF",
+      "path": "docs/accessibility/V23P04C15StaticProofAccessibilityManifestV1.json"
+    },
+    {
+      "classification": "SYNTHETIC_FIXTURE_DECLARATION_ONLY",
+      "id": "C15_DISCOVERY_FIXTURE",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/DiscoveryTruth/V23P04C15DiscoveryTruthCorpusV1.json"
+    },
+    {
+      "classification": "DECLARATION_ONLY_TOOLING",
+      "id": "C15_CONTRACT_GENERATOR",
+      "path": "Scripts/v23/p04_c15_contracts.py"
+    },
+    {
+      "classification": "DECLARATION_ONLY_TOOLING",
+      "id": "C15_CONTRACT_GENERATION_ENTRYPOINT",
+      "path": "Scripts/v23/generate_p04_c15_contracts.py"
+    },
+    {
+      "classification": "DECLARATION_ONLY_TOOLING",
+      "id": "C15_CONTRACT_VERIFIER",
+      "path": "Scripts/v23/verify_p04_c15_contracts.py"
+    },
+    {
+      "classification": "DECLARATION_ONLY_SCHEMA",
+      "id": "C15_DISCOVERY_SCHEMA",
+      "path": "Scripts/v23/discovery-truth-catalog.schema.json"
+    },
+    {
+      "classification": "DECLARATION_ONLY_TOOLING",
+      "id": "C15_TOOLING_CONTRACT",
+      "path": "docs/design/v23/tooling/V23P04C15DiscoveryTruthContractV1.json"
+    },
+    {
+      "classification": "DECLARATION_ONLY_TOOLING",
+      "id": "C15_TOOLING_EVIDENCE_RECEIPT",
+      "path": "docs/design/v23/tooling/V23P04C15DiscoveryTruthEvidenceReceiptV1.json"
+    },
+    {
+      "classification": "DECLARATION_ONLY_TOOLING",
+      "id": "C15_TOOLING_BRAND_IMPACT",
+      "path": "docs/design/v23/tooling/V23P04C15BrandImpactManifestV1.json"
+    },
+    {
+      "classification": "DECLARATION_ONLY_TOOLING",
+      "id": "C15_TOOLING_MANIFEST",
+      "path": "docs/design/v23/tooling/V23-P04-C15-tooling-manifest.json"
+    }
+  ],
+  "c15DeclarationOnlyPolicy": {
+    "backup": "NOT_APPLICABLE",
+    "canonicalPersistence": false,
+    "containsRealCustomerContactLocationNoteOrEvidenceData": false,
+    "delete": "REMOVE_DECLARATION_ARTIFACT_ONLY",
+    "export": "DECLARATION_ONLY_NONPUBLIC",
+    "hasStablePersonDeviceWorkspaceOrEntityJoinKeys": false,
+    "networkOrProviderAccess": false,
+    "productOrReleaseCredit": false,
+    "report": "STATIC_PROOF_ONLY",
+    "retention": "REGENERATABLE_DECLARATION_ONLY",
+    "telemetryAnalyticsAttributionOrSessionReplay": false
+  },
   "diagnosticsAllowlist": {
     "contract": "S8.3",
     "mutationAuthorized": false,
