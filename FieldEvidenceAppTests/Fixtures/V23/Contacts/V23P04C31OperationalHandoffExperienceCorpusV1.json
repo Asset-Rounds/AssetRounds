@@ -1,0 +1,140 @@
+{
+  "schema": "V23P04C31OperationalHandoffExperienceCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C31",
+  "classification": "IMPLEMENT_NOW",
+  "persistence": {
+    "session": "NONPERSISTENT",
+    "destination": "EPHEMERAL",
+    "systemOutcome": "NONPERSISTENT",
+    "canonicalWriterCalls": 0,
+    "communicationHistoryWrites": 0,
+    "marketingWrites": 0
+  },
+  "subjects": ["SITE", "PARTY"],
+  "actions": ["DIRECTIONS", "CALL", "TEXT", "EMAIL"],
+  "dispositions": [
+    "HANDED_OFF_TO_SYSTEM",
+    "TARGET_MISSING",
+    "TARGET_STALE",
+    "TARGET_INVALID",
+    "SYSTEM_UNAVAILABLE",
+    "SYSTEM_REJECTED",
+    "CANCELLED_BEFORE_HANDOFF"
+  ],
+  "goldenCases": [
+    {
+      "caseID": "SITE_COORDINATE_ONLY",
+      "subject": "SITE",
+      "action": "DIRECTIONS",
+      "destination": "COORDINATE",
+      "expectedDisposition": "HANDED_OFF_TO_SYSTEM",
+      "expectedNativeBoundary": "MKMapItem"
+    },
+    {
+      "caseID": "SITE_ADDRESS_ONLY",
+      "subject": "SITE",
+      "action": "DIRECTIONS",
+      "destination": "EXACT_ADDRESS",
+      "expectedDisposition": "HANDED_OFF_TO_SYSTEM",
+      "expectedNativeBoundary": "SYSTEM_URL"
+    },
+    {
+      "caseID": "PARTY_PHONE_CALL",
+      "subject": "PARTY",
+      "action": "CALL",
+      "destination": "PHONE",
+      "expectedDisposition": "HANDED_OFF_TO_SYSTEM"
+    },
+    {
+      "caseID": "PARTY_PHONE_TEXT",
+      "subject": "PARTY",
+      "action": "TEXT",
+      "destination": "PHONE",
+      "expectedDisposition": "HANDED_OFF_TO_SYSTEM"
+    },
+    {
+      "caseID": "PARTY_EMAIL",
+      "subject": "PARTY",
+      "action": "EMAIL",
+      "destination": "EMAIL",
+      "expectedDisposition": "HANDED_OFF_TO_SYSTEM"
+    }
+  ],
+  "alternateCases": [
+    {
+      "caseID": "MULTIPLE_VALUES_PREFERRED_ORDER",
+      "input": "one Party has multiple effective phone/email values with at most one preferred value per kind",
+      "expectedDisposition": "EXPLICIT_CHOOSER_SELECTION"
+    },
+    {
+      "caseID": "SYSTEM_UNAVAILABLE_COPY_FALLBACK",
+      "input": "valid freshly resolved value and unavailable system capability",
+      "expectedDisposition": "COPY_ONLY_NO_SYSTEM_CALL"
+    },
+    {
+      "caseID": "SYSTEM_REJECTED_COPY_FALLBACK",
+      "input": "valid freshly resolved value and one rejected system presentation",
+      "expectedDisposition": "COPY_ONLY_NO_RETRY"
+    }
+  ],
+  "hostileCases": [
+    "BLANK_VALUE",
+    "RETIRED_VALUE",
+    "BIDI_OR_CONTROL_TEXT",
+    "URL_QUERY_FRAGMENT_INJECTION",
+    "AMBIGUOUS_MULTIPLE_PREFERRED_VALUES",
+    "STALE_SITE_REVISION_OR_DIGEST",
+    "STALE_PARTY_CONTACT_REVISION_OR_DIGEST",
+    "DELETED_SITE_OR_PARTY",
+    "CROSS_WORKSPACE_TARGET",
+    "CHANNEL_VALUE_KIND_MISMATCH",
+    "UNSUPPORTED_SYSTEM_CONFIGURATION"
+  ],
+  "interruptionCases": [
+    "CANCEL_BEFORE_PREPARE",
+    "CANCEL_BEFORE_SYSTEM_PRESENTATION",
+    "BACKGROUND_DISMISSES_EPHEMERAL_SESSION",
+    "REPEATED_TAP_ONE_PRESENTATION_ATTEMPT",
+    "RETURN_RESTORES_ROUTE_SELECTION_SCROLL_AND_FOCUS"
+  ],
+  "truthClaims": {
+    "handedOffMeansIOSAcceptedPresentationOnly": true,
+    "sent": false,
+    "delivered": false,
+    "called": false,
+    "answered": false,
+    "routed": false,
+    "arrived": false,
+    "verified": false,
+    "consented": false,
+    "communicationHistory": false,
+    "currentLocationPermission": false,
+    "networkProvider": false,
+    "geocoder": false,
+    "routeOptimization": false
+  },
+  "accessibility": {
+    "selectedSourceAndValueSpoken": true,
+    "actionAndSystemHintDistinct": true,
+    "statusNotColorOnly": true,
+    "explicitActivationRequired": true,
+    "rtlAndLargerText": true,
+    "oneHandedReach": true
+  },
+  "evidenceIDs": [
+    "V23-P04-C31-G01",
+    "V23-P04-C31-A01",
+    "V23-P04-C31-H01",
+    "V23-P04-C31-I01",
+    "V23-P04-C31-R01"
+  ],
+  "statusFlags": {
+    "native": false,
+    "hosted": false,
+    "physical": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false
+  }
+}

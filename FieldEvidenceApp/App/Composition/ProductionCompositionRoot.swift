@@ -37,6 +37,31 @@ final class ProductionCompositionRoot {
         return InjectedProtectedIngressStoreV1(effects: effects)
     }
 
+    /// C31 composes only foreground, nonpersistent handoff state. The caller
+    /// supplies the system clipboard boundary; this root deliberately does not
+    /// expose the workspace writer or create a durable handoff-intent row.
+    func makeOperationalContactHandoffSession(
+        accessGate: any AppAccessGatePortV1,
+        clipboard: any OperationalContactHandoffValueCopyingV1
+    ) async throws -> OperationalContactHandoffSessionV1 {
+        guard Self.c16AccessGateProductionAdoptionComplete
+                == WorkspaceExperienceAppAccessAdoptionBoundaryV1.productionCallerAdoptionComplete else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        _ = try await accessGate.requireContentAccess(for: .render)
+        return OperationalContactHandoffSessionV1(
+            workspaceID: lifecycle.workspaceID,
+            query: OperationalContactRowQueryV1(
+                modelContext: modelContext,
+                workspaceID: lifecycle.workspaceID
+            ),
+            system: SystemHandoffAdapterV1(clock: lifecycle.clock),
+            clock: lifecycle.clock,
+            idSource: lifecycle.idSource,
+            clipboard: clipboard
+        )
+    }
+
     private let modelContext: ModelContext
     private let diagnosticsStore: DiagnosticsStore
     private let lifecycle: WorkspacePackageLifecycleDependenciesV1

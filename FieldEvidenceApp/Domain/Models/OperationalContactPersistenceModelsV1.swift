@@ -177,6 +177,66 @@ final class OperationalContactRowQueryV1:
         self.workspaceID = workspaceID
     }
 
+    func currentHandoffPresentationSnapshot(
+        workspaceID: WorkspaceID,
+        subject: OperationalContactHandoffSubjectV1
+    ) async throws -> OperationalContactHandoffPresentationSnapshotV1? {
+        guard workspaceID == self.workspaceID else { return nil }
+        let raw = workspaceID.rawValue
+        switch subject {
+        case let .site(siteID):
+            guard let directions = try await currentSiteDirectionsSnapshot(
+                workspaceID: workspaceID,
+                siteID: siteID
+            ) else { return nil }
+            let sites = try modelContext.fetch(FetchDescriptor<Site>(
+                predicate: #Predicate { $0.id == siteID }
+            ))
+            guard sites.count == 1, let site = sites.first else {
+                throw OperationalContactPersistenceFailureV1.corruptRow
+            }
+            return try OperationalContactHandoffPresentationSnapshotV1(
+                subject: subject,
+                displayName: site.label,
+                directions: directions
+            )
+
+        case let .party(partyID):
+            let parties = try modelContext.fetch(FetchDescriptor<ServicePartyRow>(
+                predicate: #Predicate { $0.workspaceID == raw && $0.partyID == partyID }
+            ))
+            guard parties.count <= 1 else {
+                throw OperationalContactPersistenceFailureV1.corruptRow
+            }
+            guard let partyRow = parties.first else { return nil }
+            let party = try partyRow.value()
+            try party.validate()
+            guard party.workspaceID == workspaceID, party.state == .effective else {
+                throw OperationalContactPersistenceFailureV1.corruptRow
+            }
+
+            let rows = try modelContext.fetch(FetchDescriptor<ServiceContactPointRow>(
+                predicate: #Predicate { $0.workspaceID == raw && $0.partyID == partyID }
+            ))
+            let allContacts = try rows.map { try $0.value() }
+            guard Set(allContacts.map(\.contactPointID)).count == allContacts.count,
+                  allContacts.allSatisfy({ contact in
+                      contact.workspaceID == workspaceID
+                          && contact.party == party
+                  }) else {
+                throw OperationalContactPersistenceFailureV1.corruptRow
+            }
+            let contacts = allContacts.filter { $0.lifecycle == .effective }
+            return try OperationalContactHandoffPresentationSnapshotV1(
+                subject: subject,
+                displayName: party.displayName,
+                contacts: try contacts.map {
+                    try OperationalContactHandoffContactPresentationV1(contact: $0)
+                }
+            )
+        }
+    }
+
     func currentServiceContactPoint(
         workspaceID: WorkspaceID,
         contactPointID: UUID

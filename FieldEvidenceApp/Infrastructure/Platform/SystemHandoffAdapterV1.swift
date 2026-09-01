@@ -1,4 +1,5 @@
 import Foundation
+import MapKit
 import UIKit
 
 /// C46 platform boundary: a durable `SystemHandoffIntentV1` authorizes only
@@ -22,6 +23,9 @@ enum SystemHandoffURLBuilderV1 {
             let lon = fixedMicrodegrees(longitude)
             return try mapsURL(destination: "\(lat),\(lon)")
         case let .exactAddress(address):
+            guard isSafeMapDestination(address) else {
+                throw SystemHandoffURLFailureV1.invalidDestination
+            }
             return try mapsURL(destination: address)
         case let .phone(value):
             let number = try normalizedPhone(value)
@@ -69,6 +73,9 @@ enum SystemHandoffURLBuilderV1 {
     }
 
     private static func normalizedPhone(_ value: String) throws -> String {
+        guard !containsUnsafePresentationScalar(value) else {
+            throw SystemHandoffURLFailureV1.invalidDestination
+        }
         let scalars = value.unicodeScalars
         let hasLeadingPlus = scalars.first?.value == 0x2b
         let digits = scalars.filter { CharacterSet.decimalDigits.contains($0) }
@@ -82,6 +89,7 @@ enum SystemHandoffURLBuilderV1 {
     private static func isSafeEmail(_ value: String) -> Bool {
         guard value.utf8.count <= 254,
               value == value.precomposedStringWithCanonicalMapping,
+              !containsUnsafePresentationScalar(value),
               !value.contains(".."),
               value.first != ".", value.last != ".",
               !value.contains("?"), !value.contains("#"),
@@ -97,6 +105,22 @@ enum SystemHandoffURLBuilderV1 {
             .union(.illegalCharacters)
         return value.unicodeScalars.allSatisfy { !forbidden.contains($0) }
             && !parts[1].hasPrefix(".") && !parts[1].hasSuffix(".")
+    }
+
+    /// `URLComponents` isolates the destination into one query value; this
+    /// additional gate rejects control and bidi formatting scalars so an exact
+    /// address cannot conceal a different destination from the person tapping.
+    private static func isSafeMapDestination(_ value: String) -> Bool {
+        !value.isEmpty && !containsUnsafePresentationScalar(value)
+    }
+
+    private static func containsUnsafePresentationScalar(_ value: String) -> Bool {
+        let forbidden = CharacterSet.controlCharacters
+            .union(.illegalCharacters)
+            .union(CharacterSet(charactersIn:
+                "\u{00AD}\u{061C}\u{200B}\u{200C}\u{200D}\u{200E}\u{200F}\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2060}\u{2061}\u{2062}\u{2063}\u{2064}\u{2066}\u{2067}\u{2068}\u{2069}\u{206A}\u{206B}\u{206C}\u{206D}\u{206E}\u{206F}\u{FEFF}"
+            ))
+        return value.unicodeScalars.contains(forbidden.contains)
     }
 
     /// RFC 6068 recipient-only encoding over the exact NFC UTF-8 bytes. Only
@@ -141,18 +165,45 @@ final class UIApplicationSystemURLHandoffOpenerV1: SystemURLHandoffOpeningV1 {
     }
 }
 
+/// The sole native Maps boundary for coordinate destinations. It neither
+/// resolves a location nor calculates, records, or observes a route.
+@MainActor
+protocol SystemDirectionsHandoffPresentingV1: AnyObject {
+    var canPresentSystemDirections: Bool { get }
+    func presentOnce(latitudeMicrodegrees: Int32, longitudeMicrodegrees: Int32) async -> Bool
+}
+
+@MainActor
+final class MKMapItemSystemDirectionsPresenterV1: SystemDirectionsHandoffPresentingV1 {
+    var canPresentSystemDirections: Bool {
+        UIApplication.shared.applicationState == .active
+    }
+
+    func presentOnce(latitudeMicrodegrees: Int32, longitudeMicrodegrees: Int32) async -> Bool {
+        let coordinate = CLLocationCoordinate2D(
+            latitude: Double(latitudeMicrodegrees) / 1_000_000,
+            longitude: Double(longitudeMicrodegrees) / 1_000_000
+        )
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        return item.openInMaps(launchOptions: nil)
+    }
+}
+
 /// Presents one user-directed OS handoff. It performs no canOpenURL probe,
 /// retry, alternate-target selection, background work, or result persistence.
 @MainActor
 final class SystemHandoffAdapterV1: SystemHandoffPortV1 {
     private let opener: any SystemURLHandoffOpeningV1
+    private let directionsPresenter: any SystemDirectionsHandoffPresentingV1
     private let clock: any ApplicationClock
 
     init(
         opener: any SystemURLHandoffOpeningV1,
+        directionsPresenter: any SystemDirectionsHandoffPresentingV1 = MKMapItemSystemDirectionsPresenterV1(),
         clock: any ApplicationClock
     ) {
         self.opener = opener
+        self.directionsPresenter = directionsPresenter
         self.clock = clock
     }
 
@@ -165,6 +216,30 @@ final class SystemHandoffAdapterV1: SystemHandoffPortV1 {
         guard !Task.isCancelled else {
             return result(request, .cancelledBeforeHandoff, revision)
         }
+
+        if case let .geographicCoordinate(latitude, longitude) = request.destination {
+            guard directionsPresenter.canPresentSystemDirections else {
+                return result(request, .systemUnavailable, revision)
+            }
+            do {
+                try request.destination.validate(for: request.intent.kind)
+            } catch {
+                return result(request, .targetInvalid, revision)
+            }
+            guard !Task.isCancelled else {
+                return result(request, .cancelledBeforeHandoff, revision)
+            }
+            let accepted = await directionsPresenter.presentOnce(
+                latitudeMicrodegrees: latitude,
+                longitudeMicrodegrees: longitude
+            )
+            return result(
+                request,
+                accepted ? .handedOffToSystem : .systemRejected,
+                revision
+            )
+        }
+
         guard opener.canPresentSystemHandoff else {
             return result(request, .systemUnavailable, revision)
         }

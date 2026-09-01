@@ -164,11 +164,113 @@ enum OperationalContactHandoffRouteV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+/// The exact, user-visible source of an operational handoff. This identity is
+/// deliberately non-Codable: C31 presentation state is ephemeral and may not
+/// become scene restoration, history, diagnostics, or analytics state.
+enum OperationalContactHandoffSubjectV1: Equatable, Hashable, Sendable {
+    case site(siteID: UUID)
+    case party(partyID: UUID)
+
+    var stableID: UUID {
+        switch self {
+        case let .site(siteID): siteID
+        case let .party(partyID): partyID
+        }
+    }
+}
+
+/// One currently valid contact value displayed in an ephemeral Party handoff
+/// chooser. The value remains in memory only while the chooser is presented.
+struct OperationalContactHandoffContactPresentationV1: Equatable, Sendable {
+    let contactPointID: UUID
+    let kind: ServiceContactKindV1
+    let label: ServiceContactLabelV1
+    let displayValue: String
+    let preferred: Bool
+    let target: SystemHandoffTargetReferenceV1
+
+    init(contact: ServiceContactPointV1) throws {
+        try contact.validate()
+        guard contact.lifecycle == .effective else {
+            throw OperationalContactFailureV1.invalidHandoffTarget
+        }
+        contactPointID = contact.contactPointID
+        kind = contact.kind
+        label = contact.label
+        displayValue = contact.displayValue
+        preferred = contact.preferred
+        target = try SystemHandoffTargetReferenceV1(
+            workspaceID: contact.workspaceID,
+            kind: .serviceContactPoint,
+            targetID: contact.contactPointID,
+            expectedRevision: contact.revision,
+            expectedSHA256: contact.contactPointSHA256
+        )
+    }
+}
+
+/// A point-in-time Site or Party presentation read. It is intentionally not
+/// Codable because it contains customer-work values only needed to let the
+/// user review an explicit system handoff.
+struct OperationalContactHandoffPresentationSnapshotV1: Equatable, Sendable {
+    let subject: OperationalContactHandoffSubjectV1
+    let displayName: String
+    let directions: SiteDirectionsTargetSnapshotV1?
+    let contacts: [OperationalContactHandoffContactPresentationV1]
+
+    init(
+        subject: OperationalContactHandoffSubjectV1,
+        displayName: String,
+        directions: SiteDirectionsTargetSnapshotV1? = nil,
+        contacts: [OperationalContactHandoffContactPresentationV1] = []
+    ) throws {
+        guard !displayName.isEmpty,
+              displayName == displayName.precomposedStringWithCanonicalMapping else {
+            throw OperationalContactFailureV1.invalidValue
+        }
+        let ordered = contacts.sorted { lhs, rhs in
+            if lhs.kind != rhs.kind { return lhs.kind.rawValue < rhs.kind.rawValue }
+            if lhs.preferred != rhs.preferred { return lhs.preferred }
+            if lhs.label != rhs.label { return lhs.label.rawValue < rhs.label.rawValue }
+            return lhs.contactPointID.uuidString < rhs.contactPointID.uuidString
+        }
+        guard Set(ordered.map(\.contactPointID)).count == ordered.count else {
+            throw OperationalContactFailureV1.invalidValue
+        }
+        switch subject {
+        case .site:
+            guard directions != nil, ordered.isEmpty else {
+                throw OperationalContactFailureV1.invalidHandoffTarget
+            }
+        case .party:
+            guard directions == nil else {
+                throw OperationalContactFailureV1.invalidHandoffTarget
+            }
+            let preferredCounts = Dictionary(grouping: ordered, by: \.kind)
+                .values.map { $0.filter(\.preferred).count }
+            guard preferredCounts.allSatisfy({ $0 <= 1 }) else {
+                throw OperationalContactFailureV1.preferredConflict
+            }
+        }
+        self.subject = subject
+        self.displayName = displayName
+        self.directions = directions
+        self.contacts = ordered
+    }
+}
+
 /// Canonical read authority. Implementations may materialize a destination
 /// only for the duration of a handoff; callers must never retain it in routes,
 /// intents, presentation history, or analytics.
 @MainActor
 protocol OperationalContactHandoffQueryingV1: SystemHandoffTargetResolvingV1 {
+    /// Produces the bounded Site or Party chooser material for one foreground
+    /// presentation. Implementations must not cache or persist this value.
+    func currentHandoffPresentationSnapshot(
+        workspaceID: WorkspaceID,
+        subject: OperationalContactHandoffSubjectV1
+    ) async throws -> OperationalContactHandoffPresentationSnapshotV1?
+
     func currentSiteDirectionsSnapshot(
         workspaceID: WorkspaceID,
         siteID: UUID

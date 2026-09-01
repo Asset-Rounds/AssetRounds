@@ -1,0 +1,152 @@
+{
+  "authority": {
+    "allocationDigest": "30b81d3bfece6ef7d6739f12df5d643b6304458a4b6b963e1d5894d48515adea",
+    "appBaseHead": "a7fefa4c09db2dccf65ee3d78ee551fb5752776f",
+    "appBaseTree": "e734020edc94c00b8f495c0bbae47ea639f056bb",
+    "cardID": "V23-P04-C31",
+    "contextDigest": "ceca32f9a59e22078ae414230ac2705c3ff8fd61aa43cd98b448ae85afd72d34",
+    "coordinationHead": "82b8ba252a9529e3c1f58f625b60da268d1c2897",
+    "coordinationTree": "b1c7dba25c76da3382072dbdfa8c40cfbb7ee0be",
+    "existingPathCount": 4,
+    "fencePathCount": 17,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "newPathCount": 13,
+    "orderedPathFence": [
+      "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
+      "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+      "FieldEvidenceApp/Domain/Models/OperationalContactPersistenceModelsV1.swift",
+      "FieldEvidenceApp/Infrastructure/Platform/SystemHandoffAdapterV1.swift",
+      "FieldEvidenceApp/Application/Contacts/OperationalContactHandoffSessionV1.swift",
+      "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift",
+      "FieldEvidenceAppTests/V9_94OperationalHandoffExperienceTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Contacts/V23P04C31OperationalHandoffExperienceCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C31OperationalHandoffExperienceUITests.swift",
+      "Scripts/v23/p04_c31_contracts.py",
+      "Scripts/v23/generate_p04_c31_contracts.py",
+      "Scripts/v23/verify_p04_c31_contracts.py",
+      "Scripts/v23/operational-handoff-experience.schema.json",
+      "docs/design/v23/tooling/V23P04C31OperationalHandoffExperienceContractV1.json",
+      "docs/design/v23/tooling/V23P04C31OperationalHandoffExperienceEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C31BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C31-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "43a83321c1eaa33dc862f1f66123ab2b10840936f3e964c785db4b26ac38c480",
+    "prerequisiteDigest": "a23e3d656ba6260fb6e08d4d92431b4fef551798a5f7f6a0d1b551b49e659798",
+    "priorFenceProof": {
+      "authorizedOverlapEdgeCount": 35,
+      "fenceCount": 121,
+      "priorOwnedPathCount": 4,
+      "s10ReservedOverlapCount": 0,
+      "unauthorizedOverlapCount": 0
+    },
+    "s10OverlapCount": 0,
+    "sequence": 518,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C31",
+        "sha256": "3ddd089a9704a2f806965e9cf50b5ff63b305acc47d3103feacebeaf8e54c77e",
+        "utf8Length": 7452
+      },
+      {
+        "anchor": "V21-P04-C31",
+        "sha256": "07d4ababb82c0e3be93da907ee9664769b3755e2adc656e268b5617676ca9a8a",
+        "utf8Length": 3907
+      },
+      {
+        "anchor": "V23-P04-C31-register",
+        "sha256": "b53fcab7bb306d1fe6f3eeb99848700734905bc7260168c23f6d4eee9f990461",
+        "utf8Length": 310
+      }
+    ]
+  },
+  "cardID": "V23-P04-C31",
+  "contract": "OperationalHandoffExperienceContractV1",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "lifecycle": {
+    "activeModelCount": 168,
+    "newDurableFamilyCount": 0,
+    "newMigrationCount": 0,
+    "newWriterCount": 0,
+    "persistentSchema": "V53",
+    "sessionPersistence": "NONPERSISTENT"
+  },
+  "requirements": {
+    "actions": [
+      "DIRECTIONS",
+      "CALL",
+      "TEXT",
+      "EMAIL"
+    ],
+    "noGeocoderTrackingHistory": true,
+    "safeCopyFallbackOnly": true,
+    "sitePartyChooserEphemeral": true,
+    "truthfulSystemAcceptance": true
+  },
+  "schema": "V23P04C31OperationalHandoffExperienceToolingV1",
+  "selectors": [
+    "testDirectionsAndPartyChannelChooserUseExactCurrentTargetsWithoutPersistence",
+    "testSystemAcceptanceIsTruthfullyBoundedAndCopyFallbackIsEphemeral",
+    "testHostileTargetsAndStaleDeletedSourcesFailClosed",
+    "testCancellationAndSystemRefusalRestoreRouteSelectionScrollAndFocus",
+    "testProductionCompositionRequiresAccessAndUsesInjectableNativeBoundary"
+  ],
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
+      "sha256": "aafee8825fc36969967009bf10a2dce241474b4e525f40352ed6bcf9fb549aa9",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+      "sha256": "340ad3dec10ad5b16dc1d7f51b0da5d9d5edea8eb13caab5c042917321dd72d3",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Models/OperationalContactPersistenceModelsV1.swift",
+      "sha256": "eed286565550027c454649537fb88abc66b51e1577450017c885443f2105c108",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Platform/SystemHandoffAdapterV1.swift",
+      "sha256": "16c350b7051964e3145c215e63a9c1b52ccd335556ac241f58ff0f48c7f7b2be",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Contacts/OperationalContactHandoffSessionV1.swift",
+      "sha256": "6f019773a4c6ed179e724b62891c82602ae79d1cb6d8415d0894bedbfdafed1f",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift",
+      "sha256": "44c6acd28391d5609e668c31266d19c593383a15517e2d874e018f3dd72234a1",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_94OperationalHandoffExperienceTests.swift",
+      "sha256": "6b38cf34eaa4af764ce37423f9c545eb89b4f15ba24a93d0f944aba8fd2e6899",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/Contacts/V23P04C31OperationalHandoffExperienceCorpusV1.json",
+      "sha256": "cd4e39e55310d384a5020d62d8a02e938bdb646dc1eb7d77d91660c5f551bde4",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C31OperationalHandoffExperienceUITests.swift",
+      "sha256": "186740f99e4b742fb5e2fb2d68dec83ef280053a0776968c83982a2f393c3a66",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}
