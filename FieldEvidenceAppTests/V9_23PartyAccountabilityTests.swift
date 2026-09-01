@@ -225,6 +225,137 @@ final class V9_23PartyAccountabilityTests: XCTestCase {
         )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .unsupportedClaim) }
     }
 
+    func testV23P03C38CSVDescriptorsAndScratchRowsRoundTrip() throws {
+        let partyRows = [
+            try PartyCSVRowV1(
+                rowIndex: 1, partyID: uuid(1_001), kind: .organization,
+                displayName: "Northwind Service", profileDescriptor: "Regional service provider",
+                provenance: .importedExternalEvidence, state: .effective,
+                effectiveAt: baseDate, revision: 1
+            ),
+            try PartyCSVRowV1(
+                rowIndex: 2, partyID: uuid(1_002), kind: .person,
+                displayName: "Jordan Lee", provenance: .migratedBaseline, state: .retired,
+                effectiveAt: baseDate, retiredAt: baseDate.addingTimeInterval(60), revision: 2
+            ),
+        ]
+        let roleRows = [
+            try SitePartyRoleCSVRowV1(
+                rowIndex: 1, eventID: uuid(1_010), siteID: uuid(1_011), partyID: partyRows[0].partyID,
+                role: .serviceProvider, effectiveFrom: baseDate,
+                source: .importedExternalEvidence, revision: 1,
+                recordedAt: baseDate.addingTimeInterval(1)
+            ),
+            try SitePartyRoleCSVRowV1(
+                rowIndex: 2, eventID: uuid(1_012), siteID: uuid(1_011), partyID: partyRows[1].partyID,
+                role: .contact, effectiveFrom: baseDate,
+                effectiveUntil: baseDate.addingTimeInterval(60), source: .migratedBaseline,
+                supersedesEventID: uuid(1_010), revision: 2,
+                recordedAt: baseDate.addingTimeInterval(2)
+            ),
+        ]
+
+        XCTAssertEqual(PartiesCSVContractV1.schemaID, "PARTIES_V1")
+        XCTAssertEqual(PartiesCSVContractV1.schemaVersion, 1)
+        XCTAssertEqual(
+            PartiesCSVContractV1.csvHeader,
+            ["row_index", "party_id", "kind", "display_name", "profile_descriptor", "provenance", "state", "effective_at", "retired_at", "revision"]
+        )
+        XCTAssertEqual(PartiesCSVContractV1.correctionFields, ["displayName", "profileDescriptor", "state", "effectiveAt", "retiredAt"])
+        XCTAssertEqual(SitePartyRolesCSVContractV1.schemaID, "SITE_PARTY_ROLES_V1")
+        XCTAssertEqual(SitePartyRolesCSVContractV1.schemaVersion, 1)
+        XCTAssertEqual(
+            SitePartyRolesCSVContractV1.csvHeader,
+            ["row_index", "event_id", "site_id", "party_id", "role", "effective_from", "effective_until", "source", "supersedes_event_id", "revision", "recorded_at"]
+        )
+        XCTAssertEqual(SitePartyRolesCSVContractV1.correctionFields, ["role", "effectiveFrom", "effectiveUntil"])
+        XCTAssertNoThrow(try PartiesCSVContractV1.validateRows(partyRows))
+        XCTAssertNoThrow(try SitePartyRolesCSVContractV1.validateRows(roleRows))
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let partyData = try encoder.encode(partyRows[0])
+        let roleData = try encoder.encode(roleRows[0])
+        XCTAssertEqual(try decoder.decode(PartyCSVRowV1.self, from: partyData), partyRows[0])
+        XCTAssertEqual(try decoder.decode(SitePartyRoleCSVRowV1.self, from: roleData), roleRows[0])
+
+        let partyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: partyData) as? [String: Any])
+        let roleObject = try XCTUnwrap(JSONSerialization.jsonObject(with: roleData) as? [String: Any])
+        XCTAssertNil(partyObject["mutationID"])
+        XCTAssertNil(roleObject["mutationID"])
+        XCTAssertNil(partyObject["receiptSHA256"])
+        XCTAssertNil(roleObject["receiptSHA256"])
+    }
+
+    func testV23P03C38CSVRowsRejectIdentityIntervalAndClosedCodingViolations() throws {
+        XCTAssertThrowsError(try PartyCSVRowV1(
+            rowIndex: 0, partyID: uuid(1_100), kind: .person, displayName: "Jordan Lee",
+            provenance: .importedExternalEvidence, state: .effective,
+            effectiveAt: baseDate, revision: 1
+        )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .invalidValue) }
+        XCTAssertThrowsError(try PartyCSVRowV1(
+            rowIndex: 1, partyID: uuid(1_101), kind: .person, displayName: "Jordan\u{202E}Lee",
+            provenance: .importedExternalEvidence, state: .effective,
+            effectiveAt: baseDate, revision: 1
+        )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .invalidValue) }
+        XCTAssertThrowsError(try PartyCSVRowV1(
+            rowIndex: 1, partyID: uuid(1_102), kind: .person, displayName: "Jordan Lee",
+            provenance: .importedExternalEvidence, state: .retired,
+            effectiveAt: baseDate, revision: 1
+        )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .invalidValue) }
+        XCTAssertThrowsError(try PartyCSVRowV1(
+            rowIndex: 1, partyID: uuid(1_103), kind: .person, displayName: "Jordan Lee",
+            provenance: .importedExternalEvidence, state: .effective,
+            effectiveAt: Date(timeIntervalSinceReferenceDate: .infinity), revision: 1
+        )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .invalidValue) }
+        XCTAssertThrowsError(try SitePartyRoleCSVRowV1(
+            rowIndex: 1, eventID: uuid(1_110), siteID: uuid(1_111), partyID: uuid(1_112),
+            role: .owner, effectiveFrom: baseDate,
+            effectiveUntil: baseDate.addingTimeInterval(-1), source: .importedExternalEvidence,
+            revision: 1, recordedAt: baseDate
+        )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .invalidInterval) }
+        XCTAssertThrowsError(try SitePartyRoleCSVRowV1(
+            rowIndex: 1, eventID: uuid(1_113), siteID: uuid(1_114), partyID: uuid(1_115),
+            role: .owner, effectiveFrom: baseDate, source: .importedExternalEvidence,
+            revision: 1, recordedAt: Date(timeIntervalSinceReferenceDate: .infinity)
+        )) { XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .invalidValue) }
+
+        let duplicatePartyID = uuid(1_120)
+        let duplicateRows = [
+            try PartyCSVRowV1(
+                rowIndex: 1, partyID: duplicatePartyID, kind: .person, displayName: "Jordan Lee",
+                provenance: .importedExternalEvidence, state: .effective,
+                effectiveAt: baseDate, revision: 1
+            ),
+            try PartyCSVRowV1(
+                rowIndex: 2, partyID: duplicatePartyID, kind: .organization, displayName: "Northwind Service",
+                provenance: .importedExternalEvidence, state: .effective,
+                effectiveAt: baseDate, revision: 1
+            ),
+        ]
+        XCTAssertThrowsError(try PartiesCSVContractV1.validateRows(duplicateRows)) {
+            XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .invalidValue)
+        }
+
+        let valid = try SitePartyRoleCSVRowV1(
+            rowIndex: 1, eventID: uuid(1_130), siteID: uuid(1_131), partyID: uuid(1_132),
+            role: .operator, effectiveFrom: baseDate, source: .importedExternalEvidence,
+            revision: 1, recordedAt: baseDate
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(valid)) as? [String: Any])
+        object["display_name"] = "must not be accepted"
+        let unknown = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        XCTAssertThrowsError(try decoder.decode(SitePartyRoleCSVRowV1.self, from: unknown)) {
+            XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .unknownKey)
+        }
+    }
+
     func testV23P03C38I01IdempotentEffectsAndR01BackupClaimsRemainBounded() throws {
         let values = try makeValues()
         let valuesToBackup: [(V9BackupPartyAccountabilityRecordV1.Kind, UUID, UInt64?, Data)] = [

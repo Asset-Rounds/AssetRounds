@@ -41,6 +41,7 @@ enum PartyAccountabilityLimitsV1 {
     static let maximumDescriptorBytes = 1_024
     static let maximumPurposeBytes = 512
     static let maximumLocatorBytes = 1_024
+    static let maximumCSVRows = 100_000
 }
 
 enum PartyAccountabilityValidationV1 {
@@ -70,6 +71,12 @@ enum PartyAccountabilityValidationV1 {
     static func requireDigest(_ value: String) throws {
         guard value.count == 64, value.allSatisfy({ $0.isHexDigit && !$0.isUppercase }) else {
             throw PartyAccountabilityFailureV1.digestMismatch
+        }
+    }
+
+    static func requireFiniteDate(_ value: Date) throws {
+        guard value.timeIntervalSinceReferenceDate.isFinite else {
+            throw PartyAccountabilityFailureV1.invalidValue
         }
     }
 }
@@ -208,6 +215,225 @@ struct SitePartyRoleEventV1: Codable, Equatable, Hashable, Sendable {
                 mutationID: mutationID, recordedAt: recordedAt))) else { throw PartyAccountabilityFailureV1.invalidInterval }
     }
     private struct Basis: Codable { let schemaVersion: Int; let eventID: UUID; let workspaceID: WorkspaceID; let siteID: UUID; let partyID: UUID; let role: SitePartyRoleV1; let effectiveFrom: Date; let effectiveUntil: Date?; let source: SitePartyRoleSourceV1; let supersedesEventID: UUID?; let revision: UInt64; let mutationID: MutationIDV1; let recordedAt: Date }
+}
+
+/// Closed `PARTIES_V1` scratch input. `partyID` is the sole identity; equal
+/// display names or descriptors are never matching or merging evidence.
+struct PartyCSVRowV1: Codable, Equatable, Sendable {
+    static let schemaID = "PARTIES_V1"
+    static let schemaVersion = 1
+
+    let rowIndex: Int
+    let partyID: UUID
+    let kind: ServicePartyKindV1
+    let displayName: String
+    let profileDescriptor: String?
+    let provenance: ServicePartyProvenanceV1
+    let state: ServicePartyStateV1
+    let effectiveAt: Date
+    let retiredAt: Date?
+    let revision: UInt64
+
+    init(
+        rowIndex: Int,
+        partyID: UUID,
+        kind: ServicePartyKindV1,
+        displayName: String,
+        profileDescriptor: String? = nil,
+        provenance: ServicePartyProvenanceV1,
+        state: ServicePartyStateV1,
+        effectiveAt: Date,
+        retiredAt: Date? = nil,
+        revision: UInt64
+    ) throws {
+        self.rowIndex = rowIndex
+        self.partyID = partyID
+        self.kind = kind
+        self.displayName = displayName
+        self.profileDescriptor = profileDescriptor
+        self.provenance = provenance
+        self.state = state
+        self.effectiveAt = effectiveAt
+        self.retiredAt = retiredAt
+        self.revision = revision
+        try validate()
+    }
+
+    func validate() throws {
+        try PartyAccountabilityValidationV1.requireID(partyID)
+        try PartyAccountabilityValidationV1.requireText(
+            displayName,
+            maximumBytes: PartyAccountabilityLimitsV1.maximumDisplayNameBytes
+        )
+        if let profileDescriptor {
+            try PartyAccountabilityValidationV1.requireText(
+                profileDescriptor,
+                maximumBytes: PartyAccountabilityLimitsV1.maximumDescriptorBytes
+            )
+        }
+        try PartyAccountabilityValidationV1.requireFiniteDate(effectiveAt)
+        if let retiredAt { try PartyAccountabilityValidationV1.requireFiniteDate(retiredAt) }
+        let intervalIsExact = state == .effective
+            ? retiredAt == nil
+            : retiredAt.map { $0 >= effectiveAt } == true
+        guard (1...PartyAccountabilityLimitsV1.maximumCSVRows).contains(rowIndex),
+              revision > 0,
+              intervalIsExact else {
+            throw PartyAccountabilityFailureV1.invalidValue
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case rowIndex, partyID, kind, displayName, profileDescriptor
+        case provenance, state, effectiveAt, retiredAt, revision
+    }
+
+    init(from decoder: Decoder) throws {
+        try PartyAccountabilityClosedCodingV1.require(decoder, CodingKeys.self)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            rowIndex: c.decode(Int.self, forKey: .rowIndex),
+            partyID: c.decode(UUID.self, forKey: .partyID),
+            kind: c.decode(ServicePartyKindV1.self, forKey: .kind),
+            displayName: c.decode(String.self, forKey: .displayName),
+            profileDescriptor: c.decodeIfPresent(String.self, forKey: .profileDescriptor),
+            provenance: c.decode(ServicePartyProvenanceV1.self, forKey: .provenance),
+            state: c.decode(ServicePartyStateV1.self, forKey: .state),
+            effectiveAt: c.decode(Date.self, forKey: .effectiveAt),
+            retiredAt: c.decodeIfPresent(Date.self, forKey: .retiredAt),
+            revision: c.decode(UInt64.self, forKey: .revision)
+        )
+    }
+}
+
+enum PartiesCSVContractV1 {
+    static let schemaID = PartyCSVRowV1.schemaID
+    static let schemaVersion = PartyCSVRowV1.schemaVersion
+    static let csvHeader = [
+        "row_index", "party_id", "kind", "display_name", "profile_descriptor",
+        "provenance", "state", "effective_at", "retired_at", "revision",
+    ]
+    static let correctionFields = ["displayName", "profileDescriptor", "state", "effectiveAt", "retiredAt"]
+
+    static func validateRows(_ rows: [PartyCSVRowV1]) throws {
+        guard !rows.isEmpty, rows.count <= PartyAccountabilityLimitsV1.maximumCSVRows else {
+            throw PartyAccountabilityFailureV1.limitExceeded
+        }
+        try rows.forEach { try $0.validate() }
+        guard rows.map(\.rowIndex) == Array(1...rows.count),
+              Set(rows.map(\.partyID)).count == rows.count else {
+            throw PartyAccountabilityFailureV1.invalidValue
+        }
+    }
+}
+
+/// Closed `SITE_PARTY_ROLES_V1` scratch input. Event, Site, and Party IDs are
+/// exact references; no role, name, or display value participates in identity.
+struct SitePartyRoleCSVRowV1: Codable, Equatable, Sendable {
+    static let schemaID = "SITE_PARTY_ROLES_V1"
+    static let schemaVersion = 1
+
+    let rowIndex: Int
+    let eventID: UUID
+    let siteID: UUID
+    let partyID: UUID
+    let role: SitePartyRoleV1
+    let effectiveFrom: Date
+    let effectiveUntil: Date?
+    let source: SitePartyRoleSourceV1
+    let supersedesEventID: UUID?
+    let revision: UInt64
+    let recordedAt: Date
+
+    init(
+        rowIndex: Int,
+        eventID: UUID,
+        siteID: UUID,
+        partyID: UUID,
+        role: SitePartyRoleV1,
+        effectiveFrom: Date,
+        effectiveUntil: Date? = nil,
+        source: SitePartyRoleSourceV1,
+        supersedesEventID: UUID? = nil,
+        revision: UInt64,
+        recordedAt: Date
+    ) throws {
+        self.rowIndex = rowIndex
+        self.eventID = eventID
+        self.siteID = siteID
+        self.partyID = partyID
+        self.role = role
+        self.effectiveFrom = effectiveFrom
+        self.effectiveUntil = effectiveUntil
+        self.source = source
+        self.supersedesEventID = supersedesEventID
+        self.revision = revision
+        self.recordedAt = recordedAt
+        try validate()
+    }
+
+    func validate() throws {
+        try [eventID, siteID, partyID].forEach(PartyAccountabilityValidationV1.requireID)
+        if let supersedesEventID {
+            try PartyAccountabilityValidationV1.requireID(supersedesEventID)
+            guard supersedesEventID != eventID else {
+                throw PartyAccountabilityFailureV1.invalidValue
+            }
+        }
+        try PartyAccountabilityValidationV1.requireFiniteDate(effectiveFrom)
+        if let effectiveUntil { try PartyAccountabilityValidationV1.requireFiniteDate(effectiveUntil) }
+        try PartyAccountabilityValidationV1.requireFiniteDate(recordedAt)
+        guard (1...PartyAccountabilityLimitsV1.maximumCSVRows).contains(rowIndex),
+              revision > 0,
+              recordedAt >= effectiveFrom,
+              effectiveUntil.map({ $0 >= effectiveFrom }) ?? true else {
+            throw PartyAccountabilityFailureV1.invalidInterval
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case rowIndex, eventID, siteID, partyID, role, effectiveFrom
+        case effectiveUntil, source, supersedesEventID, revision, recordedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        try PartyAccountabilityClosedCodingV1.require(decoder, CodingKeys.self)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            rowIndex: c.decode(Int.self, forKey: .rowIndex),
+            eventID: c.decode(UUID.self, forKey: .eventID),
+            siteID: c.decode(UUID.self, forKey: .siteID),
+            partyID: c.decode(UUID.self, forKey: .partyID),
+            role: c.decode(SitePartyRoleV1.self, forKey: .role),
+            effectiveFrom: c.decode(Date.self, forKey: .effectiveFrom),
+            effectiveUntil: c.decodeIfPresent(Date.self, forKey: .effectiveUntil),
+            source: c.decode(SitePartyRoleSourceV1.self, forKey: .source),
+            supersedesEventID: c.decodeIfPresent(UUID.self, forKey: .supersedesEventID),
+            revision: c.decode(UInt64.self, forKey: .revision),
+            recordedAt: c.decode(Date.self, forKey: .recordedAt)
+        )
+    }
+}
+
+enum SitePartyRolesCSVContractV1 {
+    static let schemaID = SitePartyRoleCSVRowV1.schemaID
+    static let schemaVersion = SitePartyRoleCSVRowV1.schemaVersion
+    static let csvHeader = [
+        "row_index", "event_id", "site_id", "party_id", "role", "effective_from",
+        "effective_until", "source", "supersedes_event_id", "revision", "recorded_at",
+    ]
+    static let correctionFields = ["role", "effectiveFrom", "effectiveUntil"]
+
+    static func validateRows(_ rows: [SitePartyRoleCSVRowV1]) throws {
+        guard !rows.isEmpty, rows.count <= PartyAccountabilityLimitsV1.maximumCSVRows else {
+            throw PartyAccountabilityFailureV1.limitExceeded
+        }
+        try rows.forEach { try $0.validate() }
+        guard rows.map(\.rowIndex) == Array(1...rows.count),
+              Set(rows.map(\.eventID)).count == rows.count else {
+            throw PartyAccountabilityFailureV1.invalidValue
+        }
+    }
 }
 
 struct LocalActorReferenceV1: Codable, Equatable, Hashable, Sendable {
