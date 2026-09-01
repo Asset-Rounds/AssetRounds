@@ -166,6 +166,11 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// metadata; it never infers facing, alignment, accuracy, or compliance.
     var placementPose: C37PlacementPoseFrozenSnapshotV1? = nil
 
+    /// Optional C17 frozen daylight-inventory projection. It contains only
+    /// cautious recorded-state metadata and exact immutable source bindings;
+    /// safety intake detail, route, actors, notes, and media remain excluded.
+    var lightingDayInventory: C17LightingDayInventoryFrozenSnapshotV1? = nil
+
     /// Optional C33 typed links into canonical temporal evidence. The snapshot
     /// carries bounded metadata and manual accessible text, never original
     /// bytes or private content locators.
@@ -595,5 +600,276 @@ struct PracticeWorkspaceReportProjectionV1: Codable, Equatable, Sendable {
                 || (kind == .practice && provenanceID != nil && provenanceSHA256 != nil && watermark == Self.mandatoryWatermark) else {
             throw WorkspaceExperienceFailureV1.invalidValue
         }
+    }
+}
+
+// MARK: - C17 exterior-lighting day inventory report snapshot
+
+struct C17LightingDayConditionReportProjectionV1: Codable, Equatable, Comparable, Sendable {
+    let luminaireID: UUID
+    let assetID: UUID
+    let zoneID: UUID
+    let controlGroupID: UUID
+    let facts: [LightingDayConditionFactV1]
+    let poseDisposition: LightingDayPoseDispositionV1
+    let poseEvent: AssetPoseEventReferenceV1?
+    let pose: C37PlacementPoseFrozenSnapshotV1?
+    let snapshotSHA256: String
+
+    init(
+        snapshot: LightingDayConditionSnapshotV1,
+        pose: C37PlacementPoseFrozenSnapshotV1?
+    ) throws {
+        try snapshot.validate(); try pose?.validate()
+        if snapshot.poseDisposition == .notDeclared {
+            guard snapshot.poseEvent == nil, pose == nil else {
+                throw LightingDayInventoryFailureV1.staleReference
+            }
+        } else {
+            guard let event = snapshot.poseEvent, let pose,
+                  pose.projection.workspaceID == snapshot.observation.workspaceID,
+                  pose.projection.assetID == snapshot.assetID,
+                  pose.projection.history.contains(where: {
+                      $0.eventID == event.eventID
+                        && $0.axisID == event.axisID.rawValue
+                        && $0.revision == event.revision
+                        && $0.eventSHA256 == event.eventSHA256
+                  }) else {
+                throw LightingDayInventoryFailureV1.staleReference
+            }
+        }
+        luminaireID = snapshot.luminaireID
+        assetID = snapshot.assetID
+        zoneID = snapshot.zoneID
+        controlGroupID = snapshot.controlGroupID
+        facts = snapshot.facts
+        poseDisposition = snapshot.poseDisposition
+        poseEvent = snapshot.poseEvent
+        self.pose = pose
+        snapshotSHA256 = snapshot.snapshotSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        try [luminaireID, assetID, zoneID, controlGroupID]
+            .forEach(LightingDayInventoryLimitsV1.id)
+        try facts.forEach { try $0.validate() }
+        try poseEvent?.validate()
+        try pose?.validate()
+        try LightingDayInventoryLimitsV1.digest(snapshotSHA256)
+        let notDeclared = poseDisposition == .notDeclared
+        let hasPoseBinding = poseEvent != nil && pose != nil
+        guard !facts.isEmpty,
+              facts == facts.sorted(),
+              Set(facts.map(\.aspect)).count == facts.count,
+              notDeclared == !hasPoseBinding,
+              poseEvent.map({ $0.assetID == assetID && $0.axisID == .lightBeamCenterline }) ?? notDeclared,
+              pose.map({ value in
+                  guard let poseEvent else { return false }
+                  return value.projection.assetID == assetID
+                    && value.projection.history.contains(where: {
+                        $0.eventID == poseEvent.eventID
+                          && $0.axisID == poseEvent.axisID.rawValue
+                          && $0.revision == poseEvent.revision
+                          && $0.eventSHA256 == poseEvent.eventSHA256
+                    })
+              }) ?? notDeclared else {
+            throw LightingDayInventoryFailureV1.invalidValue
+        }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        (lhs.zoneID.uuidString, lhs.controlGroupID.uuidString, lhs.luminaireID.uuidString)
+            < (rhs.zoneID.uuidString, rhs.controlGroupID.uuidString, rhs.luminaireID.uuidString)
+    }
+}
+
+struct C17LightingDayInventoryReportProjectionV1: Codable, Equatable, Sendable {
+    static let projectionVersion = "C17_LIGHTING_DAY_REPORT_V1"
+    static let claimBoundary = "OBSERVATION_ONLY_NOT_PHOTOMETRY_DIAGNOSIS_ADEQUACY_COMMISSIONING_OR_NIGHT_PASS"
+    let projectionVersion: String
+    let workspaceID: WorkspaceID
+    let workflowID: UUID
+    let workflowRevision: UInt64
+    let workflowSHA256: String
+    let systemID: UUID
+    let systemRevision: UInt64
+    let systemSHA256: String
+    let packageRelease: LightingPackageReleaseReferenceV1
+    let state: LightingDayInventoryWorkflowStateV1
+    let conditions: [C17LightingDayConditionReportProjectionV1]
+    let unknownOrNotObservedCount: Int
+    let daylightEnergizedObservationCount: Int
+    let nightFollowupPlanID: UUID?
+    let nightFollowupPlanSHA256: String?
+    let offlineReadinessSourceSHA256: String?
+    let offlineReadinessManifestSHA256: String?
+    let claimBoundary: String
+    let projectionSHA256: String
+
+    init(
+        workflow: LightingDayInventoryWorkflowV1,
+        poseSnapshots: [C37PlacementPoseFrozenSnapshotV1]
+    ) throws {
+        let source = try LightingDayInventoryProjectionV1(workflow)
+        guard source.reportEligible else { throw LightingDayInventoryFailureV1.safetyStop }
+        try poseSnapshots.forEach { try $0.validate() }
+        let poseByAsset = Dictionary(grouping: poseSnapshots, by: { $0.projection.assetID })
+        let declaredPoseAssets = Set(workflow.conditionSnapshots.compactMap {
+            $0.poseEvent?.assetID
+        })
+        guard poseByAsset.values.allSatisfy({ $0.count == 1 }),
+              Set(poseByAsset.keys) == declaredPoseAssets else {
+            throw LightingDayInventoryFailureV1.staleReference
+        }
+        let projected = try workflow.conditionSnapshots.map { snapshot in
+            return try C17LightingDayConditionReportProjectionV1(
+                snapshot: snapshot, pose: poseByAsset[snapshot.assetID]?.first
+            )
+        }.sorted()
+        projectionVersion = Self.projectionVersion
+        workspaceID = workflow.workspaceID
+        workflowID = workflow.workflowID
+        workflowRevision = workflow.revision
+        workflowSHA256 = workflow.workflowSHA256
+        systemID = workflow.systemID
+        systemRevision = workflow.systemRevision
+        systemSHA256 = workflow.systemSHA256
+        packageRelease = workflow.packageRelease
+        state = workflow.state
+        conditions = projected
+        unknownOrNotObservedCount = source.unknownOrNotObservedCount
+        daylightEnergizedObservationCount = projected.flatMap(\.facts).filter {
+            $0.aspect == .daylightEnergized && $0.state == .observedPresent
+        }.count
+        nightFollowupPlanID = workflow.nightFollowupPlan?.planID
+        nightFollowupPlanSHA256 = workflow.nightFollowupPlan?.planSHA256
+        offlineReadinessSourceSHA256 = workflow.nightFollowupPlan?.offlineReadinessSourceSHA256
+        offlineReadinessManifestSHA256 = workflow.nightFollowupPlan?.offlineReadinessManifestSHA256
+        claimBoundary = Self.claimBoundary
+        projectionSHA256 = try LightingDayInventoryCanonicalCodecV1.sha256(basisWithoutDigest)
+        try validate()
+    }
+
+    func validate() throws {
+        try [workflowID, systemID].forEach(LightingDayInventoryLimitsV1.id)
+        try [workflowRevision, systemRevision].forEach(LightingDayInventoryLimitsV1.revision)
+        try [workflowSHA256, systemSHA256, projectionSHA256]
+            .forEach(LightingDayInventoryLimitsV1.digest)
+        try packageRelease.validate(); try conditions.forEach { try $0.validate() }
+        try nightFollowupPlanID.map(LightingDayInventoryLimitsV1.id)
+        try nightFollowupPlanSHA256.map(LightingDayInventoryLimitsV1.digest)
+        try offlineReadinessSourceSHA256.map(LightingDayInventoryLimitsV1.digest)
+        try offlineReadinessManifestSHA256.map(LightingDayInventoryLimitsV1.digest)
+        let hasAnyNightBinding = nightFollowupPlanID != nil
+            || nightFollowupPlanSHA256 != nil
+            || offlineReadinessSourceSHA256 != nil
+            || offlineReadinessManifestSHA256 != nil
+        let hasCompleteNightBinding = nightFollowupPlanID != nil
+            && nightFollowupPlanSHA256 != nil
+            && offlineReadinessSourceSHA256 != nil
+            && offlineReadinessManifestSHA256 != nil
+        guard projectionVersion == Self.projectionVersion,
+              state != .safetyStopped,
+              !conditions.isEmpty,
+              conditions == conditions.sorted(),
+              Set(conditions.map(\.luminaireID)).count == conditions.count,
+              unknownOrNotObservedCount == conditions.flatMap(\.facts).filter({
+                  $0.state == .unknown || $0.state == .notObserved
+              }).count,
+              daylightEnergizedObservationCount == conditions.flatMap(\.facts).filter({
+                  $0.aspect == .daylightEnergized && $0.state == .observedPresent
+              }).count,
+              hasAnyNightBinding == hasCompleteNightBinding,
+              (state == .nightFollowupPrepared) == hasCompleteNightBinding,
+              claimBoundary == Self.claimBoundary,
+              projectionSHA256 == (try LightingDayInventoryCanonicalCodecV1.sha256(basisWithoutDigest)) else {
+            throw LightingDayInventoryFailureV1.invalidValue
+        }
+    }
+
+    private var basisWithoutDigest: Basis {
+        .init(projectionVersion: projectionVersion, workspaceID: workspaceID,
+              workflowID: workflowID, workflowRevision: workflowRevision,
+              workflowSHA256: workflowSHA256, systemID: systemID,
+              systemRevision: systemRevision, systemSHA256: systemSHA256,
+              packageRelease: packageRelease, state: state, conditions: conditions,
+              unknownOrNotObservedCount: unknownOrNotObservedCount,
+              daylightEnergizedObservationCount: daylightEnergizedObservationCount,
+              nightFollowupPlanID: nightFollowupPlanID,
+              nightFollowupPlanSHA256: nightFollowupPlanSHA256,
+              offlineReadinessSourceSHA256: offlineReadinessSourceSHA256,
+              offlineReadinessManifestSHA256: offlineReadinessManifestSHA256,
+              claimBoundary: claimBoundary)
+    }
+    private struct Basis: Codable {
+        let projectionVersion: String; let workspaceID: WorkspaceID
+        let workflowID: UUID; let workflowRevision: UInt64; let workflowSHA256: String
+        let systemID: UUID; let systemRevision: UInt64; let systemSHA256: String
+        let packageRelease: LightingPackageReleaseReferenceV1
+        let state: LightingDayInventoryWorkflowStateV1
+        let conditions: [C17LightingDayConditionReportProjectionV1]
+        let unknownOrNotObservedCount: Int; let daylightEnergizedObservationCount: Int
+        let nightFollowupPlanID: UUID?; let nightFollowupPlanSHA256: String?
+        let offlineReadinessSourceSHA256: String?; let offlineReadinessManifestSHA256: String?
+        let claimBoundary: String
+    }
+}
+
+struct C17LightingDayInventoryFrozenSnapshotV1: Codable, Equatable, Sendable {
+    let sourceRecordID: UUID
+    let sourceWorkflowSHA256: String
+    let capturedAt: Date
+    let projection: C17LightingDayInventoryReportProjectionV1
+    let snapshotSHA256: String
+
+    init(
+        workflow: LightingDayInventoryWorkflowV1,
+        poseSnapshots: [C37PlacementPoseFrozenSnapshotV1],
+        capturedAt: Date
+    ) throws {
+        try LightingDayInventoryLimitsV1.instant(capturedAt)
+        sourceRecordID = workflow.recordID
+        sourceWorkflowSHA256 = workflow.workflowSHA256
+        self.capturedAt = capturedAt
+        projection = try .init(workflow: workflow, poseSnapshots: poseSnapshots)
+        snapshotSHA256 = try LightingDayInventoryCanonicalCodecV1.sha256(Basis(
+            sourceRecordID: workflow.recordID,
+            sourceWorkflowSHA256: workflow.workflowSHA256,
+            capturedAt: capturedAt, projection: projection
+        ))
+        try validate()
+    }
+
+    func validate() throws {
+        try LightingDayInventoryLimitsV1.id(sourceRecordID)
+        try [sourceWorkflowSHA256, snapshotSHA256]
+            .forEach(LightingDayInventoryLimitsV1.digest)
+        try LightingDayInventoryLimitsV1.instant(capturedAt)
+        try projection.validate()
+        guard projection.workflowSHA256 == sourceWorkflowSHA256,
+              snapshotSHA256 == (try LightingDayInventoryCanonicalCodecV1.sha256(basis)) else {
+            throw LightingDayInventoryFailureV1.invalidDigest
+        }
+    }
+
+    private var basis: Basis {
+        .init(sourceRecordID: sourceRecordID, sourceWorkflowSHA256: sourceWorkflowSHA256,
+              capturedAt: capturedAt, projection: projection)
+    }
+    private struct Basis: Codable {
+        let sourceRecordID: UUID; let sourceWorkflowSHA256: String
+        let capturedAt: Date; let projection: C17LightingDayInventoryReportProjectionV1
+    }
+}
+
+extension ReportSnapshotV1 {
+    func withC17LightingDayInventory(
+        _ value: C17LightingDayInventoryFrozenSnapshotV1
+    ) throws -> ReportSnapshotV1 {
+        try value.validate()
+        var copy = self
+        copy.lightingDayInventory = value
+        return copy
     }
 }

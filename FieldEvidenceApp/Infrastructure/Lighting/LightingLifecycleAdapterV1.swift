@@ -23,6 +23,18 @@ final class LightingLifecycleAdapterV1: LightingMutationAuthorityV1 {
     }
 }
 
+/// C17 has its own narrow adapter because its command is not a C31 lighting
+/// operation. Both adapters nevertheless converge on WorkspaceWriterV1 and
+/// the generic MutationReceiptRow; neither creates a writer, store, receipt,
+/// readiness manifest, or observation authorization.
+enum LightingDayInventoryLegacyLightingAdapterBoundaryV1 {
+    static let usesExistingCanonicalWriter = true
+    static let createsSecondWriterOrStore = false
+    static let createsTypedReceiptRow = false
+    static let offlineReadinessIsDurable = false
+    static let hardStopCanAuthorizeObservation = false
+}
+
 /// C32 keeps assistance candidates outside every durable and derived surface;
 /// only explicit acceptance may reach the existing canonical writer/receipt path.
 enum C32AssistanceCompatibility_Lighting_LightingLifecycleAdapterV1 {

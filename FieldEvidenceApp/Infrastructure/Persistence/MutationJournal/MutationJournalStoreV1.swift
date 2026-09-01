@@ -439,6 +439,7 @@ final class MutationJournalStoreV1 {
         if case let .applyPlacementPose(value)=envelope.command{try value.validate();try validatePlacementPoseReferences(value);guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyEvidenceContext(value)=envelope.command{try value.validate();try validateEvidenceContextReferences(value);guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLighting(value)=envelope.command{try value.validate();try validateLightingReferences(value);guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyLightingDayInventory(value)=envelope.command{try value.validate();try validateLightingDayInventoryReferences(value);guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyTemporalEvidence(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetLabel(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyOperationalContact(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
@@ -481,6 +482,7 @@ final class MutationJournalStoreV1 {
         if case let .applyPlacementPose(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyEvidenceContext(operation)=envelope.command{let concurrency=try operation.concurrencyIdentity;guard expectedByIdentity[concurrency]==operation.expectedRevision,currentByIdentity[concurrency,default:0]==operation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applyLighting(operation)=envelope.command{let concurrency=try operation.concurrencyIdentity;guard expectedByIdentity[concurrency]==operation.expectedRevision,currentByIdentity[concurrency,default:0]==operation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
+        if case let .applyLightingDayInventory(operation)=envelope.command{let concurrency=try operation.concurrencyIdentity;guard expectedByIdentity[concurrency]==operation.expectedRevision,currentByIdentity[concurrency,default:0]==operation.expectedRevision else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applyTemporalEvidence(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyAssetLabel(mutation)=envelope.command{let concurrency=try mutation.affectedIdentity;guard expectedByIdentity[concurrency]==0,currentByIdentity[concurrency,default:0]==0 else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applyOperationalContact(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
@@ -542,6 +544,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyPlacementPose(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyEvidenceContext(operation)=envelope.command{concurrencyIdentity=try operation.concurrencyIdentity
             }else if case let .applyLighting(operation)=envelope.command{concurrencyIdentity=try operation.concurrencyIdentity
+            }else if case let .applyLightingDayInventory(operation)=envelope.command{concurrencyIdentity=try operation.concurrencyIdentity
             }else if case let .applyTemporalEvidence(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyAssetLabel(mutation)=envelope.command{concurrencyIdentity=try mutation.affectedIdentity
             }else if case let .applyOperationalContact(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
@@ -662,6 +665,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyPlacementPose(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyEvidenceContext(operation)=envelope.command{initialRevision=operation.revision
                 }else if case let .applyLighting(operation)=envelope.command{initialRevision=operation.revision
+                }else if case let .applyLightingDayInventory(operation)=envelope.command{initialRevision=operation.workflow.revision
                 }else if case let .applyTemporalEvidence(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyAssetLabel(mutation)=envelope.command{initialRevision=mutation.snapshot.revision
                 }else if case let .applyOperationalContact(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
@@ -767,6 +771,7 @@ final class MutationJournalStoreV1 {
         if case let .applyPlacementPose(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyEvidenceContext(operation)=envelope.command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLighting(operation)=envelope.command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyLightingDayInventory(operation)=envelope.command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyTemporalEvidence(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetLabel(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyOperationalContact(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
@@ -1429,6 +1434,37 @@ final class MutationJournalStoreV1 {
         return recovered
     }
 
+    func lightingDayInventoryRecoveryPairs() throws -> [
+        (operation: LightingDayInventoryWriteOperationV1, receipt: MutationReceiptV1)
+    ] {
+        var descriptor = FetchDescriptor<MutationReceiptRow>(sortBy: [SortDescriptor(\.receiptIdentity)])
+        descriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
+        let rows = try modelContext.fetch(descriptor)
+        guard rows.count <= Self.maximumReceiptValidationCount else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        var keys = Set<String>()
+        var recovered: [(LightingDayInventoryWriteOperationV1, MutationReceiptV1)] = []
+        for row in rows {
+            let receipt = try validate(row: row, expectedEnvelope: nil)
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .applyLightingDayInventory(operation) = envelope.command else { continue }
+            try operation.validate()
+            let key = MutationWorkspaceKeyV1.value(workspaceID: operation.workspaceID, mutationID: operation.mutationID)
+            guard operation.workspaceID == identity.workspaceID,
+                  keys.insert(key).inserted else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            _ = try LightingDayInventoryMutationReceiptV1(operation: operation, mutationReceipt: receipt)
+            let image = try operation.mutationPostImage
+            guard try currentPostImage(identity: image.identity, revision: image.revision) == image else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            recovered.append((operation, receipt))
+        }
+        return recovered
+    }
+
     func shopReportProfileMutation(mutationID: MutationIDV1) throws -> ShopReportProfileMutationV1? {
         let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: mutationID)
         let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate: #Predicate { $0.workspaceMutationKey == key }))
@@ -1516,6 +1552,20 @@ final class MutationJournalStoreV1 {
     func evidenceContextOperation(mutationID:MutationIDV1)throws->EvidenceContextWriteOperationV1?{let key=MutationWorkspaceKeyV1.value(workspaceID:identity.workspaceID,mutationID:mutationID),rows=try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate:#Predicate{$0.workspaceMutationKey==key}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};guard let row=rows.first else{return nil};_ = try validate(row:row,expectedEnvelope:nil);let envelope=try MutationEnvelopeV1.decodeCanonical(from:row.envelopeData);guard case let .applyEvidenceContext(operation)=envelope.command else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};try operation.validate();try validateEvidenceContextReferences(operation);return operation}
     func acceptedLightingOperation(_ operation:LightingWriteOperationV1)throws->LightingMutationReceiptV1?{guard let receipt=try receipt(mutationID:operation.mutationID)else{return nil};guard try lightingOperation(mutationID:operation.mutationID)==operation else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)}
     func lightingOperation(mutationID:MutationIDV1)throws->LightingWriteOperationV1?{let key=MutationWorkspaceKeyV1.value(workspaceID:identity.workspaceID,mutationID:mutationID),rows=try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate:#Predicate{$0.workspaceMutationKey==key}));guard rows.count<=1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};guard let row=rows.first else{return nil};_ = try validate(row:row,expectedEnvelope:nil);let envelope=try MutationEnvelopeV1.decodeCanonical(from:row.envelopeData);guard case let .applyLighting(operation)=envelope.command else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};try operation.validate();try validateLightingReferences(operation);return operation}
+    func lightingDayInventoryReceipt(for operation: LightingDayInventoryWriteOperationV1) throws -> MutationReceiptV1? {
+        try operation.validate()
+        let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: operation.mutationID)
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate: #Predicate { $0.workspaceMutationKey == key }))
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        guard let row = rows.first else { return nil }
+        let receipt = try validate(row: row, expectedEnvelope: nil)
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+        guard case let .applyLightingDayInventory(recorded) = envelope.command,
+              recorded == operation else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        try validateLightingDayInventoryReferences(recorded)
+        _ = try LightingDayInventoryMutationReceiptV1(operation: operation, mutationReceipt: receipt)
+        return receipt
+    }
     func acceptedTemporalEvidenceMutation(
         _ mutation: TemporalEvidenceMutationV1
     ) throws -> TemporalEvidenceMutationReceiptV1? {
@@ -1652,6 +1702,30 @@ final class MutationJournalStoreV1 {
         }
     }
     private func validateLightingReferences(_ operation:LightingWriteOperationV1)throws{try LightingPersistedAdmissionV1.validate(operation,in:modelContext);func requirePackage(_ reference:LightingPackageReleaseReferenceV1)throws{let rows=try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()),matches=try rows.map{$0.value().packageRelease}.filter{$0.packageReleaseID==reference.packageReleaseID};guard matches.count==1,let release=matches.first else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};try reference.validate(release)};func requireSystem(_ value:LightingSystemV1)throws{try requirePackage(value.packageRelease);let id=value.recordID,rows=try modelContext.fetch(FetchDescriptor<LightingSystemRow>(predicate:#Predicate{$0.recordID==id}));guard rows.count==1,try rows[0].value()==value else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}};switch operation{case let .appendSystem(v,p,_):try requirePackage(v.packageRelease);if let p{try requireSystem(p)};case let .appendObservation(_,p,s):try requireSystem(s);if let p{let id=p.recordID,rows=try modelContext.fetch(FetchDescriptor<LightingObservationRow>(predicate:#Predicate{$0.recordID==id}));guard rows.count==1,try rows[0].value()==p else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}};case let .appendIssue(_,p,_):if let p{let id=p.recordID,rows=try modelContext.fetch(FetchDescriptor<LightingIssueRow>(predicate:#Predicate{$0.recordID==id}));guard rows.count==1,try rows[0].value()==p else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}};case let .appendMeasurementPlan(_,p,s):try requireSystem(s);if let p{let id=p.recordID,rows=try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>(predicate:#Predicate{$0.recordID==id}));guard rows.count==1,try rows[0].value()==p else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}};case let .appendClaim(_,p,_):if let p{let id=p.recordID,rows=try modelContext.fetch(FetchDescriptor<LightingClaimStateRow>(predicate:#Predicate{$0.recordID==id}));guard rows.count==1,try rows[0].value()==p else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}}}}
+    private func validateLightingDayInventoryReferences(_ operation: LightingDayInventoryWriteOperationV1) throws {
+        try LightingDayInventoryPersistedAdmissionV1.validate(operation, in: modelContext)
+        let values = try modelContext.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>()).map { try $0.value() }
+        guard Set(values.map(\.recordID)).count == values.count else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        switch operation {
+        case let .appendWorkflow(value, predecessor, _):
+            let family = values.filter {
+                $0.workspaceID == value.workspaceID
+                    && $0.workflowID == value.workflowID
+                    && $0.recordID != value.recordID
+            }
+            if let predecessor {
+                guard family.filter({ $0 == predecessor }).count == 1,
+                      !family.contains(where: { $0.supersedesRecordID == predecessor.recordID }) else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                try value.validateSuccessor(of: predecessor)
+            } else {
+                guard family.isEmpty, value.revision == 1 else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            }
+        }
+    }
     private func validateEvidenceContextReferences(_ operation:EvidenceContextWriteOperationV1)throws{guard case let .appendPair(value,_)=operation else{return};let existing=try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()).map{try $0.value()};for candidate in [value.first,value.second]{let historical=existing.filter{$0.workspaceID==value.workspaceID}.flatMap{[$0.first,$0.second]}.filter{$0.evidenceID==candidate.evidenceID};guard historical.allSatisfy({$0.purpose==candidate.purpose&&$0.purposeRevision==candidate.purposeRevision})else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}}}
     func validatePlacementPoseReferences(_ mutation:PlacementPoseMutationV1)throws{try validatePlacementPoseAdmissionClosure(mutation.admissionClosure,pendingPlacementIDs:[]);let revisions=try modelContext.fetch(FetchDescriptor<PlanRevisionRow>()).map{try $0.value()},placementEvents=try modelContext.fetch(FetchDescriptor<AssetPlacementEventRow>()).map{try $0.value()};for event in mutation.events{guard placementEvents.filter({$0.id==event.placementEventID&&$0.workspaceID==event.workspaceID&&$0.assetID==event.assetID&&$0.physicalEpisodeID==event.placementEpisodeID}).count==1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}};for observation in mutation.observations{guard revisions.filter({revision in revision.planRevisionID==observation.planFrame.planRevision.planRevisionID&&revision.workspaceID==observation.workspaceID&&revision.revision==observation.planFrame.planRevision.revision&&revision.revisionSHA256==observation.planFrame.planRevision.revisionSHA256&&revision.spatialFrames.contains(where:{$0.frameID==observation.planFrame.spatialFrameID&&$0.pageID==observation.planFrame.pageID})}).count==1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt}}}
     private func validateAssetPlacementPoseReferences(_ plan:AssetPlacementChangePlanV1)throws{if let closure=plan.poseAdmissionClosure{try validatePlacementPoseAdmissionClosure(closure,pendingPlacementIDs:[plan.newEventID])};guard plan.poseEvents.count==plan.poseEventPredecessors.count else{throw WorkspaceMutationFailureV1.invalidCommand};let rows=try modelContext.fetch(FetchDescriptor<AssetPoseEventRow>()).map{try $0.value()};for (value,predecessor) in zip(plan.poseEvents,plan.poseEventPredecessors){guard rows.filter({$0.eventID==predecessor.eventID&&$0==predecessor}).count==1,rows.filter({$0.predecessor?.eventID==predecessor.eventID}).isEmpty,value.placementEventID==plan.newEventID,value.locationPathSnapshot==plan.basis.proposedPath else{throw WorkspaceMutationFailureV1.invalidCommand}}}
@@ -2589,6 +2663,7 @@ final class MutationJournalStoreV1 {
             try validateEvidenceContextReferences(operation)
         }
         if case let .applyLighting(operation)=envelope.command{try validateLightingReferences(operation)}
+        if case let .applyLightingDayInventory(operation)=envelope.command{try validateLightingDayInventoryReferences(operation)}
         if case let .applyAssistanceAcceptance(request)=envelope.command{try request.validate()}
         if case let .applyTemporalEvidence(mutation)=envelope.command{try mutation.validate()}
         if case let .applyEvidenceMetadata(mutation)=envelope.command{try mutation.validate()}
@@ -2635,6 +2710,7 @@ final class MutationJournalStoreV1 {
             _ = try EvidenceContextMutationReceiptV1(operation:operation,mutationReceipt:receipt)
         }
         if case let .applyLighting(operation)=envelope.command{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)}
+        if case let .applyLightingDayInventory(operation)=envelope.command{_ = try LightingDayInventoryMutationReceiptV1(operation:operation,mutationReceipt:receipt)}
         if case let .applyAssistanceAcceptance(request)=envelope.command{
             _ = try AssistanceAcceptanceReceiptV1(request:request,canonicalMutationReceipt:receipt)
         }
@@ -2924,6 +3000,7 @@ final class MutationJournalStoreV1 {
         case .lightingIssue:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LightingIssueRow>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingIssue(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.issueSHA256)
         case .lightingMeasurementPlan:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingMeasurementPlan(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.planSHA256)
         case .lightingClaimState:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LightingClaimStateRow>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingClaimState(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.claimSHA256)
+        case .lightingDayInventoryWorkflow:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingDayInventoryWorkflow(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.workflowSHA256)
         case .temporalEvidenceClip:
             let id=identity.id,rows=try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(predicate:#Predicate{$0.clipID==id}));guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let value=try row.value();guard value.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .temporalEvidenceClip(id:id,concurrencyIdentity:try authorityConcurrency(identity,value.supersedesClipID),revision:revision,semanticSHA256:value.clipSHA256)
         case .timecodedEvidenceAnchor:
@@ -3140,6 +3217,7 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<LightingIssueRow>()).map{try .init(kind:.lightingIssue,id:$0.recordID)}
         identities += try boundedFetch(FetchDescriptor<MeasurementPlanRow>()).map{try .init(kind:.lightingMeasurementPlan,id:$0.recordID)}
         identities += try boundedFetch(FetchDescriptor<LightingClaimStateRow>()).map{try .init(kind:.lightingClaimState,id:$0.recordID)}
+        identities += try boundedFetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>()).map{try .init(kind:.lightingDayInventoryWorkflow,id:$0.recordID)}
         identities += try boundedFetch(FetchDescriptor<TemporalEvidenceClipRow>()).map{try .init(kind:.temporalEvidenceClip,id:$0.clipID)}
         identities += try boundedFetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()).map{try .init(kind:.timecodedEvidenceAnchor,id:$0.anchorID)}
         identities += try boundedFetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).map { row in
@@ -3661,6 +3739,7 @@ final class MutationJournalStoreV1 {
         case .lightingIssue:return .lightingIssue(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .lightingMeasurementPlan:return .lightingMeasurementPlan(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .lightingClaimState:return .lightingClaimState(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
+        case .lightingDayInventoryWorkflow:return .lightingDayInventoryWorkflow(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .temporalEvidenceClip:return .temporalEvidenceClip(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .timecodedEvidenceAnchor:return .timecodedEvidenceAnchor(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)
         case .acceptedLabelGenerationSnapshot:return .acceptedLabelGenerationSnapshot(id:identity.id,concurrencyIdentity:identity,revision:revision,semanticSHA256:digest)

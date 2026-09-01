@@ -1448,6 +1448,31 @@ enum C16WorkspaceExperiencePersistentKindPolicyV1 {
     static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
 }
 
+/// C17 has one append-only aggregate. Generic MutationReceiptRow remains the
+/// only receipt owner; offline readiness and safety/report/search projections
+/// are derived and cannot become independent durable records.
+enum C17LightingDayInventoryPersistentKindPolicyV1 {
+    static let durableKindIDs = Set([
+        "PERSISTENT_MODEL:LightingDayInventoryWorkflowRowV1",
+    ])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV52"])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 1, derivedKindIDs.count == 1,
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              durableKindIDs.union(derivedKindIDs)
+                .allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+
+    static let genericMutationReceiptIsSoleReceiptOwner = true
+    static let workflowHistoryIsAppendOnly = true
+    static let offlineReadinessIsDerivedOnly = true
+    static let hardSafetyStopAuthorizesObservation = false
+    static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+}
+
 enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let persistentKindCount = 0
     static let lifecycleEnrollmentCount = 0

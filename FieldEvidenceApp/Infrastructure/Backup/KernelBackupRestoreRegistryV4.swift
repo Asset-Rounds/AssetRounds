@@ -281,6 +281,24 @@ enum C31LightingBackupRestoreRegistryV1 {
     }
 }
 
+enum LightingDayInventoryKernelBackupRestoreEnrollmentV1 {
+    static let archiveKinds = V52BackupLightingDayInventoryRecordV1.Kind.allCases
+    static let durableFamilyCount = 1
+    static let replacePreservesCanonicalBytes = true
+    static let cloneForkClearsNightActivation = true
+
+    static func validate() throws {
+        guard archiveKinds.count == durableFamilyCount,
+              LightingDayInventoryBackupEnrollmentV1.persistentSchemaVersion == 52,
+              LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion == 51,
+              LightingDayInventoryPersistenceEnrollmentV1.totalModelCount == 167,
+              replacePreservesCanonicalBytes,
+              cloneForkClearsNightActivation else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C32AssistanceBackupRestoreRegistryV1 {
     static let persistentSchemaVersion = 32
     static let recordsSchemaVersion = 31
@@ -762,6 +780,7 @@ enum KernelBackupRestoreRegistryV4 {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
         try C31LightingBackupRestoreRegistryV1.validate()
+        try LightingDayInventoryKernelBackupRestoreEnrollmentV1.validate()
     }
     typealias Route = (
         archive: KernelArchiveDispositionV4,

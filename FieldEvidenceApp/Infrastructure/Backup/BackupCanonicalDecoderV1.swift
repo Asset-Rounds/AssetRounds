@@ -258,6 +258,7 @@ struct BackupCanonicalDecoderV1: Sendable {
               try Self.validateC08ImportBulk(value)
              try Self.validateReinspectionExceptionQueue(value)
             try Self.validatePracticeWorkspaceProvenance(value)
+            try Self.validateLightingDayInventory(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -272,6 +273,13 @@ struct BackupCanonicalDecoderV1: Sendable {
 private extension BackupCanonicalDecoderV1 {
     static func validatePracticeWorkspaceProvenance(_ records: V4BackupRecordsV1) throws {
         do { try PracticeWorkspaceBackupEnrollmentV1.validate(records) }
+        catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+    }
+    static func validateLightingDayInventory(_ records: V4BackupRecordsV1) throws {
+        do {
+            try LightingDayInventoryBackupEnrollmentV1.validate(records)
+            try records.validateC17LightingDayInventoryClosure()
+        }
         catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
     }
     static func validateC46OperationalContacts(_ records: V4BackupRecordsV1) throws {
@@ -388,7 +396,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard (30...C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion)
+        guard (30...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion) else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
@@ -489,7 +497,7 @@ private extension BackupCanonicalDecoderV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion <= C52ServiceRequestBackupDecodingBoundaryV1.recordsSchemaVersion else {
+        guard records.recordsSchemaVersion <= LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion else {
             throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
         var locators: [UUID: AssetLocatorV1] = [:]
@@ -1374,7 +1382,9 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
                 || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion),
+                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }

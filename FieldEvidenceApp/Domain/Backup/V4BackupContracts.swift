@@ -1984,6 +1984,77 @@ enum PracticeWorkspaceBackupEnrollmentV1 {
     }
 }
 
+enum LightingDayInventoryBackupEnrollmentV1 {
+    static let persistentSchemaVersion = 52
+    static let recordsSchemaVersion = 51
+    static let durableFamilyCount = 1
+    static let archiveKind = V52BackupLightingDayInventoryRecordV1.Kind.workflow
+    static let offlineReadinessManifestIsPersistent = false
+    static let cloneForkActivatesSourceOccurrenceOrClaim = false
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        let workflows = records.lightingDayInventoryWorkflows
+        if records.recordsSchemaVersion < recordsSchemaVersion {
+            guard workflows.isEmpty else { throw LightingDayInventoryFailureV1.incompatibleVersion }
+            return
+        }
+        guard durableFamilyCount == 1,
+              !offlineReadinessManifestIsPersistent,
+              !cloneForkActivatesSourceOccurrenceOrClaim else {
+            throw LightingDayInventoryFailureV1.incompatibleVersion
+        }
+        _ = try LightingDayInventoryBackupRecordSetV1.decode(workflows)
+    }
+}
+
+struct V52BackupLightingDayInventoryRecordV1: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, CaseIterable, Sendable {
+        case workflow = "LIGHTING_DAY_INVENTORY_WORKFLOW"
+    }
+    let kind: Kind
+    let id: UUID
+    let workspaceID: UUID
+    let revision: UInt64
+    let canonicalData: Data
+}
+
+enum LightingDayInventoryBackupRecordSetV1 {
+    static func decode(
+        _ records: [V52BackupLightingDayInventoryRecordV1]
+    ) throws -> [LightingDayInventoryWorkflowV1] {
+        let keys = records.map {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+        }
+        guard keys == keys.sorted(), Set(keys).count == keys.count else {
+            throw LightingDayInventoryFailureV1.duplicateIdentity
+        }
+        let values = try records.map { record in
+            let value = try LightingDayInventoryCanonicalCodecV1.decode(
+                LightingDayInventoryWorkflowV1.self, from: record.canonicalData
+            )
+            try value.validateIntrinsic()
+            guard record.kind == .workflow, value.recordID == record.id,
+                  value.workspaceID.rawValue == record.workspaceID,
+                  value.revision == record.revision else {
+                throw LightingDayInventoryFailureV1.staleReference
+            }
+            return value
+        }
+        let groups = Dictionary(grouping: values, by: \.workflowID)
+        for history in groups.values {
+            let ordered = history.sorted { $0.revision < $1.revision }
+            guard ordered.first?.revision == 1,
+                  Set(ordered.map(\.revision)).count == ordered.count else {
+                throw LightingDayInventoryFailureV1.invalidSuccessor
+            }
+            for index in ordered.indices.dropFirst() {
+                try ordered[index].validateSuccessor(of: ordered[index - 1])
+            }
+        }
+        return values
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -1998,6 +2069,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     /// as one stably ordered array so topology, observations, issues, plans,
     /// and claim states cannot be split across a backup sidecar.
     let lighting: [V31BackupLightingRecordV1]
+    /// C17's single aggregate is a distinct V52 family. It must never extend
+    /// the frozen five-case C31 lighting discriminator.
+    var lightingDayInventoryWorkflows: [V52BackupLightingDayInventoryRecordV1]
     /// C32 durable acceptance provenance. Proposals and leased scratch remain
     /// process-local and therefore have no records-envelope representation.
     let assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1]
@@ -2150,6 +2224,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         evidenceContexts: [V30BackupEvidenceContextRecordV1] = [],
         pairedObservationLinks: [V30BackupEvidenceContextRecordV1] = [],
         lighting: [V31BackupLightingRecordV1] = [],
+        lightingDayInventoryWorkflows: [V52BackupLightingDayInventoryRecordV1] = [],
         assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1] = [],
         temporalEvidence: [V33BackupTemporalEvidenceRecordV1] = [],
         acceptedLabelGenerationSnapshots: [V34BackupAcceptedLabelSnapshotRecordV1] = [],
@@ -2192,6 +2267,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.evidenceContexts = evidenceContexts
         self.pairedObservationLinks = pairedObservationLinks
         self.lighting = lighting
+        self.lightingDayInventoryWorkflows = lightingDayInventoryWorkflows
         self.assistanceAcceptanceReceipts = assistanceAcceptanceReceipts
         self.temporalEvidence = temporalEvidence
         self.acceptedLabelGenerationSnapshots = acceptedLabelGenerationSnapshots
@@ -2266,7 +2342,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         case deletionLedger, evidenceFiles, issues, locationHierarchyEvents
         case locationMigrationReceipts, locationNodes, mutationHistory, packets, partyAccountability
         case recordsSchemaVersion, reports, requirementAssurance, savedSmartViews, sites
-         case workflowRecords, evidenceContexts, pairedObservationLinks, lighting
+         case workflowRecords, evidenceContexts, pairedObservationLinks, lighting, lightingDayInventoryWorkflows
          case assistanceAcceptanceReceipts, temporalEvidence, acceptedLabelGenerationSnapshots, operationalContacts, activityContracts, workResources
           case serviceRequests, serviceRequestDispositionEvents, serviceRequestWorkLinkEvents
           case serviceReliabilityIncidents, serviceImpactSegments, serviceCauseAssertions
@@ -2357,6 +2433,10 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             ) ?? [],
             lighting: try values.decodeIfPresent(
                 [V31BackupLightingRecordV1].self, forKey: .lighting
+            ) ?? [],
+            lightingDayInventoryWorkflows: try values.decodeIfPresent(
+                [V52BackupLightingDayInventoryRecordV1].self,
+                forKey: .lightingDayInventoryWorkflows
             ) ?? [],
             assistanceAcceptanceReceipts: try values.decodeIfPresent(
                 [V32BackupAssistanceAcceptanceRecordV1].self,
@@ -4740,7 +4820,7 @@ extension V4BackupRecordsV1{
                 || recordsSchemaVersion == 32 || recordsSchemaVersion == 33 || recordsSchemaVersion == 34
                 || recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
                 || recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
-                || recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion else {
+                || recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion else {
             throw LightingContractFailureV1.invalidValue
         }
         let decodedLighting = try LightingBackupRecordSetV1.decode(lighting)
@@ -4749,6 +4829,86 @@ extension V4BackupRecordsV1{
             measurementIntegrity: measurementIntegrity,
             authorityCriterion: authorityCriterion
         )
+    }
+
+    func validateC17LightingDayInventoryClosure() throws {
+        if recordsSchemaVersion < LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion {
+            guard lightingDayInventoryWorkflows.isEmpty else {
+                throw LightingDayInventoryFailureV1.incompatibleVersion
+            }
+        } else {
+            let workflows = try LightingDayInventoryBackupRecordSetV1.decode(
+                lightingDayInventoryWorkflows
+            )
+            let decodedLighting = try LightingBackupRecordSetV1.decode(lighting)
+            try validateC17LightingDayInventoryReferences(decodedLighting, workflows: workflows)
+        }
+    }
+
+    private func validateC17LightingDayInventoryReferences(
+        _ decoded: LightingBackupRecordSetV1,
+        workflows: [LightingDayInventoryWorkflowV1]
+    ) throws {
+        let systems = Dictionary(grouping: decoded.systems, by: \.systemID)
+        let observations = Dictionary(grouping: decoded.observations, by: \.observationID)
+        let poses = try PlacementPoseBackupRecordSetV1.decode(placementPoses).poseEvents
+        let packets = try workPackets.compactMap { record -> WorkPacketManifestV1? in
+            guard record.kind == .manifest else { return nil }
+            return try WorkPacketCanonicalCodecV1.decode(WorkPacketManifestV1.self, from: record.canonicalData)
+        }
+        let occurrences = try schedules.compactMap { record -> OccurrenceHistoryEventV1? in
+            guard record.kind == .occurrenceHistory else { return nil }
+            return try ScheduleCanonicalCodecV1.decode(OccurrenceHistoryEventV1.self, from: record.canonicalData)
+        }
+        for value in workflows {
+            guard let system = systems[value.systemID]?.first(where: {
+                $0.revision == value.systemRevision && $0.systemSHA256 == value.systemSHA256
+            }) else { throw LightingDayInventoryFailureV1.staleReference }
+            try value.validate(system: system)
+            for snapshot in value.conditionSnapshots {
+                guard observations[snapshot.observation.observationID]?.contains(where: {
+                    $0.revision == snapshot.observation.revision
+                        && $0.observationSHA256 == snapshot.observation.observationSHA256
+                }) == true else { throw LightingDayInventoryFailureV1.staleReference }
+                if let reference = snapshot.poseEvent {
+                    guard snapshot.poseDisposition != .notDeclared,
+                          let pose = poses.first(where: {
+                              $0.eventID == reference.eventID
+                                  && $0.revision == reference.revision
+                                  && $0.eventSHA256 == reference.eventSHA256
+                          }), pose.reference == reference,
+                          pose.workspaceID == value.workspaceID,
+                          pose.assetID == snapshot.assetID,
+                          pose.axisDescriptor.semanticRole == .lightBeamCenterline,
+                          pose.axisDescriptor.applicability == .applicable,
+                          LightingDayInventoryAdmissionClosureV1.poseDispositionMatches(
+                              snapshot.poseDisposition, pose.pose.disposition
+                          ) else { throw LightingDayInventoryFailureV1.staleReference }
+                } else {
+                    guard snapshot.poseDisposition == .notDeclared else {
+                        throw LightingDayInventoryFailureV1.staleReference
+                    }
+                }
+            }
+            if value.nightFollowupPlan != nil {
+                // Offline readiness is deliberately derived-only. Its frozen
+                // source/manifest digests remain in the workflow, while restore
+                // re-proves the canonical packet/occurrence closure here.
+                guard let plan = value.nightFollowupPlan,
+                      occurrences.contains(where: {
+                          $0.eventID == plan.occurrence.eventID
+                              && $0.revision == plan.occurrence.eventRevision
+                              && $0.eventSHA256 == plan.occurrence.eventSHA256
+                      }),
+                      packets.contains(where: {
+                          $0.manifestID == plan.workPacket.manifestID
+                              && $0.revision == plan.workPacket.revision
+                              && $0.manifestSHA256 == plan.workPacket.manifestSHA256
+                      }) else {
+                    throw LightingDayInventoryFailureV1.staleReference
+                }
+            }
+        }
     }
 
     /// Validates C30 rows after decoding and before any replacement/restore

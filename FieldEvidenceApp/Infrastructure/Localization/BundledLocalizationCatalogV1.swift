@@ -570,6 +570,101 @@ enum BundledLocalizationKeyV1: String, CaseIterable, Sendable {
     static var fieldDraftNextStepKey: Self { .fieldDraftNextStep }
 }
 
+// MARK: - V23 P04 C17 exterior-lighting day inventory
+
+enum C17LightingDayLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case title = "lighting.day_inventory.title"
+    case daylightObservation = "lighting.day_inventory.daylight_observation"
+    case daylightCaution = "lighting.day_inventory.daylight_caution"
+    case safetyStop = "lighting.day_inventory.safety_stop"
+    case safetyStopDetail = "lighting.day_inventory.safety_stop_detail"
+    case unknown = "lighting.day_inventory.state.unknown"
+    case notObserved = "lighting.day_inventory.state.not_observed"
+    case notApplicable = "lighting.day_inventory.state.not_applicable"
+    case offlineReady = "lighting.day_inventory.offline.ready"
+    case offlineBlocked = "lighting.day_inventory.offline.blocked"
+    case nightFollowup = "lighting.day_inventory.night_followup"
+    case claimBoundary = "lighting.day_inventory.claim_boundary"
+
+    var englishDefaultValue: String {
+        switch self {
+        case .title: return "Day lighting inventory"
+        case .daylightObservation: return "Observed energized during daylight"
+        case .daylightCaution: return "This daylight observation does not determine schedule, control operation, failure, or night performance."
+        case .safetyStop: return "Stop here"
+        case .safetyStopDetail: return "Do not climb, open, touch, probe, repair, or enter traffic exposure. Follow the recorded authorized procedure."
+        case .unknown: return "Unknown"
+        case .notObserved: return "Not observed"
+        case .notApplicable: return "Not applicable"
+        case .offlineReady: return "Required local material is available for this visit."
+        case .offlineBlocked: return "Required local material is unavailable or out of date. Do not start until readiness is rebuilt."
+        case .nightFollowup: return "Linked night follow-up"
+        case .claimBoundary: return "This inventory records visible conditions only. It is not photometry, an electrical diagnosis, an adequacy or commissioning determination, or proof of night performance."
+        }
+    }
+}
+
+enum C17LightingDayLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocales = ["en"]
+    static let pseudoLocales = ["en-XA", "ar-XB"]
+    static let runtimeDownloadsAllowed = false
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6Reconciliation = true
+
+    static func validate() throws {
+        let keys = C17LightingDayLocalizationKeyV1.allCases.map(\.rawValue)
+        guard keys.count == Set(keys).count,
+              keys.allSatisfy({ !$0.isEmpty }),
+              sourceLocale == "en",
+              shippingLocales == ["en"],
+              pseudoLocales == ["en-XA", "ar-XB"],
+              !runtimeDownloadsAllowed,
+              !uiAdoptionClaimed,
+              requiresAcceptedS10_6Reconciliation else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
+extension BundledLocalizationCatalogV1 {
+    static func c17LightingDayEnglish(_ key: C17LightingDayLocalizationKeyV1) -> String {
+        key.englishDefaultValue
+    }
+
+    static func c17LightingDayLocalized(
+        _ key: C17LightingDayLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: locale,
+            comment: "C17 cautious day-lighting inventory copy; no photometry, diagnosis, adequacy, commissioning, safety-clearance, or night-pass claim."
+        )
+    }
+
+    static func c17LightingDayRegistry() throws -> LocalizationKeyRegistryV1 {
+        try C17LightingDayLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = try C17LightingDayLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(key.rawValue),
+                meaningID: key.rawValue,
+                translatorComment: "C17 cautious day-lighting inventory copy; all unknown states remain explicit and no shipping UI adoption is claimed.",
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 enum LocalizationCatalogPublicationBoundaryV1: String, CaseIterable, Sendable {
     case beforeValidation = "BEFORE_VALIDATION"
     case afterValidationBeforePublication = "AFTER_VALIDATION_BEFORE_PUBLICATION"

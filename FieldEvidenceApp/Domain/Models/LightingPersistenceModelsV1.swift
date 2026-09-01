@@ -44,6 +44,18 @@ enum LightingPersistenceFailureV1: Error { case corruptRow }
 }
 
 enum LightingPersistenceEnrollmentV1 { static let persistentSchemaVersion=31;static let recordsSchemaVersion=30;static let durableModelCount=5;static let totalModelCount=109 }
+
+/// C17 is a distinct V52 aggregate family. It does not alter the C31 five-row
+/// lighting enrollment or create a second receipt/readiness persistence path.
+enum LightingDayInventoryPersistenceBoundaryV1 {
+    static let predecessorPersistentSchemaVersion = 51
+    static let targetPersistentSchemaVersion = 52
+    static let durableWorkflowFamilyCount = 1
+    static let genericMutationReceiptIsSoleReceiptOwner = true
+    static let offlineReadinessManifestIsDerivedOnly = true
+    static let hardSafetyStopIsDurable = true
+    static let hardSafetyStopAuthorizesObservation = false
+}
 // MARK: - C32 assistance lighting persistence boundary
 
 enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Models_LightingPersistenceModelsV1_swift {

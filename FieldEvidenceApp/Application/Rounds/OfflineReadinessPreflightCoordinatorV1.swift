@@ -263,3 +263,27 @@ final class OfflineReadinessPreflightCoordinatorV1 {
         return expected
     }
 }
+
+/// C17 application boundary for a fully materialized, read-only snapshot.
+/// It owns no cache or persistent state and delegates to the sole C06 builder.
+enum C17LightingDayOfflineReadinessCoordinatorV1 {
+    static let persistenceMode = C17LightingDayOfflineReadinessProjectionV1.persistenceMode
+    static let ownsPersistentRow = false
+    static let writesCanonicalWorkspaceState = false
+
+    static func rebuild(
+        workflow: LightingDayInventoryWorkflowV1,
+        source: C17LightingDayReadinessSourceV1,
+        snapshot: OfflineReadinessSnapshotV1,
+        previous: C17LightingDayOfflineReadinessProjectionV1? = nil
+    ) throws -> C17LightingDayOfflineReadinessProjectionV1 {
+        guard persistenceMode == "DERIVED_ONLY",
+              !ownsPersistentRow,
+              !writesCanonicalWorkspaceState else {
+            throw OfflineReadinessManifestFailureV1.invalidValue
+        }
+        return try OfflineReadinessManifestBuilderV1.buildC17LightingDay(
+            workflow: workflow, source: source, snapshot: snapshot, previous: previous
+        )
+    }
+}

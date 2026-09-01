@@ -38,6 +38,41 @@ extension ReportRenderService {
     }
 }
 
+// MARK: - C17 exterior-lighting day inventory render routing
+
+extension ReportRenderService {
+    static func renderC17LightingDayInventoryOpenJSON(
+        _ snapshot: C17LightingDayInventoryFrozenSnapshotV1
+    ) throws -> ReportProjectionOutputV1 {
+        let encoded = try ReportSnapshotEncoderV1().encodeC17LightingDayInventory(snapshot)
+        return ReportProjectionOutputV1(
+            format: .openJSON,
+            data: encoded.data,
+            sha256: encoded.sha256,
+            semanticSHA256: snapshot.projection.projectionSHA256,
+            orderedSemanticIDs: snapshot.projection.conditions.map {
+                $0.luminaireID.uuidString.lowercased()
+            },
+            taggedPDFAccessibilityEvidence: false
+        )
+    }
+
+    static func renderC17LightingDayInventoryOpenJSON(
+        _ snapshot: C17LightingDayInventoryFrozenSnapshotV1,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> ReportProjectionOutputV1 {
+        let permit = try await accessGate.requireContentAccess(for: .render)
+        guard permit.surface == .render, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: .render, state: permit.state)
+        }
+        return try renderC17LightingDayInventoryOpenJSON(snapshot)
+    }
+
+    static let c17UsesIncumbentSnapshotEncoderAndRenderOutput = true
+    static let c17IntroducesSecondRenderer = false
+    static let c17EmitsSafetyRouteActorNotesOrMedia = false
+}
+
 enum ReportRenderServiceError: Error, Equatable {
     case invalidGeneration
     case reportNotFound

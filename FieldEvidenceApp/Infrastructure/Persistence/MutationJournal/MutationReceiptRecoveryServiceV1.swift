@@ -21,6 +21,7 @@ final class MutationReceiptRecoveryServiceV1 {
             try validateReinspectionExceptionRecoveryParity()
             try validateEntityIdentityResolutionRecoveryParity()
             try validateWorkspaceExperienceRecoveryParity()
+            try validateLightingDayInventoryRecoveryParity()
         }
     }
 
@@ -64,6 +65,12 @@ final class MutationReceiptRecoveryServiceV1 {
     /// C31 recovery revalidates persisted topology and claim admission
     /// authorities through MutationJournalStoreV1 before activating a writer.
     func recoverLightingEffectsBeforeWriterActivation()throws{try recoverBeforeWriterActivation()}
+    /// C17 replays only the generic receipt plus the one immutable workflow
+    /// aggregate. Safety stops remain durable audit truth, never permission to
+    /// start a daylight or night observation.
+    func recoverLightingDayInventoryEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
     /// C33 repairs clip/anchor effects and their canonical receipt together.
     /// Original/derivative content cleanup is retried only from the accepted
     /// retention receipt; recovery never invents a second content authority.
@@ -189,6 +196,15 @@ final class MutationReceiptRecoveryServiceV1 {
             )
         }
     }
+
+    private func validateLightingDayInventoryRecoveryParity() throws {
+        for pair in try store.lightingDayInventoryRecoveryPairs() {
+            try LightingDayInventoryMutationReceiptRecoveryPolicyV1.validateRecovered(
+                operation: pair.operation,
+                receipt: pair.receipt
+            )
+        }
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -200,6 +216,14 @@ final class MutationReceiptRecoveryServiceV1 {
 }
 
 enum LightingMutationReceiptRecoveryPolicyV1 { static func validateRecovered(operation:LightingWriteOperationV1,receipt:MutationReceiptV1)throws{_ = try LightingMutationReceiptV1(operation:operation,mutationReceipt:receipt)} }
+enum LightingDayInventoryMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        operation: LightingDayInventoryWriteOperationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        _ = try LightingDayInventoryMutationReceiptV1(operation: operation, mutationReceipt: receipt)
+    }
+}
 enum EntityIdentityResolutionMutationReceiptRecoveryPolicyV1 {
     static func validateRecovered(
         command: EntityIdentityResolutionMutationCommandV1,

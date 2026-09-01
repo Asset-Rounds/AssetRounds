@@ -1744,3 +1744,137 @@ struct PrivateSystemDiscoveryClientStateV1: Codable, Equatable, Sendable {
         }
     }
 }
+
+// MARK: - C17 exterior-lighting day inventory disposable search metadata
+
+enum C17LightingDaySearchPersistencePolicyV1 {
+    static let semanticLabel = "LIGHTING_DAY_INVENTORY_SEARCH_PROJECTION_V1"
+    static let persistenceMode = "DERIVED_DISPOSABLE"
+    static let fieldIDs = [
+        "lighting_day_workflow_state",
+        "lighting_day_condition_state",
+        "lighting_day_pose_disposition",
+        "lighting_day_night_followup_state",
+        "lighting_day_projection_version",
+    ]
+    static let indexesCurrentWorkflowHeadsOnly = true
+    static let excludesSafetyIntakeAndStopReasons = true
+    static let excludesRouteAndLocationDetail = true
+    static let excludesActorAndPrivateNotes = true
+    static let excludesMediaIdentifiersDigestsAndBytes = true
+    static let excludesConditionEvidenceAndIssueDetail = true
+    static let excludesPhotometryAdequacyCommissioningDiagnosisAndNightPassClaims = true
+}
+
+struct C17LightingDaySearchRecordV1: Codable, Equatable, Comparable, Sendable {
+    static let projectionVersion = "C17_LIGHTING_DAY_SEARCH_V1"
+    let workspaceID: WorkspaceID
+    let workflowID: UUID
+    let workflowRevision: UInt64
+    let workflowSHA256: String
+    let state: LightingDayInventoryWorkflowStateV1
+    let unknownOrNotObservedCount: Int
+    let conditionCount: Int
+    let poseNotDeclaredCount: Int
+    let poseObservedCount: Int
+    let poseNotObservedCount: Int
+    let hasNightFollowup: Bool
+    let normalizedTokens: [String]
+    let displayIdentity: String
+    let status: String
+    let projectionSHA256: String
+
+    init(workflow: LightingDayInventoryWorkflowV1) throws {
+        let source = try LightingDayInventoryProjectionV1(workflow)
+        guard source.searchEligible else { throw SearchContractFailureV1.forbiddenField }
+        workspaceID = workflow.workspaceID
+        workflowID = workflow.workflowID
+        workflowRevision = workflow.revision
+        workflowSHA256 = workflow.workflowSHA256
+        state = workflow.state
+        unknownOrNotObservedCount = source.unknownOrNotObservedCount
+        conditionCount = workflow.conditionSnapshots.count
+        poseNotDeclaredCount = workflow.conditionSnapshots.filter { $0.poseDisposition == .notDeclared }.count
+        poseObservedCount = workflow.conditionSnapshots.filter { $0.poseDisposition == .observed }.count
+        poseNotObservedCount = workflow.conditionSnapshots.filter { $0.poseDisposition == .notObserved }.count
+        hasNightFollowup = workflow.nightFollowupPlan != nil
+        let safeText = [
+            "day lighting inventory",
+            workflow.state.rawValue,
+            source.unknownOrNotObservedCount == 0 ? "conditions recorded" : "unknown not observed",
+            poseNotDeclaredCount == 0 ? "" : "pose not declared",
+            poseObservedCount == 0 ? "" : "pose observed",
+            poseNotObservedCount == 0 ? "" : "pose not observed",
+            workflow.nightFollowupPlan == nil ? "night followup not prepared" : "night followup prepared",
+            Self.projectionVersion,
+        ].joined(separator: " ")
+        normalizedTokens = Array(Set(SearchContractValidationV1.normalizeSearchText(safeText)
+            .unicodeScalars
+            .split { !CharacterSet.alphanumerics.contains($0) }
+            .map(String.init))).sorted()
+        displayIdentity = "Day lighting inventory"
+        status = workflow.state.rawValue
+        projectionSHA256 = try LightingDayInventoryCanonicalCodecV1.sha256(Basis(
+            projectionVersion: Self.projectionVersion, workspaceID: workflow.workspaceID,
+            workflowID: workflow.workflowID, workflowRevision: workflow.revision,
+            workflowSHA256: workflow.workflowSHA256, state: workflow.state,
+            unknownOrNotObservedCount: source.unknownOrNotObservedCount,
+            conditionCount: conditionCount, poseNotDeclaredCount: poseNotDeclaredCount,
+            poseObservedCount: poseObservedCount, poseNotObservedCount: poseNotObservedCount,
+            hasNightFollowup: workflow.nightFollowupPlan != nil,
+            normalizedTokens: normalizedTokens, displayIdentity: displayIdentity, status: status
+        ))
+        try validate()
+    }
+
+    var projectionIdentity: String {
+        workspaceID.rawValue.uuidString.lowercased() + "|" + workflowID.uuidString.lowercased()
+    }
+
+    func validate() throws {
+        try LightingDayInventoryLimitsV1.id(workflowID)
+        try LightingDayInventoryLimitsV1.revision(workflowRevision)
+        try [workflowSHA256, projectionSHA256].forEach(LightingDayInventoryLimitsV1.digest)
+        guard state != .safetyStopped,
+              unknownOrNotObservedCount >= 0,
+              conditionCount > 0,
+              poseNotDeclaredCount >= 0,
+              poseObservedCount >= 0,
+              poseNotObservedCount >= 0,
+              poseNotDeclaredCount + poseObservedCount + poseNotObservedCount == conditionCount,
+              normalizedTokens.count <= SearchContractLimitsV1.maximumProjectionTokens,
+              !normalizedTokens.isEmpty,
+              normalizedTokens == normalizedTokens.sorted(),
+              Set(normalizedTokens).count == normalizedTokens.count,
+              normalizedTokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken),
+              SearchContractValidationV1.validDisplayText(displayIdentity, maximumBytes: 240),
+              SearchContractValidationV1.validDisplayText(status, maximumBytes: 120),
+              projectionSHA256 == (try LightingDayInventoryCanonicalCodecV1.sha256(basis)) else {
+            throw SearchContractFailureV1.invalidField
+        }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        lhs.projectionIdentity < rhs.projectionIdentity
+    }
+
+    private var basis: Basis {
+        .init(projectionVersion: Self.projectionVersion, workspaceID: workspaceID,
+              workflowID: workflowID, workflowRevision: workflowRevision,
+              workflowSHA256: workflowSHA256, state: state,
+              unknownOrNotObservedCount: unknownOrNotObservedCount,
+              conditionCount: conditionCount, poseNotDeclaredCount: poseNotDeclaredCount,
+              poseObservedCount: poseObservedCount, poseNotObservedCount: poseNotObservedCount,
+              hasNightFollowup: hasNightFollowup, normalizedTokens: normalizedTokens,
+              displayIdentity: displayIdentity, status: status)
+    }
+    private struct Basis: Codable {
+        let projectionVersion: String; let workspaceID: WorkspaceID; let workflowID: UUID
+        let workflowRevision: UInt64; let workflowSHA256: String
+        let state: LightingDayInventoryWorkflowStateV1; let unknownOrNotObservedCount: Int
+        let conditionCount: Int; let poseNotDeclaredCount: Int
+        let poseObservedCount: Int; let poseNotObservedCount: Int
+        let hasNightFollowup: Bool; let normalizedTokens: [String]
+        let displayIdentity: String; let status: String
+    }
+}

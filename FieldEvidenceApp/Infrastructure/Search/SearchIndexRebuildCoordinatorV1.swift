@@ -2934,3 +2934,41 @@ enum PrivateSystemDiscoverySearchRebuildBoundaryV1 {
         )
     }
 }
+
+// MARK: - C17 exterior-lighting day inventory search rebuild
+
+enum C17LightingDaySearchRebuildBoundaryV1 {
+    static let projectionIsDerivedAndDisposable = true
+    static let canonicalWriterIsUntouched = true
+    static let safetyStoppedWorkflowsAreNotDiscoverable = true
+    static let privateSafetyRouteActorNotesAndMediaAreExcluded = true
+
+    static func records(
+        workflows: [LightingDayInventoryWorkflowV1]
+    ) throws -> [C17LightingDaySearchRecordV1] {
+        guard workflows.count <= SearchContractLimitsV1.maximumCanonicalRecords else {
+            throw SearchContractFailureV1.limitExceeded
+        }
+        try workflows.forEach { try $0.validateIntrinsic() }
+        let eligible = workflows.filter { $0.state != .safetyStopped }
+        let grouped = Dictionary(grouping: eligible, by: \.workflowID)
+        let current = try grouped.values.map { history -> LightingDayInventoryWorkflowV1 in
+            let ordered = history.sorted { $0.revision < $1.revision }
+            guard ordered.first?.revision == 1,
+                  Set(ordered.map(\.revision)).count == ordered.count else {
+                throw SearchContractFailureV1.duplicateProjection
+            }
+            for index in ordered.indices.dropFirst() {
+                try ordered[index].validateSuccessor(of: ordered[ordered.index(before: index)])
+            }
+            return ordered[ordered.index(before: ordered.endIndex)]
+        }
+        let values = try current.map {
+            try C17LightingDaySearchRecordV1(workflow: $0)
+        }.sorted()
+        guard Set(values.map(\.projectionIdentity)).count == values.count else {
+            throw SearchContractFailureV1.duplicateProjection
+        }
+        return values
+    }
+}

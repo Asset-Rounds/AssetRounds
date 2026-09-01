@@ -129,4 +129,18 @@ enum OfflineReadinessManifestBuilderV1 {
         )
     }
 
+    static func buildC17LightingDay(
+        workflow: LightingDayInventoryWorkflowV1,
+        source: C17LightingDayReadinessSourceV1,
+        snapshot: OfflineReadinessSnapshotV1,
+        previous: C17LightingDayOfflineReadinessProjectionV1? = nil
+    ) throws -> C17LightingDayOfflineReadinessProjectionV1 {
+        try source.validate(workflow: workflow, storage: snapshot.storage)
+        try previous?.validate()
+        let manifest = try build(snapshot: snapshot, previous: previous?.manifest)
+        return try C17LightingDayOfflineReadinessProjectionV1(
+            source: source, manifest: manifest
+        )
+    }
+
 }

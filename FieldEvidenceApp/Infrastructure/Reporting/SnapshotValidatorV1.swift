@@ -267,6 +267,7 @@ struct SnapshotValidatorV1 {
         try validateFunctionalRelationships(snapshot)
         try validateInspectionReviewHistory(snapshot)
         try validateWorkPacket(snapshot)
+        try validateC17LightingDayInventory(snapshot)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
               snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
@@ -631,6 +632,27 @@ struct SnapshotValidatorV1 {
                   workPacket.preservedResultCount >= 0,
                   workPacket.collisionCount >= 0 else {
                 throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateC17LightingDayInventory(_ snapshot: ReportSnapshotV1) throws {
+        guard let lighting = snapshot.lightingDayInventory else { return }
+        do {
+            try lighting.validate()
+            guard snapshot.snapshotSchemaVersion >= 4,
+                  lighting.projection.state != .safetyStopped,
+                  lighting.projection.claimBoundary
+                    == C17LightingDayInventoryReportProjectionV1.claimBoundary else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            if case .live(let dependencies, _) = lifecycleRoute {
+                guard lighting.projection.workspaceID
+                        == WorkspaceID(rawValue: dependencies.workspaceID) else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
             }
         } catch {
             throw SnapshotValidationErrorV1.invalidAuthority

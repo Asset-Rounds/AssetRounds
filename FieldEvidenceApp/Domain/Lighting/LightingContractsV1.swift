@@ -778,3 +778,60 @@ enum C52ServiceRequestBoundary_LightingContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+// MARK: - C17 canonical clone/fork rebinding
+
+extension LightingSystemV1 {
+    func rebound(recordID:UUID,systemID:UUID,to workspaceID:WorkspaceID,siteID:UUID,
+                 zones:[LightingZoneV1],controlGroups:[ControlGroupV1],luminaires:[LuminaireAssetV1],
+                 mutationID:MutationIDV1,recordedBy:ActorSnapshotV1,recordedAt:Date)throws->Self {
+        try validateIntrinsic()
+        guard workspaceID != self.workspaceID, recordedBy.workspaceID == workspaceID else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+        let value=try Self(recordID:recordID,systemID:systemID,workspaceID:workspaceID,siteID:siteID,
+                           packageRelease:packageRelease,zones:zones,controlGroups:controlGroups,
+                           luminaires:luminaires,predecessor:nil,revision:1,mutationID:mutationID,
+                           recordedBy:recordedBy,recordedAt:recordedAt)
+        try value.validateIntrinsic();return value
+    }
+}
+
+extension LightingObservationV1 {
+    func rebound(recordID:UUID,observationID:UUID,to system:LightingSystemV1,luminaireID:UUID,
+                 zoneID:UUID,controlGroupID:UUID,evidenceContext:EvidenceContextV1,
+                 observationBasis:ObservationBasisV1,mutationID:MutationIDV1,
+                 recordedBy:ActorSnapshotV1,recordedAt:Date)throws->Self {
+        try validateIntrinsic();try system.validateIntrinsic();try observationBasis.validate()
+        guard system.workspaceID != workspaceID, recordedBy.workspaceID == system.workspaceID,
+              observationBasis.kind == self.observationBasis.kind,
+              observationBasis.method == self.observationBasis.method,
+              observationBasis.limitations == self.observationBasis.limitations else {
+            throw LightingContractFailureV1.wrongWorkspace
+        }
+        let value=try Self(recordID:recordID,observationID:observationID,workspaceID:system.workspaceID,
+                           system:system,luminaireID:luminaireID,zoneID:zoneID,
+                           controlGroupID:controlGroupID,evidenceContext:evidenceContext,
+                           observationBasis:observationBasis,issueKinds:issueKinds,predecessor:nil,
+                           revision:1,mutationID:mutationID,recordedBy:recordedBy,recordedAt:recordedAt)
+        try value.validate(system:system);return value
+    }
+}
+
+extension LightingIssueV1 {
+    func rebound(recordID:UUID,issueID:UUID,to observation:LightingObservationV1,finding:FindingV1,
+                 resolutionEvidence:[ContentReferenceV1],mutationID:MutationIDV1,
+                 recordedBy:ActorSnapshotV1,recordedAt:Date)throws->Self {
+        try validateIntrinsic();try observation.validateIntrinsic()
+        guard observation.workspaceID != workspaceID, observation.issueKinds.contains(kind),
+              recordedBy.workspaceID == observation.workspaceID,
+              finding.findingID != findingID else { throw LightingContractFailureV1.wrongWorkspace }
+        let value=try Self(recordID:recordID,issueID:issueID,workspaceID:observation.workspaceID,
+                           kind:kind,subjectAssetID:observation.assetID,
+                           observation:try LightingObservationReferenceV1(observation),finding:finding,
+                           disposition:disposition,resolutionEvidence:resolutionEvidence,
+                           predecessor:nil,revision:1,mutationID:mutationID,
+                           recordedBy:recordedBy,recordedAt:recordedAt)
+        try value.validate(observation:observation);return value
+    }
+}

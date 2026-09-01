@@ -9,6 +9,67 @@ enum SemanticAccessibilityRoleV1: String, Codable, CaseIterable, Sendable {
     case group = "GROUP"
 }
 
+// MARK: - V23 P04 C17 exterior-lighting day inventory accessibility
+
+enum C17LightingDayAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case screen = "lighting.day_inventory.screen"
+    case daylightObservation = "lighting.day_inventory.daylight_observation"
+    case safetyStop = "lighting.day_inventory.safety_stop"
+    case conditionState = "lighting.day_inventory.condition_state"
+    case offlineReadiness = "lighting.day_inventory.offline_readiness"
+    case nightFollowup = "lighting.day_inventory.night_followup"
+    case claimBoundary = "lighting.day_inventory.claim_boundary"
+
+    var localizationKey: C17LightingDayLocalizationKeyV1 {
+        switch self {
+        case .screen: return .title
+        case .daylightObservation: return .daylightObservation
+        case .safetyStop: return .safetyStop
+        case .conditionState: return .unknown
+        case .offlineReadiness: return .offlineBlocked
+        case .nightFollowup: return .nightFollowup
+        case .claimBoundary: return .claimBoundary
+        }
+    }
+}
+
+enum C17LightingDayAccessibilityPolicyV1 {
+    static let voiceOverOrder: [C17LightingDayAccessibilityIDV1] = [
+        .screen, .safetyStop, .daylightObservation, .conditionState,
+        .offlineReadiness, .nightFollowup, .claimBoundary,
+    ]
+    static let dynamicTypeThroughAX5Required = true
+    static let voiceControlUsesLocalizedVisibleText = true
+    static let switchControlRequired = true
+    static let errorFocusMovesToSafetyStop = true
+    static let stateNeverUsesColorAlone = true
+    static let unknownNotObservedAndNotApplicableRemainDistinct = true
+    static let reduceMotionUsesStaticPresentation = true
+    static let rightToLeftMirroringRequired = true
+    static let opaqueIdentifiersRequireBidirectionalIsolation = true
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6Reconciliation = true
+
+    static func validate() throws {
+        let ids = C17LightingDayAccessibilityIDV1.allCases.map(\.rawValue)
+        guard ids.count == Set(ids).count,
+              Set(voiceOverOrder) == Set(C17LightingDayAccessibilityIDV1.allCases),
+              dynamicTypeThroughAX5Required,
+              voiceControlUsesLocalizedVisibleText,
+              switchControlRequired,
+              errorFocusMovesToSafetyStop,
+              stateNeverUsesColorAlone,
+              unknownNotObservedAndNotApplicableRemainDistinct,
+              reduceMotionUsesStaticPresentation,
+              rightToLeftMirroringRequired,
+              opaqueIdentifiersRequireBidirectionalIsolation,
+              !uiAdoptionClaimed,
+              requiresAcceptedS10_6Reconciliation else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}
+
 enum C50IncumbentAccessibilityBoundaryV1 {
     static let previewAnnouncesIncludedOmittedAndUnresolvedCounts = true
     static let quarantineAndDisabledStatesAreNotColorOnly = true

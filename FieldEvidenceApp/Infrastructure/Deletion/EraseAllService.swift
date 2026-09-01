@@ -114,6 +114,14 @@ enum C31LightingEraseAllServiceBoundaryV1 {
         }
     }
 }
+
+enum LightingDayInventoryEraseAllPolicyV1 {
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(
+            FetchDescriptor<LightingDayInventoryWorkflowRowV1>()
+        ) == 0 else { throw EraseAllServiceError.invalidAuthority }
+    }
+}
 import SwiftData
 
 enum IntegrationProjectionEraseAllPolicyV1 {
@@ -1696,6 +1704,9 @@ private extension EraseAllService {
         try ReinspectionExceptionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try EntityIdentityResolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try PracticeWorkspaceProvenanceEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
+        try LightingDayInventoryEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)

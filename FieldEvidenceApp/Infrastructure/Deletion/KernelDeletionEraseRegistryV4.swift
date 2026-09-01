@@ -578,6 +578,7 @@ enum KernelDeletionEraseRegistryV4 {
     }
     static let lightingDeleteKinds = V31BackupLightingRecordV1.Kind.allCases
     static let lightingDurableFamilyCount = 5
+    static let lightingDayInventoryDeleteKinds = V52BackupLightingDayInventoryRecordV1.Kind.allCases
 
     static func validateLightingLifecycle() throws {
         guard lightingDeleteKinds.count == lightingDurableFamilyCount,
@@ -590,7 +591,12 @@ enum KernelDeletionEraseRegistryV4 {
               C31LightingDeletionIntentBoundaryV1
                 .ordinaryDeletionPreservesImmutableLightingHistory,
               C31LightingEraseIntentBoundaryV1
-                .removesAllFiveDurableFamilies else {
+                .removesAllFiveDurableFamilies,
+              lightingDayInventoryDeleteKinds.count
+                == LightingDayInventoryBackupEnrollmentV1.durableFamilyCount,
+              LightingDayInventoryPersistenceEnrollmentV1.persistentSchemaVersion == 52,
+              LightingDayInventoryPersistenceEnrollmentV1.durableModelCount == 1,
+              !LightingDayInventoryPersistenceEnrollmentV1.offlineReadinessManifestIsPersistent else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
     }

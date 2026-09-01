@@ -108,6 +108,7 @@ final class BackupExportService {
         let lightingIssues: [LightingIssueRow]
         let lightingPlans: [MeasurementPlanRow]
         let lightingClaims: [LightingClaimStateRow]
+        let lightingDayInventoryWorkflows: [LightingDayInventoryWorkflowRowV1]
         let assistanceAcceptanceReceipts: [AssistanceAcceptanceReceiptRow]
         let temporalEvidenceClips: [TemporalEvidenceClipRow]
         let timecodedEvidenceAnchors: [TimecodedEvidenceAnchorRow]
@@ -851,6 +852,7 @@ private extension BackupExportService {
                 sites: records.sites,
                 workflowRecords: records.workflowRecords,
                 lighting: records.lighting,
+                lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
                 assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
                 temporalEvidence: records.temporalEvidence,
                 acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
@@ -1766,6 +1768,7 @@ private extension BackupExportService {
                  lightingIssues: try modelContext.fetch(FetchDescriptor<LightingIssueRow>()),
                  lightingPlans: try modelContext.fetch(FetchDescriptor<MeasurementPlanRow>()),
                  lightingClaims: try modelContext.fetch(FetchDescriptor<LightingClaimStateRow>()),
+                 lightingDayInventoryWorkflows: try modelContext.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>()),
                  assistanceAcceptanceReceipts: try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>()),
                  temporalEvidenceClips: try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()),
                  timecodedEvidenceAnchors: try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()),
@@ -2724,7 +2727,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion,
+                : LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2756,6 +2759,7 @@ private extension BackupExportService {
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted(by: dtoOrder),
             lighting: lighting,
+            lightingDayInventoryWorkflows: try lightingDayInventoryRecords(rows),
             assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
             temporalEvidence: temporalEvidence,
             acceptedLabelGenerationSnapshots: acceptedLabelGenerationSnapshots,
@@ -3199,6 +3203,28 @@ private extension BackupExportService {
         } catch {
             throw BackupExportServiceError.invalidAuthority
         }
+        return result
+    }
+
+    private func lightingDayInventoryRecords(
+        _ rows: Rows
+    ) throws -> [V52BackupLightingDayInventoryRecordV1] {
+        let workspaceID = try currentStreamingWorkspaceIdentity().workspaceID
+        let values = try rows.lightingDayInventoryWorkflows.map { try $0.value() }
+        guard values.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let result = try values.map {
+            V52BackupLightingDayInventoryRecordV1(
+                kind: .workflow, id: $0.recordID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try LightingDayInventoryCanonicalCodecV1.encode($0)
+            )
+        }.sorted {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }
+        _ = try LightingDayInventoryBackupRecordSetV1.decode(result)
         return result
     }
 

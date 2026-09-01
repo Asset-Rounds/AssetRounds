@@ -738,3 +738,56 @@ struct PrivateSystemDiscoverySearchLifecycleV1: Sendable {
         try await index.state()
     }
 }
+
+// MARK: - C17 exterior-lighting day inventory metadata search
+
+extension SearchCoordinatorV1 {
+    static func searchC17LightingDayMetadata(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [C17LightingDaySearchRecordV1],
+        maximumResults: Int = 100
+    ) throws -> [C17LightingDaySearchRecordV1] {
+        guard maximumResults > 0,
+              maximumResults <= SearchContractLimitsV1.maximumCanonicalRecords,
+              records.count <= SearchContractLimitsV1.maximumProjectionRecords,
+              records.allSatisfy({ $0.workspaceID == workspaceID }) else {
+            throw SearchContractFailureV1.scopeMismatch
+        }
+        try records.forEach { try $0.validate() }
+        let tokens = normalizedTokens(query)
+        guard !tokens.isEmpty else { throw SearchContractFailureV1.invalidQuery }
+        let matches = records.filter { record in
+            tokens.allSatisfy { queryToken in
+                record.normalizedTokens.contains { indexedToken in
+                    indexedToken == queryToken || indexedToken.hasPrefix(queryToken)
+                }
+            }
+        }.sorted()
+        return Array(matches.prefix(maximumResults))
+    }
+
+    static func searchC17LightingDayMetadata(
+        query: String,
+        workspaceID: WorkspaceID,
+        records: [C17LightingDaySearchRecordV1],
+        maximumResults: Int = 100,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> [C17LightingDaySearchRecordV1] {
+        let permit = try await accessGate.requireContentAccess(for: .search)
+        guard permit.surface == .search, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: .search, state: permit.state)
+        }
+        return try searchC17LightingDayMetadata(
+            query: query, workspaceID: workspaceID,
+            records: records, maximumResults: maximumResults
+        )
+    }
+}
+
+enum C17LightingDaySearchCoordinatorBoundaryV1 {
+    static let queryReadsDerivedRowsOnly = true
+    static let queryTextIsNeverDurable = true
+    static let workspaceScopeIsRequired = true
+    static let privateSafetyRouteActorNotesAndMediaAreExcluded = true
+}

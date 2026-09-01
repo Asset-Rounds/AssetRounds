@@ -118,6 +118,18 @@ final class LightingCoordinatorV1 {
         return try .init(operation: operation, mutationReceipt: receipt)
     }
 }
+
+// C17 remains a distinct aggregate and journal operation, but is composed from
+// the incumbent lighting application boundary so callers do not create a
+// parallel lighting service or persistence owner.
+extension LightingCoordinatorV1 {
+    static func dayInventoryCoordinator(
+        query: any LightingDayInventoryQueryingV1,
+        authority: any LightingDayInventoryMutationAuthorityV1
+    ) -> LightingDayInventoryCoordinatorV1 {
+        LightingDayInventoryCoordinatorV1(query: query, authority: authority)
+    }
+}
 // MARK: - C32 assistance lighting boundary
 
 enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Application_Lighting_LightingCoordinatorV1_swift {

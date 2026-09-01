@@ -99,7 +99,8 @@ enum C31LightingPackageValidationV1 {
                 || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
                 || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion) else {
+                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
+                || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion) else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
         do {
@@ -130,7 +131,7 @@ enum C32AssistancePackageValidationV1 {
         }
         guard manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
-              (31...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+              (31...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               durableFamilyCount == AssistancePersistenceEnrollmentV1.durableModelCount,
               proposalsExcluded else {
             throw BackupPackageValidationErrorV1.invalidPackage
@@ -151,7 +152,7 @@ enum C33TemporalEvidencePackageValidationV1 {
             return
         }
         guard (TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion...
-            EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+            LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
               let sourceWorkspaceID = manifest.source.workspaceID else {
@@ -216,7 +217,7 @@ enum C45AssetLabelPackageValidationV1 {
             return
         }
         guard (AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion...
-                EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+                LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
@@ -239,7 +240,7 @@ enum C46OperationalContactPackageValidationV1 {
             return
         }
         guard (OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion...
-                EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+                LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
@@ -267,7 +268,7 @@ enum C47ActivityContractPackageValidationV2 {
             return
         }
         guard (C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion...
-                EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+                LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
               let sourceWorkspaceID = manifest.source.workspaceID else {
@@ -318,7 +319,7 @@ enum C49WorkResourcePackageValidationV1 {
             }
             return
         }
-        guard records.recordsSchemaVersion <= EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion,
+        guard records.recordsSchemaVersion <= LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion,
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
               let sourceWorkspaceID = manifest.source.workspaceID else {
@@ -1135,6 +1136,8 @@ private extension BackupPackageValidatorV1 {
         try EntityIdentityResolutionBackupEnrollmentV1.validate(records)
         try EntityIdentityResolutionKernelBackupRestoreEnrollmentV1.validate()
         try PracticeWorkspaceBackupEnrollmentV1.validate(records)
+        try LightingDayInventoryBackupEnrollmentV1.validate(records)
+        try records.validateC17LightingDayInventoryClosure()
         try PracticeWorkspaceKernelBackupRestoreEnrollmentV1.validate()
         if let snapshot = records.entityIdentityResolution {
             guard snapshot.workspaceID.rawValue == manifest.source.workspaceID,
@@ -1533,7 +1536,7 @@ private extension BackupPackageValidatorV1 {
             }) else { throw invalid() }
             return
         }
-        guard (4...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { throw invalid() }
+        guard (4...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion) else { throw invalid() }
         for record in records.workflowRecords {
             guard let basisData = record.observationBasisV1Data,
                   let temporalData = record.temporalContextV1Data else {
@@ -1581,7 +1584,7 @@ private extension BackupPackageValidatorV1 {
             guard records.partyAccountability.isEmpty else { throw invalid() }
             return
         }
-        guard (8...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (8...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 9
                 || manifest.source.persistentSchemaVersion == 10
                 || manifest.source.persistentSchemaVersion == 11
@@ -1674,7 +1677,7 @@ private extension BackupPackageValidatorV1 {
             guard records.assetSemantics.isEmpty else { throw invalid() }
             return
         }
-        guard (9...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (9...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 10
                 || manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
@@ -1887,7 +1890,7 @@ private extension BackupPackageValidatorV1 {
             guard records.authorityCriterion.isEmpty else { throw invalid() }
             return
         }
-        guard (10...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (10...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 11
                 || manifest.source.persistentSchemaVersion == 12
                 || manifest.source.persistentSchemaVersion == 13
@@ -2040,7 +2043,7 @@ private extension BackupPackageValidatorV1 {
             guard records.functionalRelationships.isEmpty else { throw invalid() }
             return
         }
-        guard (11...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (11...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 12
                 || manifest.source.persistentSchemaVersion == 13
                 || manifest.source.persistentSchemaVersion == 14
@@ -2113,7 +2116,7 @@ private extension BackupPackageValidatorV1 {
             guard records.evidenceAssurance.isEmpty else { throw invalid() }
             return
         }
-        guard (12...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (12...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 13 || manifest.source.persistentSchemaVersion == 14
                 || manifest.source.persistentSchemaVersion == 15
                 || manifest.source.persistentSchemaVersion == 16
@@ -2199,7 +2202,7 @@ private extension BackupPackageValidatorV1 {
         members: ValidatedV4BackupMembersV1
     ) throws {
         guard records.recordsSchemaVersion >= 14 else { guard records.workPackets.isEmpty else { throw invalid() }; return }
-        guard (14...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion), manifest.source.persistentSchemaVersion >= 15,
+        guard (14...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion), manifest.source.persistentSchemaVersion >= 15,
               let rawWorkspaceID=manifest.source.workspaceID,records.workPackets.count<=WorkPacketLimitsV1.maximumHistory else{throw invalid()}
         do {
             let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
@@ -2274,7 +2277,7 @@ private extension BackupPackageValidatorV1 {
             guard records.fieldDrafts.isEmpty else { throw invalid() }
             return
         }
-        guard (15...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (15...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion >= 16,
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -2402,7 +2405,7 @@ private extension BackupPackageValidatorV1 {
             guard records.packageEvolution.isEmpty else { throw invalid() }
             return
         }
-        guard (16...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (16...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               (17...C52ServiceRequestBackupValidationBoundaryV1.persistentSchemaVersion)
                 .contains(manifest.source.persistentSchemaVersion),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
@@ -2471,7 +2474,7 @@ private extension BackupPackageValidatorV1 {
             guard records.measurementIntegrity.isEmpty else { throw invalid() }
             return
         }
-        guard (17...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (17...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               (18...C52ServiceRequestBackupValidationBoundaryV1.persistentSchemaVersion)
                 .contains(manifest.source.persistentSchemaVersion),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
@@ -2711,7 +2714,7 @@ private extension BackupPackageValidatorV1 {
     }
     func validateFieldReferences(_ records:V4BackupRecordsV1,manifest:V4BackupManifestV1)throws{
         guard records.recordsSchemaVersion>=21 else{guard records.fieldReferences.isEmpty else{throw invalid()};return}
-        guard (21...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),manifest.source.persistentSchemaVersion==records.recordsSchemaVersion+1,let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()}
+        guard (21...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),manifest.source.persistentSchemaVersion==records.recordsSchemaVersion+1,let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()}
         let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
         do{var releases:[UUID:FieldReferenceReleaseV1]=[:],bindings:[UUID:FieldReferenceBindingV1]=[:],releaseChildren:[UUID:Int]=[:],bindingChildren:[UUID:Int]=[:]
             for row in records.fieldReferences where row.kind == .release{let value=try FieldReferenceReleaseRow(FieldReferencePackCanonicalCodecV1.decode(FieldReferenceReleaseV1.self,from:row.canonicalData)).value();guard value.workspaceID==workspaceID,row.id==value.releaseID,row.workspaceID==rawWorkspaceID,row.revision==value.revision,releases.updateValue(value,forKey:value.releaseID)==nil else{throw invalid()}}
@@ -2724,7 +2727,7 @@ private extension BackupPackageValidatorV1 {
 
     func validateAccessibleDocumentAssessments(_ records:V4BackupRecordsV1,manifest:V4BackupManifestV1,members:ValidatedV4BackupMembersV1)throws{
         guard records.recordsSchemaVersion>=22 else{guard records.accessibleDocumentAssessments.isEmpty else{throw invalid()};return}
-        guard (22...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),manifest.source.persistentSchemaVersion==records.recordsSchemaVersion+1,let workspaceID=manifest.source.workspaceID else{throw invalid()}
+        guard (22...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),manifest.source.persistentSchemaVersion==records.recordsSchemaVersion+1,let workspaceID=manifest.source.workspaceID else{throw invalid()}
         do{var values:[UUID:AccessibleDocumentAssessmentReceiptV1]=[:],children:[UUID:Int]=[:]
             let evidenceLinks=try records.evidenceAssurance.filter{$0.kind == .evidenceLink}.map{try EvidenceAssuranceCanonicalCodecV1.decode(ClaimEvidenceLinkV1.self,from:$0.canonicalData)}
             let supersededLinkIDs=Set(evidenceLinks.compactMap(\.supersedesLinkID)),headEvidenceLinks=evidenceLinks.filter{!supersededLinkIDs.contains($0.linkID)}
@@ -2747,7 +2750,7 @@ private extension BackupPackageValidatorV1 {
             guard records.surveyDefinitions.isEmpty else { throw invalid() }
             return
         }
-        guard (23...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (23...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion+1,
               let rawWorkspaceID = manifest.source.workspaceID,
               let history = records.mutationHistory else { throw invalid() }
@@ -2866,7 +2869,7 @@ private extension BackupPackageValidatorV1 {
             guard records.schedules.isEmpty else { throw invalid() }
             return
         }
-        guard (26...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (26...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               let workspaceID = manifest.source.workspaceID,
               records.schedules.allSatisfy({ $0.workspaceID == workspaceID }),
@@ -2974,17 +2977,23 @@ private extension BackupPackageValidatorV1 {
                 || (records.recordsSchemaVersion == 33 && manifest.source.persistentSchemaVersion == 34)
                 || (records.recordsSchemaVersion == 34 && manifest.source.persistentSchemaVersion == 35)
                 || (records.recordsSchemaVersion == 35 && manifest.source.persistentSchemaVersion == 36)
-                || (records.recordsSchemaVersion == 36 && manifest.source.persistentSchemaVersion == 37) || (records.recordsSchemaVersion == 37 && manifest.source.persistentSchemaVersion == 38) || (records.recordsSchemaVersion == 38 && manifest.source.persistentSchemaVersion == 39) || (records.recordsSchemaVersion == 39 && manifest.source.persistentSchemaVersion == 40) || (records.recordsSchemaVersion == 40 && manifest.source.persistentSchemaVersion == 41) || (records.recordsSchemaVersion == 41 && manifest.source.persistentSchemaVersion == 42) || (records.recordsSchemaVersion == 42 && manifest.source.persistentSchemaVersion == 43) || (records.recordsSchemaVersion == 43 && manifest.source.persistentSchemaVersion == 44)),
+                || (records.recordsSchemaVersion <= LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
+                    && manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1)),
               let workspaceID = manifest.source.workspaceID,
               records.mutationHistory != nil,
-              records.lighting.allSatisfy({ $0.workspaceID == workspaceID }) else {
+              records.lighting.allSatisfy({ $0.workspaceID == workspaceID }),
+              records.lightingDayInventoryWorkflows.allSatisfy({
+                  $0.workspaceID == workspaceID
+              }) else {
             throw invalid()
         }
         do {
             try C31LightingPackageValidationV1.validate(records)
             let encoded = try BackupCanonicalEncoderV1().encodeRecords(records).data
             let roundTrip = try BackupCanonicalDecoderV1().decodeRecords(encoded)
-            guard roundTrip.lighting == records.lighting else { throw invalid() }
+            guard roundTrip.lighting == records.lighting,
+                  roundTrip.lightingDayInventoryWorkflows
+                    == records.lightingDayInventoryWorkflows else { throw invalid() }
         } catch {
             throw invalid()
         }
@@ -2992,7 +3001,7 @@ private extension BackupPackageValidatorV1 {
 
     func validateGuidedSurveys(_ records:V4BackupRecordsV1,manifest:V4BackupManifestV1)throws{
         guard records.recordsSchemaVersion>=24 else{guard records.guidedSurveys.isEmpty else{throw invalid()};return}
-        guard (24...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),manifest.source.persistentSchemaVersion==records.recordsSchemaVersion+1,let workspaceID=manifest.source.workspaceID,records.mutationHistory != nil else{throw invalid()}
+        guard (24...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),manifest.source.persistentSchemaVersion==records.recordsSchemaVersion+1,let workspaceID=manifest.source.workspaceID,records.mutationHistory != nil else{throw invalid()}
         do{
             guard records.guidedSurveys.allSatisfy({$0.workspaceID==workspaceID})else{throw invalid()}
             let bytes=try BackupCanonicalEncoderV1().encodeRecords(records).data
@@ -3009,7 +3018,7 @@ private extension BackupPackageValidatorV1 {
             guard records.inspectionReview.isEmpty else { throw invalid() }
             return
         }
-        guard (13...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
+        guard (13...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               (manifest.source.persistentSchemaVersion == 14 || manifest.source.persistentSchemaVersion == 15
                 || manifest.source.persistentSchemaVersion == 16
                 || manifest.source.persistentSchemaVersion == 17
@@ -3562,6 +3571,19 @@ private extension BackupPackageValidatorV1 {
              (5, let value?, let history?), (6, let value?, let history?),
              (7, let value?, let history?), (8, let value?, let history?),
              (9, let value?, let history?):
+            ledger = value
+            do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
+            catch { throw invalid() }
+            guard history.receipts.count
+                    <= MutationJournalStoreV1.maximumReceiptValidationCount,
+                  history.quarantines.count
+                    <= MutationJournalStoreV1.maximumReceiptValidationCount,
+                  history.entityRevisions.count
+                    <= MutationJournalStoreV1.maximumImportedEntityRevisionValidationCount else {
+                throw invalid()
+            }
+        case (10...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion,
+              let value?, let history?):
             ledger = value
             do { try MutationJournalStoreV1.validateImportedSnapshot(history) }
             catch { throw invalid() }
@@ -4717,7 +4739,7 @@ enum C53ServiceReliabilityBackupPackageValidationV1 {
             try C53ServiceReliabilityBackupEnrollmentV1.validate(records: records)
             return
         }
-        guard (recordsSchemaVersion...EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+        guard (recordsSchemaVersion...LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               (persistentSchemaVersion...C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion)
                 .contains(manifest.source.persistentSchemaVersion),
@@ -4765,7 +4787,7 @@ enum C57MyDayBackupPackageValidationV1 {
             return
         }
         guard (C57MyDayBackupEnrollmentV1.recordsSchemaVersion...
-                EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+                LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
@@ -4793,7 +4815,7 @@ enum C05EvidenceMetadataBackupPackageValidationV1 {
             return
         }
         guard (C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion...
-                EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+                LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
@@ -4818,7 +4840,7 @@ enum C04ShopReportProfileBackupPackageValidationV1 {
             return
         }
         guard (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion...
-                EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+                LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion
                 == records.recordsSchemaVersion + 1,
@@ -4856,7 +4878,7 @@ enum C05RoundSessionBackupPackageValidationV1 {
             return
         }
         guard (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion...
-                EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+                LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
@@ -4893,7 +4915,7 @@ enum C08ImportBulkBackupPackageValidationV1 {
             return
         }
         guard (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion...
-                EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion)
+                LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,

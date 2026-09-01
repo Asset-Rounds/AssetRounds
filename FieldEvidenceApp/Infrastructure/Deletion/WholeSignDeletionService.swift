@@ -731,6 +731,17 @@ final class WholeSignDeletionService {
         let frozenMutationHistory = try mutationHistorySnapshot()
 
         let rows = try fetchRows()
+        let dayInventoryRows = try modelContext.fetch(
+            FetchDescriptor<LightingDayInventoryWorkflowRowV1>()
+        )
+        for row in dayInventoryRows {
+            let workflow = try row.value()
+            guard !workflow.conditionSnapshots.contains(where: { $0.assetID == assetID }) else {
+                // Immutable day-inventory evidence is workspace history. An
+                // ordinary asset delete cannot silently cascade or rewrite it.
+                throw WholeSignDeletionServiceError.graphInvalid
+            }
+        }
         try validateLocationDeletionNoCascade(
             rows: rows,
             deletingAssetID: assetID,

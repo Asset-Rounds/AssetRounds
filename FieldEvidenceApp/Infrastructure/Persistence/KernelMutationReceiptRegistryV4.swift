@@ -517,7 +517,8 @@ enum KernelMutationReceiptRegistryV4 {
               C11FastSurveyInboxKernelMutationReceiptBoundaryV1.validate(),
               C12ReinspectionExceptionKernelMutationReceiptBoundaryV1.validate(),
               C13EntityIdentityResolutionKernelMutationReceiptBoundaryV1.validate(),
-              C16WorkspaceExperienceKernelMutationReceiptBoundaryV1.validate() else {
+              C16WorkspaceExperienceKernelMutationReceiptBoundaryV1.validate(),
+              C17LightingDayInventoryKernelMutationReceiptBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
         try validate(registrations)
@@ -647,6 +648,22 @@ enum C16WorkspaceExperienceKernelMutationReceiptBoundaryV1 {
             && effectBeforeReceiptRecovery
             && postimageCount == 1
             && !secondDurableReceiptPermitted
+    }
+}
+
+/// C17 uses the incumbent generic MutationReceiptRow; this registry records
+/// that it is still subject to the same receipt/postimage recovery closure.
+enum C17LightingDayInventoryKernelMutationReceiptBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyLightingDayInventory
+    static let durableReceiptRequired = true
+    static let effectBeforeReceiptRecovery = true
+    static let typedReceiptRowExists = false
+
+    static func validate() -> Bool {
+        commandKind == .applyLightingDayInventory
+            && durableReceiptRequired
+            && effectBeforeReceiptRecovery
+            && !typedReceiptRowExists
     }
 }
 

@@ -44,6 +44,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyPlacementPose,
             .applyEvidenceContext,
             .applyLighting,
+            .applyLightingDayInventory,
             .applyAssistanceAcceptance,
             .applyTemporalEvidence,
             .applyAssetLabel,
@@ -229,6 +230,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         case let .applyPlacementPose(value):return try applyPlacementPose(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyEvidenceContext(value):return try applyEvidenceContext(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyLighting(value):return try applyLighting(value,temporaryRelativePath:temporaryRelativePath)
+        case let .applyLightingDayInventory(value):return try applyLightingDayInventory(value,temporaryRelativePath:temporaryRelativePath)
         case let .applyAssistanceAcceptance(request):
             try request.validate()
             switch request.targetMutation {
@@ -336,6 +338,20 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .filter { $0.workspaceID == command.workspaceID.rawValue }
         guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
         return try rows.first?.value() == command.provenance
+    }
+
+    func persistedLightingDayInventoryEffectMatches(
+        _ operation: LightingDayInventoryWriteOperationV1
+    ) throws -> Bool {
+        try operation.validate()
+        let values = try modelContext.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>())
+            .map { try $0.value() }
+        guard Set(values.map(\.recordID)).count == values.count else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let matching = values.filter { $0.recordID == operation.workflow.recordID }
+        guard matching.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        return matching.first == operation.workflow
     }
 
     /// Read-only C13 history lookup.  This intentionally uses only immutable
@@ -3344,6 +3360,55 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
 
     private func applyEvidenceContext(_ operation:EvidenceContextWriteOperationV1,temporaryRelativePath:String)throws->WorkspaceMutationEffectV1{do{try operation.validate();switch operation{case let .appendContext(value,predecessor):let rows=try modelContext.fetch(FetchDescriptor<EvidenceContextRow>()).map{try $0.value()};guard rows.filter({$0.contextID==value.contextID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard rows.filter({$0==predecessor}).count==1,rows.filter({$0.predecessorContextSHA256==predecessor.contextSHA256}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}else{guard rows.filter({$0.workspaceID==value.workspaceID&&$0.evidenceID==value.evidenceID}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}};modelContext.insert(try EvidenceContextRow(value));case let .appendPair(value,predecessor):let rows=try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()).map{try $0.value()};try validateEvidencePairPurpose(value,existing:rows);guard rows.filter({$0.linkID==value.linkID}).isEmpty else{throw WorkspaceMutationFailureV1.sequenceCollision};if let predecessor{guard rows.filter({$0==predecessor}).count==1,rows.filter({$0.predecessorLinkSHA256==predecessor.linkSHA256}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}}else{guard rows.filter({$0.workspaceID==value.workspaceID&&Set([$0.first.evidenceID,$0.second.evidenceID])==Set([value.first.evidenceID,value.second.evidenceID])}).isEmpty else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision}};modelContext.insert(try PairedObservationLinkRow(value))};return try WorkspaceMutationEffectV1(affectedEntities:[operation.affectedIdentity],temporaryRelativePath:temporaryRelativePath)}catch let failure as WorkspaceMutationFailureV1{modelContext.rollback();throw failure}catch{modelContext.rollback();throw WorkspaceMutationFailureV1.invalidCommand}}
 
+    private func applyLightingDayInventory(
+        _ operation: LightingDayInventoryWriteOperationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try operation.validate()
+            try LightingDayInventoryPersistedAdmissionV1.validate(operation, in: modelContext)
+            let value = operation.workflow
+            let rows = try modelContext.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>())
+            let existing = try rows.map { try $0.value() }
+            guard Set(existing.map(\.recordID)).count == existing.count else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            guard !existing.contains(where: { $0.recordID == value.recordID }) else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            let family = existing.filter {
+                $0.workspaceID == value.workspaceID && $0.workflowID == value.workflowID
+            }
+            switch operation {
+            case let .appendWorkflow(_, predecessor, _):
+                if let predecessor {
+                    guard family.filter({ $0 == predecessor }).count == 1,
+                          !family.contains(where: { $0.supersedesRecordID == predecessor.recordID }) else {
+                        throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+                    }
+                    try value.validateSuccessor(of: predecessor)
+                } else {
+                    guard family.isEmpty, value.revision == 1,
+                          value.supersedesRecordID == nil,
+                          value.predecessorSHA256 == nil else {
+                        throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+                    }
+                }
+            }
+            modelContext.insert(try LightingDayInventoryWorkflowRowV1(value))
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: [operation.affectedIdentity],
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
     private func applyLighting(_ operation: LightingWriteOperationV1, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
         do {
             try operation.validate()
@@ -5453,6 +5518,38 @@ enum LightingPersistedAdmissionV1 {
         case .appendIssue(_,_,let admission): try observation(admission.observation)
         case .appendClaim(let value,_,let admission): try claim(admission,value:value)
         case .appendObservation, .appendMeasurementPlan: break
+        }
+    }
+}
+
+/// C17 accepts a hard safety stop as durable audit truth, but every embedded
+/// canonical source used for a non-stop workflow must match one incumbent row.
+/// Offline readiness stays a derived admission value and is never persisted.
+enum LightingDayInventoryPersistedAdmissionV1 {
+    static func validate(
+        _ operation: LightingDayInventoryWriteOperationV1,
+        in context: ModelContext
+    ) throws {
+        try operation.validate()
+        let admission: LightingDayInventoryAdmissionClosureV1
+        switch operation {
+        case let .appendWorkflow(_, _, value): admission = value
+        }
+        func exact<T: Equatable>(_ value: T, in values: [T]) throws {
+            guard values.filter({ $0 == value }).count == 1 else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+        }
+        try exact(admission.system, in: try context.fetch(FetchDescriptor<LightingSystemRow>()).map { try $0.value() })
+        let storedObservations = try context.fetch(FetchDescriptor<LightingObservationRow>()).map { try $0.value() }
+        for value in admission.observations { try exact(value, in: storedObservations) }
+        let storedPoses = try context.fetch(FetchDescriptor<AssetPoseEventRow>()).map { try $0.value() }
+        for value in admission.poseEvents { try exact(value, in: storedPoses) }
+        if let occurrence = admission.occurrence {
+            try exact(occurrence, in: try context.fetch(FetchDescriptor<OccurrenceHistoryEventRow>()).map { try $0.value() })
+        }
+        if let workPacket = admission.workPacket {
+            try exact(workPacket, in: try context.fetch(FetchDescriptor<WorkPacketManifestRow>()).map { try $0.value() })
         }
     }
 }

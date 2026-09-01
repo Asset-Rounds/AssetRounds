@@ -629,6 +629,46 @@ extension ReportSnapshotEncoderV1 {
     }
 }
 
+// MARK: - C17 exterior-lighting day inventory frozen snapshot codec
+
+extension ReportSnapshotEncoderV1 {
+    func encodeC17LightingDayInventory(
+        _ snapshot: C17LightingDayInventoryFrozenSnapshotV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try snapshot.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        let data = try encoder.encode(snapshot)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return .init(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+    }
+
+    func decodeC17LightingDayInventory(
+        _ data: Data
+    ) throws -> C17LightingDayInventoryFrozenSnapshotV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(C17LightingDayInventoryFrozenSnapshotV1.self, from: data)
+        try value.validate()
+        guard try encodeC17LightingDayInventory(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static let c17UsesIncumbentSnapshotEncoder = true
+    static let c17ExcludesSafetyRouteActorNotesAndMedia = true
+    static let c17HistoricSnapshotBytesRemainImmutable = true
+}
+
 extension CanonicalJSONV1 {
     static func reportSnapshot(_ value: ReportSnapshotV1) -> CanonicalJSONValueV1 {
         var object: [String: CanonicalJSONValueV1] = [

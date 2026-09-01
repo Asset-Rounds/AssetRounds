@@ -4984,7 +4984,19 @@
     "shell.product-changes.body" : { "comment" : "C16 product changes entry body.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review changes included with this version." } } } },
     "shell.help.title" : { "comment" : "C16 contextual help entry title.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Help" } } } },
     "shell.help.body" : { "comment" : "C16 contextual help body.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Review guidance for the current task." } } } },
-    "shell.help.action" : { "comment" : "C16 contextual help action.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open help" } } } }
+    "shell.help.action" : { "comment" : "C16 contextual help action.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open help" } } } },
+    "lighting.day_inventory.title" : { "comment" : "C17 exterior-lighting daylight inventory title.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Day lighting inventory" } } } },
+    "lighting.day_inventory.daylight_observation" : { "comment" : "C17 records daylight energized state as observation only.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Observed energized during daylight" } } } },
+    "lighting.day_inventory.daylight_caution" : { "comment" : "C17 cautious daylight observation boundary.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This daylight observation does not determine schedule, control operation, failure, or night performance." } } } },
+    "lighting.day_inventory.safety_stop" : { "comment" : "C17 reason-bearing safety stop heading; no authorization claim.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop here" } } } },
+    "lighting.day_inventory.safety_stop_detail" : { "comment" : "C17 hard-stop copy precedes unsafe or energized work.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Do not climb, open, touch, probe, repair, or enter traffic exposure. Follow the recorded authorized procedure." } } } },
+    "lighting.day_inventory.state.unknown" : { "comment" : "C17 explicit unknown condition; never rendered as pass.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown" } } } },
+    "lighting.day_inventory.state.not_observed" : { "comment" : "C17 explicit not-observed condition; never rendered as pass.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not observed" } } } },
+    "lighting.day_inventory.state.not_applicable" : { "comment" : "C17 explicit not-applicable condition; never rendered as pass.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Not applicable" } } } },
+    "lighting.day_inventory.offline.ready" : { "comment" : "C17 derived local readiness state; no safety or completion claim.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Required local material is available for this visit." } } } },
+    "lighting.day_inventory.offline.blocked" : { "comment" : "C17 derived local readiness failure with explicit safe action.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Required local material is unavailable or out of date. Do not start until readiness is rebuilt." } } } },
+    "lighting.day_inventory.night_followup" : { "comment" : "C17 stable day-to-night follow-up label.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Linked night follow-up" } } } },
+    "lighting.day_inventory.claim_boundary" : { "comment" : "C17 observation-only claim boundary.", "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This inventory records visible conditions only. It is not photometry, an electrical diagnosis, an adequacy or commissioning determination, or proof of night performance." } } } }
   },
   "version" : "1.0"
 }

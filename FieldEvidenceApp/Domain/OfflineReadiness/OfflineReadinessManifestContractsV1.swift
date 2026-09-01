@@ -575,3 +575,173 @@ enum OfflineReadinessManifestCanonicalCodecV1 {
     }
     static func sha256<T: Encodable>(_ value: T) throws -> String { KernelCanonicalHashV1.sha256(try encode(value)) }
 }
+
+// MARK: - C17 exterior-lighting day inventory derived readiness
+
+/// Exact canonical inputs needed to rebuild the C17 local-readiness result.
+/// This value is carried by the derived projection only; it is not a new
+/// persistent row and never replaces asset, plan, package, route, or content
+/// authority.
+struct C17LightingDayReadinessSourceV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let workspaceID: WorkspaceID
+    let workflowID: UUID
+    let workflowRevision: UInt64
+    let workflowSHA256: String
+    let assetIDs: [UUID]
+    let systemID: UUID
+    let systemRevision: UInt64
+    let systemSHA256: String
+    let planRevision: PlanRevisionReferenceV1
+    let packageRelease: LightingPackageReleaseReferenceV1
+    let referenceBindingSHA256s: [String]
+    let routeSHA256: String
+    let storageObservationSHA256: String
+    let evidencePurposeIDs: [String]
+    let sourceSHA256: String
+
+    init(
+        workflow: LightingDayInventoryWorkflowV1,
+        planRevision: PlanRevisionReferenceV1,
+        referenceBindingSHA256s: [String],
+        storage: OfflineReadinessStorageObservationV1,
+        evidencePurposeIDs: [String]
+    ) throws {
+        try workflow.validateIntrinsic()
+        try planRevision.validate()
+        let orderedAssets = workflow.conditionSnapshots.map(\.assetID).sorted {
+            $0.uuidString < $1.uuidString
+        }
+        let orderedReferences = referenceBindingSHA256s.sorted()
+        let orderedPurposes = evidencePurposeIDs.sorted()
+        let storageSHA256 = try OfflineReadinessManifestCanonicalCodecV1.sha256(storage)
+        guard let routeSHA256 = workflow.safetyIntake.route?.pathSHA256 else {
+            throw OfflineReadinessManifestFailureV1.invalidValue
+        }
+        guard workflow.state != .safetyStopped,
+              !orderedAssets.isEmpty,
+              orderedAssets.count <= OfflineReadinessManifestLimitsV1.maximumAssets,
+              Set(orderedAssets).count == orderedAssets.count,
+              orderedReferences.count <= OfflineReadinessManifestLimitsV1.maximumFieldReferences,
+              Set(orderedReferences).count == orderedReferences.count,
+              !orderedPurposes.isEmpty,
+              orderedPurposes.count <= OfflineReadinessManifestLimitsV1.maximumGuidanceReferences,
+              Set(orderedPurposes).count == orderedPurposes.count,
+              orderedPurposes.allSatisfy(offlineReadinessTokenV1),
+              [workflow.workflowSHA256, workflow.systemSHA256,
+               planRevision.revisionSHA256, workflow.packageRelease.packageSHA256,
+               routeSHA256, storageSHA256].allSatisfy(KernelCanonicalHashV1.validSHA256),
+              orderedReferences.allSatisfy(KernelCanonicalHashV1.validSHA256) else {
+            throw OfflineReadinessManifestFailureV1.invalidValue
+        }
+        schemaVersion = Self.schemaVersion
+        self.workspaceID = workflow.workspaceID
+        self.workflowID = workflow.workflowID
+        self.workflowRevision = workflow.revision
+        self.workflowSHA256 = workflow.workflowSHA256
+        self.assetIDs = orderedAssets
+        self.systemID = workflow.systemID
+        self.systemRevision = workflow.systemRevision
+        self.systemSHA256 = workflow.systemSHA256
+        self.planRevision = planRevision
+        packageRelease = workflow.packageRelease
+        self.referenceBindingSHA256s = orderedReferences
+        self.routeSHA256 = routeSHA256
+        storageObservationSHA256 = storageSHA256
+        self.evidencePurposeIDs = orderedPurposes
+        sourceSHA256 = try OfflineReadinessManifestCanonicalCodecV1.sha256(Basis(
+            schemaVersion: Self.schemaVersion, workspaceID: workflow.workspaceID,
+            workflowID: workflow.workflowID, workflowRevision: workflow.revision,
+            workflowSHA256: workflow.workflowSHA256, assetIDs: orderedAssets,
+            systemID: workflow.systemID, systemRevision: workflow.systemRevision,
+            systemSHA256: workflow.systemSHA256, planRevision: planRevision,
+            packageRelease: workflow.packageRelease, referenceBindingSHA256s: orderedReferences,
+            routeSHA256: routeSHA256, storageObservationSHA256: storageSHA256,
+            evidencePurposeIDs: orderedPurposes
+        ))
+    }
+
+    func validate(
+        workflow: LightingDayInventoryWorkflowV1,
+        storage: OfflineReadinessStorageObservationV1
+    ) throws {
+        let rebuilt = try Self(
+            workflow: workflow, planRevision: planRevision,
+            referenceBindingSHA256s: referenceBindingSHA256s,
+            storage: storage, evidencePurposeIDs: evidencePurposeIDs
+        )
+        guard rebuilt == self else { throw OfflineReadinessManifestFailureV1.digestMismatch }
+    }
+
+    private struct Basis: Codable {
+        let schemaVersion: Int; let workspaceID: WorkspaceID; let workflowID: UUID
+        let workflowRevision: UInt64; let workflowSHA256: String; let assetIDs: [UUID]
+        let systemID: UUID; let systemRevision: UInt64; let systemSHA256: String
+        let planRevision: PlanRevisionReferenceV1
+        let packageRelease: LightingPackageReleaseReferenceV1
+        let referenceBindingSHA256s: [String]; let routeSHA256: String
+        let storageObservationSHA256: String; let evidencePurposeIDs: [String]
+    }
+}
+
+/// Disposable C17 projection binding the exact C17 source to the exact C06
+/// manifest. Canonical workflow state may freeze these two digests, while the
+/// full projection is dropped and rebuilt after relaunch or source drift.
+struct C17LightingDayOfflineReadinessProjectionV1: Codable, Equatable, Sendable {
+    static let persistenceMode = "DERIVED_ONLY"
+    let source: C17LightingDayReadinessSourceV1
+    let manifest: OfflineReadinessManifestV1
+    let inputBindingSHA256: String
+    let readinessSourceSHA256: String
+    let manifestSHA256: String
+    let projectionSHA256: String
+
+    init(source: C17LightingDayReadinessSourceV1, manifest: OfflineReadinessManifestV1) throws {
+        try manifest.validate()
+        guard manifest.session.workspaceID == source.workspaceID,
+              manifest.expectedPackage.packageReleaseID == source.packageRelease.packageReleaseID,
+              manifest.expectedPackage.packageID == source.packageRelease.packageID,
+              manifest.expectedPackage.packageContentVersion == source.packageRelease.contentVersion,
+              manifest.expectedPackage.packageSHA256 == source.packageRelease.packageSHA256,
+              manifest.expectedPackage.workflowSHA256 == source.packageRelease.workflowSHA256,
+              manifest.selectedAssets.map(\.assetID) == source.assetIDs else {
+            throw OfflineReadinessManifestFailureV1.invalidValue
+        }
+        self.source = source
+        self.manifest = manifest
+        inputBindingSHA256 = source.sourceSHA256
+        readinessSourceSHA256 = manifest.sourceSnapshotSHA256
+        manifestSHA256 = manifest.manifestSHA256
+        projectionSHA256 = try OfflineReadinessManifestCanonicalCodecV1.sha256(Basis(
+            persistenceMode: Self.persistenceMode, inputBindingSHA256: source.sourceSHA256,
+            readinessSourceSHA256: manifest.sourceSnapshotSHA256,
+            manifestSHA256: manifest.manifestSHA256
+        ))
+    }
+
+    func validate() throws {
+        let rebuilt = try Self(source: source, manifest: manifest)
+        guard rebuilt == self else { throw OfflineReadinessManifestFailureV1.digestMismatch }
+    }
+
+    func validate(nightFollowupPlan: LightingNightFollowupPlanV1) throws {
+        try validate(); try nightFollowupPlan.validate()
+        guard nightFollowupPlan.workspaceID == source.workspaceID,
+              nightFollowupPlan.sourceSystemID == source.systemID,
+              nightFollowupPlan.sourceSystemRevision == source.systemRevision,
+              nightFollowupPlan.sourceSystemSHA256 == source.systemSHA256,
+              nightFollowupPlan.offlineReadinessSourceSHA256 == readinessSourceSHA256,
+              nightFollowupPlan.offlineReadinessManifestSHA256 == manifestSHA256,
+              nightFollowupPlan.readinessCheckedAt == manifest.checkedAt,
+              manifest.status == .ready,
+              manifest.mayStartFieldWork else {
+            throw OfflineReadinessManifestFailureV1.digestMismatch
+        }
+    }
+
+    private struct Basis: Codable {
+        let persistenceMode: String; let inputBindingSHA256: String
+        let readinessSourceSHA256: String; let manifestSHA256: String
+    }
+}

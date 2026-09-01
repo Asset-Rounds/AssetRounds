@@ -154,6 +154,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case lightingIssue
     case lightingMeasurementPlan
     case lightingClaimState
+    case lightingDayInventoryWorkflow
     case temporalEvidenceClip
     case timecodedEvidenceAnchor
     case acceptedLabelGenerationSnapshot
@@ -1675,6 +1676,35 @@ extension LightingWriteOperationV1 {
     var revision: UInt64 { switch self { case .appendSystem(let v,_,_):v.revision;case .appendObservation(let v,_,_):v.revision;case .appendIssue(let v,_,_):v.revision;case .appendMeasurementPlan(let v,_,_):v.revision;case .appendClaim(let v,_,_):v.revision } }
 }
 
+/// C17 is one append-only workflow family.  A successor serializes against
+/// its predecessor record; its own record ID remains the immutable postimage.
+extension LightingDayInventoryWriteOperationV1 {
+    var affectedIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            try .init(kind: .lightingDayInventoryWorkflow, id: workflow.recordID)
+        }
+    }
+
+    var concurrencyIdentity: WorkspaceEntityIdentityV1 {
+        get throws {
+            switch self {
+            case let .appendWorkflow(value, predecessor, _):
+                return try .init(
+                    kind: .lightingDayInventoryWorkflow,
+                    id: predecessor?.recordID ?? value.recordID
+                )
+            }
+        }
+    }
+
+    var expectedRevision: UInt64 {
+        switch self {
+        case let .appendWorkflow(_, predecessor, _):
+            return predecessor?.revision ?? 0
+        }
+    }
+}
+
 enum TemporalEvidenceMutationPayloadV1: Codable, Equatable, Sendable {
     case acceptClip(TemporalEvidenceClipV1, review:TemporalEvidenceCaptureReviewV1, predecessor: TemporalEvidenceClipV1?)
     case appendAnchor(TimecodedEvidenceAnchorV1, clip: TemporalEvidenceClipV1, predecessor: TimecodedEvidenceAnchorV1?)
@@ -2631,6 +2661,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyPlacementPose(PlacementPoseMutationV1)
     case applyEvidenceContext(EvidenceContextWriteOperationV1)
     case applyLighting(LightingWriteOperationV1)
+    case applyLightingDayInventory(LightingDayInventoryWriteOperationV1)
     case applyAssistanceAcceptance(AssistanceAcceptanceRequestV1)
     case applyTemporalEvidence(TemporalEvidenceMutationV1)
     case applyAssetLabel(AssetLabelMutationV1)
@@ -2693,6 +2724,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyPlacementPose:.applyPlacementPose
         case .applyEvidenceContext:.applyEvidenceContext
         case .applyLighting:.applyLighting
+        case .applyLightingDayInventory: .applyLightingDayInventory
         case .applyAssistanceAcceptance:.applyAssistanceAcceptance
         case .applyTemporalEvidence:.applyTemporalEvidence
         case .applyAssetLabel:.applyAssetLabel
@@ -2757,6 +2789,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyPlacementPose="apply_placement_pose"
     case applyEvidenceContext="apply_evidence_context"
     case applyLighting="apply_lighting"
+    case applyLightingDayInventory="apply_lighting_day_inventory"
     case applyAssistanceAcceptance="apply_assistance_acceptance"
     case applyTemporalEvidence="apply_temporal_evidence"
     case applyAssetLabel="apply_asset_label"
