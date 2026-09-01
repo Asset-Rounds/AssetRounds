@@ -1,0 +1,197 @@
+{
+  "acceptanceCredit": false,
+  "authority": {
+    "allocationDigest": "52211de5dd92863d4263524a48e0c42e4397a163d9ae9b4ad438e615492a6e66",
+    "appBaseHead": "418b62093945ed53fa5fd1858954f8a9acadc401",
+    "appBaseTree": "aa85c6fd81a74d40dbe8126e27d13306c39df758",
+    "cardID": "V23-P04-C36",
+    "contextDigest": "044f8e8366404a54331f5e38e271d5268a680096e0f2a2dddf415c22dd021087",
+    "coordinationHead": "c023f91517c7821d30db1b1ee5681c80e0bdc176",
+    "coordinationTree": "fab68164022f55fbacf45a70aa4dfb9b66ee2f4e",
+    "existingPathCount": 1,
+    "fencePathCount": 14,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationFenceCorrectionDigest": "7a5689dddc0c56c7ba9d40b8e4efec3477ffbf294785fb6ac50d4c5eedfb4530",
+    "hydrationRevision": 2,
+    "ledgerDigest": "d755332acb6622caf6ef2f05d857eb967bac53801b0085f8071da151dbea6a73",
+    "newPathCount": 13,
+    "orderedPathFence": [
+      "FieldEvidenceApp/Application/WorkResources/ManualWorkResourceWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_99ManualWorkResourceWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/WorkResources/V23P04C36ManualWorkResourceWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C36ManualWorkResourceWorkflowUITests.swift",
+      "Scripts/v23/p04_c36_contracts.py",
+      "Scripts/v23/generate_p04_c36_contracts.py",
+      "Scripts/v23/verify_p04_c36_contracts.py",
+      "Scripts/v23/manual-work-resource-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C36ManualWorkResourceWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C36ManualWorkResourceWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C36BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C36-tooling-manifest.json",
+      "FieldEvidenceApp/Application/PartsStock/PartsStockCoordinatorV1.swift"
+    ],
+    "ordinal": 121,
+    "pathFenceDigest": "d6e968a2fdf2790fe237ff89f7461a752799f91becda8612cc910416ec575c80",
+    "prerequisiteDigest": "8506ed2333572e2c5c480285e32f67a052a72ffb62625643066c4ad3b6bb931e",
+    "priorFenceProof": {
+      "authorizedOverlapEdgeCount": 1,
+      "fenceCount": 127,
+      "overlapEdgeCount": 1,
+      "priorOwnedPathCount": 1918,
+      "s10ReservedOverlapCount": 0,
+      "unauthorizedOverlapCount": 0
+    },
+    "productTestUIFixturePathCount": 5,
+    "projectionDigest": "803fdaecc3a1177402a57fb4cbe72ae0a696a084138b8a42b5fea996eb0e1683",
+    "s10ReservationOverlapCount": 0,
+    "sequence": 542,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C36",
+        "sha256": "c7efe3281bd77d1c0022150d88c118e7b69ab7bfd7149e3a3e1122ac2cdd2573",
+        "utf8Length": 7647
+      },
+      {
+        "anchor": "V21-P04-C36",
+        "sha256": "39506ab6cd9873c62951cee82a20864ae8b8922f8134039b425343e58b63f403",
+        "utf8Length": 3659
+      },
+      {
+        "anchor": "V23-P04-C36-register",
+        "sha256": "04122b819fcdc243cd3b25c82c037404e838368ba200b48bbc701b6c0fa3c7d8",
+        "utf8Length": 310
+      }
+    ],
+    "toolingPathCount": 8,
+    "transitionDigest": "b485c29ce243c799fa44728e14f113523c660ea84260727c6f19096a5340c2e0"
+  },
+  "cardID": "V23-P04-C36",
+  "claims": {
+    "accountingTruth": false,
+    "approval": false,
+    "catalogAvailability": false,
+    "customerApproved": false,
+    "delivery": false,
+    "entitlementRequired": false,
+    "hostedAcceptance": false,
+    "identityVerified": false,
+    "invoiceTruth": false,
+    "marketing": false,
+    "nativeActivation": false,
+    "saved": false,
+    "stockChanged": false,
+    "telemetry": false
+  },
+  "corpus": {
+    "evidenceIDs": [
+      "V23-P04-C36-G01",
+      "V23-P04-C36-A01",
+      "V23-P04-C36-H01",
+      "V23-P04-C36-I01",
+      "V23-P04-C36-R01"
+    ],
+    "schema": "V23P04C36ManualWorkResourceWorkflowCorpusV1",
+    "synthetic": true
+  },
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false
+  },
+  "independence": {
+    "c33SemanticDependency": false,
+    "c34PunchReviewDependency": false,
+    "entitlementIndependent": true,
+    "installationDependency": false,
+    "manualOnlyFallback": true,
+    "newBackend": false,
+    "newStore": false,
+    "newWriter": false,
+    "optionalStockProvider": "V23-P03-C55:USE_FROM_STOCK",
+    "planDependency": false
+  },
+  "lifecycle": {
+    "durableFamily": "EXISTING_C49_WITH_OPTIONAL_C55",
+    "manualAppendOwner": "WorkResourceCoordinatorV1",
+    "manualPersistentSchemaVersion": 37,
+    "manualRecordsSchemaVersion": 36,
+    "newBackendCount": 0,
+    "newDurableFamilyCount": 0,
+    "newKernelCount": 0,
+    "newMigrationCount": 0,
+    "newRendererCount": 0,
+    "newStoreCount": 0,
+    "newWriterCount": 0,
+    "noSecondC49AppendAfterStockCompositeCommit": true,
+    "projectionPersistence": "NONPERSISTENT",
+    "stockAndWorkResourceUseIsAtomic": true,
+    "stockCompositeOwner": "PartsStockCoordinatorV1",
+    "stockPersistentSchemaVersion": 41,
+    "stockRecordsSchemaVersion": 40
+  },
+  "ordinal": 121,
+  "prohibitedClaims": [
+    "accounting truth",
+    "invoice truth",
+    "catalog availability",
+    "approval",
+    "delivery",
+    "verified identity",
+    "secure",
+    "customer approved"
+  ],
+  "receipt": "ManualWorkResourceWorkflowEvidenceReceiptV1",
+  "receiptState": "PROVISIONAL_STATIC_TOOLING",
+  "scenarioEvidenceIDs": [
+    "V23-P04-C36-G01",
+    "V23-P04-C36-A01",
+    "V23-P04-C36-H01",
+    "V23-P04-C36-I01",
+    "V23-P04-C36-R01"
+  ],
+  "schema": "V23P04C36ManualWorkResourceWorkflowToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Application/PartsStock/PartsStockCoordinatorV1.swift",
+      "sha256": "d1f46133a5cc264fce14a3299007c5fb115ea4a5dc2e61db6a02e25488695d37",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/WorkResources/ManualWorkResourceWorkflowCoordinatorV1.swift",
+      "sha256": "f540688af99248f5dcc03d66820a80d6546ae32f56debef8694692a1dbe61135",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+      "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_99ManualWorkResourceWorkflowTests.swift",
+      "sha256": "b7f8f456a36238814ade9d00549d042bd497ef249e108f2350af9cb78248b8c5",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/WorkResources/V23P04C36ManualWorkResourceWorkflowCorpusV1.json",
+      "sha256": "6e3a34f9c5f10ce5d3c195a8b081fe993447873efaa29f12dfe1294f949c9f25",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C36ManualWorkResourceWorkflowUITests.swift",
+      "sha256": "276403292ea4b7c3a8516f9babbd0f2c307198066abed40900634463ba6051ef",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

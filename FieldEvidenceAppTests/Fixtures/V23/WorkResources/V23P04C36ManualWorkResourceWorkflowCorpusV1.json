@@ -1,0 +1,91 @@
+{
+  "schema": "V23P04C36ManualWorkResourceWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C36",
+  "corpusID": "v23-p04-c36-manual-work-resource-workflow-corpus-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsProductionSecrets": false,
+  "deterministicSeed": "C36-V23-FIXED-0001",
+  "evidenceIDs": [
+    "V23-P04-C36-G01",
+    "V23-P04-C36-A01",
+    "V23-P04-C36-H01",
+    "V23-P04-C36-I01",
+    "V23-P04-C36-R01"
+  ],
+  "consumedPersistence": {
+    "manualWorkResource": {
+      "schemaVersion": 37,
+      "recordInventoryVersion": 36
+    },
+    "partsStock": {
+      "schemaVersion": 41,
+      "recordInventoryVersion": 40
+    },
+    "addsRecordFamily": false
+  },
+  "selectors": {
+    "manualEntryAvailable": true,
+    "stockOptional": true,
+    "stockUseRequiresExplicitSelection": true,
+    "automaticStockMovement": false,
+    "catalogLookup": false,
+    "liveBalanceClaim": false,
+    "accountingClaim": false,
+    "invoiceClaim": false,
+    "availabilityClaim": false,
+    "approvalClaim": false,
+    "usesBinaryFloatingPoint": false,
+    "requiresNetwork": false,
+    "requiresAccount": false,
+    "requiresEntitlement": false
+  },
+  "golden": {
+    "durationMinutes": 95,
+    "material": {
+      "description": "M8 stainless bolt",
+      "quantity": {"mantissa": 4, "scale": 0},
+      "unit": "EACH",
+      "useFromStock": true
+    },
+    "manualQuantity": {"mantissa": 1250, "scale": 3},
+    "directCost": {"mantissa": 1234, "currencyCode": "USD", "minorUnitScale": 2},
+    "acceptedEffects": {
+      "manualAppend": 1,
+      "stockMovement": 1,
+      "workResourceSuccessor": 1
+    }
+  },
+  "alternate": {
+    "stockFeatureEnabled": false,
+    "stockContextPresent": false,
+    "manualEntryStillAvailable": true,
+    "stockMovementCount": 0
+  },
+  "hostileCases": [
+    "DRAFT_TYPING_ZERO_EFFECT",
+    "DRAFT_EDITING_ZERO_EFFECT",
+    "INVALID_QUANTITY_MANTISSA",
+    "INVALID_QUANTITY_SCALE",
+    "INVALID_UNIT",
+    "INVALID_CURRENCY",
+    "INVALID_CURRENCY_SCALE",
+    "ZERO_STOCK_QUANTITY",
+    "STALE_WORK_REVISION",
+    "STALE_STOCK_REVISION",
+    "WRONG_WORK_LINEAGE",
+    "WRONG_RETURN_FRONTIER",
+    "WRONG_PART",
+    "OVERRETURN",
+    "DIVERGENT_SAME_MUTATION_ID"
+  ],
+  "recoveryCases": [
+    "MANUAL_APPEND_EFFECT_BEFORE_RECEIPT",
+    "STOCK_COMPOSITE_EFFECT_BEFORE_RECEIPT",
+    "EXACT_RETRY_ONE_RECEIPT_ONE_EFFECT",
+    "RETURN_REDUCES_SOURCE_MATERIAL_LINEAGE",
+    "RETURN_RESTORES_STOCK_WITHIN_OUTSTANDING_USE"
+  ]
+}

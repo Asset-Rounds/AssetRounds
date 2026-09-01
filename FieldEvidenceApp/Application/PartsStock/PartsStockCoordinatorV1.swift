@@ -96,11 +96,14 @@ private enum PartsStockExactMathV1 {
         return (transfer, try commit(.transfer(transfer)))
     }
 
-    @discardableResult func use(receiptID: UUID = UUID(), movementID: UUID = UUID(), frozenMaterialLineID: UUID, part: LocalPartDefinitionV1, source: StockStorageLocationV1, quantity: StockQuantityV1, sourceBalance: StockBalanceProjectionV1, actor: ActorSnapshotV1, occurredAt: Date, recordedAt: Date, workResourceSuccessor: (MutationIDV1) throws -> WorkResourceEntryV1) throws -> (StockUseOnWorkReceiptV1, PartsStockMutationReceiptV1) {
+    @discardableResult func use(receiptID: UUID = UUID(), movementID: UUID = UUID(), frozenMaterialLineID: UUID, part: LocalPartDefinitionV1, source: StockStorageLocationV1, quantity: StockQuantityV1, sourceBalance: StockBalanceProjectionV1, actor: ActorSnapshotV1, occurredAt: Date, recordedAt: Date, mutationID suppliedMutationID: MutationIDV1? = nil, workResourceSuccessor: (MutationIDV1) throws -> WorkResourceEntryV1) throws -> (StockUseOnWorkReceiptV1, PartsStockMutationReceiptV1) {
         try requireWritesEnabled()
         try require(part: part, location: source, current: sourceBalance)
         guard case .known(let known) = sourceBalance.balance, quantity.mantissa > 0 else { throw PartsStockFailureV1.unknownBalance }
-        let post = try PartsStockExactMathV1.applying(quantity, to: known, unit: part.canonicalUnit, subtract: true), mutationID = try writer.makeMutationID()
+        let post = try PartsStockExactMathV1.applying(quantity, to: known, unit: part.canonicalUnit, subtract: true)
+        let mutationID: MutationIDV1
+        if let suppliedMutationID { mutationID = try MutationIDV1(rawValue: suppliedMutationID.rawValue) }
+        else { mutationID = try writer.makeMutationID() }
         let movement = try StockMovementEventV1(movementID: movementID, workspaceID: part.workspaceID, part: part.frozenReference(), locationID: source.locationID, kind: .useOnWork, quantity: quantity, unit: part.canonicalUnit, preBalance: sourceBalance.balance, postBalance: post, actor: actor, occurredAt: occurredAt, recordedAt: recordedAt, expectedLocationRevision: sourceBalance.locationRevision, mutationID: mutationID)
         let use = try StockUseOnWorkReceiptV1(receiptID: receiptID, movement: movement, workResourceSuccessor: workResourceSuccessor(mutationID), frozenMaterialLineID: frozenMaterialLineID, mutationID: mutationID)
         return (use, try commit(.use(use)))
@@ -115,10 +118,13 @@ private enum PartsStockExactMathV1 {
         return (value, try commit(.reverseUse(value)))
     }
 
-    @discardableResult func returnAgainstUse(receiptID: UUID = UUID(), movementID: UUID = UUID(), sourceUse: StockUseOnWorkReceiptV1, predecessorFrontier: StockReturnFrontierSnapshotV1?, workResourcePredecessor: WorkResourceEntryV1, destination: StockStorageLocationV1, quantity: StockQuantityV1, destinationBalance: StockBalanceProjectionV1, actor: ActorSnapshotV1, occurredAt: Date, recordedAt: Date, workResourceSuccessor: (MutationIDV1) throws -> WorkResourceEntryV1) throws -> (StockReturnAgainstUseReceiptV1, PartsStockMutationReceiptV1) {
+    @discardableResult func returnAgainstUse(receiptID: UUID = UUID(), movementID: UUID = UUID(), sourceUse: StockUseOnWorkReceiptV1, predecessorFrontier: StockReturnFrontierSnapshotV1?, workResourcePredecessor: WorkResourceEntryV1, destination: StockStorageLocationV1, quantity: StockQuantityV1, destinationBalance: StockBalanceProjectionV1, actor: ActorSnapshotV1, occurredAt: Date, recordedAt: Date, mutationID suppliedMutationID: MutationIDV1? = nil, workResourceSuccessor: (MutationIDV1) throws -> WorkResourceEntryV1) throws -> (StockReturnAgainstUseReceiptV1, PartsStockMutationReceiptV1) {
         try requireWritesEnabled()
         try sourceUse.validate(); guard sourceUse.workspaceID == destination.workspaceID, sourceUse.workspaceID == destinationBalance.workspaceID, destination.locationID == destinationBalance.locationID, sourceUse.movement.part.partID == destinationBalance.partID, case .known(let known) = destinationBalance.balance, quantity.mantissa > 0 else { throw PartsStockFailureV1.unknownBalance }
-        let post = try PartsStockExactMathV1.applying(quantity, to: known, unit: sourceUse.movement.unit, subtract: false), mutationID = try writer.makeMutationID()
+        let post = try PartsStockExactMathV1.applying(quantity, to: known, unit: sourceUse.movement.unit, subtract: false)
+        let mutationID: MutationIDV1
+        if let suppliedMutationID { mutationID = try MutationIDV1(rawValue: suppliedMutationID.rawValue) }
+        else { mutationID = try writer.makeMutationID() }
         let movement = try StockMovementEventV1(movementID: movementID, workspaceID: sourceUse.workspaceID, part: sourceUse.movement.part, locationID: destination.locationID, kind: .returnAgainstUse, quantity: quantity, unit: sourceUse.movement.unit, preBalance: destinationBalance.balance, postBalance: post, relatedMovementID: sourceUse.movement.movementID, actor: actor, occurredAt: occurredAt, recordedAt: recordedAt, expectedLocationRevision: destinationBalance.locationRevision, mutationID: mutationID)
         let value = try StockReturnAgainstUseReceiptV1(receiptID: receiptID, sourceUse: sourceUse, predecessorFrontier: predecessorFrontier, returnMovement: movement, workResourcePredecessor: workResourcePredecessor, workResourceSuccessor: workResourceSuccessor(mutationID), mutationID: mutationID)
         return (value, try commit(.returnAgainstUse(value)))
