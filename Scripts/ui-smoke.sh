@@ -42,7 +42,8 @@ fi
 
 if [ "${CI_RUNNER_PROVIDER:-}" = "github" ] && \
    [ "${CI_TASK_ID:-}" = "S10.4" ] && \
-   [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.current.ax-text" ]; then
+   { [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.current.ax-text" ] || \
+     [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.rtl" ]; }; then
   test "${CI_SIMULATOR_BOOT_TIMEOUT_SECONDS:?}" = "900"
   simulator_refresh_log="$CI_ARTIFACT_DIR/ui-simulator-refresh.log"
   test ! -e "$simulator_refresh_log"

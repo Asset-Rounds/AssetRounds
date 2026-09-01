@@ -82,6 +82,78 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let accessibilitySchemaPath =
             "\(overlayRoot)/s10-accessibility-common-tasks.schema.json"
         let shardPath = "Scripts/s10-4-shards.json"
+        let uiSmokePath = "Scripts/ui-smoke.sh"
+
+        try assertFile(
+            uiSmokePath,
+            byteCount: 13_931,
+            sha256: "02A97F44CB5418FE73061225B2B3524615271C1D6710E8EFC212DAF0E7E738DB"
+        )
+        let uiSmokeSource = try text(uiSmokePath)
+        let simulatorRefreshSource = try boundedSource(
+            uiSmokeSource,
+            from: #"if [ "${CI_RUNNER_PROVIDER:-}" = "github" ]"#,
+            before: "\n\nxcrun simctl bootstatus \"$CI_SIMULATOR_UDID\" -b"
+        )
+        let refreshedAccessibilityShards = [
+            "s10.4.current.ax-text",
+            "s10.4.minimum.rtl",
+        ]
+        XCTAssertEqual(refreshedAccessibilityShards, refreshedAccessibilityShards.sorted())
+        for shardID in refreshedAccessibilityShards {
+            XCTAssertEqual(
+                simulatorRefreshSource.components(separatedBy: shardID).count - 1,
+                1,
+                shardID
+            )
+            XCTAssertEqual(uiSmokeSource.components(separatedBy: shardID).count - 1, 1, shardID)
+        }
+        let bypassedAccessibilityRefreshShards = [
+            "s10.4.current.default-dark",
+            "s10.4.current.default-light",
+            "s10.4.current.differentiate-without-color",
+            "s10.4.current.increased-contrast",
+            "s10.4.current.reduce-motion",
+            "s10.4.current.reduce-transparency",
+            "s10.4.minimum.accented",
+            "s10.4.minimum.bounded",
+            "s10.4.minimum.double-length",
+            "s10.4.minimum.minimum-os",
+            "s10.4.minimum.rtl-string",
+            "s10.4.minimum.tall",
+        ]
+        XCTAssertEqual(bypassedAccessibilityRefreshShards.count, 12)
+        XCTAssertEqual(
+            bypassedAccessibilityRefreshShards,
+            bypassedAccessibilityRefreshShards.sorted()
+        )
+        for shardID in bypassedAccessibilityRefreshShards {
+            XCTAssertFalse(uiSmokeSource.contains(shardID), shardID)
+        }
+        let orderedRefreshCommands = [
+            #"test "${CI_SIMULATOR_BOOT_TIMEOUT_SECONDS:?}" = "900""#,
+            #"simulator_refresh_log="$CI_ARTIFACT_DIR/ui-simulator-refresh.log""#,
+            #"xcrun simctl shutdown "$CI_SIMULATOR_UDID""#,
+            #"xcrun simctl boot "$CI_SIMULATOR_UDID""#,
+            #"bash Scripts/run-with-timeout.sh "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS""#,
+            #"xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b"#,
+            #"test "$simulator_refresh_elapsed_seconds" -le "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS""#,
+        ]
+        var refreshCommandCursor = simulatorRefreshSource.startIndex
+        for command in orderedRefreshCommands {
+            XCTAssertEqual(simulatorRefreshSource.components(separatedBy: command).count - 1, 1, command)
+            let commandRange = try XCTUnwrap(
+                simulatorRefreshSource.range(
+                    of: command,
+                    range: refreshCommandCursor..<simulatorRefreshSource.endIndex
+                )
+            )
+            refreshCommandCursor = commandRange.upperBound
+        }
+        for forbidden in ["simctl erase", "sleep ", "retry", "test-without-building"] {
+            XCTAssertFalse(simulatorRefreshSource.contains(forbidden), forbidden)
+        }
+        XCTAssertEqual(uiSmokeSource.components(separatedBy: "test-without-building").count - 1, 1)
 
         try assertFile(
             manifestPath,
