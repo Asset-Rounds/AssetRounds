@@ -9083,19 +9083,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let dragDistance: CGFloat
             let isStaging: Bool
             if maximumShift < 0 {
-                let recognizedMinimum = max(
-                    minimumShift,
+                let requestedMinimum = max(
+                    minimumShift - upwardUndertravel,
                     -upwardCapacity
                 )
-                let recognizedMaximum = min(
-                    maximumShift,
+                let requestedMaximum = min(
+                    maximumShift - upwardUndertravel,
                     -minimumGestureDistance
                 )
-                if recognizedMinimum <= recognizedMaximum {
-                    dragDistance = max(
-                        recognizedMinimum,
-                        recognizedMaximum - upwardUndertravel
-                    )
+                if requestedMinimum <= requestedMaximum {
+                    dragDistance = requestedMaximum
                     isStaging = false
                 } else {
                     guard minimumShift > -minimumGestureDistance,
@@ -9104,11 +9101,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         XCTFail("Diagnostics has no bounded upward residual strategy.")
                         return
                     }
-                    let stagingDistance = min(
-                        downwardCapacity,
-                        2 * minimumGestureDistance + downwardUndertravel
-                    )
-                    guard stagingDistance >= minimumGestureDistance else {
+                    let stagingDistance = minimumGestureDistance
+                        + downwardUndertravel
+                    guard stagingDistance.isFinite,
+                          downwardCapacity >= stagingDistance else {
                         XCTFail("Diagnostics downward staging is not recognizable.")
                         return
                     }
@@ -9116,19 +9112,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     isStaging = true
                 }
             } else {
-                let recognizedMinimum = max(
-                    minimumShift,
+                let requestedMinimum = max(
+                    minimumShift + downwardUndertravel,
                     minimumGestureDistance
                 )
-                let recognizedMaximum = min(
-                    maximumShift,
+                let requestedMaximum = min(
+                    maximumShift + downwardUndertravel,
                     downwardCapacity
                 )
-                if recognizedMinimum <= recognizedMaximum {
-                    dragDistance = min(
-                        recognizedMaximum,
-                        recognizedMinimum + downwardUndertravel
-                    )
+                if requestedMinimum <= requestedMaximum {
+                    dragDistance = requestedMinimum
                     isStaging = false
                 } else {
                     guard maximumShift < minimumGestureDistance,
@@ -9137,11 +9130,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         XCTFail("Diagnostics has no bounded downward residual strategy.")
                         return
                     }
-                    let stagingDistance = min(
-                        upwardCapacity,
-                        2 * minimumGestureDistance + upwardUndertravel
-                    )
-                    guard stagingDistance >= minimumGestureDistance else {
+                    let stagingDistance = minimumGestureDistance
+                        + upwardUndertravel
+                    guard stagingDistance.isFinite,
+                          upwardCapacity >= stagingDistance else {
                         XCTFail("Diagnostics upward staging is not recognizable.")
                         return
                     }

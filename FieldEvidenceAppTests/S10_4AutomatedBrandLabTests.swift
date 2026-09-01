@@ -11932,19 +11932,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            let dragDistance: CGFloat\n" +
                 "            let isStaging: Bool\n" +
                 "            if maximumShift < 0 {\n" +
-                "                let recognizedMinimum = max(\n" +
-                "                    minimumShift,\n" +
+                "                let requestedMinimum = max(\n" +
+                "                    minimumShift - upwardUndertravel,\n" +
                 "                    -upwardCapacity\n" +
                 "                )\n" +
-                "                let recognizedMaximum = min(\n" +
-                "                    maximumShift,\n" +
+                "                let requestedMaximum = min(\n" +
+                "                    maximumShift - upwardUndertravel,\n" +
                 "                    -minimumGestureDistance\n" +
                 "                )\n" +
-                "                if recognizedMinimum <= recognizedMaximum {\n" +
-                "                    dragDistance = max(\n" +
-                "                        recognizedMinimum,\n" +
-                "                        recognizedMaximum - upwardUndertravel\n" +
-                "                    )\n" +
+                "                if requestedMinimum <= requestedMaximum {\n" +
+                "                    dragDistance = requestedMaximum\n" +
                 "                    isStaging = false\n" +
                 "                } else {\n" +
                 "                    guard minimumShift > -minimumGestureDistance,\n" +
@@ -11953,11 +11950,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        XCTFail(\"Diagnostics has no bounded upward residual strategy.\")\n" +
                 "                        return\n" +
                 "                    }\n" +
-                "                    let stagingDistance = min(\n" +
-                "                        downwardCapacity,\n" +
-                "                        2 * minimumGestureDistance + downwardUndertravel\n" +
-                "                    )\n" +
-                "                    guard stagingDistance >= minimumGestureDistance else {\n" +
+                "                    let stagingDistance = minimumGestureDistance\n" +
+                "                        + downwardUndertravel\n" +
+                "                    guard stagingDistance.isFinite,\n" +
+                "                          downwardCapacity >= stagingDistance else {\n" +
                 "                        XCTFail(\"Diagnostics downward staging is not recognizable.\")\n" +
                 "                        return\n" +
                 "                    }\n" +
@@ -11965,19 +11961,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    isStaging = true\n" +
                 "                }\n" +
                 "            } else {\n" +
-                "                let recognizedMinimum = max(\n" +
-                "                    minimumShift,\n" +
+                "                let requestedMinimum = max(\n" +
+                "                    minimumShift + downwardUndertravel,\n" +
                 "                    minimumGestureDistance\n" +
                 "                )\n" +
-                "                let recognizedMaximum = min(\n" +
-                "                    maximumShift,\n" +
+                "                let requestedMaximum = min(\n" +
+                "                    maximumShift + downwardUndertravel,\n" +
                 "                    downwardCapacity\n" +
                 "                )\n" +
-                "                if recognizedMinimum <= recognizedMaximum {\n" +
-                "                    dragDistance = min(\n" +
-                "                        recognizedMaximum,\n" +
-                "                        recognizedMinimum + downwardUndertravel\n" +
-                "                    )\n" +
+                "                if requestedMinimum <= requestedMaximum {\n" +
+                "                    dragDistance = requestedMinimum\n" +
                 "                    isStaging = false\n" +
                 "                } else {\n" +
                 "                    guard maximumShift < minimumGestureDistance,\n" +
@@ -11986,11 +11979,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        XCTFail(\"Diagnostics has no bounded downward residual strategy.\")\n" +
                 "                        return\n" +
                 "                    }\n" +
-                "                    let stagingDistance = min(\n" +
-                "                        upwardCapacity,\n" +
-                "                        2 * minimumGestureDistance + upwardUndertravel\n" +
-                "                    )\n" +
-                "                    guard stagingDistance >= minimumGestureDistance else {\n" +
+                "                    let stagingDistance = minimumGestureDistance\n" +
+                "                        + upwardUndertravel\n" +
+                "                    guard stagingDistance.isFinite,\n" +
+                "                          upwardCapacity >= stagingDistance else {\n" +
                 "                        XCTFail(\"Diagnostics upward staging is not recognizable.\")\n" +
                 "                        return\n" +
                 "                    }\n" +
@@ -12176,7 +12168,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("thenHoldForDuration: 0.2", 1),
             ("observedUndertravel = max(", 1),
             ("stagingCount < 2", 2),
-            ("let stagingDistance = min(", 2),
+            ("let stagingDistance = minimumGestureDistance", 2),
+            ("minimumShift - upwardUndertravel", 1),
+            ("maximumShift - upwardUndertravel", 1),
+            ("minimumShift + downwardUndertravel", 1),
+            ("maximumShift + downwardUndertravel", 1),
+            ("dragDistance = requestedMaximum", 1),
+            ("dragDistance = requestedMinimum", 1),
+            ("stagingDistance.isFinite", 2),
+            ("downwardCapacity >= stagingDistance", 1),
+            ("upwardCapacity >= stagingDistance", 1),
             ("isStaging = true", 2),
             ("XCTFail(", 13),
             ("return", 13),
@@ -12187,6 +12188,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ).count - 1,
                 expectedCount,
                 fragment
+            )
+        }
+        for removedMismatchedMovementSpaceForm in [
+            "recognizedMaximum - upwardUndertravel",
+            "recognizedMinimum + downwardUndertravel",
+            "2 * minimumGestureDistance + downwardUndertravel",
+            "2 * minimumGestureDistance + upwardUndertravel",
+        ] {
+            XCTAssertFalse(
+                diagnosticsPositioningSource.contains(
+                    removedMismatchedMovementSpaceForm
+                ),
+                removedMismatchedMovementSpaceForm
             )
         }
         let removedDiagnosticsTelemetryFragments = [
@@ -12315,10 +12329,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        XCTAssertEqual(diagnosticsPositioningSource.utf8.count, 13_095)
+        XCTAssertEqual(diagnosticsPositioningSource.utf8.count, 12_885)
         XCTAssertEqual(
             Data(diagnosticsPositioningSource.utf8).sha256,
-            "C1CE3CB1F4B0C8B09D613AB5CFF1E2B45FE7D14DB0EA8BE2049F2E02DEA8FFED"
+            "E5B0BAEC0863242F9E9D21C7BC08DFDC9B9309F38A1506EAF8F16C479B644ADD"
         )
         let removedDifferentiateDiagnosticsFragments = [
             "diagnoseDifferentiateWithoutColorDiagnosticsPositioning",
@@ -20348,10 +20362,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 749_671)
+        XCTAssertEqual(uiSource.utf8.count, 749_461)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "1E0BD257BE6D581B004363FEED5FE87EADDB58E0FC0CCB975692BFD653C375A1"
+            "3897B07969C7EF52B48B87101B1F312C30A72F2E4CFAC827CEC24CD43201335D"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
