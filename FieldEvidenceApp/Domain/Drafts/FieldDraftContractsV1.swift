@@ -466,6 +466,40 @@ struct OCRReviewedFieldDraftCheckpointEffectV1: Equatable, Sendable {
     func reviewedOCRFieldReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1?
 }
 
+typealias AssistedCaptureReviewedFieldDraftPayloadApplicationV1 = OCRReviewedFieldDraftPayloadApplicationV1
+
+struct AssistedCaptureDraftCheckpointUpdateV1: Equatable, Sendable {
+    let review: AssistedCaptureFieldReviewV1
+    let predecessor: FieldDraftCheckpointV1
+    let mutationID: MutationIDV1
+    init(review:AssistedCaptureFieldReviewV1,predecessor:FieldDraftCheckpointV1,mutationID:MutationIDV1)throws{
+        try predecessor.validate()
+        guard review.disposition != .rejected,review.reviewedValue != nil,
+              review.source.proposal.target.workspaceID==predecessor.workspaceID,
+              review.source.proposal.target.entity.kind == .fieldDraftCheckpoint,
+              review.source.proposal.target.entity.id==predecessor.draftID,
+              review.source.proposal.target.revision==predecessor.draftRevision else{throw FieldDraftFailureV1.staleDraftRevision}
+        self.review=review;self.predecessor=predecessor;self.mutationID=mutationID
+    }
+}
+
+struct AssistedCaptureReviewedFieldDraftEffectV1: Equatable, Sendable {
+    let update:AssistedCaptureDraftCheckpointUpdateV1;let mutation:FieldDraftMutationV1
+    let receipt:MutationReceiptV1;let successor:FieldDraftCheckpointV1
+    let application:AssistedCaptureReviewedFieldDraftPayloadApplicationV1
+    init(update:AssistedCaptureDraftCheckpointUpdateV1,mutation:FieldDraftMutationV1,receipt:MutationReceiptV1,
+         successor:FieldDraftCheckpointV1,application:AssistedCaptureReviewedFieldDraftPayloadApplicationV1)throws{
+        _=try FieldDraftMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)
+        try application.validate(predecessor:update.predecessor)
+        try successor.validateSuccessor(of:update.predecessor,expectedDraftRevision:update.predecessor.draftRevision,
+            expectedBaseRevision:update.predecessor.baseCanonicalRevision)
+        guard application.fieldID==update.review.source.proposal.target.fieldID,
+              application.value==update.review.reviewedValue,mutation.mutationID==update.mutationID,
+              mutation.postImage == .reviseCheckpoint(successor),successor.payloadData==application.successorPayloadData else{throw FieldDraftFailureV1.invalidValue}
+        self.update=update;self.mutation=mutation;self.receipt=receipt;self.successor=successor;self.application=application
+    }
+}
+
 // MARK: - C23 field-reference binding at the round-session boundary
 
 /// A draft carries only a derived reference projection. The durable release

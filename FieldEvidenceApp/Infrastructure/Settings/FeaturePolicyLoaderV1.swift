@@ -73,6 +73,37 @@ enum OCRProposalFeaturePolicyBoundaryV1 {
     }
 }
 
+struct DictationLocationFeaturePolicyResolutionV1:Equatable,Sendable{
+    let speech:FeaturePolicyResolutionV1
+    let location:FeaturePolicyResolutionV1
+    init(speech:FeaturePolicyResolutionV1,location:FeaturePolicyResolutionV1)throws{
+        try DictationLocationCapabilityBoundaryV1.validateSpeech(speech)
+        try DictationLocationCapabilityBoundaryV1.validateLocation(location)
+        self.speech=speech;self.location=location
+    }
+    func makePreparedDisabledPolicy(dictationCapability:AssistanceCapabilityReferenceV1,
+        locationCapability:AssistanceCapabilityReferenceV1,
+        supportedDictationLocales:[String],maximumTranscriptUTF8Bytes:Int=ResponseValueV1.maximumTextUTF8Bytes,
+        maximumHorizontalAccuracyMillimeters:UInt64=100_000)throws->DictationLocationCapabilityPolicyV1{
+        let dictationBinding=try AssistanceFeaturePolicyBindingV1.binding(for:dictationCapability)
+        let locationBinding=try AssistanceFeaturePolicyBindingV1.binding(for:locationCapability)
+        let dictationPolicy=try dictationBinding.makePolicy(capability:dictationCapability,resolution:speech)
+        let locationPolicy=try locationBinding.makePolicy(capability:locationCapability,resolution:location)
+        return try .init(dictationPolicy:dictationPolicy,locationPolicy:locationPolicy,
+            dictationActivation:.preparedDisabled,locationActivation:.preparedDisabled,
+            supportedDictationLocales:supportedDictationLocales,
+            maximumTranscriptUTF8Bytes:maximumTranscriptUTF8Bytes,
+            maximumHorizontalAccuracyMillimeters:maximumHorizontalAccuracyMillimeters)
+    }
+}
+
+enum DictationLocationFeaturePolicyBoundaryV1{
+    static func resolve(using loader:FeaturePolicyLoaderV1)throws->DictationLocationFeaturePolicyResolutionV1{
+        try .init(speech:loader.resolve(featureID:"speechDictation"),
+                  location:loader.resolve(featureID:"locationCapture"))
+    }
+}
+
 struct FeaturePolicyLoaderV1: Sendable {
     private let provider: any BundledFeaturePolicyDataPortV1
 

@@ -70,6 +70,20 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         return permit
     }
 
+    /// Each C24 permit is minted from the same state snapshot in this actor
+    /// turn. Neither OS capability's disposition is cached in AppAccess.
+    func requireDictationProposalContentAccess() throws -> AppAccessContentPermitV1 {
+        let permit = try AppAccessContentPermitV1(surface: .dictationProposal, state: state)
+        try DictationLocationProposalAppAccessBoundaryV1.validateDictation(permit)
+        return permit
+    }
+
+    func requireOneShotLocationProposalContentAccess() throws -> AppAccessContentPermitV1 {
+        let permit = try AppAccessContentPermitV1(surface: .oneShotLocationProposal, state: state)
+        try DictationLocationProposalAppAccessBoundaryV1.validateOneShotLocation(permit)
+        return permit
+    }
+
     func lock(reason: AppLockReasonV1) async {
         // Lock is also the cancellation boundary for an in-flight opt-in
         // attempt. Invalidate its generation before consulting the currently

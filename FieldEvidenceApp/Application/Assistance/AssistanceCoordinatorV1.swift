@@ -9,6 +9,8 @@ protocol AssistanceProposalLifecycleV1: AnyObject {
         _ proposal: AssistanceProposalV1,
         context: AssistanceProposalEvaluationContextV1
     ) async throws
+    func replaceForReview(originalProposalID:UUID,with corrected:AssistanceProposalV1,
+                          context:AssistanceProposalEvaluationContextV1)async throws
     func proposal(proposalID: UUID) async -> AssistanceProposalV1?
     func activeProposals(workspaceID: WorkspaceID) async -> [AssistanceProposalV1]
     func review(
@@ -35,6 +37,13 @@ protocol AssistanceProposalLifecycleV1: AnyObject {
     func recoverAfterInterruption() async throws
 }
 
+extension AssistanceProposalLifecycleV1{
+    func replaceForReview(originalProposalID:UUID,with corrected:AssistanceProposalV1,
+                          context:AssistanceProposalEvaluationContextV1)async throws{
+        throw AssistanceContractFailureV1.invalidValue
+    }
+}
+
 /// The shared entry point for OCR, speech, one-shot location, and closed
 /// deterministic helper providers. Providers can create proposals, but only
 /// this explicit-review path can ask the canonical workspace writer to accept.
@@ -57,6 +66,12 @@ final class AssistanceCoordinatorV1 {
         context: AssistanceProposalEvaluationContextV1
     ) async throws {
         try await lifecycle.present(proposal, context: context)
+    }
+
+    func replaceForReview(originalProposalID:UUID,with corrected:AssistanceProposalV1,
+                          context:AssistanceProposalEvaluationContextV1)async throws{
+        try await lifecycle.replaceForReview(originalProposalID:originalProposalID,
+            with:corrected,context:context)
     }
 
     func proposal(proposalID: UUID) async -> AssistanceProposalV1? {
@@ -122,6 +137,15 @@ final class AssistanceCoordinatorV1 {
     func validateOCRAcceptance(_ receipt: AssistanceAcceptanceReceiptV1,
                                evidence: OCRProposalEvidenceV1) throws {
         try receipt.validate(ocrEvidence: evidence)
+    }
+
+    func validateDictationAcceptance(_ receipt:AssistanceAcceptanceReceiptV1,
+                                      proposal:OnDeviceDictationProposalV1)throws{
+        try receipt.validate(dictation:proposal)
+    }
+    func validateLocationAcceptance(_ receipt:AssistanceAcceptanceReceiptV1,
+                                    proposal:OneShotLocationProposalV1)throws{
+        try receipt.validate(location:proposal)
     }
 }
 

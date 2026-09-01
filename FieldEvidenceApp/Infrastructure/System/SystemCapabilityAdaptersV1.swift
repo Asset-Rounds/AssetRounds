@@ -52,6 +52,23 @@ struct PreparedDisabledOCRProposalExtractorV1: OCRProposalExtractingV1 {
     }
 }
 
+struct PreparedDisabledSpeechCapabilityAdapterV1:SpeechCapabilityAdapterV1{
+    func permissionDisposition()async throws->SpeechPermissionDispositionV1{throw DictationLocationProposalFailureV1.unavailable}
+    func requestMicrophonePermission()async throws->SpeechPermissionDispositionV1{throw DictationLocationProposalFailureV1.unavailable}
+    func requestSpeechRecognitionPermission()async throws->SpeechPermissionDispositionV1{throw DictationLocationProposalFailureV1.unavailable}
+    func dictateOnDevice(_ request:OnDeviceDictationRequestV1)async throws->OnDeviceDictationProposalV1{
+        try request.validate();throw DictationLocationProposalFailureV1.unavailable
+    }
+}
+
+struct PreparedDisabledOneShotLocationCapabilityAdapterV1:OneShotLocationCapabilityAdapterV1{
+    func permissionDisposition()async throws->LocationPermissionDispositionV1{throw DictationLocationProposalFailureV1.unavailable}
+    func requestWhenInUsePermission()async throws->LocationPermissionDispositionV1{throw DictationLocationProposalFailureV1.unavailable}
+    func requestOneShotForegroundLocation(_ request:OneShotLocationRequestV1)async throws->OneShotLocationProposalV1{
+        try request.validate();throw DictationLocationProposalFailureV1.unavailable
+    }
+}
+
 struct UIKitHapticRuntimeAdapterV1: HapticRuntimePortV1 {
     func isAvailable() async -> Bool { true }
 

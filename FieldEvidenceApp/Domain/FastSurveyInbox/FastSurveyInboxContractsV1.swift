@@ -1075,6 +1075,63 @@ enum FastSurveyInboxOCRReviewOutcomeV1: Equatable, Sendable {
     case reviewed(receipts: [AssistanceAcceptanceReceiptV1], rejectedProposalIDs: [UUID])
 }
 
+enum AssistedCaptureProposalV1: Equatable, Sendable {
+    case dictation(OnDeviceDictationProposalV1)
+    case location(OneShotLocationProposalV1)
+
+    var proposal: AssistanceProposalV1 { switch self { case .dictation(let v): return v.proposal; case .location(let v): return v.proposal } }
+    var evidenceSHA256: String { switch self { case .dictation(let v): return v.proposalEvidenceSHA256; case .location(let v): return v.proposalEvidenceSHA256 } }
+    func validate(policy: DictationLocationCapabilityPolicyV1) throws {
+        switch self { case .dictation(let value): try value.validate(policy: policy); case .location(let value): try value.validate(policy: policy) }
+    }
+}
+
+struct AssistedCaptureFieldReviewV1: Equatable, Sendable {
+    let source: AssistedCaptureProposalV1
+    let review: DictationLocationProposalReviewV1
+    var disposition:DictationLocationReviewDispositionV1{review.disposition}
+    var reviewedValue:ResponseValueV1?{review.reviewedValue}
+    var reviewedBy:ActorSnapshotV1{review.reviewedBy}
+    var reviewedAt:Date{review.reviewedAt}
+
+    init(source: AssistedCaptureProposalV1, review:DictationLocationProposalReviewV1,
+         policy: DictationLocationCapabilityPolicyV1) throws {
+        try source.validate(policy: policy)
+        let original = source.proposal
+        try review.validate(originalProposalID:original.proposalID,
+            evidenceSHA256:source.evidenceSHA256,originalValue:original.value)
+        guard review.reviewedBy.workspaceID == original.target.workspaceID,
+              review.reviewedBy.responsibility == .reviewedBy,
+              review.reviewedAt >= original.createdAt, review.reviewedAt < original.expiresAt else {
+            throw FastSurveyInboxFailureV1.invalidValue
+        }
+        self.source=source;self.review=review
+    }
+
+    func canonicalProposal() throws -> AssistanceProposalV1? {
+        guard let reviewedValue=review.reviewedValue else { return nil }
+        let original = source.proposal
+        return try original.correctedForOCR(proposalID: original.proposalID, value: reviewedValue,
+            createdAt: original.createdAt, expiresAt: original.expiresAt)
+    }
+}
+
+struct AssistedCaptureReviewBatchV1: Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let reviews: [AssistedCaptureFieldReviewV1]
+    init(reviews: [AssistedCaptureFieldReviewV1]) throws {
+        guard let first=reviews.first,!reviews.isEmpty,
+              Set(reviews.map{$0.source.proposal.proposalID}).count==reviews.count,
+              reviews.allSatisfy({$0.source.proposal.target.workspaceID==first.source.proposal.target.workspaceID}) else {
+            throw FastSurveyInboxFailureV1.invalidValue
+        }
+        workspaceID=first.source.proposal.target.workspaceID
+        self.reviews=reviews.sorted{$0.source.proposal.proposalID.uuidString<$1.source.proposal.proposalID.uuidString}
+    }
+    static let isPersistent=false
+    static let authorizationCreatesIdentityOrDirectionTruth=false
+}
+
 struct FastSurveyInboxStoragePressureV1: Codable, Equatable, Sendable {
     let workspaceID: WorkspaceID; let currentBytes: Int64; let proposedAdditionalBytes: Int64
     let maximumBytes: Int64; let admitsCapture: Bool

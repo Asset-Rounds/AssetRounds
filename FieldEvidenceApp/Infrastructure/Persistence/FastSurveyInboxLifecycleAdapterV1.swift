@@ -209,6 +209,13 @@ enum C23FastSurveyInboxOCRLifecycleBoundaryV1 {
     static let replaceRestoreAddsOCRProposalRecords = false
 }
 
+enum C24AssistedCaptureInboxLifecycleBoundaryV1 {
+    static let addedDurableRows=DictationLocationPersistenceBoundaryV1.addedDurableRowCount
+    static let proposalsReviewsAndPermissionsAreBackedUp=false
+    static let acceptedReceiptFamily=DictationLocationPersistenceBoundaryV1.acceptanceRowName
+    static let audioScratchUsesCapabilityLifecycle=true
+}
+
 @MainActor
 final class FastSurveyInboxSwiftDataQuerySourceV1 {
     private let modelContext: ModelContext

@@ -5191,6 +5191,48 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+extension BundledLocalizationCatalogV1 {
+    static func dictationLocationProposalRegistry() throws -> LocalizationKeyRegistryV1 {
+        try C24DictationLocationLocalizationPolicyV1.validate()
+        let base = try ocrProposalRegistry()
+        let additions = C24DictationLocationLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C24 on-device dictation or one-shot location proposal; unverified until explicit review and acceptance.",
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [], requiredEnglishPluralCategories: [], state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func dictationLocationProposalAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try C24DictationLocationAccessibilityPolicyV1.validate()
+        let base = try ocrProposalAccessibilityRegistry(localization: localization)
+        let additions = try C24DictationLocationAccessibilityIDV1.allCases.map { id in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .startDictation, .editTranscript, .acceptTranscript, .cancelDictation,
+                 .captureLocation, .reviewLocation, .acceptLocation, .rejectLocation,
+                 .manualEntry: role = .button
+            case .dictationStatus, .locationStatus, .scratchCleanup, .error: role = .status
+            case .dictationGroup, .transcript, .locationGroup, .locationProposal: role = .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue, role: role, reachability: .whenAvailable,
+                labelKey: id.localizationKey, hintKey: nil, valueKey: nil,
+                dynamicSuffixPolicy: .none, deprecatedAliases: []
+            )
+        }
+        return try base.appending(additions, localization: localization)
+    }
+}
+
 enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Localization_BundledLocalizationCatalogV1_swift {
     static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
     static func validate(clip: TemporalEvidenceClipV1,

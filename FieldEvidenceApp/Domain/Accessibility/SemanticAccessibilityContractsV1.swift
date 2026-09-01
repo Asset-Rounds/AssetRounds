@@ -2682,6 +2682,76 @@ enum C32AssistanceAccessibilityPolicyV1 {
     }
 }
 
+enum C24DictationLocationAccessibilityIDV1: String, CaseIterable, Codable, Sendable {
+    case screen = "assistance.dictation_location.screen"
+    case dictationGroup = "assistance.dictation.group"
+    case startDictation = "assistance.dictation.start"
+    case transcript = "assistance.dictation.transcript"
+    case editTranscript = "assistance.dictation.edit"
+    case acceptTranscript = "assistance.dictation.accept"
+    case cancelDictation = "assistance.dictation.cancel"
+    case dictationStatus = "assistance.dictation.status"
+    case locationGroup = "assistance.location.group"
+    case captureLocation = "assistance.location.capture_once"
+    case locationProposal = "assistance.location.proposal"
+    case reviewLocation = "assistance.location.review"
+    case acceptLocation = "assistance.location.accept"
+    case rejectLocation = "assistance.location.reject"
+    case locationStatus = "assistance.location.status"
+    case manualEntry = "assistance.dictation_location.manual_entry"
+    case scratchCleanup = "assistance.dictation_location.scratch_cleanup"
+    case error = "assistance.dictation_location.error"
+
+    var localizationKey: LocalizationKeyV1 {
+        let key: C24DictationLocationLocalizationKeyV1
+        switch self {
+        case .screen: key = .heading
+        case .dictationGroup: key = .dictationHeading
+        case .startDictation: key = .startDictation
+        case .transcript: key = .transcriptUnverified
+        case .editTranscript: key = .editTranscript
+        case .acceptTranscript: key = .acceptTranscript
+        case .cancelDictation: key = .cancelDictation
+        case .dictationStatus: key = .listening
+        case .locationGroup: key = .locationHeading
+        case .captureLocation: key = .captureLocationOnce
+        case .locationProposal: key = .locationUnverified
+        case .reviewLocation: key = .reviewLocation
+        case .acceptLocation: key = .acceptLocation
+        case .rejectLocation: key = .rejectLocation
+        case .locationStatus: key = .locating
+        case .manualEntry: key = .manualFallback
+        case .scratchCleanup: key = .dictationScratchCleanup
+        case .error: key = .errorFocus
+        }
+        return key.localizationKey
+    }
+}
+
+enum C24DictationLocationAccessibilityPolicyV1 {
+    static let sourceOrderIsVoiceOverOrder = true
+    static let visibleLabelsAreVoiceControlNames = true
+    static let dynamicTypeThroughAX5Required = true
+    static let rightToLeftReadingOrderRequired = true
+    static let nonColorMeaningRequired = true
+    static let reduceMotionUsesStaticStatus = true
+    static let firstErrorReceivesFocus = true
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6AndPhysicalDeviceEvidence = true
+
+    static func validate() throws {
+        let ids = C24DictationLocationAccessibilityIDV1.allCases.map(\.rawValue)
+        guard ids.count == 18, Set(ids).count == ids.count,
+              sourceOrderIsVoiceOverOrder, visibleLabelsAreVoiceControlNames,
+              dynamicTypeThroughAX5Required, rightToLeftReadingOrderRequired,
+              nonColorMeaningRequired, reduceMotionUsesStaticStatus,
+              firstErrorReceivesFocus, !uiAdoptionClaimed,
+              requiresAcceptedS10_6AndPhysicalDeviceEvidence else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}
+
 
 // MARK: - C33 temporal evidence accessibility
 

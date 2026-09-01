@@ -27,6 +27,26 @@ enum OCRProposalCapabilityBoundaryV1 {
     }
 }
 
+enum DictationLocationCapabilityBoundaryV1{
+    static let speechFeatureID="speechDictation"
+    static let locationFeatureID="locationCapture"
+    static let speechCapabilities:[CapabilityIDV1]=[.microphone,.speechDictation]
+    static let locationCapabilities:[CapabilityIDV1]=[.location]
+    static let productionAdoptionEnabled=false
+    static let serverSpeechFallbackAllowed=false
+    static let backgroundLocationAllowed=false
+    static func validateSpeech(_ value:FeaturePolicyResolutionV1)throws{
+        guard value.featureID==speechFeatureID,value.policyState == .preparedDisabled,
+              value.requiredCapabilities==speechCapabilities,
+              value.safeFallback == .typeManually else{throw CapabilityContractFailureV1.invalidValue}
+    }
+    static func validateLocation(_ value:FeaturePolicyResolutionV1)throws{
+        guard value.featureID==locationFeatureID,value.policyState == .preparedDisabled,
+              value.requiredCapabilities==locationCapabilities,
+              value.safeFallback == .typeManually else{throw CapabilityContractFailureV1.invalidValue}
+    }
+}
+
 enum CapabilityContractFailureV1: Error, Equatable, Sendable {
     case invalidValue
     case duplicateCapability

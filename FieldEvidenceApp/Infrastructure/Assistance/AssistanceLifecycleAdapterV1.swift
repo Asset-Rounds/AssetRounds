@@ -31,6 +31,9 @@ protocol AssistanceScratchDiscardingV1: AnyObject {
         disposition: ScratchPublicationDispositionV1,
         immutableContentReceiptDigest: String?
     ) async throws
+    func transferAssistanceScratch(
+        fromProposalID:UUID,toProposalID:UUID,source:AssistanceSourceReferenceV1
+    ) async throws
 }
 
 @MainActor
@@ -49,6 +52,12 @@ extension AssistanceScratchDiscardingV1 {
         immutableContentReceiptDigest: String?
     ) async throws {
         try await discardAssistanceScratch(proposalID: proposalID, source: source)
+    }
+
+    func transferAssistanceScratch(
+        fromProposalID:UUID,toProposalID:UUID,source:AssistanceSourceReferenceV1
+    ) async throws {
+        throw AssistanceContractFailureV1.scratchCleanupFailed
     }
 }
 
@@ -339,6 +348,19 @@ final class AssistanceCapabilityScratchLifecycleAdapterV1:
         )
     }
 
+    func transferAssistanceScratch(
+        fromProposalID:UUID,toProposalID:UUID,source:AssistanceSourceReferenceV1
+    ) async throws {
+        try AssistanceLimitsV1.id(fromProposalID);try AssistanceLimitsV1.id(toProposalID);try source.validate()
+        if bindings[fromProposalID] == nil,let existing=bindings[toProposalID],existing.source==source{return}
+        guard fromProposalID != toProposalID,bindings[toProposalID] == nil,
+              let binding=bindings[fromProposalID],binding.source==source else{
+            throw AssistanceContractFailureV1.scratchCleanupFailed
+        }
+        bindings[toProposalID]=binding
+        bindings.removeValue(forKey:fromProposalID)
+    }
+
     func finishAssistanceScratch(
         proposalID: UUID,
         source: AssistanceSourceReferenceV1,
@@ -438,6 +460,28 @@ final class AssistanceLifecycleAdapterV1: AssistanceProposalLifecycleV1 {
             throw AssistanceContractFailureV1.limitExceeded
         }
         proposals[proposal.proposalID] = proposal
+    }
+
+    func replaceForReview(originalProposalID:UUID,with corrected:AssistanceProposalV1,
+                          context:AssistanceProposalEvaluationContextV1)async throws{
+        try AssistanceLimitsV1.id(originalProposalID);try corrected.validate();try context.validate()
+        if proposals[originalProposalID] == nil,
+           let existing=proposals[corrected.proposalID],existing==corrected{return}
+        guard let original=proposals[originalProposalID],originalProposalID != corrected.proposalID,
+              proposals[corrected.proposalID] == nil,terminalRemovals[corrected.proposalID] == nil,
+              original.capability==corrected.capability,original.target==corrected.target,
+              original.source==corrected.source,original.privacyClass==corrected.privacyClass,
+              corrected.createdAt>=original.createdAt,corrected.expiresAt==original.expiresAt else{
+            throw AssistanceContractFailureV1.duplicateProposal
+        }
+        let trusted=try await resolvedContext(for:original,supplied:context)
+        guard try corrected.expiryReason(in:trusted)==nil else{throw AssistanceContractFailureV1.staleTarget}
+        if original.source.kind == .leasedScratch{
+            try await scratch.transferAssistanceScratch(fromProposalID:originalProposalID,
+                toProposalID:corrected.proposalID,source:original.source)
+        }
+        proposals.removeValue(forKey:originalProposalID)
+        proposals[corrected.proposalID]=corrected
     }
 
     func proposal(proposalID: UUID) async -> AssistanceProposalV1? {
@@ -754,6 +798,24 @@ enum OCRProposalAssistanceLifecycleBoundaryV1 {
     static func validateAccepted(_ receipt: AssistanceAcceptanceReceiptV1,
                                  evidence: OCRProposalEvidenceV1) throws {
         try receipt.validate(ocrEvidence: evidence)
+    }
+}
+
+enum DictationLocationAssistanceLifecycleBoundaryV1{
+    static let proposalsAreEphemeral=true
+    static let acceptedReceiptUsesExistingWriter=true
+    static let acceptedReceiptBindsExpectedRevisionAndMutationID=true
+    static let rejectionCancellationInterruptionDeleteTemporaryAudio=true
+    static let latestTargetFallbackAllowed=false
+    static let backgroundLocationAllowed=false
+    static let productionAdoptionEnabled=false
+    static func validateAccepted(_ receipt:AssistanceAcceptanceReceiptV1,
+                                 dictation:OnDeviceDictationProposalV1)throws{
+        try receipt.validate(dictation:dictation)
+    }
+    static func validateAccepted(_ receipt:AssistanceAcceptanceReceiptV1,
+                                 location:OneShotLocationProposalV1)throws{
+        try receipt.validate(location:location)
     }
 }
 

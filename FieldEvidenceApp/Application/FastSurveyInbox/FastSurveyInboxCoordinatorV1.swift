@@ -219,6 +219,43 @@ final class FastSurveyInboxCoordinatorV1 {
         return .reviewed(receipts: receipts, rejectedProposalIDs: rejected.sorted { $0.uuidString < $1.uuidString })
     }
 
+    func applyReviewedAssistedCaptureFields(
+        _ batch: AssistedCaptureReviewBatchV1,
+        targetMutations: [UUID: AssistanceCanonicalTargetMutationV1],
+        manualEquivalentMutations: [UUID: AssistanceCanonicalTargetMutationV1],
+        expectedRevision: WorkspaceExpectedRevisionV1,
+        mutationIDs: [UUID: MutationIDV1],
+        workspaceWriter: WorkspaceWriterV1
+    ) throws -> FastSurveyInboxOCRReviewOutcomeV1 {
+        guard batch.workspaceID==expectedRevision.workspaceID,
+              Set(mutationIDs.values.map{$0.rawValue}).count==mutationIDs.count else{throw FastSurveyInboxFailureV1.staleRevision}
+        let accepted=batch.reviews.filter{$0.disposition != .rejected}
+        let acceptedIDs=Set(accepted.map{$0.source.proposal.proposalID})
+        guard Set(targetMutations.keys)==acceptedIDs,Set(manualEquivalentMutations.keys)==acceptedIDs,
+              Set(mutationIDs.keys)==acceptedIDs else{throw FastSurveyInboxFailureV1.invalidPromotion}
+        var requests:[AssistanceAcceptanceRequestV1]=[]
+        for review in accepted {
+            let id=review.source.proposal.proposalID
+            guard let proposal=try review.canonicalProposal(),let target=targetMutations[id],
+                  let manual=manualEquivalentMutations[id],target==manual,let mutationID=mutationIDs[id] else{
+                throw FastSurveyInboxFailureV1.invalidPromotion
+            }
+            let request=try AssistanceAcceptanceRequestV1(proposal:proposal,targetMutation:target,
+                expectedRevision:expectedRevision,mutationID:mutationID,acceptedBy:review.reviewedBy,
+                acceptedAt:review.reviewedAt)
+            try request.validateManualPathEquivalence(to:manual);requests.append(request)
+        }
+        let reviewsByID=Dictionary(uniqueKeysWithValues:batch.reviews.map{($0.source.proposal.proposalID,$0)})
+        let receipts=try requests.map{request in
+            let receipt=try workspaceWriter.commitAssistanceAcceptance(request);try receipt.validate(request:request)
+            if let reviewed=reviewsByID[request.proposal.proposalID],reviewed.disposition == .accepted{
+                switch reviewed.source{case .dictation(let value):try receipt.validate(dictation:value);case .location(let value):try receipt.validate(location:value)}
+            }
+            return receipt
+        }
+        return .reviewed(receipts:receipts,rejectedProposalIDs:batch.reviews.filter{$0.disposition == .rejected}.map{$0.source.proposal.proposalID}.sorted{$0.uuidString<$1.uuidString})
+    }
+
     private func submitOrRecover(
         _ command: FastSurveyInboxMutationCommandV1
     ) throws -> FastSurveyInboxMutationReceiptV1 {

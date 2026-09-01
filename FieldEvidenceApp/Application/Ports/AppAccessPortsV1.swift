@@ -355,4 +355,21 @@ extension AppAccessGatePortV1 {
         try OCRProposalAppAccessBoundaryV1.validate(permit)
         return permit
     }
+
+    /// Dictation has a distinct permit from one-shot location. The provider's
+    /// microphone and speech authorization is evaluated separately after this
+    /// app-lock/content permit has been minted.
+    func requireDictationProposalContentAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .dictationProposal)
+        try DictationLocationProposalAppAccessBoundaryV1.validateDictation(permit)
+        return permit
+    }
+
+    /// One-shot foreground location is independently permitted. A dictation
+    /// denial therefore cannot prevent its manual or on-device fallback path.
+    func requireOneShotLocationProposalContentAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .oneShotLocationProposal)
+        try DictationLocationProposalAppAccessBoundaryV1.validateOneShotLocation(permit)
+        return permit
+    }
 }

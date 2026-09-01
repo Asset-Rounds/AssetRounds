@@ -274,6 +274,42 @@ enum AssistanceLocationProposalBoundaryV1 {
     }
 }
 
+enum C24OneShotLocationAcceptanceBoundaryV1 {
+    static let createsAssetOrSiteIdentity=false
+    static let establishesDirectionsTruth=false
+    static let permitsBackgroundLocation=false
+
+    static func validateUnverified(_ value:OneShotLocationProposalV1,
+        policy:DictationLocationCapabilityPolicyV1)throws{
+        try value.validate(policy:policy)
+        guard value.request.foreground,value.request.explicitUserAction,
+              value.request.source.kind == .deviceObservation,
+              value.permission.whenInUse == .authorized,
+              value.proposal.privacyClass == .preciseLocation else{throw DictationLocationProposalFailureV1.invalidValue}
+        _=try OneShotLocationObservationV1(latitudeMicrodegrees:value.observation.latitudeMicrodegrees,
+            longitudeMicrodegrees:value.observation.longitudeMicrodegrees,observedAt:value.observation.observedAt,
+            horizontalAccuracyMillimeters:value.observation.horizontalAccuracyMillimeters,
+            verticalAccuracyMillimeters:value.observation.verticalAccuracyMillimeters,source:value.observation.source,
+            accuracyAuthorization:value.observation.accuracyAuthorization)
+    }
+
+    static func validateAccepted(_ receipt:AssistanceAcceptanceReceiptV1,
+        review:AssistedCaptureFieldReviewV1)throws->OneShotLocationObservationV1?{
+        guard case .location(let source)=review.source else{throw DictationLocationProposalFailureV1.invalidValue}
+        try review.review.validate(originalProposalID:source.proposal.proposalID,
+            evidenceSHA256:source.proposalEvidenceSHA256,originalValue:source.proposal.value)
+        try receipt.validate()
+        guard receipt.proposalID==source.proposal.proposalID,receipt.target==source.proposal.target,
+              receipt.acceptedValue==review.reviewedValue,receipt.source==source.proposal.source,
+              receipt.privacyClass == .preciseLocation else{throw AssistanceContractFailureV1.invalidReceipt}
+        if review.disposition == .accepted{
+            guard review.reviewedValue==source.manualEquivalentValue else{throw AssistanceContractFailureV1.invalidReceipt}
+            return source.observation
+        }
+        return nil
+    }
+}
+
 enum C33TemporalEvidenceBoundary_Application_Location_AssetPlacementChangeCoordinatorV1_V1 {
     static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
     static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self

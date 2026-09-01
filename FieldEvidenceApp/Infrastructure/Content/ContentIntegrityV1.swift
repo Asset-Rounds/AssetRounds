@@ -738,6 +738,40 @@ enum OCRProposalContentIntegrityBoundaryV1 {
     }
 }
 
+/// C24 validates leased audio identity without opening, retaining, or hashing
+/// a second byte copy. Location remains a foreground, ephemeral observation.
+enum DictationLocationProposalContentIntegrityBoundaryV1 {
+    static let temporaryAudioRetainedAfterTerminalOutcome = false
+    static let oneShotLocationBackgroundStreamCreated = false
+    static let writesProposalContentReceipt = false
+
+    static func validateDictationAudioScratch(
+        request: OnDeviceDictationRequestV1,
+        scratch: AssistanceCapabilityScratchV1
+    ) throws {
+        try DictationLocationProposalContentReferenceBoundaryV1.validateDictationAudioScratch(
+            request: request,
+            scratch: scratch
+        )
+        guard !temporaryAudioRetainedAfterTerminalOutcome,
+              !writesProposalContentReceipt else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+
+    static func validateOneShotLocationSource(
+        request: OneShotLocationRequestV1
+    ) throws {
+        try DictationLocationProposalContentReferenceBoundaryV1.validateOneShotLocationSource(
+            request: request
+        )
+        guard !oneShotLocationBackgroundStreamCreated,
+              !writesProposalContentReceipt else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}
+
 // MARK: - C33 temporal evidence integrity
 
 enum TemporalEvidenceContentIntegrityV1 {

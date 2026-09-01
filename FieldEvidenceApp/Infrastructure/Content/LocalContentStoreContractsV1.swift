@@ -383,6 +383,43 @@ enum OCRProposalLocalContentStoreBoundaryV1 {
     }
 }
 
+/// C24 cannot place temporary microphone audio or a one-shot location
+/// observation into the canonical local content store.
+enum DictationLocationProposalLocalContentStoreBoundaryV1 {
+    static let temporaryAudioStoredInLocalContentStore = false
+    static let oneShotLocationStoredInLocalContentStore = false
+    static let audioDeletionUsesAssistanceLifecycle = true
+
+    static func validateDictationAudioScratch(
+        request: OnDeviceDictationRequestV1,
+        scratch: AssistanceCapabilityScratchV1,
+        store: LocalContentStoreV1
+    ) throws {
+        try DictationLocationProposalContentReferenceBoundaryV1.validateDictationAudioScratch(
+            request: request,
+            scratch: scratch
+        )
+        guard store.entries[scratch.source.sourceID] == nil,
+              !temporaryAudioStoredInLocalContentStore,
+              audioDeletionUsesAssistanceLifecycle else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+
+    static func validateOneShotLocationSource(
+        request: OneShotLocationRequestV1,
+        store: LocalContentStoreV1
+    ) throws {
+        try DictationLocationProposalContentReferenceBoundaryV1.validateOneShotLocationSource(
+            request: request
+        )
+        guard store.entries[request.source.sourceID] == nil,
+              !oneShotLocationStoredInLocalContentStore else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}
+
 // MARK: - C33 incremental temporal-media admission
 
 /// Admission is incremental and uses the current store capacity at every

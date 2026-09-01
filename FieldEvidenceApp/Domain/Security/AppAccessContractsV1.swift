@@ -99,6 +99,8 @@ enum AppAccessContentReadSurfaceV1: String, CaseIterable, Codable, Hashable, Sen
     case bulkImport = "BULK_IMPORT"
     case render = "RENDER"
     case ocrProposal = "OCR_PROPOSAL"
+    case dictationProposal = "DICTATION_PROPOSAL"
+    case oneShotLocationProposal = "ONE_SHOT_LOCATION_PROPOSAL"
 }
 
 /// OCR must obtain the same ephemeral content permit as every other protected
@@ -114,6 +116,39 @@ enum OCRProposalAppAccessBoundaryV1 {
               !accessLogContainsRecognizedText,
               !accessLogContainsSourceBytes,
               permit.surface == .ocrProposal,
+              permit.state.permitsContentAccess else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
+}
+
+/// C24 keeps dictation and one-shot location as independent protected-read
+/// surfaces. These permits contain no transcript, audio, coordinate, or source
+/// identity, so denying one capability cannot become a side channel for the
+/// other.
+enum DictationLocationProposalAppAccessBoundaryV1 {
+    static let dictationAndLocationPermissionsAreIndependent = true
+    static let accessLogContainsTranscript = false
+    static let accessLogContainsAudioBytes = false
+    static let accessLogContainsCoordinates = false
+
+    static func validateDictation(_ permit: AppAccessContentPermitV1) throws {
+        guard dictationAndLocationPermissionsAreIndependent,
+              !accessLogContainsTranscript,
+              !accessLogContainsAudioBytes,
+              !accessLogContainsCoordinates,
+              permit.surface == .dictationProposal,
+              permit.state.permitsContentAccess else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
+
+    static func validateOneShotLocation(_ permit: AppAccessContentPermitV1) throws {
+        guard dictationAndLocationPermissionsAreIndependent,
+              !accessLogContainsTranscript,
+              !accessLogContainsAudioBytes,
+              !accessLogContainsCoordinates,
+              permit.surface == .oneShotLocationProposal,
               permit.state.permitsContentAccess else {
             throw AppAccessContractFailureV1.accessDenied
         }

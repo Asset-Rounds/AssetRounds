@@ -30,6 +30,13 @@ enum C23OCRFieldDraftLifecycleBoundaryV1 {
     static let effectBeforeReceiptRecoveryUsesMutationJournal = true
 }
 
+enum C24AssistedCaptureDraftLifecycleBoundaryV1 {
+    static let addedDurableRows=DictationLocationPersistenceBoundaryV1.addedDurableRowCount
+    static let proposalReviewAndPermissionStateIsPersistent=false
+    static let receiptRecoveryUsesMutationJournal=true
+    static let audioScratchUsesDictationAudioScratchLifecycle=true
+}
+
 extension FieldDraftLifecycleAdapterV1 {
     /// Resolves the C21 capture plan against the physical checkpoint row, so
     /// a stale plan cannot be reused after a durable draft revision changes.

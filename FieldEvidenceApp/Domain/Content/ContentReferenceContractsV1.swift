@@ -482,6 +482,41 @@ enum OCRProposalContentReferenceBoundaryV1 {
         }
     }
 }
+
+/// C24's dictation audio is a capability-owned lease, not a ContentReference.
+/// A foreground one-shot location is an ephemeral device observation and is
+/// likewise never content-backed.
+enum DictationLocationProposalContentReferenceBoundaryV1 {
+    static let temporaryAudioCreatesContentReference = false
+    static let locationObservationCreatesContentReference = false
+    static let retainedAudioBytes = false
+
+    static func validateDictationAudioScratch(
+        request: OnDeviceDictationRequestV1,
+        scratch: AssistanceCapabilityScratchV1
+    ) throws {
+        try request.validate()
+        guard request.scratchSource.kind == .leasedScratch,
+              scratch.proposalID == request.requestID,
+              scratch.source == request.scratchSource,
+              !temporaryAudioCreatesContentReference,
+              !retainedAudioBytes else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+
+    static func validateOneShotLocationSource(
+        request: OneShotLocationRequestV1
+    ) throws {
+        try request.validate()
+        guard request.source.kind == .deviceObservation,
+              request.foreground,
+              request.explicitUserAction,
+              !locationObservationCreatesContentReference else {
+            throw ContentContractFailureV1.invalidValue
+        }
+    }
+}
 enum C52ServiceRequestBoundary_ContentReferenceContractsV1 {
     static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
     static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self

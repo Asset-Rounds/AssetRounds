@@ -2636,6 +2636,93 @@ enum OCRProposalReportProjectionBoundaryV1 {
     }
 }
 
+enum DictationLocationProposalReportProjectionBoundaryV1 {
+    static let rawTranscriptReported = false
+    static let audioOrScratchReported = false
+    static let preciseLocationProposalReported = false
+    static let permissionStateReported = false
+    static let confidenceOrAccuracyReported = false
+    static let rejectedOrUnreviewedProposalReported = false
+    static let acceptedReceiptRenderedAsFieldFact = false
+    static let acceptedCanonicalTargetUsesIncumbentProjection = true
+
+    static func acceptsCanonicalTargetFact(
+        receipt: AssistanceAcceptanceReceiptV1,
+        proposal: OnDeviceDictationProposalV1,
+        policy: DictationLocationCapabilityPolicyV1
+    ) throws -> Bool {
+        try proposal.validate(policy: policy)
+        try receipt.validate(dictation: proposal)
+        return try accepts(receipt: receipt, proposal: proposal.proposal)
+    }
+
+    static func acceptsCanonicalTargetFact(
+        receipt: AssistanceAcceptanceReceiptV1,
+        proposal: OneShotLocationProposalV1,
+        policy: DictationLocationCapabilityPolicyV1
+    ) throws -> Bool {
+        try proposal.validate(policy: policy)
+        try receipt.validate(location: proposal)
+        return try accepts(receipt: receipt, proposal: proposal.proposal)
+    }
+
+    static func acceptsCanonicalTargetFact(
+        receipt: AssistanceAcceptanceReceiptV1,
+        dictation: OnDeviceDictationProposalV1,
+        review: DictationLocationProposalReviewV1,
+        acceptedProposal: AssistanceProposalV1,
+        policy: DictationLocationCapabilityPolicyV1
+    ) throws -> Bool {
+        try dictation.validate(policy: policy)
+        try receipt.validate(
+            dictation: dictation,
+            review: review,
+            acceptedProposal: acceptedProposal
+        )
+        return try accepts(receipt: receipt, proposal: acceptedProposal)
+    }
+
+    static func acceptsCanonicalTargetFact(
+        receipt: AssistanceAcceptanceReceiptV1,
+        location: OneShotLocationProposalV1,
+        review: DictationLocationProposalReviewV1,
+        acceptedProposal: AssistanceProposalV1,
+        policy: DictationLocationCapabilityPolicyV1
+    ) throws -> Bool {
+        try location.validate(policy: policy)
+        try receipt.validate(
+            location: location,
+            review: review,
+            acceptedProposal: acceptedProposal
+        )
+        return try accepts(receipt: receipt, proposal: acceptedProposal)
+    }
+
+    static func mayProject(_ proposal: OnDeviceDictationProposalV1) -> Bool { false }
+    static func mayProject(_ proposal: OneShotLocationProposalV1) -> Bool { false }
+
+    private static func accepts(
+        receipt: AssistanceAcceptanceReceiptV1,
+        proposal: AssistanceProposalV1
+    ) throws -> Bool {
+        try receipt.validate(); try proposal.validate()
+        guard receipt.proposalID == proposal.proposalID,
+              receipt.proposalSHA256 == (try proposal.proposalSHA256),
+              receipt.capability == proposal.capability,
+              receipt.target == proposal.target,
+              receipt.acceptedValue == proposal.value,
+              receipt.source == proposal.source,
+              !rawTranscriptReported, !audioOrScratchReported,
+              !preciseLocationProposalReported, !permissionStateReported,
+              !confidenceOrAccuracyReported, !rejectedOrUnreviewedProposalReported,
+              !acceptedReceiptRenderedAsFieldFact,
+              acceptedCanonicalTargetUsesIncumbentProjection else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+        return true
+    }
+}
+
 
 // MARK: - C33 temporal evidence projection registry
 

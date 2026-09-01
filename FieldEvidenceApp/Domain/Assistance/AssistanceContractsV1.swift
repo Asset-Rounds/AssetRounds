@@ -823,6 +823,99 @@ extension AssistanceProposalV1 {
             definitionReleaseSHA256:definitionReleaseSHA256,
             createdAt:createdAt,expiresAt:expiresAt,privacyClass:privacyClass)
     }
+
+    func correctedForAssistanceReview(proposalID:UUID,value:ResponseValueV1,
+                                      createdAt:Date)throws->Self{
+        try .init(proposalID:proposalID,capability:capability,target:target,value:value,
+            source:source,confidence:confidence,quality:quality,
+            packageReleaseSHA256:packageReleaseSHA256,
+            definitionReleaseSHA256:definitionReleaseSHA256,
+            createdAt:createdAt,expiresAt:expiresAt,privacyClass:privacyClass)
+    }
+}
+
+extension AssistanceAcceptanceReceiptV1 {
+    func validate(dictation:OnDeviceDictationProposalV1)throws{
+        try validate();try dictation.validateIntrinsic()
+        guard proposalID==dictation.proposal.proposalID,
+              dictation.permission.permitsOnDeviceDictation,
+              proposalSHA256==(try dictation.proposal.proposalSHA256),
+              target==dictation.proposal.target,source==dictation.proposal.source,
+              acceptedValue==dictation.proposal.value,
+              capability.capabilityID=="DICTATION_FIELD_PROPOSAL",
+              expectedRevision.workspaceID==dictation.request.workspaceID,
+              expectedRevision.entityRevisions.contains(where:{
+                  $0.identity==dictation.proposal.target.entity &&
+                  $0.revision==dictation.proposal.target.revision
+              }),
+              mutationID.rawValue==receiptID else{throw AssistanceContractFailureV1.invalidReceipt}
+    }
+    func validate(location:OneShotLocationProposalV1)throws{
+        try validate();try location.validateIntrinsic()
+        guard proposalID==location.proposal.proposalID,
+              location.permission.permitsOneShotForegroundLocation,
+              proposalSHA256==(try location.proposal.proposalSHA256),
+              target==location.proposal.target,source==location.proposal.source,
+              acceptedValue==location.manualEquivalentValue,
+              capability.capabilityID=="ONE_SHOT_LOCATION_PROPOSAL",
+              privacyClass == .preciseLocation,
+              expectedRevision.workspaceID==location.request.workspaceID,
+              expectedRevision.entityRevisions.contains(where:{
+                  $0.identity==location.proposal.target.entity &&
+                  $0.revision==location.proposal.target.revision
+              }),
+              mutationID.rawValue==receiptID else{throw AssistanceContractFailureV1.invalidReceipt}
+    }
+    func validate(dictation:OnDeviceDictationProposalV1,
+                  review:DictationLocationProposalReviewV1,
+                  acceptedProposal:AssistanceProposalV1)throws{
+        try validate();try dictation.validateIntrinsic();try acceptedProposal.validate()
+        try review.validate(originalProposalID:dictation.proposal.proposalID,
+            evidenceSHA256:dictation.proposalEvidenceSHA256,
+            originalValue:dictation.proposal.value)
+        guard review.disposition != .rejected,review.reviewedValue==acceptedProposal.value,
+              dictation.permission.permitsOnDeviceDictation,
+              review.reviewedBy==acceptedBy,review.reviewedAt==acceptedAt,
+              review.reviewedBy.workspaceID==dictation.request.workspaceID,
+              review.reviewedAt>=dictation.proposal.createdAt,
+              review.reviewedAt<dictation.proposal.expiresAt,
+              acceptedProposal.capability==dictation.proposal.capability,
+              acceptedProposal.target==dictation.proposal.target,
+              acceptedProposal.source==dictation.proposal.source,
+              acceptedProposal.privacyClass==dictation.proposal.privacyClass,
+              proposalID==acceptedProposal.proposalID,
+              proposalSHA256==(try acceptedProposal.proposalSHA256),
+              acceptedValue==acceptedProposal.value,
+              expectedRevision.entityRevisions.contains(where:{
+                  $0.identity==acceptedProposal.target.entity &&
+                  $0.revision==acceptedProposal.target.revision
+              }) else{throw AssistanceContractFailureV1.invalidReceipt}
+    }
+    func validate(location:OneShotLocationProposalV1,
+                  review:DictationLocationProposalReviewV1,
+                  acceptedProposal:AssistanceProposalV1)throws{
+        try validate();try location.validateIntrinsic();try acceptedProposal.validate()
+        try review.validate(originalProposalID:location.proposal.proposalID,
+            evidenceSHA256:location.proposalEvidenceSHA256,
+            originalValue:location.proposal.value)
+        guard review.disposition != .rejected,review.reviewedValue==acceptedProposal.value,
+              location.permission.permitsOneShotForegroundLocation,
+              review.reviewedBy==acceptedBy,review.reviewedAt==acceptedAt,
+              review.reviewedBy.workspaceID==location.request.workspaceID,
+              review.reviewedAt>=location.proposal.createdAt,
+              review.reviewedAt<location.proposal.expiresAt,
+              acceptedProposal.capability==location.proposal.capability,
+              acceptedProposal.target==location.proposal.target,
+              acceptedProposal.source==location.proposal.source,
+              acceptedProposal.privacyClass == .preciseLocation,
+              proposalID==acceptedProposal.proposalID,
+              proposalSHA256==(try acceptedProposal.proposalSHA256),
+              acceptedValue==acceptedProposal.value,
+              expectedRevision.entityRevisions.contains(where:{
+                  $0.identity==acceptedProposal.target.entity &&
+                  $0.revision==acceptedProposal.target.revision
+              }) else{throw AssistanceContractFailureV1.invalidReceipt}
+    }
 }
 
 enum AssistanceCanonicalCodecV1 {

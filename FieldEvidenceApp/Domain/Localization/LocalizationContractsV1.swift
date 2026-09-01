@@ -5091,6 +5091,98 @@ enum C32AssistanceLocalizationPolicyV1 {
     }
 }
 
+enum C24DictationLocationLocalizationKeyV1: String, CaseIterable, Codable, Sendable {
+    case heading = "assistance.dictation_location.heading"
+    case dictationHeading = "assistance.dictation.heading"
+    case startDictation = "assistance.dictation.action.start"
+    case listening = "assistance.dictation.listening"
+    case transcriptUnverified = "assistance.dictation.transcript.unverified"
+    case editTranscript = "assistance.dictation.action.edit"
+    case acceptTranscript = "assistance.dictation.action.accept"
+    case cancelDictation = "assistance.dictation.action.cancel"
+    case unsupportedLocale = "assistance.dictation.unsupported_locale"
+    case dictationPermissionDenied = "assistance.dictation.permission_denied"
+    case audioInterrupted = "assistance.dictation.audio_interrupted"
+    case dictationScratchCleanup = "assistance.dictation.scratch_cleanup"
+    case dictationManualEntry = "assistance.dictation.manual_entry"
+    case locationHeading = "assistance.location.heading"
+    case captureLocationOnce = "assistance.location.action.capture_once"
+    case locating = "assistance.location.locating"
+    case locationUnverified = "assistance.location.proposal.unverified"
+    case reviewLocation = "assistance.location.action.review"
+    case acceptLocation = "assistance.location.action.accept"
+    case rejectLocation = "assistance.location.action.reject"
+    case locationPermissionDenied = "assistance.location.permission_denied"
+    case locationServicesUnavailable = "assistance.location.services_unavailable"
+    case locationTimeout = "assistance.location.timeout"
+    case poorAccuracy = "assistance.location.poor_accuracy"
+    case staleTarget = "assistance.location.stale_target"
+    case acceptedReviewedFact = "assistance.dictation_location.accepted_reviewed_fact"
+    case noAutomaticWrite = "assistance.dictation_location.no_automatic_write"
+    case accessLocked = "assistance.dictation_location.access_locked"
+    case manualFallback = "assistance.dictation_location.manual_fallback"
+    case errorFocus = "assistance.dictation_location.error_focus"
+
+    var localizationKey: LocalizationKeyV1 {
+        // swiftlint:disable:next force_try
+        try! LocalizationKeyV1(rawValue)
+    }
+
+    var englishDefaultValue: String {
+        switch self {
+        case .heading: return "Dictation and location proposals"
+        case .dictationHeading: return "Dictate a field value"
+        case .startDictation: return "Start dictation"
+        case .listening: return "Listening on this device"
+        case .transcriptUnverified: return "Unverified transcript"
+        case .editTranscript: return "Edit transcript"
+        case .acceptTranscript: return "Accept reviewed transcript"
+        case .cancelDictation: return "Cancel dictation"
+        case .unsupportedLocale: return "Dictation is unavailable for this language; enter the value manually"
+        case .dictationPermissionDenied: return "Microphone or speech access is unavailable; enter the value manually"
+        case .audioInterrupted: return "Dictation was interrupted; nothing was accepted"
+        case .dictationScratchCleanup: return "Temporary audio and transcript data were removed"
+        case .dictationManualEntry: return "Enter the field manually"
+        case .locationHeading: return "Capture location once"
+        case .captureLocationOnce: return "Capture one location proposal"
+        case .locating: return "Finding a location for review"
+        case .locationUnverified: return "Unverified location proposal"
+        case .reviewLocation: return "Review captured location"
+        case .acceptLocation: return "Accept reviewed location"
+        case .rejectLocation: return "Reject location proposal"
+        case .locationPermissionDenied: return "Location access is unavailable; enter the value manually"
+        case .locationServicesUnavailable: return "Location services are unavailable; enter the value manually"
+        case .locationTimeout: return "Location capture timed out; nothing was accepted"
+        case .poorAccuracy: return "Location accuracy is too low; retry or enter the value manually"
+        case .staleTarget: return "The target changed; capture or enter the value again"
+        case .acceptedReviewedFact: return "Accepted reviewed field fact"
+        case .noAutomaticWrite: return "Dictation and location proposals are never saved automatically"
+        case .accessLocked: return "Unlock the app to use dictation or location"
+        case .manualFallback: return "Manual entry remains available"
+        case .errorFocus: return "Review this field issue before continuing"
+        }
+    }
+}
+
+enum C24DictationLocationLocalizationPolicyV1 {
+    static let englishOnly = true
+    static let proposalCopySaysUnverified = true
+    static let manualFallbackIsComplete = true
+    static let automaticWriteClaimAllowed = false
+    static let serverProcessingClaimAllowed = false
+    static let preciseLocationShownBeforeReview = false
+
+    static func validate() throws {
+        let keys = C24DictationLocationLocalizationKeyV1.allCases.map(\.localizationKey)
+        guard keys.count == 30, Set(keys).count == keys.count, englishOnly,
+              proposalCopySaysUnverified, manualFallbackIsComplete,
+              !automaticWriteClaimAllowed, !serverProcessingClaimAllowed,
+              !preciseLocationShownBeforeReview else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
 
 // MARK: - C33 temporal evidence localization
 

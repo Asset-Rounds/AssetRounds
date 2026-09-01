@@ -1,0 +1,215 @@
+{
+  "authority": {
+    "allocationDigest": "7981c07137b503d65020cc6b55d994e92b8d422b3f0a35996bd2f943b96bb8ac",
+    "appBaseHead": "3a338afa490daa214c07e7e80264769436d4383e",
+    "appBaseTree": "1e5d88c62f195555d5ec16cdced0f7998c9d61b2",
+    "authorizedOverlapCount": 59,
+    "cardID": "V23-P04-C24",
+    "contextDigest": "63099024f9d96a29b583c78517fd6df1fe40523d729fd1bdeddbcbe34585ad4c",
+    "coordinationHead": "b15a8ae6036320779b70e94413c92fe0539b1477",
+    "coordinationTree": "6cec7818ac4a8726c6c8d602da57d5789e618f18",
+    "existingPathCount": 26,
+    "fencePathCount": 40,
+    "finalHashesSealed": true,
+    "newPathCount": 14,
+    "pathFenceDigest": "01365caf67feece268f928349f2f9c1c811da94b5bcd5b92be4dc0cd42177018",
+    "prerequisiteDigest": "fe0f69588164da772917365961871ccd771e6febc7cd184e995918e749b7a468",
+    "priorFenceCount": 4,
+    "priorOwnedPathCount": 304,
+    "s10OverlapCount": 0,
+    "sequence": 485
+  },
+  "cardID": "V23-P04-C24",
+  "contractDigest": "bb856faa74b4c3ed37d20d38381cd8130499851a567a4509e5576918dca6781f",
+  "provisional": true,
+  "schema": "V23P04C24DictationLocationProposalEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 40,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C24G01EnabledOnDeviceDictationEditAcceptAndOneShotLocationReview",
+      "testV23P04C24A01IndependentPermissionDenialsAndCompleteManualFallbacks",
+      "testV23P04C24H01UnsupportedLocalePoorAccuracyStaleTargetAndNoServer",
+      "testV23P04C24I01AudioInterruptionLocationTimeoutAndScratchCleanup",
+      "testV23P04C24R01AcceptedReceiptRestoreNoEphemeralOrphanAndAccessibility"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "FieldEvidenceApp/Domain/Assistance/AssistanceContractsV1.swift",
+        "sha256": "f6c6bb996af13461e27b2555ffb986a589173390931197bb8bbe9009e47a6815",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Models/AssistancePersistenceModelsV1.swift",
+        "sha256": "2124991383f862d2c6637d475bb75ee3ae365f2d5ab4275deb9f14d8fa56d0e1",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Assistance/AssistanceCoordinatorV1.swift",
+        "sha256": "ffd5186f8fcf92d7d8ee48f15873c4c47562f4a09be61b29fec47d480556c7b8",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Assistance/AssistanceLifecycleAdapterV1.swift",
+        "sha256": "080cd69a0b866dac422ff01836d7688fcc520a77fb9723613616e7c4af324ca2",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift",
+        "sha256": "9f5a02ea8b3886a9cce19513357071a8349999da388a0e9bbf50f39951ac8834",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift",
+        "sha256": "d29505d9df235de5e6eabf0b56e4780182d32c2cc445c8570c43ff434ca88f4b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Settings/FeaturePolicyLoaderV1.swift",
+        "sha256": "d385486a2db040c5bad353b482a2e52a4a326338300b7dc0bea5e92d1806ca7a",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+        "sha256": "b42de29b8ad7a443ec47e4167a88b70bed187700814e5d3437ffb76ad6e09364",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+        "sha256": "5633ef3e1fbc343a63a2bfc6c079a1866b19387f7a6af50edaab4d91eb7e04a0",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+        "sha256": "42f3c5a95e3ed0ee93b788b4fad9900caa500da10db561a6b17db1486cfcd666",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Content/ContentReferenceContractsV1.swift",
+        "sha256": "18fa19a402f9568a640d283860117bc5ff46991681af4a902b1021df811a7fe5",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Content/LocalContentStoreContractsV1.swift",
+        "sha256": "b9f7e3f82e698f88bf3c541de5a752139b0dc989244a1ae2fb57923cfa34d90e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Content/ContentIntegrityV1.swift",
+        "sha256": "d9d6578fec135e4e6c3ba1a748bd1305dcfc7775b7fe2fa1ec80a8d168e186e0",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/FastSurveyInbox/FastSurveyInboxContractsV1.swift",
+        "sha256": "b1b76114f94e34bffdfc8a0662ae40bf8c0d4ff0219915fb4f6b930d1f13c657",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/FastSurveyInbox/FastSurveyInboxCoordinatorV1.swift",
+        "sha256": "6679d244cba0411840e054ecca13c7ba29de05b09e911e689b06c39f4c2e66d3",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/FastSurveyInboxLifecycleAdapterV1.swift",
+        "sha256": "f033f2f3d91184d9065c702becc92612a9e754d25f389de41b5339efe4c67b7e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift",
+        "sha256": "ed9f34dd9a78d1eaf3cf0675b7ccdb725c6ea177716e8308073bf918524146c9",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Drafts/FieldDraftCoordinatorV1.swift",
+        "sha256": "e73b98bebfbb9bcee56a02810822215d6cb61388b4daf8125bd7cb26d2173ecf",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Drafts/FieldDraftLifecycleAdapterV1.swift",
+        "sha256": "c52d09feba3d9f7b1e5495b1132d21380ccc77361a7d7c43213259f56f3dbd00",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Location/AssetPlacementChangeCoordinatorV1.swift",
+        "sha256": "5e219a4ff158bae90cd490c0a82e63e487dbead0d877b78ef38107e6c9fa1187",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+        "sha256": "2dc0505cabab6b611493108e6573b05aa7e13f1439f08d15478d795cce384a11",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+        "sha256": "93247e70ec8d5d54016ceef51e220363206fe5ccbdbe0eacd270d912b5322e4f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+        "sha256": "589f0ed28bbc15fb580d2d41d02eecdf57fa3c91f149cd9b748bbe56de9ca133",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "sha256": "b4ee8ebda875c9b57c58c9f8724573b849587782ff75bdb10932e43fb183216c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "sha256": "c32b5cb49e2e91db000e3424da090cbf1523de76658b61fa945ae27b7b87d803",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "sha256": "54eea254b1f8c69f575b1d12a16499c1aa3722d1bec6994e6812c56551caca7e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Assistance/DictationLocationProposalContractsV1.swift",
+        "sha256": "3cc0904a9bb6f9e28f0b5910754ed442a1bf59f50381b52096584d2d21f02926",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Assistance/DictationLocationProposalCoordinatorV1.swift",
+        "sha256": "622c0bbee789f3743a85a4f800c3a3838e16a145d6fbca4613b35edbcc36b8d7",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Assistance/DictationLocationProposalLifecycleAdapterV1.swift",
+        "sha256": "9bd140c90407820ff6fc186985a7481ffddedaca3e2fbec5beb8fa4ade4fc647",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift",
+        "sha256": "6051d524b8b6e93b509b4f4445206575ea778b76dc67f075c1aaa4488734aeaa",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V23/Assistance/V23P04C24DictationLocationProposalCorpusV1.json",
+        "sha256": "904ae4e4d7a18828541bd250294ee848be3885544dcbb783b689b67ee7a21a05",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C24DictationLocationProposalUITests.swift",
+        "sha256": "e97b2cef316c411c74b090634eba48444292288e86fa2f4264b43f6fbf6301eb",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  }
+}

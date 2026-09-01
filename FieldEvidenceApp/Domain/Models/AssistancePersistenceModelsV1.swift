@@ -76,6 +76,23 @@ enum OCRProposalPersistenceEnrollmentV1 {
     }
 }
 
+enum DictationLocationProposalPersistenceEnrollmentV1 {
+    static let activeSchemaVersion=53
+    static let activeModelCount=168
+    static let addedModelCount=0
+    static let receiptRow=AssistanceAcceptanceReceiptRow.self
+    static let proposalsArePersistent=false
+    static let temporaryAudioIsPersistent=false
+    static func validate(_ row:AssistanceAcceptanceReceiptRow,
+                         dictation:OnDeviceDictationProposalV1)throws{
+        try row.value().validate(dictation:dictation)
+    }
+    static func validate(_ row:AssistanceAcceptanceReceiptRow,
+                         location:OneShotLocationProposalV1)throws{
+        try row.value().validate(location:location)
+    }
+}
+
 enum C33TemporalEvidenceBoundary_Domain_Models_AssistancePersistenceModelsV1_V1 {
     static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
     static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
