@@ -4711,7 +4711,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let workKeyboardCount = workKeyboards.count",
             "workQuickPathButtonCount == 1",
             "workQuickPathStaticTextCount == 2",
-            "workScreenCount == 1",
+            "preDismissWorkScreenCount == 1",
             "workDescriptionCount == 1",
             "focusedWorkDescriptionCount == 1",
             "workValidationCount == 1",
