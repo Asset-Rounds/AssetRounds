@@ -272,6 +272,9 @@ struct PartyAccountabilityChangeReceiptV1: Codable, Equatable, Sendable {
         )
         guard mutationReceipt.mutationID == plan.mutationID,
               mutationReceipt.identity.workspaceID == plan.basis.workspaceID,
+              mutationReceipt.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(
+                  WorkspaceCommandV1.applyPartyAccountability(plan.basis.mutation)
+              )),
               mutationReceipt.expectedRevision == expected,
               let expectedEntityRevision = expectedByIdentity[identity],
               expected.workspaceRevision < UInt64.max,
@@ -725,6 +728,14 @@ final class PartyAccountabilityCoordinatorV1 {
         _ plan: PartyAccountabilityChangePlanV1
     ) throws -> PartyAccountabilityChangeReceiptV1 {
         try plan.validate()
+        if let durableReceipt = try writer.durableReceipt(
+            mutationID: plan.mutationID
+        ) {
+            return try PartyAccountabilityChangeReceiptV1(
+                plan: plan,
+                mutationReceipt: durableReceipt
+            )
+        }
         try lifecycle?.validate(plan.basis.mutation)
         let request = WorkspaceMutationRequestV1(
             mutationID: plan.mutationID,

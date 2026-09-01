@@ -1,0 +1,72 @@
+{
+  "schema": "V23P04C42PartyContactSiteRoleWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C42",
+  "testOnly": true,
+  "synthetic": true,
+  "evidenceIDs": [
+    "V23-P04-C42-G01",
+    "V23-P04-C42-A01",
+    "V23-P04-C42-H01",
+    "V23-P04-C42-I01",
+    "V23-P04-C42-R01"
+  ],
+  "selectors": ["G01", "A01", "H01", "I01", "R01"],
+  "partyKinds": ["PERSON", "ORGANIZATION"],
+  "partyStates": ["EFFECTIVE", "RETIRED"],
+  "contactKinds": ["PHONE", "EMAIL"],
+  "contactLifecycle": ["EFFECTIVE", "RETIRED"],
+  "siteRoles": ["OWNER", "OPERATOR", "CLIENT", "SERVICE_PROVIDER", "CONTACT"],
+  "golden": {
+    "operations": [
+      "CREATE_PARTY",
+      "ADD_PHONE",
+      "ADD_EMAIL",
+      "SET_PREFERRED_PER_KIND",
+      "APPEND_SITE_ROLE",
+      "READ_HISTORY"
+    ],
+    "canonicalEffectsPerAcceptedMutation": 1,
+    "implicitCascadeEffects": 0
+  },
+  "alternate": {
+    "partyOperations": ["RENAME", "EDIT_PROFILE", "RETIRE"],
+    "contactOperations": ["EDIT", "RETIRE", "REACTIVATE", "CHANGE_PREFERRED_WITHIN_KIND"],
+    "roleOperations": ["SUPERSEDE", "REVERSE"],
+    "legacyCustomerPresentation": "SITE_ROLE_LABEL_ONLY"
+  },
+  "hostileCases": [
+    "EQUAL_NAME_DISTINCT_PARTY_IDS",
+    "EQUAL_PHONE_DISTINCT_CONTACT_IDS",
+    "EQUAL_EMAIL_DISTINCT_CONTACT_IDS",
+    "STALE_REVISION",
+    "WRONG_WORKSPACE",
+    "DIVERGENT_SAME_MUTATION_ID",
+    "HIDDEN_CASCADE_ATTEMPT",
+    "RETIRED_PARTY_REACTIVATION_ATTEMPT",
+    "CONTACT_PURPOSE_CONFLATION"
+  ],
+  "interruptionBoundaries": [
+    "BEFORE_EFFECT",
+    "AFTER_EFFECT_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_RETURN"
+  ],
+  "recovery": {
+    "entities": ["PARTY", "CONTACT_POINT", "SITE_ROLE_EVENT"],
+    "exactReplayReturnsSameReceipt": true,
+    "sameMutationDifferentBodyRejects": true,
+    "historicalContactSnapshotsRemainFrozen": true,
+    "partyRenameFansOutToHistoricalSnapshots": false,
+    "preserveSiblingNamespaces": true
+  },
+  "claims": {
+    "fuzzyMerge": false,
+    "automaticDeduplication": false,
+    "implicitContactCascade": false,
+    "implicitRoleCascade": false,
+    "partyReactivation": false,
+    "marketingContactPurpose": false,
+    "hostedDependency": false,
+    "nativeBuildVerified": false
+  }
+}

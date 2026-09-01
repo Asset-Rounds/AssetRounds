@@ -1,0 +1,562 @@
+{
+  "aggregateMemberships": [
+    "AutonomousRequiredAcceptedSetV1",
+    "P04ShippingSurfaceSetV1",
+    "P04BrandClosureSetV1",
+    "ContactPurposeSeparationSetV1"
+  ],
+  "alternate": {
+    "contactOperations": [
+      "EDIT",
+      "RETIRE",
+      "REACTIVATE",
+      "CHANGE_PREFERRED_WITHIN_KIND"
+    ],
+    "legacyCustomerPresentation": "SITE_ROLE_LABEL_ONLY",
+    "partyOperations": [
+      "RENAME",
+      "EDIT_PROFILE",
+      "RETIRE"
+    ],
+    "roleOperations": [
+      "SUPERSEDE",
+      "REVERSE"
+    ]
+  },
+  "authority": {
+    "allocationDigest": "e013b151f497179ed10142abfe38592ac2bd4c35831ca7fe46a36b71716d8da9",
+    "appBaseHead": "44a4f9d0e1480ff0675e38736e4d93211d12366e",
+    "appBaseTree": "b481c3c05fbf25ca3cb2567a7fee54034cf99e89",
+    "attemptID": 1,
+    "authorizedOverlapCount": 3,
+    "cardID": "V23-P04-C42",
+    "contextDigest": "0a059f20e6696208a1acd705bf4380ac4c015d1c5cc85f6002fb7406020c2cdf",
+    "coordinationHead": "2341e165de38e686be54c424170988513986c70d",
+    "coordinationTree": "abacf71fd74db6be2912c5121b5f37916a2ff4ba",
+    "existingPathCount": 4,
+    "existingPaths": [
+      "FieldEvidenceApp/Domain/Accountability/PartyAccountabilityContractsV1.swift",
+      "FieldEvidenceApp/Application/Accountability/PartyAccountabilityCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Contacts/OperationalContactContractsV1.swift",
+      "FieldEvidenceApp/Application/Contacts/OperationalContactCoordinatorV1.swift"
+    ],
+    "fencePathCount": 18,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "ledgerDigest": "03eac3a8266270f605f5f661b14727b8218ce55e4acdeb859d064a9d864b699b",
+    "newPathCount": 14,
+    "newPaths": [
+      "FieldEvidenceApp/Domain/Contacts/PartyContactSiteRoleWorkflowContractsV1.swift",
+      "FieldEvidenceApp/Application/Contacts/PartyContactSiteRoleWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_105PartyContactSiteRoleWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Contacts/V23P04C42PartyContactSiteRoleWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C42PartyContactSiteRoleWorkflowUITests.swift",
+      "Scripts/v23/p04_c42_contracts.py",
+      "Scripts/v23/generate_p04_c42_contracts.py",
+      "Scripts/v23/verify_p04_c42_contracts.py",
+      "Scripts/v23/party-contact-site-role-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C42PartyContactSiteRoleWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C42PartyContactSiteRoleWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C42BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C42-tooling-manifest.json"
+    ],
+    "orderedPathFence": [
+      "FieldEvidenceApp/Domain/Accountability/PartyAccountabilityContractsV1.swift",
+      "FieldEvidenceApp/Application/Accountability/PartyAccountabilityCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Contacts/OperationalContactContractsV1.swift",
+      "FieldEvidenceApp/Application/Contacts/OperationalContactCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Contacts/PartyContactSiteRoleWorkflowContractsV1.swift",
+      "FieldEvidenceApp/Application/Contacts/PartyContactSiteRoleWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_105PartyContactSiteRoleWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Contacts/V23P04C42PartyContactSiteRoleWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C42PartyContactSiteRoleWorkflowUITests.swift",
+      "Scripts/v23/p04_c42_contracts.py",
+      "Scripts/v23/generate_p04_c42_contracts.py",
+      "Scripts/v23/verify_p04_c42_contracts.py",
+      "Scripts/v23/party-contact-site-role-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C42PartyContactSiteRoleWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C42PartyContactSiteRoleWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C42BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C42-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "c909f5a449fbec95e4ebaf23a913486112744df0743fc8efde5b67c90ed16af4",
+    "prerequisiteDigest": "30a81ac38c212780b1fe63fb88647b611e71acde798ff189519e546719204278",
+    "productTestUIFixturePathCount": 6,
+    "projectionDigest": "755967ed6542b392e8e6b46b0b386edcb814702bcddb08be1dbd5e71deb88433",
+    "registerOrdinal": 130,
+    "s10ReservationOverlapCount": 0,
+    "sequence": 568,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C42",
+        "sha256": "67c40603cb9339e728808f7a6b771b6f762207d0b6af53fa2ff5fc6b0fe11f81",
+        "utf8Length": 7038
+      },
+      {
+        "anchor": "V23-P04-C42-register",
+        "sha256": "b890b9c2ff0888445e75488ff1401a51a37f497ba9ff22544886e123d4f4be8d",
+        "utf8Length": 313
+      },
+      {
+        "anchor": "V23-P04-C42-acceptance-rows",
+        "sha256": "f5d71c55cbb989646c5f0a08d804b4a269f891f7db5fa88a7bab9f6bdec9c0d2",
+        "utf8Length": 3370
+      },
+      {
+        "anchor": "V23-P04-C42-lineage",
+        "sha256": "1444baa626e38d8ba2df80d8bd828b40f68ea20cc6ce252c1dc6e0f526c2f2e3",
+        "utf8Length": 94
+      }
+    ],
+    "title": "Party, contact, and Site-role workflow",
+    "toolingPathCount": 8,
+    "transitionDigest": "81c20c5fc5d0aba596db961a3abd6ec6618fbd2af7d5cd1af8ee8a07c39f7eb0",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C42",
+  "claims": {
+    "automaticDeduplication": false,
+    "fuzzyMerge": false,
+    "hostedDependency": false,
+    "implicitContactCascade": false,
+    "implicitRoleCascade": false,
+    "marketingContactPurpose": false,
+    "nativeBuildVerified": false,
+    "partyReactivation": false
+  },
+  "contactKinds": [
+    "PHONE",
+    "EMAIL"
+  ],
+  "contactLifecycle": [
+    "EFFECTIVE",
+    "RETIRED"
+  ],
+  "contract": "PartyContactSiteRoleWorkflowContractV1",
+  "contractRefs": [
+    "ServicePartyReferenceV1",
+    "SitePartyRoleEventV1",
+    "ServiceContactPointV1",
+    "DirectPrerequisiteEvidenceSetV1",
+    "CardAcceptanceInclusionProofV1",
+    "CardAcceptanceInclusionProofRecoveryReceiptV1",
+    "CandidateAcceptanceCompatibilityReceiptV1"
+  ],
+  "corpusExpectations": {
+    "alternate": {
+      "contactOperations": [
+        "EDIT",
+        "RETIRE",
+        "REACTIVATE",
+        "CHANGE_PREFERRED_WITHIN_KIND"
+      ],
+      "legacyCustomerPresentation": "SITE_ROLE_LABEL_ONLY",
+      "partyOperations": [
+        "RENAME",
+        "EDIT_PROFILE",
+        "RETIRE"
+      ],
+      "roleOperations": [
+        "SUPERSEDE",
+        "REVERSE"
+      ]
+    },
+    "cardID": "V23-P04-C42",
+    "claims": {
+      "automaticDeduplication": false,
+      "fuzzyMerge": false,
+      "hostedDependency": false,
+      "implicitContactCascade": false,
+      "implicitRoleCascade": false,
+      "marketingContactPurpose": false,
+      "nativeBuildVerified": false,
+      "partyReactivation": false
+    },
+    "contactKinds": [
+      "PHONE",
+      "EMAIL"
+    ],
+    "contactLifecycle": [
+      "EFFECTIVE",
+      "RETIRED"
+    ],
+    "evidenceIDs": [
+      "V23-P04-C42-G01",
+      "V23-P04-C42-A01",
+      "V23-P04-C42-H01",
+      "V23-P04-C42-I01",
+      "V23-P04-C42-R01"
+    ],
+    "golden": {
+      "canonicalEffectsPerAcceptedMutation": 1,
+      "implicitCascadeEffects": 0,
+      "operations": [
+        "CREATE_PARTY",
+        "ADD_PHONE",
+        "ADD_EMAIL",
+        "SET_PREFERRED_PER_KIND",
+        "APPEND_SITE_ROLE",
+        "READ_HISTORY"
+      ]
+    },
+    "hostileCases": [
+      "EQUAL_NAME_DISTINCT_PARTY_IDS",
+      "EQUAL_PHONE_DISTINCT_CONTACT_IDS",
+      "EQUAL_EMAIL_DISTINCT_CONTACT_IDS",
+      "STALE_REVISION",
+      "WRONG_WORKSPACE",
+      "DIVERGENT_SAME_MUTATION_ID",
+      "HIDDEN_CASCADE_ATTEMPT",
+      "RETIRED_PARTY_REACTIVATION_ATTEMPT",
+      "CONTACT_PURPOSE_CONFLATION"
+    ],
+    "interruptionBoundaries": [
+      "BEFORE_EFFECT",
+      "AFTER_EFFECT_BEFORE_RECEIPT",
+      "AFTER_RECEIPT_BEFORE_RETURN"
+    ],
+    "partyKinds": [
+      "PERSON",
+      "ORGANIZATION"
+    ],
+    "partyStates": [
+      "EFFECTIVE",
+      "RETIRED"
+    ],
+    "recovery": {
+      "entities": [
+        "PARTY",
+        "CONTACT_POINT",
+        "SITE_ROLE_EVENT"
+      ],
+      "exactReplayReturnsSameReceipt": true,
+      "historicalContactSnapshotsRemainFrozen": true,
+      "partyRenameFansOutToHistoricalSnapshots": false,
+      "preserveSiblingNamespaces": true,
+      "sameMutationDifferentBodyRejects": true
+    },
+    "schema": "V23P04C42PartyContactSiteRoleWorkflowCorpusV1",
+    "schemaVersion": 1,
+    "selectors": [
+      "G01",
+      "A01",
+      "H01",
+      "I01",
+      "R01"
+    ],
+    "siteRoles": [
+      "OWNER",
+      "OPERATOR",
+      "CLIENT",
+      "SERVICE_PROVIDER",
+      "CONTACT"
+    ],
+    "synthetic": true,
+    "testOnly": true
+  },
+  "directPrerequisites": [
+    "V23-P03-C46",
+    "V23-P04-C16"
+  ],
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "golden": {
+    "canonicalEffectsPerAcceptedMutation": 1,
+    "implicitCascadeEffects": 0,
+    "operations": [
+      "CREATE_PARTY",
+      "ADD_PHONE",
+      "ADD_EMAIL",
+      "SET_PREFERRED_PER_KIND",
+      "APPEND_SITE_ROLE",
+      "READ_HISTORY"
+    ]
+  },
+  "hostileCases": [
+    "EQUAL_NAME_DISTINCT_PARTY_IDS",
+    "EQUAL_PHONE_DISTINCT_CONTACT_IDS",
+    "EQUAL_EMAIL_DISTINCT_CONTACT_IDS",
+    "STALE_REVISION",
+    "WRONG_WORKSPACE",
+    "DIVERGENT_SAME_MUTATION_ID",
+    "HIDDEN_CASCADE_ATTEMPT",
+    "RETIRED_PARTY_REACTIVATION_ATTEMPT",
+    "CONTACT_PURPOSE_CONFLATION"
+  ],
+  "independence": {
+    "autoPartyCreation": false,
+    "claimsFabricated": false,
+    "contactRetirementReversible": true,
+    "contactsAccess": false,
+    "customerDataInTooling": false,
+    "distinctUUIDIdentity": true,
+    "exactImpactAndCascadeZero": true,
+    "historicalSnapshotsFrozen": true,
+    "newMigration": false,
+    "newModel": false,
+    "newNetwork": false,
+    "newRoot": false,
+    "newSchema": false,
+    "newStore": false,
+    "newTelemetry": false,
+    "newWriter": false,
+    "partyRetirementIrreversible": true,
+    "preferredPerPartyAndKind": true,
+    "purposeConflation": false,
+    "receiptFirstRecovery": true,
+    "roleHistoryAppendOnly": true,
+    "secretsInTooling": false,
+    "warningsAreNotMerges": true
+  },
+  "interruptionBoundaries": [
+    "BEFORE_EFFECT",
+    "AFTER_EFFECT_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_RETURN"
+  ],
+  "invalidationConsumers": [
+    "V23-P04-C27:STATE_INVENTORY",
+    "V23-P04-C29:EXACT_CANDIDATE",
+    "V23-P05-C01:RELEASE_SELECTOR"
+  ],
+  "journeyRefs": [
+    "FJ02"
+  ],
+  "lifecycle": {
+    "contactRetirement": "REVERSIBLE",
+    "durableFamily": "NONE",
+    "historicalSnapshots": "FROZEN",
+    "impactPreview": "EXACT_ZERO_CASCADE",
+    "impactPreviewZeroWrite": true,
+    "newBackendCount": 0,
+    "newDurableFamilyCount": 0,
+    "newMigrationCount": 0,
+    "newModelCount": 0,
+    "newRendererCount": 0,
+    "newSchemaCount": 0,
+    "newStoreCount": 0,
+    "newWriterCount": 0,
+    "partyRetirement": "IRREVERSIBLE",
+    "persistence": "EXISTING_PARTY_CONTACT_SITE_ROLE_OWNERS",
+    "persistentSchemaVersion": "UNCHANGED_EXISTING_OWNER",
+    "policyProfile": "NONPERSISTENT_OR_EXISTING_OWNER_DELTA",
+    "preferredScope": "PARTY_AND_CONTACT_KIND",
+    "receiptRecovery": "RECEIPT_FIRST",
+    "recordsSchemaVersion": "UNCHANGED_EXISTING_OWNER",
+    "siteRoleHistory": "APPEND_ONLY",
+    "status": "IMPLEMENT_NOW"
+  },
+  "optionalCapabilityProviders": [],
+  "ordinal": 130,
+  "outcome": "MANUAL_PARTY_CONTACT_SITE_ROLE_CREATE_EDIT_RETIRE_PREFERRED_CHANNEL_HISTORY_REVERSIBLE_ACTIONS_EXPECTED_REVISIONS_WARNINGS_NOT_IDENTITY_MERGES_EXACT_IMPACT_PREVIEWS_WITHOUT_HIDDEN_CASCADES_OR_HISTORICAL_REWRITE",
+  "partyKinds": [
+    "PERSON",
+    "ORGANIZATION"
+  ],
+  "partyStates": [
+    "EFFECTIVE",
+    "RETIRED"
+  ],
+  "recovery": {
+    "entities": [
+      "PARTY",
+      "CONTACT_POINT",
+      "SITE_ROLE_EVENT"
+    ],
+    "exactReplayReturnsSameReceipt": true,
+    "historicalContactSnapshotsRemainFrozen": true,
+    "partyRenameFansOutToHistoricalSnapshots": false,
+    "preserveSiblingNamespaces": true,
+    "sameMutationDifferentBodyRejects": true
+  },
+  "requirements": {
+    "automaticDeduplication": false,
+    "cascadeCount": 0,
+    "contactRetirementReversible": true,
+    "distinctUUIDIdentity": true,
+    "equalValuesWarnOnly": true,
+    "exactImpactPreview": true,
+    "explicitExpectedRevisions": true,
+    "finalHashesUnsealed": true,
+    "fiveEvidenceScenarios": true,
+    "fuzzyMerge": false,
+    "historicalSnapshotsFrozen": true,
+    "hostedDependency": false,
+    "identityMergeCount": 0,
+    "implicitContactCascade": false,
+    "implicitRoleCascade": false,
+    "manualPartyAndContactActions": true,
+    "marketingContactPurpose": false,
+    "nativeBuildVerified": false,
+    "noAutoPartyCreation": true,
+    "noBackend": true,
+    "noContactsAccess": true,
+    "noNetwork": true,
+    "noNewMigration": true,
+    "noNewModel": true,
+    "noNewRoot": true,
+    "noNewSchemaFamily": true,
+    "noNewStore": true,
+    "noNewWriter": true,
+    "noPurposeConflation": true,
+    "noTelemetry": true,
+    "partyReactivation": false,
+    "partyRetirementIrreversible": true,
+    "preferredPerPartyAndKind": true,
+    "receiptFirstRecovery": true,
+    "roleReversalAppendOnly": true,
+    "scenarioSelectors": [
+      "V23-P04-C42-G01",
+      "V23-P04-C42-A01",
+      "V23-P04-C42-H01",
+      "V23-P04-C42-I01",
+      "V23-P04-C42-R01"
+    ],
+    "warningsDoNotMerge": true,
+    "zeroWritePreview": true
+  },
+  "scenarioEvidenceIDs": [
+    "V23-P04-C42-G01",
+    "V23-P04-C42-A01",
+    "V23-P04-C42-H01",
+    "V23-P04-C42-I01",
+    "V23-P04-C42-R01"
+  ],
+  "scenarioRows": [
+    {
+      "evidenceID": "V23-P04-C42-G01",
+      "expectedEffects": {
+        "acceptedMutationEffects": 1,
+        "history": "READ_ONLY",
+        "identityMerge": false,
+        "implicitCascadeEffects": 0
+      },
+      "focus": "DISTINCT_PARTY_CONTACT_UUIDS_CREATE_PREFERRED_CHANNEL_SITE_ROLE_HISTORY_AND_EXACT_ZERO_CASCADE_IMPACT",
+      "id": "G01",
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P04-C42-A01",
+      "expectedEffects": {
+        "contactRetirement": "REVERSIBLE",
+        "partyRetirement": "IRREVERSIBLE",
+        "presentation": "SITE_ROLE_LABEL_ONLY",
+        "roleHistory": "APPEND_ONLY"
+      },
+      "focus": "MANUAL_EDIT_PARTY_CONTACT_RETIRE_REACTIVATE_PREFERRED_KIND_AND_APPEND_ONLY_ROLE_REVERSAL",
+      "id": "A01",
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P04-C42-H01",
+      "expectedEffects": {
+        "cascadeCount": 0,
+        "claims": "ALL_FALSE",
+        "invalidInput": "FAIL_CLOSED",
+        "warnings": "NON_IDENTITY"
+      },
+      "focus": "EQUAL_VALUES_WARN_NOT_MERGE_STALE_WRONG_WORKSPACE_DIVERGENT_REPLAY_AND_PURPOSE_CONFLATION_FAIL_CLOSED",
+      "id": "H01",
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P04-C42-I01",
+      "expectedEffects": {
+        "partialEffect": "RECOVER_WITHOUT_DUPLICATE",
+        "receipt": "SAME_RECEIPT",
+        "retry": "EXACT_REPLAY"
+      },
+      "focus": "RECEIPT_FIRST_RECOVERY_AT_BEFORE_EFFECT_AFTER_EFFECT_BEFORE_RECEIPT_AND_AFTER_RECEIPT_BOUNDARIES",
+      "id": "I01",
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P04-C42-R01",
+      "expectedEffects": {
+        "contactReactivation": true,
+        "namespace": "PRESERVED",
+        "partyReactivation": false,
+        "snapshots": "FROZEN"
+      },
+      "focus": "HISTORICAL_SNAPSHOTS_SIBLING_NAMESPACE_PRESERVATION_PARTY_RETIREMENT_AND_CONTACT_REACTIVATION",
+      "id": "R01",
+      "kind": "RECOVERY"
+    }
+  ],
+  "schema": "V23P04C42PartyContactSiteRoleWorkflowToolingV1",
+  "siteRoles": [
+    "OWNER",
+    "OPERATOR",
+    "CLIENT",
+    "SERVICE_PROVIDER",
+    "CONTACT"
+  ],
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Domain/Accountability/PartyAccountabilityContractsV1.swift",
+      "sha256": "4fb403104ee5b17e7b6029ed4c950876beb119dad6674fc432c43030986279d5",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Accountability/PartyAccountabilityCoordinatorV1.swift",
+      "sha256": "f21b659f70c454cb84a186999ef3925f63741deaf725e5724887bbb6b71165bf",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Contacts/OperationalContactContractsV1.swift",
+      "sha256": "3d1f48846e5e47726ae5068dc49127ba4e660637fa39cc980f1c5dd6637c482d",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Contacts/OperationalContactCoordinatorV1.swift",
+      "sha256": "2c920403f6e08570c568501776796020501961601e41c610ab8a3be3813c42a4",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Contacts/PartyContactSiteRoleWorkflowContractsV1.swift",
+      "sha256": "f26729cfd94401b855a6bc13a3d1c26ea0d44771e71d692ab326ac84567ff2f1",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Contacts/PartyContactSiteRoleWorkflowCoordinatorV1.swift",
+      "sha256": "7db284a7b5f50bd0b0268c6248e07deb95828d6dac4702d76b05f7711a5daada",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
+      "sha256": "c3dbc9b970e748ef24bede3438e219622ae11b6b3cf8059f6f75e122c9f0838f",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_105PartyContactSiteRoleWorkflowTests.swift",
+      "sha256": "14ca2b8417be0f43dab57c80bb72b1c3c0b39ec531938db3c479e5710e732748",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/Contacts/V23P04C42PartyContactSiteRoleWorkflowCorpusV1.json",
+      "sha256": "b172e3e8129e91319b22a2c286be01fd051cb856f17817846542e88a3de8edfa",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C42PartyContactSiteRoleWorkflowUITests.swift",
+      "sha256": "02bd32b850b01b623565736a621a6cc8ca9c1de135059e9f6e262eb5c8a6f5a1",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

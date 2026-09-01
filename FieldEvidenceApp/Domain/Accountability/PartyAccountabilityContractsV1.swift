@@ -659,6 +659,20 @@ enum C52ServiceRequestBoundary_PartyAccountabilityContractsV1 {
 }
 
 extension ServicePartyReferenceV1 {
+    /// Embedded contact/history snapshots remain valid across a later Party
+    /// rename. Compatibility is identity and monotonic revision, never equal
+    /// display text or descriptor values.
+    func validateHistoricalIdentity(with current: ServicePartyReferenceV1) throws {
+        try validate()
+        try current.validate()
+        guard partyID == current.partyID,
+              workspaceID == current.workspaceID,
+              kind == current.kind,
+              revision <= current.revision else {
+            throw PartyAccountabilityFailureV1.immutableHistory
+        }
+    }
+
     func validateSuccessor(of predecessor: ServicePartyReferenceV1) throws {
         try predecessor.validate(); try validate()
         let nextRevision = predecessor.revision.addingReportingOverflow(1)

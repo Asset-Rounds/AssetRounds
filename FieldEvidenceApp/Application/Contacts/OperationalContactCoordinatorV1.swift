@@ -110,6 +110,31 @@ final class OperationalContactCoordinatorV1 {
         self.importQuery = importQuery
     }
 
+    func currentContactPoint(
+        workspaceID: WorkspaceID,
+        contactPointID: UUID
+    ) async throws -> ServiceContactPointV1? {
+        try await query.currentServiceContactPoint(
+            workspaceID: workspaceID,
+            contactPointID: contactPointID
+        )
+    }
+
+    /// Manual C42 mutations enter the same canonical C46 writer. The writer's
+    /// receipt-first lookup is the sole replay and effect-recovery authority.
+    func commitManualMutation(
+        _ mutation: OperationalContactMutationV1
+    ) async throws -> OperationalContactMutationReceiptV1 {
+        try mutation.validate()
+        return try await writer.commitOperationalContact(mutation)
+    }
+
+    func recoverManualMutation(
+        _ mutation: OperationalContactMutationV1
+    ) async throws -> OperationalContactMutationReceiptV1 {
+        try await commitManualMutation(mutation)
+    }
+
     func reviewIntent(
         workspaceID: WorkspaceID,
         route: OperationalContactHandoffRouteV1,
