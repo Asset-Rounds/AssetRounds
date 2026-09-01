@@ -1134,9 +1134,16 @@ private extension BackupPackageValidatorV1 {
         try ReinspectionExceptionKernelBackupRestoreEnrollmentV1.validate()
         try EntityIdentityResolutionBackupEnrollmentV1.validate(records)
         try EntityIdentityResolutionKernelBackupRestoreEnrollmentV1.validate()
+        try PracticeWorkspaceBackupEnrollmentV1.validate(records)
+        try PracticeWorkspaceKernelBackupRestoreEnrollmentV1.validate()
         if let snapshot = records.entityIdentityResolution {
             guard snapshot.workspaceID.rawValue == manifest.source.workspaceID,
                   snapshot.generationID == manifest.source.sourceGenerationID else {
+                throw invalid()
+            }
+        }
+        if let snapshot = records.practiceWorkspaceProvenance {
+            guard snapshot.provenance.workspaceID.rawValue == manifest.source.workspaceID else {
                 throw invalid()
             }
         }

@@ -12,6 +12,12 @@ enum SnapshotValidationErrorV1: Error, Equatable {
     case invalidAuthority
 }
 
+enum PracticeWorkspaceSnapshotValidatorV1 {
+    static func validate(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.practiceWorkspace?.validate()
+    }
+}
+
 enum AccessibleDocumentSnapshotValidatorV1{
     static func validate(snapshot:CompletedActivitySnapshotV1,tree:AccessibleDocumentSemanticTreeV1)throws{try snapshot.validateAccessibleDocumentTree(tree)}
     static func validate(receipt:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1,output:Data)throws{try receipt.validate(tree:tree);try receipt.validateOutput(output)}

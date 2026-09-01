@@ -44,6 +44,13 @@ final class SceneNavigationStateAdapterV1 {
         }
     }
 
+    func loadAndReconcile(
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> SceneNavigationLoadResultV1 {
+        _ = try await accessGate.requireContentAccess(for: .sceneRestoration)
+        return try loadAndReconcile()
+    }
+
     func erase() throws { try port.eraseSceneNavigationData() }
 
     private struct VersionProbe: Decodable { let schemaVersion: Int }

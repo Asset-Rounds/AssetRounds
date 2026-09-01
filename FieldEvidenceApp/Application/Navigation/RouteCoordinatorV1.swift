@@ -50,6 +50,23 @@ struct RouteCoordinatorV1: Sendable {
         }
         return try RouteRestorationReceiptV1(receiptID: request.receiptID, evidenceKind: request.evidenceKind, source: selected.0, result: result, snapshotID: selected.2)
     }
+
+    func restore(
+        _ request: RouteRestorationRequestV1,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> RouteRestorationReceiptV1 {
+        _ = try await accessGate.requireContentAccess(for: .sceneRestoration)
+        return try restore(request)
+    }
+
+    func resolve(
+        _ target: NavigationTargetV1,
+        context: RouteResolutionContextV1,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> RouteResolutionResultV1 {
+        _ = try await accessGate.requireContentAccess(for: .routeResolution)
+        return try registry.resolve(target, context: context)
+    }
 }
 
 extension RouteCoordinatorV1 {
@@ -61,6 +78,15 @@ extension RouteCoordinatorV1 {
             throw RouteCoordinatorFailureV1.invalidPriorityTarget
         }
         return result
+    }
+
+    func resolvePrivateSystemDiscovery(
+        _ target: NavigationTargetV1,
+        context: RouteResolutionContextV1,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> RouteResolutionResultV1 {
+        _ = try await accessGate.requireContentAccess(for: .privateSystemDiscovery)
+        return try resolvePrivateSystemDiscovery(target, context: context)
     }
 }
 

@@ -1651,6 +1651,14 @@ private extension EraseAllService {
               tree.files.isSubset(of: allowedFiles) else {
             throw EraseAllServiceError.invalidAuthority
         }
+        if let identity {
+            // The reset path is whole-workspace only. This public adapter owns
+            // the C16 row and is idempotent when the fresh generation is REAL.
+            try WorkspaceExperienceLifecycleAdapterV1(
+                modelContext: session.modelContext,
+                workspaceID: identity.workspaceID
+            ).eraseWorkspaceRows()
+        }
         try EvidenceAssuranceEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
@@ -1687,6 +1695,9 @@ private extension EraseAllService {
         )
         try ReinspectionExceptionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try EntityIdentityResolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        try PracticeWorkspaceProvenanceEraseAllPolicyV1.validatePublishedEmptyGeneration(
+            session.modelContext
+        )
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
         try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
@@ -3016,6 +3027,17 @@ enum EntityIdentityResolutionEraseAllPolicyV1 {
             throw EraseAllServiceError.invalidAuthority
         }
         try EntityIdentityResolutionKernelDeletionEraseEnrollmentV1.validate()
+    }
+}
+
+enum PracticeWorkspaceProvenanceEraseAllPolicyV1 {
+    /// Erase is the only C16 destructive operation for the durable row. A
+    /// subsequent starter install must be an explicit, separate command.
+    static func validatePublishedEmptyGeneration(_ context: ModelContext) throws {
+        guard try context.fetchCount(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try PracticeWorkspaceKernelDeletionEraseEnrollmentV1.validate()
     }
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-erase

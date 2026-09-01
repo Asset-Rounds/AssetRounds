@@ -92,6 +92,41 @@ final class StartupRouter: ObservableObject {
         try coordinator.restore(request)
     }
 
+    /// C16 authenticated restoration entry. The legacy synchronous overload is
+    /// retained for maintenance-only callers; production content restoration
+    /// must use this gate-aware route.
+    func restoreSceneNavigation(
+        _ request: RouteRestorationRequestV1,
+        using coordinator: RouteCoordinatorV1,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> RouteRestorationReceiptV1 {
+        try await coordinator.restore(request, accessGate: accessGate)
+    }
+
+    func retryChecks(accessGate: any AppAccessGatePortV1) async throws {
+        _ = try await accessGate.requireContentAccess(for: .startupRecovery)
+        await retryChecks()
+    }
+
+    /// The sole startup operation allowed before an app-access permit. The
+    /// injected ingress store guarantees metadata-only cleanup and fails
+    /// closed on uncertain ownership; this method never opens a store.
+    func performPreAuthenticationScratchHygiene(
+        ingressStore: any ProtectedIngressStoreV1,
+        now: Date,
+        operationID: UUID
+    ) async throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        let receipt = try await ingressStore.performBlindStartupHygiene(
+            now: now, operationID: operationID
+        )
+        guard !receipt.contentRead,
+              receipt.retainedValidCount == 0,
+              receipt.deferredAmbiguousCount == 0 else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return receipt
+    }
+
     init(
         applicationSupportURL: URL,
         fileManager: FileManager = .default,
@@ -119,6 +154,13 @@ final class StartupRouter: ObservableObject {
             return
         }
 
+        hasStarted = true
+        await retryChecks()
+    }
+
+    func startIfNeeded(accessGate: any AppAccessGatePortV1) async throws {
+        guard !hasStarted else { return }
+        _ = try await accessGate.requireContentAccess(for: .startupRecovery)
         hasStarted = true
         await retryChecks()
     }

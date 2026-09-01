@@ -1420,6 +1420,34 @@ enum C13EntityIdentityResolutionPersistentKindPolicyV1 {
     static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
 }
 
+/// C16 persists only the canonical Practice-workspace provenance marker. The
+/// install/reset/clone plans, catalogs, and experience projections are inputs
+/// or rebuildable views; the generic mutation receipt remains their sole
+/// durable receipt authority.
+enum C16WorkspaceExperiencePersistentKindPolicyV1 {
+    static let durableKindIDs = Set([
+        "PERSISTENT_MODEL:PracticeWorkspaceProvenanceRowV1",
+    ])
+    static let derivedKindIDs = Set(["PROJECTION:StoreSemanticEnvelopeV51"])
+
+    static func validateDeclaration() throws {
+        guard durableKindIDs.count == 1, derivedKindIDs.count == 1,
+              durableKindIDs.isDisjoint(with: derivedKindIDs),
+              durableKindIDs.union(derivedKindIDs)
+                .allSatisfy(PersistentKindLifecycleValidationV1.validKindID) else {
+            throw PersistentKindLifecycleFailureV1.invalidLifecyclePolicy
+        }
+    }
+
+    static let absenceMeansRealWorkspace = true
+    static let installUsesGenericMutationReceiptOnly = true
+    static let plansCatalogsAndProjectionsAreNonpersistent = true
+    static let activeSelectionAndNoticeAcknowledgementAreDeviceLocal = true
+    static let cloneAndForkOmitPracticeProvenance = true
+    static let practiceResetDeletesWholeWorkspaceBeforeExplicitInstall = true
+    static let downgradeDisposition = "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+}
+
 enum C34SceneNavigationPersistentKindBoundaryV1 {
     static let persistentKindCount = 0
     static let lifecycleEnrollmentCount = 0

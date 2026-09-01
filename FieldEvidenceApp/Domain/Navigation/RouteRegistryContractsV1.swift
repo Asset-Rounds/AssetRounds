@@ -10,6 +10,21 @@ enum AppRootV1: String, CaseIterable, Codable, Hashable, Sendable {
     static let frozenOrder: [Self] = [.today, .work, .assets, .reports]
 }
 
+/// C16 has exactly four shell roots. Search scopes are not shell roots and
+/// may therefore include Locations without creating a fifth navigation tab.
+enum WorkspaceExperienceRouteBoundaryV1 {
+    static let rootCount = 4
+
+    static func validate() throws {
+        guard AppRootV1.frozenOrder.map(\.rawValue)
+                == WorkspaceExperienceRootV1.canonicalShellOrder.map(\.rawValue),
+              AppRootV1.frozenOrder.count == rootCount,
+              Set(AppRootV1.frozenOrder).count == rootCount else {
+            throw RouteContractFailureV1.invalidFallback
+        }
+    }
+}
+
 enum NavigationDestinationV1: String, CaseIterable, Codable, Hashable, Sendable {
     case today = "TODAY"
     case work = "WORK"

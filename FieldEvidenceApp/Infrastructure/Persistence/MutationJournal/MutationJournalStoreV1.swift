@@ -783,6 +783,7 @@ final class MutationJournalStoreV1 {
         if case let .applyEvidenceQuality(mutation)=envelope.command{let identity=try mutation.affectedIdentityForCanonicalWriter();guard postImages.count == 1,postImages[0].identity == identity,postImages[0].revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyFastSurveyInbox(mutation)=envelope.command{let identities=try mutation.affectedIdentitiesForCanonicalWriter();guard postImages.count == identities.count,postImages.map({try $0.identity}) == identities,Set(postImages.map(\.semanticSHA256)) == Set(mutation.payload.semanticSHA256s)else{throw WorkspaceMutationFailureV1.invalidCommand};for image in postImages{let identity=try image.identity;guard image.revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}}
         if case let .applyReinspectionException(mutation)=envelope.command{let identities=try mutation.affectedIdentitiesForCanonicalWriter();guard postImages.count == identities.count,postImages.map({try $0.identity}) == identities,postImages.map(\.semanticSHA256).sorted() == mutation.payload.semanticSHA256s.sorted() else{throw WorkspaceMutationFailureV1.invalidCommand};for image in postImages{let identity=try image.identity;guard image.revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}}
+        if case let .applyWorkspaceExperience(mutation)=envelope.command{guard postImages == (try mutation.mutationPostImages) else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
         let after = try currentRevision(writerInstanceID: writerInstanceID)
@@ -1198,6 +1199,22 @@ final class MutationJournalStoreV1 {
         return typed
     }
 
+    func workspaceExperienceReceipt(
+        _ command: WorkspaceExperienceMutationCommandV1
+    ) throws -> WorkspaceExperienceMutationReceiptV1? {
+        try command.validateForCanonicalWriter()
+        guard let generic = try receipt(mutationID: command.mutationID) else { return nil }
+        let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID, mutationID: command.mutationID)
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(predicate: #Predicate { $0.workspaceMutationKey == key }))
+        guard rows.count == 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: rows[0].envelopeData)
+        guard case let .applyWorkspaceExperience(recorded) = envelope.command,
+              recorded == command else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let typed = try WorkspaceExperienceMutationReceiptV1(command: command, mutationReceipt: generic)
+        try typed.validate(command: command)
+        return typed
+    }
+
     /// Enumerates only journal-backed C11 effects and verifies that each has
     /// exactly one matching typed receipt. This is deliberately read-only: the
     /// recovery service owns activation and never synthesizes a receipt from a
@@ -1371,6 +1388,44 @@ final class MutationJournalStoreV1 {
             recovered.append((pair.0, typed))
         }
         guard commands.isEmpty else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        return recovered
+    }
+
+    func workspaceExperienceRecoveryPairs() throws -> [
+        (command: WorkspaceExperienceMutationCommandV1, receipt: WorkspaceExperienceMutationReceiptV1)
+    ] {
+        var descriptor = FetchDescriptor<MutationReceiptRow>(
+            sortBy: [SortDescriptor(\.receiptIdentity)]
+        )
+        descriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
+        let rows = try modelContext.fetch(descriptor)
+        guard rows.count <= Self.maximumReceiptValidationCount else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        var keys = Set<String>()
+        var recovered: [(WorkspaceExperienceMutationCommandV1, WorkspaceExperienceMutationReceiptV1)] = []
+        for row in rows {
+            let generic = try validate(row: row, expectedEnvelope: nil)
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .applyWorkspaceExperience(command) = envelope.command else { continue }
+            try command.validateForCanonicalWriter()
+            let key = MutationWorkspaceKeyV1.value(
+                workspaceID: command.workspaceID, mutationID: command.mutationID
+            )
+            guard command.workspaceID == identity.workspaceID,
+                  keys.insert(key).inserted else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let receipt = try WorkspaceExperienceMutationReceiptV1(
+                command: command, mutationReceipt: generic
+            )
+            guard let image = receipt.mutationReceipt.postImages.first,
+                  try currentPostImage(identity: image.identity, revision: image.revision)
+                    == image else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            recovered.append((command, receipt))
+        }
         return recovered
     }
 
@@ -2611,6 +2666,7 @@ final class MutationJournalStoreV1 {
         if case let .applyShopReportProfile(mutation)=envelope.command{_ = try ShopReportProfileMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
         if case let .applyRoundSession(mutation)=envelope.command{_ = try RoundSessionMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
         if case let .applyMyDay(mutation)=envelope.command{_ = try MyDayWorkspaceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
+        if case let .applyWorkspaceExperience(command)=envelope.command{_ = try WorkspaceExperienceMutationReceiptV1(command:command,mutationReceipt:receipt)}
         if let basisData = row.reversalBasisData {
             let basis = try ReversalBasisV1.decodeCanonical(from: basisData)
             guard row.reversalBasisSHA256 == (try basis.canonicalSHA256()),
@@ -2661,6 +2717,14 @@ final class MutationJournalStoreV1 {
             return try reinspectionExceptionPostImage(identity: identity, revision: revision)
         case .entityAliasLink, .entityConsolidationReceipt:
             return try entityIdentityResolutionPostImage(identity: identity, revision: revision)
+        case .practiceWorkspaceProvenance:
+            let rows = try modelContext.fetch(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>())
+                .filter { $0.provenanceID == identity.id && $0.workspaceID == self.identity.workspaceID.rawValue }
+            guard let row = try exactlyOneOrAbsent(rows), row.revision == Int64(revision) else {
+                return try tombstone(identity, revision)
+            }
+            let value = try row.value()
+            return .workspaceExperience(id: value.provenanceID, concurrencyIdentity: identity, revision: value.revision, semanticSHA256: value.provenanceSHA256)
         case .localPartDefinition: let rows=try modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).filter{$0.partID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.localPartDefinition,concurrencyIdentity:identity,revision:v.revision,semanticSHA256:v.partSHA256)
         case .stockStorageLocation: let rows=try modelContext.fetch(FetchDescriptor<StockStorageLocationRowV1>()).filter{$0.locationID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockStorageLocation,concurrencyIdentity:identity,revision:v.revision,semanticSHA256:try PartsStockCanonicalCodecV1.sha256(v))
         case .stockMovementEvent: let rows=try modelContext.fetch(FetchDescriptor<StockMovementEventRowV1>()).filter{$0.movementID==identity.id&&$0.workspaceUUID==self.identity.workspaceID.rawValue};guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let v=try row.value();return .partsStock(id:identity.id,kind:.stockMovementEvent,concurrencyIdentity:try StockBalanceStreamIdentityV1.entity(partID:v.part.partID,locationID:v.locationID),revision:v.locationRevision,semanticSHA256:v.eventSHA256)
@@ -3513,6 +3577,8 @@ final class MutationJournalStoreV1 {
             return .reinspectionException(id: identity.id, kind: identity.kind, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .entityAliasLink, .entityConsolidationReceipt:
             return .entityIdentityResolution(id: identity.id, kind: identity.kind, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
+        case .practiceWorkspaceProvenance:
+            return .workspaceExperience(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .localPartDefinition, .stockStorageLocation, .stockMovementEvent, .stockUseReceipt, .stockUseReversalReceipt, .stockReturnReceipt, .stockAbandonment: return .partsStock(id: identity.id, kind: identity.kind, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .myDayPlan: return .myDayPlan(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)
         case .myDayCarryoverReceipt: return .myDayCarryoverReceipt(id: identity.id, concurrencyIdentity: identity, revision: revision, semanticSHA256: digest)

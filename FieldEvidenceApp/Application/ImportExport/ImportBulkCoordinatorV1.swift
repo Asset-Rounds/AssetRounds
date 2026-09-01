@@ -68,6 +68,22 @@ final class ImportBulkCoordinatorV1 {
         return try ImportBulkPreviewV1(importPlan: importPlan, bulkPlan: bulkPlan)
     }
 
+    func preview(
+        importPlan: ImportPlanV1,
+        bulkPlan: BulkCommandPlanV1,
+        currentSourceSHA256: String,
+        currentWorkspaceRevisionSHA256: String,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> ImportBulkPreviewV1 {
+        _ = try await accessGate.requireContentAccess(for: .bulkImport)
+        return try preview(
+            importPlan: importPlan,
+            bulkPlan: bulkPlan,
+            currentSourceSHA256: currentSourceSHA256,
+            currentWorkspaceRevisionSHA256: currentWorkspaceRevisionSHA256
+        )
+    }
+
     /// C08 may hand a validated import artifact to C13 review, but it cannot
     /// materialize an alias or consolidation command.  This is intentionally
     /// typed rather than a new generic import command.
@@ -116,6 +132,22 @@ final class ImportBulkCoordinatorV1 {
         )
         try lifecycle.record(session: session, replacing: nil)
         return session
+    }
+
+    func begin(
+        sessionID: UUID,
+        preview: ImportBulkPreviewV1,
+        currentSourceSHA256: String,
+        currentWorkspaceRevisionSHA256: String,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> BulkSessionV1 {
+        _ = try await accessGate.requireContentAccess(for: .bulkImport)
+        return try begin(
+            sessionID: sessionID,
+            preview: preview,
+            currentSourceSHA256: currentSourceSHA256,
+            currentWorkspaceRevisionSHA256: currentWorkspaceRevisionSHA256
+        )
     }
 
     /// The incumbent writer has no batch-transaction API. C08 therefore
@@ -224,6 +256,26 @@ final class ImportBulkCoordinatorV1 {
             chunkIndex: chunkIndex,
             expectedWorkspaceRevisionSHA256: currentWorkspaceRevisionSHA256,
             mutationID: request.mutationID
+        )
+    }
+
+    func commitFirstMissingChunk(
+        session: BulkSessionV1,
+        importPlan: ImportPlanV1,
+        bulkPlan: BulkCommandPlanV1,
+        currentSourceSHA256: String,
+        currentWorkspaceRevisionSHA256: String,
+        cancellationRequested: Bool,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> BulkSessionV1 {
+        _ = try await accessGate.requireContentAccess(for: .bulkImport)
+        return try commitFirstMissingChunk(
+            session: session,
+            importPlan: importPlan,
+            bulkPlan: bulkPlan,
+            currentSourceSHA256: currentSourceSHA256,
+            currentWorkspaceRevisionSHA256: currentWorkspaceRevisionSHA256,
+            cancellationRequested: cancellationRequested
         )
     }
 

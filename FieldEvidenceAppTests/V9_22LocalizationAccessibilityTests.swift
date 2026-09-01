@@ -2,6 +2,79 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
+private final class V23P04C16LocalizationAccessibilityContractTests: XCTestCase {
+    func testC16TypedShellLocalizationCatalogIsClosedAndEnglishOnly() throws {
+        try C16ShellLocalizationPolicyV1.validate()
+        let keys = C16ShellLocalizationKeyV1.allCases
+        XCTAssertEqual(keys.count, 37)
+        XCTAssertEqual(Set(keys.map(\.rawValue)).count, 37)
+        XCTAssertEqual(C16ShellLocalizationPolicyV1.shippingLocales, ["en"])
+        XCTAssertEqual(C16ShellLocalizationPolicyV1.pseudoLocales, ["en-XA", "ar-XB"])
+        XCTAssertFalse(C16ShellLocalizationPolicyV1.runtimeDownloadsAllowed)
+        XCTAssertFalse(C16ShellLocalizationPolicyV1.uiAdoptionClaimed)
+        XCTAssertTrue(C16ShellLocalizationPolicyV1.requiresAcceptedS10_6Reconciliation)
+
+        let registry = try BundledLocalizationCatalogV1.c16ShellRegistry()
+        for key in keys {
+            let definition = try registry.definition(for: LocalizationKeyV1(key.rawValue))
+            XCTAssertEqual(definition.englishDefaultValue, key.englishDefaultValue)
+            XCTAssertFalse(definition.englishDefaultValue.isEmpty)
+        }
+    }
+
+    func testC16FourRootAndReasonBearingAccessibilitySemanticsAreStable() throws {
+        try C16ShellAccessibilityPolicyV1.validate()
+        XCTAssertEqual(C16ShellAccessibilityPolicyV1.rootIDs, [.today, .work, .assets, .reports])
+        XCTAssertEqual(C16ShellAccessibilityPolicyV1.rootBindings.map(\.role), [.button, .button, .button, .button])
+        XCTAssertTrue(C16ShellAccessibilityPolicyV1.stateAndReasonAreTextualNotColorOnly)
+        XCTAssertTrue(C16ShellAccessibilityPolicyV1.rightToLeftMirroringRequired)
+        XCTAssertTrue(C16ShellAccessibilityPolicyV1.pseudoLocaleExpansionRequired)
+        XCTAssertFalse(C16ShellAccessibilityPolicyV1.uiAdoptionClaimed)
+        XCTAssertEqual(WorkspaceExperienceRootV1.canonicalShellOrder, [.today, .work, .assets, .reports])
+        XCTAssertEqual(WorkspaceExperienceAvailabilityReasonV1.allCases.count, 10)
+        XCTAssertEqual(
+            Set(WorkspaceExperienceAvailabilityReasonV1.allCases.map {
+                C16ShellLocalizationKeyV1.availabilityReason($0).rawValue
+            }).count,
+            10
+        )
+        for reason in WorkspaceExperienceAvailabilityReasonV1.allCases {
+            let key = C16ShellLocalizationKeyV1.availabilityReason(reason)
+            let presentation = try FeatureAvailabilityPresentationV1(
+                featureKey: "shell.feature.\(reason.rawValue.lowercased())",
+                isAvailable: reason == .available,
+                reason: reason,
+                explanationKey: key.rawValue
+            )
+            XCTAssertEqual(presentation.reason, reason)
+            XCTAssertEqual(presentation.explanationKey, key.rawValue)
+        }
+        XCTAssertEqual(WorkspaceResumeDispositionV1.allCases.count, 3)
+        XCTAssertFalse(WorkspaceExperienceDataPolicyV1.restoreAutomaticallyRestartsWork)
+    }
+
+    func testC16ProvisionalFixtureMatchesTypedLocalizationAndAccessibilityBoundary() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/V23/Localization/V23P04C16ShellAccessibilityLocalizationCorpusV1.json")
+        let root = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        XCTAssertEqual(root["schema"] as? String, "V23P04C16ShellAccessibilityLocalizationCorpusV1")
+        XCTAssertEqual(root["cardID"] as? String, "V23-P04-C16")
+        XCTAssertEqual(root["rootOrder"] as? [String], ["TODAY", "WORK", "ASSETS", "REPORTS"])
+        let localization = try XCTUnwrap(root["localization"] as? [String: Any])
+        XCTAssertEqual(localization["keyCount"] as? Int, C16ShellLocalizationKeyV1.allCases.count)
+        XCTAssertEqual(localization["shippingLocales"] as? [String], ["en"])
+        let boundary = try XCTUnwrap(root["provisionalBoundary"] as? [String: Any])
+        XCTAssertEqual(boundary["uiAdoptionClaimed"] as? Bool, false)
+        XCTAssertEqual(boundary["shippingUIClaimed"] as? Bool, false)
+        XCTAssertEqual(boundary["requiresAcceptedS10_6Reconciliation"] as? Bool, true)
+        XCTAssertEqual((root["hostileCases"] as? [[String: Any]])?.count, 6)
+        XCTAssertEqual((root["selectors"] as? [String])?.count, 5)
+    }
+}
+
 private enum C52ServiceRequestBoundary_V9_22LocalizationAccessibilityTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }

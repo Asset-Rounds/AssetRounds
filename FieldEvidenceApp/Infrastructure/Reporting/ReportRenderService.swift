@@ -10,6 +10,34 @@ enum GuidedSurveyRenderServiceBoundaryV1 {
     static let mutatesSurveyPublication = false
 }
 
+extension ReportRenderService {
+    /// Content rendering always goes through the incumbent gate. UI owns any
+    /// confirmation presentation; this overload only verifies its contract.
+    func renderPendingReport(
+        id reportID: UUID,
+        accessGate: any AppAccessGatePortV1,
+        practiceShareConfirmation: PracticeShareConfirmationV1? = nil
+    ) async throws -> ReportRenderResult {
+        let permit = try await accessGate.requireContentAccess(for: .render)
+        guard permit.surface == .render, permit.state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(
+                surface: .render,
+                state: permit.state
+            )
+        }
+        if let confirmation = practiceShareConfirmation {
+            guard confirmation.watermark == PracticeWorkspaceReportProjectionV1.mandatoryWatermark,
+                  confirmation.explicitConfirmationRequired else {
+                throw WorkspaceExperienceFailureV1.practiceOnly
+            }
+        }
+        return try renderPendingReport(
+            id: reportID,
+            practiceShareConfirmation: practiceShareConfirmation
+        )
+    }
+}
+
 enum ReportRenderServiceError: Error, Equatable {
     case invalidGeneration
     case reportNotFound
@@ -942,7 +970,10 @@ final class ReportRenderService {
         }
     }
 
-    func renderPendingReport(id reportID: UUID) throws -> ReportRenderResult {
+    func renderPendingReport(
+        id reportID: UUID,
+        practiceShareConfirmation: PracticeShareConfirmationV1? = nil
+    ) throws -> ReportRenderResult {
         guard !modelContext.hasChanges else {
             throw ReportRenderServiceError.contextHasChanges
         }
@@ -963,6 +994,20 @@ final class ReportRenderService {
         try requireAttemptPathsAbsent(for: reportID)
 
         let validated = try validator.validate(report: report)
+        if let practice = validated.snapshot.practiceWorkspace {
+            try practice.validate()
+            guard practice.kind == .practice,
+                  practice.watermark == PracticeWorkspaceReportProjectionV1.mandatoryWatermark,
+                  let confirmation = practiceShareConfirmation,
+                  confirmation.workspaceID == practice.workspaceID,
+                  confirmation.provenanceID == practice.provenanceID,
+                  confirmation.watermark == PracticeWorkspaceReportProjectionV1.mandatoryWatermark,
+                  confirmation.explicitConfirmationRequired else {
+                throw ReportRenderServiceError.invalidStorageAuthority
+            }
+        } else if practiceShareConfirmation != nil {
+            throw ReportRenderServiceError.invalidStorageAuthority
+        }
         try storagePreflight.checkPDFGeneration(
             referencedImageByteCount: validated.referencedImageByteCount,
             onVolumeContaining: generationRootURL

@@ -1935,6 +1935,55 @@ enum EntityIdentityResolutionBackupEnrollmentV1 {
     }
 }
 
+/// C16 transports the one durable practice-workspace classification row.  A
+/// missing snapshot is intentionally meaningful: it classifies the workspace
+/// as REAL and must never cause a synthetic provenance row to be created.
+struct PracticeWorkspaceBackupSnapshotV1: Codable, Equatable, Sendable {
+    let provenance: PracticeWorkspaceProvenanceV1
+
+    init(provenance: PracticeWorkspaceProvenanceV1) throws {
+        self.provenance = provenance
+        try validate()
+    }
+
+    func validate() throws {
+        try provenance.validate()
+        guard try WorkspaceExperienceClassificationV1.kind(provenance: provenance) == .practice,
+              WorkspaceExperiencePersistenceBoundaryV1.absenceMeansReal,
+              WorkspaceExperiencePersistenceBoundaryV1.cloneAndForkOmitPracticeProvenance,
+              !WorkspaceExperiencePersistenceBoundaryV1.secondDurableInstallReceiptRow else {
+            throw WorkspaceExperienceFailureV1.invalidValue
+        }
+    }
+}
+
+enum PracticeWorkspaceBackupEnrollmentV1 {
+    static let persistentSchemaVersion = 51
+    static let recordsSchemaVersion = 50
+    static let durableFamilyCount = 1
+    static let cloneAndForkOmitProvenance = true
+    static let resetRequiresWholeWorkspaceDeletion = true
+    static let resetAutomaticallyReinstalls = false
+
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        guard persistentSchemaVersion == WorkspaceExperiencePersistenceBoundaryV1.targetPersistentSchemaVersion,
+              durableFamilyCount == WorkspaceExperiencePersistenceBoundaryV1.durableModelCount,
+              cloneAndForkOmitProvenance,
+              resetRequiresWholeWorkspaceDeletion,
+              !resetAutomaticallyReinstalls else {
+            throw WorkspaceExperienceFailureV1.incompatibleVersion
+        }
+        if records.recordsSchemaVersion < recordsSchemaVersion {
+            guard records.practiceWorkspaceProvenance == nil else {
+                throw WorkspaceExperienceFailureV1.incompatibleVersion
+            }
+            return
+        }
+        // A missing row is the exact, canonical REAL-workspace disposition.
+        try records.practiceWorkspaceProvenance?.validate()
+    }
+}
+
 struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     let guidedSurveys:[V25BackupGuidedSurveyRecordV1]
     let assetLocators: [V26BackupAssetLocatorRecordV1]
@@ -2017,6 +2066,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
     /// C13 append-only alias/consolidation history and exact typed receipts.
     /// Preview plans and relationship projections are never archive members.
     var entityIdentityResolution: EntityIdentityResolutionBackupSnapshotV1?
+    /// C16's only durable workspace-experience family. Selection, notice
+    /// acknowledgement, plans, catalogs, and projections remain nonpersistent.
+    var practiceWorkspaceProvenance: PracticeWorkspaceBackupSnapshotV1?
     /// C55 is transported as the one canonical snapshot owned by PartsStock.
     /// Its seven durable families must never be split into a parallel archive.
     let partsStockSnapshot: PartsStockBackupSnapshotV1?
@@ -2129,7 +2181,8 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         evidenceQuality: EvidenceQualityBackupSnapshotV1? = nil,
         fastSurveyInbox: FastSurveyInboxBackupSnapshotV1? = nil,
         reinspectionExceptionQueue: ReinspectionExceptionQueueBackupSnapshotV1? = nil,
-        entityIdentityResolution: EntityIdentityResolutionBackupSnapshotV1? = nil
+        entityIdentityResolution: EntityIdentityResolutionBackupSnapshotV1? = nil,
+        practiceWorkspaceProvenance: PracticeWorkspaceBackupSnapshotV1? = nil
     ) {
         self.guidedSurveys=guidedSurveys
         self.assetLocators = assetLocators
@@ -2171,6 +2224,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
         self.fastSurveyInbox = fastSurveyInbox
         self.reinspectionExceptionQueue = reinspectionExceptionQueue
         self.entityIdentityResolution = entityIdentityResolution
+        self.practiceWorkspaceProvenance = practiceWorkspaceProvenance
         self.surveyDefinitions=surveyDefinitions
         self.accessibleDocumentAssessments=accessibleDocumentAssessments
         self.fieldReferences=fieldReferences
@@ -2220,7 +2274,7 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
           case qualifiedServiceExposures, serviceReliabilityReceipts
           case partsStockSnapshot, myDayPlans, myDayCarryoverReceipts, nonactivePlanReferences
           case evidenceAssociationEvents, evidenceSequenceRevisions, shopReportProfiles, roundSessions
-          case importMappingProfiles, bulkSessions, bulkCommitReceipts, evidenceQuality, fastSurveyInbox, reinspectionExceptionQueue, entityIdentityResolution
+          case importMappingProfiles, bulkSessions, bulkCommitReceipts, evidenceQuality, fastSurveyInbox, reinspectionExceptionQueue, entityIdentityResolution, practiceWorkspaceProvenance
     }
 
     init(from decoder: Decoder) throws {
@@ -2415,6 +2469,9 @@ struct V4BackupRecordsV1: Codable, Equatable, Sendable {
             ),
             entityIdentityResolution: try values.decodeIfPresent(
                 EntityIdentityResolutionBackupSnapshotV1.self, forKey: .entityIdentityResolution
+            ),
+            practiceWorkspaceProvenance: try values.decodeIfPresent(
+                PracticeWorkspaceBackupSnapshotV1.self, forKey: .practiceWorkspaceProvenance
             )
         )
     }

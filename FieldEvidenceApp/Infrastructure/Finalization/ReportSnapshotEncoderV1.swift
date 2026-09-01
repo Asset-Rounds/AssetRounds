@@ -19,6 +19,12 @@ enum ReportSnapshotEncodingErrorV1: Error, Equatable {
     case noncanonicalData
 }
 
+enum PracticeWorkspaceReportSnapshotEncodingBoundaryV1 {
+    static func validate(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.practiceWorkspace?.validate()
+    }
+}
+
 enum IntegrationProjectionReportSnapshotExclusionV1 {
     static func validate() throws {
         let coverage = IntegrationEventJournalCoverageV1()

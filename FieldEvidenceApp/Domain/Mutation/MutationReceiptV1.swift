@@ -132,6 +132,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
     case fastSurveyInbox(id:UUID,kind:WorkspaceEntityKindV1,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case reinspectionException(id:UUID,kind:WorkspaceEntityKindV1,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case entityIdentityResolution(id:UUID,kind:WorkspaceEntityKindV1,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
+    case workspaceExperience(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case clientCapabilityProfile(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case clientCapabilityAdmissionDecision(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
     case packageLifecyclePolicy(id:UUID,concurrencyIdentity:WorkspaceEntityIdentityV1,revision:UInt64,semanticSHA256:String)
@@ -264,6 +265,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .fastSurveyInbox(id,kind,_,_,_):return try .init(kind:kind,id:id)
             case let .reinspectionException(id,kind,_,_,_):return try .init(kind:kind,id:id)
             case let .entityIdentityResolution(id,kind,_,_,_):return try .init(kind:kind,id:id)
+            case let .workspaceExperience(id,_,_,_):return try .init(kind:.practiceWorkspaceProvenance,id:id)
             case let .clientCapabilityProfile(id,_,_,_):return try .init(kind:.clientCapabilityProfile,id:id)
             case let .clientCapabilityAdmissionDecision(id,_,_,_):return try .init(kind:.clientCapabilityAdmissionDecision,id:id)
             case let .packageLifecyclePolicy(id,_,_,_):return try .init(kind:.packageLifecyclePolicy,id:id)
@@ -344,7 +346,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         case let .evidenceAssociationEvent(_,_,_,value),
              let .evidenceSequenceRevision(_,_,_,value),
              let .shopReportProfile(_,_,_,value), let .roundSession(_,_,_,value),
-             let .evidenceQuality(_,_,_,_,value), let .fastSurveyInbox(_,_,_,_,value), let .reinspectionException(_,_,_,_,value), let .entityIdentityResolution(_,_,_,_,value): return value
+             let .evidenceQuality(_,_,_,_,value), let .fastSurveyInbox(_,_,_,_,value), let .reinspectionException(_,_,_,_,value), let .entityIdentityResolution(_,_,_,_,value), let .workspaceExperience(_,_,_,value): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,_,value),let .surveyDefinitionIdentity(_,_,_,value),let .surveyDefinitionRelease(_,_,_,value),let .surveySession(_,_,_,value),let .factCapture(_,_,_,value),let .provisionalSubject(_,_,_,value),let .subjectPromotionReceipt(_,_,_,value),let .surveyPublicationSnapshot(_,_,_,value),let .assetLocator(_,_,_,value),let .locatorBindingReceipt(_,_,_,value),let .scheduleDefinitionRelease(_,_,_,value),let .occurrenceHistoryEvent(_,_,_,value),let .exceptionCalendarRelease(_,_,_,value),let .scheduleOverrideEvent(_,_,_,value),let .planDocument(_,_,_,value),let .planRevision(_,_,_,value),let .planPlacement(_,_,_,value),let .planRebaseReceipt(_,_,_,value),let .myDayPlan(_,_,_,value),let .myDayCarryoverReceipt(_,_,_,value),let .assetPoseEvent(_,_,_,value),let .spatialAnchorObservation(_,_,_,value),let .evidenceContext(_,_,_,value),let .pairedObservationLink(_,_,_,value),let .lightingSystem(_,_,_,value),let .lightingObservation(_,_,_,value),let .lightingIssue(_,_,_,value),let .lightingMeasurementPlan(_,_,_,value),let .lightingClaimState(_,_,_,value),let .temporalEvidenceClip(_,_,_,value),let .timecodedEvidenceAnchor(_,_,_,value),let .acceptedLabelGenerationSnapshot(_,_,_,value),let .serviceContactPoint(_,_,_,value),let .systemHandoffIntent(_,_,_,value),let .activitySessionEnvelope(_,_,_,value),let .activityStateTransition(_,_,_,value),let .installationTaskResult(_,_,_,value),let .installationAsBuiltSnapshot(_,_,_,value),let .punchReviewBasisSnapshot(_,_,_,value),let .workResourceEntry(_,_,_,value):return value
         case let .site(_, _, value), let .asset(_, _, value), let .locationNode(_, _, value),
              let .assetPlacementEvent(_, _, value), let .assetCompositionEdge(_, _, value),
@@ -450,6 +452,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
             case let .fastSurveyInbox(_,kind,v,_,_):guard v.kind == kind else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .reinspectionException(_,kind,v,_,_):guard v.kind == kind else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .entityIdentityResolution(_,kind,v,_,_):guard v.kind == kind else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
+            case let .workspaceExperience(_,v,_,_):guard v.kind == .practiceWorkspaceProvenance else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .clientCapabilityProfile(_,v,_,_):guard v.kind == .clientCapabilityProfile else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .clientCapabilityAdmissionDecision(_,v,_,_):guard v.kind == .clientCapabilityAdmissionDecision else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
             case let .packageLifecyclePolicy(_,v,_,_):guard v.kind == .packageLifecyclePolicy else{throw WorkspaceMutationFailureV1.invalidReceipt};return v
@@ -529,7 +532,7 @@ enum MutationPostImageV1: Codable, Equatable, Sendable {
         case let .evidenceAssociationEvent(_,_,value,_),
              let .evidenceSequenceRevision(_,_,value,_),
              let .shopReportProfile(_,_,value,_), let .roundSession(_,_,value,_),
-             let .evidenceQuality(_,_,_,value,_), let .fastSurveyInbox(_,_,_,value,_), let .reinspectionException(_,_,_,value,_), let .entityIdentityResolution(_,_,_,value,_): return value
+             let .evidenceQuality(_,_,_,value,_), let .fastSurveyInbox(_,_,_,value,_), let .reinspectionException(_,_,_,value,_), let .entityIdentityResolution(_,_,_,value,_), let .workspaceExperience(_,_,value,_): return value
         case let .accessibleDocumentAssessmentReceipt(_,_,value,_),let .surveyDefinitionIdentity(_,_,value,_),let .surveyDefinitionRelease(_,_,value,_),let .surveySession(_,_,value,_),let .factCapture(_,_,value,_),let .provisionalSubject(_,_,value,_),let .subjectPromotionReceipt(_,_,value,_),let .surveyPublicationSnapshot(_,_,value,_),let .assetLocator(_,_,value,_),let .locatorBindingReceipt(_,_,value,_),let .scheduleDefinitionRelease(_,_,value,_),let .occurrenceHistoryEvent(_,_,value,_),let .exceptionCalendarRelease(_,_,value,_),let .scheduleOverrideEvent(_,_,value,_),let .planDocument(_,_,value,_),let .planRevision(_,_,value,_),let .planPlacement(_,_,value,_),let .planRebaseReceipt(_,_,value,_),let .myDayPlan(_,_,value,_),let .myDayCarryoverReceipt(_,_,value,_),let .assetPoseEvent(_,_,value,_),let .spatialAnchorObservation(_,_,value,_),let .evidenceContext(_,_,value,_),let .pairedObservationLink(_,_,value,_),let .lightingSystem(_,_,value,_),let .lightingObservation(_,_,value,_),let .lightingIssue(_,_,value,_),let .lightingMeasurementPlan(_,_,value,_),let .lightingClaimState(_,_,value,_),let .temporalEvidenceClip(_,_,value,_),let .timecodedEvidenceAnchor(_,_,value,_),let .acceptedLabelGenerationSnapshot(_,_,value,_),let .serviceContactPoint(_,_,value,_),let .systemHandoffIntent(_,_,value,_),let .activitySessionEnvelope(_,_,value,_),let .activityStateTransition(_,_,value,_),let .installationTaskResult(_,_,value,_),let .installationAsBuiltSnapshot(_,_,value,_),let .punchReviewBasisSnapshot(_,_,value,_),let .workResourceEntry(_,_,value,_):return value
         case let .site(_, value, _), let .asset(_, value, _),
              let .locationNode(_, value, _), let .assetPlacementEvent(_, value, _),
@@ -1855,3 +1858,54 @@ enum C34SceneNavigationMutationReceiptBoundaryV1 {
     }
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-receipt
+
+extension WorkspaceExperienceMutationCommandV1 {
+    var mutationPostImages: [MutationPostImageV1] {
+        get throws {
+            let identity = try affectedIdentityForCanonicalWriter()
+            return [.workspaceExperience(
+                id: provenance.provenanceID,
+                concurrencyIdentity: identity,
+                revision: provenance.revision,
+                semanticSHA256: provenance.provenanceSHA256
+            )]
+        }
+    }
+}
+
+struct WorkspaceExperienceMutationReceiptV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let commandSHA256: String
+    let installReceipt: StarterWorkspaceInstallReceiptV1
+    let mutationReceipt: MutationReceiptV1
+
+    init(command: WorkspaceExperienceMutationCommandV1, mutationReceipt: MutationReceiptV1) throws {
+        try command.validateForCanonicalWriter()
+        try mutationReceipt.validate()
+        let images = try command.mutationPostImages
+        guard let image = images.first else { throw WorkspaceMutationFailureV1.invalidReceipt }
+        let identity = try image.identity
+        guard mutationReceipt.mutationID == command.mutationID,
+              mutationReceipt.identity.workspaceID == command.workspaceID,
+              mutationReceipt.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(
+                WorkspaceCommandV1.applyWorkspaceExperience(command)
+              )),
+              mutationReceipt.expectedRevision == command.expectedRevision,
+              mutationReceipt.postImages == images,
+              mutationReceipt.resultingRevision.entityRevisions.first(where: {
+                $0.identity == identity
+              })?.revision == command.provenance.revision else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+        schemaVersion = Self.schemaVersion
+        commandSHA256 = try WorkspaceMutationCanonicalV1.sha256(command)
+        installReceipt = command.installReceipt
+        self.mutationReceipt = mutationReceipt
+    }
+
+    func validate(command: WorkspaceExperienceMutationCommandV1) throws {
+        let rebuilt = try Self(command: command, mutationReceipt: mutationReceipt)
+        guard rebuilt == self else { throw WorkspaceMutationFailureV1.invalidReceipt }
+    }
+}

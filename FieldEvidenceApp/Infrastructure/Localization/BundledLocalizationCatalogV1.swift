@@ -3514,6 +3514,168 @@ extension BundledLocalizationCatalogV1 {
     }
 }
 
+// MARK: - V23 P04 C16 provisional task-first shell localization
+
+enum C16ShellLocalizationKeyV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case todayTitle = "shell.root.today.title"
+    case todayHint = "shell.root.today.hint"
+    case workTitle = "shell.root.work.title"
+    case workHint = "shell.root.work.hint"
+    case assetsTitle = "shell.root.assets.title"
+    case assetsHint = "shell.root.assets.hint"
+    case reportsTitle = "shell.root.reports.title"
+    case reportsHint = "shell.root.reports.hint"
+    case practiceWatermark = "shell.practice.watermark"
+    case practiceShareTitle = "shell.practice.share.title"
+    case practiceShareMessage = "shell.practice.share.message"
+    case practiceShareConfirm = "shell.practice.share.confirm"
+    case practiceShareCancel = "shell.practice.share.cancel"
+    case availabilityHeading = "shell.availability.heading"
+    case availabilityAvailable = "shell.availability.available"
+    case availabilityUnavailable = "shell.availability.unavailable"
+    case availabilityReason = "shell.availability.reason"
+    case availabilityReasonAvailable = "shell.availability.reason.available"
+    case availabilityDisabledByPolicy = "shell.availability.reason.disabled-by-policy"
+    case availabilityAppLocked = "shell.availability.reason.app-locked"
+    case availabilityProtectedDataUnavailable = "shell.availability.reason.protected-data-unavailable"
+    case availabilityRealWorkspaceRequired = "shell.availability.reason.real-workspace-required"
+    case availabilityPracticeWorkspaceRequired = "shell.availability.reason.practice-workspace-required"
+    case availabilitySourceUnavailable = "shell.availability.reason.source-unavailable"
+    case availabilityStaleSource = "shell.availability.reason.stale-source"
+    case availabilityPermissionNotGranted = "shell.availability.reason.permission-not-granted"
+    case availabilityUnsupported = "shell.availability.reason.unsupported"
+    case availabilityReconciliationPending = "shell.availability.reason.reconciliation-pending"
+    case starterWorkspaceTitle = "shell.starter-workspace.title"
+    case starterWorkspaceAction = "shell.starter-workspace.action"
+    case resumeTitle = "shell.resume.title"
+    case resumeAction = "shell.resume.action"
+    case productChangesTitle = "shell.product-changes.title"
+    case productChangesBody = "shell.product-changes.body"
+    case helpTitle = "shell.help.title"
+    case helpBody = "shell.help.body"
+    case helpAction = "shell.help.action"
+
+    var englishDefaultValue: String {
+        switch self {
+        case .todayTitle: return "Today"
+        case .todayHint: return "Review ready and due work."
+        case .workTitle: return "Work"
+        case .workHint: return "Open work in the selected workspace."
+        case .assetsTitle: return "Assets"
+        case .assetsHint: return "Browse assets in the selected workspace."
+        case .reportsTitle: return "Reports"
+        case .reportsHint: return "Review reports in the selected workspace."
+        case .practiceWatermark: return "PRACTICE — NOT FOR FIELD USE"
+        case .practiceShareTitle: return "Share practice content?"
+        case .practiceShareMessage: return "This content is marked as practice and is not field evidence."
+        case .practiceShareConfirm: return "Share practice content"
+        case .practiceShareCancel: return "Cancel"
+        case .availabilityHeading: return "Availability"
+        case .availabilityAvailable: return "Available"
+        case .availabilityUnavailable: return "Unavailable"
+        case .availabilityReason: return "Reason"
+        case .availabilityReasonAvailable: return "This feature is available."
+        case .availabilityDisabledByPolicy: return "This feature is disabled by policy."
+        case .availabilityAppLocked: return "Unlock the app to continue."
+        case .availabilityProtectedDataUnavailable: return "Protected data is unavailable."
+        case .availabilityRealWorkspaceRequired: return "Select a real workspace to continue."
+        case .availabilityPracticeWorkspaceRequired: return "Open a practice workspace to continue."
+        case .availabilitySourceUnavailable: return "Required local content is unavailable."
+        case .availabilityStaleSource: return "Required local content is out of date."
+        case .availabilityPermissionNotGranted: return "Required permission has not been granted."
+        case .availabilityUnsupported: return "This feature is not supported."
+        case .availabilityReconciliationPending: return "This surface is pending app-shell reconciliation."
+        case .starterWorkspaceTitle: return "Starter workspace"
+        case .starterWorkspaceAction: return "Create starter workspace"
+        case .resumeTitle: return "Resume"
+        case .resumeAction: return "Resume saved work"
+        case .productChangesTitle: return "Product changes"
+        case .productChangesBody: return "Review changes included with this version."
+        case .helpTitle: return "Help"
+        case .helpBody: return "Review guidance for the current task."
+        case .helpAction: return "Open help"
+        }
+    }
+
+    static func availabilityReason(
+        _ reason: WorkspaceExperienceAvailabilityReasonV1
+    ) -> C16ShellLocalizationKeyV1 {
+        switch reason {
+        case .available: return .availabilityReasonAvailable
+        case .disabledByPolicy: return .availabilityDisabledByPolicy
+        case .appLocked: return .availabilityAppLocked
+        case .protectedDataUnavailable: return .availabilityProtectedDataUnavailable
+        case .realWorkspaceRequired: return .availabilityRealWorkspaceRequired
+        case .practiceWorkspaceRequired: return .availabilityPracticeWorkspaceRequired
+        case .sourceUnavailable: return .availabilitySourceUnavailable
+        case .staleSource: return .availabilityStaleSource
+        case .permissionNotGranted: return .availabilityPermissionNotGranted
+        case .unsupported: return .availabilityUnsupported
+        }
+    }
+}
+
+enum C16ShellLocalizationPolicyV1 {
+    static let sourceLocale = "en"
+    static let shippingLocales = ["en"]
+    static let pseudoLocales = ["en-XA", "ar-XB"]
+    static let runtimeDownloadsAllowed = false
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6Reconciliation = true
+
+    static func validate() throws {
+        let keys = C16ShellLocalizationKeyV1.allCases.map(\.rawValue)
+        guard keys.count == Set(keys).count,
+              keys.allSatisfy({ !$0.isEmpty }),
+              sourceLocale == "en",
+              shippingLocales == ["en"],
+              pseudoLocales == ["en-XA", "ar-XB"],
+              !runtimeDownloadsAllowed,
+              !uiAdoptionClaimed,
+              requiresAcceptedS10_6Reconciliation else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}
+
+extension BundledLocalizationCatalogV1 {
+    static func c16ShellEnglish(_ key: C16ShellLocalizationKeyV1) -> String {
+        key.englishDefaultValue
+    }
+
+    static func c16ShellLocalized(
+        _ key: C16ShellLocalizationKeyV1,
+        bundle: Bundle = .main,
+        locale: Locale = .current
+    ) -> String {
+        String(
+            localized: key.rawValue,
+            defaultValue: key.englishDefaultValue,
+            bundle: bundle,
+            locale: locale,
+            comment: "C16 provisional task-first shell copy; UI adoption remains pending accepted S10.6 reconciliation."
+        )
+    }
+
+    static func c16ShellRegistry() throws -> LocalizationKeyRegistryV1 {
+        try C16ShellLocalizationPolicyV1.validate()
+        let base = try registry()
+        let additions = try C16ShellLocalizationKeyV1.allCases.map { key in
+            LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(key.rawValue),
+                meaningID: key.rawValue,
+                translatorComment: "C16 provisional task-first shell copy; no shipping UI or S10.6 adoption claim.",
+                englishDefaultValue: key.englishDefaultValue,
+                arguments: [],
+                requiredEnglishPluralCategories: [],
+                state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+}
+
 // MARK: - C14 private system discovery catalog
 
 extension BundledLocalizationCatalogV1 {

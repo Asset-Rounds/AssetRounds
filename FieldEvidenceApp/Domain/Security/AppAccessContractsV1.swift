@@ -85,6 +85,65 @@ enum AppAccessStateV1: Equatable, Sendable {
     }
 }
 
+/// Closed list of C16 content-reading boundaries. A permit is intentionally
+/// ephemeral and cannot be persisted, replayed, or used as an identity token.
+enum AppAccessContentReadSurfaceV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case startupRecovery = "STARTUP_RECOVERY"
+    case sceneRestoration = "SCENE_RESTORATION"
+    case routeResolution = "ROUTE_RESOLUTION"
+    case privateSystemDiscovery = "PRIVATE_SYSTEM_DISCOVERY"
+    case search = "SEARCH"
+    case searchRebuild = "SEARCH_REBUILD"
+    case backupImport = "BACKUP_IMPORT"
+    case diagnosticExport = "DIAGNOSTIC_EXPORT"
+    case bulkImport = "BULK_IMPORT"
+    case render = "RENDER"
+}
+
+enum AppAccessContentReadFailureV1: Error, Equatable, Sendable {
+    case denied(surface: AppAccessContentReadSurfaceV1, state: AppAccessStateV1)
+}
+
+struct AppAccessContentPermitV1: Equatable, Sendable {
+    let surface: AppAccessContentReadSurfaceV1
+    let state: AppAccessStateV1
+
+    init(surface: AppAccessContentReadSurfaceV1, state: AppAccessStateV1) throws {
+        guard state.permitsContentAccess else {
+            throw AppAccessContentReadFailureV1.denied(surface: surface, state: state)
+        }
+        self.surface = surface
+        self.state = state
+    }
+
+    /// Test-double compatibility only. Production must provide the stateful,
+    /// actor-atomic protocol requirement above.
+    static func legacyAuthorized(surface: AppAccessContentReadSurfaceV1) -> Self {
+        Self(uncheckedSurface: surface, state: .disabled)
+    }
+
+    private init(uncheckedSurface: AppAccessContentReadSurfaceV1, state: AppAccessStateV1) {
+        surface = uncheckedSurface
+        self.state = state
+    }
+}
+
+/// No C16 shipping/UI adoption is claimed. S10.6 owns the callers that must
+/// replace legacy overloads; until then an acceptance check fails closed.
+enum WorkspaceExperienceAppAccessAdoptionBoundaryV1 {
+    static let s10ReservedProductionUICallersStillUseLegacyOverloads = true
+    static let productionCallerAdoptionComplete = false
+    static let postS10_6ReconciliationRequired = true
+
+    static func requireAcceptanceReady() throws {
+        guard productionCallerAdoptionComplete,
+              !s10ReservedProductionUICallersStillUseLegacyOverloads,
+              !postS10_6ReconciliationRequired else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+    }
+}
+
 enum LocalAuthenticationBiometryV1: String, CaseIterable, Codable, Sendable {
     case none = "NONE"
     case faceID = "FACE_ID"

@@ -2960,6 +2960,7 @@ private extension BackupRestoreService {
         normalized.fastSurveyInbox = records.fastSurveyInbox
         normalized.reinspectionExceptionQueue = records.reinspectionExceptionQueue
         normalized.entityIdentityResolution = records.entityIdentityResolution
+        normalized.practiceWorkspaceProvenance = records.practiceWorkspaceProvenance
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }
@@ -2989,6 +2990,7 @@ private extension BackupRestoreService {
         reset.fastSurveyInbox = records.fastSurveyInbox
         reset.reinspectionExceptionQueue = records.reinspectionExceptionQueue
         reset.entityIdentityResolution = records.entityIdentityResolution
+        reset.practiceWorkspaceProvenance = records.practiceWorkspaceProvenance
         return reset
     }
 
@@ -10251,6 +10253,31 @@ private extension BackupRestoreService {
         } else if records.recordsSchemaVersion
                     >= EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion {
             throw BackupRestoreServiceError.invalidPackage
+        }
+        if records.recordsSchemaVersion >= PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion {
+            do {
+                try PracticeWorkspaceBackupEnrollmentV1.validate(records)
+                if let snapshot = records.practiceWorkspaceProvenance {
+                    let target = WorkspaceID(rawValue: identityDecision?.targetPointer.workspaceID
+                        ?? legacyDestinationIdentity.workspaceID.rawValue)
+                    switch identityDecision?.mode ?? .replaceExisting {
+                    case .clone, .fork:
+                        // Clone/fork deliberately omit provenance; absence is REAL.
+                        try WorkspaceExperienceLifecycleAdapterV1(
+                            modelContext: context, workspaceID: target
+                        ).validateCloneOrForkDestinationIsReal()
+                    case .emptyInstall, .replaceExisting:
+                        guard snapshot.provenance.workspaceID == target else {
+                            throw BackupRestoreServiceError.invalidRestoreAuthority
+                        }
+                        context.insert(try PracticeWorkspaceProvenanceRowV1(snapshot.provenance))
+                    }
+                }
+            } catch let error as BackupRestoreServiceError {
+                throw error
+            } catch {
+                throw BackupRestoreServiceError.invalidPackage
+            }
         }
         if records.recordsSchemaVersion >= C52ServiceRequestReplaceRestoreBoundaryV1.recordsSchemaVersion {
             do {

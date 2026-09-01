@@ -360,6 +360,59 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, @unchecked Sendable {
 }
 
 extension PreferencesAdapterV1 {
+    func activeWorkspaceSelection() throws -> ActiveWorkspaceSelectionV1? {
+        let descriptor = try SettingsRegistryV1.current().descriptor(
+            for: WorkspaceExperienceDevicePreferenceV1.activeWorkspaceSelectionKey
+        )
+        guard descriptor.valueKind == .workspaceExperienceSelection else {
+            throw PreferencesAdapterFailureV1.invalidCanonicalValue
+        }
+        let value = try CompatibilityCanonicalV1.decode(
+            ActiveWorkspaceSelectionV1?.self,
+            from: readCanonicalValue(for: descriptor)
+        )
+        try value?.validate()
+        return value
+    }
+
+    func setActiveWorkspaceSelection(
+        _ value: ActiveWorkspaceSelectionV1?,
+        operationID: UUID
+    ) throws {
+        try value?.validate()
+        let descriptor = try SettingsRegistryV1.current().descriptor(
+            for: WorkspaceExperienceDevicePreferenceV1.activeWorkspaceSelectionKey
+        )
+        try writeCanonicalValue(
+            CompatibilityCanonicalV1.encode(value), descriptor: descriptor, operationID: operationID
+        )
+    }
+
+    func noticeAcknowledgement() throws -> NoticeAcknowledgementV1? {
+        let descriptor = try SettingsRegistryV1.current().descriptor(
+            for: WorkspaceExperienceDevicePreferenceV1.noticeAcknowledgementKey
+        )
+        guard descriptor.valueKind == .workspaceExperienceNoticeAcknowledgement else {
+            throw PreferencesAdapterFailureV1.invalidCanonicalValue
+        }
+        return try CompatibilityCanonicalV1.decode(
+            NoticeAcknowledgementV1?.self,
+            from: readCanonicalValue(for: descriptor)
+        )
+    }
+
+    func setNoticeAcknowledgement(
+        _ value: NoticeAcknowledgementV1?,
+        operationID: UUID
+    ) throws {
+        let descriptor = try SettingsRegistryV1.current().descriptor(
+            for: WorkspaceExperienceDevicePreferenceV1.noticeAcknowledgementKey
+        )
+        try writeCanonicalValue(
+            CompatibilityCanonicalV1.encode(value), descriptor: descriptor, operationID: operationID
+        )
+    }
+
     func readPrivateSystemDiscoveryOptIn() throws -> PrivateSystemDiscoveryOptInV1 {
         let descriptor = try SettingsRegistryV1.current().descriptor(for: PrivateSystemDiscoveryOptInV1.settingKey)
         let token = try CompatibilityCanonicalV1.decode(String.self, from: readCanonicalValue(for: descriptor))

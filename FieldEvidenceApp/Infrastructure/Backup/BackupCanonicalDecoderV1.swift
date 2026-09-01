@@ -256,7 +256,8 @@ struct BackupCanonicalDecoderV1: Sendable {
               try Self.validateC04ShopReportProfiles(value)
               try Self.validateC05RoundSessions(value)
               try Self.validateC08ImportBulk(value)
-              try Self.validateReinspectionExceptionQueue(value)
+             try Self.validateReinspectionExceptionQueue(value)
+            try Self.validatePracticeWorkspaceProvenance(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
             guard canonical == data else {
                 throw BackupCanonicalDecodingErrorV1.invalidRecords
@@ -269,6 +270,10 @@ struct BackupCanonicalDecoderV1: Sendable {
 }
 
 private extension BackupCanonicalDecoderV1 {
+    static func validatePracticeWorkspaceProvenance(_ records: V4BackupRecordsV1) throws {
+        do { try PracticeWorkspaceBackupEnrollmentV1.validate(records) }
+        catch { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+    }
     static func validateC46OperationalContacts(_ records: V4BackupRecordsV1) throws {
         do {
             _ = try records.validateC46OperationalContacts()

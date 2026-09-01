@@ -62,6 +62,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applyFastSurveyInbox,
             .applyReinspectionException,
             .applyEntityIdentityResolution,
+            .applyWorkspaceExperience,
         ])
 
     /// C22 receipts are appended by the existing fenced journal authority;
@@ -272,6 +273,8 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             return try applyReinspectionException(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
         case let .applyEntityIdentityResolution(value):
             return try applyEntityIdentityResolution(value, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
+        case let .applyWorkspaceExperience(value):
+            return try applyWorkspaceExperience(value, temporaryRelativePath: temporaryRelativePath)
         case .deleteAsset,
              .deleteSite,
              .eraseWorkspace,
@@ -323,6 +326,16 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
         try receipt.validate(command: command)
         return receipt
+    }
+
+    func persistedWorkspaceExperienceEffectMatches(
+        _ command: WorkspaceExperienceMutationCommandV1
+    ) throws -> Bool {
+        try command.validateForCanonicalWriter()
+        let rows = try modelContext.fetch(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>())
+            .filter { $0.workspaceID == command.workspaceID.rawValue }
+        guard rows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        return try rows.first?.value() == command.provenance
     }
 
     /// Read-only C13 history lookup.  This intentionally uses only immutable
@@ -933,6 +946,34 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         }
         modelContext.insert(try EntityIdentityResolutionMutationReceiptRowV1(receipt, command: command))
         return try WorkspaceMutationEffectV1(affectedEntities: [target], temporaryRelativePath: temporaryRelativePath)
+    }
+
+    private func applyWorkspaceExperience(
+        _ command: WorkspaceExperienceMutationCommandV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        try command.validateForCanonicalWriter()
+        let target = try command.affectedIdentityForCanonicalWriter()
+        let rows = try modelContext.fetch(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>())
+        let workspaceRows = rows.filter { $0.workspaceID == command.workspaceID.rawValue }
+        guard workspaceRows.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        if let existing = workspaceRows.first {
+            guard try existing.value() == command.provenance else {
+                throw WorkspaceMutationFailureV1.sequenceCollision
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: [target],
+                temporaryRelativePath: temporaryRelativePath
+            )
+        }
+        guard !rows.contains(where: { $0.provenanceID == command.provenance.provenanceID }) else {
+            throw WorkspaceMutationFailureV1.sequenceCollision
+        }
+        modelContext.insert(try PracticeWorkspaceProvenanceRowV1(command.provenance))
+        return try WorkspaceMutationEffectV1(
+            affectedEntities: [target],
+            temporaryRelativePath: temporaryRelativePath
+        )
     }
 
     private func entityIdentityResolutionConcurrencyIdentity(

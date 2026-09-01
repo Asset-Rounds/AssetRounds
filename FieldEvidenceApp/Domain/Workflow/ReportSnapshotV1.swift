@@ -171,6 +171,10 @@ struct ReportSnapshotV1: Codable, Equatable, Sendable {
     /// bytes or private content locators.
     var temporalEvidenceLinks: [TemporalEvidenceReportLinkV1]? = nil
 
+    /// C16 freezes the workspace classification at report creation. A missing
+    /// projection deliberately means REAL, not unknown.
+    var practiceWorkspace: PracticeWorkspaceReportProjectionV1? = nil
+
     var planHistoryProjection: PlanReportProjectionV1? {
         planProjection
     }
@@ -566,5 +570,30 @@ enum C53ServiceReliabilityReportSnapshotBoundaryV1 {
         _ projection: C53ServiceReliabilityReportProjectionV1
     ) throws {
         try projection.validate()
+    }
+}
+
+struct PracticeWorkspaceReportProjectionV1: Codable, Equatable, Sendable {
+    static let mandatoryWatermark = "PRACTICE — NOT FOR FIELD USE"
+    let workspaceID: WorkspaceID
+    let kind: WorkspaceExperienceWorkspaceKindV1
+    let provenanceID: UUID?
+    let provenanceSHA256: String?
+    let watermark: String?
+
+    init(workspaceID: WorkspaceID, provenance: PracticeWorkspaceProvenanceV1?) throws {
+        self.workspaceID = workspaceID
+        kind = try WorkspaceExperienceClassificationV1.kind(provenance: provenance)
+        provenanceID = provenance?.provenanceID
+        provenanceSHA256 = provenance?.provenanceSHA256
+        watermark = provenance == nil ? nil : Self.mandatoryWatermark
+        try validate()
+    }
+
+    func validate() throws {
+        guard (kind == .real && provenanceID == nil && provenanceSHA256 == nil && watermark == nil)
+                || (kind == .practice && provenanceID != nil && provenanceSHA256 != nil && watermark == Self.mandatoryWatermark) else {
+            throw WorkspaceExperienceFailureV1.invalidValue
+        }
     }
 }

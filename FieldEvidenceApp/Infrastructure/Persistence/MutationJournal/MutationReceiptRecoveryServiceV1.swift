@@ -20,6 +20,7 @@ final class MutationReceiptRecoveryServiceV1 {
             try validateFastSurveyInboxRecoveryParity()
             try validateReinspectionExceptionRecoveryParity()
             try validateEntityIdentityResolutionRecoveryParity()
+            try validateWorkspaceExperienceRecoveryParity()
         }
     }
 
@@ -173,6 +174,21 @@ final class MutationReceiptRecoveryServiceV1 {
             )
         }
     }
+
+    /// C16 has no parallel typed receipt row. Recovery proves the generic
+    /// receipt, canonical provenance postimage, and command envelope bijection.
+    func recoverWorkspaceExperienceEffectsBeforeWriterActivation() throws {
+        try recoverBeforeWriterActivation()
+    }
+
+    private func validateWorkspaceExperienceRecoveryParity() throws {
+        for pair in try store.workspaceExperienceRecoveryPairs() {
+            try WorkspaceExperienceMutationReceiptRecoveryPolicyV1.validateRecovered(
+                command: pair.command,
+                receipt: pair.receipt
+            )
+        }
+    }
     /// C52 revalidates all three append-only row families and their exact
     /// receipt before activation; derived duplicate/state projections remain disposable.
     func recoverServiceRequestEffectsBeforeWriterActivation()throws{
@@ -194,6 +210,18 @@ enum EntityIdentityResolutionMutationReceiptRecoveryPolicyV1 {
         guard receipt.recoveryState == .receiptCommitted else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+    }
+}
+enum WorkspaceExperienceMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        command: WorkspaceExperienceMutationCommandV1,
+        receipt: WorkspaceExperienceMutationReceiptV1
+    ) throws {
+        try command.validateForCanonicalWriter()
+        try receipt.validate(command: command)
+        try KernelMutationReceiptRegistryV4.validateWorkspaceExperience(
+            command: command, receipt: receipt
+        )
     }
 }
 enum TemporalEvidenceMutationReceiptRecoveryPolicyV1 {

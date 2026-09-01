@@ -17,6 +17,12 @@ enum SettingValueKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case boundedStringSet = "BOUNDED_STRING_SET"
     case surveyDefinitionPreferenceReferenceSet = "SURVEY_DEFINITION_PREFERENCE_REFERENCE_SET"
     case recentInputMemory = "RECENT_INPUT_MEMORY"
+    /// C16 device-local navigation choice. This is intentionally an optional
+    /// typed value: selecting a workspace never creates workspace truth.
+    case workspaceExperienceSelection = "WORKSPACE_EXPERIENCE_SELECTION"
+    /// C16 product-notice acknowledgement. It is a device-local display
+    /// choice, excluded from backup, export, and canonical history.
+    case workspaceExperienceNoticeAcknowledgement = "WORKSPACE_EXPERIENCE_NOTICE_ACKNOWLEDGEMENT"
 }
 
 enum SettingScopeV1: String, CaseIterable, Codable, Hashable, Sendable {
@@ -183,6 +189,16 @@ struct SettingDescriptorV1: Codable, Equatable, Sendable {
         case .recentInputMemory:
             let value = try CompatibilityCanonicalV1.decode(RecentInputMemoryV1.self, from: data)
             try value.validate()
+        case .workspaceExperienceSelection:
+            let value = try CompatibilityCanonicalV1.decode(ActiveWorkspaceSelectionV1?.self, from: data)
+            try value?.validate()
+        case .workspaceExperienceNoticeAcknowledgement:
+            let value = try CompatibilityCanonicalV1.decode(NoticeAcknowledgementV1?.self, from: data)
+            if let value {
+                guard value.deviceLocalRevision > 0 else {
+                    throw SettingsContractFailureV1.invalidValue
+                }
+            }
         }
     }
 
@@ -694,6 +710,12 @@ struct SettingsRegistryV1: Sendable {
         let privateSystemDiscovery = try CompatibilityCanonicalV1.encode(
             PrivateSystemDiscoveryOptInV1.offToken
         )
+        let activeWorkspaceSelection = try CompatibilityCanonicalV1.encode(
+            Optional<ActiveWorkspaceSelectionV1>.none
+        )
+        let noticeAcknowledgement = try CompatibilityCanonicalV1.encode(
+            Optional<NoticeAcknowledgementV1>.none
+        )
         return try SettingsRegistryV1(descriptors: [
             try SettingDescriptorV1(
                 key: DeviceLocalAppLockSettingV1.key,
@@ -769,6 +791,36 @@ struct SettingsRegistryV1: Sendable {
                 changesHistoricOutput: false
             ),
             try SettingDescriptorV1(
+                key: WorkspaceExperienceDevicePreferenceV1.activeWorkspaceSelectionKey,
+                valueKind: .workspaceExperienceSelection,
+                scope: .deviceLocal,
+                storage: .soleDevicePreferencesAdapter,
+                defaultCanonicalValue: activeWorkspaceSelection,
+                maximumCanonicalBytes: 1_024,
+                migrationVersion: 1,
+                backup: .excludedDeviceLocal,
+                reset: .restoreDefault,
+                erase: .restoreDefault,
+                privacy: .devicePreferenceNoCustomerData,
+                localizationKey: "settings.activeWorkspaceSelection",
+                changesHistoricOutput: false
+            ),
+            try SettingDescriptorV1(
+                key: WorkspaceExperienceDevicePreferenceV1.noticeAcknowledgementKey,
+                valueKind: .workspaceExperienceNoticeAcknowledgement,
+                scope: .deviceLocal,
+                storage: .soleDevicePreferencesAdapter,
+                defaultCanonicalValue: noticeAcknowledgement,
+                maximumCanonicalBytes: 1_024,
+                migrationVersion: 1,
+                backup: .excludedDeviceLocal,
+                reset: .restoreDefault,
+                erase: .restoreDefault,
+                privacy: .devicePreferenceNoCustomerData,
+                localizationKey: "settings.productNoticeAcknowledgement",
+                changesHistoricOutput: false
+            ),
+            try SettingDescriptorV1(
                 key: SurveyDefinitionDeviceMemoryV1.favoriteKey,
                 valueKind: .surveyDefinitionPreferenceReferenceSet,
                 scope: .deviceLocal,
@@ -798,6 +850,15 @@ struct SettingsRegistryV1: Sendable {
             ),
         ])
     }
+}
+
+/// The only C16 preferences that may retain a workspace identifier. They are
+/// display routing choices, never a joinable workspace record or backup input.
+enum WorkspaceExperienceDevicePreferenceV1 {
+    static let activeWorkspaceSelectionKey = "device.workspaceExperience.activeSelection"
+    static let noticeAcknowledgementKey = "device.workspaceExperience.noticeAcknowledgement"
+    static let backupDisposition = "EXCLUDED_DEVICE_LOCAL"
+    static let canonicalTruthDisposition = "NO_CANONICAL_MUTATION"
 }
 
 enum SettingsValidationV1 {

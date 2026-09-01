@@ -247,6 +247,20 @@ final class BackupImportService: @unchecked Sendable {
         return try coordinatedResult.get()
     }
 
+    /// An archive may disclose customer content while it is being inspected,
+    /// so the C16 entry point obtains an access permit before opening it.
+    func stageAndValidate(
+        selectedPackageURL: URL,
+        cancellation: StreamingArchiveCancellationV1 = .none,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> ValidatedV4BackupPackageV1 {
+        _ = try await accessGate.requireContentAccess(for: .backupImport)
+        return try stageAndValidate(
+            selectedPackageURL: selectedPackageURL,
+            cancellation: cancellation
+        )
+    }
+
     func stageAndValidateOffMain(
         selectedPackageURL: URL,
         context: ResumableLocalJobExecutionContextV1? = nil
@@ -265,6 +279,18 @@ final class BackupImportService: @unchecked Sendable {
                 }
             )
         }
+    }
+
+    func stageAndValidateOffMain(
+        selectedPackageURL: URL,
+        context: ResumableLocalJobExecutionContextV1? = nil,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> ValidatedV4BackupPackageV1 {
+        _ = try await accessGate.requireContentAccess(for: .backupImport)
+        return try await stageAndValidateOffMain(
+            selectedPackageURL: selectedPackageURL,
+            context: context
+        )
     }
 
     func discard(_ value: ValidatedV4BackupPackageV1) throws {

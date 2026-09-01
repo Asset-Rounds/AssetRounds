@@ -3169,3 +3169,78 @@ enum PrivateSystemDiscoveryAccessibilityPolicyV1 {
         }
     }
 }
+
+// MARK: - V23 P04 C16 provisional task-first shell accessibility
+
+enum C16ShellAccessibilityIDV1: String, CaseIterable, Codable, Hashable, Sendable {
+    case shell = "shell.task-first"
+    case today = "shell.root.today"
+    case work = "shell.root.work"
+    case assets = "shell.root.assets"
+    case reports = "shell.root.reports"
+    case practiceWatermark = "shell.practice.watermark"
+    case practiceShareConfirmation = "shell.practice.share-confirmation"
+    case availability = "shell.availability"
+    case availabilityReason = "shell.availability.reason"
+    case starterWorkspace = "shell.starter-workspace"
+    case resume = "shell.resume"
+    case productChanges = "shell.product-changes"
+    case help = "shell.help"
+    case errorFocus = "shell.error-focus"
+    case protectedData = "shell.protected-data"
+    case reducedMotion = "shell.reduced-motion"
+    case rightToLeft = "shell.right-to-left"
+    case nonColorStatus = "shell.non-color-status"
+}
+
+struct C16ShellAccessibilityBindingV1: Codable, Equatable, Sendable {
+    let semanticID: C16ShellAccessibilityIDV1
+    let role: SemanticAccessibilityRoleV1
+    let localizationKey: C16ShellLocalizationKeyV1
+}
+
+enum C16ShellAccessibilityPolicyV1 {
+    static let rootIDs: [C16ShellAccessibilityIDV1] = [.today, .work, .assets, .reports]
+    static let sourceOrderIsVoiceOverOrder = true
+    static let voiceControlNamesUseLocalizedVisibleText = true
+    static let switchControlRequired = true
+    static let dynamicTypeThroughAX5Required = true
+    static let errorFocusRequired = true
+    static let reduceMotionUsesStaticPresentation = true
+    static let rightToLeftMirroringRequired = true
+    static let bidirectionalIsolationForOpaqueValuesRequired = true
+    static let stateAndReasonAreTextualNotColorOnly = true
+    static let pseudoLocaleExpansionRequired = true
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6Reconciliation = true
+
+    static let rootBindings: [C16ShellAccessibilityBindingV1] = [
+        .init(semanticID: .today, role: .button, localizationKey: .todayTitle),
+        .init(semanticID: .work, role: .button, localizationKey: .workTitle),
+        .init(semanticID: .assets, role: .button, localizationKey: .assetsTitle),
+        .init(semanticID: .reports, role: .button, localizationKey: .reportsTitle),
+    ]
+
+    static func validate() throws {
+        let ids = C16ShellAccessibilityIDV1.allCases.map(\.rawValue)
+        let boundRoots = rootBindings.map(\.semanticID)
+        guard ids.count == Set(ids).count,
+              rootIDs == [.today, .work, .assets, .reports],
+              boundRoots == rootIDs,
+              Set(rootBindings.map { $0.localizationKey.rawValue }).count == 4,
+              sourceOrderIsVoiceOverOrder,
+              voiceControlNamesUseLocalizedVisibleText,
+              switchControlRequired,
+              dynamicTypeThroughAX5Required,
+              errorFocusRequired,
+              reduceMotionUsesStaticPresentation,
+              rightToLeftMirroringRequired,
+              bidirectionalIsolationForOpaqueValuesRequired,
+              stateAndReasonAreTextualNotColorOnly,
+              pseudoLocaleExpansionRequired,
+              !uiAdoptionClaimed,
+              requiresAcceptedS10_6Reconciliation else {
+            throw LocalizationContractFailureV1.invalidAccessibilityBinding
+        }
+    }
+}

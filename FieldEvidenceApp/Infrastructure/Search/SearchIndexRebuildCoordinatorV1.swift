@@ -1749,6 +1749,13 @@ actor SearchIndexRebuildCoordinatorV1 {
         }
     }
 
+    func rebuildIfNeeded(
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> SearchIndexRebuildResultV1 {
+        _ = try await accessGate.requireContentAccess(for: .searchRebuild)
+        return try await rebuildIfNeeded()
+    }
+
     private func performRebuildIfNeeded() async throws -> SearchIndexRebuildResultV1 {
         try Task.checkCancellation()
         let target = try await source.currentSearchSourceRevision()

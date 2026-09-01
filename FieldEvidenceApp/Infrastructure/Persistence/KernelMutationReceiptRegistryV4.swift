@@ -414,6 +414,18 @@ enum KernelMutationReceiptRegistryV4 {
             throw WorkspaceMutationFailureV1.invalidReceipt
         }
     }
+    static func validateWorkspaceExperience(
+        command: WorkspaceExperienceMutationCommandV1,
+        receipt: WorkspaceExperienceMutationReceiptV1
+    ) throws {
+        try command.validateForCanonicalWriter()
+        try receipt.validate(command: command)
+        guard receipt.mutationReceipt.resultingRevision.workspaceRevision
+                == command.expectedRevision.workspaceRevision + 1,
+              receipt.mutationReceipt.postImages.count == 1 else {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+    }
     static func validateShopReportProfile(
         mutation: ShopReportProfileMutationV1,
         receipt: MutationReceiptV1
@@ -504,7 +516,8 @@ enum KernelMutationReceiptRegistryV4 {
               C05RoundSessionKernelMutationReceiptBoundaryV1.validate(),
               C11FastSurveyInboxKernelMutationReceiptBoundaryV1.validate(),
               C12ReinspectionExceptionKernelMutationReceiptBoundaryV1.validate(),
-              C13EntityIdentityResolutionKernelMutationReceiptBoundaryV1.validate() else {
+              C13EntityIdentityResolutionKernelMutationReceiptBoundaryV1.validate(),
+              C16WorkspaceExperienceKernelMutationReceiptBoundaryV1.validate() else {
             throw KernelPersistenceV4Failure.incompleteCoverage
         }
         try validate(registrations)
@@ -618,6 +631,22 @@ enum C13EntityIdentityResolutionKernelMutationReceiptBoundaryV1 {
             && durableReceiptRequired
             && effectBeforeReceiptRecovery
             && previewPlanIsNonpersistent
+    }
+}
+
+enum C16WorkspaceExperienceKernelMutationReceiptBoundaryV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyWorkspaceExperience
+    static let durableReceiptRequired = true
+    static let effectBeforeReceiptRecovery = true
+    static let postimageCount = 1
+    static let secondDurableReceiptPermitted = false
+
+    static func validate() -> Bool {
+        commandKind == .applyWorkspaceExperience
+            && durableReceiptRequired
+            && effectBeforeReceiptRecovery
+            && postimageCount == 1
+            && !secondDurableReceiptPermitted
     }
 }
 

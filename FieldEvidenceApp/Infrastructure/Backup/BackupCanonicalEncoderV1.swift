@@ -406,6 +406,13 @@ struct BackupCanonicalEncoderV1: Sendable {
             }
             fields["entityIdentityResolution"] = try Self.entityIdentityResolutionSnapshot(snapshot)
         }
+        if records.recordsSchemaVersion >= PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion {
+            try PracticeWorkspaceBackupEnrollmentV1.validate(records)
+            guard let snapshot = records.practiceWorkspaceProvenance else {
+                throw BackupCanonicalEncodingErrorV1.invalidRecords
+            }
+            fields["practiceWorkspaceProvenance"] = try Self.practiceWorkspaceSnapshot(snapshot)
+        }
         if let deletionLedger = records.deletionLedger {
             fields["deletionLedger"] = Self.deletionLedger(deletionLedger)
         }
@@ -522,6 +529,15 @@ private extension BackupCanonicalEncoderV1 {
     ) throws -> CanonicalJSONValueV1 {
         try value.validate()
         let data = try WorkspaceMutationCanonicalV1.data(value)
+        let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        return try canonicalPartsStockJSON(object)
+    }
+
+    static func practiceWorkspaceSnapshot(
+        _ value: PracticeWorkspaceBackupSnapshotV1
+    ) throws -> CanonicalJSONValueV1 {
+        try value.validate()
+        let data = try WorkspaceExperienceCanonicalCodecV1.data(value)
         let object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
         return try canonicalPartsStockJSON(object)
     }

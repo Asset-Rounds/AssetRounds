@@ -1,0 +1,64 @@
+{
+  "accessibility": {
+    "dynamicTypeThroughAX5Required": true,
+    "errorFocusRequired": true,
+    "nonColorMeaningRequired": true,
+    "reduceMotionStaticFallbackRequired": true,
+    "rightToLeftMirroringRequired": true,
+    "semanticIDsStable": true,
+    "switchControlRequired": true,
+    "voiceControlRequired": true,
+    "voiceOverSourceOrderRequired": true
+  },
+  "cardID": "V23-P04-C16",
+  "evidence": [
+    { "classification": "GOLDEN", "id": "V23-P04-C16-G01" },
+    { "classification": "ALTERNATE", "id": "V23-P04-C16-A01" },
+    { "classification": "HOSTILE", "id": "V23-P04-C16-H01" },
+    { "classification": "INTERRUPTION", "id": "V23-P04-C16-I01" },
+    { "classification": "RECOVERY", "id": "V23-P04-C16-R01" }
+  ],
+  "hostileCases": [
+    { "expected": "REJECT", "id": "MISSING_ROOT_LOCALIZATION", "mutation": "REMOVE_shell.root.today.title" },
+    { "expected": "REJECT", "id": "MISSING_AVAILABILITY_REASON", "mutation": "REMOVE_shell.availability.reason" },
+    { "expected": "REJECT", "id": "COLOR_ONLY_STATUS", "mutation": "REMOVE_TEXTUAL_STATUS" },
+    { "expected": "REJECT", "id": "UNSTABLE_SEMANTIC_ID", "mutation": "REPLACE_shell.root.assets_ID" },
+    { "expected": "REJECT", "id": "SHIPPING_PSEUDO_LOCALE", "mutation": "ADD_ar-XB_TO_SHIPPING" },
+    { "expected": "REJECT", "id": "FIFTH_ROOT", "mutation": "ADD_SETTINGS_ROOT" }
+  ],
+  "localization": {
+    "keyCount": 37,
+    "pseudoLocales": ["en-XA", "ar-XB"],
+    "pseudoLocalesAreTestOnly": true,
+    "runtimeDownloadsAllowed": false,
+    "shippingLocales": ["en"],
+    "sourceLocale": "en"
+  },
+  "provisionalBoundary": {
+    "acceptanceClaimed": false,
+    "releaseClaimed": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "shippingUIClaimed": false,
+    "uiAdoptionClaimed": false
+  },
+  "rootOrder": ["TODAY", "WORK", "ASSETS", "REPORTS"],
+  "schema": "V23P04C16ShellAccessibilityLocalizationCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    "testV23P04C16G01FourRootTaskFirstShellAccessibilityLocalizationUI",
+    "testV23P04C16A01PracticeStarterResumeAndHelpAccessibilityLocalizationUI",
+    "testV23P04C16H01MissingLocalizationRTLAndNonColorMeaningFailClosedUI",
+    "testV23P04C16I01InterruptedShellReconciliationClaimsNoPartialUIAdoption",
+    "testV23P04C16R01RelaunchPreservesProvisionalNoAdoptionBoundaryUI"
+  ],
+  "semanticExpectations": {
+    "availabilityHasTextualStateAndReason": true,
+    "opaqueValuesUseBidirectionalIsolation": true,
+    "practiceShareRequiresExplicitConfirmation": true,
+    "practiceWatermark": "PRACTICE — NOT FOR FIELD USE",
+    "productChangesAndHelpAreDistinct": true,
+    "resumeIsReasonBearing": true,
+    "allAvailabilityReasonsAreLocalized": true,
+    "starterWorkspaceIsExplicit": true
+  }
+}

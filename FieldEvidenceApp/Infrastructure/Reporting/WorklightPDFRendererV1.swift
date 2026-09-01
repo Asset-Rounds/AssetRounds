@@ -76,6 +76,7 @@ struct WorklightPDFRendererV1 {
 
     func render(_ validated: ValidatedReportSnapshotV1) throws -> RenderedPDFV1 {
         let snapshot = validated.snapshot
+        try snapshot.practiceWorkspace?.validate()
         guard !snapshot.pdfTemplate.id.isEmpty,
               snapshot.pdfTemplate.version > 0,
               snapshot.snapshotSchemaVersion == 1 || snapshot.snapshotSchemaVersion == 2,
@@ -253,6 +254,12 @@ private extension WorklightPDFRendererV1 {
         func section(_ value: String, role: String) { text(value, style: .section, role: role, before: 12, after: 6, keep: 2) }
 
         text("\(posixTitle(snapshot.display.checkSingular)) report", style: .title, role: "title", after: 18)
+        if let practice = snapshot.practiceWorkspace, practice.kind == .practice {
+            guard practice.watermark == PracticeWorkspaceReportProjectionV1.mandatoryWatermark else {
+                throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
+            }
+            text(practice.watermark!, style: .section, role: "practice.watermark", after: 12)
+        }
         section("Identity and time", role: "identity.heading")
         let address = snapshot.site.address.map { "\nAddress: \($0)" } ?? ""
         var identity = "Site: \(snapshot.site.label)\(address)\n\(posixTitle(snapshot.display.assetSingular)): \(snapshot.asset.label)"

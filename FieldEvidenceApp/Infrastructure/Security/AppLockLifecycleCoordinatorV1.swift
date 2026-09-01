@@ -288,7 +288,37 @@ actor AppLockLifecycleCoordinatorV1 {
         return coordinator
     }
 
+    /// C16 production bootstrap composition. Before authentication it can
+    /// perform only the ledger's blind metadata expiry purge; content staging
+    /// remains fail-closed until the separate durable ingress authority exists.
+    static func bootstrap(
+        setting: any DeviceLocalAppLockSettingPortV1,
+        authentication: any LocalAuthenticationClient,
+        ownedStorageLedger: OwnedStorageLedgerV1,
+        notifications: any AppLockNotificationPrivacyPortV1,
+        clock: any ApplicationClock,
+        identifiers: any ApplicationIDSource
+    ) async throws -> AppLockLifecycleCoordinatorV1 {
+        let effects = OwnedStorageLedgerProtectedIngressEffectV1(ledger: ownedStorageLedger)
+        return try await bootstrap(
+            setting: setting,
+            authentication: authentication,
+            ingressStore: InjectedProtectedIngressStoreV1(effects: effects),
+            notifications: notifications,
+            clock: clock,
+            identifiers: identifiers
+        )
+    }
+
     func accessGate() -> AppAccessGateV1 { gate }
+
+    /// Returns a reason-bearing, nonpersistent permit for a C16 ingress. The
+    /// coordinator never caches permits across lock/background transitions.
+    func requireContentAccess(
+        for surface: AppAccessContentReadSurfaceV1
+    ) async throws -> AppAccessContentPermitV1 {
+        try await gate.requireContentAccess(for: surface)
+    }
 
     func protectedIngress() -> ProtectedIngressCoordinatorV1 { ingress }
 

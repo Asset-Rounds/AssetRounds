@@ -56,6 +56,12 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         }
     }
 
+    func requireContentAccess(
+        for surface: AppAccessContentReadSurfaceV1
+    ) throws -> AppAccessContentPermitV1 {
+        try AppAccessContentPermitV1(surface: surface, state: state)
+    }
+
     func lock(reason: AppLockReasonV1) async {
         // Lock is also the cancellation boundary for an in-flight opt-in
         // attempt. Invalidate its generation before consulting the currently

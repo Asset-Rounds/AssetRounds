@@ -1,0 +1,16 @@
+{
+  "catalogID": "CA8A49F5-7834-4AD1-B9AC-044304E9FD98",
+  "version": 1,
+  "notices": [
+    {
+      "noticeID": "403CE2F5-3B64-4430-93F8-2F00D9C25299",
+      "releaseVersion": "V23-P04-C16",
+      "titleKey": "product.change.workspace-experience.title",
+      "bodyKey": "product.change.workspace-experience.body",
+      "effectiveAt": 1788134400000,
+      "expiresAt": null,
+      "noticeSHA256": "666d4af0582f7b1eb9c01f1ba4d44c3aad1a32bcfa27105d7cbce4c64a859956"
+    }
+  ],
+  "catalogSHA256": "f674c4192e77688522e83f7a58207a54806185e64c941feb5e381e3d8f54d071"
+}

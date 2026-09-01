@@ -23,6 +23,20 @@ struct SearchResponseV1: Equatable, Sendable {
     let suggestions: [SearchSuggestionV1]
 }
 
+extension WorkspaceExperienceSearchScopeV1 {
+    /// C16 deliberately exposes the five workflow scopes, not the broader
+    /// internal index enum. This keeps party records out of product search.
+    var searchScope: SearchScopeV1 {
+        switch self {
+        case .all: return .all
+        case .assets: return .assets
+        case .locations: return .locations
+        case .work: return .work
+        case .reports: return .reports
+        }
+    }
+}
+
 /// Executes bounded, deterministic searches over a disposable local projection.
 /// Canonical records and their commit revision remain the sole source of truth.
 struct SearchCoordinatorV1: Sendable {
@@ -54,6 +68,26 @@ struct SearchCoordinatorV1: Sendable {
             query: query,
             normalizedTokens: normalizedTokens,
             scope: scope,
+            filters: filters,
+            sort: sort,
+            maximumResults: maximumResults,
+            sourceRevision: sourceRevision,
+            permitsTypoSuggestions: permitsTypoSuggestions
+        )
+    }
+
+    func makePlan(
+        query: String,
+        scope: WorkspaceExperienceSearchScopeV1,
+        filters: [SearchFilterV1] = [],
+        sort: SearchSortV1 = .deterministicRelevance,
+        maximumResults: Int = 100,
+        sourceRevision: UInt64,
+        permitsTypoSuggestions: Bool = true
+    ) throws -> SearchQueryPlanV1 {
+        try makePlan(
+            query: query,
+            scope: scope.searchScope,
             filters: filters,
             sort: sort,
             maximumResults: maximumResults,
@@ -126,6 +160,18 @@ struct SearchCoordinatorV1: Sendable {
             ? try Self.suggestions(plan: plan, records: projection.records)
             : []
         return SearchResponseV1(plan: plan, results: results, suggestions: suggestions)
+    }
+
+    /// Query text remains only in the in-memory plan supplied by this call;
+    /// it is never made a device preference or durable navigation state.
+    func search(
+        _ plan: SearchQueryPlanV1,
+        source: SearchSourceRevisionV1,
+        registry: SearchableFieldRegistryV1,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> SearchResponseV1 {
+        _ = try await accessGate.requireContentAccess(for: .search)
+        return try await search(plan, source: source, registry: registry)
     }
 
     /// Locale-independent normalization used both by canonical projectors and

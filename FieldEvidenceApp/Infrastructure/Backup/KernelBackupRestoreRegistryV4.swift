@@ -142,6 +142,24 @@ enum EntityIdentityResolutionKernelBackupRestoreEnrollmentV1 {
     }
 }
 
+enum PracticeWorkspaceKernelBackupRestoreEnrollmentV1 {
+    static let persistentSchemaVersion = 51
+    static let recordsSchemaVersion = 50
+    static let durableFamilies = ["PracticeWorkspaceProvenanceRowV1"]
+    static let absenceMeansReal = true
+    static let cloneForkOmitProvenance = true
+    static let replaceRestorePreservesExactProvenance = true
+
+    static func validate() throws {
+        guard persistentSchemaVersion == WorkspaceExperiencePersistenceBoundaryV1.targetPersistentSchemaVersion,
+              recordsSchemaVersion == PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion,
+              durableFamilies.count == WorkspaceExperiencePersistenceBoundaryV1.durableModelCount,
+              absenceMeansReal, cloneForkOmitProvenance, replaceRestorePreservesExactProvenance else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}
+
 enum C05EvidenceMetadataKernelBackupRestoreEnrollmentV1 {
     static let persistentSchemaVersion = 43
     static let recordsSchemaVersion = 42

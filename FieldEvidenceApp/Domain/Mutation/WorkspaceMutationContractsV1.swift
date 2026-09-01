@@ -175,6 +175,7 @@ enum WorkspaceEntityKindV1: String, CaseIterable, Codable, Sendable {
     case exceptionQueueAcknowledgement
     case entityAliasLink
     case entityConsolidationReceipt
+    case practiceWorkspaceProvenance
 }
 
 struct WorkspaceEntityIdentityV1: Codable, Hashable, Sendable {
@@ -2648,6 +2649,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applyFastSurveyInbox(FastSurveyInboxMutationCommandV1)
     case applyReinspectionException(ReinspectionExceptionMutationCommandV1)
     case applyEntityIdentityResolution(EntityIdentityResolutionMutationCommandV1)
+    case applyWorkspaceExperience(WorkspaceExperienceMutationCommandV1)
 
     var kind: WorkspaceCommandKindV1 {
         switch self {
@@ -2709,6 +2711,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applyFastSurveyInbox: .applyFastSurveyInbox
         case .applyReinspectionException: .applyReinspectionException
         case .applyEntityIdentityResolution: .applyEntityIdentityResolution
+        case .applyWorkspaceExperience: .applyWorkspaceExperience
         }
     }
 }
@@ -2772,6 +2775,42 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applyFastSurveyInbox="apply_fast_survey_inbox_v1"
     case applyReinspectionException="apply_reinspection_exception_v1"
     case applyEntityIdentityResolution="apply_entity_identity_resolution_v1"
+    case applyWorkspaceExperience="apply_workspace_experience_v1"
+}
+
+struct WorkspaceExperienceMutationCommandV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let expectedRevision: MutationPortableExpectedRevisionV1
+    let mutationID: MutationIDV1
+    let plan: StarterWorkspaceInstallPlanV1
+    let installReceipt: StarterWorkspaceInstallReceiptV1
+    let provenance: PracticeWorkspaceProvenanceV1
+
+    func validateForCanonicalWriter() throws {
+        try plan.validate()
+        try installReceipt.validate(plan: plan)
+        try provenance.validate(plan: plan, receipt: installReceipt)
+        let identity = try affectedIdentityForCanonicalWriter()
+        let expected = expectedRevision.entityRevisions.filter { $0.identity == identity }
+        let (nextWorkspaceRevision, overflow) = expectedRevision.workspaceRevision.addingReportingOverflow(1)
+        guard !overflow,
+              workspaceID == plan.workspaceID,
+              workspaceID == provenance.workspaceID,
+              mutationID == plan.mutationID,
+              expectedRevision.workspaceID == workspaceID,
+              installReceipt.resultingWorkspaceRevision == nextWorkspaceRevision,
+              expected.count == 1,
+              expected[0].revision == 0,
+              provenance.revision == 1 else {
+            throw WorkspaceExperienceFailureV1.staleRevision
+        }
+    }
+
+    func validate() throws { try validateForCanonicalWriter() }
+
+    func affectedIdentityForCanonicalWriter() throws -> WorkspaceEntityIdentityV1 {
+        try .init(kind: .practiceWorkspaceProvenance, id: provenance.provenanceID)
+    }
 }
 
 extension EvidenceQualityMutationCommandV1 {

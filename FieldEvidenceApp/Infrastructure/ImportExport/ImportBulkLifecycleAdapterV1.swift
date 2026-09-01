@@ -49,6 +49,14 @@ final class ImportBulkLifecycleAdapterV1 {
         return value
     }
 
+    func durableSession(
+        sessionID: UUID,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> BulkSessionV1? {
+        _ = try await accessGate.requireContentAccess(for: .bulkImport)
+        return try durableSession(sessionID: sessionID)
+    }
+
     /// Immutable receipt persistence is a canonical writer mutation. A retry
     /// reads back the exact immutable row before reissuing the same operation.
     func record(receipt: BulkCommitReceiptV1) throws {

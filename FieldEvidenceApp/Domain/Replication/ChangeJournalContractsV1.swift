@@ -716,6 +716,7 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
         try FastSurveyInboxJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try ReinspectionExceptionJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try EntityIdentityResolutionJournalContractV1.validate(envelope: envelope, receipt: receipt, entityChanges: entityChanges)
+        try WorkspaceExperienceJournalContractV1.validate(envelope: envelope, receipt: receipt, entityChanges: entityChanges)
         let receiptIdentities = try receipt.postImages.map { try $0.identity }
         let locationIdentities = try envelope.command.canonicalLocationAffectedIdentities()
         guard schemaVersion == Self.schemaVersion, envelope.workspaceID == receipt.identity.workspaceID, envelope.replicaID == receipt.identity.replicaID, envelope.mutationID == receipt.mutationID, receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
@@ -945,6 +946,27 @@ enum EntityIdentityResolutionJournalContractV1 {
               let prior = expected[identity], receipt.postImages[0].revision == prior + 1 else {
             throw ChangeJournalFailureV1.tamperedBatch
         }
+    }
+}
+
+enum WorkspaceExperienceJournalContractV1 {
+    static func validate(
+        envelope: MutationEnvelopeV1,
+        receipt: MutationReceiptV1,
+        entityChanges: [EntityChangeV1]
+    ) throws {
+        guard case let .applyWorkspaceExperience(command) = envelope.command else { return }
+        try command.validateForCanonicalWriter()
+        let images = try command.mutationPostImages
+        guard envelope.commandKind == .applyWorkspaceExperience,
+              envelope.mutationID == command.mutationID,
+              receipt.mutationID == command.mutationID,
+              receipt.postImages == images,
+              entityChanges.count == 1,
+              entityChanges.map(\.postImage) == images else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
+        _ = try WorkspaceExperienceMutationReceiptV1(command: command, mutationReceipt: receipt)
     }
 }
 

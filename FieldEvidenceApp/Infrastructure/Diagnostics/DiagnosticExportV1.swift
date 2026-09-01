@@ -550,6 +550,15 @@ struct DiagnosticExportService {
         )
         return PreparedDiagnosticExportV1(value: value, canonicalData: canonicalData)
     }
+
+    /// Diagnostics are aggregate-only, but their source counters can still be
+    /// content-derived. Require the same app-access permit as every export.
+    func prepare(
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> PreparedDiagnosticExportV1 {
+        _ = try await accessGate.requireContentAccess(for: .diagnosticExport)
+        return try await prepare()
+    }
 }
 
 enum DiagnosticExportCanonicalEncoderV1 {

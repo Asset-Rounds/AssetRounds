@@ -66,6 +66,21 @@ enum OwnedStorageLedgerFailureV1: Error, Equatable, Sendable {
     case attemptCollision
 }
 
+/// Internal C16 recovery-test seam. Production defaults to `.none`; no
+/// payload is surfaced and only the three durable state-machine boundaries
+/// may be interrupted.
+enum C16IngressHygieneFailureInjectionV1: Equatable, Sendable {
+    case none
+    case afterPrepare
+    case afterEffect
+    case afterReceipt
+
+    func interruptIfTriggered(_ boundary: Self) throws {
+        guard self == boundary, self != .none else { return }
+        throw OwnedStorageLedgerFailureV1.attemptCollision
+    }
+}
+
 /// Process-local admission ledger. Reservations are never canonical or backed
 /// up; relaunch reconstructs owned bytes and adopts only explicitly supplied
 /// active attempts. Storage pressure never authorizes deletion.
@@ -82,6 +97,7 @@ final class OwnedStorageLedgerV1: WorkspaceStorageAdmissionPortV1, @unchecked Se
     private let capacityURL: URL
     private let capacityProvider: CapacityProvider
     private let storagePreflight: StoragePreflightService
+    private let ingressHygieneFailureInjection: C16IngressHygieneFailureInjectionV1
     private let lock = NSLock()
 
     private var volumeIdentity: OwnedStorageVolumeIdentityV1
@@ -96,7 +112,8 @@ final class OwnedStorageLedgerV1: WorkspaceStorageAdmissionPortV1, @unchecked Se
             try url.resourceValues(
                 forKeys: [.volumeAvailableCapacityForImportantUsageKey]
             ).volumeAvailableCapacityForImportantUsage
-        }
+        },
+        ingressHygieneFailureInjection: C16IngressHygieneFailureInjectionV1 = .none
     ) throws {
         let requiredKinds = Set(OwnedStorageRootKindV1.allCases)
         let suppliedKinds = Set(rootURLs.map(\.kind))
@@ -117,6 +134,7 @@ final class OwnedStorageLedgerV1: WorkspaceStorageAdmissionPortV1, @unchecked Se
         capacityURL = parent
         self.capacityProvider = capacityProvider
         storagePreflight = StoragePreflightService(capacityProvider: capacityProvider)
+        self.ingressHygieneFailureInjection = ingressHygieneFailureInjection
         let rootIdentity = try Self.rootIdentity(at: parent)
         volumeIdentity = rootIdentity.volume
         capacityRootInode = rootIdentity.inode
@@ -132,18 +150,179 @@ final class OwnedStorageLedgerV1: WorkspaceStorageAdmissionPortV1, @unchecked Se
             try url.resourceValues(
                 forKeys: [.volumeAvailableCapacityForImportantUsageKey]
             ).volumeAvailableCapacityForImportantUsage
-        }
+        },
+        ingressHygieneFailureInjection: C16IngressHygieneFailureInjectionV1 = .none
     ) throws {
         try self.init(
             rootURLs: OwnedStorageRootV1.closedSet(
                 applicationSupportURL: applicationSupportURL
             ),
-            capacityProvider: capacityProvider
+            capacityProvider: capacityProvider,
+            ingressHygieneFailureInjection: ingressHygieneFailureInjection
         )
     }
 
     func snapshot() -> OwnedStorageSnapshotV1 {
         lock.withLock { makeSnapshot() }
+    }
+
+    /// C16 pre-authentication cleanup reads only immediate directory metadata
+    /// under the sole scratch root. It never opens `lease.json` or any payload
+    /// file. An unexpired, malformed, symlinked, or otherwise uncertain entry
+    /// stops the operation without deleting anything further.
+    func purgeConfidentlyOwnedExpiredScratchMetadata(
+        now: Date,
+        operationID: UUID,
+        minimumAge: TimeInterval = 24 * 60 * 60
+    ) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        try reconcileProtectedIngressHygiene(
+            now: now, operationID: operationID, minimumAge: minimumAge
+        )
+    }
+
+    /// Crash-safe C16 startup hygiene. Preparation is durable before a target
+    /// is removed; the prepared metadata is sufficient to recreate the exact
+    /// final receipt after interruption without opening any payload bytes.
+    func reconcileProtectedIngressHygiene(
+        now: Date,
+        operationID: UUID,
+        minimumAge: TimeInterval = 24 * 60 * 60
+    ) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        guard operationID != SettingsValidationV1.zeroUUID,
+              now.timeIntervalSinceReferenceDate.isFinite,
+              minimumAge > 0, minimumAge.isFinite else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        return try lock.withLock {
+            let request = C16IngressHygieneRequestV1(
+                operationID: operationID, requestedAt: now, minimumAge: minimumAge
+            )
+            let requestDigest = try CompatibilityCanonicalV1.sha256(
+                CompatibilityCanonicalV1.encode(request)
+            )
+            let manager = FileManager.default
+            let directory = try protectedIngressReceiptDirectory()
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+            let prepareFile = try protectedIngressPrepareFile(operationID: operationID)
+            let receiptFile = try protectedIngressReceiptFile(operationID: operationID)
+            let prepare: C16IngressHygienePrepareV1
+            if manager.fileExists(atPath: prepareFile.path) {
+                prepare = try readProtectedIngressPrepare(at: prepareFile)
+                guard prepare.requestDigest == requestDigest else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            } else {
+                guard !manager.fileExists(atPath: receiptFile.path) else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+                prepare = try makeProtectedIngressPrepare(
+                    request: request, requestDigest: requestDigest
+                )
+                try writeProtectedIngressCanonical(
+                    try CompatibilityCanonicalV1.encode(prepare), to: prepareFile
+                )
+                try ingressHygieneFailureInjection.interruptIfTriggered(.afterPrepare)
+            }
+            let expected = try prepare.receipt()
+            if manager.fileExists(atPath: receiptFile.path) {
+                let existing = try readProtectedIngressReceipt(at: receiptFile, operationID: operationID)
+                guard existing == expected else { throw AppAccessContractFailureV1.effectMismatch }
+                if !prepare.finalized {
+                    try writeProtectedIngressCanonical(
+                        try CompatibilityCanonicalV1.encode(prepare.finalizing()), to: prepareFile
+                    )
+                }
+                return existing
+            }
+            for target in prepare.targets {
+                let url = try protectedIngressScratchDirectory().appendingPathComponent(
+                    target.directoryName, isDirectory: true
+                )
+                guard url.deletingLastPathComponent() == try protectedIngressScratchDirectory() else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+                if !manager.fileExists(atPath: url.path) { continue }
+                try validatePreparedIngressTarget(target, at: url)
+                try manager.removeItem(at: url)
+            }
+            try ingressHygieneFailureInjection.interruptIfTriggered(.afterEffect)
+            try writeProtectedIngressCanonical(
+                try CompatibilityCanonicalV1.encode(expected), to: receiptFile
+            )
+            try ingressHygieneFailureInjection.interruptIfTriggered(.afterReceipt)
+            try writeProtectedIngressCanonical(
+                try CompatibilityCanonicalV1.encode(prepare.finalizing()), to: prepareFile
+            )
+            guard try readProtectedIngressReceipt(at: receiptFile, operationID: operationID) == expected else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            return expected
+        }
+    }
+
+    /// Device-local, metadata-only completion receipt. It is deliberately
+    /// outside canonical workspace storage and contains neither a path nor
+    /// any staged/payload bytes. The closed operation-ID filename prevents
+    /// directory traversal and gives interrupted startup an exact readback.
+    func readProtectedIngressHygieneReceipt(
+        operationID: UUID
+    ) throws -> ProtectedIngressStartupHygieneReceiptV1? {
+        guard operationID != SettingsValidationV1.zeroUUID else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        return try lock.withLock {
+            let file = try protectedIngressReceiptFile(operationID: operationID)
+            guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+            let data = try Data(contentsOf: file, options: [.mappedIfSafe])
+            guard data.count <= 4_096 else { throw AppAccessContractFailureV1.configurationUnknown }
+            let decoded = try JSONDecoder().decode(ProtectedIngressStartupHygieneReceiptV1.self, from: data)
+            let validated = try ProtectedIngressStartupHygieneReceiptV1(
+                operationID: decoded.operationID,
+                inspectedCount: decoded.inspectedCount,
+                removedKnownOwnedCount: decoded.removedKnownOwnedCount,
+                retainedValidCount: decoded.retainedValidCount,
+                deferredAmbiguousCount: decoded.deferredAmbiguousCount,
+                contentRead: decoded.contentRead
+            )
+            guard validated == decoded,
+                  decoded.operationID == operationID,
+                  try CompatibilityCanonicalV1.encode(decoded) == data else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            return decoded
+        }
+    }
+
+    func writeProtectedIngressHygieneReceipt(
+        _ value: ProtectedIngressStartupHygieneReceiptV1
+    ) throws {
+        let validated = try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: value.operationID,
+            inspectedCount: value.inspectedCount,
+            removedKnownOwnedCount: value.removedKnownOwnedCount,
+            retainedValidCount: value.retainedValidCount,
+            deferredAmbiguousCount: value.deferredAmbiguousCount,
+            contentRead: value.contentRead
+        )
+        guard validated == value, !value.contentRead else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let data = try CompatibilityCanonicalV1.encode(value)
+        guard data.count <= 4_096 else { throw AppAccessContractFailureV1.configurationUnknown }
+        try lock.withLock {
+            let manager = FileManager.default
+            let directory = try protectedIngressReceiptDirectory()
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+            let file = try protectedIngressReceiptFile(operationID: value.operationID)
+            if manager.fileExists(atPath: file.path) {
+                return
+            }
+            try data.write(to: file, options: .atomic)
+            try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: file)
+        }
+        guard try readProtectedIngressHygieneReceipt(operationID: value.operationID) == value else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
     }
 
     func reserve(
@@ -288,6 +467,234 @@ final class OwnedStorageLedgerV1: WorkspaceStorageAdmissionPortV1, @unchecked Se
             scannedEntryCount: scannedEntryCount
         )
     }
+
+    private func protectedIngressReceiptDirectory() throws -> URL {
+        guard let operations = roots.first(where: { $0.kind == .operations })?.url else {
+            throw OwnedStorageLedgerFailureV1.invalidRoot
+        }
+        return operations.appendingPathComponent("ProtectedIngressReceiptsV1", isDirectory: true)
+    }
+
+    private func protectedIngressScratchDirectory() throws -> URL {
+        guard let operations = roots.first(where: { $0.kind == .operations })?.url else {
+            throw OwnedStorageLedgerFailureV1.invalidRoot
+        }
+        return operations.appendingPathComponent("ScratchDataV1", isDirectory: true)
+    }
+
+    private func protectedIngressReceiptFile(operationID: UUID) throws -> URL {
+        guard operationID != SettingsValidationV1.zeroUUID else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        return try protectedIngressReceiptDirectory().appendingPathComponent(
+            "hygiene-" + operationID.uuidString.lowercased() + ".json",
+            isDirectory: false
+        )
+    }
+
+    private func protectedIngressPrepareFile(operationID: UUID) throws -> URL {
+        guard operationID != SettingsValidationV1.zeroUUID else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        return try protectedIngressReceiptDirectory().appendingPathComponent(
+            "hygiene-" + operationID.uuidString.lowercased() + ".prepare.json",
+            isDirectory: false
+        )
+    }
+
+    private func makeProtectedIngressPrepare(
+        request: C16IngressHygieneRequestV1,
+        requestDigest: String
+    ) throws -> C16IngressHygienePrepareV1 {
+        let manager = FileManager.default
+        let scratch = try protectedIngressScratchDirectory()
+        guard manager.fileExists(atPath: scratch.path) else {
+            return try .init(request: request, requestDigest: requestDigest, targets: [], finalized: false)
+        }
+        let urls = try manager.contentsOfDirectory(
+            at: scratch,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ).sorted { $0.lastPathComponent < $1.lastPathComponent }
+        guard urls.count <= ProtectedIngressStartupHygieneReceiptV1.maximumInspectedCount else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let cutoff = request.requestedAt.addingTimeInterval(-request.minimumAge)
+        let targets = try urls.map { url -> C16IngressHygieneTargetV1 in
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey])
+            guard values.isDirectory == true, values.isSymbolicLink != true,
+                  Self.isConfidentScratchLeaseDirectoryName(url.lastPathComponent),
+                  let modified = values.contentModificationDate,
+                  modified.timeIntervalSinceReferenceDate.isFinite,
+                  modified <= cutoff else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            return try .init(directoryName: url.lastPathComponent, modifiedAt: modified)
+        }
+        return try .init(request: request, requestDigest: requestDigest, targets: targets, finalized: false)
+    }
+
+    private func validatePreparedIngressTarget(
+        _ target: C16IngressHygieneTargetV1,
+        at url: URL
+    ) throws {
+        let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true,
+              url.lastPathComponent == target.directoryName,
+              Self.isConfidentScratchLeaseDirectoryName(target.directoryName),
+              values.contentModificationDate == target.modifiedAt else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+    }
+
+    private func readProtectedIngressPrepare(at file: URL) throws -> C16IngressHygienePrepareV1 {
+        let data = try Data(contentsOf: file, options: [.mappedIfSafe])
+        guard data.count <= 16_384 else { throw AppAccessContractFailureV1.configurationUnknown }
+        let value = try JSONDecoder().decode(C16IngressHygienePrepareV1.self, from: data)
+        try value.validate()
+        guard try CompatibilityCanonicalV1.encode(value) == data else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return value
+    }
+
+    private func readProtectedIngressReceipt(
+        at file: URL,
+        operationID: UUID
+    ) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        let data = try Data(contentsOf: file, options: [.mappedIfSafe])
+        guard data.count <= 4_096 else { throw AppAccessContractFailureV1.configurationUnknown }
+        let decoded = try JSONDecoder().decode(ProtectedIngressStartupHygieneReceiptV1.self, from: data)
+        let validated = try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: decoded.operationID, inspectedCount: decoded.inspectedCount,
+            removedKnownOwnedCount: decoded.removedKnownOwnedCount,
+            retainedValidCount: decoded.retainedValidCount,
+            deferredAmbiguousCount: decoded.deferredAmbiguousCount, contentRead: decoded.contentRead
+        )
+        guard decoded == validated, decoded.operationID == operationID,
+              try CompatibilityCanonicalV1.encode(decoded) == data else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return decoded
+    }
+
+    private func writeProtectedIngressCanonical(_ data: Data, to file: URL) throws {
+        guard data.count <= 16_384, file.deletingLastPathComponent() == try protectedIngressReceiptDirectory() else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try data.write(to: file, options: .atomic)
+        try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: file)
+    }
+}
+
+private extension OwnedStorageLedgerV1 {
+    static func isConfidentScratchLeaseDirectoryName(_ value: String) -> Bool {
+        ScratchDataPurposeV1.allCases.contains { purpose in
+            let prefix = purpose.rawValue.lowercased() + "-"
+            guard value.hasPrefix(prefix) else { return false }
+            let suffix = String(value.dropFirst(prefix.count))
+            return UUID(uuidString: suffix)?.uuidString.lowercased() == suffix
+        }
+    }
+}
+
+private struct C16IngressHygieneRequestV1: Codable, Equatable {
+    let operationID: UUID
+    let requestedAt: Date
+    let minimumAge: TimeInterval
+}
+
+private struct C16IngressHygieneTargetV1: Codable, Equatable, Comparable {
+    let directoryName: String
+    let modifiedAt: Date
+
+    init(directoryName: String, modifiedAt: Date) throws {
+        guard OwnedStorageLedgerV1.isConfidentScratchLeaseDirectoryName(directoryName),
+              modifiedAt.timeIntervalSinceReferenceDate.isFinite else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        self.directoryName = directoryName
+        self.modifiedAt = modifiedAt
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.directoryName < rhs.directoryName }
+}
+
+private struct C16IngressHygienePrepareV1: Codable, Equatable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let request: C16IngressHygieneRequestV1
+    let requestDigest: String
+    let targets: [C16IngressHygieneTargetV1]
+    let finalized: Bool
+
+    init(
+        request: C16IngressHygieneRequestV1,
+        requestDigest: String,
+        targets: [C16IngressHygieneTargetV1],
+        finalized: Bool
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.request = request
+        self.requestDigest = requestDigest
+        self.targets = targets.sorted()
+        self.finalized = finalized
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              request.operationID != SettingsValidationV1.zeroUUID,
+              request.requestedAt.timeIntervalSinceReferenceDate.isFinite,
+              request.minimumAge > 0, request.minimumAge.isFinite,
+              CompatibilityCanonicalV1.validSHA256(requestDigest),
+              targets.count <= ProtectedIngressStartupHygieneReceiptV1.maximumInspectedCount,
+              targets == targets.sorted(), Set(targets.map(\.directoryName)).count == targets.count else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let expected = try CompatibilityCanonicalV1.sha256(
+            CompatibilityCanonicalV1.encode(request)
+        )
+        guard requestDigest == expected else { throw AppAccessContractFailureV1.configurationUnknown }
+    }
+
+    func receipt() throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        try ProtectedIngressStartupHygieneReceiptV1(
+            operationID: request.operationID, inspectedCount: targets.count,
+            removedKnownOwnedCount: targets.count, retainedValidCount: 0,
+            deferredAmbiguousCount: 0, contentRead: false
+        )
+    }
+
+    func finalizing() throws -> Self {
+        try Self(request: request, requestDigest: requestDigest, targets: targets, finalized: true)
+    }
+}
+
+/// Concrete C16 durable effect for startup hygiene. The non-hygiene methods
+/// fail closed: staging/content ingress is not enabled until its separate
+/// durable authority is composed by the S10.6-owned caller.
+actor OwnedStorageLedgerProtectedIngressEffectV1: ProtectedIngressDurableEffectPortV1 {
+    private let ledger: OwnedStorageLedgerV1
+
+    init(ledger: OwnedStorageLedgerV1) { self.ledger = ledger }
+
+    func performBlindStartupHygieneEffect(now: Date, operationID: UUID) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        try ledger.reconcileProtectedIngressHygiene(now: now, operationID: operationID)
+    }
+
+    func readBlindStartupHygieneReceiptEffect(operationID: UUID) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        guard let value = try ledger.readProtectedIngressHygieneReceipt(operationID: operationID) else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        return value
+    }
+
+    func loadPendingIntentsEffect() -> [PendingLockedExternalIntentV1] { [] }
+    func stageContentBlindEffect(_ request: ProtectedIngressStageRequestV1, source: URL) throws -> PendingLockedExternalIntentV1 { throw AppAccessContractFailureV1.configurationUnknown }
+    func replacePendingIntentEffect(expected: PendingLockedExternalIntentV1, replacement: PendingLockedExternalIntentV1) throws { throw AppAccessContractFailureV1.configurationUnknown }
+    func removePendingIntentEffect(expected: PendingLockedExternalIntentV1, disposition: LockedIngressDispositionV1) throws { throw AppAccessContractFailureV1.configurationUnknown }
+    func erasePendingIntentsEffect(operationID: UUID) throws { throw AppAccessContractFailureV1.configurationUnknown }
 }
 
 private extension OwnedStorageLedgerV1 {
@@ -562,6 +969,16 @@ enum ScratchDataLeaseStoreFailureV1: Error, Equatable, Sendable {
     case sizeLimitExceeded
     case protectedDataUnavailable
     case insufficientCapacity
+}
+
+/// Startup before authentication may only remove confidently owned expired
+/// scratch by metadata. It must never decode, traverse, index, or render
+/// payloads; authenticated lifecycle recovery owns every richer operation.
+enum WorkspaceExperiencePreAuthenticationScratchPolicyV1 {
+    static let permitsBlindMetadataExpiryPurge = true
+    static let permitsPayloadDecode = false
+    static let permitsPayloadTraversal = false
+    static let permitsPayloadIndexing = false
 }
 
 private final class PinnedScratchRootV1: @unchecked Sendable {

@@ -388,3 +388,33 @@ enum SyncClassificationRegistryFailureV1: Error, Equatable {
     case conflictingPolicy
     case incompleteInventory
 }
+
+/// C16's only newly replicated subject is the provenance row enrolled by the
+/// closed current catalog. Device-local selections/acknowledgements and all
+/// plans/catalogs/projections are intentionally absent from this baseline
+/// registry and from replication transport.
+enum C16WorkspaceExperienceSyncClassificationBoundaryV1 {
+    static let replicatedPersistentModelName = "PracticeWorkspaceProvenanceRowV1"
+    static let derivedEnvelopeName = "StoreSemanticEnvelopeV51"
+    static let deviceLocalTypeNames = Set([
+        "ActiveWorkspaceSelectionV1", "NoticeAcknowledgementV1",
+    ])
+    static let nonpersistentTypeNames = Set([
+        "StarterWorkspaceInstallPlanV1", "StarterWorkspaceInstallReceiptV1",
+        "PracticeWorkspaceResetPlanV1", "ConfigurationClonePlanV1",
+        "StarterWorkspaceTemplateReleaseV1", "ProductChangeCatalogReleaseV1",
+        "ContextualGuidanceCatalogV1", "SettingsProjectionV1",
+        "FirstValueProjectionV1", "NextRequiredActionProjectionV1",
+        "WorkspaceResumeProjectionV1", "LocationManagementProjectionV1",
+        "FirstRealJobConductorProjectionV1", "TodayUpdateProjectionV1",
+        "ContextualGuidanceProjectionV1", "PracticeShareConfirmationV1",
+    ])
+
+    static func validate() -> Bool {
+        replicatedPersistentModelName == "PracticeWorkspaceProvenanceRowV1"
+            && derivedEnvelopeName == "StoreSemanticEnvelopeV51"
+            && deviceLocalTypeNames.count == 2
+            && nonpersistentTypeNames.count == 16
+            && deviceLocalTypeNames.isDisjoint(with: nonpersistentTypeNames)
+    }
+}

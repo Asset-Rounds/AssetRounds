@@ -1014,3 +1014,19 @@ enum EntityIdentityResolutionKernelDeletionEraseEnrollmentV1 {
         }
     }
 }
+
+enum PracticeWorkspaceKernelDeletionEraseEnrollmentV1 {
+    static let durableFamilies = ["PracticeWorkspaceProvenanceRowV1"]
+    static let ordinaryEntityDeletePreservesWorkspaceProvenance = true
+    static let practiceResetRequiresWholeWorkspaceDeletion = true
+    static let automaticallyReinstallAfterReset = false
+
+    static func validate() throws {
+        guard durableFamilies.count == WorkspaceExperiencePersistenceBoundaryV1.durableModelCount,
+              ordinaryEntityDeletePreservesWorkspaceProvenance,
+              practiceResetRequiresWholeWorkspaceDeletion,
+              !automaticallyReinstallAfterReset else {
+            throw KernelPersistenceV4Failure.incompleteCoverage
+        }
+    }
+}

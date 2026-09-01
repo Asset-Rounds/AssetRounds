@@ -17,6 +17,15 @@ enum C50IncumbentFileExchangeWholeSignDeletionServiceBoundaryV1 {
 
 enum SurveySessionWholeSignDeletionEnrollmentV1{static func validate()throws{try SurveySessionDeletionLedgerPolicyV1.validate();guard SurveySessionDeletionLedgerPolicyV1.ordinaryAssetOrSiteDeleteRetainsFrozenPublications else{throw DeletionLedgerFailureV2.invalidSchemaVersion}}}
 
+enum PracticeWorkspaceWholeSignDeletionBoundaryV1 {
+    static func validate() throws {
+        try PracticeWorkspaceKernelDeletionEraseEnrollmentV1.validate()
+        guard PracticeWorkspaceKernelDeletionEraseEnrollmentV1.ordinaryEntityDeletePreservesWorkspaceProvenance else {
+            throw DeletionLedgerFailureV2.invalidSchemaVersion
+        }
+    }
+}
+
 enum C30EvidenceContextWholeSignDeletionServiceV1 {
     static let ordinaryDeletionRetainsContexts = true
     static let ordinaryDeletionRetainsPairedLinks = true

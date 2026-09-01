@@ -31,6 +31,7 @@ struct SceneNavigationSnapshotV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
+        try WorkspaceExperienceRouteBoundaryV1.validate()
         guard schemaVersion == Self.schemaVersion, workspaceID.rawValue != RouteContractValidationV1.zeroUUID,
               snapshotID != RouteContractValidationV1.zeroUUID,
               paths.map(\.root) == AppRootV1.frozenOrder else { throw SceneNavigationFailureV1.invalidSnapshot }
@@ -156,4 +157,6 @@ struct SceneNavigationLifecycleDispositionV1: Codable, Equatable, Sendable {
     let searchIncluded = false
     let eraseClears = true
     let tolerantDecode = true
+    let activeWorkspaceSelectionIsDeviceLocal = true
+    let activeWorkspaceSelectionIsBackedUp = false
 }

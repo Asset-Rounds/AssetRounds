@@ -14,6 +14,19 @@ struct ProductionSignWorkflow {
 
 @MainActor
 final class ProductionCompositionRoot {
+    /// S10.6 owns shipping UI composition. C16 provides only gated overloads;
+    /// legacy UI callers remain deliberately unaccepted until reconciliation.
+    static let c16AccessGateProductionAdoptionComplete = false
+
+    /// This composition is intentionally limited to the pre-auth metadata
+    /// purge. It does not unlock, open a workspace, or adopt any S10 UI route.
+    func makePreAuthenticationIngressStore(
+        ownedStorageLedger: OwnedStorageLedgerV1
+    ) -> any ProtectedIngressStoreV1 {
+        let effects = OwnedStorageLedgerProtectedIngressEffectV1(ledger: ownedStorageLedger)
+        return InjectedProtectedIngressStoreV1(effects: effects)
+    }
+
     private let modelContext: ModelContext
     private let diagnosticsStore: DiagnosticsStore
     private let lifecycle: WorkspacePackageLifecycleDependenciesV1
@@ -92,6 +105,26 @@ final class ProductionCompositionRoot {
             reportHistory: reportHistory,
             work: work,
             deletion: deletion
+        )
+    }
+
+    /// Composition may create content-facing coordinators only after the
+    /// caller has obtained a foreground app-access permit.
+    func makeSignWorkflow(
+        signPack: SignPack,
+        requirementEvaluatorRegistry registryOverride: RequirementEvaluatorRegistryV1? = nil,
+        accessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil,
+        accessGate: any AppAccessGatePortV1
+    ) async throws -> ProductionSignWorkflow {
+        guard Self.c16AccessGateProductionAdoptionComplete
+                == WorkspaceExperienceAppAccessAdoptionBoundaryV1.productionCallerAdoptionComplete else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        _ = try await accessGate.requireContentAccess(for: .render)
+        return try makeSignWorkflow(
+            signPack: signPack,
+            requirementEvaluatorRegistry: registryOverride,
+            accessState: accessState
         )
     }
 

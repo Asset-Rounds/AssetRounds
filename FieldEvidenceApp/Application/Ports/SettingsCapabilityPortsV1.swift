@@ -30,6 +30,17 @@ protocol PrivateSystemDiscoveryPreferencePortV1: Sendable {
 
 extension PreferencesAdapterV1: PrivateSystemDiscoveryPreferencePortV1 {}
 
+/// Typed C16 device-local settings boundary. No caller receives a raw defaults
+/// key, and neither value participates in backup, restore, clone, or export.
+protocol WorkspaceExperienceDevicePreferencesPortV1: Sendable {
+    func activeWorkspaceSelection() throws -> ActiveWorkspaceSelectionV1?
+    func setActiveWorkspaceSelection(_ value: ActiveWorkspaceSelectionV1?, operationID: UUID) throws
+    func noticeAcknowledgement() throws -> NoticeAcknowledgementV1?
+    func setNoticeAcknowledgement(_ value: NoticeAcknowledgementV1?, operationID: UUID) throws
+}
+
+extension PreferencesAdapterV1: WorkspaceExperienceDevicePreferencesPortV1 {}
+
 struct WorkspaceSettingWriteCommandV1: Sendable {
     let workspaceID: UUID
     let key: String

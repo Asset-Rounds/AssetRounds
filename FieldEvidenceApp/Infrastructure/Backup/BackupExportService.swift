@@ -2647,6 +2647,14 @@ private extension BackupExportService {
                 mutationReceipts: receipts
             )
         }()
+        let practiceWorkspaceProvenance: PracticeWorkspaceBackupSnapshotV1? = try {
+            let rows = try modelContext.fetch(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>())
+                .filter { $0.workspaceID == sourceIdentity.workspaceID.rawValue }
+            guard rows.count <= 1 else { throw BackupExportServiceError.invalidAuthority }
+            guard let row = rows.first else { return nil }
+            guard mutationHistory != nil else { throw BackupExportServiceError.invalidAuthority }
+            return try PracticeWorkspaceBackupSnapshotV1(provenance: row.value())
+        }()
         return V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
@@ -2716,7 +2724,7 @@ private extension BackupExportService {
             partyAccountability: try partyAccountabilityRecords(rows),
             recordsSchemaVersion: mutationHistory == nil
                 ? (deletionLedger == nil ? 1 : 2)
-                : EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion,
+                : PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion,
             reports: rows.reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -2779,7 +2787,8 @@ private extension BackupExportService {
              evidenceQuality: evidenceQuality,
              fastSurveyInbox: fastSurveyInbox,
              reinspectionExceptionQueue: reinspectionExceptionQueue,
-             entityIdentityResolution: entityIdentityResolution
+             entityIdentityResolution: entityIdentityResolution,
+             practiceWorkspaceProvenance: practiceWorkspaceProvenance
          )
     }
 

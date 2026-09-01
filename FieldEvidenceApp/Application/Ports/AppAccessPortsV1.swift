@@ -327,10 +327,24 @@ protocol AppAccessGatePortV1: Sendable {
     func authenticate(trigger: LocalAuthenticationTriggerV1) async
         -> LocalAuthenticationOutcomeV1
     func requireContentAccess() async throws
+    /// Must be one gate operation: implementations may not read a state and
+    /// later mint a permit from a second actor turn.
+    func requireContentAccess(
+        for surface: AppAccessContentReadSurfaceV1
+    ) async throws -> AppAccessContentPermitV1
 }
 
 extension AppAccessGatePortV1 {
-    func requirePrivateSystemDiscoveryAccess() async throws {
+    /// Compatibility implementation for nonproduction test doubles. The
+    /// production actor overrides this protocol requirement atomically.
+    func requireContentAccess(
+        for surface: AppAccessContentReadSurfaceV1
+    ) async throws -> AppAccessContentPermitV1 {
         try await requireContentAccess()
+        return .legacyAuthorized(surface: surface)
+    }
+
+    func requirePrivateSystemDiscoveryAccess() async throws {
+        _ = try await requireContentAccess(for: .privateSystemDiscovery)
     }
 }
