@@ -57,6 +57,19 @@ final class V9_83GuidedSurveyFlowTests: XCTestCase {
         XCTAssertTrue(value.cases.contains { $0.scenario == "archive traversal" })
         XCTAssertTrue(value.cases.contains { $0.scenario == "report exposes hidden prior fact" })
         XCTAssertTrue(value.cases.contains { $0.scenario == "private direction field" })
+        XCTAssertTrue(value.cases.contains { $0.scenario == "foreign review session tuple" })
+        XCTAssertTrue(value.cases.contains { $0.scenario == "foreign resume session tuple" })
+
+        let expected = GuidedSurveySessionTupleV1(
+            workspaceID: WorkspaceID(rawValue: UUID()), sessionID: UUID(),
+            sessionRevision: 3, sessionSHA256: String(repeating: "a", count: 64)
+        )
+        let foreign = GuidedSurveySessionTupleV1(
+            workspaceID: WorkspaceID(rawValue: UUID()), sessionID: expected.sessionID,
+            sessionRevision: expected.sessionRevision, sessionSHA256: expected.sessionSHA256
+        )
+        try expected.validate()
+        XCTAssertThrowsError(try foreign.validate(matches: expected))
     }
 
     func testV23P04C20I01PauseKillResumeAndPublishRecoveryRemainIdempotent() throws {

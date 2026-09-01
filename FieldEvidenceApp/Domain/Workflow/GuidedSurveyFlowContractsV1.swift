@@ -41,6 +41,25 @@ enum SurveyDefinitionLibraryActionV1: String, Codable, CaseIterable, Hashable, S
     case previewSemanticAdoption = "PREVIEW_SEMANTIC_ADOPTION"
 }
 
+struct GuidedSurveySessionTupleV1: Codable, Equatable, Hashable, Sendable {
+    let workspaceID: WorkspaceID
+    let sessionID: UUID
+    let sessionRevision: UInt64
+    let sessionSHA256: String
+
+    func validate() throws {
+        guard sessionID != SurveyDefinitionLimitsV1.zero, sessionRevision > 0,
+              KernelCanonicalHashV1.validSHA256(sessionSHA256) else {
+            throw GuidedSurveyFlowFailureV1.invalidValue
+        }
+    }
+
+    func validate(matches expected: Self) throws {
+        try validate(); try expected.validate()
+        guard self == expected else { throw GuidedSurveyFlowFailureV1.staleSource }
+    }
+}
+
 struct SurveyAuthoringPolicyV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int
@@ -92,6 +111,15 @@ struct GuidedSurveyResumeContextV1: Codable, Equatable, Hashable, Sendable {
     let subject: SurveySessionSubjectV1
     let factID: String?
     let repeatCoordinates: [SurveyRepeatCoordinateV1]
+
+    var sessionTuple: GuidedSurveySessionTupleV1 {
+        .init(workspaceID: workspaceID, sessionID: sessionID,
+              sessionRevision: sessionRevision, sessionSHA256: sessionSHA256)
+    }
+
+    func validate(sessionTuple expected: GuidedSurveySessionTupleV1) throws {
+        try sessionTuple.validate(matches: expected)
+    }
 
     func validate(session: SurveySessionV1, definition: SurveyDefinitionReleaseV1) throws {
         try session.validate(definition: definition); try subject.validate()
@@ -196,6 +224,11 @@ struct SurveyReviewStateV1: Codable, Equatable, Sendable {
     let frozenPublication: SurveyPublicationReferenceV1?
     let reviewSHA256: String
 
+    var sessionTuple: GuidedSurveySessionTupleV1 {
+        .init(workspaceID: workspaceID, sessionID: sessionID,
+              sessionRevision: sessionRevision, sessionSHA256: sessionSHA256)
+    }
+
     init(session: SurveySessionV1, missingRequirements: [GuidedSurveyMissingRequirementV1],
          conflictFactIDs: [String], publication: SurveyPublicationSnapshotV1?) throws {
         try session.validateIntrinsic(); try publication?.validateIntrinsic()
@@ -216,6 +249,7 @@ struct SurveyReviewStateV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
+        try sessionTuple.validate()
         try frozenPublication?.validate()
         guard missingRequirements == missingRequirements.sorted(),
               Set(missingRequirements).count == missingRequirements.count,
@@ -225,6 +259,10 @@ struct SurveyReviewStateV1: Codable, Equatable, Sendable {
               reviewSHA256 == (try WorkspaceMutationCanonicalV1.sha256(basis)) else {
             throw GuidedSurveyFlowFailureV1.invalidValue
         }
+    }
+
+    func validate(sessionTuple expected: GuidedSurveySessionTupleV1) throws {
+        try validate(); try sessionTuple.validate(matches: expected)
     }
 
     private var basis: Basis { .init(workspaceID: workspaceID, sessionID: sessionID, sessionRevision: sessionRevision, sessionSHA256: sessionSHA256, missingRequirements: missingRequirements, conflictFactIDs: conflictFactIDs, mayPublish: mayPublish, frozenPublication: frozenPublication) }
@@ -252,6 +290,11 @@ struct GuidedSurveyFlowV1: Codable, Equatable, Sendable {
     let favorite: Bool
     let recentOrdinal: Int?
     let flowSHA256: String
+
+    var sessionTuple: GuidedSurveySessionTupleV1 {
+        .init(workspaceID: workspaceID, sessionID: sessionID,
+              sessionRevision: sessionRevision, sessionSHA256: sessionSHA256)
+    }
 
     init(workspaceID: WorkspaceID, definition: SurveyDefinitionReleaseV1,
          identity: SurveyDefinitionIdentityV1, lifecycleEvent: SurveyDefinitionLifecycleEventV1,
@@ -295,7 +338,9 @@ struct GuidedSurveyFlowV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
-        try definition.validate(); try poseRequirement.validate(); try review.validate()
+        try definition.validate(); try poseRequirement.validate(); try sessionTuple.validate()
+        try review.validate(sessionTuple: sessionTuple)
+        try resumeContext.validate(sessionTuple: sessionTuple)
         try priorFacts.forEach { try $0.validate() }
         guard (0...1_000_000).contains(sectionProgressMillionths),
               missingRequirements == missingRequirements.sorted(),

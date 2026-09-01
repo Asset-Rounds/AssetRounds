@@ -45,6 +45,12 @@ def semantics(ready):
  if miss: raise ValueError("C20 source semantics missing:"+','.join(miss))
  if any(s not in test for s in SELECTORS): raise ValueError("C20 exact selector missing")
  if "45" not in test or "45" not in by.get("FieldEvidenceAppTests/Fixtures/V23/Surveys/V23P04C20GuidedSurveyFlowCorpusV1.json",""): raise ValueError("C20 hostile corpus must be exactly 45")
+ flow=by.get("FieldEvidenceApp/Domain/Workflow/GuidedSurveyFlowContractsV1.swift",""); corpus=by.get("FieldEvidenceAppTests/Fixtures/V23/Surveys/V23P04C20GuidedSurveyFlowCorpusV1.json","")
+ tuple_tokens=("struct GuidedSurveySessionTupleV1","func validate(sessionTuple expected: GuidedSurveySessionTupleV1)","try review.validate(sessionTuple: sessionTuple)","try resumeContext.validate(sessionTuple: sessionTuple)","workspaceID: workspaceID, sessionID: sessionID","sessionRevision: sessionRevision, sessionSHA256: sessionSHA256")
+ if any(x not in flow for x in tuple_tokens): raise ValueError("C20 review/resume enclosing-flow tuple binding missing")
+ test_hostile=("foreign review session tuple","foreign resume session tuple","GuidedSurveySessionTupleV1")
+ corpus_hostile=("foreign review session tuple","foreign resume session tuple","stale resume session revision")
+ if any(x not in test for x in test_hostile) or any(x not in corpus for x in corpus_hostile): raise ValueError("C20 tuple hostile coverage missing")
  if ui.count("XCTSkip")!=5: raise ValueError("C20 UI skip count differs")
  required=("QUARANTINE","FRESH_DRAFT","StreamingArchive","favorite","recent","publish","retire","duplicate","import","resume","promotion","report","search","backup","restore","clone","fork","delete","erase","replay")
  miss=[x for x in required if x not in t]
