@@ -31,6 +31,12 @@ c26_refinement="docs/product/discovery/V23P04C26DiscoveryTruthCatalogRefinementR
 c26_metadata="docs/product/discovery/V23P04C26MetadataEvidenceReportV1.json"
 c26_accessibility="docs/accessibility/V23P04C26SupportContentAccessibilityManifestV1.json"
 c26_corpus="FieldEvidenceAppTests/Fixtures/V21/DiscoveryTruth/V23P04C26OrganicFindabilityCorpusV1.json"
+c27_inventory="docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json"
+c27_corpus="FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C27BrandHIGStateInventoryCorpusV1.json"
+c27_contract="docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryContractV1.json"
+c27_evidence="docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryEvidenceReceiptV1.json"
+c27_impact="docs/design/v23/tooling/V23P04C27BrandImpactManifestV1.json"
+c27_tooling_manifest="docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json"
 export_options="Release/TestFlightExportOptions.plist"
 workflow=".github/workflows/testflight.yml"
 project="FieldEvidenceApp.xcodeproj/project.pbxproj"
@@ -48,6 +54,12 @@ for path in \
   "$c26_metadata" \
   "$c26_accessibility" \
   "$c26_corpus" \
+  "$c27_inventory" \
+  "$c27_corpus" \
+  "$c27_contract" \
+  "$c27_evidence" \
+  "$c27_impact" \
+  "$c27_tooling_manifest" \
   "$export_options" \
   "$workflow" \
   "$project"
@@ -570,6 +582,117 @@ expected_contract_flags = {
 }
 assert set(contract["statusFlags"]) == expected_contract_flags
 assert not any(contract["statusFlags"].values())
+PY
+
+python3 -B Scripts/v23/generate_p04_c27_contracts.py --check >/dev/null
+c27_generator_self_test="$(python3 -B Scripts/v23/generate_p04_c27_contracts.py --self-test --json)"
+jq -e '
+  .result == "PASS"
+  and .protocol == "MANIFEST_LAST_ATOMIC_REPLACE"
+  and [.rows[].boundary] == [
+    "BEFORE_ARTIFACTS",
+    "AFTER_ARTIFACTS_BEFORE_MANIFEST",
+    "AFTER_MANIFEST"
+  ]
+  and [.rows[].acceptedSetCount] == [0, 0, 1]
+  and ([.rows[].retryAcceptedSetCount] | all(. == 1))
+  and ([.rows[].manifestLast] | all(. == true))
+  and ([.rows[].retryDeterministic] | all(. == true))
+  and ([.rows[].realWorktreeUnchanged] | all(. == true))
+  and .deterministicRerun == true
+  and .realWorktreeUnchanged == true
+' <<<"$c27_generator_self_test" >/dev/null
+
+c27_contract_result="$(python3 -B Scripts/v23/verify_p04_c27_contracts.py --json)"
+jq -e '
+  .cardID == "V23-P04-C27"
+  and .result == "PASS_STATIC_PROVISIONAL"
+  and .sourceReady == true
+  and .finalHashesSealed == false
+  and .flagsAllFalse == true
+  and .fencePathCount == 14
+  and .existingPathCount == 2
+  and .newPathCount == 12
+  and .counts.changedPathCount == 14
+  and .counts.missingPathCount == 0
+  and .counts.unownedChangedPathCount == 0
+  and .counts.s10ReservationOverlapCount == 0
+  and .selectors == [
+    "testV23P04C27G01CompleteBrandHIGStateInventoryAndFreeze",
+    "testV23P04C27A01GovernedReuseAndDualRuntimeSemanticParity",
+    "testV23P04C27H01HostileIdentityVocabularyStateAndIconDriftFailClosed",
+    "testV23P04C27I01ManifestLastInterruptionAndDeterministicRetry",
+    "testV23P04C27R01PreflightRemainsProvisionalUntilLaterAuthorities"
+  ]
+  and (.failures | length) == 0
+' <<<"$c27_contract_result" >/dev/null
+
+python3 -B - \
+  "$c27_inventory" "$c27_corpus" "$c27_contract" \
+  "$c27_evidence" "$c27_impact" "$c27_tooling_manifest" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+root = pathlib.Path.cwd()
+inventory, corpus, contract, evidence, impact, manifest = (
+    json.loads((root / path).read_bytes()) for path in sys.argv[1:]
+)
+documents = (inventory, corpus, contract, evidence, impact, manifest)
+for document in documents:
+    assert document["cardID"] == "V23-P04-C27"
+    assert document["schemaVersion"] == 1
+    flags = document["statusFlags"]
+    assert set(flags) in (
+        {"acceptance", "adoption", "hosted", "native", "publication", "release"},
+        {"acceptance", "activation", "adoption", "hosted", "native", "physicalDevice", "publication", "release"},
+    )
+    assert all(value is False for value in flags.values())
+
+assert inventory["schema"] == "V23P04C27BrandHIGStateInventoryV1"
+assert inventory["syntheticOnly"] is True
+contracts = inventory["contracts"]
+assert [contracts[key]["contract"] for key in (
+    "brandHIGStateInventory", "applicationStateInventory",
+    "brandVocabularyMap", "technicalIdentityFreeze",
+)] == [
+    "BrandHIGStateInventoryContractV1", "ApplicationStateInventoryV1",
+    "BrandVocabularyMapV1", "TechnicalIdentityFreezeV1",
+]
+assert [contracts[key]["contract"] for key in (
+    "affectedConsumerGraph", "brandPrePolishFreezeReceipt", "appIconReleaseManifest",
+)] == ["AffectedConsumerGraphV1", "BrandPrePolishFreezeReceiptV1", "AppIconReleaseManifestV1"]
+assert contracts["brandPrePolishFreezeReceipt"]["automaticBaselineUpdate"] is False
+assert contracts["brandPrePolishFreezeReceipt"]["inFlightExceptionCountFrozen"] is False
+assert contracts["technicalIdentityFreeze"]["renameAllowed"] is False
+assert all(row["adopted"] is False for row in inventory["discovery"]["c26Drafts"])
+for row in inventory["discovery"]["criticalInputs"] + inventory["discovery"]["c26Drafts"]:
+    path = pathlib.PurePosixPath(row["path"])
+    assert not path.is_absolute() and ".." not in path.parts
+    assert hashlib.sha256((root / path).read_bytes()).hexdigest() == row["sha256"]
+
+assert contract["provisional"] is True
+assert contract["semantics"]["sevenContracts"] == "NONPERSISTENT_INVENTORY_EVIDENCE"
+assert contract["semantics"]["newDurableRecordCount"] == 0
+assert contract["semantics"]["newDurableFamilies"] == []
+assert evidence["generatorInterruptionProtocol"]["protocol"] == "MANIFEST_LAST_ATOMIC_REPLACE"
+assert [row["acceptedSetCount"] for row in evidence["generatorInterruptionProtocol"]["rows"]] == [0, 0, 1]
+assert impact["uiAdoptionSkipped"] is True and impact["uiAcceptanceCredit"] is False
+assert manifest["finalHashesSealed"] is False
+assert manifest["counts"] == {
+    "changedPathCount": 14,
+    "missingPathCount": 0,
+    "s10ReservationOverlapCount": 0,
+    "unownedChangedPathCount": 0,
+}
+assert manifest["authority"]["finalHashesSealed"] is False
+assert manifest["authority"]["appBaseHead"] == inventory["authority"]["appBaseHead"]
+assert manifest["authority"]["appBaseTree"] == inventory["authority"]["appBaseTree"]
+assert len(manifest["authority"]["sourcePins"]) == 3
+assert manifest["sources"] == contract["sourceProjection"]["sourceRows"]
+for row in manifest["files"]:
+    assert hashlib.sha256((root / row["path"]).read_bytes()).hexdigest() == row["sha256"]
 PY
 
 jq -e '

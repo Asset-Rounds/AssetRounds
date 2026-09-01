@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.local/schemas/v23/brand-hig-state-inventory.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {"$ref":"#/$defs/authority"},
+    "cardID": {"const":"V23-P04-C27"},
+    "contracts": {"$ref":"#/$defs/contracts"},
+    "discovery": {"$ref":"#/$defs/discovery"},
+    "schema": {"const":"V23P04C27BrandHIGStateInventoryV1"},
+    "schemaVersion": {"const":1},
+    "statusFlags": {"$ref":"#/$defs/statusFlags"},
+    "syntheticOnly": {"const":true}
+  },
+  "required": ["authority","cardID","contracts","discovery","schema","schemaVersion","statusFlags","syntheticOnly"],
+  "title": "V23 P04 C27 brand, HIG, identity, state, and accessibility inventory",
+  "type": "object",
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "allocationDigest":{"$ref":"#/$defs/sha256"},
+        "appBaseHead":{"$ref":"#/$defs/sha1"},
+        "appBaseTree":{"$ref":"#/$defs/sha1"},
+        "contextDigest":{"$ref":"#/$defs/sha256"},
+        "coordinationHead":{"$ref":"#/$defs/sha1"},
+        "pathFenceDigest":{"$ref":"#/$defs/sha256"},
+        "sequence":{"const":502}
+      },
+      "required":["allocationDigest","appBaseHead","appBaseTree","contextDigest","coordinationHead","pathFenceDigest","sequence"],
+      "type":"object"
+    },
+    "binding": {
+      "additionalProperties":false,
+      "properties":{"path":{"type":"string","minLength":1},"sha256":{"$ref":"#/$defs/sha256"}},
+      "required":["path","sha256"],
+      "type":"object"
+    },
+    "contracts": {
+      "additionalProperties":false,
+      "properties":{
+        "affectedConsumerGraph":{"$ref":"#/$defs/consumerGraph"},
+        "appIconReleaseManifest":{"$ref":"#/$defs/iconManifest"},
+        "applicationStateInventory":{"$ref":"#/$defs/stateInventory"},
+        "brandHIGStateInventory":{"$ref":"#/$defs/umbrella"},
+        "brandPrePolishFreezeReceipt":{"$ref":"#/$defs/freezeReceipt"},
+        "brandVocabularyMap":{"$ref":"#/$defs/vocabulary"},
+        "technicalIdentityFreeze":{"$ref":"#/$defs/identityFreeze"}
+      },
+      "required":["affectedConsumerGraph","appIconReleaseManifest","applicationStateInventory","brandHIGStateInventory","brandPrePolishFreezeReceipt","brandVocabularyMap","technicalIdentityFreeze"],
+      "type":"object"
+    },
+    "consumerGraph": {
+      "additionalProperties":false,
+      "properties":{
+        "contract":{"const":"AffectedConsumerGraphV1"},
+        "edges":{"type":"array","minItems":6,"uniqueItems":true,"items":{"$ref":"#/$defs/edge"}},
+        "ordering":{"const":"SOURCE_THEN_CONSUMER_ASCENDING"},
+        "unknownConsumerDisposition":{"const":"FAIL_CLOSED"}
+      },
+      "required":["contract","edges","ordering","unknownConsumerDisposition"],"type":"object"
+    },
+    "edge": {
+      "additionalProperties":false,
+      "properties":{"consumers":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":2}},"source":{"type":"string","minLength":2}},
+      "required":["consumers","source"],"type":"object"
+    },
+    "iconManifest": {
+      "additionalProperties":false,
+      "properties":{
+        "appearances":{"type":"array","minItems":6,"maxItems":6,"uniqueItems":true,"items":{"$ref":"#/$defs/iconAppearance"}},
+        "appStoreArtwork1024":{"enum":["SUPPLIED","SYSTEM_GENERATED","NOT_PRODUCED"]},
+        "blockingFindings":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":3}},
+        "contract":{"const":"AppIconReleaseManifestV1"},
+        "iconComposerDisposition":{"enum":["NOT_USED","OPTIONAL_SOURCE","SELECTED_SOURCE"]},
+        "selectedBuildSetting":{"type":["string","null"]},
+        "selectedSourcePath":{"type":["string","null"]}
+      },
+      "required":["appearances","appStoreArtwork1024","blockingFindings","contract","iconComposerDisposition","selectedBuildSetting","selectedSourcePath"],"type":"object"
+    },
+    "iconAppearance": {
+      "additionalProperties":false,
+      "properties":{"appearance":{"enum":["CLEAR_DARK","CLEAR_LIGHT","DARK","DEFAULT","TINTED_DARK","TINTED_LIGHT"]},"disposition":{"enum":["SUPPLIED","SYSTEM_GENERATED","NOT_PRODUCED"]}},
+      "required":["appearance","disposition"],"type":"object"
+    },
+    "stateInventory": {
+      "additionalProperties":false,
+      "properties":{
+        "accessibilityVariants":{"type":"array","minItems":12,"uniqueItems":true,"items":{"type":"string"}},
+        "commonStates":{"type":"array","minItems":18,"uniqueItems":true,"items":{"type":"string"}},
+        "contract":{"const":"ApplicationStateInventoryV1"},
+        "evidenceRecipes":{"type":"array","minItems":6,"uniqueItems":true,"items":{"type":"string"}},
+        "regionOwnership":{"type":"array","minItems":3,"maxItems":3,"uniqueItems":true,"items":{"enum":["APP_OWNED_BASELINE","MIXED_MASKED","SYSTEM_SEMANTIC_ONLY"]}},
+        "rendererOwners":{"type":"array","minItems":30,"uniqueItems":true,"items":{"$ref":"#/$defs/rendererOwner"}},
+        "roots":{"type":"array","minItems":4,"maxItems":4,"uniqueItems":true,"items":{"enum":["ASSETS","REPORTS","TODAY","WORK"]}},
+        "runtimeProfiles":{"type":"array","minItems":2,"maxItems":2,"uniqueItems":true,"items":{"enum":["MINIMUM_IOS_18","LATEST_ACCEPTED_STABLE_SHIPPING_RUNTIME"]}},
+        "unknownOwnerDisposition":{"const":"FAIL_CLOSED"}
+      },
+      "required":["accessibilityVariants","commonStates","contract","evidenceRecipes","regionOwnership","rendererOwners","roots","runtimeProfiles","unknownOwnerDisposition"],"type":"object"
+    },
+    "rendererOwner": {
+      "additionalProperties":false,
+      "properties":{"path":{"type":"string","pattern":"^FieldEvidenceApp/.+\\.swift$"},"renderers":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","pattern":"^[A-Za-z][A-Za-z0-9]+$"}}},
+      "required":["path","renderers"],"type":"object"
+    },
+    "umbrella": {
+      "additionalProperties":false,
+      "properties":{
+        "acceptedS10ExceptionDisposition":{"const":"PRESERVE_ACCEPTED_AND_RECOMPUTE_AFFECTED_ONLY"},
+        "contract":{"const":"BrandHIGStateInventoryContractV1"},
+        "higTaxonomy":{"$ref":"#/$defs/taxonomy"},
+        "lifecycle":{"const":"NONPERSISTENT"},
+        "unknownDisposition":{"const":"FAIL_CLOSED"}
+      },
+      "required":["acceptedS10ExceptionDisposition","contract","higTaxonomy","lifecycle","unknownDisposition"],"type":"object"
+    },
+    "taxonomy": {
+      "additionalProperties":false,
+      "properties":{
+        "applicable":{"const":65},"datedAt":{"const":"2026-08-22"},"deferredOutsideV21":{"const":6},"leafCount":{"const":157},"nodeCount":{"const":171},"notApplicableWithRationale":{"const":76},"platformHandled":{"const":10},"sourcePath":{"const":"docs/design/v23/EXPANSION_V23_FOUNDATION_PLAN.md"},"sourceSHA256":{"$ref":"#/$defs/sha256"}
+      },
+      "required":["applicable","datedAt","deferredOutsideV21","leafCount","nodeCount","notApplicableWithRationale","platformHandled","sourcePath","sourceSHA256"],"type":"object"
+    },
+    "freezeReceipt": {
+      "additionalProperties":false,
+      "properties":{"acceptedHead":{"$ref":"#/$defs/sha1"},"acceptedTree":{"$ref":"#/$defs/sha1"},"automaticBaselineUpdate":{"const":false},"contract":{"const":"BrandPrePolishFreezeReceiptV1"},"freezeDisposition":{"const":"PRE_POLISH_INVENTORY_ONLY"},"inFlightExceptionCountFrozen":{"const":false},"reentryTriggers":{"type":"array","minItems":9,"uniqueItems":true,"items":{"type":"string"}}},
+      "required":["acceptedHead","acceptedTree","automaticBaselineUpdate","contract","freezeDisposition","inFlightExceptionCountFrozen","reentryTriggers"],"type":"object"
+    },
+    "vocabulary": {
+      "additionalProperties":false,
+      "properties":{"advancedTechnicalDiagnostics":{"type":"array","minItems":5,"uniqueItems":true,"items":{"type":"string"}},"contract":{"const":"BrandVocabularyMapV1"},"genericShell":{"type":"array","minItems":5,"uniqueItems":true,"items":{"enum":["asset","evidence","report","work","workspace"]}},"packageVocabulary":{"$ref":"#/$defs/packageVocabulary"},"practice":{"const":"Practice"},"product":{"const":"AssetRounds"},"residuePolicy":{"const":"ZERO_UNALLOWLISTED_VISIBLE_FIELD_EVIDENCE"},"technicalDiagnosticsDefaultExported":{"const":false}},
+      "required":["advancedTechnicalDiagnostics","contract","genericShell","packageVocabulary","practice","product","residuePolicy","technicalDiagnosticsDefaultExported"],"type":"object"
+    },
+    "packageVocabulary": {
+      "additionalProperties":false,
+      "properties":{"LIGHTING":{"type":"array","minItems":2,"uniqueItems":true,"items":{"type":"string"}},"SIGNS":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string"}},"SURVEYS":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string"}}},
+      "required":["LIGHTING","SIGNS","SURVEYS"],"type":"object"
+    },
+    "identityFreeze": {
+      "additionalProperties":false,
+      "properties":{"backupExtension":{"const":"fieldrecordbackup"},"backupIdentitySources":{"type":"array","minItems":2,"maxItems":2,"uniqueItems":true,"items":{"enum":["FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift","FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift"]}},"backupUTI":{"const":"com.palatis3.fieldrecordbackup"},"bundleIDs":{"type":"array","minItems":3,"maxItems":3,"uniqueItems":true,"items":{"type":"string","pattern":"^com\\.palatis3\\.fieldrecord"}},"contract":{"const":"TechnicalIdentityFreezeV1"},"entryPointIdentity":{"const":"FieldEvidenceAppApp"},"historicDisplayMutationAllowed":{"const":false},"moduleNames":{"type":"array","minItems":3,"maxItems":3,"uniqueItems":true,"items":{"enum":["FieldEvidenceApp","FieldEvidenceAppTests","FieldEvidenceAppUITests"]}},"renameAllowed":{"const":false},"schemaIdentitySource":{"const":"FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift"},"storageRoots":{"type":"array","minItems":3,"maxItems":3,"uniqueItems":true,"items":{"enum":["FieldEvidenceData","FieldEvidenceOperations","FieldEvidenceRestore"]}},"storeKitProductIDs":{"type":"array","minItems":1,"maxItems":1,"items":{"const":"com.palatis3.fieldrecord.sub.solo.monthly.v1"}},"targetNames":{"type":"array","minItems":3,"maxItems":3,"uniqueItems":true,"items":{"enum":["FieldEvidenceApp","FieldEvidenceAppTests","FieldEvidenceAppUITests"]}},"wireIdentitySource":{"const":"FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift"}},
+      "required":["backupExtension","backupIdentitySources","backupUTI","bundleIDs","contract","entryPointIdentity","historicDisplayMutationAllowed","moduleNames","renameAllowed","schemaIdentitySource","storageRoots","storeKitProductIDs","targetNames","wireIdentitySource"],"type":"object"
+    },
+    "discovery": {
+      "additionalProperties":false,
+      "properties":{"algorithm":{"const":"GIT_LS_TREE_ACCEPTED_TREE_THEN_GIT_SHOW_BYTES_CANONICAL_SORT"},"c26Drafts":{"type":"array","minItems":4,"maxItems":4,"uniqueItems":true,"items":{"$ref":"#/$defs/c26Draft"}},"criticalInputs":{"type":"array","minItems":12,"uniqueItems":true,"items":{"$ref":"#/$defs/binding"}}},
+      "required":["algorithm","c26Drafts","criticalInputs"],"type":"object"
+    },
+    "c26Draft": {
+      "additionalProperties":false,
+      "properties":{"adopted":{"const":false},"path":{"type":"string","pattern":"^docs/product/discovery/V23P04C26"},"sha256":{"$ref":"#/$defs/sha256"}},
+      "required":["adopted","path","sha256"],"type":"object"
+    },
+    "statusFlags": {
+      "additionalProperties":false,
+      "properties":{"acceptance":{"const":false},"adoption":{"const":false},"hosted":{"const":false},"native":{"const":false},"publication":{"const":false},"release":{"const":false}},
+      "required":["acceptance","adoption","hosted","native","publication","release"],"type":"object"
+    },
+    "sha1":{"type":"string","pattern":"^[0-9a-f]{40}$"},
+    "sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "digestPrefix":{"type":"string","pattern":"^[0-9a-f]{8,64}$"}
+  }
+}

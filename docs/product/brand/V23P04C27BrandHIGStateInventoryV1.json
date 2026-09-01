@@ -1,0 +1,175 @@
+{
+  "authority": {
+    "allocationDigest": "1b92d727c0ba3272f0a992330c9b2d814aa43e94eca2034a6c58794de0aadefa",
+    "appBaseHead": "4c29f9781856526e6eb94a6cf357911497bb4c1f",
+    "appBaseTree": "ed081e7349e1577546c68b7bd7414d39a454df5f",
+    "contextDigest": "053ccf31cd3829f448228cad922cef94264a6443a487c2a3521e6cf667f6e12c",
+    "coordinationHead": "e0b470a3ca730b288695553ff7a2d2f129de7e63",
+    "pathFenceDigest": "beae3b22cda76516c6a32e18186c11e442cde537e6d013e746ebe476fc3e5a32",
+    "sequence": 502
+  },
+  "cardID": "V23-P04-C27",
+  "contracts": {
+    "affectedConsumerGraph": {
+      "contract": "AffectedConsumerGraphV1",
+      "edges": [
+        {"consumers":["ALL_RENDERERS"],"source":"DESIGN_TOKENS"},
+        {"consumers":["ALL_RENDERERS"],"source":"SHARED_COMPONENTS"},
+        {"consumers":["ALL_PUBLIC_COPY","REPORTS","SUPPORT_EXPORT"],"source":"BRAND_VOCABULARY"},
+        {"consumers":["NAVIGATION","RESTORATION","PRIVATE_DISCOVERY"],"source":"ROUTE_REGISTRY"},
+        {"consumers":["VOICEOVER","VOICE_CONTROL","UI_TESTS"],"source":"SEMANTIC_IDENTITIES"},
+        {"consumers":["BACKUP","RESTORE","DELETE","REPORT","SEARCH"],"source":"TECHNICAL_IDENTITIES"}
+      ],
+      "ordering": "SOURCE_THEN_CONSUMER_ASCENDING",
+      "unknownConsumerDisposition": "FAIL_CLOSED"
+    },
+    "appIconReleaseManifest": {
+      "appearances": [
+        {"appearance":"CLEAR_DARK","disposition":"NOT_PRODUCED"},
+        {"appearance":"CLEAR_LIGHT","disposition":"NOT_PRODUCED"},
+        {"appearance":"DARK","disposition":"NOT_PRODUCED"},
+        {"appearance":"DEFAULT","disposition":"NOT_PRODUCED"},
+        {"appearance":"TINTED_DARK","disposition":"NOT_PRODUCED"},
+        {"appearance":"TINTED_LIGHT","disposition":"NOT_PRODUCED"}
+      ],
+      "appStoreArtwork1024": "NOT_PRODUCED",
+      "blockingFindings": ["APP_ICON_BUILD_SETTING_AND_SOURCE_NOT_PRESENT_AT_ACCEPTED_TREE"],
+      "contract": "AppIconReleaseManifestV1",
+      "iconComposerDisposition": "NOT_USED",
+      "selectedBuildSetting": null,
+      "selectedSourcePath": null
+    },
+    "applicationStateInventory": {
+      "accessibilityVariants": ["AX1","AX2","AX3","AX4","AX5","DARK","HIGH_CONTRAST","REDUCE_MOTION","RTL","SWITCH_CONTROL","VOICE_CONTROL","VOICEOVER"],
+      "commonStates": ["BACKGROUND_COVER","CANCELLATION","DESTRUCTIVE_CONFIRMATION","DISABLED","EMPTY","ERROR_RETRY","INTERRUPTION","KEYBOARD_FOCUS","LOADING_PROGRESS","OFFLINE","PERMISSION_DENIED","PROTECTED_DATA_LOCKED","RESTORATION","SAVE_COMMIT","STALE_ASYNC_COMPLETION","STORAGE_PRESSURE","SUCCESS","WARNING"],
+      "contract": "ApplicationStateInventoryV1",
+      "evidenceRecipes": ["SYNTHETIC_UNIT","SYNTHETIC_UI","STATIC_SOURCE_DIGEST","TARGETED_ACCESSIBILITY","TARGETED_INTERRUPTION","TARGETED_RECOVERY"],
+      "regionOwnership": ["APP_OWNED_BASELINE","MIXED_MASKED","SYSTEM_SEMANTIC_ONLY"],
+      "rendererOwners": [
+        {"path":"FieldEvidenceApp/App/FieldEvidenceAppApp.swift","renderers":["StartupRootView","ReadyAppView","MaintenanceRestoreHost","EraseCleanupPendingView"]},
+        {"path":"FieldEvidenceApp/App/LaunchView.swift","renderers":["LaunchView"]},
+        {"path":"FieldEvidenceApp/DesignSystem/WorklightComponents.swift","renderers":["WorklightStatusBadge"]},
+        {"path":"FieldEvidenceApp/Features/AssetImport/EntityIdentityResolutionView.swift","renderers":["EntityIdentityResolutionView"]},
+        {"path":"FieldEvidenceApp/Features/AssetImport/ImportBulkPreviewView.swift","renderers":["ImportBulkPreviewView"]},
+        {"path":"FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift","renderers":["BackupRestoreProgressView"]},
+        {"path":"FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift","renderers":["BackupValidationSummaryView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift","renderers":["CaptureStepView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift","renderers":["EvidenceCurationView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/EvidenceQualityCoachView.swift","renderers":["EvidenceQualityCoachView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/FastSurveyInboxView.swift","renderers":["FastSurveyInboxView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/IlluminatedSignPlaybookView.swift","renderers":["IlluminatedSignPlaybookView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift","renderers":["OutcomeReviewView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/PreflightView.swift","renderers":["PreflightView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/ReinspectionPlanView.swift","renderers":["ReinspectionPlanView"]},
+        {"path":"FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift","renderers":["ValueReceiptView"]},
+        {"path":"FieldEvidenceApp/Features/Dashboard/ExceptionReviewQueueView.swift","renderers":["ExceptionReviewQueueView"]},
+        {"path":"FieldEvidenceApp/Features/Dashboard/OperationsDashboardView.swift","renderers":["OperationsDashboardView"]},
+        {"path":"FieldEvidenceApp/Features/Issues/IssueDetailView.swift","renderers":["IssueDetailView"]},
+        {"path":"FieldEvidenceApp/Features/Issues/RecordWorkView.swift","renderers":["RecordWorkView"]},
+        {"path":"FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift","renderers":["RecoveryCenterView"]},
+        {"path":"FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift","renderers":["ShopProfileOpenEvidenceHandoffView"]},
+        {"path":"FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift","renderers":["ReportCorrectionView"]},
+        {"path":"FieldEvidenceApp/Features/Reports/ReportDetailView.swift","renderers":["ReportDetailView"]},
+        {"path":"FieldEvidenceApp/Features/Reports/ReportFailureView.swift","renderers":["ReportFailureView"]},
+        {"path":"FieldEvidenceApp/Features/Reports/ReportsRootView.swift","renderers":["ReportsRootView","SignReportHistoryView","ReportVisitList","ReportVisitFact","ReportHistoryDetailDestination","ReportComparisonView","ReportHistoryUnavailableView"]},
+        {"path":"FieldEvidenceApp/Features/Rounds/OfflineReadinessPreflightView.swift","renderers":["OfflineReadinessPreflightView"]},
+        {"path":"FieldEvidenceApp/Features/Rounds/RoundSessionView.swift","renderers":["RoundSessionView"]},
+        {"path":"FieldEvidenceApp/Features/Sample/PackSampleView.swift","renderers":["PackSampleView","SampleValue","SampleRegistryRow"]},
+        {"path":"FieldEvidenceApp/Features/Settings/BackupExportView.swift","renderers":["BackupExportView"]},
+        {"path":"FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift","renderers":["DiagnosticExportView"]},
+        {"path":"FieldEvidenceApp/Features/Settings/EraseAllView.swift","renderers":["EraseAllView"]},
+        {"path":"FieldEvidenceApp/Features/Settings/FeedbackView.swift","renderers":["FeedbackView"]},
+        {"path":"FieldEvidenceApp/Features/Settings/PrivateSystemDiscoverySettingsView.swift","renderers":["PrivateSystemDiscoverySettingsView"]},
+        {"path":"FieldEvidenceApp/Features/Shell/AppShellView.swift","renderers":["AppShellView","SettingsPlaceholderView","PackUnavailableView"]},
+        {"path":"FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift","renderers":["StartupMaintenanceView"]},
+        {"path":"FieldEvidenceApp/Features/Signs/NewSignView.swift","renderers":["NewSignView"]},
+        {"path":"FieldEvidenceApp/Features/Signs/SignDetailView.swift","renderers":["SignDetailView"]},
+        {"path":"FieldEvidenceApp/Features/Signs/SignsRootView.swift","renderers":["SignsRootView"]},
+        {"path":"FieldEvidenceApp/Features/Subscription/PaywallView.swift","renderers":["PaywallView"]},
+        {"path":"FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift","renderers":["SubscriptionStatusView"]}
+      ],
+      "roots": ["ASSETS","REPORTS","TODAY","WORK"],
+      "runtimeProfiles": ["MINIMUM_IOS_18","LATEST_ACCEPTED_STABLE_SHIPPING_RUNTIME"],
+      "unknownOwnerDisposition": "FAIL_CLOSED"
+    },
+    "brandHIGStateInventory": {
+      "acceptedS10ExceptionDisposition": "PRESERVE_ACCEPTED_AND_RECOMPUTE_AFFECTED_ONLY",
+      "contract": "BrandHIGStateInventoryContractV1",
+      "higTaxonomy": {
+        "datedAt": "2026-08-22",
+        "deferredOutsideV21": 6,
+        "leafCount": 157,
+        "nodeCount": 171,
+        "notApplicableWithRationale": 76,
+        "platformHandled": 10,
+        "applicable": 65,
+        "sourcePath": "docs/design/v23/EXPANSION_V23_FOUNDATION_PLAN.md",
+        "sourceSHA256": "f7d4ac03f066d85771526c195152ab6e17c32c2a9dee98248c3bfa8813456980"
+      },
+      "lifecycle": "NONPERSISTENT",
+      "unknownDisposition": "FAIL_CLOSED"
+    },
+    "brandPrePolishFreezeReceipt": {
+      "acceptedHead": "4c29f9781856526e6eb94a6cf357911497bb4c1f",
+      "acceptedTree": "ed081e7349e1577546c68b7bd7414d39a454df5f",
+      "automaticBaselineUpdate": false,
+      "contract": "BrandPrePolishFreezeReceiptV1",
+      "freezeDisposition": "PRE_POLISH_INVENTORY_ONLY",
+      "inFlightExceptionCountFrozen": false,
+      "reentryTriggers": ["AUDIT_SIGNATURE","COLOR","DEVICE_RUNTIME","DYNAMIC_TYPE","GEOMETRY","LOCALE","RENDERER","SEMANTIC_IDENTITY","TEXT"]
+    },
+    "brandVocabularyMap": {
+      "advancedTechnicalDiagnostics": ["FieldEvidenceData","FieldEvidenceOperations","FieldEvidenceRestore","com.palatis3.fieldrecordbackup","fieldrecordbackup"],
+      "contract": "BrandVocabularyMapV1",
+      "genericShell": ["asset","evidence","report","work","workspace"],
+      "packageVocabulary": {"LIGHTING":["lighting","luminaire"],"SIGNS":["sign"],"SURVEYS":["survey"]},
+      "practice": "Practice",
+      "product": "AssetRounds",
+      "residuePolicy": "ZERO_UNALLOWLISTED_VISIBLE_FIELD_EVIDENCE",
+      "technicalDiagnosticsDefaultExported": false
+    },
+    "technicalIdentityFreeze": {
+      "backupExtension": "fieldrecordbackup",
+      "backupIdentitySources": ["FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift","FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift"],
+      "backupUTI": "com.palatis3.fieldrecordbackup",
+      "bundleIDs": ["com.palatis3.fieldrecord","com.palatis3.fieldrecord.tests","com.palatis3.fieldrecord.uitests"],
+      "contract": "TechnicalIdentityFreezeV1",
+      "entryPointIdentity": "FieldEvidenceAppApp",
+      "historicDisplayMutationAllowed": false,
+      "moduleNames": ["FieldEvidenceApp","FieldEvidenceAppTests","FieldEvidenceAppUITests"],
+      "renameAllowed": false,
+      "schemaIdentitySource": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+      "storageRoots": ["FieldEvidenceData","FieldEvidenceOperations","FieldEvidenceRestore"],
+      "storeKitProductIDs": ["com.palatis3.fieldrecord.sub.solo.monthly.v1"],
+      "targetNames": ["FieldEvidenceApp","FieldEvidenceAppTests","FieldEvidenceAppUITests"],
+      "wireIdentitySource": "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift"
+    }
+  },
+  "discovery": {
+    "algorithm": "GIT_LS_TREE_ACCEPTED_TREE_THEN_GIT_SHOW_BYTES_CANONICAL_SORT",
+    "c26Drafts": [
+      {"adopted":false,"path":"docs/product/discovery/V23P04C26AcquisitionContentDraftV1.json","sha256":"b668e29382c1154cc93d3106d416ddf80bf6cf35915746b2b128696801064238"},
+      {"adopted":false,"path":"docs/product/discovery/V23P04C26AppTagDispositionV1.json","sha256":"dedbc785e15a6c93a477f477178ce9144bad5e01df187f80aa720e0cdd35c2c8"},
+      {"adopted":false,"path":"docs/product/discovery/V23P04C26DiscoveryTruthCatalogRefinementReceiptV1.json","sha256":"5b1594305a51e80c0a63108d317318ff570e318d63c2531b8a9c7704b8570374"},
+      {"adopted":false,"path":"docs/product/discovery/V23P04C26MetadataEvidenceReportV1.json","sha256":"468eae786e7a461e21b3e2d826269e4a1ddb875e60ecc9e1f78f050511637bf5"}
+    ],
+    "criticalInputs": [
+      {"path":"FieldEvidenceApp.xcodeproj/project.pbxproj","sha256":"5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f"},
+      {"path":"FieldEvidenceApp/DesignSystem/DesignTokens.swift","sha256":"59ad0c6445779814d0b621dc2ba47a660052b8bc289d1c9dd773caa1aaf58164"},
+      {"path":"FieldEvidenceApp/DesignSystem/WorklightComponents.swift","sha256":"60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d"},
+      {"path":"FieldEvidenceApp/App/FieldEvidenceAppApp.swift","sha256":"7c33e08af4b67ffa60f4574192cca077548e9d1d5989f890be2a3a07c7fa8563"},
+      {"path":"FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift","sha256":"4f1936ed6674adca8ce1ec330dcd8f206ca9cccc4e6b40f67e5d4a04f9ed82b5"},
+      {"path":"FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift","sha256":"fc0d1eb69f0f60116ae84bca6a53dae16cdea0284f1d817d27f3c20991231be4"},
+      {"path":"FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift","sha256":"978b0324c6a754275fbf1889ac47a1f722ba68b47786910751d9db9f5012ead9"},
+      {"path":"FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift","sha256":"c164446b1861c0e007333d8ba60dd505dd8daa48dfcbc2bfff69a9c51ce6552d"},
+      {"path":"FieldEvidenceApp/Domain/Navigation/RouteRegistryContractsV1.swift","sha256":"5c9e7df55b65ee374f8e399dd7f1b645cbb376f4843f8849fc9aae8acaaed669"},
+      {"path":"FieldEvidenceApp/Info.plist","sha256":"f3d203008dc9d35f39efdbb2e66dc9a3ff220aa13544cc36fcfa77403b34b53a"},
+      {"path":"FieldEvidenceApp/InfoPlist.xcstrings","sha256":"85e1c67daf46b4959705baf42584254197cd1c4561c0fa3e3f2d0ed0dcc82503"},
+      {"path":"FieldEvidenceApp/Resources/Localizable.xcstrings","sha256":"67cbc936089d01bc772330600727ddea7d312a5a52cd8b16f5f3aff3577d8a53"}
+    ]
+  },
+  "schema": "V23P04C27BrandHIGStateInventoryV1",
+  "schemaVersion": 1,
+  "statusFlags": {"acceptance":false,"adoption":false,"hosted":false,"native":false,"publication":false,"release":false},
+  "syntheticOnly": true
+}

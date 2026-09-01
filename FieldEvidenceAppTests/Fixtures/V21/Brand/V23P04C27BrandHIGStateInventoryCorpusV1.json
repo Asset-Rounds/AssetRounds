@@ -1,0 +1,31 @@
+{
+  "cardID": "V23-P04-C27",
+  "cases": [
+    {"caseID":"A01_C26_EXTERNAL_DRAFTS_REMAIN_UNADOPTED","expected":"ACCEPT","kind":"ALTERNATE","mutation":{"c26DraftAdopted":false}},
+    {"caseID":"A02_SYSTEM_GENERATED_ICON_VARIANT_DECLARED_WITH_TOOLCHAIN_EVIDENCE","expected":"ACCEPT","kind":"ALTERNATE","mutation":{"iconDisposition":"SYSTEM_GENERATED"}},
+    {"caseID":"G01_EXACT_TREE_NONPERSISTENT_SEVEN_CONTRACT_INVENTORY","expected":"ACCEPT","kind":"GOLDEN","mutation":{}},
+    {"caseID":"H01_TECHNICAL_BUNDLE_RENAME_DISGUISED_AS_COPY","expected":"REJECT_TECHNICAL_IDENTITY_DRIFT","kind":"HOSTILE","mutation":{"bundleID":"com.example.assetrounds"}},
+    {"caseID":"H02_VISIBLE_FIELD_EVIDENCE_RESIDUE","expected":"REJECT_PUBLIC_VOCABULARY_RESIDUE","kind":"HOSTILE","mutation":{"visibleCopy":"Field Evidence"}},
+    {"caseID":"H03_PACKAGE_TERM_LEAKS_INTO_GENERIC_SHELL","expected":"REJECT_PACKAGE_VOCABULARY_LEAKAGE","kind":"HOSTILE","mutation":{"genericShellTerm":"luminaire"}},
+    {"caseID":"H04_PRACTICE_RENAMED_DEMO","expected":"REJECT_PRACTICE_VOCABULARY_DRIFT","kind":"HOSTILE","mutation":{"practice":"Demo"}},
+    {"caseID":"H05_RENDERER_STATE_MISSING_EVIDENCE_RECIPE","expected":"REJECT_MISSING_RECIPE","kind":"HOSTILE","mutation":{"removeEvidenceRecipe":true}},
+    {"caseID":"H06_RENDERER_STATE_MISSING_CONSUMER_EDGE","expected":"REJECT_MISSING_CONSUMER_EDGE","kind":"HOSTILE","mutation":{"removeConsumerEdge":true}},
+    {"caseID":"H07_RENDERER_STATE_MISSING_ACCESSIBILITY_VARIANTS","expected":"REJECT_MISSING_ACCESSIBILITY_CLOSURE","kind":"HOSTILE","mutation":{"removeAccessibilityVariant":"VOICEOVER"}},
+    {"caseID":"H08_DUPLICATE_RENDERER_STATE_IDENTITY","expected":"REJECT_DUPLICATE_RENDERER_STATE","kind":"HOSTILE","mutation":{"duplicateRenderer":"ReportsRootView"}},
+    {"caseID":"H09_BASELINE_AUTO_UPDATES_TO_HIDE_DRIFT","expected":"REJECT_AUTOMATIC_BASELINE_UPDATE","kind":"HOSTILE","mutation":{"automaticBaselineUpdate":true}},
+    {"caseID":"H10_ICON_VARIANT_FABRICATED_WITHOUT_SOURCE_OR_TOOLCHAIN","expected":"REJECT_ICON_VARIANT_FABRICATION","kind":"HOSTILE","mutation":{"appearance":"DARK","disposition":"SUPPLIED","sourcePath":null}},
+    {"caseID":"H11_C26_PUBLICATION_DRAFT_ADOPTED_AS_APP_STATE","expected":"REJECT_EXTERNAL_DRAFT_ADOPTION","kind":"HOSTILE","mutation":{"c26DraftAdopted":true}},
+    {"caseID":"H12_UNKNOWN_RENDERER_OWNER","expected":"REJECT_UNKNOWN_OWNER","kind":"HOSTILE","mutation":{"rendererPath":"FieldEvidenceApp/UnknownView.swift"}},
+    {"caseID":"H13_HIG_LEAF_COUNT_OR_DISPOSITION_TOTAL_MISMATCH","expected":"REJECT_TAXONOMY_COVERAGE","kind":"HOSTILE","mutation":{"leafCount":156}},
+    {"caseID":"H14_EXTRA_UNSCHEMAED_CONTRACT_KEY","expected":"REJECT_SCHEMA_ADDITIONAL_PROPERTY","kind":"HOSTILE","mutation":{"extraContract":"SecondRuntimeStore"}},
+    {"caseID":"I01_INTERRUPT_BEFORE_INVENTORY_STAGING","expected":"NO_PARTIAL_ARTIFACT","kind":"INTERRUPTION","mutation":{"boundary":"BEFORE_STAGING"}},
+    {"caseID":"I02_INTERRUPT_AFTER_GENERATED_EFFECT_BEFORE_RECEIPT","expected":"REBUILD_IDENTICAL_OR_FAIL_CLOSED","kind":"INTERRUPTION","mutation":{"boundary":"AFTER_EFFECT_BEFORE_RECEIPT"}},
+    {"caseID":"R01_RETRY_SAME_TREE_AND_INPUT_DIGESTS","expected":"IDENTICAL_INVENTORY","kind":"RECOVERY","mutation":{"retry":true}},
+    {"caseID":"R02_REUSED_HEAD_WITH_CHANGED_INPUT_BYTES","expected":"REJECT_CHANGED_INPUT_DIGEST","kind":"RECOVERY","mutation":{"changedInput":true}},
+    {"caseID":"R03_FAILED_REFRESH_PRESERVES_PREVIOUS_ACCEPTED_GENERATION","expected":"PRESERVE_PREVIOUS_ACCEPTED","kind":"RECOVERY","mutation":{"refreshFailed":true}}
+  ],
+  "schema": "V23P04C27BrandHIGStateInventoryCorpusV1",
+  "schemaVersion": 1,
+  "statusFlags": {"acceptance":false,"adoption":false,"hosted":false,"native":false,"publication":false,"release":false},
+  "syntheticOnly": true
+}

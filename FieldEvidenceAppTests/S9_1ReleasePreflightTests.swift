@@ -1697,6 +1697,83 @@ final class S9_1ReleasePreflightTests: XCTestCase {
 }
 
 extension S9_1ReleasePreflightTests {
+    func testV23P04C27ProvisionalBrandHIGInventoryPreflightIsClosedAndSourceBound() throws {
+        let inventory = try c27JSON("docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json")
+        let contract = try c27JSON("docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryContractV1.json")
+        let evidence = try c27JSON("docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryEvidenceReceiptV1.json")
+        let impact = try c27JSON("docs/design/v23/tooling/V23P04C27BrandImpactManifestV1.json")
+        let manifest = try c27JSON("docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json")
+
+        for (path, root) in [
+            ("inventory", inventory), ("contract", contract), ("evidence", evidence),
+            ("impact", impact), ("manifest", manifest),
+        ] {
+            XCTAssertEqual(root["cardID"] as? String, "V23-P04-C27", path)
+            XCTAssertEqual(root["schemaVersion"] as? Int, 1, path)
+            let flags = try XCTUnwrap(root["statusFlags"] as? [String: Bool], path)
+            XCTAssertFalse(flags.isEmpty, path)
+            XCTAssertTrue(flags.values.allSatisfy { !$0 }, path)
+        }
+
+        let contracts = try XCTUnwrap(inventory["contracts"] as? [String: Any])
+        XCTAssertEqual(try c27Contract(contracts, "brandHIGStateInventory"), "BrandHIGStateInventoryContractV1")
+        XCTAssertEqual(try c27Contract(contracts, "applicationStateInventory"), "ApplicationStateInventoryV1")
+        XCTAssertEqual(try c27Contract(contracts, "brandVocabularyMap"), "BrandVocabularyMapV1")
+        XCTAssertEqual(try c27Contract(contracts, "technicalIdentityFreeze"), "TechnicalIdentityFreezeV1")
+        XCTAssertEqual(try c27Contract(contracts, "affectedConsumerGraph"), "AffectedConsumerGraphV1")
+        XCTAssertEqual(try c27Contract(contracts, "brandPrePolishFreezeReceipt"), "BrandPrePolishFreezeReceiptV1")
+        XCTAssertEqual(try c27Contract(contracts, "appIconReleaseManifest"), "AppIconReleaseManifestV1")
+
+        let semantics = try XCTUnwrap(contract["semantics"] as? [String: Any])
+        XCTAssertEqual(semantics["sevenContracts"] as? String, "NONPERSISTENT_INVENTORY_EVIDENCE")
+        XCTAssertEqual(semantics["newDurableRecordCount"] as? Int, 0)
+        XCTAssertEqual(semantics["newDurableFamilies"] as? [String], [])
+        XCTAssertEqual(contract["provisional"] as? Bool, true)
+        XCTAssertEqual(manifest["finalHashesSealed"] as? Bool, false)
+        XCTAssertEqual(impact["uiAdoptionSkipped"] as? Bool, true)
+        XCTAssertEqual(impact["uiAcceptanceCredit"] as? Bool, false)
+
+        let interruption = try XCTUnwrap(evidence["generatorInterruptionProtocol"] as? [String: Any])
+        XCTAssertEqual(interruption["protocol"] as? String, "MANIFEST_LAST_ATOMIC_REPLACE")
+        let rows = try XCTUnwrap(interruption["rows"] as? [[String: Any]])
+        XCTAssertEqual(rows.compactMap { $0["acceptedSetCount"] as? Int }, [0, 0, 1])
+        XCTAssertEqual(rows.compactMap { $0["retryAcceptedSetCount"] as? Int }, [1, 1, 1])
+
+        let sourceProjection = try XCTUnwrap(contract["sourceProjection"] as? [String: Any])
+        XCTAssertEqual(sourceProjection["sourceReady"] as? Bool, true)
+        let sourceRows = try XCTUnwrap(sourceProjection["sourceRows"] as? [[String: Any]])
+        XCTAssertFalse(sourceRows.isEmpty)
+        for row in sourceRows {
+            let relativePath = try XCTUnwrap(row["path"] as? String)
+            let expected = try XCTUnwrap(row["sha256"] as? String)
+            XCTAssertFalse(relativePath.hasPrefix("/"))
+            XCTAssertFalse(relativePath.contains(".."))
+            XCTAssertEqual(c27Digest(try data(relativePath)), expected, relativePath)
+        }
+
+        let preflight = String(decoding: try data("Scripts/release-preflight.sh"), as: UTF8.self)
+        XCTAssertTrue(preflight.contains("generate_p04_c27_contracts.py --check"))
+        XCTAssertTrue(preflight.contains("verify_p04_c27_contracts.py --json"))
+        XCTAssertTrue(preflight.contains("assert all(value is False for value in flags.values())"))
+        XCTAssertTrue(preflight.contains("manifest[\"finalHashesSealed\"] is False"))
+        XCTAssertTrue(preflight.contains("uiAcceptanceCredit\"] is False"))
+    }
+
+    private func c27JSON(_ relativePath: String) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: data(relativePath)) as? [String: Any])
+    }
+
+    private func c27Contract(_ contracts: [String: Any], _ key: String) throws -> String {
+        let value = try XCTUnwrap(contracts[key] as? [String: Any])
+        return try XCTUnwrap(value["contract"] as? String)
+    }
+
+    private func c27Digest(_ bytes: Data) -> String {
+        SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension S9_1ReleasePreflightTests {
     func testV23P04C26G01BoundCatalogRefinementAndDisabledPublication() throws {
         let sources = try c26Sources()
         XCTAssertTrue(try c26Validate(sources))
