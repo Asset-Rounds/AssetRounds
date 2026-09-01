@@ -153,6 +153,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         _ = try await scratch.writeScratchData(
             Data("erase scratch".utf8), named: "support.json", lease: scratchLease
         )
+        let erasedCustomerSentinel = "customer-only-before-erase"
+        harness.defaults.set(erasedCustomerSentinel, forKey: "customer-sentinel")
         let newID = uuid("66000000-0000-0000-0000-000000000101")
         let service = EraseAllService(
             applicationSupportURL: harness.support,
@@ -160,6 +162,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             temporaryDirectoryURL: harness.temporary,
             userDefaults: harness.defaults,
             bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
             makeUUID: sequence([
                 newID,
                 uuid("66000000-0000-0000-0000-000000000102"),
@@ -248,9 +251,32 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
                 .appendingPathComponent("ScratchDataV1", isDirectory: true).path
         ))
-        XCTAssertTrue(
-            (harness.defaults.persistentDomain(forName: bundleID) ?? [:]).isEmpty
+        // A fresh adapter represents relaunch: Erase may retain only its
+        // customer-free installation cooldown, never the old Defaults domain.
+        let relaunchedDefaults = try XCTUnwrap(
+            UserDefaults(suiteName: harness.defaultsSuiteName)
         )
+        let reloadedRatingStore = PreferencesAdapterV1(defaults: relaunchedDefaults)
+        guard case .current(let ratingLedger) = try await reloadedRatingStore.load(),
+              case .erasedCooldown(let erasedAt, let suppressUntil) = ratingLedger.origin else {
+            return XCTFail("Erase must persist an ERASED_COOLDOWN ledger")
+        }
+        XCTAssertTrue(ratingLedger.attempts.isEmpty)
+        XCTAssertEqual(
+            suppressUntil.timeIntervalSince(erasedAt),
+            RatingEligibilityPolicyV1.eraseCooldownSeconds,
+            accuracy: 0.001
+        )
+        let remainingDefaults = relaunchedDefaults.persistentDomain(
+            forName: harness.defaultsSuiteName
+        ) ?? [:]
+        XCTAssertEqual(Set(remainingDefaults.keys), Set(["rating-eligibility.v1"]))
+        let ratingBytes = try XCTUnwrap(
+            remainingDefaults["rating-eligibility.v1"] as? Data
+        )
+        let ratingText = String(decoding: ratingBytes, as: UTF8.self)
+        XCTAssertFalse(ratingText.contains(erasedCustomerSentinel))
+        XCTAssertFalse(ratingText.contains(oldID.uuidString.lowercased()))
         XCTAssertFalse(fileManager.fileExists(
             atPath: harness.factory.installedGenerationURL(id: oldID).path
         ))
@@ -346,6 +372,9 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 temporaryDirectoryURL: harness.temporary,
                 userDefaults: harness.defaults,
                 bundleIdentifier: bundleID,
+                defaultsDomainName: point == .afterCleanup
+                    ? harness.defaultsSuiteName
+                    : nil,
                 makeUUID: sequence([newID, UUID()]),
                 failureInjection: EraseAllFailureInjection(failOnceAt: point)
             )
@@ -361,6 +390,25 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
             }
 
+            let cooldownBeforeRecovery: (
+                RatingRequestAttemptLedgerStateV1,
+                Data
+            )?
+            if point == .afterCleanup {
+                let store = PreferencesAdapterV1(defaults: harness.defaults)
+                guard case .current(let state) = try await store.load(),
+                      case .erasedCooldown = state.origin,
+                      let domain = harness.defaults.persistentDomain(
+                        forName: harness.defaultsSuiteName
+                      ),
+                      let bytes = domain["rating-eligibility.v1"] as? Data else {
+                    return XCTFail("afterCleanup must persist a cooldown before interruption")
+                }
+                cooldownBeforeRecovery = (state, bytes)
+            } else {
+                cooldownBeforeRecovery = nil
+            }
+
             harness.coordinator = nil
             await Task.yield()
             let recovery = EraseAllService(
@@ -368,7 +416,10 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 cachesDirectoryURL: harness.caches,
                 temporaryDirectoryURL: harness.temporary,
                 userDefaults: harness.defaults,
-                bundleIdentifier: bundleID
+                bundleIdentifier: bundleID,
+                defaultsDomainName: point == .afterCleanup
+                    ? harness.defaultsSuiteName
+                    : nil
             )
             let recovered = try await recovery.reconcileAtStartup(
                 diagnosticsStore: harness.diagnostics
@@ -400,6 +451,20 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 let clearedDiagnostics = await harness.diagnostics.snapshot()
                 XCTAssertEqual(clearedDiagnostics, .zero)
                 assertAuxiliaryRootsCleared(harness)
+                if let beforeRecovery = cooldownBeforeRecovery {
+                    let relaunchedDefaults = try XCTUnwrap(
+                        UserDefaults(suiteName: harness.defaultsSuiteName)
+                    )
+                    let store = PreferencesAdapterV1(defaults: relaunchedDefaults)
+                    guard case .current(let afterState) = try await store.load(),
+                          let afterBytes = relaunchedDefaults.persistentDomain(
+                            forName: harness.defaultsSuiteName
+                          )?["rating-eligibility.v1"] as? Data else {
+                        return XCTFail("recovery must retain the exact cooldown ledger")
+                    }
+                    XCTAssertEqual(afterState, beforeRecovery.0)
+                    XCTAssertEqual(afterBytes, beforeRecovery.1)
+                }
             }
             XCTAssertFalse(fileManager.fileExists(
                 atPath: harness.support.appendingPathComponent(
@@ -872,6 +937,7 @@ private extension S6_6EraseRecoveryTests {
         var coordinator: StoreSessionCoordinator?
         let diagnostics: DiagnosticsStore
         let defaults: UserDefaults
+        let defaultsSuiteName: String
 
         init(
             root: URL,
@@ -881,7 +947,8 @@ private extension S6_6EraseRecoveryTests {
             factory: StoreGenerationFactory,
             coordinator: StoreSessionCoordinator,
             diagnostics: DiagnosticsStore,
-            defaults: UserDefaults
+            defaults: UserDefaults,
+            defaultsSuiteName: String
         ) {
             self.root = root
             self.support = support
@@ -891,6 +958,7 @@ private extension S6_6EraseRecoveryTests {
             self.coordinator = coordinator
             self.diagnostics = diagnostics
             self.defaults = defaults
+            self.defaultsSuiteName = defaultsSuiteName
         }
     }
 
@@ -972,7 +1040,8 @@ private extension S6_6EraseRecoveryTests {
         let diagnostics = DiagnosticsStore(applicationSupportURL: support)
         await diagnostics.prepare()
         await diagnostics.increment(.reportSaved)
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "S6_6-\(UUID())"))
+        let defaultsSuiteName = "S6_6-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
         defaults.setPersistentDomain(["erase-test": true], forName: bundleID)
         return Harness(
             root: root,
@@ -982,7 +1051,8 @@ private extension S6_6EraseRecoveryTests {
             factory: factory,
             coordinator: StoreSessionCoordinator(session: session),
             diagnostics: diagnostics,
-            defaults: defaults
+            defaults: defaults,
+            defaultsSuiteName: defaultsSuiteName
         )
     }
 
@@ -1022,6 +1092,7 @@ private extension S6_6EraseRecoveryTests {
 
     func cleanup(_ harness: Harness) {
         harness.defaults.removePersistentDomain(forName: bundleID)
+        harness.defaults.removePersistentDomain(forName: harness.defaultsSuiteName)
         harness.coordinator = nil
         // These roots are unique and live under the Simulator's temporary
         // container. A synchronous XCTest defer can still retain a local

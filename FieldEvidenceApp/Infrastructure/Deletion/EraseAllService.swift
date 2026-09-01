@@ -521,6 +521,9 @@ final class EraseAllService {
     private let fileManager: FileManager
     private let userDefaults: UserDefaults
     private let bundleIdentifier: String
+    /// Defaults may be injected with an isolated suite in tests. The app
+    /// identity remains independently fixed by `bundleIdentifier`.
+    private let defaultsDomainName: String
     private let makeUUID: () -> UUID
     private let sleeper: any ApplicationSleeper
     private let failureInjection: EraseAllFailureInjection?
@@ -535,6 +538,7 @@ final class EraseAllService {
         userDefaults: UserDefaults = .standard,
         bundleIdentifier: String = Bundle.main.bundleIdentifier
             ?? "com.palatis3.fieldrecord",
+        defaultsDomainName: String? = nil,
         makeUUID: @escaping () -> UUID = UUID.init,
         sleeper: any ApplicationSleeper = SystemApplicationSleeper(),
         failureInjection: EraseAllFailureInjection? = nil,
@@ -558,6 +562,7 @@ final class EraseAllService {
         self.fileManager = fileManager
         self.userDefaults = userDefaults
         self.bundleIdentifier = bundleIdentifier
+        self.defaultsDomainName = defaultsDomainName ?? bundleIdentifier
         self.makeUUID = makeUUID
         self.sleeper = sleeper
         self.failureInjection = failureInjection
@@ -1494,7 +1499,38 @@ private extension EraseAllService {
         // `cleanupGenerations` above removes that complete generation-owned
         // scratch namespace; there is no application-support-level C45 root.
         try auxiliary.removeFrozenTargets()
-        userDefaults.removePersistentDomain(forName: bundleIdentifier)
+        let ratingStore = PreferencesAdapterV1(defaults: userDefaults)
+        let preservesExactCooldown = ratingStore.hasExactEraseCooldown(
+            operationID: activated.eraseID,
+            persistentDomainName: defaultsDomainName
+        )
+        if !preservesExactCooldown {
+            userDefaults.removePersistentDomain(forName: defaultsDomainName)
+        }
+        // The one post-wipe Defaults value is an installation-only cooldown,
+        // written through the sole preferences owner. Its CAS receipt and
+        // read-back are required before Erase may publish cleanupComplete.
+        // Recovery retains only an exact same-erase sole-domain ledger, so an
+        // interruption here cannot restart or shorten the cooldown; every
+        // other domain shape is wiped before this replacement is written.
+        let ratingCoordinator = try RatingEligibilityCoordinatorV1(
+            store: ratingStore,
+            nativeRequest: AppStoreRatingRequestAdapterV1(),
+            clock: SystemApplicationClock()
+        )
+        let ratingErase = try await ratingCoordinator.applyCompletedErase(
+            eraseOperationID: activated.eraseID,
+            erasedAt: Date()
+        )
+        guard case .current(let ratingLedger) = try await ratingStore.load(),
+              ratingLedger.attempts.isEmpty,
+              case .erasedCooldown(_, let suppressUntil) = ratingLedger.origin,
+              suppressUntil == ratingErase.suppressUntil,
+              ratingErase.receipt.operationID == activated.eraseID,
+              ratingErase.receipt.resultingRevision == ratingLedger.revision,
+              ratingErase.receipt.stateSHA256 == ratingLedger.stateSHA256 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         // Recreate through a fresh adapter after removing the old anchored
         // directory. This publishes the canonical current operational
         // envelope; writing DiagnosticsV1.zero directly would leave legacy
@@ -1523,8 +1559,6 @@ private extension EraseAllService {
             .canonicalOperationalSupportEnvelopeDataV3()
         await diagnosticsStore.acceptDescriptorErasedZero()
         guard await diagnosticsStore.isExactlyZero(),
-              (userDefaults.persistentDomain(forName: bundleIdentifier) ?? [:])
-                .isEmpty,
               BackupRestoreService.isEmptyCurrent(session.modelContext) else {
             throw EraseAllServiceError.invalidAuthority
         }

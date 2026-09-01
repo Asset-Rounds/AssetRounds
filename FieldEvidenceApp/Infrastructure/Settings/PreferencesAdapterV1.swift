@@ -37,10 +37,44 @@ private struct PreferenceStorageEnvelopeV1: Codable, Equatable, Sendable {
     }
 }
 
+/// The rating ledger is deliberately separate from descriptor-backed settings:
+/// it is device-local operational policy, not a user-configurable preference.
+/// Its write record contains only the caller operation and canonical successor
+/// digest needed to make the CAS durable across a process interruption.
+private struct RatingEligibilityWriteRecordV1: Codable, Equatable, Sendable {
+    let operationID: UUID
+    let successorStateSHA256: String
+    let receipt: RatingLedgerPersistenceReceiptV1
+}
+
+private struct RatingEligibilityStorageEnvelopeV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let state: RatingRequestAttemptLedgerStateV1
+    let writeRecord: RatingEligibilityWriteRecordV1
+
+    init(
+        state: RatingRequestAttemptLedgerStateV1,
+        writeRecord: RatingEligibilityWriteRecordV1
+    ) {
+        schemaVersion = Self.schemaVersion
+        self.state = state
+        self.writeRecord = writeRecord
+    }
+}
+
+private struct RatingEligibilityEnvelopeVersionProbeV1: Codable, Sendable {
+    let schemaVersion: Int
+}
+
 /// The sole device-local preference adapter. Feature and view code receive the
 /// typed port and never read or write raw defaults keys.
-final class PreferencesAdapterV1: DevicePreferencesPortV1, @unchecked Sendable {
+final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStoreV1,
+    @unchecked Sendable {
     static let storagePrefix = "settings.v1."
+    private static let ratingEligibilityStorageKey = "rating-eligibility.v1"
+    private static let ratingEligibilityLock = NSLock()
     private let defaults: UserDefaults
     private let lock = NSLock()
 
@@ -218,6 +252,111 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, @unchecked Sendable {
         )
     }
 
+    // MARK: - C39 device-local rating eligibility ledger
+
+    func load() async throws -> RatingLedgerLoadResultV1 {
+        try withRatingEligibilityLock { ratingEligibilityLoadResultLocked() }
+    }
+
+    func compareAndSwap(
+        operationID: UUID,
+        expectedRevision: UInt64?,
+        successor: RatingRequestAttemptLedgerStateV1
+    ) async throws -> RatingLedgerPersistenceReceiptV1 {
+        try withRatingEligibilityLock {
+            guard operationID != UUID.zero else {
+                throw RatingEligibilityFailureV1.invalidValue
+            }
+            try validateRatingEligibilityState(successor)
+
+            switch ratingEligibilityLoadResultLocked() {
+            case .absentFreshInstall:
+                guard expectedRevision == nil, successor.revision == 1 else {
+                    throw RatingEligibilityFailureV1.staleState
+                }
+            case .current(let current):
+                guard let persisted = ratingEligibilityCurrentEnvelopeLocked(),
+                      persisted.state == current else {
+                    throw RatingEligibilityFailureV1.storageUnavailable
+                }
+                if persisted.writeRecord.operationID == operationID {
+                    guard persisted.writeRecord.successorStateSHA256 == successor.stateSHA256,
+                          persisted.writeRecord.receipt.resultingRevision == successor.revision,
+                          persisted.writeRecord.receipt.stateSHA256 == successor.stateSHA256 else {
+                        throw RatingEligibilityFailureV1.divergentReplay
+                    }
+                    return RatingLedgerPersistenceReceiptV1(
+                        operationID: operationID,
+                        expectedRevision: persisted.writeRecord.receipt.expectedRevision,
+                        resultingRevision: persisted.writeRecord.receipt.resultingRevision,
+                        stateSHA256: persisted.writeRecord.receipt.stateSHA256,
+                        disposition: .idempotentReplay
+                    )
+                }
+                guard expectedRevision == current.revision,
+                      successor.revision == current.revision + 1 else {
+                    throw RatingEligibilityFailureV1.staleState
+                }
+            case .corrupt, .futureVersion, .migrationFailed:
+                throw RatingEligibilityFailureV1.storageUnavailable
+            }
+
+            let receipt = RatingLedgerPersistenceReceiptV1(
+                operationID: operationID,
+                expectedRevision: expectedRevision,
+                resultingRevision: successor.revision,
+                stateSHA256: successor.stateSHA256,
+                disposition: .committed
+            )
+            let envelope = RatingEligibilityStorageEnvelopeV1(
+                state: successor,
+                writeRecord: RatingEligibilityWriteRecordV1(
+                    operationID: operationID,
+                    successorStateSHA256: successor.stateSHA256,
+                    receipt: receipt
+                )
+            )
+            let data = try CompatibilityCanonicalV1.encode(envelope)
+            defaults.set(data, forKey: Self.ratingEligibilityStorageKey)
+
+            guard let persisted = ratingEligibilityCurrentEnvelopeLocked(),
+                  persisted.state == successor,
+                  persisted.writeRecord.receipt == receipt else {
+                throw RatingEligibilityFailureV1.storageUnavailable
+            }
+            return receipt
+        }
+    }
+
+    /// Recovery may retain an already-persisted Erase cooldown only when this
+    /// exact Erase operation owns the canonical ledger and nothing else
+    /// remains in the injected Defaults domain. Any mismatch forces the
+    /// normal full-domain wipe before a replacement is written.
+    func hasExactEraseCooldown(
+        operationID: UUID,
+        persistentDomainName: String
+    ) -> Bool {
+        (try? withRatingEligibilityLock {
+            guard operationID != UUID.zero,
+                  let domain = defaults.persistentDomain(forName: persistentDomainName),
+                  Set(domain.keys) == Set([Self.ratingEligibilityStorageKey]),
+                  case .current(let state) = ratingEligibilityLoadResultLocked(),
+                  let envelope = ratingEligibilityCurrentEnvelopeLocked(),
+                  envelope.state == state,
+                  envelope.writeRecord.operationID == operationID,
+                  envelope.writeRecord.receipt.operationID == operationID,
+                  envelope.writeRecord.receipt.expectedRevision == nil,
+                  envelope.writeRecord.receipt.resultingRevision == state.revision,
+                  envelope.writeRecord.receipt.stateSHA256 == state.stateSHA256,
+                  envelope.writeRecord.successorStateSHA256 == state.stateSHA256,
+                  state.attempts.isEmpty,
+                  case .erasedCooldown = state.origin else {
+                return false
+            }
+            return true
+        }) ?? false
+    }
+
     private func replaceWithDefaults(
         descriptors: [SettingDescriptorV1],
         operationID: UUID,
@@ -352,9 +491,99 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, @unchecked Sendable {
 
     private func storageKey(_ key: String) -> String { Self.storagePrefix + key }
 
+    private func ratingEligibilityLoadResultLocked() -> RatingLedgerLoadResultV1 {
+        guard let object = defaults.object(forKey: Self.ratingEligibilityStorageKey) else {
+            return .absentFreshInstall
+        }
+        guard let data = object as? Data else { return .corrupt }
+        do {
+            // The probe intentionally does not require the full current
+            // envelope shape: it is how a newer or prior schema is kept
+            // distinct from malformed current bytes.
+            let version = try JSONDecoder().decode(
+                RatingEligibilityEnvelopeVersionProbeV1.self,
+                from: data
+            ).schemaVersion
+            if version > RatingEligibilityStorageEnvelopeV1.schemaVersion {
+                return .futureVersion
+            }
+            if version < RatingEligibilityStorageEnvelopeV1.schemaVersion {
+                return .migrationFailed
+            }
+            let envelope = try CompatibilityCanonicalV1.decode(
+                RatingEligibilityStorageEnvelopeV1.self,
+                from: data
+            )
+            guard envelope.schemaVersion == RatingEligibilityStorageEnvelopeV1.schemaVersion else {
+                return .corrupt
+            }
+            try validateRatingEligibilityState(envelope.state)
+            guard envelope.writeRecord.operationID != UUID.zero,
+                  KernelCanonicalHashV1.validSHA256(
+                    envelope.writeRecord.successorStateSHA256
+                  ),
+                  envelope.writeRecord.successorStateSHA256 == envelope.state.stateSHA256,
+                  envelope.writeRecord.receipt.operationID
+                    == envelope.writeRecord.operationID,
+                  envelope.writeRecord.receipt.resultingRevision
+                    == envelope.state.revision,
+                  envelope.writeRecord.receipt.stateSHA256
+                    == envelope.state.stateSHA256,
+                  envelope.writeRecord.receipt.expectedRevision
+                    == (envelope.state.revision == 1 ? nil : envelope.state.revision - 1),
+                  envelope.writeRecord.receipt.disposition == .committed else {
+                return .corrupt
+            }
+            return .current(envelope.state)
+        } catch {
+            return .corrupt
+        }
+    }
+
+    private func ratingEligibilityCurrentEnvelopeLocked()
+        -> RatingEligibilityStorageEnvelopeV1? {
+        guard let data = defaults.data(forKey: Self.ratingEligibilityStorageKey),
+              let envelope = try? CompatibilityCanonicalV1.decode(
+                RatingEligibilityStorageEnvelopeV1.self,
+                from: data
+              ),
+              envelope.schemaVersion == RatingEligibilityStorageEnvelopeV1.schemaVersion,
+              (try? validateRatingEligibilityState(envelope.state)) != nil else {
+            return nil
+        }
+        return envelope
+    }
+
+    private func validateRatingEligibilityState(
+        _ state: RatingRequestAttemptLedgerStateV1
+    ) throws {
+        try state.validate()
+        guard state.clockHighWatermarkUTC
+            >= (state.attempts.map(\.reservedAt).max() ?? .distantPast) else {
+            throw RatingEligibilityFailureV1.invalidValue
+        }
+        if case .erasedCooldown(let erasedAt, let suppressUntil) = state.origin {
+            guard erasedAt.timeIntervalSinceReferenceDate.isFinite,
+                  suppressUntil.timeIntervalSinceReferenceDate.isFinite,
+                  state.attempts.isEmpty,
+                  suppressUntil == erasedAt.addingTimeInterval(
+                    RatingEligibilityPolicyV1.eraseCooldownSeconds
+                  ),
+                  state.clockHighWatermarkUTC >= erasedAt else {
+                throw RatingEligibilityFailureV1.invalidValue
+            }
+        }
+    }
+
     private func withLock<T>(_ body: () throws -> T) throws -> T {
         lock.lock()
         defer { lock.unlock() }
+        return try body()
+    }
+
+    private func withRatingEligibilityLock<T>(_ body: () throws -> T) throws -> T {
+        Self.ratingEligibilityLock.lock()
+        defer { Self.ratingEligibilityLock.unlock() }
         return try body()
     }
 }

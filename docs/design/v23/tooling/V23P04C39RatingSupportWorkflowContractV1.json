@@ -1,0 +1,512 @@
+{
+  "authority": {
+    "allocationDigest": "c20e155a3a3b49232faa454a48a79900720f1d72a0a56c9b4e78bfafb369ed71",
+    "appBaseHead": "98171901b302c63d667f59d6a9ac02413aaba762",
+    "appBaseTree": "d4016d0e556d6f7f60926571348d919b0605009b",
+    "attemptID": 1,
+    "authorizedOverlapCount": 4,
+    "cardID": "V23-P04-C39",
+    "contextDigest": "49538d614820ea6356f0deccaf931bcaa8a849f8d2158e3d595b8b36faf2fa8f",
+    "coordinationHead": "435f91c8c756b741c275d21cde7adece48761294",
+    "coordinationTree": "26c6f9b72bee52b4722842f66beda130bbfb8513",
+    "existingPathCount": 3,
+    "existingPaths": [
+      "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift"
+    ],
+    "fencePathCount": 18,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "ledgerDigest": "4c1f8c067a3da8471f06dcf8be8138a27d169576b2787a067affcfeb99eecf94",
+    "newPathCount": 15,
+    "newPaths": [
+      "FieldEvidenceApp/Domain/Feedback/RatingEligibilityContractsV1.swift",
+      "FieldEvidenceApp/Application/Feedback/RatingEligibilityCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Feedback/RatingRequestAdapterV1.swift",
+      "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_102RatingEligibilityWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Feedback/V23P04C39RatingSupportWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C39RatingSupportWorkflowUITests.swift",
+      "Scripts/v23/p04_c39_contracts.py",
+      "Scripts/v23/generate_p04_c39_contracts.py",
+      "Scripts/v23/verify_p04_c39_contracts.py",
+      "Scripts/v23/rating-support-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C39RatingSupportWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C39RatingSupportWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C39BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C39-tooling-manifest.json"
+    ],
+    "orderedPathFence": [
+      "FieldEvidenceApp/Domain/Feedback/RatingEligibilityContractsV1.swift",
+      "FieldEvidenceApp/Application/Feedback/RatingEligibilityCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Feedback/RatingRequestAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+      "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_102RatingEligibilityWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Feedback/V23P04C39RatingSupportWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C39RatingSupportWorkflowUITests.swift",
+      "Scripts/v23/p04_c39_contracts.py",
+      "Scripts/v23/generate_p04_c39_contracts.py",
+      "Scripts/v23/verify_p04_c39_contracts.py",
+      "Scripts/v23/rating-support-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C39RatingSupportWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C39RatingSupportWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C39BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C39-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "90bd582fba3ebae8f3a983ebc2ea95248970407a008e3f51f5b05c37c0a0c198",
+    "prerequisiteDigest": "4bb1eceee8ff7df5c4b5c4776c483db7fa4d62400b566ac28d9cc6c5eaa44dc2",
+    "productTestUIFixturePathCount": 7,
+    "projectionDigest": "26f5fc20257e10c09409cbfaab60c0c040eed7a551b827c9f21c0839e31b0ff7",
+    "registerOrdinal": 124,
+    "s10ReservationOverlapCount": 0,
+    "sequence": 555,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C39",
+        "sha256": "3feef54884e139e44071498650851ffe782514f3bce5de4326ccc5b4f503031e",
+        "utf8Length": 7519
+      },
+      {
+        "anchor": "V21-P04-C39",
+        "sha256": "ffeedbb4bb0a4dcb1336d0945808bbb48e4cb8f2c8674eaab47addbedca801df",
+        "utf8Length": 5761
+      },
+      {
+        "anchor": "V23-P04-C39-register",
+        "sha256": "e0762666d1ce4800153258b3f74402d6292cbfbb4a12564f75ef0df4d6bf1589",
+        "utf8Length": 318
+      }
+    ],
+    "title": "Native App Store rating eligibility and always-visible support fallback from generic finalized-value receipts",
+    "toolingPathCount": 8,
+    "transitionDigest": "b59610ff7facf995bdd7795591b9f427891efd7dfbb91cb4ea393c2522354b12",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C39",
+  "contract": "RatingSupportWorkflowContractV1",
+  "corpusExpectations": {
+    "activeContextSuppressions": [
+      "ERROR",
+      "RECOVERY",
+      "PURCHASE",
+      "PERMISSION",
+      "IMPORT",
+      "EXPORT_OR_SHARE",
+      "CAPTURE",
+      "DESTRUCTIVE_CONFIRMATION",
+      "ACTIVE_WORK"
+    ],
+    "boundaryVectors": [
+      {
+        "caseID": "SEVEN_DAYS_MINUS_ONE_SECOND",
+        "eligible": false,
+        "seconds": 604799
+      },
+      {
+        "caseID": "SEVEN_DAYS_EXACT",
+        "eligible": true,
+        "seconds": 604800
+      },
+      {
+        "caseID": "ONE_HUNDRED_TWENTY_DAYS_MINUS_ONE_SECOND",
+        "eligible": false,
+        "seconds": 10367999
+      },
+      {
+        "caseID": "ONE_HUNDRED_TWENTY_DAYS_EXACT",
+        "eligible": true,
+        "seconds": 10368000
+      },
+      {
+        "caseID": "ROLLING_YEAR_MINUS_ONE_SECOND",
+        "eligible": false,
+        "seconds": 31535999
+      },
+      {
+        "caseID": "ROLLING_YEAR_EXACT",
+        "eligible": true,
+        "seconds": 31536000
+      },
+      {
+        "caseID": "ERASE_COOLDOWN_MINUS_ONE_SECOND",
+        "eligible": false,
+        "seconds": 31535999
+      },
+      {
+        "caseID": "ERASE_COOLDOWN_EXACT",
+        "eligible": true,
+        "seconds": 31536000
+      }
+    ],
+    "cardID": "V23-P04-C39",
+    "claims": {
+      "analyticsWritten": false,
+      "contactWritten": false,
+      "conversionStored": false,
+      "marketingWritten": false,
+      "networkWritten": false,
+      "promptDisplayStored": false,
+      "ratingEffectClaimed": false,
+      "reviewContentStored": false,
+      "rewardOffered": false,
+      "sentimentStored": false,
+      "starValueStored": false,
+      "storeResponseStored": false,
+      "submissionStored": false,
+      "telemetryWritten": false
+    },
+    "containsCustomerData": false,
+    "containsSecrets": false,
+    "excludedCompletionCases": [
+      "PRACTICE",
+      "IMPORTED",
+      "HISTORIC",
+      "DUPLICATE_RECEIPT",
+      "DUPLICATE_ACTIVITY_SERIES",
+      "REPORT_GENERATION",
+      "AMENDMENT",
+      "REOPENED",
+      "SUPERSEDED",
+      "NONFINAL",
+      "MISSING_RECEIPT",
+      "MISSING_READBACK",
+      "MISMATCHED_READBACK",
+      "NONCURRENT_READBACK",
+      "WRONG_WORKSPACE"
+    ],
+    "hostileCases": [
+      "CLOCK_ROLLBACK",
+      "VERSION_PARSE_FAILURE",
+      "REPEATED_SCENE_EVENTS",
+      "PROMPT_DURING_FAILURE_RECOVERY",
+      "MISSING_APP_STORE_ID",
+      "UNSUPPORTED_PLATFORM",
+      "CUSTOM_STAR_DIALOG",
+      "PROMPT_REWARD_OR_EFFECT_COPY"
+    ],
+    "includedReadbacks": [
+      "LOCAL_FINALIZATION_RECEIPT_MATCHING_CURRENT_FINALIZED_SNAPSHOT_V1",
+      "LOCAL_FINALIZATION_RECEIPT_MATCHING_CURRENT_FINALIZED_SNAPSHOT_V2"
+    ],
+    "interruptionVectors": [
+      "BEFORE_ATTEMPT_RESERVATION",
+      "AFTER_ATTEMPT_RESERVATION_BEFORE_SYSTEM_CALL",
+      "AFTER_SYSTEM_CALL_BEFORE_RETURN",
+      "DUPLICATE_SAME_EVENT",
+      "KILL_AND_RELAUNCH"
+    ],
+    "ledgerStates": [
+      "ABSENT_FRESH_INSTALL",
+      "VALID",
+      "ERASED_COOLDOWN",
+      "CORRUPT",
+      "FUTURE",
+      "MIGRATION_FAILED"
+    ],
+    "recoveryCases": [
+      "RESET_PRESERVES_LEDGER",
+      "ERASE_COOLDOWN",
+      "ABSENT_FRESH_INSTALL_REEARNS_THRESHOLD",
+      "CORRUPT_FUTURE_MIGRATION_FAILED_DISABLE",
+      "SUPPORT_PRESERVED",
+      "ZERO_TELEMETRY_NETWORK_MARKETING_CONTACT_WRITES"
+    ],
+    "scenarioIDs": [
+      "V23-P04-C39-G01",
+      "V23-P04-C39-A01",
+      "V23-P04-C39-H01",
+      "V23-P04-C39-I01",
+      "V23-P04-C39-R01"
+    ],
+    "schema": "V23P04C39RatingSupportWorkflowCorpusV1",
+    "schemaVersion": 1,
+    "synthetic": true,
+    "testOnly": true,
+    "thresholds": {
+      "eraseCooldownSeconds": 31536000,
+      "maximumAttemptsPerRollingYear": 2,
+      "minimumAttemptSeparationSeconds": 10368000,
+      "minimumCompletionSpanSeconds": 604800,
+      "minimumDistinctSeries": 3,
+      "rollingYearSeconds": 31536000
+    },
+    "truth": {
+      "attemptDisposition": "SYSTEM_CONSIDERATION_REQUESTED",
+      "automaticRequestRequiresVerifiedAppStoreID": true,
+      "eraseRetainsCustomerData": false,
+      "ordinaryResetClearsAttemptHistory": false,
+      "sceneUnavailableRecordsAttempt": false,
+      "storeNoOpIsSuccess": false,
+      "supportAlwaysVisible": true,
+      "supportConditionedOnRating": false,
+      "systemPromptDisplayKnown": false
+    }
+  },
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "independence": {
+    "eraseAllServiceSoleOwner": true,
+    "newBackend": false,
+    "newContactWriter": false,
+    "newMarketing": false,
+    "newNetwork": false,
+    "newRenderer": false,
+    "newStore": false,
+    "newTelemetry": false,
+    "newWriter": false,
+    "optionalProviderOnly": true,
+    "persistedActivityIdentifiers": false,
+    "persistedCustomerIdentifiers": false,
+    "persistedReceiptIdentifiers": false,
+    "persistedSnapshotIdentifiers": false,
+    "persistedWorkspaceIdentifiers": false,
+    "preferencesAdapterSoleOwner": true,
+    "s6_6EraseRecoveryRegression": true,
+    "supportIndependent": true
+  },
+  "lifecycle": {
+    "backupExportSearchDiagnostics": "EXCLUDED_DEVICE_LOCAL_PREFERENCE",
+    "canonicalPersistentSchema": null,
+    "canonicalRows": [],
+    "canonicalWriteOwners": [],
+    "eraseDisposition": "ERASED_COOLDOWN_365_DAYS",
+    "eraseOwner": "EraseAllService",
+    "newDurableFamilyCount": 0,
+    "newMigrationCount": 0,
+    "newModelCount": 0,
+    "newSchemaCount": 0,
+    "newStoreCount": 0,
+    "newWriterCount": 0,
+    "persistence": "PERSISTENT_OR_PRODUCT_DELTA",
+    "ratingAttemptLedger": "DEVICE_LOCAL_NONWORKSPACE",
+    "resetDisposition": "PRESERVE_LEDGER",
+    "solePreferenceOwner": "PreferencesAdapterV1",
+    "status": "IMPLEMENT_NOW"
+  },
+  "ordinal": 124,
+  "requirements": {
+    "appDeathDisposition": "AT_MOST_ONE_CONSERVATIVE_ATTEMPT",
+    "closedTypedWorkflow": true,
+    "corruptFutureMigrationFailureDisposition": "DISABLE_AUTO_REQUEST",
+    "deviceLocalNonWorkspaceLedger": true,
+    "duplicateInvocationDisposition": "IDEMPOTENT",
+    "eraseDisposition": "ERASED_COOLDOWN_365_DAYS",
+    "excludedSeries": [
+      "PRACTICE",
+      "IMPORTED",
+      "HISTORIC",
+      "DUPLICATE",
+      "REOPENED",
+      "SUPERSEDED",
+      "NONFINAL"
+    ],
+    "finalHashesUnsealed": true,
+    "fiveEvidenceScenarios": true,
+    "freshInstallDisposition": "ABSENT_FRESH_INSTALL_EARNS_THRESHOLD",
+    "matchingFinalizationReceiptAndCurrentFinalizedSnapshot": true,
+    "maximumTwoAttemptsPerRollingYear": true,
+    "minimum120DaysBetweenAttempts": true,
+    "minimumSevenDays": true,
+    "missingAppStoreIdentity": "TYPED_DISABLED_RATING_LINK",
+    "modernAppStoreRequestReview": true,
+    "naturalIdleStoppingPoint": true,
+    "noAnalytics": true,
+    "noContactWrites": true,
+    "noConversionRecording": true,
+    "noCustomRatingDialog": true,
+    "noDeprecatedRequestAPI": true,
+    "noMarketingWrites": true,
+    "noNetwork": true,
+    "noNewDurableFamily": true,
+    "noNewMigration": true,
+    "noNewModel": true,
+    "noNewSchema": true,
+    "noNewStore": true,
+    "noNewWriter": true,
+    "noParallelBackend": true,
+    "noParallelRenderer": true,
+    "noPromptDisplayRecording": true,
+    "noReviewRecording": true,
+    "noStarRecording": true,
+    "noStoreResponseRecording": true,
+    "noSubmissionRecording": true,
+    "noTelemetry": true,
+    "oneAttemptPerMarketingVersion": true,
+    "persistedLedgerExcludesCustomerWorkspaceActivitySnapshotReceiptIdentifiers": true,
+    "requestAPI": "AppStore.requestReview(in:)",
+    "resetDisposition": "PRESERVE_LEDGER",
+    "s6_6EraseRecoveryRegression": true,
+    "scenarioSelectors": [
+      "V23-P04-C39-G01",
+      "V23-P04-C39-A01",
+      "V23-P04-C39-H01",
+      "V23-P04-C39-I01",
+      "V23-P04-C39-R01"
+    ],
+    "sceneBoundRequest": true,
+    "soleEraseAllService": true,
+    "solePreferencesAdapter": true,
+    "stableMarketingVersion": true,
+    "supportAlwaysVisible": true,
+    "supportIndependentOfRating": true,
+    "suppressionContexts": [
+      "ERROR",
+      "RECOVERY",
+      "PURCHASE",
+      "PERMISSION",
+      "IMPORT",
+      "EXPORT",
+      "CAPTURE",
+      "DESTRUCTIVE"
+    ],
+    "threeDistinctFinalizedActivitySeries": true
+  },
+  "scenarioEvidenceIDs": [
+    "V23-P04-C39-G01",
+    "V23-P04-C39-A01",
+    "V23-P04-C39-H01",
+    "V23-P04-C39-I01",
+    "V23-P04-C39-R01"
+  ],
+  "scenarioRows": [
+    {
+      "evidenceID": "V23-P04-C39-G01",
+      "expectedEffects": {
+        "attemptLedgerWrites": 1,
+        "distinctFinalizedActivitySeries": 3,
+        "minimumDays": 7,
+        "nativeRequestAPI": "AppStore.requestReview(in:)",
+        "supportAvailable": true
+      },
+      "focus": "FINALIZED_VALUE_ELIGIBILITY_AND_NATIVE_SCENE_BOUND_REQUEST",
+      "id": "G01",
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P04-C39-A01",
+      "expectedEffects": {
+        "eraseCooldownDays": 365,
+        "maximumRollingYearAttempts": 2,
+        "minimumDaysBetweenAttempts": 120,
+        "oneAttemptPerMarketingVersion": true,
+        "resetPreservesLedger": true,
+        "supportIndependent": true
+      },
+      "focus": "ELIGIBILITY_BOUNDARIES_VERSION_WINDOWS_EXCLUSIONS_AND_ALWAYS_VISIBLE_SUPPORT",
+      "id": "A01",
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P04-C39-H01",
+      "expectedEffects": {
+        "corruptFutureMigrationFailure": "DISABLE_AUTO_REQUEST",
+        "forbiddenContextsRejected": true,
+        "missingAppStoreIdentity": "TYPED_DISABLED_RATING_LINK",
+        "prohibitedWrites": 0
+      },
+      "focus": "INVALID_LEDGER_PLATFORM_IDENTITY_ACTIVE_CONTEXT_AND_PRIVACY_REJECTION",
+      "id": "H01",
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P04-C39-I01",
+      "expectedEffects": {
+        "appDeath": "AT_MOST_ONE_CONSERVATIVE_ATTEMPT",
+        "canonicalEffects": [
+          0,
+          1
+        ],
+        "duplicateInvocation": "IDEMPOTENT",
+        "sceneUnavailable": "NO_REQUEST"
+      },
+      "focus": "DUPLICATE_SCENE_INVOCATION_APP_DEATH_RESET_ERASE_AND_CLOCK_BOUNDARIES",
+      "id": "I01",
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P04-C39-R01",
+      "expectedEffects": {
+        "eraseState": "ERASED_COOLDOWN",
+        "networkWrites": 0,
+        "retry": "SAME_ATTEMPT_OR_NO_EFFECT",
+        "supportAvailable": true,
+        "telemetryWrites": 0
+      },
+      "focus": "LOCAL_LEDGER_RECOVERY_SUPPORT_PRESERVATION_AND_ZERO_COLLECTION",
+      "id": "R01",
+      "kind": "RECOVERY"
+    }
+  ],
+  "schema": "V23P04C39RatingSupportWorkflowToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Domain/Feedback/RatingEligibilityContractsV1.swift",
+      "sha256": "8b12801d4e371bd89b36c8a4c27d4ae15d7793bb2505f8dfd7f01b0800d98d51",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Feedback/RatingEligibilityCoordinatorV1.swift",
+      "sha256": "da002070ce30221b3298d083755d684507186d0faca01e12d1a1792ba8d4e11d",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/RatingRequestAdapterV1.swift",
+      "sha256": "c64a7b69d1da9ea86f211c53447ed122fce59d9462288237e6081756446aa523",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+      "sha256": "b7ae0570ef54ba29ddb7c308b3f5236e03045297abddc18c3be99ad0b77d0e12",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "sha256": "0707f4aeffe62d6bfcfc025b41ac9af5e129833030c42bd664c044b69a761f9d",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+      "sha256": "f43ef400fc45051bfa140b9c389b0dac67ff827b06cdc2ea99cb47b92370cb77",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+      "sha256": "d079a41fc20f5a37f8207579071e5ee2d0cb4452567033fd0193bc37d21730cc",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_102RatingEligibilityWorkflowTests.swift",
+      "sha256": "f6092489ca73022affc677b2eced97f7e30332f517553376a7edb0904cec8322",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/Feedback/V23P04C39RatingSupportWorkflowCorpusV1.json",
+      "sha256": "d68eb16511b0a973b45f2bb5f66d66707e3584aa446889c9f2cce466f2b4af7a",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C39RatingSupportWorkflowUITests.swift",
+      "sha256": "a4cbb89d73d13a8ebdd31862ea317fcf7e74411353652fac4c543b1200b89a22",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}
