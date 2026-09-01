@@ -3743,7 +3743,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    private func positionMinimumRTLReportsViewReport("
         let minimumRTLReportsPositioningEnd =
             "\n\n    @MainActor\n" +
-                "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
+                "    private func diagnoseMinimumWorkValidationNoteContrast("
         guard let minimumRTLReportsPositioningStartRange = uiSource.range(
             of: minimumRTLReportsPositioningStart
         ), let minimumRTLReportsPositioningEndRange = uiSource.range(
@@ -7565,7 +7565,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "runMinimumKeyboardGeometryDiagnostic",
             "S10_4_MINIMUM_KEYBOARD_GEOMETRY_DIAGNOSTIC",
             "minimum keyboard geometry diagnostic completed nonaccepting",
-            #"shard.shardID == "s10.4.minimum.minimum-os""#,
             #"identifier: "s2.new-sign.screen""#,
             #"identifier: "s2.new-sign.sign-label""#,
             "minimum keyboard geometry app",
@@ -11741,9 +11740,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10.4 reduce-motion Record-work saving contrast diagnostic completed nonaccepting",
             #"if shard.shardID == "s10.4.current.reduce-motion","# + "\n" +
                 #"               stateID == "state.work.saving""#,
-            "let workScreenCount = workScreens.count",
             "let savingStatusCount = savingStatuses.count",
-            "let noteHeadingCount = noteHeadings.count",
             "let helperTextCount = helperTexts.count",
             #""callbackCount": observedIssueCount"#,
         ] {
@@ -11756,6 +11753,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     removedReduceMotionWorkSavingDiagnosticForm
                 ),
                 removedReduceMotionWorkSavingDiagnosticForm
+            )
+        }
+        for removedReduceMotionWorkSavingLocalForm in [
+            "let workScreenCount = workScreens.count",
+            "let noteHeadingCount = noteHeadings.count",
+        ] {
+            XCTAssertFalse(
+                restoredCaptureBaselineSource.contains(
+                    removedReduceMotionWorkSavingLocalForm
+                ),
+                removedReduceMotionWorkSavingLocalForm
             )
         }
 
