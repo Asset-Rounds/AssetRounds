@@ -2064,6 +2064,194 @@ extension S9_1ReleasePreflightTests {
 }
 
 extension S9_1ReleasePreflightTests {
+    func testV23P04C29ReleasePreflightMirrorsProvisionalExactCandidateFreeze() throws {
+        let ledger = try c29JSON(
+            "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json"
+        )
+        let corpus = try c29JSON(
+            "FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C29ExactCandidateRegressionFreezeCorpusV1.json"
+        )
+        let contract = try c29JSON(
+            "docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeContractV1.json"
+        )
+        let evidence = try c29JSON(
+            "docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeEvidenceReceiptV1.json"
+        )
+        let impact = try c29JSON(
+            "docs/design/v23/tooling/V23P04C29BrandImpactManifestV1.json"
+        )
+        let manifest = try c29JSON(
+            "docs/design/v23/tooling/V23-P04-C29-tooling-manifest.json"
+        )
+        let schema = try c29JSON("Scripts/v23/exact-candidate-regression-freeze.schema.json")
+        let documents = [ledger, corpus, contract, evidence, impact, manifest]
+        let selectors = [
+            "testV23P04C29G01ExactCandidateFreezeBindsBrandHIGAccessibilityLocalizationJourneyAndReleaseState",
+            "testV23P04C29A01MinimumIOS18AndLatestStableResolveSeparatelyWithSemanticParity",
+            "testV23P04C29H01UnknownStaleCorruptCoverageContrastAccessibilityLocalizationJourneyAndReleaseDriftFailClosed",
+            "testV23P04C29I01ManifestLastInterruptionPreservesCandidateAndNoPartialReceipt",
+            "testV23P04C29R01DeterministicRetryPreservesFrozenCandidateWithoutPromotion",
+        ]
+
+        for document in documents {
+            XCTAssertEqual(document["cardID"] as? String, "V23-P04-C29")
+            if document["schemaVersion"] != nil {
+                XCTAssertEqual(document["schemaVersion"] as? Int, 1)
+            }
+            let flags = try XCTUnwrap(
+                (document["statusFlags"] as? [String: Bool])
+                    ?? (document["flags"] as? [String: Bool])
+            )
+            XCTAssertFalse(flags.isEmpty)
+            XCTAssertTrue(flags.values.allSatisfy { !$0 })
+            if document["selectors"] != nil {
+                XCTAssertEqual(document["selectors"] as? [String], selectors)
+            }
+            if document["provisional"] != nil {
+                XCTAssertEqual(document["provisional"] as? Bool, true)
+            }
+        }
+
+        XCTAssertEqual(ledger["schema"] as? String, "V23P04C29ExactCandidateRegressionFreezeV1")
+        XCTAssertEqual(
+            corpus["schema"] as? String,
+            "V23P04C29ExactCandidateRegressionFreezeCorpusV1"
+        )
+        XCTAssertEqual(
+            contract["schema"] as? String,
+            "V23P04C29ToolingV1"
+        )
+        XCTAssertEqual(contract["contract"] as? String, "ExactCandidateRegressionFreezeContractV1")
+        XCTAssertEqual(
+            evidence["schema"] as? String,
+            "V23P04C29ToolingV1"
+        )
+        XCTAssertEqual(
+            evidence["receipt"] as? String,
+            "ExactCandidateRegressionFreezeEvidenceReceiptV1"
+        )
+        XCTAssertEqual(impact["schema"] as? String, "BrandImpactManifestV1")
+        XCTAssertEqual(manifest["schema"] as? String, "V23P04C29ToolingManifestV1")
+        XCTAssertEqual(schema["$schema"] as? String, "https://json-schema.org/draft/2020-12/schema")
+        XCTAssertEqual(schema["additionalProperties"] as? Bool, false)
+        XCTAssertEqual(contract["sourceReady"] as? Bool, true)
+        XCTAssertEqual(evidence["sourceReady"] as? Bool, true)
+        XCTAssertEqual(manifest["finalHashesSealed"] as? Bool, false)
+
+        let authority = try XCTUnwrap(manifest["authority"] as? [String: Any])
+        XCTAssertEqual(authority["finalHashesSealed"] as? Bool, false)
+        XCTAssertEqual(
+            authority["appBaseHead"] as? String,
+            "8b97b33a0c83d639349d9c28806092fdeb79b95f"
+        )
+        XCTAssertEqual(
+            authority["appBaseTree"] as? String,
+            "0c804ceb7b50a5b804b1380762408aedac644d2d"
+        )
+        XCTAssertEqual(
+            authority["coordinationHead"] as? String,
+            "3be7e1ac1cb8e8c046f4a02d8c6c450a14078c05"
+        )
+        XCTAssertEqual(
+            authority["coordinationTree"] as? String,
+            "60748a754f7fb5e2ce12af18df1fe8414aa20ffb"
+        )
+        XCTAssertEqual(authority["sequence"] as? Int, 512)
+        XCTAssertEqual(authority["fencePathCount"] as? Int, 14)
+        XCTAssertEqual(authority["existingPathCount"] as? Int, 2)
+        XCTAssertEqual(authority["newPathCount"] as? Int, 12)
+        XCTAssertEqual((manifest["pathFence"] as? [String])?.count, 14)
+
+        let combined = try documents.map { document -> String in
+            let bytes = try JSONSerialization.data(withJSONObject: document, options: [.sortedKeys])
+            return String(decoding: bytes, as: UTF8.self)
+        }.joined(separator: "\n")
+        for required in [
+            "V23-P04-C27", "V23-P04-C28", "V23-P00-C13",
+            "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json",
+            "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json",
+            "61072c481d9c1acedf2e91bcc3759d161ad12fbfb67f2f1c8c35ea491d5769d6",
+            "b657cffb50c5989d7979e93d5e51b419dc4fc47b91c787b525850ff70cc53544",
+            "8aa76625bee8c70277a41e2212f814604dac32f4600ab1954db4af4c90713b47",
+            "cba3785a50588c1bceddaaaabac2736b2256c3da017bd31eaef8f124342f4482",
+        ] {
+            XCTAssertTrue(combined.contains(required), required)
+        }
+        XCTAssertTrue(combined.uppercased().contains("S10"))
+        XCTAssertTrue(combined.uppercased().contains("COVERAGE"))
+        XCTAssertTrue(
+            combined.uppercased().contains("BLOCK")
+                || combined.uppercased().contains("UNRESOLVED")
+        )
+
+        for key in ["persistentKindCount", "writerCount", "migrationCount"] {
+            let values = c29Values(for: key, in: documents)
+            XCTAssertFalse(values.isEmpty, key)
+            XCTAssertTrue(values.allSatisfy { ($0 as? Int) == 0 }, key)
+        }
+        for key in ["acceptanceEligible", "nativeIPadClaim"] {
+            let values = c29Values(for: key, in: documents)
+            XCTAssertFalse(values.isEmpty, key)
+            XCTAssertTrue(values.allSatisfy { ($0 as? Bool) == false }, key)
+        }
+        XCTAssertEqual(impact["candidatePromotion"] as? Bool, false)
+        let negativeClaims = try XCTUnwrap(corpus["negativeClaims"] as? [String: Bool])
+        for key in ["appStorePromotion", "releaseSigning", "testFlightUpload", "nativeIPadClaim"] {
+            XCTAssertEqual(negativeClaims[key], false, key)
+        }
+        let blockedEvidence = try XCTUnwrap(corpus["blockedEvidence"] as? [String: Any])
+        XCTAssertEqual(blockedEvidence["acceptedS10_6"] as? String, "BLOCKED")
+        XCTAssertEqual(blockedEvidence["coverage"] as? String, "BLOCKED")
+        XCTAssertEqual(blockedEvidence["nativeCandidate"] as? String, "NOT_RUN")
+
+        XCTAssertEqual(
+            c29Digest(try data("docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json")),
+            "b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2"
+        )
+        XCTAssertEqual(
+            c29Digest(try data("docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json")),
+            "3edc52a47c91c4b79238380bdad92f6a2a1e0ebd0d1084a2e1ad7ae0e6238e14"
+        )
+        let c29Tests = try text("FieldEvidenceAppTests/V9_92ExactCandidateRegressionFreezeTests.swift")
+        for selector in selectors {
+            XCTAssertTrue(c29Tests.contains("func \(selector)"), selector)
+        }
+
+        let preflight = try text("Scripts/release-preflight.sh")
+        for token in [
+            "c29_generator_script=\"Scripts/v23/generate_p04_c29_contracts.py\"",
+            "c29_verifier_script=\"Scripts/v23/verify_p04_c29_contracts.py\"",
+            "--check", "--self-test --json", "--complete --json",
+            "PASS_STATIC_PROVISIONAL", "c29_required_fence_path_count=14",
+            "existingPathCount == 2", "newPathCount == 12",
+            "finalHashesSealed == false", "flagsAllFalse == true",
+            "acceptanceEligible", "candidatePromotion", "nativeIPadClaim",
+        ] {
+            XCTAssertTrue(preflight.contains(token), token)
+        }
+    }
+
+    private func c29JSON(_ relativePath: String) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: data(relativePath)) as? [String: Any])
+    }
+
+    private func c29Values(for key: String, in value: Any) -> [Any] {
+        if let object = value as? [String: Any] {
+            return (object[key].map { [$0] } ?? [])
+                + object.values.flatMap { c29Values(for: key, in: $0) }
+        }
+        if let array = value as? [Any] {
+            return array.flatMap { c29Values(for: key, in: $0) }
+        }
+        return []
+    }
+
+    private func c29Digest(_ bytes: Data) -> String {
+        SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension S9_1ReleasePreflightTests {
     func testV23P04C26G01BoundCatalogRefinementAndDisabledPublication() throws {
         let sources = try c26Sources()
         XCTAssertTrue(try c26Validate(sources))

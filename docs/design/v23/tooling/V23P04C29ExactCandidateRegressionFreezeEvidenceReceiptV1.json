@@ -1,0 +1,164 @@
+{
+  "authority": {
+    "allocationDigest": "753e9ab7bf0c2a0f7c9bcabffb36b1d703073b9f88bf315dcd04a459ff5e60ab",
+    "appBaseHead": "8b97b33a0c83d639349d9c28806092fdeb79b95f",
+    "appBaseTree": "0c804ceb7b50a5b804b1380762408aedac644d2d",
+    "c28": {
+      "checkpointDigest": "61072c481d9c1acedf2e91bcc3759d161ad12fbfb67f2f1c8c35ea491d5769d6",
+      "head": "8b97b33a0c83d639349d9c28806092fdeb79b95f",
+      "registerOrdinalCorrectionDigest": "46391ee5ee56b7f104b3173a9bc72eb9f7d17332b0f8b820a73ceba51dcae949",
+      "tree": "0c804ceb7b50a5b804b1380762408aedac644d2d",
+      "verificationReceiptDigest": "b657cffb50c5989d7979e93d5e51b419dc4fc47b91c787b525850ff70cc53544"
+    },
+    "cardID": "V23-P04-C29",
+    "contextDigest": "fb26f88b4599f31c2f7f47f9ec866651420ef3e612d0cdc80c8d745c84079dd6",
+    "coordinationHead": "3be7e1ac1cb8e8c046f4a02d8c6c450a14078c05",
+    "coordinationTree": "60748a754f7fb5e2ce12af18df1fe8414aa20ffb",
+    "existingPathCount": 2,
+    "fencePathCount": 14,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "newPathCount": 12,
+    "orderedPathFence": [
+      "Scripts/release-preflight.sh",
+      "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json",
+      "FieldEvidenceAppTests/V9_92ExactCandidateRegressionFreezeTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C29ExactCandidateRegressionFreezeCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C29ExactCandidateRegressionFreezeUITests.swift",
+      "Scripts/v23/p04_c29_contracts.py",
+      "Scripts/v23/generate_p04_c29_contracts.py",
+      "Scripts/v23/verify_p04_c29_contracts.py",
+      "Scripts/v23/exact-candidate-regression-freeze.schema.json",
+      "docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeContractV1.json",
+      "docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C29BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C29-tooling-manifest.json"
+    ],
+    "p00Coverage": {
+      "cardID": "V23-P00-C13",
+      "checkpointDigest": "8aa76625bee8c70277a41e2212f814604dac32f4600ab1954db4af4c90713b47",
+      "verificationReceiptDigest": "cba3785a50588c1bceddaaaabac2736b2256c3da017bd31eaef8f124342f4482"
+    },
+    "pathFenceDigest": "ed507cde4b113ad321771f47f598b76c84f7f8d7ec147217bad819e6f46ffd25",
+    "prerequisiteDigest": "5e8367a8417e66691fa2a82723d5084e4734650e5e8921dd16175f36238c73aa",
+    "priorFenceProof": {
+      "authorizedOverlapEdgeCount": 9,
+      "fenceCount": 119,
+      "priorOwnedPathCount": 2,
+      "s10ReservedOverlapCount": 0,
+      "unauthorizedOverlapCount": 0
+    },
+    "s10OverlapCount": 0,
+    "sequence": 512,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C29",
+        "sha256": "3e8b18ef2985c9083434a5f4abba86463c5bb5acc35b6ac8ea6a09e16421dcaa",
+        "utf8Length": 7185
+      },
+      {
+        "anchor": "V21-P04-C29",
+        "sha256": "3c985b54dc307b44551fa4146da28799bde8cd5b290a1506d1a1fc596f7208eb",
+        "utf8Length": 16006
+      },
+      {
+        "anchor": "V23-P04-C29-register",
+        "sha256": "ce5978f7f73f1998ab3947483655a609654624bbdd659aabe781d9b06433b3b5",
+        "utf8Length": 304
+      }
+    ]
+  },
+  "cardID": "V23-P04-C29",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "generatorInterruptionProtocol": {
+    "acceptedSetCounts": [
+      0,
+      0,
+      1
+    ],
+    "boundaries": [
+      "BEFORE_ARTIFACTS",
+      "AFTER_ARTIFACTS_BEFORE_MANIFEST",
+      "AFTER_MANIFEST"
+    ],
+    "observedSecondRetry": true,
+    "protocol": "MANIFEST_LAST_ATOMIC_REPLACE"
+  },
+  "portableAuthorityHostile": {
+    "count": 7,
+    "rejected": [
+      "coord",
+      "fence",
+      "source",
+      "prereq",
+      "c28",
+      "s10",
+      "candidate"
+    ],
+    "result": "PASS"
+  },
+  "productSHA256": "4b8130cf017209fcf9545722c0c69b8a1e9cd6a7aca4767c5dab109c3926e7ce",
+  "receipt": "ExactCandidateRegressionFreezeEvidenceReceiptV1",
+  "schema": "V23P04C29ToolingV1",
+  "schemaHostile": {
+    "count": 4,
+    "rejected": [
+      "extra-root",
+      "wrong-type",
+      "wrong-disposition",
+      "extra-nested"
+    ],
+    "result": "PASS"
+  },
+  "selectors": [
+    "testV23P04C29G01ExactCandidateFreezeBindsBrandHIGAccessibilityLocalizationJourneyAndReleaseState",
+    "testV23P04C29A01MinimumIOS18AndLatestStableResolveSeparatelyWithSemanticParity",
+    "testV23P04C29H01UnknownStaleCorruptCoverageContrastAccessibilityLocalizationJourneyAndReleaseDriftFailClosed",
+    "testV23P04C29I01ManifestLastInterruptionPreservesCandidateAndNoPartialReceipt",
+    "testV23P04C29R01DeterministicRetryPreservesFrozenCandidateWithoutPromotion"
+  ],
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "Scripts/release-preflight.sh",
+      "sha256": "48d63bf988a0a973348f96bc42b9df04f853f3b6bee72c8f7742300c8123c3e4",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "sha256": "2c6d63d626f411fab8c2c3fec344f866a01393884a0568a69e761279bd1ce8e8",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json",
+      "sha256": "4b8130cf017209fcf9545722c0c69b8a1e9cd6a7aca4767c5dab109c3926e7ce",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_92ExactCandidateRegressionFreezeTests.swift",
+      "sha256": "d03d9fc496257b2f96cae1b7ebebaafca6e5b187dad4e1bff3f21eb208bf09e2",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C29ExactCandidateRegressionFreezeCorpusV1.json",
+      "sha256": "ab033541b5eb08a5cfec81a98cd2973b8ff118b6e96418a13bdfb65ee7d05148",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C29ExactCandidateRegressionFreezeUITests.swift",
+      "sha256": "6bb2f6bd3578078f3e73366a15ca8625caa4374829608383c985d5bc5ec909f9",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

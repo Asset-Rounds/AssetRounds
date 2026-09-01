@@ -1,0 +1,17 @@
+{
+  "candidatePromotion": false,
+  "cardID": "V23-P04-C29",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "BrandImpactManifestV1"
+}

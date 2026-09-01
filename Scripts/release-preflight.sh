@@ -48,6 +48,17 @@ c28_contracts_script="Scripts/v23/p04_c28_contracts.py"
 c28_generator_script="Scripts/v23/generate_p04_c28_contracts.py"
 c28_verifier_script="Scripts/v23/verify_p04_c28_contracts.py"
 c28_required_fence_path_count=22
+c29_ledger="docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json"
+c29_corpus="FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C29ExactCandidateRegressionFreezeCorpusV1.json"
+c29_contract="docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeContractV1.json"
+c29_evidence="docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeEvidenceReceiptV1.json"
+c29_impact="docs/design/v23/tooling/V23P04C29BrandImpactManifestV1.json"
+c29_tooling_manifest="docs/design/v23/tooling/V23-P04-C29-tooling-manifest.json"
+c29_schema="Scripts/v23/exact-candidate-regression-freeze.schema.json"
+c29_contracts_script="Scripts/v23/p04_c29_contracts.py"
+c29_generator_script="Scripts/v23/generate_p04_c29_contracts.py"
+c29_verifier_script="Scripts/v23/verify_p04_c29_contracts.py"
+c29_required_fence_path_count=14
 export_options="Release/TestFlightExportOptions.plist"
 workflow=".github/workflows/testflight.yml"
 project="FieldEvidenceApp.xcodeproj/project.pbxproj"
@@ -81,6 +92,16 @@ for path in \
   "$c28_contracts_script" \
   "$c28_generator_script" \
   "$c28_verifier_script" \
+  "$c29_ledger" \
+  "$c29_corpus" \
+  "$c29_contract" \
+  "$c29_evidence" \
+  "$c29_impact" \
+  "$c29_tooling_manifest" \
+  "$c29_schema" \
+  "$c29_contracts_script" \
+  "$c29_generator_script" \
+  "$c29_verifier_script" \
   "$export_options" \
   "$workflow" \
   "$project"
@@ -949,6 +970,177 @@ assert not any(
     for flags in [document.get("statusFlags", document.get("flags", {}))]
     for value in flags.values()
 )
+PY
+
+python -B "$c29_generator_script" --check >/dev/null
+c29_generator_self_test="$(python -B "$c29_generator_script" --self-test --json)"
+jq -e '
+  .result == "PASS"
+  and .protocol == "MANIFEST_LAST_ATOMIC_REPLACE"
+  and [.rows[].boundary] == [
+    "BEFORE_ARTIFACTS",
+    "AFTER_ARTIFACTS_BEFORE_MANIFEST",
+    "AFTER_MANIFEST"
+  ]
+  and [.rows[].acceptedSetCount] == [0, 0, 1]
+  and ([.rows[] | (
+    .recoveryAcceptedSetCount == 1
+    and .secondRetryAcceptedSetCount == 1
+    and .recoveryTreeDigest == .secondRetryTreeDigest
+  )] | all)
+  and ([.rows[].manifestLast] | all(. == true))
+  and ([.rows[].retryDeterministic] | all(. == true))
+  and ([.rows[].realWorktreeUnchanged] | all(. == true))
+  and .deterministicRerun == true
+  and .realWorktreeUnchanged == true
+' <<<"$c29_generator_self_test" >/dev/null
+
+c29_contract_result="$(python -B "$c29_verifier_script" --complete --json)"
+c29_fence_path_count="$(jq -er '
+  if (.fencePathCount | type) == "number" then .fencePathCount
+  elif (.counts.changedPathCount | type) == "number" then .counts.changedPathCount
+  else error("C29 verifier omitted a numeric fence path count")
+  end
+' <<<"$c29_contract_result")"
+test "$c29_fence_path_count" -eq "$c29_required_fence_path_count"
+jq --argjson fencePathCount "$c29_fence_path_count" -e '
+  .cardID == "V23-P04-C29"
+  and .result == "PASS_STATIC_PROVISIONAL"
+  and .sourceReady == true
+  and .finalHashesSealed == false
+  and .flagsAllFalse == true
+  and ((.fencePathCount // .counts.changedPathCount) == $fencePathCount)
+  and .existingPathCount == 2
+  and .newPathCount == 12
+  and .counts.changedPathCount == $fencePathCount
+  and .counts.missingPathCount == 0
+  and .counts.unownedChangedPathCount == 0
+  and .counts.s10ReservationOverlapCount == 0
+  and .selectors == [
+    "testV23P04C29G01ExactCandidateFreezeBindsBrandHIGAccessibilityLocalizationJourneyAndReleaseState",
+    "testV23P04C29A01MinimumIOS18AndLatestStableResolveSeparatelyWithSemanticParity",
+    "testV23P04C29H01UnknownStaleCorruptCoverageContrastAccessibilityLocalizationJourneyAndReleaseDriftFailClosed",
+    "testV23P04C29I01ManifestLastInterruptionPreservesCandidateAndNoPartialReceipt",
+    "testV23P04C29R01DeterministicRetryPreservesFrozenCandidateWithoutPromotion"
+  ]
+  and (.failures | length) == 0
+' <<<"$c29_contract_result" >/dev/null
+# PASS_STATIC_PROVISIONAL is source/tooling closure only. It is deliberately not
+# an accepting or release-eligible result while S10.6 and native coverage/run
+# evidence remain unresolved.
+test "$(jq -r '.result' <<<"$c29_contract_result")" != "PASS"
+
+python -B - \
+  "$c29_ledger" "$c29_corpus" "$c29_contract" \
+  "$c29_evidence" "$c29_impact" "$c29_tooling_manifest" \
+  "$c29_schema" "$c27_inventory" "$c28_ledger" <<'PY'
+import hashlib
+import json
+import pathlib
+import re
+import sys
+
+root = pathlib.Path.cwd()
+ledger, corpus, contract, evidence, impact, manifest, schema, c27_inventory, c28_ledger = (
+    json.loads((root / path).read_bytes()) for path in sys.argv[1:]
+)
+documents = (ledger, corpus, contract, evidence, impact, manifest)
+selectors = [
+    "testV23P04C29G01ExactCandidateFreezeBindsBrandHIGAccessibilityLocalizationJourneyAndReleaseState",
+    "testV23P04C29A01MinimumIOS18AndLatestStableResolveSeparatelyWithSemanticParity",
+    "testV23P04C29H01UnknownStaleCorruptCoverageContrastAccessibilityLocalizationJourneyAndReleaseDriftFailClosed",
+    "testV23P04C29I01ManifestLastInterruptionPreservesCandidateAndNoPartialReceipt",
+    "testV23P04C29R01DeterministicRetryPreservesFrozenCandidateWithoutPromotion",
+]
+for document in documents:
+    assert document["cardID"] == "V23-P04-C29"
+    if "schemaVersion" in document:
+        assert document["schemaVersion"] == 1
+    flags = document.get("statusFlags", document.get("flags"))
+    assert isinstance(flags, dict) and flags
+    assert all(value is False for value in flags.values())
+    if "selectors" in document:
+        assert document["selectors"] == selectors
+    if "provisional" in document:
+        assert document["provisional"] is True
+
+assert ledger["schema"] == "V23P04C29ExactCandidateRegressionFreezeV1"
+assert corpus["schema"] == "V23P04C29ExactCandidateRegressionFreezeCorpusV1"
+assert contract["schema"] == "V23P04C29ToolingV1"
+assert contract["contract"] == "ExactCandidateRegressionFreezeContractV1"
+assert evidence["schema"] == "V23P04C29ToolingV1"
+assert evidence["receipt"] == "ExactCandidateRegressionFreezeEvidenceReceiptV1"
+assert impact["schema"] == "BrandImpactManifestV1"
+assert manifest["schema"] == "V23P04C29ToolingManifestV1"
+assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+assert schema["additionalProperties"] is False
+assert contract["sourceReady"] is True and evidence["sourceReady"] is True
+assert manifest["finalHashesSealed"] is False
+authority = manifest["authority"]
+assert authority["finalHashesSealed"] is False
+assert authority["appBaseHead"] == "8b97b33a0c83d639349d9c28806092fdeb79b95f"
+assert authority["appBaseTree"] == "0c804ceb7b50a5b804b1380762408aedac644d2d"
+assert authority["coordinationHead"] == "3be7e1ac1cb8e8c046f4a02d8c6c450a14078c05"
+assert authority["coordinationTree"] == "60748a754f7fb5e2ce12af18df1fe8414aa20ffb"
+assert authority["sequence"] == 512
+assert authority["contextDigest"] == "fb26f88b4599f31c2f7f47f9ec866651420ef3e612d0cdc80c8d745c84079dd6"
+assert authority["pathFenceDigest"] == "ed507cde4b113ad321771f47f598b76c84f7f8d7ec147217bad819e6f46ffd25"
+assert authority["allocationDigest"] == "753e9ab7bf0c2a0f7c9bcabffb36b1d703073b9f88bf315dcd04a459ff5e60ab"
+assert authority["prerequisiteDigest"] == "5e8367a8417e66691fa2a82723d5084e4734650e5e8921dd16175f36238c73aa"
+assert authority["fencePathCount"] == 14
+assert authority["existingPathCount"] == 2
+assert authority["newPathCount"] == 12
+assert len(manifest["pathFence"]) == 14
+
+def values_for_key(value, key):
+    rows = []
+    if isinstance(value, dict):
+        if key in value:
+            rows.append(value[key])
+        for child in value.values():
+            rows.extend(values_for_key(child, key))
+    elif isinstance(value, list):
+        for child in value:
+            rows.extend(values_for_key(child, key))
+    return rows
+
+combined = json.dumps(documents, sort_keys=True, separators=(",", ":"))
+for required in (
+    "V23-P04-C27", "V23-P04-C28", "V23-P00-C13",
+    "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json",
+    "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json",
+    "61072c481d9c1acedf2e91bcc3759d161ad12fbfb67f2f1c8c35ea491d5769d6",
+    "b657cffb50c5989d7979e93d5e51b419dc4fc47b91c787b525850ff70cc53544",
+    "8aa76625bee8c70277a41e2212f814604dac32f4600ab1954db4af4c90713b47",
+    "cba3785a50588c1bceddaaaabac2736b2256c3da017bd31eaef8f124342f4482",
+):
+    assert required in combined
+
+for key in ("persistentKindCount", "writerCount", "migrationCount"):
+    values = values_for_key(documents, key)
+    assert values and all(value == 0 for value in values)
+for key in ("acceptanceEligible", "nativeIPadClaim"):
+    values = values_for_key(documents, key)
+    assert values and all(value is False for value in values)
+assert impact["candidatePromotion"] is False
+negative_claims = corpus["negativeClaims"]
+assert all(
+    negative_claims[key] is False
+    for key in ("appStorePromotion", "releaseSigning", "testFlightUpload", "nativeIPadClaim")
+)
+blocked_evidence = corpus["blockedEvidence"]
+assert blocked_evidence["acceptedS10_6"] == "BLOCKED"
+assert blocked_evidence["coverage"] == "BLOCKED"
+assert blocked_evidence["nativeCandidate"] == "NOT_RUN"
+assert "S10" in combined.upper() and "COVERAGE" in combined.upper()
+assert "BLOCK" in combined.upper() or "UNRESOLVED" in combined.upper()
+
+assert hashlib.sha256((root / "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json").read_bytes()).hexdigest() == "b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2"
+assert hashlib.sha256((root / "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json").read_bytes()).hexdigest() == "3edc52a47c91c4b79238380bdad92f6a2a1e0ebd0d1084a2e1ad7ae0e6238e14"
+assert c27_inventory["cardID"] == "V23-P04-C27"
+assert c28_ledger["cardID"] == "V23-P04-C28"
+for row in manifest["files"]:
+    assert hashlib.sha256((root / row["path"]).read_bytes()).hexdigest() == row["sha256"]
 PY
 
 jq -e '

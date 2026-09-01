@@ -1,0 +1,273 @@
+{
+  "authority": {
+    "allocationDigest": "753e9ab7bf0c2a0f7c9bcabffb36b1d703073b9f88bf315dcd04a459ff5e60ab",
+    "appBaseHead": "8b97b33a0c83d639349d9c28806092fdeb79b95f",
+    "appBaseTree": "0c804ceb7b50a5b804b1380762408aedac644d2d",
+    "contextDigest": "fb26f88b4599f31c2f7f47f9ec866651420ef3e612d0cdc80c8d745c84079dd6",
+    "coordinationHead": "3be7e1ac1cb8e8c046f4a02d8c6c450a14078c05",
+    "coordinationLedgerDigest": "9b8ea141d338cf9f8845693c96b1fc7efe5636f82cc89c2d54277f3ee1539fa4",
+    "coordinationProjectionDigest": "c9fb8e3aa364c3798ed87d7078e7c4af0c282b0ebc26ae0872cf3d3dc1e126ac",
+    "coordinationTree": "60748a754f7fb5e2ce12af18df1fe8414aa20ffb",
+    "ordinalCorrectionDigest": "46391ee5ee56b7f104b3173a9bc72eb9f7d17332b0f8b820a73ceba51dcae949",
+    "pathFenceDigest": "ed507cde4b113ad321771f47f598b76c84f7f8d7ec147217bad819e6f46ffd25",
+    "prerequisiteDigest": "5e8367a8417e66691fa2a82723d5084e4734650e5e8921dd16175f36238c73aa",
+    "sequence": 512,
+    "transitionDigest": "4415fc15b7be390e0f5a67a108f90f01e3135f0eef57f301eec7c8937f53a170"
+  },
+  "candidate": {
+    "candidateInputSHA256": null,
+    "head": "8b97b33a0c83d639349d9c28806092fdeb79b95f",
+    "sealDisposition": "UNSEALED_PROVISIONAL",
+    "toolchainRuntimeDeviceMatrixSHA256": null,
+    "tree": "0c804ceb7b50a5b804b1380762408aedac644d2d"
+  },
+  "cardID": "V23-P04-C29",
+  "classification": "PREPARE_NOW",
+  "evidenceGates": [
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"EXACT_CANDIDATE_COMPLETE","gateID":"APPLICATION_RELEASE_STATE_MATRIX","observed":null,"status":"NOT_RUN"},
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"ZERO_EXPIRED","gateID":"CONTRAST_EXCEPTIONS","observed":null,"status":"NOT_RUN"},
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"COMPLETE_AX5_AND_200_PERCENT","gateID":"DYNAMIC_TYPE_AND_LARGER_TEXT","observed":null,"status":"NOT_RUN"},
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"EXACT_HEAD_J01_THROUGH_J14","gateID":"JOURNEY_COVERAGE","observed":null,"status":"NOT_RUN"},
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"ZERO_UNALLOWLISTED","gateID":"LOCALIZATION_LITERAL_COVERAGE","observed":null,"status":"NOT_RUN"},
+    {"blockingDisposition":"BLOCKED_S10_6","evidenceSHA256":null,"expected":"ZERO","gateID":"PHASE_NUMBER_PRODUCTION_IDENTIFIERS","observed":"255_QUOTED_PHASE_LIKE_SWIFT_LITERALS_AT_HYDRATION","status":"BLOCKED"},
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"EXACT_BYTE_IDENTITY","gateID":"HISTORIC_REPORT_BYTES","observed":null,"status":"NOT_RUN"},
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"AT_MOST_FIVE_UNIQUE_SLOTS","gateID":"MATRIX_SHARD_CLOSURE","observed":null,"status":"NOT_RUN"},
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"STRICT_AX_LOCALIZATION_VISUAL_PARITY","gateID":"NATIVE_RUNTIME_PROFILES","observed":null,"status":"NOT_RUN"},
+    {"blockingDisposition":"BLOCKED_NOT_RUN","evidenceSHA256":null,"expected":"ZERO_DRIFT","gateID":"PUBLIC_VOCABULARY_AND_TECHNICAL_IDENTITY","observed":null,"status":"NOT_RUN"}
+  ],
+  "finalHashesSealed": false,
+  "hostileDispositions": [
+    {"disposition":"FAIL_CLOSED_CANDIDATE_MOVED","hostileID":"CANDIDATE_HEAD_OR_TREE_MOVED"},
+    {"disposition":"FAIL_CLOSED_SOURCE_DIGEST_MISMATCH","hostileID":"C27_OR_C28_EVIDENCE_CHANGED"},
+    {"disposition":"FAIL_CLOSED_INCOMPLETE_BINDING_SET","hostileID":"MISSING_DUPLICATE_OR_ORPHAN_SOURCE"},
+    {"disposition":"FAIL_CLOSED_S10_BLOCKER_REQUIRED","hostileID":"DEFERRED_S10_CLUSTER_OMITTED_OR_ADOPTED"},
+    {"disposition":"FAIL_CLOSED_EVIDENCE_REQUIRED","hostileID":"UNRUN_GATE_RELABELED_PASS"},
+    {"disposition":"FAIL_CLOSED_ZERO_REQUIRED","hostileID":"EXPIRED_CONTRAST_EXCEPTION"},
+    {"disposition":"FAIL_CLOSED_ZERO_REQUIRED","hostileID":"PHASE_NUMBER_PRODUCTION_ID_REMAINS"},
+    {"disposition":"FAIL_CLOSED_CURRENTNESS_REQUIRED","hostileID":"FORGED_OR_STALE_P00_C13_COVERAGE"},
+    {"disposition":"FAIL_CLOSED_COMPLETE_MATRIX_REQUIRED","hostileID":"STATE_CELL_OR_JOURNEY_MISSING"},
+    {"disposition":"FAIL_CLOSED_EXACT_ARTIFACT_REQUIRED","hostileID":"ARTIFACT_WRONG_HEAD_OR_DIGEST"},
+    {"disposition":"FAIL_CLOSED_DIAGNOSTIC_HAS_NO_ACCEPTANCE_CREDIT","hostileID":"DIAGNOSTIC_PROMOTED_TO_ACCEPTANCE"},
+    {"disposition":"FAIL_CLOSED_UNIQUE_FIVE_SLOT_MAXIMUM","hostileID":"SHARD_OVERFLOW_OR_DUPLICATION"},
+    {"disposition":"FAIL_CLOSED_PRESERVATION_VIOLATION","hostileID":"PUBLIC_VOCABULARY_OR_TECHNICAL_IDENTITY_DRIFT"},
+    {"disposition":"FAIL_CLOSED_PRESERVATION_VIOLATION","hostileID":"HISTORIC_REPORT_BYTE_DRIFT"},
+    {"disposition":"FAIL_CLOSED_PRIVACY_OR_DATA_SURVIVAL_REGRESSION","hostileID":"CUSTOMER_DATA_TELEMETRY_OR_LIFECYCLE_DRIFT"},
+    {"disposition":"FAIL_CLOSED_UNSUPPORTED_PLATFORM_CLAIM","hostileID":"NATIVE_IPAD_CLAIM"},
+    {"disposition":"FAIL_CLOSED_PROVISIONAL_ONLY","hostileID":"ACCEPTANCE_PUBLICATION_OR_RELEASE_FLAG_TRUE"},
+    {"disposition":"IGNORE_UNSEALED_AND_REBUILD","hostileID":"PARTIAL_MANIFEST_VISIBLE"}
+  ],
+  "interruptionRecovery": {
+    "authoritativeAcceptedCounts": null,
+    "evidenceSHA256": null,
+    "manifestLast": true,
+    "plannedBoundaries": [
+      {"boundary":"BEFORE_EFFECT","expectedDisposition":"NO_ACCEPTED_LEDGER"},
+      {"boundary":"AFTER_EFFECT_BEFORE_RECEIPT","expectedDisposition":"IGNORE_UNSEALED_AND_REBUILD_IDENTICALLY"},
+      {"boundary":"AFTER_RECEIPT","expectedDisposition":"RETURN_IDENTICAL_RECEIPT"}
+    ],
+    "protocol": "MANIFEST_LAST",
+    "retryDeterministic": true,
+    "status": "NOT_RUN_TOOLING_SELF_TEST_PENDING"
+  },
+  "inventories": {
+    "accessibility": {
+      "appStoreFeatureFields": [
+        {"evidenceStatus":"NOT_RUN","feature":"AUDIO_DESCRIPTIONS","state":"UNCLAIMED"},
+        {"evidenceStatus":"NOT_RUN","feature":"CAPTIONS","state":"UNCLAIMED"},
+        {"evidenceStatus":"NOT_RUN","feature":"DARK_INTERFACE","state":"UNCLAIMED"},
+        {"evidenceStatus":"NOT_RUN","feature":"DIFFERENTIATE_WITHOUT_COLOR_ALONE","state":"UNCLAIMED"},
+        {"evidenceStatus":"NOT_RUN","feature":"LARGER_TEXT","state":"UNCLAIMED"},
+        {"evidenceStatus":"NOT_RUN","feature":"REDUCED_MOTION","state":"UNCLAIMED"},
+        {"evidenceStatus":"NOT_RUN","feature":"SUFFICIENT_CONTRAST","state":"UNCLAIMED"},
+        {"evidenceStatus":"NOT_RUN","feature":"VOICE_CONTROL","state":"UNCLAIMED"},
+        {"evidenceStatus":"NOT_RUN","feature":"VOICEOVER","state":"UNCLAIMED"}
+      ],
+      "declaredProfiles": ["AX1","AX2","AX3","AX4","AX5","DARK","HIGH_CONTRAST","REDUCE_MOTION","RTL","SWITCH_CONTROL","VOICE_CONTROL","VOICEOVER"],
+      "dynamicTypeAX5Status": "NOT_RUN",
+      "largerText200PercentStatus": "NOT_RUN",
+      "semanticRegistrySHA256": "6dffb68fd94398664e9ca9a77a52ab8104be3763df03c061fc806438f93940c4"
+    },
+    "brand": {
+      "appIconDisposition": "NOT_EMITTED_NO_AUTHORIZED_CHANGE",
+      "brandRevisionDisposition": "NOT_ACTIVATED_NO_APPROVED_DECISION",
+      "publicVocabularyStatus": "NOT_RUN",
+      "technicalIdentityStatus": "NOT_RUN"
+    },
+    "hig": {
+      "applicable": 65,
+      "deferredOutsideV21": 6,
+      "leafCount": 157,
+      "nodeCount": 171,
+      "notApplicableWithRationale": 76,
+      "platformHandled": 10,
+      "verificationStatus": "NOT_RUN"
+    },
+    "journeys": {
+      "commonTaskJourneyReleaseSHA256": "3a233ef98d116c43a6e349f51699759d53ab3118120decbc0230a2af98427003",
+      "featureEndToEndJourneyReleaseSHA256": "4d13350dacbfe16568d06fa11f331741359581567d476db1dfab3cb557ea7aac",
+      "requiredCanonicalJourneys": ["J01","J02","J03","J04","J05","J06","J07","J08","J09","J10","J11","J12","J13","J14"],
+      "verificationStatus": "NOT_RUN"
+    },
+    "localization": {
+      "infoPlistCatalogSHA256": "85e1c67daf46b4959705baf42584254197cd1c4561c0fa3e3f2d0ed0dcc82503",
+      "localizableCatalogSHA256": "67cbc936089d01bc772330600727ddea7d312a5a52cd8b16f5f3aff3577d8a53",
+      "metadataLocale": "en-US",
+      "pseudoLocaleStatus": "NOT_RUN",
+      "rtlStatus": "NOT_RUN",
+      "runtimeLocale": "en",
+      "stringCoverageStatus": "NOT_RUN"
+    },
+    "privacyAndSurvival": {
+      "activeModelCount": 168,
+      "customerOrWorkDataCollected": false,
+      "persistentKindCount": 0,
+      "persistentSchema": "V53",
+      "telemetryMarketingOrAdvertisingAdded": false,
+      "workspaceWriteOccurred": false
+    },
+    "releaseStates": {
+      "accessibilityVariantCount": 12,
+      "commonStateCount": 18,
+      "rendererOwnerCount": 41,
+      "rendererSymbolCount": 54,
+      "verificationStatus": "NOT_RUN"
+    }
+  },
+  "lifecycle": {
+    "archiveExport": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "backupRestore": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "cloneFork": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "deleteErase": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "import": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "journalReplay": "NOT_APPLICABLE_NO_WORKSPACE_MUTATION",
+    "lifecycleKind": "NONPERSISTENT_REPOSITORY_EVIDENCE",
+    "migrationCount": 0,
+    "searchRebuild": "NOT_APPLICABLE_REPOSITORY_EVIDENCE",
+    "workspaceMutationReceiptCreated": false,
+    "writerCount": 0
+  },
+  "p00C13Coverage": {
+    "commonTaskJourneyReleaseSHA256": "3a233ef98d116c43a6e349f51699759d53ab3118120decbc0230a2af98427003",
+    "coverageEvidenceSHA256": null,
+    "featureEndToEndJourneyReleaseSHA256": "4d13350dacbfe16568d06fa11f331741359581567d476db1dfab3cb557ea7aac",
+    "missingReason": "PENDING_EXACT_CANDIDATE_MATRIX",
+    "required": true,
+    "status": "NOT_RUN"
+  },
+  "planningStatus": "NOT_STARTED",
+  "preservation": {
+    "customerWorkDataChanged": false,
+    "historicReportBaselineSHA256": null,
+    "historicReportBytesRewritten": false,
+    "historicReportEvidenceStatus": "NOT_RUN",
+    "nativeIPadClaimed": false,
+    "privacyRegressionObserved": false,
+    "publicCopyChanged": false,
+    "publicVocabularyPolicy": "PRESERVE_C27_EXACT_VOCABULARY",
+    "technicalIdentityChanged": false,
+    "technicalIdentityPolicy": "PRESERVE_C27_TECHNICAL_IDENTITY_FREEZE"
+  },
+  "s10_6Blockers": {
+    "acceptedEvidencePresent": false,
+    "clusters": [
+      {
+        "adopted": false,
+        "clusterID": "all-other-shipping-phase-number-ids-in-S10-reserved-ui-root-paths",
+        "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+        "memberPaths": [
+          "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+          "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+          "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+          "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+          "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+          "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+          "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+          "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+          "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+          "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+          "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+          "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+          "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+          "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift"
+        ]
+      },
+      {
+        "adopted": false,
+        "clusterID": "app-icon-and-artwork",
+        "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+        "memberPaths": [
+          "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png",
+          "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png",
+          "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png",
+          "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json"
+        ]
+      },
+      {
+        "adopted": false,
+        "clusterID": "saved-photo-RecordWork-and-IssueDetail",
+        "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+        "memberPaths": [
+          "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+          "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
+        ]
+      },
+      {
+        "adopted": false,
+        "clusterID": "visual-DesignTokens-and-WorklightComponents",
+        "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+        "memberPaths": [
+          "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+          "FieldEvidenceApp/DesignSystem/WorklightComponents.swift"
+        ]
+      }
+    ],
+    "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+  },
+  "schema": "V23P04C29ExactCandidateRegressionFreezeV1",
+  "schemaVersion": 1,
+  "selectors": [
+    "testV23P04C29G01ExactCandidateFreezeBindsBrandHIGAccessibilityLocalizationJourneyAndReleaseState",
+    "testV23P04C29A01MinimumIOS18AndLatestStableResolveSeparatelyWithSemanticParity",
+    "testV23P04C29H01UnknownStaleCorruptCoverageContrastAccessibilityLocalizationJourneyAndReleaseDriftFailClosed",
+    "testV23P04C29I01ManifestLastInterruptionPreservesCandidateAndNoPartialReceipt",
+    "testV23P04C29R01DeterministicRetryPreservesFrozenCandidateWithoutPromotion"
+  ],
+  "sourceBindings": [
+    {"path":"FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift","sha256":"6dffb68fd94398664e9ca9a77a52ab8104be3763df03c061fc806438f93940c4","utf8Length":194081},
+    {"path":"FieldEvidenceApp/InfoPlist.xcstrings","sha256":"85e1c67daf46b4959705baf42584254197cd1c4561c0fa3e3f2d0ed0dcc82503","utf8Length":1024},
+    {"path":"FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift","sha256":"5eb0d7928d4a757e65a0355657fb8b1f0f8d0eefe5c294bb575fb6a02289d1a2","utf8Length":11102},
+    {"path":"FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift","sha256":"c52cfb7a59f8a016c0a5b4dfb9e2b55a09ec73a94411eb3f09e1039c05ca5788","utf8Length":329490},
+    {"path":"FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift","sha256":"f69b1b07b5a07d1bbbcbc295b8ce9edfe352c45c720bf8c2bc48a03000f0bc4e","utf8Length":139372},
+    {"path":"FieldEvidenceApp/Resources/Localizable.xcstrings","sha256":"67cbc936089d01bc772330600727ddea7d312a5a52cd8b16f5f3aff3577d8a53","utf8Length":418570},
+    {"path":"docs/design/v23/tooling/CommonTaskJourneyReceiptV2.json","sha256":"20a96a710c81e90d2cb7c65e7ebcbba981ad28f00214dcf755ca847c52dbb245","utf8Length":23342},
+    {"path":"docs/design/v23/tooling/CommonTaskJourneyReleaseV2.json","sha256":"3a233ef98d116c43a6e349f51699759d53ab3118120decbc0230a2af98427003","utf8Length":18911},
+    {"path":"docs/design/v23/tooling/FeatureEndToEndJourneyReleaseV1.json","sha256":"4d13350dacbfe16568d06fa11f331741359581567d476db1dfab3cb557ea7aac","utf8Length":7691},
+    {"path":"docs/design/v23/tooling/V23-P00-C13-tooling-manifest.json","sha256":"1772fc652c01813addc9cbb1318a80415f2d9684b0f0f654d5b63581c22d1c35","utf8Length":8500},
+    {"path":"docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json","sha256":"da8212c67b3db41a4b3cacf9b506a4ecb489224c174d131712272c5b20044012","utf8Length":12960},
+    {"path":"docs/design/v23/tooling/V23-P04-C28-tooling-manifest.json","sha256":"b2e49715b01f8c7742d273ffc47b602e659fcba6b951c6f0f8bdeb698468c14d","utf8Length":15854},
+    {"path":"docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryEvidenceReceiptV1.json","sha256":"38a09d147447ff581a1f96406c9a5d3cc1213f43e8ef110c6c11c163861e96b0","utf8Length":12686},
+    {"path":"docs/design/v23/tooling/V23P04C28BrandHIGSharedRootCorrectionEvidenceReceiptV1.json","sha256":"beaa101d605d02bbdc667c629ea2c2fbf31fc554eb13c0fe1e7af744b156e5f2","utf8Length":14788},
+    {"path":"docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json","sha256":"b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2","utf8Length":13934},
+    {"path":"docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json","sha256":"3edc52a47c91c4b79238380bdad92f6a2a1e0ebd0d1084a2e1ad7ae0e6238e14","utf8Length":16852}
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "activation": false,
+    "adoption": false,
+    "completion": false,
+    "hosted": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "nativeIPad": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false,
+    "releaseCredit": false,
+    "releaseReady": false
+  }
+}
