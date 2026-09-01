@@ -1,0 +1,77 @@
+{
+  "schema": "V23P04C38AdvancedRecurrenceWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C38",
+  "testOnly": true,
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "evidenceIDs": [
+    "V23-P04-C38-G01",
+    "V23-P04-C38-A01",
+    "V23-P04-C38-H01",
+    "V23-P04-C38-I01",
+    "V23-P04-C38-R01"
+  ],
+  "golden": {
+    "patterns": [
+      {"kind": "DAILY", "minimumInterval": 1, "maximumInterval": 365},
+      {"kind": "WEEKLY", "minimumInterval": 1, "maximumInterval": 52},
+      {"kind": "CALENDAR_DAY", "minimumInterval": 1, "maximumInterval": 12},
+      {"kind": "WEEKDAY", "minimumInterval": 1, "maximumInterval": 12},
+      {"kind": "LAST_DAY", "minimumInterval": 1, "maximumInterval": 12}
+    ],
+    "overrideKinds": ["SKIP", "MOVE", "ADD_ONE"],
+    "deterministicOccurrenceIdentity": true,
+    "dueHistoryAppendOnly": true,
+    "reminderHistoryAppendOnly": true
+  },
+  "alternate": {
+    "calendarCases": ["LEAP_DAY", "MONTH_END", "LAST_WEEKDAY"],
+    "scopes": ["THIS_OCCURRENCE", "THIS_AND_FUTURE", "ENTIRE_SERIES"]
+  },
+  "hostileCases": [
+    "ZERO_INTERVAL",
+    "IMPOSSIBLE_DATE",
+    "UNBOUNDED_EXPANSION",
+    "DUPLICATE_SAME_PRIORITY_OVERRIDE",
+    "STALE_PREVIEW",
+    "UNSUPPORTED_FUTURE_RECURRENCE",
+    "OCCURRENCE_IDENTITY_DRIFT"
+  ],
+  "interruptionCases": [
+    "SPRING_FORWARD",
+    "FALL_BACK",
+    "TIME_ZONE_CHANGE",
+    "MANUAL_CLOCK_CHANGE",
+    "REMINDER_DENIED",
+    "REMINDER_CHANGED",
+    "CANCEL_BEFORE_EFFECT",
+    "EFFECT_BEFORE_RECEIPT_EXACT_RETRY"
+  ],
+  "recoveryCases": [
+    "COMPLETION_IMMUTABLE_AFTER_SCHEDULE_CHANGE",
+    "EXACT_REPLAY",
+    "DETERMINISTIC_REBUILD",
+    "RESTORE_IDENTICAL",
+    "INTERRUPTED_EDITOR_RESUME",
+    "DIVERGENT_REPLAY_REJECTED"
+  ],
+  "persistence": {
+    "addsDurableFamily": false,
+    "changesSchema": false,
+    "createsRecurrenceEngine": false
+  },
+  "claims": {
+    "nativeCalendarIntegrated": false,
+    "nativeReminderIntegrated": false,
+    "hostedCalendarIntegrated": false,
+    "hostedReminderIntegrated": false,
+    "providerAdopted": false,
+    "providerAccepted": false,
+    "providerReleased": false,
+    "networkRequired": false,
+    "accountRequired": false,
+    "entitlementRequired": false
+  }
+}

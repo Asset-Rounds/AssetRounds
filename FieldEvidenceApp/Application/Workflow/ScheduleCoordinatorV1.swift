@@ -25,6 +25,26 @@ import Foundation
                          payload: .appendOccurrenceEvent(event, predecessor: predecessor, release: release)))
     }
 
+    /// Canonical C51 override append. Recovery checks the exact journaled
+    /// command before evaluating a frontier that may already include this
+    /// accepted override; every new effect requires the validation closure.
+    func recordOverride(_ event: ScheduleOverrideEventV1,
+                        predecessor: ScheduleOverrideEventV1?,
+                        release: ScheduleDefinitionReleaseV1,
+                        validateNewEffect: () throws -> Void) throws -> ScheduleMutationReceiptV1 {
+        let mutation = try ScheduleMutationV1(workspaceID: event.workspaceID,
+            mutationID: event.mutationID,
+            payload: .appendOverrideEvent(event, predecessor: predecessor, release: release))
+        try mutation.validate()
+        let expected = try WorkspaceMutationCanonicalV1.sha256(mutation)
+        if let accepted = try writer.acceptedScheduleMutation(mutation) {
+            guard accepted.mutationSHA256 == expected else { throw ScheduleFailureV1.divergentReplay }
+            return accepted
+        }
+        try validateNewEffect()
+        return try commit(mutation)
+    }
+
     /// The exact one-time work link and occurrence start share one transaction.
     /// Calling this API is explicit user intent; due projection never starts work.
     func start(_ event: OccurrenceHistoryEventV1,
@@ -71,6 +91,36 @@ import Foundation
         }
         return try commit(.init(workspaceID: definition.workspaceID, mutationID: mutationID,
                                 payload: .generateOccurrences(release: definition, plan: plan, events: events)))
+    }
+
+    /// Commits or replays an exact, previously frozen generation command. The
+    /// current plan is evaluated only for a new effect; an accepted identical
+    /// mutation therefore recovers its receipt after generated history exists.
+    func generateFrozen(definition: ScheduleDefinitionReleaseV1,
+                        plan: OccurrenceGenerationPlanV1,
+                        events: [OccurrenceHistoryEventV1],
+                        currentPlan: () throws -> OccurrenceGenerationPlanV1) throws
+        -> ScheduleMutationReceiptV1? {
+        try plan.validate(definition: definition)
+        guard !plan.candidates.isEmpty else {
+            guard events.isEmpty else { throw ScheduleFailureV1.divergentReplay }
+            return nil
+        }
+        guard let mutationID = events.first?.mutationID,
+              events.allSatisfy({ $0.mutationID == mutationID }) else {
+            throw ScheduleFailureV1.divergentReplay
+        }
+        let mutation = try ScheduleMutationV1(workspaceID: definition.workspaceID,
+            mutationID: mutationID,
+            payload: .generateOccurrences(release: definition, plan: plan, events: events))
+        try mutation.validate()
+        let expected = try WorkspaceMutationCanonicalV1.sha256(mutation)
+        if let accepted = try writer.acceptedScheduleMutation(mutation) {
+            guard accepted.mutationSHA256 == expected else { throw ScheduleFailureV1.divergentReplay }
+            return accepted
+        }
+        guard try currentPlan() == plan else { throw ScheduleFailureV1.staleBasis }
+        return try commit(mutation)
     }
 
     func dueQueue(workspaceID: WorkspaceID, evaluatedAt: Date,
