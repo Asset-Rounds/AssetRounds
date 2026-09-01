@@ -25,6 +25,12 @@ metadata="Release/UnsignedRCMetadataV1.json"
 privacy="FieldEvidenceApp/PrivacyInfo.xcprivacy"
 smokes="Release/LaunchSmokeEvidenceIndexV1.json"
 discovery_truth="FieldEvidenceAppTests/Fixtures/V21/DiscoveryTruth/V23P04C15DiscoveryTruthCorpusV1.json"
+c26_acquisition="docs/product/discovery/V23P04C26AcquisitionContentDraftV1.json"
+c26_tags="docs/product/discovery/V23P04C26AppTagDispositionV1.json"
+c26_refinement="docs/product/discovery/V23P04C26DiscoveryTruthCatalogRefinementReceiptV1.json"
+c26_metadata="docs/product/discovery/V23P04C26MetadataEvidenceReportV1.json"
+c26_accessibility="docs/accessibility/V23P04C26SupportContentAccessibilityManifestV1.json"
+c26_corpus="FieldEvidenceAppTests/Fixtures/V21/DiscoveryTruth/V23P04C26OrganicFindabilityCorpusV1.json"
 export_options="Release/TestFlightExportOptions.plist"
 workflow=".github/workflows/testflight.yml"
 project="FieldEvidenceApp.xcodeproj/project.pbxproj"
@@ -36,6 +42,12 @@ for path in \
   "$privacy" \
   "$smokes" \
   "$discovery_truth" \
+  "$c26_acquisition" \
+  "$c26_tags" \
+  "$c26_refinement" \
+  "$c26_metadata" \
+  "$c26_accessibility" \
+  "$c26_corpus" \
   "$export_options" \
   "$workflow" \
   "$project"
@@ -87,6 +99,478 @@ case "$generator_interrupt_result" in
   "C15 interruption self-test PASS "*) ;;
   *) exit 65 ;;
 esac
+
+python3 -B Scripts/v23/generate_p04_c26_contracts.py --check >/dev/null
+c26_generator_self_test="$(python3 -B Scripts/v23/generate_p04_c26_contracts.py --self-test --json)"
+jq -e '
+  .result == "PASS"
+  and .protocol == "MANIFEST_LAST_ATOMIC_REPLACE"
+  and .rows == [
+    {
+      "acceptedSetCount": 0,
+      "boundary": "BEFORE_ARTIFACTS",
+      "manifestLast": true,
+      "realWorktreeUnchanged": true,
+      "retryAcceptedSetCount": 1,
+      "retryDeterministic": true,
+      "temporaryRootMayContainIncompleteArtifacts": true
+    },
+    {
+      "acceptedSetCount": 0,
+      "boundary": "AFTER_ARTIFACTS_BEFORE_MANIFEST",
+      "manifestLast": true,
+      "realWorktreeUnchanged": true,
+      "retryAcceptedSetCount": 1,
+      "retryDeterministic": true,
+      "temporaryRootMayContainIncompleteArtifacts": true
+    },
+    {
+      "acceptedSetCount": 1,
+      "boundary": "AFTER_MANIFEST",
+      "manifestLast": true,
+      "realWorktreeUnchanged": true,
+      "retryAcceptedSetCount": 1,
+      "retryDeterministic": true,
+      "temporaryRootMayContainIncompleteArtifacts": false
+    }
+  ]
+  and .deterministicRerun == true
+  and .realWorktreeUnchanged == true
+  and .temporaryRootIncompleteStatePermitted == true
+' <<<"$c26_generator_self_test" >/dev/null
+c26_contract_result="$(python3 -B Scripts/v23/verify_p04_c26_contracts.py --complete --json)"
+jq -e '
+  .cardID == "V23-P04-C26"
+  and .result == "PASS_STATIC_PROVISIONAL"
+  and .sourceReady == true
+  and .finalHashesSealed == false
+  and .flagsAllFalse == true
+  and .fencePathCount == 16
+  and .existingPathCount == 2
+  and .newPathCount == 14
+  and .counts.changedPathCount == 16
+  and .counts.missingPathCount == 0
+  and .counts.unownedChangedPathCount == 0
+  and .counts.s10ReservationOverlapCount == 0
+  and .selectors == [
+    "testV23P04C26G01BoundCatalogRefinementAndDisabledPublication",
+    "testV23P04C26A01ApprovalAbsenceDefersAllPublication",
+    "testV23P04C26H01HostileClaimsBindingsAndMetadataLimitsFailClosed",
+    "testV23P04C26I01ExpiryWithdrawalAndInterruptedDraftRecovery",
+    "testV23P04C26R01ReleasePreflightAndAccessibilityGateRemainPublicationIneligible"
+  ]
+  and (.failures | length) == 0
+' <<<"$c26_contract_result" >/dev/null
+
+python3 -B - \
+  "$c26_acquisition" "$c26_tags" "$c26_refinement" \
+  "$c26_metadata" "$c26_accessibility" "$c26_corpus" <<'PY'
+import hashlib
+import json
+import pathlib
+import re
+import subprocess
+import sys
+import unicodedata
+
+root = pathlib.Path.cwd()
+acquisition, tags, receipt, metadata, accessibility, corpus = (
+    json.loads((root / path).read_bytes()) for path in sys.argv[1:]
+)
+contract = json.loads(
+    (root / "docs/design/v23/tooling/V23P04C26OrganicFindabilityContractV1.json").read_bytes()
+)
+evidence = json.loads(
+    (root / "docs/design/v23/tooling/V23P04C26OrganicFindabilityEvidenceReceiptV1.json").read_bytes()
+)
+
+def digest(path):
+    return hashlib.sha256((root / path).read_bytes()).hexdigest()
+
+def binding_ok(value):
+    return (
+        set(value) >= {"path", "sha256"}
+        and re.fullmatch(r"[0-9a-f]{64}", value["sha256"]) is not None
+        and not pathlib.PurePosixPath(value["path"]).is_absolute()
+        and ".." not in pathlib.PurePosixPath(value["path"]).parts
+        and digest(value["path"]) == value["sha256"]
+    )
+
+def evidence_file(relative_path):
+    path = pathlib.PurePosixPath(relative_path)
+    assert not path.is_absolute() and ".." not in path.parts
+    candidates = (
+        root / path,
+        root.parent / "AssetRounds-v23-coordination" / path,
+    )
+    matches = [candidate for candidate in candidates if candidate.is_file()]
+    assert len(matches) <= 1
+    return matches[0] if matches else None
+
+roots = (acquisition, tags, receipt, metadata)
+expected_root_keys = (
+    {
+        "approval", "brandBinding", "cardID", "catalogBinding", "claims", "control",
+        "evidenceBindings", "forbiddenCapabilities", "locales", "metadataLimits",
+        "ppoHypotheses", "privacyBinding", "publishEligibility", "schema", "schemaVersion",
+        "supportPageSpecs", "syntheticAssetBinding",
+    },
+    {
+        "approval", "brandBinding", "cardID", "catalogBinding", "forbiddenCapabilities",
+        "locales", "metadataLimits", "observedSuggestions", "privacyBinding",
+        "publishEligibility", "schema", "schemaVersion", "syntheticAssetBinding",
+    },
+    {
+        "approval", "artifactBindings", "brandBinding", "cardID", "catalogBinding",
+        "catalogRefinement", "forbiddenCapabilities", "locales", "metadataLimits",
+        "privacyBinding", "publishEligibility", "schema", "schemaVersion",
+        "syntheticAssetBinding",
+    },
+    {
+        "approval", "brandBinding", "cardID", "catalogBinding", "forbiddenCapabilities",
+        "limits", "localeMeasurements", "locales", "metadataLimits", "officialSource",
+        "privacyBinding", "publishEligibility", "schema", "schemaVersion", "structuredData",
+        "syntheticAssetBinding",
+    },
+)
+for value, keys in zip(roots, expected_root_keys):
+    assert set(value) == keys
+
+forbidden_capability_keys = {
+    "analyticsProvider", "appStoreSubmission", "customerDataUse", "dnsHosting",
+    "finalKeywords", "finalScreenshots", "networkAccess", "paidAcquisition",
+    "publication", "upload",
+}
+for value in roots:
+    assert value["schemaVersion"] == 1 and value["cardID"] == "V23-P04-C26"
+    assert value["publishEligibility"] is False
+    assert value["approval"] == {
+        "decisionReference": None,
+        "sha256": None,
+        "status": "DISABLED_OR_DEFERRED",
+    }
+    assert set(value["forbiddenCapabilities"]) == forbidden_capability_keys
+    assert not any(value["forbiddenCapabilities"].values())
+    for key in ("catalogBinding", "brandBinding", "privacyBinding", "syntheticAssetBinding"):
+        assert binding_ok(value[key])
+
+limits = {
+    "nameMinimumCharacters": 2,
+    "nameMaximumCharacters": 30,
+    "subtitleMaximumCharacters": 30,
+    "promotionalTextMaximumCharacters": 170,
+    "descriptionMaximumCharacters": 4000,
+    "keywordsMaximumCharacters": 100,
+    "keywordsMaximumUTF8Bytes": 100,
+    "screenshotsMinimumCount": 1,
+    "screenshotsMaximumCount": 10,
+    "previewsMaximumCount": 3,
+    "ppoMaximumTreatments": 3,
+}
+assert acquisition["metadataLimits"] == limits
+assert len(acquisition["ppoHypotheses"]) <= 3
+assert acquisition["control"]["hypothesisID"] == "CONTROL"
+
+def tokens(value):
+    return set(re.findall(r"[^\W_]+", value.casefold(), flags=re.UNICODE))
+
+for locale in acquisition["locales"]:
+    assert limits["nameMinimumCharacters"] <= len(locale["name"]) <= limits["nameMaximumCharacters"]
+    assert len(locale["subtitle"]) <= limits["subtitleMaximumCharacters"]
+    assert len(locale["promotionalText"]) <= limits["promotionalTextMaximumCharacters"]
+    assert len(locale["description"]) <= limits["descriptionMaximumCharacters"]
+    assert len(locale["keywords"]) <= limits["keywordsMaximumCharacters"]
+    assert len(locale["keywords"].encode("utf-8")) <= limits["keywordsMaximumUTF8Bytes"]
+    assert tokens(locale["keywords"]).isdisjoint(tokens(locale["name"] + " " + locale["subtitle"]))
+    assert limits["screenshotsMinimumCount"] <= locale["screenshotCount"] <= limits["screenshotsMaximumCount"]
+    assert locale["previewCount"] <= limits["previewsMaximumCount"]
+    assert locale["finalKeywords"] is False and locale["publishEligibility"] is False
+
+pages = acquisition["supportPageSpecs"]
+assert len(pages) == 6
+expected_page_tuples = {
+    ("ACCESSIBILITY_SUPPORT", "/support/accessibility-and-support", "c26-accessibility-support-v1", "V23-P04-C16"),
+    ("DAY_NIGHT_EVIDENCE", "/support/day-night-evidence", "c26-day-night-evidence-v1", "V23-P04-C18"),
+    ("LIGHTING_WORKFLOW_LIMITS", "/support/lighting-workflow-limits", "c26-lighting-workflow-limits-v1", "V23-P04-C17"),
+    ("OFFLINE_PLAN_REBASE", "/support/offline-plan-rebase", "c26-offline-plan-rebase-v1", "V23-P04-C19"),
+    ("QR_BARCODE_ROUNDS", "/support/qr-barcode-rounds", "c26-qr-barcode-rounds-v1", "V23-P04-C21"),
+    ("SURVEY_VERSUS_INSPECTION", "/support/survey-versus-inspection", "c26-survey-versus-inspection-v1", "V23-P04-C20"),
+}
+assert {
+    (page["pageID"], page["canonicalURLPath"], page["claimID"], page["acceptedFeatureCardID"])
+    for page in pages
+} == expected_page_tuples
+assert all(
+    page["sourceIsSyntheticOnly"] is True
+    and page["status"] == "DISABLED_OR_DEFERRED"
+    and {"article", "h1"} <= set(page["semanticHTML"])
+    and page["structuredDataVisibleFields"] == ["headline", "description", "limitations"]
+    and page["limitations"]
+    for page in pages
+)
+
+def canonical_digest(value):
+    data = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode("utf-8") + b"\n"
+    return hashlib.sha256(data).hexdigest()
+
+def page_tokens(page):
+    content = " ".join((page["title"], page["summary"], *page["limitations"]))
+    normalized = unicodedata.normalize("NFKC", content).casefold()
+    return set(re.findall(r"[^\W_]+", normalized, flags=re.UNICODE))
+
+page_digests = {}
+page_token_sets = {page["pageID"]: page_tokens(page) for page in pages}
+for page in pages:
+    visible = {
+        "headline": page["title"],
+        "description": page["summary"],
+        "limitations": page["limitations"],
+    }
+    content_digest = canonical_digest(visible)
+    assert page["visibleContentSHA256"] == content_digest
+    assert page["structuredDataSHA256"] == content_digest
+    page_digests[page["pageID"]] = content_digest
+
+for page in pages:
+    own_tokens = page_token_sets[page["pageID"]]
+    overlaps = []
+    for other in pages:
+        if other["pageID"] == page["pageID"]:
+            continue
+        other_tokens = page_token_sets[other["pageID"]]
+        union = own_tokens | other_tokens
+        overlaps.append((len(own_tokens & other_tokens) * 10000) // len(union))
+    assert page["comparedPageContentSHA256s"] == sorted(
+        digest for page_id, digest in page_digests.items() if page_id != page["pageID"]
+    )
+    assert page["maximumPairwiseTokenOverlapBasisPoints"] == max(overlaps)
+    assert page["nearDuplicateThresholdBasisPoints"] == 8000
+    assert max(overlaps) < page["nearDuplicateThresholdBasisPoints"]
+    originality = {
+        "pageID": page["pageID"],
+        "visibleContentSHA256": page["visibleContentSHA256"],
+        "comparedPageContentSHA256s": page["comparedPageContentSHA256s"],
+        "maximumPairwiseTokenOverlapBasisPoints": page["maximumPairwiseTokenOverlapBasisPoints"],
+        "nearDuplicateThresholdBasisPoints": page["nearDuplicateThresholdBasisPoints"],
+    }
+    assert page["originalityComparisonSHA256"] == canonical_digest(originality)
+
+claims = acquisition["claims"]
+assert {claim["claimID"] for claim in claims} == {page["claimID"] for page in pages}
+page_by_claim = {page["claimID"]: page for page in pages}
+assert len(page_by_claim) == len(pages) == len(claims)
+assert set(evidence) == {
+    "authority", "cardID", "claimAuthorityProjection", "contractDigest",
+    "generatorInterruptionProtocol", "provisional", "schema", "schemaVersion",
+    "sourceProjection", "statusFlags",
+}
+authority_rows = evidence["claimAuthorityProjection"]
+assert len(authority_rows) == 6
+authority_by_card = {row["cardID"]: row for row in authority_rows}
+assert len(authority_by_card) == 6
+authority_keys = {
+    "acceptedHead", "acceptedTree", "cardID", "checkpointDigest", "checkpointPath",
+    "checkpointSHA256", "compatibilityDisposition", "currentness", "receiptDigest",
+    "recoveryProof", "verificationPath", "verificationSHA256", "claimID",
+}
+verification_schemas = {
+    "V23-P04-C16": "ProvisionalP04C16StaticVerificationReceiptV1",
+    "V23-P04-C17": "ProvisionalP04C17StaticVerificationReceiptV1",
+    "V23-P04-C18": "ProvisionalP04C18StaticVerificationReceiptV1",
+    "V23-P04-C19": "ProvisionalVerificationReceiptV1",
+    "V23-P04-C20": "ProvisionalVerificationReceiptV1",
+    "V23-P04-C21": "ProvisionalVerificationReceiptV1",
+}
+for claim in claims:
+    current = claim["acceptanceBinding"]
+    assert claim["status"] == "DISABLED_OR_DEFERRED" and claim["publishEligibility"] is False
+    assert re.fullmatch(r"[0-9a-f]{64}", claim["receiptSHA256"])
+    assert current["currentness"] == "CHECKPOINTED_CURRENT"
+    assert current["compatibilityDisposition"] == "CURRENT_NOT_SUPERSEDED"
+    assert current["recoveryProof"] == "MATCHING_PROVISIONAL_VERIFICATION_RECEIPT"
+    card_id = claim["acceptedFeatureCard"]
+    assert page_by_claim[claim["claimID"]]["acceptedFeatureCardID"] == card_id
+    assert current["checkpointPath"] == f"receipts/{card_id}-provisional-checkpoint.json"
+    assert current["verificationPath"] == f"receipts/{card_id}-provisional-verification.json"
+    authority = authority_by_card[card_id]
+    assert set(authority) == authority_keys
+    assert authority == {
+        "acceptedHead": current["acceptedCandidateHead"],
+        "acceptedTree": current["acceptedCandidateTree"],
+        "cardID": card_id,
+        "claimID": claim["claimID"],
+        "checkpointDigest": current["checkpointDigest"],
+        "checkpointPath": current["checkpointPath"],
+        "checkpointSHA256": current["checkpointSHA256"],
+        "compatibilityDisposition": current["compatibilityDisposition"],
+        "currentness": current["currentness"],
+        "receiptDigest": claim["receiptSHA256"],
+        "recoveryProof": current["recoveryProof"],
+        "verificationPath": current["verificationPath"],
+        "verificationSHA256": current["verificationSHA256"],
+    }
+    checkpoint_path = evidence_file(current["checkpointPath"])
+    verification_path = evidence_file(current["verificationPath"])
+    if checkpoint_path is None or verification_path is None:
+        # Portable hosted checkouts consume the closed, generated, manifest-bound
+        # authority projection. Windows generation resolves and hashes both files.
+        assert checkpoint_path is None and verification_path is None
+        assert claim["expiry"] is None and claim["supersededByClaimDigest"] is None
+        continue
+    assert hashlib.sha256(checkpoint_path.read_bytes()).hexdigest() == current["checkpointSHA256"]
+    assert hashlib.sha256(verification_path.read_bytes()).hexdigest() == current["verificationSHA256"]
+    checkpoint = json.loads(checkpoint_path.read_bytes())
+    verification = json.loads(verification_path.read_bytes())
+    assert checkpoint["schema"] == "ProvisionalCardCheckpointReceiptV1"
+    assert verification["schema"] == verification_schemas[card_id]
+    assert checkpoint["cardID"] == verification["cardID"] == card_id
+    assert checkpoint["acceptedCandidateHead"] == verification["acceptedCandidateHead"] == current["acceptedCandidateHead"]
+    assert checkpoint["acceptedCandidateTree"] == verification["acceptedCandidateTree"] == current["acceptedCandidateTree"]
+    assert checkpoint["checkpointDigest"] == current["checkpointDigest"]
+    assert checkpoint["verificationReceiptDigest"] == verification["receiptDigest"] == claim["receiptSHA256"]
+    assert checkpoint["canonicalState"] == "CHECKPOINTED"
+    assert checkpoint["flagsAllFalse"] is True
+    if card_id in {"V23-P04-C16", "V23-P04-C17", "V23-P04-C18", "V23-P04-C19"}:
+        assert checkpoint["finalHashesSealed"] is True
+    else:
+        assert "finalHashesSealed" not in checkpoint
+    assert verification["finalHashesSealed"] is True and verification["flagsAllFalse"] is True
+    assert verification["sourceReady"] is True
+    assert verification["releaseReady"] is False
+    assert verification["acceptanceEnabled"] is False
+    assert verification["adoptionEnabled"] is False
+    if card_id in {"V23-P04-C16", "V23-P04-C17", "V23-P04-C18"}:
+        assert verification["complete"] is True
+        assert verification["completeVerifierResult"] == verification["result"] == "PASS_STATIC_PROVISIONAL"
+    elif card_id in {"V23-P04-C19", "V23-P04-C20"}:
+        assert verification["verificationStatus"] == "PASS_STATIC_PROVISIONAL"
+    else:
+        assert verification["toolingVerifierStatus"] == "PASS_STATIC_PROVISIONAL"
+    assert subprocess.run(
+        ["git", "rev-parse", f"{current['acceptedCandidateHead']}^{{tree}}"],
+        cwd=root, check=True, capture_output=True, text=True,
+    ).stdout.strip() == current["acceptedCandidateTree"]
+    assert claim["expiry"] is None and claim["supersededByClaimDigest"] is None
+assert {claim["acceptedFeatureCard"] for claim in claims} == set(authority_by_card)
+
+protocol = evidence["generatorInterruptionProtocol"]
+assert set(protocol) == {
+    "deterministicRerun", "protocol", "realWorktreeUnchanged", "rows",
+    "temporaryRootIncompleteStatePermitted",
+}
+assert protocol["protocol"] == "MANIFEST_LAST_ATOMIC_REPLACE"
+assert protocol["deterministicRerun"] is True
+assert protocol["realWorktreeUnchanged"] is True
+assert protocol["temporaryRootIncompleteStatePermitted"] is True
+assert protocol["rows"] == [
+    {
+        "boundary": "BEFORE_ARTIFACTS", "acceptedSetCount": 0,
+        "manifestLast": True, "realWorktreeUnchanged": True,
+        "retryAcceptedSetCount": 1, "retryDeterministic": True,
+        "temporaryRootMayContainIncompleteArtifacts": True,
+    },
+    {
+        "boundary": "AFTER_ARTIFACTS_BEFORE_MANIFEST", "acceptedSetCount": 0,
+        "manifestLast": True, "realWorktreeUnchanged": True,
+        "retryAcceptedSetCount": 1, "retryDeterministic": True,
+        "temporaryRootMayContainIncompleteArtifacts": True,
+    },
+    {
+        "boundary": "AFTER_MANIFEST", "acceptedSetCount": 1,
+        "manifestLast": True, "realWorktreeUnchanged": True,
+        "retryAcceptedSetCount": 1, "retryDeterministic": True,
+        "temporaryRootMayContainIncompleteArtifacts": False,
+    },
+]
+
+assert len(receipt["artifactBindings"]) == 3
+assert all(binding_ok(value) for value in receipt["artifactBindings"])
+assert tags["observedSuggestions"]["suggestions"] == []
+assert tags["observedSuggestions"]["displayGuaranteed"] is False
+structured = metadata["structuredData"]
+assert structured["customerDataDetected"] is False
+assert structured["licensedThirdPartyContentDetected"] is False
+assert structured["pairwiseComparisonCount"] == 15
+assert structured["canonicalization"] == {
+    "originality": "NFKC_LOWERCASE_UNICODE_ALPHANUMERIC_WORD_SET_JACCARD_FLOOR_BASIS_POINTS",
+    "originalityDigest": "SORTED_COMPACT_JSON_UTF8_LF_PAGE_CONTENT_COMPARISON",
+    "structuredData": "SORTED_COMPACT_JSON_UTF8_LF_HEADLINE_DESCRIPTION_LIMITATIONS",
+    "visibleContent": "SORTED_COMPACT_JSON_UTF8_LF_HEADLINE_DESCRIPTION_LIMITATIONS",
+}
+metadata_bindings = {row["pageID"]: row for row in structured["pageBindings"]}
+assert set(metadata_bindings) == {page["pageID"] for page in pages}
+for page in pages:
+    binding = metadata_bindings[page["pageID"]]
+    assert binding == {
+        "acceptedFeatureCardID": page["acceptedFeatureCardID"],
+        "canonicalURLPath": page["canonicalURLPath"],
+        "claimID": page["claimID"],
+        "comparedPageContentSHA256s": page["comparedPageContentSHA256s"],
+        "maximumPairwiseTokenOverlapBasisPoints": page["maximumPairwiseTokenOverlapBasisPoints"],
+        "nearDuplicateThresholdBasisPoints": page["nearDuplicateThresholdBasisPoints"],
+        "originalityComparisonSHA256": page["originalityComparisonSHA256"],
+        "pageID": page["pageID"],
+        "structuredDataSHA256": page["structuredDataSHA256"],
+        "visibleContentSHA256": page["visibleContentSHA256"],
+    }
+
+assert accessibility["publicationEligible"] is False
+assert set(accessibility) == {
+    "accessibilityLabelGate", "appStoreSubmission", "appWideAccessibilityLabelAllowed",
+    "authority", "c15AccessibilityEvidence", "cardID", "containsLicensedAssets",
+    "containsRealCustomerData", "dnsOrHosting", "finalCapture", "networkAccess", "ordinal",
+    "provisional", "publicationEligible", "publish", "requiredEvidence", "schema",
+    "schemaVersion", "staticOnly", "statusFlags", "supportPages", "syntheticOnly", "upload",
+}
+assert accessibility["syntheticOnly"] is True
+assert accessibility["containsRealCustomerData"] is False
+assert accessibility["containsLicensedAssets"] is False
+assert accessibility["appWideAccessibilityLabelAllowed"] is False
+assert all(accessibility[key] is False for key in (
+    "publish", "upload", "networkAccess", "dnsOrHosting",
+    "appStoreSubmission", "finalCapture",
+))
+assert binding_ok(accessibility["c15AccessibilityEvidence"])
+gate = accessibility["accessibilityLabelGate"]
+assert gate == {
+    "status": "REQUIRED_BEFORE_ANY_LABEL",
+    "allCommonTaskEvidenceRequired": True,
+    "allDeviceFamilyEvidenceRequired": True,
+    "physicalEvidenceComplete": False,
+    "appWideClaimAllowed": False,
+}
+assert {
+    (page["pageID"], page["canonicalURLPath"]) for page in accessibility["supportPages"]
+} == {(page["pageID"], page["canonicalURLPath"]) for page in pages}
+
+assert corpus["schema"] == "V23P04C26OrganicFindabilityCorpusV1"
+assert set(corpus) == {
+    "authority", "cardID", "containsCustomerData", "containsLicensedAssets", "draftShape",
+    "hostileCases", "metadataLimits", "ordinal", "publicationBoundary", "schema",
+    "schemaVersion", "selectors", "synthetic", "syntheticAssetScan", "testOnly",
+}
+assert [row["id"] for row in corpus["selectors"]] == ["G01", "A01", "H01", "I01", "R01"]
+assert len(corpus["hostileCases"]) == 12
+assert corpus["publicationBoundary"]["status"] == "DISABLED_OR_DEFERRED"
+assert all(
+    value == 0
+    for value in corpus["publicationBoundary"].values()
+    if type(value) is int
+)
+assert set(contract) == {
+    "authority", "cardID", "provisional", "schema", "schemaVersion", "semantics",
+    "sourceProjection", "statusFlags", "testSelectors",
+}
+expected_contract_flags = {
+    "acceptance", "adoption", "analyticsProvider", "appStoreSubmission", "customerDataUse",
+    "dnsHosting", "finalKeywords", "finalScreenshots", "hosted", "native", "networkAccess",
+    "paidAcquisition", "publication", "release", "upload",
+}
+assert set(contract["statusFlags"]) == expected_contract_flags
+assert not any(contract["statusFlags"].values())
+PY
 
 jq -e '
   keys == [

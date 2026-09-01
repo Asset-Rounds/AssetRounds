@@ -1,0 +1,200 @@
+{
+  "approval": {
+    "decisionReference": null,
+    "sha256": null,
+    "status": "DISABLED_OR_DEFERRED"
+  },
+  "brandBinding": {
+    "path": "docs/product/discovery/V23P04C15BrandedStaticProofManifestV1.json",
+    "sha256": "3675918ba2d7ff2037dedd790f53827d85b66184a5907c4d482955b98b744a11"
+  },
+  "cardID": "V23-P04-C26",
+  "forbiddenCapabilities": {
+    "analyticsProvider": false,
+    "appStoreSubmission": false,
+    "customerDataUse": false,
+    "dnsHosting": false,
+    "finalKeywords": false,
+    "finalScreenshots": false,
+    "networkAccess": false,
+    "paidAcquisition": false,
+    "publication": false,
+    "upload": false
+  },
+  "catalogBinding": {
+    "path": "docs/product/discovery/DiscoveryTruthCatalogV1.json",
+    "sha256": "c2372225274acfc819e0293bb4ea624bd434f115bc41f46c014b605e9cc099fb"
+  },
+  "limits": {
+    "descriptionMaximumCharacters": 4000,
+    "keywordsMaximumCharacters": 100,
+    "keywordsMaximumUTF8Bytes": 100,
+    "nameMaximumCharacters": 30,
+    "nameMinimumCharacters": 2,
+    "ppoMaximumTreatments": 3,
+    "previewsMaximumCount": 3,
+    "promotionalTextMaximumCharacters": 170,
+    "screenshotsMaximumCount": 10,
+    "screenshotsMinimumCount": 1,
+    "subtitleMaximumCharacters": 30,
+    "verifiedAt": "2026-09-01T00:00:00Z"
+  },
+  "localeMeasurements": [
+    {
+      "descriptionCharacters": 161,
+      "draftSHA256": "9a3927a7e47f40b045a67b06c1280e449a1e83b9ae9f6a7673b345b6c0535166",
+      "keywordsCharacters": 39,
+      "keywordsDuplicateNameOrSubtitleTokens": false,
+      "keywordsUTF8Bytes": 39,
+      "locale": "en-US",
+      "nameCharacters": 11,
+      "previewCount": 0,
+      "promotionalTextCharacters": 109,
+      "screenshotCount": 6,
+      "subtitleCharacters": 28,
+      "withinLimits": true
+    },
+    {
+      "descriptionCharacters": 186,
+      "draftSHA256": "b624980b81afebee3502c1ad2ce43710e7df3cf13c60e9f97098242daca0b105",
+      "keywordsCharacters": 39,
+      "keywordsDuplicateNameOrSubtitleTokens": false,
+      "keywordsUTF8Bytes": 39,
+      "locale": "fr-FR",
+      "nameCharacters": 11,
+      "previewCount": 0,
+      "promotionalTextCharacters": 98,
+      "screenshotCount": 6,
+      "subtitleCharacters": 25,
+      "withinLimits": true
+    }
+  ],
+  "locales": ["en-US", "fr-FR"],
+  "metadataLimits": {
+    "descriptionMaximumCharacters": 4000,
+    "keywordsMaximumCharacters": 100,
+    "keywordsMaximumUTF8Bytes": 100,
+    "nameMaximumCharacters": 30,
+    "nameMinimumCharacters": 2,
+    "ppoMaximumTreatments": 3,
+    "previewsMaximumCount": 3,
+    "promotionalTextMaximumCharacters": 170,
+    "screenshotsMaximumCount": 10,
+    "screenshotsMinimumCount": 1,
+    "subtitleMaximumCharacters": 30
+  },
+  "officialSource": [
+    {
+      "purpose": "APP_INFORMATION_LIMITS",
+      "url": "https://developer.apple.com/help/app-store-connect/reference/app-information/app-information"
+    },
+    {
+      "purpose": "PLATFORM_VERSION_INFORMATION",
+      "url": "https://developer.apple.com/help/app-store-connect/reference/platform-version-information"
+    },
+    {
+      "purpose": "SCREENSHOT_SPECIFICATIONS",
+      "url": "https://developer.apple.com/help/app-store-connect/reference/screenshot-specifications/"
+    },
+    {
+      "purpose": "PRODUCT_PAGE_OPTIMIZATION_TEST_LIMITS",
+      "url": "https://developer.apple.com/help/app-store-connect/create-product-page-optimization-tests/create-a-test/"
+    }
+  ],
+  "privacyBinding": {
+    "path": "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json",
+    "sha256": "3a4f5f8afe44daed06cbe8a95ccb16be7610495af780b8df36b4138b7beaeb4b"
+  },
+  "publishEligibility": false,
+  "schema": "V23P04C26MetadataEvidenceReportV1",
+  "schemaVersion": 1,
+  "structuredData": {
+    "canonicalization": {
+      "originality": "NFKC_LOWERCASE_UNICODE_ALPHANUMERIC_WORD_SET_JACCARD_FLOOR_BASIS_POINTS",
+      "originalityDigest": "SORTED_COMPACT_JSON_UTF8_LF_PAGE_CONTENT_COMPARISON",
+      "structuredData": "SORTED_COMPACT_JSON_UTF8_LF_HEADLINE_DESCRIPTION_LIMITATIONS",
+      "visibleContent": "SORTED_COMPACT_JSON_UTF8_LF_HEADLINE_DESCRIPTION_LIMITATIONS"
+    },
+    "customerDataDetected": false,
+    "licensedThirdPartyContentDetected": false,
+    "pageBindings": [
+      {
+        "acceptedFeatureCardID": "V23-P04-C16",
+        "canonicalURLPath": "/support/accessibility-and-support",
+        "claimID": "c26-accessibility-support-v1",
+        "comparedPageContentSHA256s": ["0063c28787e86ac08eda70087c1501ba4837096568174a902d188de74e665e20", "184dc5dcf41b16aaf1a7a37060adf70275b9a201c30f414271b79c912c407b54", "6c2768f6456e68c6b442220291438025c5694e5883039615a7e606e4bc5dc7bd", "83627634a0b478fdfcbf45008dfeb641352829fe626c63767100cfc2b191b6b8", "ad70b0443b32a897236e25f2cc6afb6d6ecd20766adfca27bbb78db469e03155"],
+        "maximumPairwiseTokenOverlapBasisPoints": 1081,
+        "nearDuplicateThresholdBasisPoints": 8000,
+        "originalityComparisonSHA256": "f763aa04f9f242492bbf27282cccc79c480e1d0ebfa6e809948473f137957e35",
+        "pageID": "ACCESSIBILITY_SUPPORT",
+        "structuredDataSHA256": "fca3db43979599a2d315500bf8df16e00f3edde113386caae15125f72c8ea63d",
+        "visibleContentSHA256": "fca3db43979599a2d315500bf8df16e00f3edde113386caae15125f72c8ea63d"
+      },
+      {
+        "acceptedFeatureCardID": "V23-P04-C18",
+        "canonicalURLPath": "/support/day-night-evidence",
+        "claimID": "c26-day-night-evidence-v1",
+        "comparedPageContentSHA256s": ["0063c28787e86ac08eda70087c1501ba4837096568174a902d188de74e665e20", "6c2768f6456e68c6b442220291438025c5694e5883039615a7e606e4bc5dc7bd", "83627634a0b478fdfcbf45008dfeb641352829fe626c63767100cfc2b191b6b8", "ad70b0443b32a897236e25f2cc6afb6d6ecd20766adfca27bbb78db469e03155", "fca3db43979599a2d315500bf8df16e00f3edde113386caae15125f72c8ea63d"],
+        "maximumPairwiseTokenOverlapBasisPoints": 1052,
+        "nearDuplicateThresholdBasisPoints": 8000,
+        "originalityComparisonSHA256": "8107770a6a6fa1e20e3035522bf8421ed98d957bcd4b712d6f290c2d37b39998",
+        "pageID": "DAY_NIGHT_EVIDENCE",
+        "structuredDataSHA256": "184dc5dcf41b16aaf1a7a37060adf70275b9a201c30f414271b79c912c407b54",
+        "visibleContentSHA256": "184dc5dcf41b16aaf1a7a37060adf70275b9a201c30f414271b79c912c407b54"
+      },
+      {
+        "acceptedFeatureCardID": "V23-P04-C17",
+        "canonicalURLPath": "/support/lighting-workflow-limits",
+        "claimID": "c26-lighting-workflow-limits-v1",
+        "comparedPageContentSHA256s": ["0063c28787e86ac08eda70087c1501ba4837096568174a902d188de74e665e20", "184dc5dcf41b16aaf1a7a37060adf70275b9a201c30f414271b79c912c407b54", "6c2768f6456e68c6b442220291438025c5694e5883039615a7e606e4bc5dc7bd", "83627634a0b478fdfcbf45008dfeb641352829fe626c63767100cfc2b191b6b8", "fca3db43979599a2d315500bf8df16e00f3edde113386caae15125f72c8ea63d"],
+        "maximumPairwiseTokenOverlapBasisPoints": 1081,
+        "nearDuplicateThresholdBasisPoints": 8000,
+        "originalityComparisonSHA256": "9bca83906936b32888cc507999f2b00674744835c15bb2a96f03fb0935b08ba3",
+        "pageID": "LIGHTING_WORKFLOW_LIMITS",
+        "structuredDataSHA256": "ad70b0443b32a897236e25f2cc6afb6d6ecd20766adfca27bbb78db469e03155",
+        "visibleContentSHA256": "ad70b0443b32a897236e25f2cc6afb6d6ecd20766adfca27bbb78db469e03155"
+      },
+      {
+        "acceptedFeatureCardID": "V23-P04-C19",
+        "canonicalURLPath": "/support/offline-plan-rebase",
+        "claimID": "c26-offline-plan-rebase-v1",
+        "comparedPageContentSHA256s": ["0063c28787e86ac08eda70087c1501ba4837096568174a902d188de74e665e20", "184dc5dcf41b16aaf1a7a37060adf70275b9a201c30f414271b79c912c407b54", "83627634a0b478fdfcbf45008dfeb641352829fe626c63767100cfc2b191b6b8", "ad70b0443b32a897236e25f2cc6afb6d6ecd20766adfca27bbb78db469e03155", "fca3db43979599a2d315500bf8df16e00f3edde113386caae15125f72c8ea63d"],
+        "maximumPairwiseTokenOverlapBasisPoints": 1162,
+        "nearDuplicateThresholdBasisPoints": 8000,
+        "originalityComparisonSHA256": "3d8786411198932e1e7e1e3cd3d2536d921318b39e675eb3b46c657cf57458a4",
+        "pageID": "OFFLINE_PLAN_REBASE",
+        "structuredDataSHA256": "6c2768f6456e68c6b442220291438025c5694e5883039615a7e606e4bc5dc7bd",
+        "visibleContentSHA256": "6c2768f6456e68c6b442220291438025c5694e5883039615a7e606e4bc5dc7bd"
+      },
+      {
+        "acceptedFeatureCardID": "V23-P04-C21",
+        "canonicalURLPath": "/support/qr-barcode-rounds",
+        "claimID": "c26-qr-barcode-rounds-v1",
+        "comparedPageContentSHA256s": ["0063c28787e86ac08eda70087c1501ba4837096568174a902d188de74e665e20", "184dc5dcf41b16aaf1a7a37060adf70275b9a201c30f414271b79c912c407b54", "6c2768f6456e68c6b442220291438025c5694e5883039615a7e606e4bc5dc7bd", "ad70b0443b32a897236e25f2cc6afb6d6ecd20766adfca27bbb78db469e03155", "fca3db43979599a2d315500bf8df16e00f3edde113386caae15125f72c8ea63d"],
+        "maximumPairwiseTokenOverlapBasisPoints": 1162,
+        "nearDuplicateThresholdBasisPoints": 8000,
+        "originalityComparisonSHA256": "2d91c66a5f22fe92d721a300e4059c2deae0610128fee97f6f7352bd3e706ffd",
+        "pageID": "QR_BARCODE_ROUNDS",
+        "structuredDataSHA256": "83627634a0b478fdfcbf45008dfeb641352829fe626c63767100cfc2b191b6b8",
+        "visibleContentSHA256": "83627634a0b478fdfcbf45008dfeb641352829fe626c63767100cfc2b191b6b8"
+      },
+      {
+        "acceptedFeatureCardID": "V23-P04-C20",
+        "canonicalURLPath": "/support/survey-versus-inspection",
+        "claimID": "c26-survey-versus-inspection-v1",
+        "comparedPageContentSHA256s": ["184dc5dcf41b16aaf1a7a37060adf70275b9a201c30f414271b79c912c407b54", "6c2768f6456e68c6b442220291438025c5694e5883039615a7e606e4bc5dc7bd", "83627634a0b478fdfcbf45008dfeb641352829fe626c63767100cfc2b191b6b8", "ad70b0443b32a897236e25f2cc6afb6d6ecd20766adfca27bbb78db469e03155", "fca3db43979599a2d315500bf8df16e00f3edde113386caae15125f72c8ea63d"],
+        "maximumPairwiseTokenOverlapBasisPoints": 714,
+        "nearDuplicateThresholdBasisPoints": 8000,
+        "originalityComparisonSHA256": "62cff03eb10affb9a5f8e8ece016985e1d884264131ce26645ec4f6a52abe0d9",
+        "pageID": "SURVEY_VERSUS_INSPECTION",
+        "structuredDataSHA256": "0063c28787e86ac08eda70087c1501ba4837096568174a902d188de74e665e20",
+        "visibleContentSHA256": "0063c28787e86ac08eda70087c1501ba4837096568174a902d188de74e665e20"
+      }
+    ],
+    "pairwiseComparisonCount": 15
+  },
+  "syntheticAssetBinding": {
+    "path": "docs/product/discovery/V23P04C15SyntheticSampleManifestV1.json",
+    "sha256": "41e17b55277dfb4758e6a185074c1ea91eaa84f6bded7e0ce322eca0a10ae384"
+  }
+}

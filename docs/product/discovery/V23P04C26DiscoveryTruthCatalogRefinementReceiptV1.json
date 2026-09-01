@@ -1,0 +1,82 @@
+{
+  "approval": {
+    "decisionReference": null,
+    "sha256": null,
+    "status": "DISABLED_OR_DEFERRED"
+  },
+  "artifactBindings": [
+    {
+      "kind": "ACQUISITION_CONTENT_DRAFT",
+      "path": "docs/product/discovery/V23P04C26AcquisitionContentDraftV1.json",
+      "sha256": "b668e29382c1154cc93d3106d416ddf80bf6cf35915746b2b128696801064238"
+    },
+    {
+      "kind": "APP_TAG_DISPOSITION",
+      "path": "docs/product/discovery/V23P04C26AppTagDispositionV1.json",
+      "sha256": "dedbc785e15a6c93a477f477178ce9144bad5e01df187f80aa720e0cdd35c2c8"
+    },
+    {
+      "kind": "METADATA_EVIDENCE_REPORT",
+      "path": "docs/product/discovery/V23P04C26MetadataEvidenceReportV1.json",
+      "sha256": "468eae786e7a461e21b3e2d826269e4a1ddb875e60ecc9e1f78f050511637bf5"
+    }
+  ],
+  "brandBinding": {
+    "path": "docs/product/discovery/V23P04C15BrandedStaticProofManifestV1.json",
+    "sha256": "3675918ba2d7ff2037dedd790f53827d85b66184a5907c4d482955b98b744a11"
+  },
+  "cardID": "V23-P04-C26",
+  "forbiddenCapabilities": {
+    "analyticsProvider": false,
+    "appStoreSubmission": false,
+    "customerDataUse": false,
+    "dnsHosting": false,
+    "finalKeywords": false,
+    "finalScreenshots": false,
+    "networkAccess": false,
+    "paidAcquisition": false,
+    "publication": false,
+    "upload": false
+  },
+  "catalogBinding": {
+    "path": "docs/product/discovery/DiscoveryTruthCatalogV1.json",
+    "sha256": "c2372225274acfc819e0293bb4ea624bd434f115bc41f46c014b605e9cc099fb"
+  },
+  "catalogRefinement": {
+    "appStoreCategoryDeclarationsChanged": false,
+    "appTagSchemaChanged": false,
+    "catalogSchemaChanged": false,
+    "controlCount": 1,
+    "draftBindingsRecordedOutsideCatalog": true,
+    "maximumPPOHypotheses": 3,
+    "ownerApprovalPresent": false,
+    "persistentProductWriteCount": 0,
+    "publicationState": "DISABLED_OR_DEFERRED",
+    "supportPageSpecCount": 6
+  },
+  "locales": ["en-US", "fr-FR"],
+  "metadataLimits": {
+    "descriptionMaximumCharacters": 4000,
+    "keywordsMaximumCharacters": 100,
+    "keywordsMaximumUTF8Bytes": 100,
+    "nameMaximumCharacters": 30,
+    "nameMinimumCharacters": 2,
+    "ppoMaximumTreatments": 3,
+    "previewsMaximumCount": 3,
+    "promotionalTextMaximumCharacters": 170,
+    "screenshotsMaximumCount": 10,
+    "screenshotsMinimumCount": 1,
+    "subtitleMaximumCharacters": 30
+  },
+  "privacyBinding": {
+    "path": "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json",
+    "sha256": "3a4f5f8afe44daed06cbe8a95ccb16be7610495af780b8df36b4138b7beaeb4b"
+  },
+  "publishEligibility": false,
+  "schema": "V23P04C26DiscoveryTruthCatalogRefinementReceiptV1",
+  "schemaVersion": 1,
+  "syntheticAssetBinding": {
+    "path": "docs/product/discovery/V23P04C15SyntheticSampleManifestV1.json",
+    "sha256": "41e17b55277dfb4758e6a185074c1ea91eaa84f6bded7e0ce322eca0a10ae384"
+  }
+}

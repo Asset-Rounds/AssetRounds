@@ -1,0 +1,145 @@
+{
+  "schema": "V23P04C26OrganicFindabilityCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C26",
+  "ordinal": 114,
+  "testOnly": true,
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsLicensedAssets": false,
+  "authority": {
+    "contextDigest": "657cdeb44c2f29b11522a55e4b003b5f83b740dbe9009e5e0a26b75d0297881e",
+    "pathFenceDigest": "7e9e7da91a051d0180435b8d724f3d790d5522388b18ee95403016a275c48d41",
+    "sequence": 494
+  },
+  "metadataLimits": {
+    "nameMinimumCharacters": 2,
+    "nameMaximumCharacters": 30,
+    "subtitleMaximumCharacters": 30,
+    "promotionalTextMaximumCharacters": 170,
+    "descriptionMaximumCharacters": 4000,
+    "keywordsMaximumCharacters": 100,
+    "keywordsMaximumUTF8Bytes": 100,
+    "screenshotsMinimumCount": 1,
+    "screenshotsMaximumCount": 10,
+    "previewsMaximumCount": 3
+  },
+  "draftShape": {
+    "controlCount": 1,
+    "maximumTreatmentHypothesisCount": 3,
+    "supportPageCount": 6,
+    "publicationEligible": false,
+    "networkAccess": false,
+    "dnsOrHosting": false,
+    "appStoreSubmission": false,
+    "finalCapture": false
+  },
+  "selectors": [
+    {
+      "id": "G01",
+      "selector": "testV23P04C26G01BoundCatalogRefinementAndDisabledPublication",
+      "tier": "GOLDEN"
+    },
+    {
+      "id": "A01",
+      "selector": "testV23P04C26A01ApprovalAbsenceDefersAllPublication",
+      "tier": "ALTERNATE"
+    },
+    {
+      "id": "H01",
+      "selector": "testV23P04C26H01HostileClaimsBindingsAndMetadataLimitsFailClosed",
+      "tier": "HOSTILE"
+    },
+    {
+      "id": "I01",
+      "selector": "testV23P04C26I01ExpiryWithdrawalAndInterruptedDraftRecovery",
+      "tier": "INTERRUPTION"
+    },
+    {
+      "id": "R01",
+      "selector": "testV23P04C26R01ReleasePreflightAndAccessibilityGateRemainPublicationIneligible",
+      "tier": "RECOVERY"
+    }
+  ],
+  "hostileCases": [
+    {
+      "id": "STALE_ACCEPTANCE_RECEIPT",
+      "mutation": "replace accepted receipt digest with a stale digest",
+      "expected": "REJECT_STALE_CURRENTNESS"
+    },
+    {
+      "id": "DUPLICATE_SUBTITLE_KEYWORD",
+      "mutation": "repeat a normalized subtitle token in keywords",
+      "expected": "REJECT_DUPLICATE_METADATA_TOKEN"
+    },
+    {
+      "id": "MULTIBYTE_KEYWORD_OVERFLOW",
+      "mutation": "use 51 two-byte UTF-8 keyword characters",
+      "expected": "REJECT_UTF8_BYTE_LIMIT"
+    },
+    {
+      "id": "NEAR_DUPLICATE_SUPPORT_PAGE",
+      "mutation": "reuse substantially identical visible content under a second canonical URL",
+      "expected": "REJECT_NEAR_DUPLICATE"
+    },
+    {
+      "id": "LICENSED_ASSET",
+      "mutation": "bind an externally licensed image instead of an original synthetic asset",
+      "expected": "REJECT_NON_SYNTHETIC_ASSET"
+    },
+    {
+      "id": "FABRICATED_RATING",
+      "mutation": "add an unbound rating or ROI claim",
+      "expected": "REJECT_UNSUPPORTED_CLAIM"
+    },
+    {
+      "id": "UNSUPPORTED_ACCESSIBILITY_LABEL",
+      "mutation": "enable an app-wide label without all-common-task and device-family evidence",
+      "expected": "REJECT_ACCESSIBILITY_LABEL"
+    },
+    {
+      "id": "ARBITRARY_APP_TAG",
+      "mutation": "add an unobserved suggested App Store tag",
+      "expected": "REJECT_UNOBSERVED_TAG"
+    },
+    {
+      "id": "APPROVAL_ABSENT",
+      "mutation": "leave owner approval null",
+      "expected": "ACCEPT_DRAFT_DISABLED_OR_DEFERRED"
+    },
+    {
+      "id": "EXPIRED_CLAIM",
+      "mutation": "retain a claim after its expiry instant",
+      "expected": "WITHDRAW_CLAIM"
+    },
+    {
+      "id": "SUPERSEDED_CLAIM",
+      "mutation": "retain a claim after a current superseding digest is accepted",
+      "expected": "WITHDRAW_CLAIM"
+    },
+    {
+      "id": "MISLEADING_STRUCTURED_DATA",
+      "mutation": "make structured data differ from visible page content",
+      "expected": "REJECT_STRUCTURED_DATA_MISMATCH"
+    }
+  ],
+  "syntheticAssetScan": {
+    "required": true,
+    "originalityReviewRequired": true,
+    "licenseScanRequired": true,
+    "realCustomerDataAllowed": false,
+    "stableJoinKeysAllowed": false
+  },
+  "publicationBoundary": {
+    "ownerApprovalReference": null,
+    "status": "DISABLED_OR_DEFERRED",
+    "publicationEligible": false,
+    "networkRequests": 0,
+    "providerConnections": 0,
+    "uploads": 0,
+    "dnsMutations": 0,
+    "hostingWrites": 0,
+    "submissions": 0,
+    "finalCaptures": 0
+  }
+}

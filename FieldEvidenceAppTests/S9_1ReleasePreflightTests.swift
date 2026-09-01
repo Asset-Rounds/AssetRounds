@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import XCTest
 
 final class S9_1ReleasePreflightTests: XCTestCase {
@@ -1692,6 +1693,1004 @@ final class S9_1ReleasePreflightTests: XCTestCase {
     private func deepCopy(_ value: [String: Any]) -> [String: Any] {
         let data = try! JSONSerialization.data(withJSONObject: value)
         return try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+    }
+}
+
+extension S9_1ReleasePreflightTests {
+    func testV23P04C26G01BoundCatalogRefinementAndDisabledPublication() throws {
+        let sources = try c26Sources()
+        XCTAssertTrue(try c26Validate(sources))
+
+        let claims = try XCTUnwrap(sources.acquisition["claims"] as? [[String: Any]])
+        XCTAssertEqual(claims.count, 6)
+        XCTAssertEqual(Set(claims.compactMap { $0["acceptedFeatureCard"] as? String }), [
+            "V23-P04-C16", "V23-P04-C17", "V23-P04-C18",
+            "V23-P04-C19", "V23-P04-C20", "V23-P04-C21",
+        ])
+        for claim in claims {
+            let binding = try XCTUnwrap(claim["acceptanceBinding"] as? [String: Any])
+            XCTAssertEqual(binding["currentness"] as? String, "CHECKPOINTED_CURRENT")
+            XCTAssertEqual(binding["compatibilityDisposition"] as? String, "CURRENT_NOT_SUPERSEDED")
+            XCTAssertEqual(binding["recoveryProof"] as? String, "MATCHING_PROVISIONAL_VERIFICATION_RECEIPT")
+            XCTAssertTrue(c26SHA(binding["checkpointSHA256"] as? String))
+            XCTAssertTrue(c26SHA(binding["verificationSHA256"] as? String))
+            XCTAssertTrue(c26SHA(claim["receiptSHA256"] as? String))
+        }
+
+        let artifactBindings = try XCTUnwrap(
+            sources.receipt["artifactBindings"] as? [[String: Any]]
+        )
+        XCTAssertEqual(artifactBindings.count, 3)
+        for binding in artifactBindings {
+            XCTAssertTrue(try c26BindingMatchesFile(binding))
+        }
+    }
+
+    func testV23P04C26A01ApprovalAbsenceDefersAllPublication() throws {
+        let sources = try c26Sources()
+        XCTAssertTrue(try c26Validate(sources))
+
+        for root in [sources.acquisition, sources.tags, sources.receipt, sources.metadata] {
+            let approval = try XCTUnwrap(root["approval"] as? [String: Any])
+            XCTAssertEqual(Set(approval.keys), ["decisionReference", "sha256", "status"])
+            XCTAssertTrue(approval["decisionReference"] is NSNull)
+            XCTAssertTrue(approval["sha256"] is NSNull)
+            XCTAssertEqual(approval["status"] as? String, "DISABLED_OR_DEFERRED")
+            XCTAssertEqual(root["publishEligibility"] as? Bool, false)
+        }
+
+        let control = try XCTUnwrap(sources.acquisition["control"] as? [String: Any])
+        let hypotheses = try XCTUnwrap(sources.acquisition["ppoHypotheses"] as? [[String: Any]])
+        XCTAssertEqual(control["status"] as? String, "DISABLED_OR_DEFERRED")
+        XCTAssertLessThanOrEqual(hypotheses.count, 3)
+        XCTAssertTrue(hypotheses.allSatisfy { ($0["uploadReady"] as? Bool) == false })
+        let suggestions = try XCTUnwrap(sources.tags["observedSuggestions"] as? [String: Any])
+        XCTAssertEqual(suggestions["suggestions"] as? [String], [])
+        XCTAssertEqual(suggestions["displayGuaranteed"] as? Bool, false)
+    }
+
+    func testV23P04C26H01HostileClaimsBindingsAndMetadataLimitsFailClosed() throws {
+        let valid = try c26Sources()
+        XCTAssertTrue(try c26Validate(valid))
+
+        var stale = valid
+        var staleClaims = try XCTUnwrap(stale.acquisition["claims"] as? [[String: Any]])
+        var staleBinding = try XCTUnwrap(staleClaims[0]["acceptanceBinding"] as? [String: Any])
+        staleBinding["currentness"] = "STALE"
+        staleClaims[0]["acceptanceBinding"] = staleBinding
+        stale.acquisition["claims"] = staleClaims
+        XCTAssertFalse(try c26Validate(stale))
+
+        var forgedDigest = valid
+        var forgedDigestClaims = try XCTUnwrap(
+            forgedDigest.acquisition["claims"] as? [[String: Any]]
+        )
+        var forgedDigestBinding = try XCTUnwrap(
+            forgedDigestClaims[0]["acceptanceBinding"] as? [String: Any]
+        )
+        forgedDigestBinding["checkpointSHA256"] = String(repeating: "a", count: 64)
+        forgedDigestClaims[0]["acceptanceBinding"] = forgedDigestBinding
+        forgedDigest.acquisition["claims"] = forgedDigestClaims
+        XCTAssertFalse(try c26Validate(forgedDigest))
+
+        var forgedHead = valid
+        var forgedHeadClaims = try XCTUnwrap(forgedHead.acquisition["claims"] as? [[String: Any]])
+        var forgedHeadBinding = try XCTUnwrap(
+            forgedHeadClaims[0]["acceptanceBinding"] as? [String: Any]
+        )
+        forgedHeadBinding["acceptedCandidateHead"] = String(repeating: "a", count: 40)
+        forgedHeadClaims[0]["acceptanceBinding"] = forgedHeadBinding
+        forgedHead.acquisition["claims"] = forgedHeadClaims
+        XCTAssertFalse(try c26Validate(forgedHead))
+
+        var forgedTree = valid
+        var forgedTreeClaims = try XCTUnwrap(forgedTree.acquisition["claims"] as? [[String: Any]])
+        var forgedTreeBinding = try XCTUnwrap(
+            forgedTreeClaims[0]["acceptanceBinding"] as? [String: Any]
+        )
+        forgedTreeBinding["acceptedCandidateTree"] = String(repeating: "b", count: 40)
+        forgedTreeClaims[0]["acceptanceBinding"] = forgedTreeBinding
+        forgedTree.acquisition["claims"] = forgedTreeClaims
+        XCTAssertFalse(try c26Validate(forgedTree))
+
+        var forgedCard = valid
+        var forgedCardClaims = try XCTUnwrap(forgedCard.acquisition["claims"] as? [[String: Any]])
+        forgedCardClaims[0]["acceptedFeatureCard"] = "V23-P04-C99"
+        forgedCard.acquisition["claims"] = forgedCardClaims
+        XCTAssertFalse(try c26Validate(forgedCard))
+
+        var forgedReceipt = valid
+        var forgedReceiptClaims = try XCTUnwrap(
+            forgedReceipt.acquisition["claims"] as? [[String: Any]]
+        )
+        forgedReceiptClaims[0]["receiptSHA256"] = String(repeating: "c", count: 64)
+        forgedReceipt.acquisition["claims"] = forgedReceiptClaims
+        XCTAssertFalse(try c26Validate(forgedReceipt))
+
+        var swappedCards = valid
+        var swappedClaims = try XCTUnwrap(
+            swappedCards.acquisition["claims"] as? [[String: Any]]
+        )
+        let firstAcceptedTuple = (
+            swappedClaims[0]["acceptedFeatureCard"],
+            swappedClaims[0]["receiptSHA256"],
+            swappedClaims[0]["acceptanceBinding"]
+        )
+        swappedClaims[0]["acceptedFeatureCard"] = swappedClaims[1]["acceptedFeatureCard"]
+        swappedClaims[0]["receiptSHA256"] = swappedClaims[1]["receiptSHA256"]
+        swappedClaims[0]["acceptanceBinding"] = swappedClaims[1]["acceptanceBinding"]
+        swappedClaims[1]["acceptedFeatureCard"] = firstAcceptedTuple.0
+        swappedClaims[1]["receiptSHA256"] = firstAcceptedTuple.1
+        swappedClaims[1]["acceptanceBinding"] = firstAcceptedTuple.2
+        swappedCards.acquisition["claims"] = swappedClaims
+        XCTAssertFalse(try c26Validate(swappedCards))
+
+        let authoritativeClaim = try XCTUnwrap(
+            (valid.acquisition["claims"] as? [[String: Any]])?.first
+        )
+        let authoritativeCard = try XCTUnwrap(
+            authoritativeClaim["acceptedFeatureCard"] as? String
+        )
+        let authoritativeBinding = try XCTUnwrap(
+            authoritativeClaim["acceptanceBinding"] as? [String: Any]
+        )
+        let authoritativeCheckpointPath = try XCTUnwrap(
+            authoritativeBinding["checkpointPath"] as? String
+        )
+        let authoritativeCheckpointURL = try XCTUnwrap(
+            c26EvidenceURL(authoritativeCheckpointPath)
+        )
+        let authoritativeCheckpoint = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: authoritativeCheckpointURL)
+            ) as? [String: Any]
+        )
+        var unknownCheckpointSchema = authoritativeCheckpoint
+        unknownCheckpointSchema["schema"] = "UnknownCheckpointReceiptV1"
+        XCTAssertFalse(c26CheckpointProfileValid(unknownCheckpointSchema, cardID: authoritativeCard))
+        var falseCheckpointFlag = authoritativeCheckpoint
+        falseCheckpointFlag["flagsAllFalse"] = false
+        XCTAssertFalse(c26CheckpointProfileValid(falseCheckpointFlag, cardID: authoritativeCard))
+        var falseCheckpointSeal = authoritativeCheckpoint
+        falseCheckpointSeal["finalHashesSealed"] = false
+        XCTAssertFalse(c26CheckpointProfileValid(falseCheckpointSeal, cardID: authoritativeCard))
+
+        var extraForbiddenField = valid
+        extraForbiddenField.acquisition["networkAccess"] = false
+        XCTAssertFalse(try c26Validate(extraForbiddenField))
+
+        var trueForbiddenField = valid
+        trueForbiddenField.acquisition["publish"] = true
+        XCTAssertFalse(try c26Validate(trueForbiddenField))
+
+        var trueForbiddenCapability = valid
+        var forbiddenCapabilities = try XCTUnwrap(
+            trueForbiddenCapability.acquisition["forbiddenCapabilities"] as? [String: Any]
+        )
+        forbiddenCapabilities["paidAcquisition"] = true
+        trueForbiddenCapability.acquisition["forbiddenCapabilities"] = forbiddenCapabilities
+        XCTAssertFalse(try c26Validate(trueForbiddenCapability))
+
+        var coherentPageAndClaim = valid
+        var coherentPages = try XCTUnwrap(
+            coherentPageAndClaim.acquisition["supportPageSpecs"] as? [[String: Any]]
+        )
+        var coherentClaims = try XCTUnwrap(
+            coherentPageAndClaim.acquisition["claims"] as? [[String: Any]]
+        )
+        coherentPages[0]["claimID"] = "c26-coherent-forgery-v1"
+        let coherentClaimIndex = try XCTUnwrap(
+            coherentClaims.firstIndex { $0["claimID"] as? String == "c26-accessibility-support-v1" }
+        )
+        coherentClaims[coherentClaimIndex]["claimID"] = "c26-coherent-forgery-v1"
+        coherentPageAndClaim.acquisition["supportPageSpecs"] = coherentPages
+        coherentPageAndClaim.acquisition["claims"] = coherentClaims
+        XCTAssertFalse(try c26Validate(coherentPageAndClaim))
+
+        var duplicateKeyword = valid
+        var duplicateLocales = try XCTUnwrap(
+            duplicateKeyword.acquisition["locales"] as? [[String: Any]]
+        )
+        duplicateLocales[0]["keywords"] = "field,inspection"
+        duplicateKeyword.acquisition["locales"] = duplicateLocales
+        XCTAssertFalse(try c26Validate(duplicateKeyword))
+
+        var multibyteOverflow = valid
+        var multibyteLocales = try XCTUnwrap(
+            multibyteOverflow.acquisition["locales"] as? [[String: Any]]
+        )
+        multibyteLocales[0]["keywords"] = String(repeating: "é", count: 51)
+        multibyteOverflow.acquisition["locales"] = multibyteLocales
+        XCTAssertFalse(try c26Validate(multibyteOverflow))
+
+        var nearDuplicate = valid
+        var pages = try XCTUnwrap(nearDuplicate.acquisition["supportPageSpecs"] as? [[String: Any]])
+        pages[1]["title"] = pages[0]["title"]
+        pages[1]["summary"] = pages[0]["summary"]
+        pages[1]["limitations"] = pages[0]["limitations"]
+        var nearDuplicateMetadata = nearDuplicate.metadata
+        try c26RecomputePageEvidence(&pages, metadata: &nearDuplicateMetadata)
+        XCTAssertGreaterThanOrEqual(
+            try XCTUnwrap(pages[1]["maximumPairwiseTokenOverlapBasisPoints"] as? Int),
+            try XCTUnwrap(pages[1]["nearDuplicateThresholdBasisPoints"] as? Int)
+        )
+        nearDuplicate.acquisition["supportPageSpecs"] = pages
+        nearDuplicate.metadata = nearDuplicateMetadata
+        XCTAssertFalse(try c26Validate(nearDuplicate))
+
+        var licensed = valid
+        var structured = try XCTUnwrap(licensed.metadata["structuredData"] as? [String: Any])
+        structured["licensedThirdPartyContentDetected"] = true
+        licensed.metadata["structuredData"] = structured
+        XCTAssertFalse(try c26Validate(licensed))
+
+        var fabricated = valid
+        var fabricatedClaims = try XCTUnwrap(fabricated.acquisition["claims"] as? [[String: Any]])
+        fabricatedClaims[0]["claimID"] = "fabricated-rating-and-roi"
+        fabricated.acquisition["claims"] = fabricatedClaims
+        XCTAssertFalse(try c26Validate(fabricated))
+
+        var unsupportedAX = valid
+        unsupportedAX.accessibility["appWideAccessibilityLabelAllowed"] = true
+        XCTAssertFalse(try c26Validate(unsupportedAX))
+
+        var arbitraryTag = valid
+        var tagSuggestions = try XCTUnwrap(arbitraryTag.tags["observedSuggestions"] as? [String: Any])
+        tagSuggestions["suggestions"] = ["UNOBSERVED_ARBITRARY_TAG"]
+        arbitraryTag.tags["observedSuggestions"] = tagSuggestions
+        XCTAssertFalse(try c26Validate(arbitraryTag))
+
+        let hostileIDs = try XCTUnwrap(valid.fixture["hostileCases"] as? [[String: Any]])
+            .compactMap { $0["id"] as? String }
+        XCTAssertEqual(Set(hostileIDs), [
+            "APPROVAL_ABSENT", "ARBITRARY_APP_TAG", "DUPLICATE_SUBTITLE_KEYWORD",
+            "EXPIRED_CLAIM", "FABRICATED_RATING", "LICENSED_ASSET",
+            "MISLEADING_STRUCTURED_DATA", "MULTIBYTE_KEYWORD_OVERFLOW",
+            "NEAR_DUPLICATE_SUPPORT_PAGE", "STALE_ACCEPTANCE_RECEIPT",
+            "SUPERSEDED_CLAIM", "UNSUPPORTED_ACCESSIBILITY_LABEL",
+        ])
+    }
+
+    func testV23P04C26I01ExpiryWithdrawalAndInterruptedDraftRecovery() throws {
+        let valid = try c26Sources()
+        let protocolReceipt = try XCTUnwrap(
+            valid.evidence["generatorInterruptionProtocol"] as? [String: Any]
+        )
+        XCTAssertEqual(Set(protocolReceipt.keys), [
+            "deterministicRerun", "protocol", "realWorktreeUnchanged", "rows",
+            "temporaryRootIncompleteStatePermitted",
+        ])
+        XCTAssertEqual(protocolReceipt["protocol"] as? String, "MANIFEST_LAST_ATOMIC_REPLACE")
+        XCTAssertEqual(protocolReceipt["deterministicRerun"] as? Bool, true)
+        XCTAssertEqual(protocolReceipt["realWorktreeUnchanged"] as? Bool, true)
+        XCTAssertEqual(protocolReceipt["temporaryRootIncompleteStatePermitted"] as? Bool, true)
+        let protocolRows = try XCTUnwrap(protocolReceipt["rows"] as? [[String: Any]])
+        XCTAssertEqual(protocolRows.count, 3)
+        XCTAssertEqual(
+            protocolRows.compactMap { row -> String? in
+                guard let boundary = row["boundary"] as? String,
+                      let count = row["acceptedSetCount"] as? Int,
+                      row["manifestLast"] as? Bool == true,
+                      let retryCount = row["retryAcceptedSetCount"] as? Int,
+                      row["retryDeterministic"] as? Bool == true,
+                      row["realWorktreeUnchanged"] as? Bool == true,
+                      let incomplete = row["temporaryRootMayContainIncompleteArtifacts"] as? Bool
+                else { return nil }
+                return "\(boundary):\(count):\(retryCount):\(incomplete)"
+            },
+            [
+                "BEFORE_ARTIFACTS:0:1:true",
+                "AFTER_ARTIFACTS_BEFORE_MANIFEST:0:1:true",
+                "AFTER_MANIFEST:1:1:false",
+            ]
+        )
+        XCTAssertTrue(
+            try text("Scripts/release-preflight.sh").contains(
+                "generate_p04_c26_contracts.py --self-test --json"
+            )
+        )
+        let claims = try XCTUnwrap(valid.acquisition["claims"] as? [[String: Any]])
+        XCTAssertTrue(c26WithdrawnClaimIDs(claims, now: "2026-09-01T00:00:00Z").isEmpty)
+
+        var expiredClaims = claims
+        expiredClaims[0]["expiry"] = "2026-08-31T23:59:59Z"
+        let expiredClaimID = try XCTUnwrap(expiredClaims[0]["claimID"] as? String)
+        XCTAssertEqual(
+            c26WithdrawnClaimIDs(expiredClaims, now: "2026-09-01T00:00:00Z"),
+            [expiredClaimID]
+        )
+
+        var supersededClaims = claims
+        supersededClaims[1]["supersededByClaimDigest"] = String(repeating: "a", count: 64)
+        let supersededClaimID = try XCTUnwrap(supersededClaims[1]["claimID"] as? String)
+        XCTAssertEqual(
+            c26WithdrawnClaimIDs(supersededClaims, now: "2026-09-01T00:00:00Z"),
+            [supersededClaimID]
+        )
+
+        var interrupted = valid
+        interrupted.receipt["artifactBindings"] = Array(
+            try XCTUnwrap(interrupted.receipt["artifactBindings"] as? [[String: Any]]).dropLast()
+        )
+        XCTAssertFalse(try c26Validate(interrupted), "partial receipt must never accept")
+        XCTAssertTrue(try c26Validate(valid), "exact source set recovers without product/public writes")
+
+        let publication = try XCTUnwrap(valid.fixture["publicationBoundary"] as? [String: Any])
+        XCTAssertEqual(publication["networkRequests"] as? Int, 0)
+        XCTAssertEqual(publication["providerConnections"] as? Int, 0)
+        XCTAssertEqual(publication["uploads"] as? Int, 0)
+        XCTAssertEqual(publication["dnsMutations"] as? Int, 0)
+        XCTAssertEqual(publication["hostingWrites"] as? Int, 0)
+        XCTAssertEqual(publication["submissions"] as? Int, 0)
+        XCTAssertEqual(publication["finalCaptures"] as? Int, 0)
+    }
+
+    func testV23P04C26R01ReleasePreflightAndAccessibilityGateRemainPublicationIneligible() throws {
+        let sources = try c26Sources()
+        XCTAssertTrue(try c26Validate(sources))
+
+        let script = try text("Scripts/release-preflight.sh")
+        XCTAssertTrue(script.contains("verify_p04_c15_contracts.py --source-contracts"))
+        XCTAssertTrue(script.contains("verify_p04_c26_contracts.py --complete --json"))
+        for selector in c26Selectors {
+            XCTAssertTrue(script.contains(selector))
+        }
+
+        let predecessor = try XCTUnwrap(
+            sources.accessibility["c15AccessibilityEvidence"] as? [String: Any]
+        )
+        XCTAssertTrue(try c26BindingMatchesFile(predecessor))
+        let gate = try XCTUnwrap(
+            sources.accessibility["accessibilityLabelGate"] as? [String: Any]
+        )
+        XCTAssertEqual(gate["status"] as? String, "REQUIRED_BEFORE_ANY_LABEL")
+        XCTAssertEqual(gate["allCommonTaskEvidenceRequired"] as? Bool, true)
+        XCTAssertEqual(gate["allDeviceFamilyEvidenceRequired"] as? Bool, true)
+        XCTAssertEqual(gate["physicalEvidenceComplete"] as? Bool, false)
+        XCTAssertEqual(gate["appWideClaimAllowed"] as? Bool, false)
+
+        let pages = try XCTUnwrap(sources.acquisition["supportPageSpecs"] as? [[String: Any]])
+        let accessiblePages = try XCTUnwrap(
+            sources.accessibility["supportPages"] as? [[String: Any]]
+        )
+        XCTAssertEqual(
+            Set(pages.compactMap { $0["pageID"] as? String }),
+            Set(accessiblePages.compactMap { $0["pageID"] as? String })
+        )
+        XCTAssertEqual(
+            Set(pages.compactMap { $0["canonicalURLPath"] as? String }),
+            Set(accessiblePages.compactMap { $0["canonicalURLPath"] as? String })
+        )
+    }
+
+    private struct C26Sources {
+        var acquisition: [String: Any]
+        var tags: [String: Any]
+        var receipt: [String: Any]
+        var metadata: [String: Any]
+        var accessibility: [String: Any]
+        var fixture: [String: Any]
+        var contract: [String: Any]
+        var evidence: [String: Any]
+    }
+
+    private var c26Selectors: [String] {
+        [
+            "testV23P04C26G01BoundCatalogRefinementAndDisabledPublication",
+            "testV23P04C26A01ApprovalAbsenceDefersAllPublication",
+            "testV23P04C26H01HostileClaimsBindingsAndMetadataLimitsFailClosed",
+            "testV23P04C26I01ExpiryWithdrawalAndInterruptedDraftRecovery",
+            "testV23P04C26R01ReleasePreflightAndAccessibilityGateRemainPublicationIneligible",
+        ]
+    }
+
+    private func c26Sources() throws -> C26Sources {
+        C26Sources(
+            acquisition: try jsonObject("docs/product/discovery/V23P04C26AcquisitionContentDraftV1.json"),
+            tags: try jsonObject("docs/product/discovery/V23P04C26AppTagDispositionV1.json"),
+            receipt: try jsonObject("docs/product/discovery/V23P04C26DiscoveryTruthCatalogRefinementReceiptV1.json"),
+            metadata: try jsonObject("docs/product/discovery/V23P04C26MetadataEvidenceReportV1.json"),
+            accessibility: try jsonObject("docs/accessibility/V23P04C26SupportContentAccessibilityManifestV1.json"),
+            fixture: try jsonObject("FieldEvidenceAppTests/Fixtures/V21/DiscoveryTruth/V23P04C26OrganicFindabilityCorpusV1.json"),
+            contract: try jsonObject("docs/design/v23/tooling/V23P04C26OrganicFindabilityContractV1.json"),
+            evidence: try jsonObject("docs/design/v23/tooling/V23P04C26OrganicFindabilityEvidenceReceiptV1.json")
+        )
+    }
+
+    private func c26Validate(_ sources: C26Sources) throws -> Bool {
+        guard (sources.acquisition["schema"] as? String) == "V23P04C26AcquisitionContentDraftV1",
+              (sources.tags["schema"] as? String) == "V23P04C26AppTagDispositionV1",
+              (sources.receipt["schema"] as? String) == "V23P04C26DiscoveryTruthCatalogRefinementReceiptV1",
+              (sources.metadata["schema"] as? String) == "V23P04C26MetadataEvidenceReportV1",
+              (sources.accessibility["schema"] as? String) == "V23P04C26SupportContentAccessibilityManifestV1",
+              (sources.fixture["schema"] as? String) == "V23P04C26OrganicFindabilityCorpusV1",
+              (sources.contract["schema"] as? String) == "V23P04C26OrganicFindabilityContractV1",
+              (sources.evidence["schema"] as? String) == "V23P04C26OrganicFindabilityEvidenceReceiptV1",
+              c26ExactRootKeys(sources) else {
+            return false
+        }
+
+        let forbiddenCapabilityKeys: Set<String> = [
+            "analyticsProvider", "appStoreSubmission", "customerDataUse", "dnsHosting",
+            "finalKeywords", "finalScreenshots", "networkAccess", "paidAcquisition",
+            "publication", "upload",
+        ]
+        for root in [sources.acquisition, sources.tags, sources.receipt, sources.metadata] {
+            guard root["schemaVersion"] as? Int == 1,
+                  root["cardID"] as? String == "V23-P04-C26",
+                  root["publishEligibility"] as? Bool == false,
+                  let approval = root["approval"] as? [String: Any],
+                  Set(approval.keys) == ["decisionReference", "sha256", "status"],
+                  approval["decisionReference"] is NSNull,
+                  approval["sha256"] is NSNull,
+                  approval["status"] as? String == "DISABLED_OR_DEFERRED",
+                  let catalog = root["catalogBinding"] as? [String: Any],
+                  let brand = root["brandBinding"] as? [String: Any],
+                  let privacy = root["privacyBinding"] as? [String: Any],
+                  let synthetic = root["syntheticAssetBinding"] as? [String: Any],
+                  let forbidden = root["forbiddenCapabilities"] as? [String: Any],
+                  Set(forbidden.keys) == forbiddenCapabilityKeys,
+                  forbidden.values.allSatisfy({ ($0 as? Bool) == false }),
+                  try c26BindingMatchesFile(catalog),
+                  try c26BindingMatchesFile(brand),
+                  try c26BindingMatchesFile(privacy),
+                  try c26BindingMatchesFile(synthetic) else { return false }
+        }
+
+        let limits: [String: Int] = [
+            "nameMinimumCharacters": 2, "nameMaximumCharacters": 30,
+            "subtitleMaximumCharacters": 30, "promotionalTextMaximumCharacters": 170,
+            "descriptionMaximumCharacters": 4000, "keywordsMaximumCharacters": 100,
+            "keywordsMaximumUTF8Bytes": 100, "screenshotsMinimumCount": 1,
+            "screenshotsMaximumCount": 10, "previewsMaximumCount": 3,
+            "ppoMaximumTreatments": 3,
+        ]
+        guard let actualLimits = sources.acquisition["metadataLimits"] as? [String: Any],
+              limits.allSatisfy({ actualLimits[$0.key] as? Int == $0.value }),
+              let locales = sources.acquisition["locales"] as? [[String: Any]],
+              locales.count == 2 else { return false }
+        for locale in locales {
+            guard let name = locale["name"] as? String,
+                  let subtitle = locale["subtitle"] as? String,
+                  let promotional = locale["promotionalText"] as? String,
+                  let description = locale["description"] as? String,
+                  let keywords = locale["keywords"] as? String,
+                  (2...30).contains(name.unicodeScalars.count), subtitle.unicodeScalars.count <= 30,
+                  promotional.unicodeScalars.count <= 170,
+                  description.unicodeScalars.count <= 4000,
+                  keywords.unicodeScalars.count <= 100, keywords.utf8.count <= 100,
+                  let screenshots = locale["screenshotCount"] as? Int,
+                  (1...10).contains(screenshots),
+                  let previews = locale["previewCount"] as? Int, previews <= 3,
+                  locale["finalKeywords"] as? Bool == false,
+                  locale["publishEligibility"] as? Bool == false,
+                  c26MetadataTokens(name: name, subtitle: subtitle).isDisjoint(
+                    with: c26MetadataTokens(name: "", subtitle: keywords)
+                  ) else { return false }
+        }
+
+        guard let control = sources.acquisition["control"] as? [String: Any],
+              control["hypothesisID"] as? String == "CONTROL",
+              control["finalScreenshot"] as? Bool == false,
+              control["uploadReady"] as? Bool == false,
+              let hypotheses = sources.acquisition["ppoHypotheses"] as? [[String: Any]],
+              hypotheses.count <= 3,
+              Set(hypotheses.compactMap { $0["hypothesisID"] as? String }).count == hypotheses.count,
+              hypotheses.allSatisfy({ ($0["finalScreenshot"] as? Bool) == false && ($0["uploadReady"] as? Bool) == false }),
+              let pages = sources.acquisition["supportPageSpecs"] as? [[String: Any]],
+              pages.count == 6,
+              pages.allSatisfy({
+                  ($0["sourceIsSyntheticOnly"] as? Bool) == true
+                      && ($0["status"] as? String) == "DISABLED_OR_DEFERRED"
+                      && (($0["semanticHTML"] as? [String])?.contains("h1") == true)
+                      && (($0["semanticHTML"] as? [String])?.contains("article") == true)
+                      && (($0["structuredDataVisibleFields"] as? [String]) == ["headline", "description", "limitations"])
+                      && !(($0["limitations"] as? [String]) ?? []).isEmpty
+              }),
+              try c26PageSemanticsValid(pages, metadata: sources.metadata) else { return false }
+
+        let expectedClaims = Set(pages.compactMap { $0["claimID"] as? String })
+        let pageByClaim = Dictionary(
+            uniqueKeysWithValues: pages.compactMap { page -> (String, [String: Any])? in
+                guard let claimID = page["claimID"] as? String else { return nil }
+                return (claimID, page)
+            }
+        )
+        let authorityRows = try XCTUnwrap(
+            sources.evidence["claimAuthorityProjection"] as? [[String: Any]]
+        )
+        let authorityByCard = Dictionary(
+            uniqueKeysWithValues: authorityRows.compactMap { row -> (String, [String: Any])? in
+                guard let cardID = row["cardID"] as? String else { return nil }
+                return (cardID, row)
+            }
+        )
+        guard let claims = sources.acquisition["claims"] as? [[String: Any]],
+              claims.count == 6,
+              pageByClaim.count == pages.count,
+              authorityRows.count == 6,
+              authorityByCard.count == 6,
+              Set(claims.compactMap { $0["claimID"] as? String }) == expectedClaims,
+              Set(claims.compactMap { $0["acceptedFeatureCard"] as? String })
+                == Set(authorityByCard.keys),
+              try claims.allSatisfy({ claim in
+                  guard claim["status"] as? String == "DISABLED_OR_DEFERRED",
+                        claim["publishEligibility"] as? Bool == false,
+                        c26SHA(claim["receiptSHA256"] as? String),
+                        let binding = claim["acceptanceBinding"] as? [String: Any] else { return false }
+                  guard binding["currentness"] as? String == "CHECKPOINTED_CURRENT",
+                        binding["compatibilityDisposition"] as? String == "CURRENT_NOT_SUPERSEDED",
+                        binding["recoveryProof"] as? String == "MATCHING_PROVISIONAL_VERIFICATION_RECEIPT",
+                        c26SHA(binding["checkpointSHA256"] as? String),
+                        c26SHA(binding["verificationSHA256"] as? String),
+                        claim["expiry"] is NSNull,
+                        claim["supersededByClaimDigest"] is NSNull else { return false }
+                  guard let claimID = claim["claimID"] as? String,
+                        let page = pageByClaim[claimID],
+                        let cardID = claim["acceptedFeatureCard"] as? String,
+                        page["acceptedFeatureCardID"] as? String == cardID,
+                        let authority = authorityByCard[cardID] else { return false }
+                  return try c26ClaimEvidenceMatches(claim, authority: authority)
+              }) else { return false }
+
+        guard let measurements = sources.metadata["localeMeasurements"] as? [[String: Any]],
+              measurements.count == locales.count,
+              zip(locales, measurements).allSatisfy({ locale, measurement in
+                  guard locale["locale"] as? String == measurement["locale"] as? String,
+                        let name = locale["name"] as? String,
+                        let subtitle = locale["subtitle"] as? String,
+                        let promotional = locale["promotionalText"] as? String,
+                        let description = locale["description"] as? String,
+                        let keywords = locale["keywords"] as? String else { return false }
+                  return measurement["nameCharacters"] as? Int == name.unicodeScalars.count
+                      && measurement["subtitleCharacters"] as? Int == subtitle.unicodeScalars.count
+                      && measurement["promotionalTextCharacters"] as? Int == promotional.unicodeScalars.count
+                      && measurement["descriptionCharacters"] as? Int == description.unicodeScalars.count
+                      && measurement["keywordsCharacters"] as? Int == keywords.unicodeScalars.count
+                      && measurement["keywordsUTF8Bytes"] as? Int == keywords.utf8.count
+                      && measurement["screenshotCount"] as? Int == locale["screenshotCount"] as? Int
+                      && measurement["previewCount"] as? Int == locale["previewCount"] as? Int
+                      && measurement["keywordsDuplicateNameOrSubtitleTokens"] as? Bool == false
+                      && measurement["withinLimits"] as? Bool == true
+              }),
+              let artifactBindings = sources.receipt["artifactBindings"] as? [[String: Any]],
+              artifactBindings.count == 3,
+              Set(artifactBindings.compactMap { $0["kind"] as? String }) == [
+                "ACQUISITION_CONTENT_DRAFT", "APP_TAG_DISPOSITION", "METADATA_EVIDENCE_REPORT",
+              ],
+              try artifactBindings.allSatisfy({ try c26BindingMatchesFile($0) }),
+              let suggestions = sources.tags["observedSuggestions"] as? [String: Any],
+              (suggestions["suggestions"] as? [String])?.isEmpty == true,
+              suggestions["displayGuaranteed"] as? Bool == false,
+              let structured = sources.metadata["structuredData"] as? [String: Any],
+              structured["contentOriginalityReview"] as? String == "PASS_SYNTHETIC_ORIGINAL_DRAFT_ONLY",
+              structured["customerDataDetected"] as? Bool == false,
+              structured["doorwayOrNearDuplicatePagesDetected"] as? Bool == false,
+              structured["licensedThirdPartyContentDetected"] as? Bool == false,
+              structured["visibleContentEqualityRequired"] as? Bool == true,
+              structured["visibleContentEqualityVerified"] as? Bool == true else { return false }
+
+        guard sources.accessibility["publicationEligible"] as? Bool == false,
+              sources.accessibility["syntheticOnly"] as? Bool == true,
+              sources.accessibility["containsRealCustomerData"] as? Bool == false,
+              sources.accessibility["containsLicensedAssets"] as? Bool == false,
+              sources.accessibility["appWideAccessibilityLabelAllowed"] as? Bool == false,
+              sources.accessibility["networkAccess"] as? Bool == false,
+              sources.accessibility["dnsOrHosting"] as? Bool == false,
+              sources.accessibility["appStoreSubmission"] as? Bool == false,
+              sources.accessibility["finalCapture"] as? Bool == false,
+              let accessiblePages = sources.accessibility["supportPages"] as? [[String: Any]],
+              Set(accessiblePages.compactMap({ $0["pageID"] as? String })) == Set(pages.compactMap({ $0["pageID"] as? String })),
+              Set(accessiblePages.compactMap({ $0["canonicalURLPath"] as? String })) == Set(pages.compactMap({ $0["canonicalURLPath"] as? String })) else {
+            return false
+        }
+        guard let accessibilityFlags = sources.accessibility["statusFlags"] as? [String: Any],
+              accessibilityFlags.values.allSatisfy({ ($0 as? Bool) == false }),
+              let draftShape = sources.fixture["draftShape"] as? [String: Any],
+              draftShape["publicationEligible"] as? Bool == false,
+              draftShape["networkAccess"] as? Bool == false,
+              draftShape["dnsOrHosting"] as? Bool == false,
+              draftShape["appStoreSubmission"] as? Bool == false,
+              draftShape["finalCapture"] as? Bool == false,
+              let publicationBoundary = sources.fixture["publicationBoundary"] as? [String: Any],
+              publicationBoundary["publicationEligible"] as? Bool == false,
+              publicationBoundary.values.allSatisfy({ value in
+                  guard let count = value as? Int else { return true }
+                  return count == 0
+              }),
+              let contractFlags = sources.contract["statusFlags"] as? [String: Any],
+              Set(contractFlags.keys) == [
+                  "acceptance", "adoption", "analyticsProvider", "appStoreSubmission",
+                  "customerDataUse", "dnsHosting", "finalKeywords", "finalScreenshots",
+                  "hosted", "native", "networkAccess", "paidAcquisition", "publication",
+                  "release", "upload",
+              ],
+              contractFlags.values.allSatisfy({ ($0 as? Bool) == false }) else { return false }
+        return true
+    }
+
+    private func c26ExactRootKeys(_ sources: C26Sources) -> Bool {
+        let roots: [([String: Any], Set<String>)] = [
+            (sources.acquisition, [
+                "approval", "brandBinding", "cardID", "catalogBinding", "claims",
+                "control", "evidenceBindings", "forbiddenCapabilities", "locales",
+                "metadataLimits", "ppoHypotheses", "privacyBinding", "publishEligibility",
+                "schema", "schemaVersion", "supportPageSpecs", "syntheticAssetBinding",
+            ]),
+            (sources.tags, [
+                "approval", "brandBinding", "cardID", "catalogBinding",
+                "forbiddenCapabilities", "locales", "metadataLimits", "observedSuggestions",
+                "privacyBinding", "publishEligibility", "schema", "schemaVersion",
+                "syntheticAssetBinding",
+            ]),
+            (sources.receipt, [
+                "approval", "artifactBindings", "brandBinding", "cardID", "catalogBinding",
+                "catalogRefinement", "forbiddenCapabilities", "locales", "metadataLimits",
+                "privacyBinding", "publishEligibility", "schema", "schemaVersion",
+                "syntheticAssetBinding",
+            ]),
+            (sources.metadata, [
+                "approval", "brandBinding", "cardID", "catalogBinding",
+                "forbiddenCapabilities", "limits", "localeMeasurements", "locales",
+                "metadataLimits", "officialSource", "privacyBinding", "publishEligibility",
+                "schema", "schemaVersion", "structuredData", "syntheticAssetBinding",
+            ]),
+            (sources.accessibility, [
+                "accessibilityLabelGate", "appStoreSubmission",
+                "appWideAccessibilityLabelAllowed", "authority", "c15AccessibilityEvidence",
+                "cardID", "containsLicensedAssets", "containsRealCustomerData", "dnsOrHosting",
+                "finalCapture", "networkAccess", "ordinal", "provisional",
+                "publicationEligible", "publish", "requiredEvidence", "schema",
+                "schemaVersion", "staticOnly", "statusFlags", "supportPages",
+                "syntheticOnly", "upload",
+            ]),
+            (sources.fixture, [
+                "authority", "cardID", "containsCustomerData", "containsLicensedAssets",
+                "draftShape", "hostileCases", "metadataLimits", "ordinal",
+                "publicationBoundary", "schema", "schemaVersion", "selectors", "synthetic",
+                "syntheticAssetScan", "testOnly",
+            ]),
+            (sources.contract, [
+                "authority", "cardID", "provisional", "schema", "schemaVersion", "semantics",
+                "sourceProjection", "statusFlags", "testSelectors",
+            ]),
+            (sources.evidence, [
+                "authority", "cardID", "claimAuthorityProjection", "contractDigest",
+                "generatorInterruptionProtocol", "provisional", "schema", "schemaVersion",
+                "sourceProjection", "statusFlags",
+            ]),
+        ]
+        return roots.allSatisfy { Set($0.0.keys) == $0.1 }
+    }
+
+    private func c26PageSemanticsValid(
+        _ pages: [[String: Any]], metadata: [String: Any]
+    ) throws -> Bool {
+        let expectedTuples: Set<String> = [
+            "ACCESSIBILITY_SUPPORT|/support/accessibility-and-support|c26-accessibility-support-v1|V23-P04-C16",
+            "DAY_NIGHT_EVIDENCE|/support/day-night-evidence|c26-day-night-evidence-v1|V23-P04-C18",
+            "LIGHTING_WORKFLOW_LIMITS|/support/lighting-workflow-limits|c26-lighting-workflow-limits-v1|V23-P04-C17",
+            "OFFLINE_PLAN_REBASE|/support/offline-plan-rebase|c26-offline-plan-rebase-v1|V23-P04-C19",
+            "QR_BARCODE_ROUNDS|/support/qr-barcode-rounds|c26-qr-barcode-rounds-v1|V23-P04-C21",
+            "SURVEY_VERSUS_INSPECTION|/support/survey-versus-inspection|c26-survey-versus-inspection-v1|V23-P04-C20",
+        ]
+        let actualTuples = Set(pages.compactMap { page -> String? in
+            guard let pageID = page["pageID"] as? String,
+                  let path = page["canonicalURLPath"] as? String,
+                  let claimID = page["claimID"] as? String,
+                  let cardID = page["acceptedFeatureCardID"] as? String else { return nil }
+            return "\(pageID)|\(path)|\(claimID)|\(cardID)"
+        })
+        guard actualTuples == expectedTuples else { return false }
+
+        var contentDigests: [String: String] = [:]
+        var tokenSets: [String: Set<String>] = [:]
+        for page in pages {
+            guard let pageID = page["pageID"] as? String,
+                  let title = page["title"] as? String,
+                  let summary = page["summary"] as? String,
+                  let limitations = page["limitations"] as? [String] else { return false }
+            let visible: [String: Any] = [
+                "headline": title,
+                "description": summary,
+                "limitations": limitations,
+            ]
+            let digest = try c26CanonicalDigest(visible)
+            guard page["visibleContentSHA256"] as? String == digest,
+                  page["structuredDataSHA256"] as? String == digest else { return false }
+            contentDigests[pageID] = digest
+            tokenSets[pageID] = c26OriginalityTokens(
+                ([title, summary] + limitations).joined(separator: " ")
+            )
+        }
+
+        for page in pages {
+            guard let pageID = page["pageID"] as? String,
+                  let ownTokens = tokenSets[pageID],
+                  let compared = page["comparedPageContentSHA256s"] as? [String],
+                  compared == contentDigests.filter({ $0.key != pageID }).map(\.value).sorted(),
+                  let recordedMaximum = page["maximumPairwiseTokenOverlapBasisPoints"] as? Int,
+                  let threshold = page["nearDuplicateThresholdBasisPoints"] as? Int,
+                  threshold == 8000 else { return false }
+            let overlaps = tokenSets.compactMap { otherID, otherTokens -> Int? in
+                guard otherID != pageID else { return nil }
+                let unionCount = ownTokens.union(otherTokens).count
+                guard unionCount > 0 else { return 10_000 }
+                return ownTokens.intersection(otherTokens).count * 10_000 / unionCount
+            }
+            guard recordedMaximum == overlaps.max(), recordedMaximum < threshold,
+                  let visibleDigest = contentDigests[pageID] else { return false }
+            let originalityPayload: [String: Any] = [
+                "pageID": pageID,
+                "visibleContentSHA256": visibleDigest,
+                "comparedPageContentSHA256s": compared,
+                "maximumPairwiseTokenOverlapBasisPoints": recordedMaximum,
+                "nearDuplicateThresholdBasisPoints": threshold,
+            ]
+            guard page["originalityComparisonSHA256"] as? String
+                    == (try c26CanonicalDigest(originalityPayload)) else { return false }
+        }
+
+        guard let structured = metadata["structuredData"] as? [String: Any],
+              structured["pairwiseComparisonCount"] as? Int == 15,
+              structured["customerDataDetected"] as? Bool == false,
+              structured["licensedThirdPartyContentDetected"] as? Bool == false,
+              let bindings = structured["pageBindings"] as? [[String: Any]],
+              bindings.count == pages.count else { return false }
+        let bindingsByID = Dictionary(
+            uniqueKeysWithValues: bindings.compactMap { binding -> (String, [String: Any])? in
+                guard let pageID = binding["pageID"] as? String else { return nil }
+                return (pageID, binding)
+            }
+        )
+        guard bindingsByID.count == pages.count else { return false }
+        for page in pages {
+            guard let pageID = page["pageID"] as? String,
+                  let binding = bindingsByID[pageID],
+                  binding["acceptedFeatureCardID"] as? String == page["acceptedFeatureCardID"] as? String,
+                  binding["canonicalURLPath"] as? String == page["canonicalURLPath"] as? String,
+                  binding["claimID"] as? String == page["claimID"] as? String,
+                  binding["visibleContentSHA256"] as? String == page["visibleContentSHA256"] as? String,
+                  binding["structuredDataSHA256"] as? String == page["structuredDataSHA256"] as? String,
+                  binding["originalityComparisonSHA256"] as? String == page["originalityComparisonSHA256"] as? String,
+                  binding["comparedPageContentSHA256s"] as? [String] == page["comparedPageContentSHA256s"] as? [String],
+                  binding["maximumPairwiseTokenOverlapBasisPoints"] as? Int == page["maximumPairwiseTokenOverlapBasisPoints"] as? Int,
+                  binding["nearDuplicateThresholdBasisPoints"] as? Int == page["nearDuplicateThresholdBasisPoints"] as? Int else {
+                return false
+            }
+        }
+        return true
+    }
+
+    private func c26CanonicalDigest(_ value: [String: Any]) throws -> String {
+        var bytes = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+        bytes.append(0x0A)
+        return c26Digest(bytes)
+    }
+
+    private func c26RecomputePageEvidence(
+        _ pages: inout [[String: Any]], metadata: inout [String: Any]
+    ) throws {
+        var contentDigests: [String: String] = [:]
+        var tokenSets: [String: Set<String>] = [:]
+        for index in pages.indices {
+            let pageID = try XCTUnwrap(pages[index]["pageID"] as? String)
+            let title = try XCTUnwrap(pages[index]["title"] as? String)
+            let summary = try XCTUnwrap(pages[index]["summary"] as? String)
+            let limitations = try XCTUnwrap(pages[index]["limitations"] as? [String])
+            let digest = try c26CanonicalDigest([
+                "headline": title, "description": summary, "limitations": limitations,
+            ])
+            pages[index]["visibleContentSHA256"] = digest
+            pages[index]["structuredDataSHA256"] = digest
+            contentDigests[pageID] = digest
+            tokenSets[pageID] = c26OriginalityTokens(
+                ([title, summary] + limitations).joined(separator: " ")
+            )
+        }
+        for index in pages.indices {
+            let pageID = try XCTUnwrap(pages[index]["pageID"] as? String)
+            let own = try XCTUnwrap(tokenSets[pageID])
+            let compared = contentDigests
+                .filter { $0.key != pageID }
+                .map(\.value)
+                .sorted()
+            let maximum = tokenSets
+                .filter { $0.key != pageID }
+                .map { other -> Int in
+                    let union = own.union(other.value)
+                    return union.isEmpty ? 0 : own.intersection(other.value).count * 10_000 / union.count
+                }
+                .max() ?? 0
+            pages[index]["comparedPageContentSHA256s"] = compared
+            pages[index]["maximumPairwiseTokenOverlapBasisPoints"] = maximum
+            pages[index]["nearDuplicateThresholdBasisPoints"] = 8_000
+            pages[index]["originalityComparisonSHA256"] = try c26CanonicalDigest([
+                "pageID": pageID,
+                "visibleContentSHA256": try XCTUnwrap(contentDigests[pageID]),
+                "comparedPageContentSHA256s": compared,
+                "maximumPairwiseTokenOverlapBasisPoints": maximum,
+                "nearDuplicateThresholdBasisPoints": 8_000,
+            ])
+        }
+        var structured = try XCTUnwrap(metadata["structuredData"] as? [String: Any])
+        var bindings = try XCTUnwrap(structured["pageBindings"] as? [[String: Any]])
+        let pagesByID = Dictionary(
+            uniqueKeysWithValues: pages.compactMap { page -> (String, [String: Any])? in
+                guard let pageID = page["pageID"] as? String else { return nil }
+                return (pageID, page)
+            }
+        )
+        for index in bindings.indices {
+            let pageID = try XCTUnwrap(bindings[index]["pageID"] as? String)
+            let page = try XCTUnwrap(pagesByID[pageID])
+            for key in [
+                "visibleContentSHA256", "structuredDataSHA256",
+                "originalityComparisonSHA256", "comparedPageContentSHA256s",
+                "maximumPairwiseTokenOverlapBasisPoints", "nearDuplicateThresholdBasisPoints",
+            ] {
+                bindings[index][key] = page[key]
+            }
+        }
+        structured["pageBindings"] = bindings
+        metadata["structuredData"] = structured
+    }
+
+    private func c26OriginalityTokens(_ value: String) -> Set<String> {
+        let normalized = value.precomposedStringWithCompatibilityMapping.lowercased()
+        return Set(normalized.split { !$0.isLetter && !$0.isNumber }.map(String.init))
+    }
+
+    private func c26BindingMatchesFile(_ binding: [String: Any]) throws -> Bool {
+        guard Set(binding.keys).isSuperset(of: ["path", "sha256"]),
+              let path = binding["path"] as? String,
+              let expected = binding["sha256"] as? String,
+              c26SHA(expected), !path.hasPrefix("/"), !path.contains("..") else { return false }
+        return c26Digest(try data(path)) == expected
+    }
+
+    private func c26ClaimEvidenceMatches(
+        _ claim: [String: Any], authority: [String: Any]
+    ) throws -> Bool {
+        guard let cardID = claim["acceptedFeatureCard"] as? String,
+              let receiptDigest = claim["receiptSHA256"] as? String,
+              let binding = claim["acceptanceBinding"] as? [String: Any],
+              let head = binding["acceptedCandidateHead"] as? String,
+              let tree = binding["acceptedCandidateTree"] as? String,
+              let checkpointDigest = binding["checkpointDigest"] as? String,
+              let checkpointPath = binding["checkpointPath"] as? String,
+              let checkpointSHA = binding["checkpointSHA256"] as? String,
+              let verificationPath = binding["verificationPath"] as? String,
+              let verificationSHA = binding["verificationSHA256"] as? String,
+              checkpointPath == "receipts/\(cardID)-provisional-checkpoint.json",
+              verificationPath == "receipts/\(cardID)-provisional-verification.json",
+              Set(authority.keys) == [
+                  "acceptedHead", "acceptedTree", "cardID", "checkpointDigest",
+                  "checkpointPath", "checkpointSHA256", "compatibilityDisposition",
+                  "currentness", "receiptDigest", "recoveryProof", "verificationPath",
+                  "verificationSHA256", "claimID",
+              ],
+              authority["claimID"] as? String == claim["claimID"] as? String,
+              authority["cardID"] as? String == cardID,
+              authority["acceptedHead"] as? String == head,
+              authority["acceptedTree"] as? String == tree,
+              authority["checkpointDigest"] as? String == checkpointDigest,
+              authority["checkpointPath"] as? String == checkpointPath,
+              authority["checkpointSHA256"] as? String == checkpointSHA,
+              authority["verificationPath"] as? String == verificationPath,
+              authority["verificationSHA256"] as? String == verificationSHA,
+              authority["receiptDigest"] as? String == receiptDigest,
+              authority["currentness"] as? String == binding["currentness"] as? String,
+              authority["compatibilityDisposition"] as? String
+                == binding["compatibilityDisposition"] as? String,
+              authority["recoveryProof"] as? String == binding["recoveryProof"] as? String
+        else { return false }
+
+        guard let checkpointURL = c26EvidenceURL(checkpointPath),
+              let verificationURL = c26EvidenceURL(verificationPath) else {
+            // Hosted macOS checkouts intentionally carry the manifest-bound projection,
+            // not the Windows coordination checkout used to generate it.
+            return true
+        }
+        let checkpointBytes = try Data(contentsOf: checkpointURL)
+        let verificationBytes = try Data(contentsOf: verificationURL)
+        let verificationSchemas = [
+            "V23-P04-C16": "ProvisionalP04C16StaticVerificationReceiptV1",
+            "V23-P04-C17": "ProvisionalP04C17StaticVerificationReceiptV1",
+            "V23-P04-C18": "ProvisionalP04C18StaticVerificationReceiptV1",
+            "V23-P04-C19": "ProvisionalVerificationReceiptV1",
+            "V23-P04-C20": "ProvisionalVerificationReceiptV1",
+            "V23-P04-C21": "ProvisionalVerificationReceiptV1",
+        ]
+        guard c26Digest(checkpointBytes) == checkpointSHA,
+              c26Digest(verificationBytes) == verificationSHA,
+              let checkpoint = try JSONSerialization.jsonObject(with: checkpointBytes) as? [String: Any],
+              let verification = try JSONSerialization.jsonObject(with: verificationBytes) as? [String: Any],
+              checkpoint["schema"] as? String == "ProvisionalCardCheckpointReceiptV1",
+              verification["schema"] as? String == verificationSchemas[cardID],
+              checkpoint["cardID"] as? String == cardID,
+              verification["cardID"] as? String == cardID,
+              checkpoint["acceptedCandidateHead"] as? String == head,
+              verification["acceptedCandidateHead"] as? String == head,
+              checkpoint["acceptedCandidateTree"] as? String == tree,
+              verification["acceptedCandidateTree"] as? String == tree,
+              checkpoint["checkpointDigest"] as? String == checkpointDigest,
+              checkpoint["verificationReceiptDigest"] as? String == receiptDigest,
+              verification["receiptDigest"] as? String == receiptDigest,
+              checkpoint["canonicalState"] as? String == "CHECKPOINTED",
+              c26CheckpointProfileValid(checkpoint, cardID: cardID),
+              verification["finalHashesSealed"] as? Bool == true,
+              verification["flagsAllFalse"] as? Bool == true,
+              verification["sourceReady"] as? Bool == true,
+              verification["releaseReady"] as? Bool == false,
+              verification["acceptanceEnabled"] as? Bool == false,
+              verification["adoptionEnabled"] as? Bool == false else { return false }
+        switch cardID {
+        case "V23-P04-C16", "V23-P04-C17", "V23-P04-C18":
+            return verification["complete"] as? Bool == true
+                && verification["completeVerifierResult"] as? String == "PASS_STATIC_PROVISIONAL"
+                && verification["result"] as? String == "PASS_STATIC_PROVISIONAL"
+        case "V23-P04-C19", "V23-P04-C20":
+            return verification["verificationStatus"] as? String == "PASS_STATIC_PROVISIONAL"
+        case "V23-P04-C21":
+            return verification["toolingVerifierStatus"] as? String == "PASS_STATIC_PROVISIONAL"
+        default:
+            return false
+        }
+    }
+
+    private func c26CheckpointProfileValid(
+        _ checkpoint: [String: Any], cardID: String
+    ) -> Bool {
+        guard checkpoint["schema"] as? String == "ProvisionalCardCheckpointReceiptV1",
+              checkpoint["cardID"] as? String == cardID,
+              checkpoint["canonicalState"] as? String == "CHECKPOINTED",
+              checkpoint["flagsAllFalse"] as? Bool == true else { return false }
+        switch cardID {
+        case "V23-P04-C16", "V23-P04-C17", "V23-P04-C18", "V23-P04-C19":
+            return checkpoint["finalHashesSealed"] as? Bool == true
+        case "V23-P04-C20", "V23-P04-C21":
+            return checkpoint["finalHashesSealed"] == nil
+        default:
+            return false
+        }
+    }
+
+    private func c26EvidenceURL(_ relativePath: String) -> URL? {
+        let components = relativePath.split(separator: "/").map(String.init)
+        guard !relativePath.hasPrefix("/"), !components.contains("..") else { return nil }
+        let repositoryCandidate = repositoryRoot.appendingPathComponent(relativePath)
+        let coordinationCandidate = repositoryRoot
+            .deletingLastPathComponent()
+            .appendingPathComponent("AssetRounds-v23-coordination")
+            .appendingPathComponent(relativePath)
+        let matches = [repositoryCandidate, coordinationCandidate].filter {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
+        return matches.count == 1 ? matches[0] : nil
+    }
+
+    private func c26MetadataTokens(name: String, subtitle: String) -> Set<String> {
+        Set((name + " " + subtitle).lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+    }
+
+    private func c26WithdrawnClaimIDs(
+        _ claims: [[String: Any]], now: String
+    ) -> [String] {
+        claims.compactMap { claim in
+            let expired = (claim["expiry"] as? String).map { $0 <= now } ?? false
+            let superseded = claim["supersededByClaimDigest"] is String
+            return expired || superseded ? claim["claimID"] as? String : nil
+        }.sorted()
+    }
+
+    private func c26Digest(_ value: Data) -> String {
+        SHA256.hash(data: value).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func c26SHA(_ value: String?) -> Bool {
+        guard let value, value.count == 64 else { return false }
+        return value.allSatisfy { $0.isNumber || ("a"..."f").contains(String($0)) }
     }
 }
 
