@@ -444,6 +444,7 @@ final class MutationJournalStoreV1 {
         if case let .applyTemporalEvidence(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetLabel(value)=envelope.command{try value.validate();guard affectedEntities==[try value.affectedIdentity]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyOperationalContact(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPartyContactSiteRoleImport(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyActivityContract(value)=envelope.command{try value.validateForCanonicalMutation();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyPortableReview(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyWorkResource(value)=envelope.command{try value.validate();guard affectedEntities==(try value.affectedIdentities)else{throw WorkspaceMutationFailureV1.invalidCommand}}
@@ -488,6 +489,7 @@ final class MutationJournalStoreV1 {
         if case let .applyTemporalEvidence(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyAssetLabel(mutation)=envelope.command{let concurrency=try mutation.affectedIdentity;guard expectedByIdentity[concurrency]==0,currentByIdentity[concurrency,default:0]==0 else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}
         if case let .applyOperationalContact(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
+        if case let .applyPartyContactSiteRoleImport(mutation)=envelope.command{for concurrency in try mutation.concurrencyIdentities{guard expectedByIdentity[concurrency]==(try mutation.expectedRevision(for:concurrency)),currentByIdentity[concurrency,default:0]==expectedByIdentity[concurrency]else{throw WorkspaceMutationFailureV1.staleEntityRevision(concurrency)}}}
         if case let .applyActivityContract(mutation) = envelope.command {
             for concurrency in try mutation.concurrencyIdentities {
                 let expectedRevision = try mutation.expectedRevision(for: concurrency)
@@ -551,6 +553,7 @@ final class MutationJournalStoreV1 {
             }else if case let .applyTemporalEvidence(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyAssetLabel(mutation)=envelope.command{concurrencyIdentity=try mutation.affectedIdentity
             }else if case let .applyOperationalContact(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
+            }else if case let .applyPartyContactSiteRoleImport(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyActivityContract(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyPortableReview(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
             }else if case let .applyWorkResource(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==identity}){concurrencyIdentity=try image.concurrencyIdentity
@@ -673,6 +676,7 @@ final class MutationJournalStoreV1 {
                 }else if case let .applyTemporalEvidence(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyAssetLabel(mutation)=envelope.command{initialRevision=mutation.snapshot.revision
                 }else if case let .applyOperationalContact(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
+                }else if case let .applyPartyContactSiteRoleImport(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyActivityContract(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyPortableReview(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
                 }else if case let .applyWorkResource(mutation)=envelope.command,let image=try mutation.mutationPostImages.first(where:{try $0.identity==entity}){initialRevision=image.revision
@@ -780,6 +784,7 @@ final class MutationJournalStoreV1 {
         if case let .applyTemporalEvidence(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyAssetLabel(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyOperationalContact(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPartyContactSiteRoleImport(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyActivityContract(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyPortableReview(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
         if case let .applyWorkResource(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
@@ -1052,6 +1057,44 @@ final class MutationJournalStoreV1 {
             mutation: mutation,
             mutationReceipt: canonical
         )
+    }
+
+    /// C32 has no parallel typed-receipt row: its aggregate typed receipt is
+    /// derived from the one immutable generic envelope/receipt pair.
+    func partyContactSiteRoleImportRecoveryPairs() throws -> [
+        (mutation: PartyContactSiteRoleImportMutationV1, receipt: MutationReceiptV1)
+    ] {
+        var descriptor = FetchDescriptor<MutationReceiptRow>(
+            sortBy: [SortDescriptor(\.receiptIdentity)]
+        )
+        descriptor.fetchLimit = Self.maximumReceiptValidationCount + 1
+        let rows = try modelContext.fetch(descriptor)
+        guard rows.count <= Self.maximumReceiptValidationCount else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        var keys = Set<String>()
+        var recovered: [(PartyContactSiteRoleImportMutationV1, MutationReceiptV1)] = []
+        for row in rows {
+            let receipt = try validate(row: row, expectedEnvelope: nil)
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .applyPartyContactSiteRoleImport(mutation) = envelope.command else {
+                continue
+            }
+            let key = MutationWorkspaceKeyV1.value(
+                workspaceID: mutation.workspaceID,
+                mutationID: mutation.mutationID
+            )
+            guard mutation.workspaceID == identity.workspaceID,
+                  keys.insert(key).inserted else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            _ = try PartyContactSiteRoleImportMutationReceiptV1(
+                mutation: mutation,
+                mutationReceipt: receipt
+            )
+            recovered.append((mutation, receipt))
+        }
+        return recovered
     }
 
     private func validateAssistanceAcceptanceRow(
@@ -2729,6 +2772,7 @@ final class MutationJournalStoreV1 {
         if case let .applyEvidenceMetadata(mutation)=envelope.command{try mutation.validate()}
         if case let .applyAssetLabel(mutation)=envelope.command{try mutation.validate()}
         if case let .applyOperationalContact(mutation)=envelope.command{try mutation.validate()}
+        if case let .applyPartyContactSiteRoleImport(mutation)=envelope.command{try mutation.validate()}
         if case let .applyActivityContract(mutation)=envelope.command{try mutation.validateForCanonicalMutation()}
         if case let .applyPortableReview(mutation)=envelope.command{try mutation.validate()}
         if case let .applyWorkResource(mutation)=envelope.command{try mutation.validate()}
@@ -2786,6 +2830,9 @@ final class MutationJournalStoreV1 {
         }
         if case let .applyOperationalContact(mutation)=envelope.command{
             _ = try OperationalContactMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)
+        }
+        if case let .applyPartyContactSiteRoleImport(mutation)=envelope.command{
+            _ = try PartyContactSiteRoleImportMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)
         }
         if case let .applyActivityContract(mutation)=envelope.command{
             _ = try ActivityContractMutationReceiptV2(mutation:mutation,mutationReceipt:receipt)

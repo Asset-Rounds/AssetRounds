@@ -593,6 +593,7 @@ final class LocalChangeJournalV1 {
             try EntityIdentityResolutionJournalContractV1.validate(envelope: change.envelope, receipt: change.receipt, entityChanges: change.entityChanges)
             try AssistanceLocalChangeJournalPolicyV1.validate(change)
             try TemporalEvidenceLocalChangeJournalPolicyV1.validate(change)
+            try PartyContactSiteRoleImportLocalChangeJournalPolicyV1.validate(change)
             let disposition: MutationReplayDispositionV1
             if blocked {
                 disposition = try .init(mutationID: change.envelope.mutationID, disposition: .deferredGap, reasonCode: "PRIOR_CAUSAL_GAP")
@@ -1817,6 +1818,44 @@ enum OperationalContactLocalChangeJournalPolicyV1 {
             }
         } catch let failure as ChangeJournalFailureV1 { throw failure }
         catch { throw ChangeJournalFailureV1.tamperedBatch }
+    }
+}
+
+enum PartyContactSiteRoleImportLocalChangeJournalPolicyV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyPartyContactSiteRoleImport
+    static let durableKinds: Set<WorkspaceEntityKindV1> = [
+        .serviceParty,
+        .serviceContactPoint,
+        .systemHandoffIntent,
+        .sitePartyRoleEvent,
+    ]
+
+    static func validate(_ change: JournalChangeV1) throws {
+        guard case let .applyPartyContactSiteRoleImport(mutation) = change.envelope.command else {
+            return
+        }
+        do {
+            try mutation.validate()
+            let receipt = try PartyContactSiteRoleImportMutationReceiptV1(
+                mutation: mutation,
+                mutationReceipt: change.receipt
+            )
+            let identities = try mutation.affectedIdentities
+            let images = try mutation.mutationPostImages
+            guard change.envelope.commandKind == commandKind,
+                  change.envelope.mutationID == mutation.mutationID,
+                  change.receipt.postImages == images,
+                  change.entityChanges.map(\.identity) == identities,
+                  change.entityChanges.map(\.postImage) == images,
+                  try images.allSatisfy({ durableKinds.contains(try $0.identity.kind) }),
+                  receipt.affectedIdentities == identities else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        } catch let failure as ChangeJournalFailureV1 {
+            throw failure
+        } catch {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
     }
 }
 

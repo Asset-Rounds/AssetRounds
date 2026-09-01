@@ -407,6 +407,19 @@ final class V9_23PartyAccountabilityTests: XCTestCase {
         XCTAssertFalse(corpus.claims.networkSync)
     }
 
+    func testV23P04C32BackupClosureBindsAggregatePartyAndRoleRowsWithoutCSVRetention() throws {
+        let backupContracts = try sourceText(
+            "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift"
+        )
+        XCTAssertTrue(backupContracts.contains("validateC32PartyContactSiteRoleImportClosure"))
+        XCTAssertTrue(backupContracts.contains("PartyContactSiteRoleImportMutationReceiptV1"))
+        XCTAssertTrue(backupContracts.contains(".serviceParty"))
+        XCTAssertTrue(backupContracts.contains(".sitePartyRoleEvent"))
+        XCTAssertFalse(backupContracts.contains("PartyCSVRowV1"))
+        XCTAssertFalse(backupContracts.contains("PartyContactCSVRowV1"))
+        XCTAssertFalse(backupContracts.contains("sourceCSV"))
+    }
+
     func testV23P03C38AccessibilityLocalizationAndNonClaimMetadataAreExplicit() throws {
         let (_, corpus) = try loadFixture()
         XCTAssertEqual(corpus.localizationAccessibility.sourceLanguage, "en")

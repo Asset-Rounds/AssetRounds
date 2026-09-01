@@ -950,6 +950,19 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                   value.mutationID.map({ $0 == request.mutationID }) ?? true else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
+        case .applyPartyContactSiteRoleImport(let value):
+            do {
+                try value.validate()
+                guard value.workspaceID == identity.workspaceID,
+                      value.mutationID == request.mutationID,
+                      value.expectedRevision == request.expectedRevision else {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            } catch let failure as WorkspaceMutationFailureV1 {
+                throw failure
+            } catch {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
         case .applyAssetSemantics(let value):
             do {
                 try value.validate()
@@ -1441,6 +1454,10 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             let image = try mutation.mutationPostImage
             entityRevisions[try image.identity] = image.revision
         } else if case let .applyOperationalContact(mutation) = request.command {
+            for image in try mutation.mutationPostImages {
+                entityRevisions[try image.identity] = image.revision
+            }
+        } else if case let .applyPartyContactSiteRoleImport(mutation) = request.command {
             for image in try mutation.mutationPostImages {
                 entityRevisions[try image.identity] = image.revision
             }
@@ -1949,6 +1966,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         case let .applyPartyAccountability(value):
             try value.validate()
             values = [try value.affectedIdentity]
+        case let .applyPartyContactSiteRoleImport(value):
+            try value.validate()
+            values = try value.affectedIdentities
         case let .applyAssetSemantics(value):
             try value.validate()
             values = [try value.affectedIdentity]
@@ -2096,6 +2116,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         if case let .applyTemporalEvidence(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyAssetLabel(value)=command{try value.validate();return[try value.affectedIdentity]}
         if case let .applyOperationalContact(value)=command{try value.validate();return try value.concurrencyIdentities}
+        if case let .applyPartyContactSiteRoleImport(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyActivityContract(value)=command{try value.validateForCanonicalMutation();return try value.concurrencyIdentities}
         if case let .applyPortableReview(value)=command{try value.validate();return try value.concurrencyIdentities}
         if case let .applyWorkResource(value)=command{try value.validate();return try value.concurrencyIdentities}

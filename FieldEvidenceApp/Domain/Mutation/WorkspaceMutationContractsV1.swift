@@ -2666,6 +2666,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
     case applySavedSmartView(SavedSmartViewMutationV1)
     case applyRequirementAssurance(RequirementAssuranceMutationV1)
     case applyPartyAccountability(PartyAccountabilityMutationV1)
+    case applyPartyContactSiteRoleImport(PartyContactSiteRoleImportMutationV1)
     case applyAssetSemantics(AssetSemanticsMutationV1)
     case applyAuthorityCriterion(AuthorityCriterionMutationV1)
     case applyFunctionalRelationship(FunctionalRelationshipMutationV1)
@@ -2730,6 +2731,7 @@ enum WorkspaceCommandV1: Codable, Equatable, Sendable {
         case .applySavedSmartView: .applySavedSmartView
         case .applyRequirementAssurance: .applyRequirementAssurance
         case .applyPartyAccountability: .applyPartyAccountability
+        case .applyPartyContactSiteRoleImport: .applyPartyContactSiteRoleImport
         case .applyAssetSemantics: .applyAssetSemantics
         case .applyAuthorityCriterion: .applyAuthorityCriterion
         case .applyFunctionalRelationship: .applyFunctionalRelationship
@@ -2796,6 +2798,7 @@ enum WorkspaceCommandKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     case applySavedSmartView = "apply_saved_smart_view"
     case applyRequirementAssurance = "apply_requirement_assurance"
     case applyPartyAccountability = "apply_party_accountability"
+    case applyPartyContactSiteRoleImport = "apply_party_contact_site_role_import"
     case applyAssetSemantics = "apply_asset_semantics"
     case applyAuthorityCriterion = "apply_authority_criterion"
     case applyFunctionalRelationship = "apply_functional_relationship"
@@ -3790,6 +3793,7 @@ enum MutationReversalPolicyRegistryV1 {
         .init(commandKind: .applySavedSmartView, disposition: .compensatable, stableReason: "replace_or_delete_saved_smart_view"),
         .init(commandKind: .applyRequirementAssurance, disposition: .compensatable, stableReason: "replace_typed_requirement_assurance"),
         .init(commandKind: .applyPartyAccountability, disposition: .compensatable, stableReason: "append_accountability_successor_only"),
+        .init(commandKind: .applyPartyContactSiteRoleImport, disposition: .compensatable, stableReason: "atomic_party_contact_site_role_successors_only"),
         .init(commandKind: .applyAssetSemantics, disposition: .compensatable, stableReason: "append_asset_semantic_pair_only"),
         .init(commandKind: .applyAuthorityCriterion, disposition: .compensatable, stableReason: "append_authority_criterion_successor_only"),
         .init(commandKind: .applyFunctionalRelationship, disposition: .compensatable, stableReason: "append_functional_relationship_successor_only"),
@@ -3836,7 +3840,7 @@ enum MutationReversalPolicyRegistryV1 {
     ]
 
     static func policy(for kind: WorkspaceCommandKindV1) throws -> MutationReversalPolicyV1 {
-        guard policies.count == 61,
+        guard policies.count == 62,
               policies.count == WorkspaceCommandKindV1.allCases.count,
               Set(policies.map(\.commandKind)).count == policies.count,
               policies.first(where: { $0.commandKind == .applyLightingDayInventory })?.disposition == .compensatable,

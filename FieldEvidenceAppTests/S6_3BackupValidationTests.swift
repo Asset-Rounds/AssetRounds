@@ -2360,6 +2360,27 @@ private final class C46S63BackupValidationCompatibilityTests: XCTestCase {
     }
 }
 
+private final class C32PartyContactSiteRoleImportBackupValidationTests: XCTestCase {
+    func testV23P04C32BackupValidationUsesExistingFamiliesAndDefaultContactFreeExport() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let backup = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(backup.contains("validateC32PartyContactSiteRoleImportClosure"))
+        XCTAssertTrue(backup.contains("PartyContactSiteRoleImportMutationReceiptV1"))
+        XCTAssertTrue(backup.contains("partyAccountability"))
+        XCTAssertTrue(backup.contains("operationalContacts"))
+        XCTAssertFalse(backup.contains("PartyContactSiteRoleImportBackupRecord"))
+        XCTAssertFalse(backup.contains("rawCSV"))
+        XCTAssertFalse(PartyContactsCSVContractV1.defaultExportEnabled)
+    }
+}
+
 
 private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift {
     static let compatibilityCardID = "V23-P03-C47"

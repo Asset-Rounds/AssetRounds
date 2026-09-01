@@ -262,6 +262,16 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
         XCTAssertEqual(stack.adapter.applyCount, 0)
     }
 
+    func testV23P04C08C32AggregateRegistrationDoesNotAlterAssetPlanDigest() throws {
+        let (first, _) = try C08.plan()
+        let (repeated, _) = try C08.plan()
+        XCTAssertEqual(first.planSHA256, repeated.planSHA256)
+        XCTAssertEqual(first.rows.map(\.identity), repeated.rows.map(\.identity))
+        XCTAssertEqual(first.rows.flatMap(\.commands).map(\.kind), [.createAsset])
+        XCTAssertTrue(ImportCommandKindV1.allCases.contains(.applyAtomicWorkspaceBundle))
+        XCTAssertTrue(WorkspaceCommandKindV1.allCases.contains(.applyPartyContactSiteRoleImport))
+    }
+
     func testV23P04C08H01HostileBudgetIdentityAndFormulaSafety() throws {
         let corpus = try loadCorpus(); check(corpus, "H01", "HOSTILE")
         let (plan, bulk) = try C08.plan()

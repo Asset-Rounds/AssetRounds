@@ -956,3 +956,26 @@ extension V10_03ReplicationConflictRegistryTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
+
+extension V10_03ReplicationConflictRegistryTests {
+    func testV23P04C32CompoundImportUsesOneClosedReplicationPolicy() {
+        let expectedKinds: Set<WorkspaceEntityKindV1> = [
+            .serviceParty,
+            .serviceContactPoint,
+            .systemHandoffIntent,
+            .sitePartyRoleEvent,
+        ]
+
+        XCTAssertEqual(
+            PartyContactSiteRoleImportJournalContractV1.commandKind,
+            .applyPartyContactSiteRoleImport
+        )
+        XCTAssertEqual(
+            PartyContactSiteRoleImportLocalChangeJournalPolicyV1.commandKind,
+            .applyPartyContactSiteRoleImport
+        )
+        XCTAssertEqual(PartyContactSiteRoleImportJournalContractV1.durableKinds, expectedKinds)
+        XCTAssertEqual(PartyContactSiteRoleImportLocalChangeJournalPolicyV1.durableKinds, expectedKinds)
+        XCTAssertFalse(expectedKinds.contains(.asset))
+    }
+}

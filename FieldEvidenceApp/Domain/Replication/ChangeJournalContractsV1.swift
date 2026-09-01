@@ -717,6 +717,11 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
         try ReinspectionExceptionJournalContractV1.validate(envelope:envelope,receipt:receipt,entityChanges:entityChanges)
         try EntityIdentityResolutionJournalContractV1.validate(envelope: envelope, receipt: receipt, entityChanges: entityChanges)
         try WorkspaceExperienceJournalContractV1.validate(envelope: envelope, receipt: receipt, entityChanges: entityChanges)
+        try PartyContactSiteRoleImportJournalContractV1.validate(
+            envelope: envelope,
+            receipt: receipt,
+            entityChanges: entityChanges
+        )
         let receiptIdentities = try receipt.postImages.map { try $0.identity }
         let locationIdentities = try envelope.command.canonicalLocationAffectedIdentities()
         guard schemaVersion == Self.schemaVersion, envelope.workspaceID == receipt.identity.workspaceID, envelope.replicaID == receipt.identity.replicaID, envelope.mutationID == receipt.mutationID, receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
@@ -1321,6 +1326,43 @@ enum C46OperationalContactChangeJournalBoundaryV1 {
     static func validate(mutation:OperationalContactMutationV1,receipt:MutationReceiptV1)throws{
         _=try OperationalContactMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)
         guard Set(try mutation.affectedIdentities.map(\.kind)).isSubset(of:durableKinds),!platformOutcomeIsCanonical else{throw ChangeJournalFailureV1.tamperedBatch}
+    }
+}
+
+enum PartyContactSiteRoleImportJournalContractV1 {
+    static let commandKind: WorkspaceCommandKindV1 = .applyPartyContactSiteRoleImport
+    static let durableKinds: Set<WorkspaceEntityKindV1> = [
+        .serviceParty,
+        .serviceContactPoint,
+        .systemHandoffIntent,
+        .sitePartyRoleEvent,
+    ]
+
+    static func validate(
+        envelope: MutationEnvelopeV1,
+        receipt: MutationReceiptV1,
+        entityChanges: [EntityChangeV1]
+    ) throws {
+        guard case let .applyPartyContactSiteRoleImport(mutation) = envelope.command else {
+            return
+        }
+        try mutation.validate()
+        let typedReceipt = try PartyContactSiteRoleImportMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+        let affected = try mutation.affectedIdentities
+        let images = try mutation.mutationPostImages
+        guard envelope.commandKind == commandKind,
+              envelope.mutationID == mutation.mutationID,
+              receipt.mutationID == mutation.mutationID,
+              receipt.postImages == images,
+              entityChanges.map(\.identity) == affected,
+              entityChanges.map(\.postImage) == images,
+              try images.allSatisfy({ durableKinds.contains(try $0.identity.kind) }),
+              typedReceipt.affectedIdentities == affected else {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
     }
 }
 

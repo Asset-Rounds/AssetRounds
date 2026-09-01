@@ -22,6 +22,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             .applySavedSmartView,
             .applyRequirementAssurance,
             .applyPartyAccountability,
+            .applyPartyContactSiteRoleImport,
             .applyAssetSemantics,
             .applyAuthorityCriterion,
             .applyFunctionalRelationship,
@@ -203,6 +204,11 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             )
         case let .applyPartyAccountability(value):
             return try applyPartyAccountability(value, temporaryRelativePath: temporaryRelativePath)
+        case let .applyPartyContactSiteRoleImport(value):
+            return try applyPartyContactSiteRoleImport(
+                value,
+                temporaryRelativePath: temporaryRelativePath
+            )
         case let .applyAssetSemantics(value):
             return try assetSemanticLifecycleAdapter.apply(
                 value,
@@ -2822,6 +2828,44 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                     try requireCurrentOperationalContactSiteTarget(intent.target)
                 }
                 modelContext.insert(try SystemHandoffIntentRow(intent))
+            }
+            return try WorkspaceMutationEffectV1(
+                affectedEntities: mutation.affectedIdentities,
+                temporaryRelativePath: temporaryRelativePath
+            )
+        } catch let failure as WorkspaceMutationFailureV1 {
+            modelContext.rollback()
+            throw failure
+        } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    /// C32 deliberately composes existing private row appliers instead of
+    /// recursively entering WorkspaceWriterV1: MutationJournalStoreV1 owns
+    /// the one receipt and one save for this aggregate.
+    private func applyPartyContactSiteRoleImport(
+        _ mutation: PartyContactSiteRoleImportMutationV1,
+        temporaryRelativePath: String
+    ) throws -> WorkspaceMutationEffectV1 {
+        do {
+            try mutation.validate()
+            for party in mutation.partyMutations {
+                _ = try applyPartyAccountability(
+                    party,
+                    temporaryRelativePath: temporaryRelativePath
+                )
+            }
+            _ = try applyOperationalContact(
+                mutation.operationalContactMutation,
+                temporaryRelativePath: temporaryRelativePath
+            )
+            for role in mutation.siteRoleMutations {
+                _ = try applyPartyAccountability(
+                    role,
+                    temporaryRelativePath: temporaryRelativePath
+                )
             }
             return try WorkspaceMutationEffectV1(
                 affectedEntities: mutation.affectedIdentities,

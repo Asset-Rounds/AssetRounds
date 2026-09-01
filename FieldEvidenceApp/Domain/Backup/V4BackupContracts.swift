@@ -4515,6 +4515,7 @@ extension V4BackupRecordsV1 {
         }
         let contacts = try operationalContacts.filter { $0.kind == .serviceContactPoint }.map { try $0.contactValue() }
         let intents = try operationalContacts.filter { $0.kind == .systemHandoffIntent }.map { try $0.intentValue() }
+        let compoundMutations = try validateC32PartyContactSiteRoleImportClosure()
         let receiptMutations = try mutationHistory?.receipts.compactMap { record -> OperationalContactMutationV1? in
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             guard case let .applyOperationalContact(mutation) = envelope.command else { return nil }
@@ -4540,13 +4541,13 @@ extension V4BackupRecordsV1 {
         guard contacts.allSatisfy({ parties[$0.party.partyID] == $0.party }),
               effectiveByScope.values.allSatisfy({ $0.filter(\.preferred).count <= 1 }),
               activeContacts.allSatisfy({ contact in
-                receiptMutations.contains(where: { mutation in
+                (receiptMutations + compoundMutations.map(\.operationalContactMutation)).contains(where: { mutation in
                     mutation.mutationID == contact.mutationID
                         && mutation.successors.contains(contact)
                 })
               }),
               activeIntents.allSatisfy({ intent in
-                receiptMutations.contains(where: { mutation in
+                (receiptMutations + compoundMutations.map(\.operationalContactMutation)).contains(where: { mutation in
                     mutation.mutationID == intent.mutationID
                         && mutation.handoffIntents.contains(intent)
                 })
@@ -4566,6 +4567,169 @@ extension V4BackupRecordsV1 {
             }
         }
         return (contacts, intents)
+    }
+
+    /// C32 uses the existing records-envelope families and stores its one
+    /// aggregate command only in mutation history.  This closure accepts the
+    /// pre-existing direct party/contact envelopes as well as exactly one
+    /// validated aggregate envelope, while rejecting a split or retargeted
+    /// aggregate before any restore/materialization can inspect its rows.
+    func validateC32PartyContactSiteRoleImportClosure() throws
+        -> [PartyContactSiteRoleImportMutationV1] {
+        guard recordsSchemaVersion >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion else {
+            if let mutationHistory {
+                for record in mutationHistory.receipts {
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                    if case .applyPartyContactSiteRoleImport = envelope.command {
+                        throw OperationalContactFailureV1.incompatibleVersion
+                    }
+                }
+            }
+            return []
+        }
+        guard let mutationHistory else { return [] }
+
+        var partyValues: [UUID: ServicePartyReferenceV1] = [:]
+        var partyRecords: [UUID: V9BackupPartyAccountabilityRecordV1] = [:]
+        var roleValues: [UUID: SitePartyRoleEventV1] = [:]
+        var roleRecords: [UUID: V9BackupPartyAccountabilityRecordV1] = [:]
+        for record in partyAccountability {
+            switch record.kind {
+            case .serviceParty:
+                let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                    ServicePartyReferenceV1.self, from: record.canonicalData
+                )
+                guard value.partyID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision,
+                      partyValues.updateValue(value, forKey: value.partyID) == nil,
+                      partyRecords.updateValue(record, forKey: value.partyID) == nil else {
+                    throw OperationalContactFailureV1.digestMismatch
+                }
+            case .sitePartyRoleEvent:
+                let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                    SitePartyRoleEventV1.self, from: record.canonicalData
+                )
+                guard value.eventID == record.id,
+                      value.workspaceID.rawValue == record.workspaceID,
+                      value.revision == record.revision,
+                      roleValues.updateValue(value, forKey: value.eventID) == nil,
+                      roleRecords.updateValue(record, forKey: value.eventID) == nil else {
+                    throw OperationalContactFailureV1.digestMismatch
+                }
+            case .actorSnapshot, .qualificationSnapshot, .signoffSnapshot:
+                break
+            }
+        }
+
+        var aggregates: [PartyContactSiteRoleImportMutationV1] = []
+        var aggregateKeys = Set<String>()
+        for record in mutationHistory.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            guard envelope.workspaceID == receipt.identity.workspaceID else {
+                throw OperationalContactFailureV1.crossWorkspaceReference
+            }
+            guard case let .applyPartyContactSiteRoleImport(mutation) = envelope.command else {
+                continue
+            }
+            guard envelope.workspaceID == mutation.workspaceID,
+                  envelope.mutationID == mutation.mutationID,
+                  record.reversalBasisData == nil,
+                  record.semanticReversalData == nil else {
+                throw OperationalContactFailureV1.crossWorkspaceReference
+            }
+            let key = MutationWorkspaceKeyV1.value(
+                workspaceID: mutation.workspaceID,
+                mutationID: mutation.mutationID
+            )
+            guard aggregateKeys.insert(key).inserted else {
+                throw OperationalContactFailureV1.digestMismatch
+            }
+            _ = try PartyContactSiteRoleImportMutationReceiptV1(
+                mutation: mutation,
+                mutationReceipt: receipt
+            )
+            aggregates.append(mutation)
+        }
+
+        for mutation in aggregates {
+            let parties = try mutation.partyMutations.map { value -> ServicePartyReferenceV1 in
+                guard case let .recordParty(party) = value else {
+                    throw OperationalContactFailureV1.digestMismatch
+                }
+                return party
+            }
+            let roles = try mutation.siteRoleMutations.map { value -> SitePartyRoleEventV1 in
+                guard case let .appendSiteRole(role) = value else {
+                    throw OperationalContactFailureV1.digestMismatch
+                }
+                return role
+            }
+
+            // Party rows are mutable heads: a later direct successor may have
+            // replaced an aggregate party post-image.  If it has not, the
+            // current row must be byte-for-byte the aggregate child.
+            for party in parties {
+                if let current = partyValues[party.partyID] {
+                    if current.mutationID == mutation.mutationID {
+                        guard current == party,
+                              partyRecords[party.partyID]?.canonicalData
+                                == (try PartyAccountabilitySnapshotCodecV1.encode(party)) else {
+                            throw OperationalContactFailureV1.digestMismatch
+                        }
+                    } else {
+                        guard current.revision > party.revision else {
+                            throw OperationalContactFailureV1.digestMismatch
+                        }
+                    }
+                } else {
+                    let deleted = deletionLedger?.entries.contains {
+                        $0.identity.kind == .serviceParty
+                            && $0.identity.id == party.partyID
+                    } ?? false
+                    guard deleted else { throw OperationalContactFailureV1.digestMismatch }
+                }
+            }
+
+            // Site-role history is append-only and therefore every aggregate
+            // role child must remain represented by its existing V9 row unless
+            // an explicit deletion-ledger entry accounts for its absence.
+            for role in roles {
+                if let current = roleValues[role.eventID] {
+                    guard current == role,
+                          roleRecords[role.eventID]?.canonicalData
+                            == (try PartyAccountabilitySnapshotCodecV1.encode(role)) else {
+                        throw OperationalContactFailureV1.digestMismatch
+                    }
+                } else {
+                    let deleted = deletionLedger?.entries.contains {
+                        $0.identity.kind == .sitePartyRoleEvent
+                            && $0.identity.id == role.eventID
+                    } ?? false
+                    guard deleted else { throw OperationalContactFailureV1.digestMismatch }
+                }
+            }
+
+            // Rows that advertise the aggregate mutation ID may not smuggle a
+            // different child under the same stable identity.
+            for (id, current) in partyValues where current.mutationID == mutation.mutationID {
+                guard let party = parties.first(where: { $0.partyID == id }),
+                      current == party else {
+                    throw OperationalContactFailureV1.digestMismatch
+                }
+            }
+            for (id, current) in roleValues where current.mutationID == mutation.mutationID {
+                guard let role = roles.first(where: { $0.eventID == id }),
+                      current == role else {
+                    throw OperationalContactFailureV1.digestMismatch
+                }
+            }
+        }
+        return aggregates.sorted {
+            $0.mutationID.rawValue.uuidString.lowercased()
+                < $1.mutationID.rawValue.uuidString.lowercased()
+        }
     }
 }
 

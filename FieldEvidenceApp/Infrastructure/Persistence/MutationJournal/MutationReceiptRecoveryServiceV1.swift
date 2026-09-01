@@ -23,6 +23,7 @@ final class MutationReceiptRecoveryServiceV1 {
             try validateWorkspaceExperienceRecoveryParity()
             try validateLightingDayInventoryRecoveryParity()
             try validateLightingNightWorkflowRecoveryParity()
+            try validatePartyContactSiteRoleImportRecoveryParity()
         }
     }
 
@@ -86,6 +87,20 @@ final class MutationReceiptRecoveryServiceV1 {
     /// are never promoted into recovery state.
     func recoverOperationalContactEffectsBeforeWriterActivation()throws{
         try recoverBeforeWriterActivation()
+    }
+    /// C32 keeps the aggregate as one canonical receipt through interrupted
+    /// recovery; component mutations never receive independent recovery rows.
+    func recoverPartyContactSiteRoleImportEffectsBeforeWriterActivation()throws{
+        try recoverBeforeWriterActivation()
+    }
+
+    private func validatePartyContactSiteRoleImportRecoveryParity() throws {
+        for pair in try store.partyContactSiteRoleImportRecoveryPairs() {
+            try PartyContactSiteRoleImportMutationReceiptRecoveryPolicyV1.validateRecovered(
+                mutation: pair.mutation,
+                receipt: pair.receipt
+            )
+        }
     }
     /// C48 repairs only the existing C14 rows and canonical mutation receipt.
     /// Exact portable bytes are finalized by PortableExchangeSessionStoreV2
@@ -282,6 +297,18 @@ enum OperationalContactMutationReceiptRecoveryPolicyV1 {
         receipt: MutationReceiptV1
     ) throws {
         _ = try OperationalContactMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
+}
+
+enum PartyContactSiteRoleImportMutationReceiptRecoveryPolicyV1 {
+    static func validateRecovered(
+        mutation: PartyContactSiteRoleImportMutationV1,
+        receipt: MutationReceiptV1
+    ) throws {
+        _ = try PartyContactSiteRoleImportMutationReceiptV1(
             mutation: mutation,
             mutationReceipt: receipt
         )
