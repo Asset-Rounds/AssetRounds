@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos or record short video evidence only when you choose a camera action. Media stays on this iPhone unless you explicitly export or share it.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record short audio evidence only when you choose Record Audio. Recordings stay on this iPhone unless you explicitly export or share them.</string>
 	<key>FieldEvidenceIncumbentFileAdapterStatus</key>
 	<string>DISABLED_NO_SELECTED_PROFILE</string>
 	<key>FieldEvidenceIncumbentFileAdapterDeclaresProviderType</key>

@@ -8,7 +8,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use the camera to add sign photos to reports stored on this iPhone."
+            "value" : "Take photos or record short video evidence only when you choose a camera action. Media stays on this iPhone unless you explicitly export or share it."
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Explains why AssetRounds requests microphone access for explicit foreground evidence capture.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record short audio evidence only when you choose Record Audio. Recordings stay on this iPhone unless you explicitly export or share them."
           }
         }
       }

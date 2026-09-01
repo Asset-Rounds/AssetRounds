@@ -101,6 +101,38 @@ enum AppAccessContentReadSurfaceV1: String, CaseIterable, Codable, Hashable, Sen
     case ocrProposal = "OCR_PROPOSAL"
     case dictationProposal = "DICTATION_PROPOSAL"
     case oneShotLocationProposal = "ONE_SHOT_LOCATION_PROPOSAL"
+    case temporalAudioCapture = "TEMPORAL_AUDIO_CAPTURE"
+    case temporalVideoCapture = "TEMPORAL_VIDEO_CAPTURE"
+}
+
+/// C25 capture permits are deliberately kind-specific and ephemeral. They
+/// contain no clip identity, target identity, timestamps, codec metadata, or
+/// bytes, so the access boundary cannot become a media side channel.
+enum TemporalEvidenceCaptureAppAccessBoundaryV1 {
+    static let audioAndVideoPermitsAreIndependent = true
+    static let accessLogContainsMediaBytes = false
+    static let accessLogContainsCaptureMetadata = false
+
+    static func validateAudio(_ permit: AppAccessContentPermitV1) throws {
+        try validate(permit, expected: .temporalAudioCapture)
+    }
+
+    static func validateVideo(_ permit: AppAccessContentPermitV1) throws {
+        try validate(permit, expected: .temporalVideoCapture)
+    }
+
+    private static func validate(
+        _ permit: AppAccessContentPermitV1,
+        expected: AppAccessContentReadSurfaceV1
+    ) throws {
+        guard audioAndVideoPermitsAreIndependent,
+              !accessLogContainsMediaBytes,
+              !accessLogContainsCaptureMetadata,
+              permit.surface == expected,
+              permit.state.permitsContentAccess else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
 }
 
 /// OCR must obtain the same ephemeral content permit as every other protected

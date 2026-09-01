@@ -2756,16 +2756,83 @@ enum C24DictationLocationAccessibilityPolicyV1 {
 // MARK: - C33 temporal evidence accessibility
 
 enum TemporalEvidenceAccessibilityIDV1: String, CaseIterable, Codable, Sendable {
+    case screen = "temporal_evidence.screen"
     case reviewRequired = "temporal_evidence.review_required"
+    case recordAudio = "temporal_evidence.action.record_audio"
+    case recordVideo = "temporal_evidence.action.record_video"
+    case consent = "temporal_evidence.consent.explicit"
+    case microphonePurpose = "temporal_evidence.permission.microphone.purpose"
+    case cameraPurpose = "temporal_evidence.permission.camera.purpose"
     case playback = "temporal_evidence.playback"
+    case play = "temporal_evidence.action.play"
+    case pause = "temporal_evidence.action.pause"
+    case scrub = "temporal_evidence.action.scrub"
     case duration = "temporal_evidence.duration"
+    case size = "temporal_evidence.size"
+    case count = "temporal_evidence.count"
+    case codec = "temporal_evidence.codec"
+    case resolution = "temporal_evidence.resolution"
+    case recording = "temporal_evidence.state.recording"
+    case stop = "temporal_evidence.action.stop"
     case anchor = "temporal_evidence.anchor"
+    case caption = "temporal_evidence.caption"
     case description = "temporal_evidence.description"
+    case purpose = "temporal_evidence.purpose"
     case transcript = "temporal_evidence.transcript"
+    case delete = "temporal_evidence.action.delete"
+    case retake = "temporal_evidence.action.retake"
+    case useRecording = "temporal_evidence.action.use_recording"
     case stoppedAtLimit = "temporal_evidence.stopped_at_limit"
     case permissionDenied = "temporal_evidence.permission.denied"
+    case permissionRevoked = "temporal_evidence.permission.revoked"
     case interrupted = "temporal_evidence.interrupted"
     case manualImport = "temporal_evidence.manual_import"
+    case recovery = "temporal_evidence.recovery"
+    case error = "temporal_evidence.error"
+    case reportLink = "temporal_evidence.report.link"
+    case poster = "temporal_evidence.report.poster"
+    case waveform = "temporal_evidence.report.waveform"
+
+    var localizationKey: LocalizationKeyV1 {
+        let key: TemporalEvidenceLocalizationKeyV1
+        switch self {
+        case .screen, .reviewRequired: key = .reviewRequired
+        case .recordAudio: key = .recordAudio
+        case .recordVideo: key = .recordVideo
+        case .consent: key = .consent
+        case .microphonePurpose: key = .microphonePurpose
+        case .cameraPurpose: key = .cameraPurpose
+        case .playback, .play: key = .play
+        case .pause: key = .pause
+        case .scrub: key = .scrub
+        case .duration: key = .durationLimit
+        case .size: key = .byteLimit
+        case .count: key = .countLimit
+        case .codec: key = .codecLimit
+        case .resolution: key = .resolutionLimit
+        case .recording: key = .recording
+        case .stop: key = .stop
+        case .anchor: key = .timeAnchor
+        case .caption: key = .caption
+        case .description: key = .description
+        case .purpose: key = .purpose
+        case .transcript: key = .transcriptRequired
+        case .delete: key = .delete
+        case .retake: key = .retake
+        case .useRecording: key = .useRecording
+        case .stoppedAtLimit: key = .stopped
+        case .permissionDenied: key = .permissionDenied
+        case .permissionRevoked: key = .permissionRevoked
+        case .interrupted: key = .interrupted
+        case .manualImport: key = .manualImport
+        case .recovery: key = .recovery
+        case .error: key = .interrupted
+        case .reportLink: key = .reportLink
+        case .poster: key = .poster
+        case .waveform: key = .waveform
+        }
+        return key.localizationKey
+    }
 }
 
 enum TemporalEvidenceAccessibilityPolicyV1 {
@@ -2775,13 +2842,23 @@ enum TemporalEvidenceAccessibilityPolicyV1 {
     static let motionOnlyStateAllowed = false
     static let manualFallbackRemainsFocusable = true
     static let interruptionHasActionableRecovery = true
+    static let voiceControlUsesVisibleNames = true
+    static let dynamicTypeThroughAX5Required = true
+    static let rightToLeftReadingOrderRequired = true
+    static let firstErrorReceivesFocus = true
+    static let recordingStateUsesTextAndIcon = true
+    static let uiAdoptionClaimed = false
+    static let requiresAcceptedS10_6AndPhysicalDeviceEvidence = true
 
     static func validate() throws {
         let ids = TemporalEvidenceAccessibilityIDV1.allCases.map(\.rawValue)
         guard ids.count == Set(ids).count, playbackControlsAreNamed,
               elapsedAndAnchorTimesAreSpoken, stateIsNotColorOnly,
               !motionOnlyStateAllowed, manualFallbackRemainsFocusable,
-              interruptionHasActionableRecovery else {
+              interruptionHasActionableRecovery, voiceControlUsesVisibleNames,
+              dynamicTypeThroughAX5Required, rightToLeftReadingOrderRequired,
+              firstErrorReceivesFocus, recordingStateUsesTextAndIcon,
+              !uiAdoptionClaimed, requiresAcceptedS10_6AndPhysicalDeviceEvidence else {
             throw LocalizationContractFailureV1.invalidAccessibilityBinding
         }
     }

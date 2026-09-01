@@ -1,0 +1,200 @@
+{
+  "authority": {
+    "allocationDigest": "96fcee5ae389b2340b007f005829555f208731ef494987c761dc7012826dd155",
+    "appBaseHead": "e65c2b807fe6242b383c24947d454c099c0f8265",
+    "appBaseTree": "206747a8ff6df2c7d80a24f58e2152619c1d75f3",
+    "authorizedOverlapCount": 34,
+    "cardID": "V23-P04-C25",
+    "contextDigest": "bc29003d4579ed299a7ad9e33ba117b4a1ec6a97096f1beee66cf1d4b534d530",
+    "coordinationHead": "ca9ae5ca93ffef22fec6fd826cbe77e2e388a184",
+    "coordinationTree": "799c5a59ab77c1d9de2e36483b0df17fb45a1555",
+    "existingPathCount": 14,
+    "featurePolicySHA256": "98a205edc22421ec4a4f2a5494628f4f40be7117a95cdd3cc94e2d6eab7c98ef",
+    "fencePathCount": 28,
+    "finalHashesSealed": true,
+    "newPathCount": 14,
+    "pathFenceDigest": "c9a284d729f286c7e29ac7ab44c85fb8807e73b66271d5c35ab4bd82258ab5f2",
+    "prerequisiteDigest": "bbadd9802cf66f26eed3f34fc70687bd9565da976e4b43c311fa5f541df90e8b",
+    "priorFenceCount": 4,
+    "priorOwnedPathCount": 369,
+    "s10OverlapCount": 0,
+    "sequence": 489
+  },
+  "cardID": "V23-P04-C25",
+  "counts": {
+    "changedPathCount": 28,
+    "missingPathCount": 0,
+    "s10ReservationOverlapCount": 0,
+    "unownedChangedPathCount": 0
+  },
+  "files": [
+    {
+      "path": "docs/design/v23/tooling/V23P04C25TemporalEvidenceCaptureContractV1.json",
+      "sha256": "c04e0b98d0ec61a144b6680ffd6bf76f38d6588e2beb2b475a4f2843b92a04fd"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C25TemporalEvidenceCaptureEvidenceReceiptV1.json",
+      "sha256": "2300c6fc6bf6591e94421b41ec7c6d3771ab849b41413c740ba8f6f62ae580e0"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C25BrandImpactManifestV1.json",
+      "sha256": "fcc859afa4db51403db074e00c3312bceadce86d15d89f24c580d79825c56ffb"
+    }
+  ],
+  "finalHashesSealed": true,
+  "pathFence": [
+    "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+    "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+    "FieldEvidenceApp/Info.plist",
+    "FieldEvidenceApp/InfoPlist.xcstrings",
+    "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+    "FieldEvidenceApp/Resources/Localizable.xcstrings",
+    "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+    "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+    "FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+    "FieldEvidenceApp/Domain/Content/TemporalEvidenceCaptureContractsV1.swift",
+    "FieldEvidenceApp/Application/Content/TemporalEvidenceCaptureCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Media/TemporalEvidenceCaptureLifecycleAdapterV1.swift",
+    "FieldEvidenceAppTests/V9_88TemporalEvidenceCaptureTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V23/TemporalEvidence/V23P04C25TemporalEvidenceCaptureCorpusV1.json",
+    "FieldEvidenceAppUITests/V23_P04_C25TemporalEvidenceCaptureUITests.swift",
+    "Scripts/v23/p04_c25_contracts.py",
+    "Scripts/v23/generate_p04_c25_contracts.py",
+    "Scripts/v23/verify_p04_c25_contracts.py",
+    "Scripts/v23/temporal-evidence-capture.schema.json",
+    "docs/design/v23/tooling/V23P04C25TemporalEvidenceCaptureContractV1.json",
+    "docs/design/v23/tooling/V23P04C25TemporalEvidenceCaptureEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P04C25BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P04-C25-tooling-manifest.json"
+  ],
+  "provisional": true,
+  "schema": "V23P04C25ToolingManifestV1",
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "path": "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+      "sha256": "e7654c66c95f0cad8f4ac1cfbb0aa299770ff4ff32ddfe7127c73c4b65a5b509",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+      "sha256": "672dd84dbdb8db40d043c2ac4b79783d9d8abbf8547f15f8fa35ba53fb31a002",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+      "sha256": "e2d55ff204f22c24cc90a4c7cace2380a6be8b699179401d6fd8203dbecba3f4",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Info.plist",
+      "sha256": "f3d203008dc9d35f39efdbb2e66dc9a3ff220aa13544cc36fcfa77403b34b53a",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+      "sha256": "85e1c67daf46b4959705baf42584254197cd1c4561c0fa3e3f2d0ed0dcc82503",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+      "sha256": "5d1982421bea62d1ec5339f5a279b6f1f552afa8d90f7dc16f01e389b575dc4f",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "sha256": "9dd2c970827dcae05f8f05acec0fe4bf6650b66fe05cb218f2eaadddfee0a4aa",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+      "sha256": "67cbc936089d01bc772330600727ddea7d312a5a52cd8b16f5f3aff3577d8a53",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+      "sha256": "4f1936ed6674adca8ce1ec330dcd8f206ca9cccc4e6b40f67e5d4a04f9ed82b5",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+      "sha256": "376a46bed52cccd33fe686f09f60f8f2948afb297f2dbc42305e0fa6e4a475fd",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift",
+      "sha256": "aeda4d37c06e22ab97a1461f4a35b4bb36b740f0ef20e940ab17cc12ce0715f2",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+      "sha256": "7e75d221f29fbf8b7812bcbae7680098758b071e850c7fd45eddf64fbe0e62b2",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+      "sha256": "70ba681ed8b32543eceaca7bb44d7924921c28e62a93cd02ab5344ed4bf8ac27",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+      "sha256": "e79601a65510f115a2aaf0e6c537532d96ec277ddac08fff939880c62f9cd35e",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Content/TemporalEvidenceCaptureContractsV1.swift",
+      "sha256": "f116955bdcf8ab82bba6360da530b3a76a0fbdb67cedd3d2222ab2cd7de7dfad",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Content/TemporalEvidenceCaptureCoordinatorV1.swift",
+      "sha256": "8ed797b3959c637c14afc43bcc154f55e26aa7784cd0c9d9be9b6e5c3e570722",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/TemporalEvidenceCaptureLifecycleAdapterV1.swift",
+      "sha256": "1b9bfce5f9608dc917844b3fdad5186150463660c4ff65de958ee2c9a69327a3",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_88TemporalEvidenceCaptureTests.swift",
+      "sha256": "98172227b3d76e12861eb19bf43ccda93e1ba21e1f566aa1cd8a71326220abd9",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/TemporalEvidence/V23P04C25TemporalEvidenceCaptureCorpusV1.json",
+      "sha256": "17077b74c2a7514f9acb34e0aab7ff8f84f1d27187bf8829e9572bcdc624250e",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C25TemporalEvidenceCaptureUITests.swift",
+      "sha256": "cc4b393e21405cf38d88e1a3f3b6e3c6170962262254d30dc875e4bf4da484cb",
+      "status": "SOURCE_PRESENT"
+    }
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "toolingPaths": [
+    "Scripts/v23/p04_c25_contracts.py",
+    "Scripts/v23/generate_p04_c25_contracts.py",
+    "Scripts/v23/verify_p04_c25_contracts.py",
+    "Scripts/v23/temporal-evidence-capture.schema.json",
+    "docs/design/v23/tooling/V23P04C25TemporalEvidenceCaptureContractV1.json",
+    "docs/design/v23/tooling/V23P04C25TemporalEvidenceCaptureEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P04C25BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P04-C25-tooling-manifest.json"
+  ]
+}

@@ -2733,12 +2733,15 @@ enum TemporalEvidenceReportProjectionRegistryV1 {
 
     static func projection(clip: TemporalEvidenceClipV1,
                            anchors: [TimecodedEvidenceAnchorV1],
+                           currentDerivative: TemporalEvidenceDerivativeReferenceV1,
                            profile: TemporalEvidenceLimitProfileV1) throws
         -> TemporalEvidenceReportLinkV1 {
         let link = try TemporalEvidenceReportLinkV1(
-            clip: clip, anchors: anchors, profile: profile
+            clip: clip, anchors: anchors,
+            currentDerivative: currentDerivative, profile: profile
         )
-        try link.validate(clip: clip, anchors: anchors)
+        try link.validate(clip: clip, anchors: anchors,
+                          currentDerivative: currentDerivative)
         try TemporalEvidenceReportProjectionPolicyV1.validate(link)
         return link
     }

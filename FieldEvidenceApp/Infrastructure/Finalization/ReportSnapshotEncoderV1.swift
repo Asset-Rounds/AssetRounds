@@ -529,6 +529,8 @@ struct ReportSnapshotEncoderV1: Sendable {
                   links.allSatisfy({ (try? $0.validate()) != nil }),
                   links.allSatisfy({ $0.clipRevision <= UInt64(Int.max)
                       && $0.durationMilliseconds <= UInt64(Int.max)
+                      && ($0.derivativePreview?.revision ?? 0) <= UInt64(Int.max)
+                      && ($0.derivativePreview?.sourceClipRevision ?? 0) <= UInt64(Int.max)
                       && $0.anchorBindings.allSatisfy({
                           $0.revision <= UInt64(Int.max)
                               && $0.clipRevision <= UInt64(Int.max)
@@ -765,7 +767,7 @@ extension CanonicalJSONV1 {
     private static func temporalEvidenceLink(
         _ value: TemporalEvidenceReportLinkV1
     ) -> CanonicalJSONValueV1 {
-        .object([
+        var object: [String: CanonicalJSONValueV1] = [
             "schemaVersion": .integer(value.schemaVersion),
             "workspaceID": uuid(value.workspaceID),
             "clipID": uuid(value.clipID),
@@ -782,6 +784,25 @@ extension CanonicalJSONV1 {
             "manualTranscript": optionalString(value.manualTranscript),
             "projection": .string(value.projection.rawValue),
             "embedsOriginalBytes": .bool(value.embedsOriginalBytes),
+        ]
+        if let derivativePreview = value.derivativePreview {
+            object["derivativePreview"] = temporalEvidenceDerivativeBinding(derivativePreview)
+        }
+        return .object(object)
+    }
+
+    private static func temporalEvidenceDerivativeBinding(
+        _ value: TemporalEvidenceReportDerivativeBindingV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "derivativeID": uuid(value.derivativeID),
+            "revision": .integer(Int(value.revision)),
+            "derivativeSHA256": .string(value.derivativeSHA256),
+            "kind": .string(value.kind.rawValue),
+            "sourceClipID": uuid(value.sourceClipID),
+            "sourceClipRevision": .integer(Int(value.sourceClipRevision)),
+            "sourceClipSHA256": .string(value.sourceClipSHA256),
+            "projection": .string(value.projection.rawValue),
         ])
     }
 

@@ -269,6 +269,7 @@ struct SnapshotValidatorV1 {
         try validateWorkPacket(snapshot)
         try validateC17LightingDayInventory(snapshot)
         try validateC18LightingNightWorkflow(snapshot)
+        try validateTemporalEvidenceLinks(snapshot)
         guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
               snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
               snapshot.reportID == report.id,
@@ -667,6 +668,50 @@ struct SnapshotValidatorV1 {
               !value.projection.safetyOrComplianceConclusionAllowed else{throw SnapshotValidationErrorV1.invalidAuthority}
             if case .live(let dependencies,_)=lifecycleRoute{guard value.projection.workspaceID==WorkspaceID(rawValue:dependencies.workspaceID) else{throw SnapshotValidationErrorV1.invalidAuthority}}
         }catch{throw SnapshotValidationErrorV1.invalidAuthority}
+    }
+
+    private func validateTemporalEvidenceLinks(_ snapshot: ReportSnapshotV1) throws {
+        guard let links = snapshot.temporalEvidenceLinks else { return }
+        do {
+            let clipRows = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            let anchorRows = try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>())
+            for link in links {
+                guard link.derivativePreview != nil else {
+                    try link.validate()
+                    continue
+                }
+                let matchingClips = try clipRows.map { try $0.value() }
+                    .filter { $0.clipID == link.clipID }
+                guard matchingClips.count == 1,
+                      let clip = matchingClips.first,
+                      let preview = link.derivativePreview else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                let derivative = TemporalEvidenceDerivativeReferenceV1(
+                    derivativeID: preview.derivativeID,
+                    revision: preview.revision,
+                    derivativeSHA256: preview.derivativeSHA256,
+                    kind: preview.kind
+                )
+                let anchorIDs = Set(link.anchorBindings.map(\.anchorID))
+                let anchors = try anchorRows.map { try $0.value() }
+                    .filter { anchorIDs.contains($0.anchorID) }
+                guard anchors.count == anchorIDs.count else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                try C25TemporalEvidenceReportLinkageValidationV1.validate(
+                    link, clip: clip, anchors: anchors,
+                    currentDerivative: derivative
+                )
+                if case .live(let dependencies, _) = lifecycleRoute {
+                    guard link.workspaceID.rawValue == dependencies.workspaceID else {
+                        throw SnapshotValidationErrorV1.invalidAuthority
+                    }
+                }
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
     }
 
     private func validateWorkspaceScope(report: Report, source: WorkflowRecord) throws {
@@ -1930,6 +1975,25 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_Sn
         try anchor.validate(clip: clip)
         guard durableFamilyCount == 2 else {
             throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}
+
+enum C25TemporalEvidenceReportLinkageValidationV1 {
+    static let embedsOriginalMediaBytes = false
+    static let exposesScratchPrivateLocatorTranscriptOrActor = false
+
+    static func validate(_ link: TemporalEvidenceReportLinkV1,
+                         clip: TemporalEvidenceClipV1,
+                         anchors: [TimecodedEvidenceAnchorV1],
+                         currentDerivative: TemporalEvidenceDerivativeReferenceV1) throws {
+        try TemporalEvidenceReportProjectionPolicyV1.validate(link)
+        try link.validate(clip: clip, anchors: anchors,
+                          currentDerivative: currentDerivative)
+        guard !embedsOriginalMediaBytes,
+              !exposesScratchPrivateLocatorTranscriptOrActor,
+              link.manualTranscript == nil else {
+            throw SnapshotProjectionFailureV1.privacyViolation
         }
     }
 }

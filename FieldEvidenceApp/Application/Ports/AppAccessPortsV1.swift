@@ -372,4 +372,16 @@ extension AppAccessGatePortV1 {
         try DictationLocationProposalAppAccessBoundaryV1.validateOneShotLocation(permit)
         return permit
     }
+
+    func requireTemporalAudioCaptureAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .temporalAudioCapture)
+        try TemporalEvidenceCaptureAppAccessBoundaryV1.validateAudio(permit)
+        return permit
+    }
+
+    func requireTemporalVideoCaptureAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .temporalVideoCapture)
+        try TemporalEvidenceCaptureAppAccessBoundaryV1.validateVideo(permit)
+        return permit
+    }
 }

@@ -5441,6 +5441,7 @@ struct TemporalEvidenceReportLinkV1: Codable, Equatable, Sendable {
     let contentID: String
     let mediaKind: TemporalEvidenceMediaKindV1
     let durationMilliseconds: UInt64
+    let derivativePreview: TemporalEvidenceReportDerivativeBindingV1?
     let anchorBindings: [TemporalEvidenceReportAnchorBindingV1]
     let accessibleDescription: String
     let manualTranscript: String?
@@ -5460,11 +5461,12 @@ struct TemporalEvidenceReportLinkV1: Codable, Equatable, Sendable {
         clipID = clip.clipID; clipRevision = clip.revision; clipSHA256 = clip.clipSHA256
         contentID = clip.original.contentID; mediaKind = clip.facts.kind
         durationMilliseconds = clip.facts.durationMilliseconds
+        derivativePreview = nil
         anchorBindings = try anchors.map {
             try TemporalEvidenceReportAnchorBindingV1(anchor: $0, clip: clip)
         }.sorted()
         accessibleDescription = clip.accessibleDescription
-        manualTranscript = clip.manualTranscript; projection = profile.reportProjection
+        manualTranscript = nil; projection = profile.reportProjection
         embedsOriginalBytes = false
         try validate()
     }
@@ -5492,6 +5494,10 @@ struct TemporalEvidenceReportLinkV1: Codable, Equatable, Sendable {
                 throw TemporalEvidenceContractFailureV1.staleSource
             }
         }
+        try derivativePreview?.validate(link: self)
+        guard derivativePreview == nil || manualTranscript == nil else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
     }
 
     func validate(clip: TemporalEvidenceClipV1,
@@ -5510,6 +5516,114 @@ struct TemporalEvidenceReportLinkV1: Codable, Equatable, Sendable {
             throw TemporalEvidenceContractFailureV1.staleSource
         }
     }
+
+    init(clip: TemporalEvidenceClipV1,
+         anchors: [TimecodedEvidenceAnchorV1],
+         currentDerivative: TemporalEvidenceDerivativeReferenceV1,
+         profile: TemporalEvidenceLimitProfileV1) throws {
+        try clip.validate(profile: profile)
+        try currentDerivative.validate()
+        try anchors.forEach { try $0.validate(clip: clip) }
+        guard profile.reportProjection == .typedLinkWithDerivativePreview,
+              Set(anchors.map(\.anchorID)).count == anchors.count else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        let expectedKind: TemporalEvidenceDerivativeKindV1 =
+            clip.facts.kind == .video ? .thumbnail : .waveform
+        let candidates = clip.derivativeReferences.filter { $0.kind == expectedKind }
+        guard candidates == [currentDerivative] else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+        schemaVersion = Self.schemaVersion; workspaceID = clip.workspaceID
+        clipID = clip.clipID; clipRevision = clip.revision; clipSHA256 = clip.clipSHA256
+        contentID = clip.original.contentID; mediaKind = clip.facts.kind
+        durationMilliseconds = clip.facts.durationMilliseconds
+        derivativePreview = try TemporalEvidenceReportDerivativeBindingV1(
+            derivative: currentDerivative, clip: clip, projection: profile.reportProjection
+        )
+        anchorBindings = try anchors.map {
+            try TemporalEvidenceReportAnchorBindingV1(anchor: $0, clip: clip)
+        }.sorted()
+        accessibleDescription = clip.accessibleDescription
+        manualTranscript = nil; projection = profile.reportProjection
+        embedsOriginalBytes = false
+        try validate(clip: clip, anchors: anchors, currentDerivative: currentDerivative)
+    }
+
+    func validate(clip: TemporalEvidenceClipV1,
+                  anchors: [TimecodedEvidenceAnchorV1],
+                  currentDerivative: TemporalEvidenceDerivativeReferenceV1) throws {
+        try validate(clip: clip, anchors: anchors)
+        guard let derivativePreview,
+              projection == .typedLinkWithDerivativePreview,
+              clip.derivativeReferences.filter({ $0.kind == derivativePreview.kind }) == [currentDerivative],
+              derivativePreview.matches(currentDerivative, clip: clip) else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+    }
+}
+
+struct TemporalEvidenceReportDerivativeBindingV1: Codable, Equatable, Sendable {
+    let derivativeID: UUID
+    let revision: UInt64
+    let derivativeSHA256: String
+    let kind: TemporalEvidenceDerivativeKindV1
+    let sourceClipID: UUID
+    let sourceClipRevision: UInt64
+    let sourceClipSHA256: String
+    let projection: TemporalEvidenceReportProjectionV1
+
+    init(derivative: TemporalEvidenceDerivativeReferenceV1,
+         clip: TemporalEvidenceClipV1,
+         projection: TemporalEvidenceReportProjectionV1) throws {
+        try derivative.validate(); try clip.validateIntrinsic()
+        derivativeID = derivative.derivativeID; revision = derivative.revision
+        derivativeSHA256 = derivative.derivativeSHA256; kind = derivative.kind
+        sourceClipID = clip.clipID; sourceClipRevision = clip.revision
+        sourceClipSHA256 = clip.clipSHA256; self.projection = projection
+        try validate(clip: clip)
+    }
+
+    func validate(link: TemporalEvidenceReportLinkV1) throws {
+        guard sourceClipID == link.clipID,
+              sourceClipRevision == link.clipRevision,
+              sourceClipSHA256 == link.clipSHA256,
+              projection == link.projection,
+              (link.mediaKind == .video && kind == .thumbnail)
+                || (link.mediaKind == .audio && kind == .waveform) else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+        try validateIntrinsic()
+    }
+
+    func validate(clip: TemporalEvidenceClipV1) throws {
+        try clip.validateIntrinsic(); try validateIntrinsic()
+        guard sourceClipID == clip.clipID,
+              sourceClipRevision == clip.revision,
+              sourceClipSHA256 == clip.clipSHA256,
+              (clip.facts.kind == .video && kind == .thumbnail)
+                || (clip.facts.kind == .audio && kind == .waveform) else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+    }
+
+    func matches(_ derivative: TemporalEvidenceDerivativeReferenceV1,
+                 clip: TemporalEvidenceClipV1) -> Bool {
+        derivativeID == derivative.derivativeID && revision == derivative.revision
+            && derivativeSHA256 == derivative.derivativeSHA256 && kind == derivative.kind
+            && sourceClipID == clip.clipID && sourceClipRevision == clip.revision
+            && sourceClipSHA256 == clip.clipSHA256
+    }
+
+    private func validateIntrinsic() throws {
+        guard derivativeID != .zero, revision > 0,
+              MutationEnvelopeV1.isSHA256(derivativeSHA256),
+              sourceClipID != .zero, sourceClipRevision > 0,
+              MutationEnvelopeV1.isSHA256(sourceClipSHA256),
+              projection == .typedLinkWithDerivativePreview else {
+            throw TemporalEvidenceContractFailureV1.invalidDerivative
+        }
+    }
 }
 
 enum TemporalEvidenceReportProjectionPolicyV1 {
@@ -5519,7 +5633,9 @@ enum TemporalEvidenceReportProjectionPolicyV1 {
     static func validate(_ link: TemporalEvidenceReportLinkV1) throws {
         try link.validate()
         guard !includesPrivateLocator, !embedsLargeMediaByDefault,
-              !automaticTranscriptAllowed else {
+              !automaticTranscriptAllowed, link.manualTranscript == nil,
+              link.projection == .typedLinkWithDerivativePreview,
+              link.derivativePreview != nil else {
             throw TemporalEvidenceContractFailureV1.invalidValue
         }
     }

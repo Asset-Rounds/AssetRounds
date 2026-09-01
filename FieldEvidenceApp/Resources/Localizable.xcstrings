@@ -3710,6 +3710,126 @@
       "comment" : "C33 manual/offline fallback while live recording remains deferred.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Attach an audio or video file manually" } } }
     },
+    "temporal_evidence.action.record_audio" : {
+      "comment" : "C25 explicit foreground audio capture action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Record Audio" } } }
+    },
+    "temporal_evidence.action.record_video" : {
+      "comment" : "C25 explicit foreground video capture action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Record Video" } } }
+    },
+    "temporal_evidence.consent.explicit" : {
+      "comment" : "C25 consent boundary; capture never starts implicitly.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording starts only after you choose a recording action." } } }
+    },
+    "temporal_evidence.permission.microphone.purpose" : {
+      "comment" : "C25 purpose copy for the independent microphone permission.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Microphone access records the audio you choose for this evidence. Manual evidence remains available." } } }
+    },
+    "temporal_evidence.permission.camera.purpose" : {
+      "comment" : "C25 purpose copy for the independent video permission matrix.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera and microphone access record the video you choose for this evidence. Manual evidence remains available." } } }
+    },
+    "temporal_evidence.limit.count" : {
+      "comment" : "C25 deterministic package or session recording-count stop.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The recording count limit has been reached" } } }
+    },
+    "temporal_evidence.limit.codec" : {
+      "comment" : "C25 unsupported codec state without a compatibility claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This recording format is outside the allowed format" } } }
+    },
+    "temporal_evidence.limit.resolution" : {
+      "comment" : "C25 bounded video resolution state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This video resolution is outside the allowed resolution" } } }
+    },
+    "temporal_evidence.state.recording" : {
+      "comment" : "C25 visible and spoken non-color recording state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording in progress" } } }
+    },
+    "temporal_evidence.state.stopped" : {
+      "comment" : "C25 visible and spoken stopped state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording stopped" } } }
+    },
+    "temporal_evidence.action.stop" : {
+      "comment" : "C25 recording stop action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop recording" } } }
+    },
+    "temporal_evidence.action.play" : {
+      "comment" : "C25 review playback action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Play recording" } } }
+    },
+    "temporal_evidence.action.pause" : {
+      "comment" : "C25 review pause action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Pause recording" } } }
+    },
+    "temporal_evidence.action.scrub" : {
+      "comment" : "C25 named time-position control.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording position" } } }
+    },
+    "temporal_evidence.action.delete" : {
+      "comment" : "C25 explicit review delete action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete recording" } } }
+    },
+    "temporal_evidence.action.retake" : {
+      "comment" : "C25 explicit retake action; the prior accepted original remains immutable.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Retake recording" } } }
+    },
+    "temporal_evidence.caption" : {
+      "comment" : "C25 human-authored recording caption.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Caption" } } }
+    },
+    "temporal_evidence.description" : {
+      "comment" : "C25 human-authored accessible recording description.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Accessible description" } } }
+    },
+    "temporal_evidence.purpose" : {
+      "comment" : "C25 purpose-bound evidence field.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Evidence purpose" } } }
+    },
+    "temporal_evidence.time_anchor" : {
+      "comment" : "C25 time-coded anchor action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add time anchor" } } }
+    },
+    "temporal_evidence.action.use_recording" : {
+      "comment" : "C25 sole explicit action that may request canonical acceptance after review.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Recording" } } }
+    },
+    "temporal_evidence.permission.revoked" : {
+      "comment" : "C25 mid-recording permission revocation with no partial-save claim.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording permission changed. Recording stopped and nothing was saved." } } }
+    },
+    "temporal_evidence.backgrounded" : {
+      "comment" : "C25 foreground-only boundary.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording stopped when the app left the foreground." } } }
+    },
+    "temporal_evidence.protected_data.unavailable" : {
+      "comment" : "C25 protected-data lock state.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock this device before recording or reviewing protected evidence." } } }
+    },
+    "temporal_evidence.disk_full" : {
+      "comment" : "C25 disk-full failure with no partial canonical clip.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Local storage became full. No partial recording was saved." } } }
+    },
+    "temporal_evidence.codec.unavailable" : {
+      "comment" : "C25 unavailable codec with manual fallback.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The required recording format is unavailable. Use the manual evidence path." } } }
+    },
+    "temporal_evidence.recovery" : {
+      "comment" : "C25 interruption recovery action.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recover interrupted recording" } } }
+    },
+    "temporal_evidence.report.link" : {
+      "comment" : "C25 report link to separately stored bounded media.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open linked recording" } } }
+    },
+    "temporal_evidence.report.poster" : {
+      "comment" : "C25 accessible poster-image label; original media is not embedded by default.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording poster image" } } }
+    },
+    "temporal_evidence.report.waveform" : {
+      "comment" : "C25 accessible audio waveform label; original audio is not embedded by default.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Audio waveform preview" } } }
+    },
     "asset_label.preview" : {
       "comment" : "C45 accessible preview heading; preview does not start generation.",
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Label preview" } } }

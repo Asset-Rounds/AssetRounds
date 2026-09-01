@@ -5246,6 +5246,52 @@ enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Localization
 }
 
 extension BundledLocalizationCatalogV1 {
+    static func temporalEvidenceCaptureRegistry() throws -> LocalizationKeyRegistryV1 {
+        try TemporalEvidenceLocalizationPolicyV1.validate()
+        let base = try dictationLocationProposalRegistry()
+        let existing = Set(base.definitions.map(\.key))
+        let additions = TemporalEvidenceLocalizationKeyV1.allCases.compactMap { key in
+            existing.contains(key.localizationKey) ? nil : LocalizationKeyDefinitionV1(
+                key: key.localizationKey,
+                meaningID: key.rawValue,
+                translatorComment: "C25 bounded offline temporal evidence capture; recording is explicit, foreground-only, reviewed, and never uploaded or automatically transcribed.",
+                englishDefaultValue: TemporalEvidenceLocalizationPolicyV1.english(key),
+                arguments: [], requiredEnglishPluralCategories: [], state: .active,
+                deprecatedFallbackKey: nil
+            )
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
+    static func temporalEvidenceCaptureAccessibilityRegistry(
+        localization: LocalizationKeyRegistryV1
+    ) throws -> SemanticAccessibilityIDRegistryV1 {
+        try TemporalEvidenceAccessibilityPolicyV1.validate()
+        let base = try dictationLocationProposalAccessibilityRegistry(localization: localization)
+        let additions = try TemporalEvidenceAccessibilityIDV1.allCases.map { id in
+            let role: SemanticAccessibilityRoleV1
+            switch id {
+            case .screen: role = .screen
+            case .recordAudio, .recordVideo, .play, .pause, .stop, .delete, .retake,
+                 .useRecording, .manualImport, .recovery, .reportLink: role = .button
+            case .reviewRequired, .recording, .stoppedAtLimit, .permissionDenied,
+                 .permissionRevoked, .interrupted, .error: role = .status
+            case .scrub: role = .group
+            case .consent, .microphonePurpose, .cameraPurpose, .playback, .duration,
+                 .size, .count, .codec, .resolution, .anchor, .caption, .description,
+                 .purpose, .transcript, .poster, .waveform: role = .group
+            }
+            return AccessibilityContractV1(
+                semanticID: id.rawValue, role: role, reachability: .whenAvailable,
+                labelKey: id.localizationKey, hintKey: nil, valueKey: nil,
+                dynamicSuffixPolicy: .none, deprecatedAliases: []
+            )
+        }
+        return try base.appending(additions, localization: localization)
+    }
+}
+
+extension BundledLocalizationCatalogV1 {
     static func assetLabelEnglish(_ key: AssetLabelLocalizationKeyV1) -> String {
         switch key {
         case .preview: return "Label preview"

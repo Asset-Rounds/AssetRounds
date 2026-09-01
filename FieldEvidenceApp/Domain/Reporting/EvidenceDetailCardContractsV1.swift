@@ -2204,14 +2204,20 @@ enum TemporalEvidenceDetailCardBoundaryV1 {
     static let privateLocatorIsCardField = false
 
     static func validate(_ link: TemporalEvidenceReportLinkV1,
-                         clip: TemporalEvidenceClipV1) throws {
+                         clip: TemporalEvidenceClipV1,
+                         currentDerivative: TemporalEvidenceDerivativeReferenceV1) throws {
         try link.validate(); try clip.validateIntrinsic()
         try link.anchorBindings.forEach { try $0.validate(clip: clip) }
+        guard let preview = link.derivativePreview else {
+            throw TemporalEvidenceContractFailureV1.staleSource
+        }
+        try preview.validate(clip: clip)
         guard link.workspaceID == clip.workspaceID, link.clipID == clip.clipID,
               link.clipRevision == clip.revision, link.clipSHA256 == clip.clipSHA256,
               link.contentID == clip.original.contentID,
               link.accessibleDescription == clip.accessibleDescription,
-              link.manualTranscript == clip.manualTranscript,
+              link.manualTranscript == nil,
+              preview.matches(currentDerivative, clip: clip),
               !originalBytesAreCardFields, !privateLocatorIsCardField else {
             throw TemporalEvidenceContractFailureV1.staleSource
         }

@@ -5190,15 +5190,45 @@ enum TemporalEvidenceLocalizationKeyV1: String, CaseIterable, Codable, Sendable 
     case reviewRequired = "temporal_evidence.review_required"
     case audio = "temporal_evidence.kind.audio"
     case video = "temporal_evidence.kind.video"
+    case recordAudio = "temporal_evidence.action.record_audio"
+    case recordVideo = "temporal_evidence.action.record_video"
+    case consent = "temporal_evidence.consent.explicit"
+    case microphonePurpose = "temporal_evidence.permission.microphone.purpose"
+    case cameraPurpose = "temporal_evidence.permission.camera.purpose"
     case durationLimit = "temporal_evidence.limit.duration"
     case byteLimit = "temporal_evidence.limit.bytes"
+    case countLimit = "temporal_evidence.limit.count"
     case storageLimit = "temporal_evidence.limit.storage"
+    case codecLimit = "temporal_evidence.limit.codec"
+    case resolutionLimit = "temporal_evidence.limit.resolution"
+    case recording = "temporal_evidence.state.recording"
+    case stopped = "temporal_evidence.state.stopped"
+    case stop = "temporal_evidence.action.stop"
+    case play = "temporal_evidence.action.play"
+    case pause = "temporal_evidence.action.pause"
+    case scrub = "temporal_evidence.action.scrub"
+    case delete = "temporal_evidence.action.delete"
+    case retake = "temporal_evidence.action.retake"
+    case caption = "temporal_evidence.caption"
+    case description = "temporal_evidence.description"
+    case purpose = "temporal_evidence.purpose"
+    case timeAnchor = "temporal_evidence.time_anchor"
+    case useRecording = "temporal_evidence.action.use_recording"
     case permissionDenied = "temporal_evidence.permission.denied"
+    case permissionRevoked = "temporal_evidence.permission.revoked"
     case interrupted = "temporal_evidence.interrupted"
+    case backgrounded = "temporal_evidence.backgrounded"
+    case protectedDataUnavailable = "temporal_evidence.protected_data.unavailable"
+    case diskFull = "temporal_evidence.disk_full"
+    case codecUnavailable = "temporal_evidence.codec.unavailable"
+    case recovery = "temporal_evidence.recovery"
     case cancelled = "temporal_evidence.cancelled"
     case descriptionRequired = "temporal_evidence.description.required"
     case transcriptRequired = "temporal_evidence.transcript.required"
     case manualImport = "temporal_evidence.manual_import"
+    case reportLink = "temporal_evidence.report.link"
+    case poster = "temporal_evidence.report.poster"
+    case waveform = "temporal_evidence.report.waveform"
 
     var localizationKey: LocalizationKeyV1 {
         // swiftlint:disable:next force_try
@@ -5207,19 +5237,76 @@ enum TemporalEvidenceLocalizationKeyV1: String, CaseIterable, Codable, Sendable 
 }
 
 enum TemporalEvidenceLocalizationPolicyV1 {
+    static let sourceLocale = "en"
     static let visibleLimitReasonRequired = true
     static let interruptionStatesMustSayNothingWasSaved = true
     static let permissionDenialNamesManualFallback = true
     static let transcriptIsHumanAuthored = true
     static let stateIsNotColorOnly = true
+    static let separateAudioVideoPermissionsRequired = true
+    static let explicitUseRecordingRequired = true
+    static let automaticTranscriptionOrRedactionAllowed = false
+    static let backgroundOrAmbientRecordingAllowed = false
+
+    static func english(_ key: TemporalEvidenceLocalizationKeyV1) -> String {
+        switch key {
+        case .reviewRequired: return "Review this recording before using it"
+        case .audio: return "Audio recording"
+        case .video: return "Video recording"
+        case .recordAudio: return "Record Audio"
+        case .recordVideo: return "Record Video"
+        case .consent: return "Recording starts only after you choose a recording action."
+        case .microphonePurpose: return "Microphone access records the audio you choose for this evidence. Manual evidence remains available."
+        case .cameraPurpose: return "Camera and microphone access record the video you choose for this evidence. Manual evidence remains available."
+        case .durationLimit: return "Recording stopped at the duration limit"
+        case .byteLimit: return "Recording stopped at the size limit"
+        case .countLimit: return "The recording count limit has been reached"
+        case .storageLimit: return "Not enough protected local storage. Nothing was saved."
+        case .codecLimit: return "This recording format is outside the allowed format"
+        case .resolutionLimit: return "This video resolution is outside the allowed resolution"
+        case .recording: return "Recording in progress"
+        case .stopped: return "Recording stopped"
+        case .stop: return "Stop recording"
+        case .play: return "Play recording"
+        case .pause: return "Pause recording"
+        case .scrub: return "Recording position"
+        case .delete: return "Delete recording"
+        case .retake: return "Retake recording"
+        case .caption: return "Caption"
+        case .description: return "Accessible description"
+        case .purpose: return "Evidence purpose"
+        case .timeAnchor: return "Add time anchor"
+        case .useRecording: return "Use Recording"
+        case .permissionDenied: return "Recording permission was not granted. Add permitted evidence manually."
+        case .permissionRevoked: return "Recording permission changed. Recording stopped and nothing was saved."
+        case .interrupted: return "Recording was interrupted. Review a completed recording or try again."
+        case .backgrounded: return "Recording stopped when the app left the foreground."
+        case .protectedDataUnavailable: return "Unlock this device before recording or reviewing protected evidence."
+        case .diskFull: return "Local storage became full. No partial recording was saved."
+        case .codecUnavailable: return "The required recording format is unavailable. Use the manual evidence path."
+        case .recovery: return "Recover interrupted recording"
+        case .cancelled: return "Recording cancelled. Nothing was saved."
+        case .descriptionRequired: return "Add an accessible description before using this recording"
+        case .transcriptRequired: return "Add a manual transcript before using this recording"
+        case .manualImport: return "Add an audio or video file manually"
+        case .reportLink: return "Open linked recording"
+        case .poster: return "Recording poster image"
+        case .waveform: return "Audio waveform preview"
+        }
+    }
 
     static func validate() throws {
         let values = TemporalEvidenceLocalizationKeyV1.allCases
         guard values.map(\.rawValue).count == Set(values.map(\.rawValue)).count,
               values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty }),
-              visibleLimitReasonRequired, interruptionStatesMustSayNothingWasSaved,
+              sourceLocale == "en", visibleLimitReasonRequired, interruptionStatesMustSayNothingWasSaved,
               permissionDenialNamesManualFallback, transcriptIsHumanAuthored,
-              stateIsNotColorOnly else { throw LocalizationContractFailureV1.invalidValue }
+              stateIsNotColorOnly, separateAudioVideoPermissionsRequired,
+              explicitUseRecordingRequired, !automaticTranscriptionOrRedactionAllowed,
+              !backgroundOrAmbientRecordingAllowed,
+              values.allSatisfy({ !english($0).isEmpty }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
     }
 }
 

@@ -84,6 +84,18 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         return permit
     }
 
+    func requireTemporalAudioCaptureAccess() throws -> AppAccessContentPermitV1 {
+        let permit = try AppAccessContentPermitV1(surface: .temporalAudioCapture, state: state)
+        try TemporalEvidenceCaptureAppAccessBoundaryV1.validateAudio(permit)
+        return permit
+    }
+
+    func requireTemporalVideoCaptureAccess() throws -> AppAccessContentPermitV1 {
+        let permit = try AppAccessContentPermitV1(surface: .temporalVideoCapture, state: state)
+        try TemporalEvidenceCaptureAppAccessBoundaryV1.validateVideo(permit)
+        return permit
+    }
+
     func lock(reason: AppLockReasonV1) async {
         // Lock is also the cancellation boundary for an in-flight opt-in
         // attempt. Invalidate its generation before consulting the currently
