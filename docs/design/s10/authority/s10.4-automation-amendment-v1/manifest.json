@@ -494,8 +494,8 @@
   "overlay_files": [
     {
       "path": "s10-visual-regression.schema.json",
-      "byte_length": 27763,
-      "sha256": "AC8BE499D57D62586DC15A33AF40D52BA3D535C32C1CC4E8CEB52C30CB568C2A"
+      "byte_length": 27765,
+      "sha256": "07E272957EB850AFAB888BE5E4C4CC55097C597D57D2EA9C249F1575DE9F58C2"
     },
     {
       "path": "s10-accessibility-common-tasks.schema.json",

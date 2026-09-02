@@ -397,7 +397,7 @@
             "required": ["equivalent", "github_receipt_id", "github_shard_id", "github_run_id", "github_job_id", "github_artifact_id", "github_artifact_digest", "github_receipt_evidence_id", "github_receipt_sha256", "github_artifact_checksum_manifest_sha256", "source_product_head", "xcode_version", "xcode_build", "simulator_runtime", "simulator_name", "simulator_os_build", "selector", "state_set_sha256", "shared_build_archive_sha256", "shared_build_xctestrun_sha256", "shared_build_products_sha256", "unit_test_count", "unit_result", "ax_state_count", "ax_result", "contrast_state_count", "contrast_result", "accessibility_task_count", "task_result", "watchdog_result", "receipt_result", "cross_provider_screenshot_byte_equality_required"],
             "properties": {
               "equivalent": { "const": true },
-              "github_receipt_id": { "type": "string", "pattern": "^s10\.4-github-equivalence-(default-light|default-dark)$" },
+              "github_receipt_id": { "type": "string", "pattern": "^s10\\.4-github-equivalence-(default-light|default-dark)$" },
               "github_shard_id": { "enum": ["s10.4.current.default-light", "s10.4.current.default-dark"] },
               "github_run_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },
               "github_job_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },
@@ -449,7 +449,7 @@
         "additionalProperties": false,
         "required": ["receipt_id", "shard_id", "run_id", "job_id", "artifact_id", "artifact_digest", "receipt_evidence_id", "receipt_sha256", "artifact_checksum_manifest_sha256", "source_product_head", "xcode_version", "xcode_build", "simulator_runtime", "simulator_name", "simulator_os_build", "selector", "state_set_sha256", "shared_build_archive_sha256", "shared_build_xctestrun_sha256", "shared_build_products_sha256", "unit_test_count", "unit_result", "ax_state_count", "ax_result", "contrast_state_count", "contrast_result", "accessibility_task_count", "task_result", "watchdog_result", "receipt_result", "evidence_ids"],
         "properties": {
-          "receipt_id": { "type": "string", "pattern": "^s10\.4-github-equivalence-(default-light|default-dark)$" },
+          "receipt_id": { "type": "string", "pattern": "^s10\\.4-github-equivalence-(default-light|default-dark)$" },
           "shard_id": { "enum": ["s10.4.current.default-light", "s10.4.current.default-dark"] },
           "run_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },
           "job_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },
