@@ -39,14 +39,15 @@
     "s10_branch": "phase/s10-brand-refresh",
     "authority_document_path": "docs/execution/CURRENT_TASK.md",
     "pinned_plan_path": "docs/product/BUILD_PLAN_V4.md",
-    "pinned_plan_sha256": "0477672A3F97E02E229A8DC84B3F27AAF60A3B535FD51B68DADA94ADF410FF4D",
+    "pinned_plan_sha256": "FE1EA70D7281E4CD1B90C262B6E5650C84EE50D00904FAC05300AC0C5A85074F",
     "pinned_runbook_path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
-    "pinned_runbook_sha256": "0AEA815EE3C427BD34E2A2F30C234866FCA023FDD6BABEB3C277F60606F973CB",
+    "pinned_runbook_sha256": "63EE3C0AB15211E6FC2F817C0CD3FC055A3897C0D42482ED6C83893E97B2AE37",
     "allowed_remote_operations": [
       "fetch",
       "read_refs",
       "push_exact_phase_non_force",
       "dispatch_ios_ci_workflow",
+      "dispatch_bitrise_s10_4_equivalence_workflow",
       "inspect_runs_and_artifacts",
       "download_exact_run_artifacts",
       "fast_forward_main_after_green_phase_boundary"

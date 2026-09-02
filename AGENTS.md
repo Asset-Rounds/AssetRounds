@@ -1,10 +1,27 @@
 # Repository Instructions
 
+## Subagent orchestration
+
+- Reuse an existing subagent with relevant context before spawning a replacement. When reuse is not practical, create a fresh agent rather than forcing an unsuitable context.
+- Use `gpt-5.6-luna` at `max` reasoning for lightweight monitoring, inventory, extraction, deterministic hygiene checks, and other bounded support work.
+- Use `gpt-5.6-terra` at `medium`, `high`, `xhigh`, or `max` reasoning for substantive implementation, review, and CI support, choosing the lowest level that fits the task.
+- Use `gpt-5.6-sol` at `low` or `medium` reasoning for the most consequential implementation, integration, and CI decisions that benefit from stronger coding judgment.
+- Give every delegated task a detailed, bounded brief: objective, exact owned paths or read-only scope, authority pins, required invariants and evidence, validation commands, explicit prohibitions, and the expected decision-ready report.
+- Parallelize independent work when it reduces elapsed time, while keeping shared-worktree ownership non-overlapping. Reserve at least one independent audit lane for consequential contracts or integration seams when capacity permits.
+- Prefer useful implementation and verification depth over redundant work. Do not consume tokens merely to consume a quota.
+
+## CI capacity preference
+
+- As a standing project-wide preference, use all eight available hosted runners whenever the current task explicitly permits both routes and there are eight distinct, useful, dependency-ready jobs: up to five GitHub macOS runners and up to three Bitrise M4 runners. GitHub remains the ordinary formal-acceptance route. S10.4 alone may count the exact Bitrise shards named by its owner-approved hybrid-equivalence authority after that authority's nonaccepting same-head GitHub-to-Bitrise equivalence gate passes.
+- Refill eligible capacity at the point required by the current task. Inspect every terminal result's complete evidence before accepting it or making an evidence-based correction, and perform inspection in parallel with refilling whenever the current task permits. If fewer than eight jobs are eligible, use the maximum useful subset and leave blocked capacity idle rather than duplicating work.
+- Never duplicate a shard, cancel an in-progress run, exceed the current task's running/queued limits, launch downstream acceptance before a required gate is terminal, or treat Bitrise evidence as formal acceptance outside the exact S10.4 hybrid-equivalence exception. Historical Bitrise development evidence is never retroactively promoted.
+- A diagnosed correction creates a new exact head and invalidates unfinished or historical shard acceptance for the prior head; preserve all prior artifacts and provenance.
+
 Implement only the one current card selected in `docs/execution/CURRENT_TASK.md`. When that file explicitly enables phase and program autopilot, the narrow same-phase transition and phase-boundary integration described below are also authorized; adjacent improvements are not.
 
 ## Build route
 
-Author on Windows. Compile, test, and run the iOS Simulator only through the task-named GitHub Actions macOS workflow. “Local” describes device-local app data, not the build host. Never claim an iOS build/test result from Windows. XcodeBuildMCP and an owner-operated Mac are not required.
+Author on Windows. Compile, test, and run the iOS Simulator only through the task-named hosted macOS workflow. GitHub Actions is the ordinary route; S10.4 may additionally use only the exact Bitrise Build Hub producer and current-runtime shards admitted by its owner-approved hybrid-equivalence authority. A shared S10.4 build is valid only when its complete immutable checksummed `.xctestrun` and `Build/Products` closure is bound to the exact head and every consumer uses `test-without-building` without rebuild or fallback. “Local” describes device-local app data, not the build host. Never claim an iOS build/test result from Windows. XcodeBuildMCP and an owner-operated Mac are not required.
 
 ## Authority
 

@@ -294,7 +294,72 @@ Assert-Equal $manifest.runtime_contract.minimum_runtime "iOS 18.0" "minimum runt
 Assert-Equal $manifest.runtime_contract.minimum_runtime_build "22A3351" "minimum runtime build"
 Assert-Equal $manifest.runtime_contract.minimum_simulator_name "iPhone SE (3rd generation)" "minimum simulator"
 
-# The original activation, ZIP, external package manifest, and runbook remain immutable.
+$expectedHarnessCorrectionAllowlist = @(
+    ".github/workflows/ios-ci.yml",
+    ".github/workflows/ios-ci-worker.yml",
+    "Scripts/build-smoke.sh",
+    "Scripts/test-smoke.sh",
+    "Scripts/ui-smoke.sh",
+    "Scripts/run-with-timeout.sh",
+    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+    "docs/execution/CURRENT_TASK.md"
+)
+$expectedBitriseShards = @("s10.4.current.default-light", "s10.4.current.default-dark")
+$expectedGitHubMinimumShards = @(
+    "s10.4.minimum.minimum-os",
+    "s10.4.minimum.double-length",
+    "s10.4.minimum.rtl",
+    "s10.4.minimum.rtl-string",
+    "s10.4.minimum.tall",
+    "s10.4.minimum.accented",
+    "s10.4.minimum.bounded"
+)
+$expectedComparisonMethod = "Exact provider-local PNG-byte XCT attachment exported from UISmoke.xcresult and reconstructed byte-for-byte at evidence K; cross-provider equivalence is receipt-bound and does not require PNG byte equality"
+$hybrid = $manifest.hybrid_execution_contract
+Assert-Equal $hybrid.profile_id "s10.4-hybrid-exact-head-xctestrun-v1" "hybrid profile ID"
+Assert-Equal $hybrid.github_toolchain_baseline "docs/design/s10/s10-activation.json#toolchain" "hybrid GitHub baseline"
+Assert-Equal $hybrid.github_runner_provider "github_actions" "hybrid GitHub provider"
+Assert-ExactSet @($hybrid.github_required_minimum_shard_ids) $expectedGitHubMinimumShards "hybrid GitHub minimum shards"
+Assert-Equal $hybrid.github_minimum_device_profile.device_profile_id "iphone-se-3-ios-18.0-minimum" "hybrid minimum profile"
+Assert-Equal $hybrid.github_minimum_device_profile.simulator_runtime "iOS 18.0" "hybrid minimum runtime"
+Assert-Equal $hybrid.github_minimum_device_profile.simulator_os_build "22A3351" "hybrid minimum OS build"
+Assert-Equal $hybrid.github_minimum_device_profile.simulator_name "iPhone SE (3rd generation)" "hybrid minimum simulator"
+Assert-Equal $hybrid.bitrise_provider "bitrise_build_hub" "hybrid Bitrise provider"
+Assert-ExactSet @($hybrid.bitrise_eligible_current_shard_ids) $expectedBitriseShards "hybrid Bitrise shards"
+Assert-Equal $hybrid.bitrise_current_device_profile.device_profile_id "iphone-17-ios-26.2-current" "hybrid Bitrise profile"
+Assert-Equal $hybrid.bitrise_current_device_profile.simulator_runtime "iOS 26.2" "hybrid Bitrise runtime"
+Assert-Equal $hybrid.bitrise_current_device_profile.simulator_os_build "23C54" "hybrid Bitrise OS build"
+Assert-Equal $hybrid.bitrise_current_device_profile.simulator_name "iPhone 17" "hybrid Bitrise simulator"
+Assert-Equal $hybrid.payload_profile.profile_id "s10.4-exact-head-xctestrun-build-products-v1" "payload profile ID"
+Assert-ExactSet @($hybrid.payload_profile.required_members) @("relocatable .xctestrun", "complete Build/Products closure") "payload required members"
+foreach ($field in @("one_exact_head_payload_required", "checksummed_immutable", "consumer_rebuild_forbidden", "consumer_fallback_forbidden", "mixed_head_forbidden")) {
+    Assert-Equal $hybrid.payload_profile.$field $true "payload $field"
+}
+Assert-Equal $hybrid.payload_profile.producer_provider "bitrise_build_hub" "payload producer provider"
+Assert-Equal $hybrid.payload_profile.artifact_transport_provider "github_actions" "payload artifact transport provider"
+Assert-Equal $hybrid.payload_profile.consumer_execution_mode "test-without-building" "payload consumer execution"
+Assert-Equal $hybrid.equivalence_gate.same_shard_github_to_bitrise_required_before_bitrise_receipt_counts $true "same-shard equivalence gate"
+Assert-Equal $hybrid.equivalence_gate.exact_head_required $true "equivalence exact head"
+Assert-Equal $hybrid.equivalence_gate.xcode_version "Xcode 26.6" "equivalence Xcode version"
+Assert-Equal $hybrid.equivalence_gate.xcode_build "17F113" "equivalence Xcode build"
+Assert-Equal $hybrid.equivalence_gate.selector "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests" "equivalence selector"
+Assert-Equal $hybrid.equivalence_gate.state_count 67 "equivalence state count"
+Assert-Equal $hybrid.equivalence_gate.accessibility_task_count 6 "equivalence task count"
+Assert-Equal $hybrid.equivalence_gate.provider_local_screenshot_bytes_must_be_checksummed $true "provider-local screenshots checksummed"
+Assert-Equal $hybrid.equivalence_gate.cross_provider_screenshot_byte_equality_required $false "cross-provider screenshot byte equality"
+foreach ($watchdog in @{
+    requirement_count = 14; state_count = 67; candidate_cell_count = 938; accessibility_row_count = 84; task_count = 6;
+    simulator_readiness_seconds = 900; setup_seconds = 420; build_seconds = 900; test_seconds = 1200; ui_seconds = 2520; total_seconds = 4500; job_watchdog_seconds = 5400
+}.GetEnumerator()) {
+    Assert-Equal $hybrid.unchanged_matrix_and_watchdogs.$($watchdog.Key) $watchdog.Value "hybrid invariant $($watchdog.Key)"
+}
+Assert-ExactSet @($manifest.harness_correction_allowlist) $expectedHarnessCorrectionAllowlist "harness correction allowlist"
+Assert-Equal $manifest.harness_correction_scope "Only the listed S10.4 execution-harness paths may implement this profile; no product, project, test selector, fixture, asset, matrix, or watchdog expansion is authorized." "harness correction scope"
+Assert-Contains @($activation.repository_authority.allowed_remote_operations) "dispatch_bitrise_s10_4_equivalence_workflow" "activation Bitrise equivalence dispatch"
+Assert-Equal $activation.repository_authority.pinned_plan_sha256 (Get-Sha256 (Join-Path $RepositoryRoot $activation.repository_authority.pinned_plan_path)) "activation plan repin"
+Assert-Equal $activation.repository_authority.pinned_runbook_sha256 (Get-Sha256 (Join-Path $RepositoryRoot $activation.repository_authority.pinned_runbook_path)) "activation runbook repin"
+# The V4.1 ZIP, external package manifest, and base runbook remain immutable;
+# activation is schema-frozen and may carry only the separately validated pin/dispatch amendment.
 $baseFiles = @(
     @{ Path = $manifest.base_authority.activation_path; Sha = $manifest.base_authority.activation_sha256 },
     @{ Path = $manifest.base_authority.package_path; Sha = $manifest.base_authority.package_sha256 },
@@ -405,6 +470,7 @@ Assert-Equal $experience.product_head $manifest.base_authority.accepted_migratio
 
 $expectedSourceTest = "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift::S10_4AutomatedBrandLabUITests.testAutomatedBrandLabShard"
 Assert-Equal $manifest.matrix_contract.source_test $expectedSourceTest "source test"
+Assert-Equal $manifest.matrix_contract.comparison_method $expectedComparisonMethod "provider-local comparison method"
 
 # Freeze the corrected seven-current/seven-minimum shard map.
 $expectedShardMap = [ordered]@{
@@ -584,6 +650,51 @@ foreach ($path in $evidenceDocumentPaths) {
 Assert-ExactSet @($visual.shard_receipts.shard_id) @($manifest.shards.shard_id) "visual shard receipt IDs"
 Assert-Equal @($visual.shard_receipts).Count 14 "shard receipt count"
 $receiptByShard = @{}
+$bitriseReceiptCount = 0
+$payloadFingerprints = [System.Collections.Generic.List[string]]::new()
+$githubEquivalenceReceipts = if ($visual.PSObject.Properties.Name -ccontains "github_equivalence_receipts") { @($visual.github_equivalence_receipts) } else { @() }
+$githubEquivalenceByID = @{}
+$githubEquivalenceByShard = @{}
+foreach ($githubReceipt in $githubEquivalenceReceipts) {
+    $githubReceiptID = [string]$githubReceipt.receipt_id
+    $githubShardID = [string]$githubReceipt.shard_id
+    if ($githubEquivalenceByID.ContainsKey($githubReceiptID)) {
+        Add-ValidationError "Duplicate GitHub equivalence receipt ID '$githubReceiptID'."
+    }
+    else {
+        $githubEquivalenceByID[$githubReceiptID] = $githubReceipt
+    }
+    if ($githubEquivalenceByShard.ContainsKey($githubShardID)) {
+        Add-ValidationError "Duplicate GitHub equivalence receipt shard '$githubShardID'."
+    }
+    else {
+        $githubEquivalenceByShard[$githubShardID] = $githubReceipt
+    }
+    Assert-Contains $expectedBitriseShards $githubShardID "$githubShardID GitHub equivalence eligibility"
+    $githubRequirementID = $githubShardID.Replace("s10.4.current.", "")
+    Assert-Equal $githubReceiptID "s10.4-github-equivalence-$githubRequirementID" "$githubShardID GitHub equivalence receipt ID"
+    $githubRunEvidenceID = "github-actions-run-$($githubReceipt.run_id)-job-$($githubReceipt.job_id)-artifact-$($githubReceipt.artifact_id)"
+    Assert-Equal $githubReceipt.receipt_evidence_id $githubRunEvidenceID "$githubShardID GitHub equivalence evidence ID"
+    Assert-Contains @($githubReceipt.evidence_ids) $githubRunEvidenceID "$githubShardID GitHub equivalence evidence"
+    Assert-Equal $githubReceipt.source_product_head $ProductHead "$githubShardID GitHub equivalence head"
+    Assert-Equal $githubReceipt.xcode_version $activation.toolchain.xcode_version "$githubShardID GitHub equivalence Xcode version"
+    Assert-Equal $githubReceipt.xcode_build $activation.toolchain.xcode_build "$githubShardID GitHub equivalence Xcode build"
+    Assert-Equal $githubReceipt.simulator_runtime $hybrid.bitrise_current_device_profile.simulator_runtime "$githubShardID GitHub equivalence runtime"
+    Assert-Equal $githubReceipt.simulator_name $hybrid.bitrise_current_device_profile.simulator_name "$githubShardID GitHub equivalence simulator"
+    Assert-Equal $githubReceipt.simulator_os_build $hybrid.bitrise_current_device_profile.simulator_os_build "$githubShardID GitHub equivalence OS build"
+    Assert-Equal $githubReceipt.selector $hybrid.equivalence_gate.selector "$githubShardID GitHub equivalence selector"
+    Assert-Equal $githubReceipt.state_set_sha256 $manifest.matrix_contract.state_set_sha256 "$githubShardID GitHub equivalence state digest"
+    Assert-Equal $githubReceipt.unit_test_count 5 "$githubShardID GitHub equivalence unit count"
+    Assert-Equal $githubReceipt.unit_result "PASS" "$githubShardID GitHub equivalence unit result"
+    Assert-Equal $githubReceipt.ax_state_count 67 "$githubShardID GitHub equivalence AX count"
+    Assert-Equal $githubReceipt.ax_result "PASS" "$githubShardID GitHub equivalence AX result"
+    Assert-Equal $githubReceipt.contrast_state_count 67 "$githubShardID GitHub equivalence contrast count"
+    Assert-Equal $githubReceipt.contrast_result "PASS" "$githubShardID GitHub equivalence contrast result"
+    Assert-Equal $githubReceipt.accessibility_task_count 6 "$githubShardID GitHub equivalence task count"
+    Assert-Equal $githubReceipt.task_result "PASS" "$githubShardID GitHub equivalence task result"
+    Assert-Equal $githubReceipt.watchdog_result "PASS" "$githubShardID GitHub equivalence watchdog result"
+    Assert-Equal $githubReceipt.receipt_result "PASS" "$githubShardID GitHub equivalence receipt result"
+}
 foreach ($receipt in $visual.shard_receipts) {
     $receiptByShard[$receipt.shard_id] = $receipt
     $shard = @($manifest.shards | Where-Object shard_id -CEQ $receipt.shard_id)[0]
@@ -591,8 +702,73 @@ foreach ($receipt in $visual.shard_receipts) {
     Assert-Equal $receipt.device_profile_id $shard.device_profile_id "$($receipt.shard_id) receipt profile"
     Assert-Equal $receipt.accessibility_feature $shard.accessibility_feature "$($receipt.shard_id) receipt feature"
     Assert-Equal $receipt.source_product_head $ProductHead "$($receipt.shard_id) receipt E"
-    Assert-Equal $receipt.runner_label $activation.toolchain.runner_label "$($receipt.shard_id) runner label"
-    Assert-Equal $receipt.runner_image $activation.toolchain.runner_image "$($receipt.shard_id) runner image"
+    $provider = if ([string]::IsNullOrWhiteSpace([string]$receipt.runner_provider)) { "github_actions" } else { [string]$receipt.runner_provider }
+    if ($provider -ceq "github_actions") {
+        Assert-Equal $receipt.runner_label $activation.toolchain.runner_label "$($receipt.shard_id) GitHub runner label"
+        Assert-Equal $receipt.runner_image $activation.toolchain.runner_image "$($receipt.shard_id) GitHub runner image"
+    }
+    elseif ($provider -ceq "bitrise_build_hub") {
+        $bitriseReceiptCount++
+        Assert-Contains $expectedBitriseShards $receipt.shard_id "$($receipt.shard_id) Bitrise eligibility"
+        Assert-Equal $receipt.runner_label "bitrise-m4-pro" "$($receipt.shard_id) Bitrise runner label"
+        Assert-Equal $receipt.simulator_runtime $hybrid.bitrise_current_device_profile.simulator_runtime "$($receipt.shard_id) Bitrise runtime"
+        Assert-Equal $receipt.simulator_name $hybrid.bitrise_current_device_profile.simulator_name "$($receipt.shard_id) Bitrise simulator"
+        Assert-Equal $receipt.simulator_os_build $hybrid.bitrise_current_device_profile.simulator_os_build "$($receipt.shard_id) Bitrise OS build"
+        foreach ($field in @("build_payload", "same_shard_github_equivalence", "provider_local_screenshot_checksum_manifest_path", "provider_local_screenshot_checksum_manifest_sha256")) {
+            if ($null -eq $receipt.$field -or [string]::IsNullOrWhiteSpace([string]$receipt.$field)) {
+                Add-ValidationError "$($receipt.shard_id) Bitrise receipt lacks $field."
+            }
+        }
+        if ($null -ne $receipt.same_shard_github_equivalence) {
+            $equivalence = $receipt.same_shard_github_equivalence
+            Assert-Equal $equivalence.equivalent $true "$($receipt.shard_id) same-shard equivalence"
+            Assert-Equal $equivalence.github_shard_id $receipt.shard_id "$($receipt.shard_id) equivalence shard"
+            $githubReceiptEvidenceID = "github-actions-run-$($equivalence.github_run_id)-job-$($equivalence.github_job_id)-artifact-$($equivalence.github_artifact_id)"
+            Assert-Equal $equivalence.github_receipt_evidence_id $githubReceiptEvidenceID "$($receipt.shard_id) equivalence receipt evidence ID"
+            $githubReceipt = if ($githubEquivalenceByID.ContainsKey([string]$equivalence.github_receipt_id)) { $githubEquivalenceByID[[string]$equivalence.github_receipt_id] } else { $null }
+            if ($null -eq $githubReceipt) {
+                Add-ValidationError "$($receipt.shard_id) equivalence does not resolve a unique GitHub receipt '$($equivalence.github_receipt_id)'."
+            }
+            else {
+                Assert-Equal $githubReceipt.shard_id $receipt.shard_id "$($receipt.shard_id) resolved GitHub receipt shard"
+                Assert-Equal $equivalence.github_run_id $githubReceipt.run_id "$($receipt.shard_id) equivalence GitHub run"
+                Assert-Equal $equivalence.github_job_id $githubReceipt.job_id "$($receipt.shard_id) equivalence GitHub job"
+                Assert-Equal $equivalence.github_artifact_id $githubReceipt.artifact_id "$($receipt.shard_id) equivalence GitHub artifact"
+                Assert-Equal $equivalence.github_artifact_digest $githubReceipt.artifact_digest "$($receipt.shard_id) equivalence GitHub artifact digest"
+                Assert-Equal $equivalence.github_receipt_evidence_id $githubReceipt.receipt_evidence_id "$($receipt.shard_id) equivalence GitHub evidence ID"
+                Assert-Equal $equivalence.github_receipt_sha256 $githubReceipt.receipt_sha256 "$($receipt.shard_id) equivalence GitHub receipt hash"
+                Assert-Equal $equivalence.github_artifact_checksum_manifest_sha256 $githubReceipt.artifact_checksum_manifest_sha256 "$($receipt.shard_id) equivalence GitHub checksum-manifest hash"
+                Assert-Equal $equivalence.shared_build_archive_sha256 $githubReceipt.shared_build_archive_sha256 "$($receipt.shard_id) equivalence GitHub payload archive"
+                Assert-Equal $equivalence.shared_build_xctestrun_sha256 $githubReceipt.shared_build_xctestrun_sha256 "$($receipt.shard_id) equivalence GitHub xctestrun"
+                Assert-Equal $equivalence.shared_build_products_sha256 $githubReceipt.shared_build_products_sha256 "$($receipt.shard_id) equivalence GitHub Build/Products"
+            }
+            Assert-Equal $equivalence.source_product_head $ProductHead "$($receipt.shard_id) equivalence head"
+            Assert-Equal $equivalence.xcode_version $activation.toolchain.xcode_version "$($receipt.shard_id) equivalence Xcode version"
+            Assert-Equal $equivalence.xcode_build $activation.toolchain.xcode_build "$($receipt.shard_id) equivalence Xcode build"
+            Assert-Equal $equivalence.simulator_runtime $receipt.simulator_runtime "$($receipt.shard_id) equivalence runtime"
+            Assert-Equal $equivalence.simulator_name $receipt.simulator_name "$($receipt.shard_id) equivalence simulator"
+            Assert-Equal $equivalence.simulator_os_build $receipt.simulator_os_build "$($receipt.shard_id) equivalence OS build"
+            Assert-Equal $equivalence.selector $receipt.selector "$($receipt.shard_id) equivalence selector"
+            Assert-Equal $equivalence.state_set_sha256 $receipt.state_set_sha256 "$($receipt.shard_id) equivalence state digest"
+            Assert-Equal $equivalence.shared_build_archive_sha256 $receipt.build_payload.archive_sha256 "$($receipt.shard_id) equivalence payload archive"
+            Assert-Equal $equivalence.shared_build_xctestrun_sha256 $receipt.build_payload.xctestrun_sha256 "$($receipt.shard_id) equivalence xctestrun"
+            Assert-Equal $equivalence.shared_build_products_sha256 $receipt.build_payload.build_products_sha256 "$($receipt.shard_id) equivalence Build/Products"
+            Assert-Equal $equivalence.unit_test_count 5 "$($receipt.shard_id) equivalence unit count"
+            Assert-Equal $equivalence.unit_result "PASS" "$($receipt.shard_id) equivalence unit result"
+            Assert-Equal $equivalence.ax_state_count 67 "$($receipt.shard_id) equivalence AX count"
+            Assert-Equal $equivalence.ax_result "PASS" "$($receipt.shard_id) equivalence AX result"
+            Assert-Equal $equivalence.contrast_state_count 67 "$($receipt.shard_id) equivalence contrast count"
+            Assert-Equal $equivalence.contrast_result "PASS" "$($receipt.shard_id) equivalence contrast result"
+            Assert-Equal $equivalence.accessibility_task_count 6 "$($receipt.shard_id) equivalence task count"
+            Assert-Equal $equivalence.task_result "PASS" "$($receipt.shard_id) equivalence task result"
+            Assert-Equal $equivalence.watchdog_result "PASS" "$($receipt.shard_id) equivalence watchdog result"
+            Assert-Equal $equivalence.receipt_result "PASS" "$($receipt.shard_id) equivalence receipt result"
+            Assert-Equal $equivalence.cross_provider_screenshot_byte_equality_required $false "$($receipt.shard_id) equivalence screenshot policy"
+        }
+    }
+    else {
+        Add-ValidationError "$($receipt.shard_id) has unsupported runner provider '$provider'."
+    }
     Assert-Equal $receipt.xcode_version $activation.toolchain.xcode_version "$($receipt.shard_id) Xcode version"
     Assert-Equal $receipt.xcode_build $activation.toolchain.xcode_build "$($receipt.shard_id) Xcode build"
     Assert-Equal $receipt.sdk_name $activation.toolchain.sdk_name "$($receipt.shard_id) SDK"
@@ -605,8 +781,30 @@ foreach ($receipt in $visual.shard_receipts) {
     Assert-Equal $receipt.state_count 67 "$($receipt.shard_id) state count"
     Assert-Equal $receipt.accessibility_task_count 6 "$($receipt.shard_id) task count"
     Assert-Equal $receipt.state_set_sha256 $manifest.matrix_contract.state_set_sha256 "$($receipt.shard_id) state digest"
+    if ($null -ne $receipt.build_payload) {
+        $payload = $receipt.build_payload
+        Assert-Equal $payload.profile_id $hybrid.payload_profile.profile_id "$($receipt.shard_id) payload profile"
+        Assert-Equal $payload.producer_provider $hybrid.payload_profile.producer_provider "$($receipt.shard_id) payload producer provider"
+        Assert-Equal $payload.source_product_head $ProductHead "$($receipt.shard_id) payload head"
+        Assert-Equal $payload.complete_build_products_closure $true "$($receipt.shard_id) payload Build/Products closure"
+        Assert-Equal $payload.immutable $true "$($receipt.shard_id) payload immutable"
+        Assert-Equal $payload.relocatable $true "$($receipt.shard_id) payload relocatable"
+        Assert-Equal $payload.consumer_execution_mode "test-without-building" "$($receipt.shard_id) payload execution mode"
+        Assert-Equal $payload.consumer_rebuild_forbidden $true "$($receipt.shard_id) payload rebuild prohibition"
+        Assert-Equal $payload.consumer_fallback_forbidden $true "$($receipt.shard_id) payload fallback prohibition"
+        Assert-Equal $payload.mixed_head_forbidden $true "$($receipt.shard_id) payload mixed-head prohibition"
+        $payloadFingerprints.Add("$($payload.archive_sha256)|$($payload.xctestrun_sha256)|$($payload.build_products_sha256)|$($payload.source_product_head)")
+    }
     $runEvidenceID = "github-actions-run-$($receipt.run_id)-job-$($receipt.job_id)-artifact-$($receipt.artifact_id)"
     Assert-Contains @($receipt.evidence_ids) $runEvidenceID "$($receipt.shard_id) receipt evidence"
+}
+if ($bitriseReceiptCount -ne 0) {
+    Assert-Equal $githubEquivalenceReceipts.Count $bitriseReceiptCount "one unique GitHub equivalence receipt per Bitrise receipt"
+    Assert-Equal $payloadFingerprints.Count @($visual.shard_receipts).Count "all consumers carry shared build payload"
+    Assert-Equal @($payloadFingerprints | Select-Object -Unique).Count 1 "one exact-head build payload"
+}
+else {
+    Assert-Equal $githubEquivalenceReceipts.Count 0 "no unused GitHub equivalence receipts without Bitrise receipts"
 }
 
 $expectedCandidateTuples = foreach ($stateID in $stateIDs) {
@@ -626,6 +824,7 @@ $changeIDs = @($visual.change_records.change_id)
 foreach ($cell in $visual.candidate_cells) {
     $shard = @($manifest.shards | Where-Object requirement_id -CEQ $cell.requirement_id)[0]
     $receipt = $receiptByShard[$shard.shard_id]
+    $receiptProvider = if ([string]::IsNullOrWhiteSpace([string]$receipt.runner_provider)) { "github_actions" } else { [string]$receipt.runner_provider }
     Assert-Equal $cell.baseline_id $baselineByState[$cell.screen_state_id] "$($cell.cell_id) baseline"
     Assert-Equal $cell.shard_id $shard.shard_id "$($cell.cell_id) shard"
     Assert-Equal $cell.source_product_head $ProductHead "$($cell.cell_id) E"
@@ -635,6 +834,12 @@ foreach ($cell in $visual.candidate_cells) {
     }
     foreach ($field in @("run_id", "job_id", "artifact_id", "artifact_name", "artifact_digest")) {
         Assert-Equal $cell.$field $receipt.$field "$($cell.cell_id) $field"
+    }
+    if ($receiptProvider -ceq "bitrise_build_hub" -and [string]::IsNullOrWhiteSpace([string]$cell.runner_provider)) {
+        Add-ValidationError "$($cell.cell_id) Bitrise candidate lacks runner_provider."
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$cell.runner_provider)) {
+        Assert-Equal $cell.runner_provider $receiptProvider "$($cell.cell_id) runner provider"
     }
     $expectedAttachmentName = "S10.4 candidate $($cell.shard_id) $($cell.screen_state_id)"
     $artifactRoot = "https://github.com/palatis3/AssetRounds/actions/runs/$($cell.run_id)/artifacts/$($cell.artifact_id)"
@@ -650,7 +855,7 @@ foreach ($cell in $visual.candidate_cells) {
     Assert-Equal $cell.ax_evidence_locator $expectedAXLocator "$($cell.cell_id) AX evidence locator"
     Assert-Equal $cell.contrast_evidence_id $expectedContrastID "$($cell.cell_id) contrast evidence ID"
     Assert-Equal $cell.contrast_evidence_locator $expectedContrastLocator "$($cell.cell_id) contrast evidence locator"
-    Assert-Equal $cell.comparison_method $manifest.matrix_contract.comparison_method "$($cell.cell_id) comparison method"
+    Assert-Equal $cell.comparison_method $expectedComparisonMethod "$($cell.cell_id) comparison method"
     Assert-Equal $cell.tolerance 0 "$($cell.cell_id) tolerance"
     Assert-Equal $cell.result "PASS" "$($cell.cell_id) result"
     Assert-Equal $cell.review_status "APPROVED" "$($cell.cell_id) review status"

@@ -5,13 +5,13 @@
   "purpose": "Append-only correction for truthful sharded S10.4 automated visual and accessibility evidence",
   "base_authority": {
     "activation_path": "docs/design/s10/s10-activation.json",
-    "activation_sha256": "80C6102D703AE836C14F38562E04BDFD28D333DF9EC9848324F4DC34CFBF880D",
+    "activation_sha256": "32C031CBFC72FB519955AD94E55BDDD3CE881E01AF46BC79007A221DEC4B64DB",
     "package_path": "docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip",
     "package_sha256": "D05ACDC8195B1C7C05230BCBD0AC59E436681D93FCA9AC12108B2BE98A408400",
     "asset_manifest_path": "docs/design/s10/authority/asset-manifest.json",
     "asset_manifest_sha256": "F771EB8FBD3D42960FC4B8C0A516A05E8B0FD16EBA2C88107ADD6A4E0D74F551",
     "runbook_path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
-    "runbook_sha256": "4AD0F8BE1A383BBDF0D6EFF4059D2283EEE51EEDE9E467DE645E1A331DE0C06B",
+    "runbook_sha256": "63EE3C0AB15211E6FC2F817C0CD3FC055A3897C0D42482ED6C83893E97B2AE37",
     "workflow_path": ".github/workflows/ios-ci.yml",
     "workflow_sha256_before_amendment": "BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7",
     "v4_1_visual_schema_sha256": "EA0F3305B29117A8773285426AF362C7667E25171773CAAE2CFF37594AF8C0AB",
@@ -53,6 +53,88 @@
     "minimum_runtime_build": "22A3351",
     "minimum_simulator_name": "iPhone SE (3rd generation)"
   },
+  "hybrid_execution_contract": {
+    "profile_id": "s10.4-hybrid-exact-head-xctestrun-v1",
+    "github_toolchain_baseline": "docs/design/s10/s10-activation.json#toolchain",
+    "github_runner_provider": "github_actions",
+    "github_required_minimum_shard_ids": [
+      "s10.4.minimum.minimum-os",
+      "s10.4.minimum.double-length",
+      "s10.4.minimum.rtl",
+      "s10.4.minimum.rtl-string",
+      "s10.4.minimum.tall",
+      "s10.4.minimum.accented",
+      "s10.4.minimum.bounded"
+    ],
+    "github_minimum_device_profile": {
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_os_build": "22A3351",
+      "simulator_name": "iPhone SE (3rd generation)"
+    },
+    "bitrise_provider": "bitrise_build_hub",
+    "bitrise_eligible_current_shard_ids": [
+      "s10.4.current.default-light",
+      "s10.4.current.default-dark"
+    ],
+    "bitrise_current_device_profile": {
+      "device_profile_id": "iphone-17-ios-26.2-current",
+      "simulator_runtime": "iOS 26.2",
+      "simulator_os_build": "23C54",
+      "simulator_name": "iPhone 17"
+    },
+    "payload_profile": {
+      "profile_id": "s10.4-exact-head-xctestrun-build-products-v1",
+      "producer_provider": "bitrise_build_hub",
+      "artifact_transport_provider": "github_actions",
+      "one_exact_head_payload_required": true,
+      "required_members": [
+        "relocatable .xctestrun",
+        "complete Build/Products closure"
+      ],
+      "checksummed_immutable": true,
+      "consumer_execution_mode": "test-without-building",
+      "consumer_rebuild_forbidden": true,
+      "consumer_fallback_forbidden": true,
+      "mixed_head_forbidden": true
+    },
+    "equivalence_gate": {
+      "same_shard_github_to_bitrise_required_before_bitrise_receipt_counts": true,
+      "exact_head_required": true,
+      "xcode_version": "Xcode 26.6",
+      "xcode_build": "17F113",
+      "selector": "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests",
+      "state_count": 67,
+      "accessibility_task_count": 6,
+      "provider_local_screenshot_bytes_must_be_checksummed": true,
+      "cross_provider_screenshot_byte_equality_required": false
+    },
+    "unchanged_matrix_and_watchdogs": {
+      "requirement_count": 14,
+      "state_count": 67,
+      "candidate_cell_count": 938,
+      "accessibility_row_count": 84,
+      "task_count": 6,
+      "simulator_readiness_seconds": 900,
+      "setup_seconds": 420,
+      "build_seconds": 900,
+      "test_seconds": 1200,
+      "ui_seconds": 2520,
+      "total_seconds": 4500,
+      "job_watchdog_seconds": 5400
+    }
+  },
+  "harness_correction_allowlist": [
+    ".github/workflows/ios-ci.yml",
+    ".github/workflows/ios-ci-worker.yml",
+    "Scripts/build-smoke.sh",
+    "Scripts/test-smoke.sh",
+    "Scripts/ui-smoke.sh",
+    "Scripts/run-with-timeout.sh",
+    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+    "docs/execution/CURRENT_TASK.md"
+  ],
+  "harness_correction_scope": "Only the listed S10.4 execution-harness paths may implement this profile; no product, project, test selector, fixture, asset, matrix, or watchdog expansion is authorized.",
   "product_delta_allowlist": [
     ".github/workflows/ios-ci.yml",
     "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
@@ -118,7 +200,7 @@
     "candidate_contrast_evidence_locator_format": "https://github.com/palatis3/AssetRounds/actions/runs/{run_id}/artifacts/{artifact_id} :: entry=contrast/{shard_id}/{screen_state_id}.json",
     "candidate_review_evidence_id_format": "owner-review-{shard_id}-{screen_state_id}",
     "common_task_evidence_locator_format": "https://github.com/palatis3/AssetRounds/actions/runs/{run_id}/artifacts/{artifact_id} :: entry=accessibility/{shard_id}/{task_id}.json",
-    "comparison_method": "Exact PNG-byte XCT attachment exported from UISmoke.xcresult and reconstructed byte-for-byte at evidence K",
+    "comparison_method": "Exact provider-local PNG-byte XCT attachment exported from UISmoke.xcresult and reconstructed byte-for-byte at evidence K; cross-provider equivalence is receipt-bound and does not require PNG byte equality",
     "legacy_baseline_candidate_fields": "immutable_blank",
     "manual_accessibility_status": "NOT_RUN"
   },
@@ -412,8 +494,8 @@
   "overlay_files": [
     {
       "path": "s10-visual-regression.schema.json",
-      "byte_length": 18485,
-      "sha256": "C922EDE2685691B488E8664F2AA89CE52D989C29FD54C0793EBD825DCC1A4DAE"
+      "byte_length": 27763,
+      "sha256": "AC8BE499D57D62586DC15A33AF40D52BA3D535C32C1CC4E8CEB52C30CB568C2A"
     },
     {
       "path": "s10-accessibility-common-tasks.schema.json",
@@ -422,8 +504,8 @@
     },
     {
       "path": "validate-s10-contracts.ps1",
-      "byte_length": 51997,
-      "sha256": "8B0648A839E66CDB7B444D331F17BF86428803FCEADDC66A5EFB1B80AFD60A62"
+      "byte_length": 70954,
+      "sha256": "33DE1F012FE5627B9B620B44CC2FA2B909CB5282C3D99F5F6738CFA83F6F7F6B"
     }
   ],
   "manifest_excludes_self": true,
