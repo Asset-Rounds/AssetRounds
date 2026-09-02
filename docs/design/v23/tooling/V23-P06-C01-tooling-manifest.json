@@ -1,4 +1,8 @@
 {
+  "appBaseIdentity": {
+    "head": "5b6f98b3bbaceee128c52a8815b5b5e3ee5eca9e",
+    "tree": "d6abeea2627cc312db39ca4d6476717f58040eca"
+  },
   "authority": {
     "appBaseHead": "5b6f98b3bbaceee128c52a8815b5b5e3ee5eca9e",
     "appBaseTree": "d6abeea2627cc312db39ca4d6476717f58040eca",
@@ -13,6 +17,7 @@
     "finalHashesSealed": false,
     "ledgerDigest": "0c187d220f572dc595711a406502ff601e73e3078110333f3fd5656add17e622",
     "newPathCount": 9,
+    "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
     "ordinal": 137,
     "ownerOverrideV5SHA256": "33ca39e0996baf62069f60d68b96181844160dfdcc97a2ba05e8ba045dfc46b5",
     "ownerOverrideV5SemanticDigest": "57255dfd005eedb7971f1dffb42257d06d44f4dd929788b125be1abb6fdf1e38",
@@ -44,29 +49,30 @@
   "generatedFiles": [
     {
       "path": "Scripts/v23/shallow-organization-static-protocol.schema.json",
-      "sha256": "45dc7e2dc26331502863c8dd2092aabc5a1b956e66243d2c84145912b9955419"
+      "sha256": "3fd370870f81b01e7b7dc14e3985b6ea4133a9d8ca6e8606a6cf35b8925a17ea"
     },
     {
       "path": "FieldEvidenceAppTests/Fixtures/V23/P06/ShallowOrganization/V23P06C01ShallowOrganizationStaticCorpusV1.json",
-      "sha256": "3538b885ca8801386e89f3b2bfafbe594a094402d47e3f33c54eed4d2c41e410"
+      "sha256": "c9a8054f44ed5000340bf62e664bfbb8118c722239c6e945000facbdf7d002ba"
     },
     {
       "path": "docs/design/v23/tooling/V23P06C01ShallowOrganizationStaticPreparationContractV1.json",
-      "sha256": "c0d697d6305435a33e888ed3663561b2e070be87b38f0f175f0919e75bd6d051"
+      "sha256": "2bca64e391d25bc7349306696be9b3145150791f991de461ca2a3d5d83db1881"
     },
     {
       "path": "docs/design/v23/tooling/V23P06C01ShallowOrganizationStaticPreparationEvidenceReceiptV1.json",
-      "sha256": "849110ea7cf9d8344d8e143478ed5c87e3bfceea56d5aca48167f9017fd55a62"
+      "sha256": "2c061f1d5831bb8c7008a89c4d51d1525cb886c28bd49c4e05ebec5a0342694e"
     },
     {
       "path": "docs/design/v23/tooling/V23P06C01BrandImpactManifestV1.json",
-      "sha256": "74070c44f101397fef993c5d3276d27f23a767d0ebb8bbd806e08253f64e5ef1"
+      "sha256": "f8f2bd7889d2afaa3f61b7d50065495c0593d87c952af413f1feb46561e2931f"
     }
   ],
   "manifest": "V23P06C01ToolingManifestV1",
   "noAcceptanceCredit": true,
   "noProductionPath": true,
   "noRealStudy": true,
+  "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
   "pathFence": [
     "Scripts/v23/p06_c01_contracts.py",
     "Scripts/v23/generate_p06_c01_contracts.py",

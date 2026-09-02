@@ -12,6 +12,10 @@
     "disposition": {
       "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
     },
+    "evidenceIDs": {
+      "minItems": 7,
+      "type": "array"
+    },
     "expiry": {
       "type": "object"
     },
@@ -48,6 +52,7 @@
     "disconfirmers",
     "preconditions",
     "expiry",
+    "evidenceIDs",
     "flags",
     "forbiddenResults"
   ],

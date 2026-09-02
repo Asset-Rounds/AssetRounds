@@ -1,4 +1,8 @@
 {
+  "appBaseIdentity": {
+    "head": "5b6f98b3bbaceee128c52a8815b5b5e3ee5eca9e",
+    "tree": "d6abeea2627cc312db39ca4d6476717f58040eca"
+  },
   "authority": {
     "appBaseHead": "5b6f98b3bbaceee128c52a8815b5b5e3ee5eca9e",
     "appBaseTree": "d6abeea2627cc312db39ca4d6476717f58040eca",
@@ -13,6 +17,7 @@
     "finalHashesSealed": false,
     "ledgerDigest": "0c187d220f572dc595711a406502ff601e73e3078110333f3fd5656add17e622",
     "newPathCount": 9,
+    "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
     "ordinal": 137,
     "ownerOverrideV5SHA256": "33ca39e0996baf62069f60d68b96181844160dfdcc97a2ba05e8ba045dfc46b5",
     "ownerOverrideV5SemanticDigest": "57255dfd005eedb7971f1dffb42257d06d44f4dd929788b125be1abb6fdf1e38",
@@ -25,7 +30,7 @@
     "transitionDigest": "0de14f4105524a46b06e31c4edad322090b492aad61bccbebab2a5573bd7db6e"
   },
   "cardID": "V23-P06-C01",
-  "corpusSHA256": "3538b885ca8801386e89f3b2bfafbe594a094402d47e3f33c54eed4d2c41e410",
+  "corpusSHA256": "c9a8054f44ed5000340bf62e664bfbb8118c722239c6e945000facbdf7d002ba",
   "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
   "flags": {
     "acceptance": false,
@@ -44,7 +49,8 @@
   "noAcceptanceCredit": true,
   "noProductionPath": true,
   "noRealStudy": true,
-  "protocolSHA256": "cf8fa43c126c8199e3e2cf31db275d3bb9b1d02dda508f8b9186fee247366b4f",
+  "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
+  "protocolSHA256": "dedf44f065556d37646dc92bd3df0e4acd583950eb6f5bfe73e591453ae3a5bc",
   "receipt": "ShallowOrganizationStaticPreparationEvidenceReceiptV1",
   "result": "PASS_STATIC_PROVISIONAL",
   "schema": "V23P06C01StaticPreparationToolingV1",

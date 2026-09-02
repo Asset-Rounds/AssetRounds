@@ -1,4 +1,8 @@
 {
+  "appBaseIdentity": {
+    "head": "5b6f98b3bbaceee128c52a8815b5b5e3ee5eca9e",
+    "tree": "d6abeea2627cc312db39ca4d6476717f58040eca"
+  },
   "authority": {
     "appBaseHead": "5b6f98b3bbaceee128c52a8815b5b5e3ee5eca9e",
     "appBaseTree": "d6abeea2627cc312db39ca4d6476717f58040eca",
@@ -13,6 +17,7 @@
     "finalHashesSealed": false,
     "ledgerDigest": "0c187d220f572dc595711a406502ff601e73e3078110333f3fd5656add17e622",
     "newPathCount": 9,
+    "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
     "ordinal": 137,
     "ownerOverrideV5SHA256": "33ca39e0996baf62069f60d68b96181844160dfdcc97a2ba05e8ba045dfc46b5",
     "ownerOverrideV5SemanticDigest": "57255dfd005eedb7971f1dffb42257d06d44f4dd929788b125be1abb6fdf1e38",
@@ -45,6 +50,7 @@
   "noAcceptanceCredit": true,
   "noProductionPath": true,
   "noRealStudy": true,
+  "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
   "requiresMergeTimeS10_6Reconciliation": true,
   "schema": "V23P06C01StaticPreparationToolingV1"
 }
