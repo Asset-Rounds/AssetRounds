@@ -4929,7 +4929,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "automationAXTreeDigests.keys.sorted()",
             "automationContrastExceptions.isEmpty",
             "!automatedSegmentFinished",
-            "app.state == .runningForeground",
+            #"if app.state != .runningForeground { return "app-foreground" }"#,
             "let focusedPredicate = NSPredicate(\n" +
                 "            format: \"hasKeyboardFocus == true\"\n" +
                 "        )",
@@ -4974,17 +4974,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let preNoteHeadingLabel = noteHeading.label",
             "let preNoteHeadingType = noteHeading.elementType",
             "let preNoteFieldIdentifier = noteField.identifier",
-            #"preDescriptionIdentifier == "s5.1.work.description""#,
-            #"preDescriptionLabel == "Short description""#,
-            #"(descriptionField.value as? String) == """#,
-            #"preValidationIdentifier == "s5.1.work.validation""#,
-            #"preValidationLabel == "Short description""#,
-            #"preNoteHeadingLabel == "Note""#,
-            "preNoteHeadingType == .staticText",
-            #"preNoteFieldIdentifier == "s5.1.work.note""#,
-            #"doneButton.identifier == "s5.1.work.keyboard-done""#,
-            #"doneButton.label == "Done""#,
-            "doneButton.elementType == .button",
+            #"preDescriptionIdentifier != "s5.1.work.description""#,
+            #"preDescriptionLabel != "Short description""#,
+            #"(descriptionField.value as? String) != """#,
+            #"preValidationIdentifier != "s5.1.work.validation""#,
+            #"preValidationLabel != "Short description""#,
+            #"preNoteHeadingLabel != "Note""#,
+            "preNoteHeadingType != .staticText",
+            #"preNoteFieldIdentifier != "s5.1.work.note""#,
+            #"doneButton.identifier != "s5.1.work.keyboard-done""#,
+            #"doneButton.label != "Done""#,
+            "doneButton.elementType != .button",
             "doneButton.tap()",
             "keyboard.waitForNonExistence(timeout: 10)",
             "doneButton.waitForNonExistence(timeout: 10)",
@@ -5016,6 +5016,131 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(
                 minimumWorkValidationKeyboardAccessorySource.contains(lock),
                 lock
+            )
+        }
+        XCTAssertEqual(
+            minimumWorkValidationKeyboardAccessorySource.utf8.count,
+            15_541
+        )
+        XCTAssertEqual(
+            Data(minimumWorkValidationKeyboardAccessorySource.utf8).sha256,
+            "AE6433E366488B81723E5862BFC50E2167D92FE348DF3571CEBB72931F1B1F1A"
+        )
+        let minimumWorkValidationPreTapSemanticStart =
+            "        let firstFailedPreTapSemanticLabel: String? = {"
+        let minimumWorkValidationPreTapSemanticEnd =
+            "\n\n        doneButton.tap()"
+        XCTAssertEqual(
+            minimumWorkValidationKeyboardAccessorySource.components(
+                separatedBy: minimumWorkValidationPreTapSemanticStart
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            minimumWorkValidationKeyboardAccessorySource.components(
+                separatedBy: minimumWorkValidationPreTapSemanticEnd
+            ).count - 1,
+            1
+        )
+        let minimumWorkValidationPreTapSemanticSource = try boundedSource(
+            minimumWorkValidationKeyboardAccessorySource,
+            from: minimumWorkValidationPreTapSemanticStart,
+            before: minimumWorkValidationPreTapSemanticEnd
+        )
+        XCTAssertEqual(
+            minimumWorkValidationPreTapSemanticSource.utf8.count,
+            3_821
+        )
+        XCTAssertEqual(
+            Data(minimumWorkValidationPreTapSemanticSource.utf8).sha256,
+            "E815793B7F8BC411FF3D191877575FB14D3B55FF560958F03E0BB69D3DF93B7C"
+        )
+        let minimumWorkValidationPreTapSemanticLabels = [
+            "app-foreground",
+            "app-frame-valid",
+            "work-frame-valid",
+            "description-frame-valid",
+            "validation-frame-valid",
+            "note-heading-frame-valid",
+            "note-field-frame-valid",
+            "keyboard-frame-valid",
+            "done-frame-valid",
+            "app-contains-work",
+            "app-contains-description",
+            "app-contains-validation",
+            "app-contains-note-heading",
+            "app-contains-note-field",
+            "app-contains-keyboard",
+            "app-contains-done",
+            "note-heading-overlaps-done-accessory",
+            "work-exists",
+            "work-enabled",
+            "work-hittable",
+            "work-identifier",
+            "description-exists",
+            "description-enabled",
+            "description-hittable",
+            "description-identifier",
+            "description-label",
+            "description-empty-value",
+            "validation-exists",
+            "validation-enabled",
+            "validation-identifier",
+            "validation-label",
+            "note-heading-exists",
+            "note-heading-label",
+            "note-heading-type",
+            "note-field-exists",
+            "note-field-identifier",
+            "keyboard-exists",
+            "done-exists",
+            "done-enabled",
+            "done-hittable",
+            "done-identifier",
+            "done-label",
+            "done-type",
+        ]
+        XCTAssertEqual(minimumWorkValidationPreTapSemanticLabels.count, 43)
+        var minimumWorkValidationPreTapSemanticCursor =
+            minimumWorkValidationKeyboardAccessorySource.startIndex
+        for label in minimumWorkValidationPreTapSemanticLabels {
+            let token = #"return "\#(label)""#
+            let searchRange =
+                minimumWorkValidationPreTapSemanticCursor
+                ..<minimumWorkValidationKeyboardAccessorySource.endIndex
+            XCTAssertEqual(
+                minimumWorkValidationKeyboardAccessorySource.components(
+                    separatedBy: token
+                ).count - 1,
+                1,
+                label
+            )
+            guard let range = minimumWorkValidationKeyboardAccessorySource.range(
+                of: token,
+                range: searchRange
+            ) else {
+                XCTFail("Missing ordered minimum work-validation predicate: \(label)")
+                return
+            }
+            minimumWorkValidationPreTapSemanticCursor = range.upperBound
+        }
+        for (token, count) in [
+            ("let firstFailedPreTapSemanticLabel: String? = {", 1),
+            ("if let firstFailedPreTapSemanticLabel {", 1),
+            ("return nil", 1),
+            (
+                "S10.4 minimum work-validation keyboard accessory " +
+                    "semantics are invalid: ",
+                1
+            ),
+            ("+ firstFailedPreTapSemanticLabel", 1),
+        ] {
+            XCTAssertEqual(
+                minimumWorkValidationKeyboardAccessorySource.components(
+                    separatedBy: token
+                ).count - 1,
+                count,
+                token
             )
         }
         for (token, count) in [
@@ -20911,10 +21036,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 778_818)
+        XCTAssertEqual(uiSource.utf8.count, 780_415)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "087932B05D059E24E7060F5A1B0354E7D36A77D8C4697F3DF8E6EB2CB60C2A3E"
+            "E3806326AD9E587B0FA3BCC765ABD9949A4BE9FFF4DA7F6C1CAEC4277F36F78D"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

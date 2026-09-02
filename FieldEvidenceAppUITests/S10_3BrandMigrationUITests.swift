@@ -14218,51 +14218,56 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let noteHeadingOverlapsDoneAccessoryBand =
             noteHeadingFrame.minY < doneButtonFrame.maxY
                 && noteHeadingFrame.maxY > doneButtonFrame.minY
-        guard app.state == .runningForeground,
-              frameIsValid(applicationFrame),
-              frameIsValid(workScreenFrame),
-              frameIsValid(descriptionFrame),
-              frameIsValid(validationFrame),
-              frameIsValid(noteHeadingFrame),
-              frameIsValid(noteFieldFrame),
-              frameIsValid(keyboardFrame),
-              frameIsValid(doneButtonFrame),
-              applicationFrame.contains(workScreenFrame),
-              applicationFrame.contains(descriptionFrame),
-              applicationFrame.contains(validationFrame),
-              applicationFrame.contains(noteHeadingFrame),
-              applicationFrame.contains(noteFieldFrame),
-              applicationFrame.contains(keyboardFrame),
-              applicationFrame.contains(doneButtonFrame),
-              noteHeadingOverlapsDoneAccessoryBand,
-              workScreen.exists,
-              workScreen.isEnabled,
-              workScreen.isHittable,
-              preWorkScreenIdentifier == "s5.1.work.screen",
-              descriptionField.exists,
-              descriptionField.isEnabled,
-              descriptionField.isHittable,
-              preDescriptionIdentifier == "s5.1.work.description",
-              preDescriptionLabel == "Short description",
-              (descriptionField.value as? String) == "",
-              validationLabel.exists,
-              validationLabel.isEnabled,
-              preValidationIdentifier == "s5.1.work.validation",
-              preValidationLabel == "Short description",
-              noteHeading.exists,
-              preNoteHeadingLabel == "Note",
-              preNoteHeadingType == .staticText,
-              noteField.exists,
-              preNoteFieldIdentifier == "s5.1.work.note",
-              keyboard.exists,
-              doneButton.exists,
-              doneButton.isEnabled,
-              doneButton.isHittable,
-              doneButton.identifier == "s5.1.work.keyboard-done",
-              doneButton.label == "Done",
-              doneButton.elementType == .button else {
+        let firstFailedPreTapSemanticLabel: String? = {
+            if app.state != .runningForeground { return "app-foreground" }
+            if !frameIsValid(applicationFrame) { return "app-frame-valid" }
+            if !frameIsValid(workScreenFrame) { return "work-frame-valid" }
+            if !frameIsValid(descriptionFrame) { return "description-frame-valid" }
+            if !frameIsValid(validationFrame) { return "validation-frame-valid" }
+            if !frameIsValid(noteHeadingFrame) { return "note-heading-frame-valid" }
+            if !frameIsValid(noteFieldFrame) { return "note-field-frame-valid" }
+            if !frameIsValid(keyboardFrame) { return "keyboard-frame-valid" }
+            if !frameIsValid(doneButtonFrame) { return "done-frame-valid" }
+            if !applicationFrame.contains(workScreenFrame) { return "app-contains-work" }
+            if !applicationFrame.contains(descriptionFrame) { return "app-contains-description" }
+            if !applicationFrame.contains(validationFrame) { return "app-contains-validation" }
+            if !applicationFrame.contains(noteHeadingFrame) { return "app-contains-note-heading" }
+            if !applicationFrame.contains(noteFieldFrame) { return "app-contains-note-field" }
+            if !applicationFrame.contains(keyboardFrame) { return "app-contains-keyboard" }
+            if !applicationFrame.contains(doneButtonFrame) { return "app-contains-done" }
+            if !noteHeadingOverlapsDoneAccessoryBand { return "note-heading-overlaps-done-accessory" }
+            if !workScreen.exists { return "work-exists" }
+            if !workScreen.isEnabled { return "work-enabled" }
+            if !workScreen.isHittable { return "work-hittable" }
+            if preWorkScreenIdentifier != "s5.1.work.screen" { return "work-identifier" }
+            if !descriptionField.exists { return "description-exists" }
+            if !descriptionField.isEnabled { return "description-enabled" }
+            if !descriptionField.isHittable { return "description-hittable" }
+            if preDescriptionIdentifier != "s5.1.work.description" { return "description-identifier" }
+            if preDescriptionLabel != "Short description" { return "description-label" }
+            if (descriptionField.value as? String) != "" { return "description-empty-value" }
+            if !validationLabel.exists { return "validation-exists" }
+            if !validationLabel.isEnabled { return "validation-enabled" }
+            if preValidationIdentifier != "s5.1.work.validation" { return "validation-identifier" }
+            if preValidationLabel != "Short description" { return "validation-label" }
+            if !noteHeading.exists { return "note-heading-exists" }
+            if preNoteHeadingLabel != "Note" { return "note-heading-label" }
+            if preNoteHeadingType != .staticText { return "note-heading-type" }
+            if !noteField.exists { return "note-field-exists" }
+            if preNoteFieldIdentifier != "s5.1.work.note" { return "note-field-identifier" }
+            if !keyboard.exists { return "keyboard-exists" }
+            if !doneButton.exists { return "done-exists" }
+            if !doneButton.isEnabled { return "done-enabled" }
+            if !doneButton.isHittable { return "done-hittable" }
+            if doneButton.identifier != "s5.1.work.keyboard-done" { return "done-identifier" }
+            if doneButton.label != "Done" { return "done-label" }
+            if doneButton.elementType != .button { return "done-type" }
+            return nil
+        }()
+        if let firstFailedPreTapSemanticLabel {
             throw AutomationConfigurationError.invalid(
-                "S10.4 minimum work-validation keyboard accessory semantics are invalid"
+                "S10.4 minimum work-validation keyboard accessory semantics are invalid: "
+                    + firstFailedPreTapSemanticLabel
             )
         }
 
