@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+python3 -B Scripts/v30/validate_v30_provisional_ci_contract.py --hosted --dispatch-ui "${CI_RUN_UI_SMOKE:?}"
+
 derived_data_path="${RUNNER_TEMP:?}/FieldEvidenceDerivedData"
 result_bundle_path="${CI_ARTIFACT_DIR:?}/UISmoke.xcresult"
 screenshot_path="$CI_ARTIFACT_DIR/ui-final.png"
@@ -26,7 +28,7 @@ while IFS= read -r selector; do
     *) printf 'invalid UI selector: %s\n' "$selector" >&2; exit 65 ;;
   esac
   only_testing_args[${#only_testing_args[@]}]="-only-testing:$selector"
-done < <(jq -r '.uiTestSelectors[]' Scripts/ci-selection.json)
+done < <(jq -r '.selector.uiTestSelectors[]' docs/design/v30/execution/V30_CI_SELECTION.json)
 
 test "${#only_testing_args[@]}" -eq 1
 selected_ui_selector="${only_testing_args[0]#-only-testing:}"

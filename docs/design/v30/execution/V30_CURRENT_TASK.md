@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 5 of 55 — Provisional CI and checkpoint contract
+Card 5 of 55 â€” Provisional CI and checkpoint contract
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -9,7 +9,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
     "required": "Freeze the permitted Windows-static and hosted-macOS development routes, exact selectors/artifacts, retry/correction law, and explicit statement that every result is provisional branch evidence only. Adapt only the isolated V30 branch copies of `.github/workflows/ios-ci.yml`, `Scripts/test-smoke.sh`, and `Scripts/ui-smoke.sh` to the typed V30 selector, under their exact frozen-B fences and S10 tuples. Never modify the inherited selector, active Phase 10 checkout/ref/runs, or main. Unavailable optional hosted diagnostics remain NOT_EXECUTED with no native credit and do not block static provisional coding.",
-    "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
+    "staticEvidence": "Card5 contract validator and bounded negative vectors; exact frozen-source adapter preservation; independent review"
   },
   "attempt": 1,
   "authority": {
@@ -182,7 +182,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
   },
   "ordinal": 5,
   "outcome": "Freeze the permitted Windows-static and hosted-macOS development routes, exact selectors/artifacts, retry/correction law, and explicit statement that every result is provisional branch evidence only. Adapt only the isolated V30 branch copies of `.github/workflows/ios-ci.yml`, `Scripts/test-smoke.sh`, and `Scripts/ui-smoke.sh` to the typed V30 selector, under their exact frozen-B fences and S10 tuples. Never modify the inherited selector, active Phase 10 checkout/ref/runs, or main. Unavailable optional hosted diagnostics remain NOT_EXECUTED with no native credit and do not block static provisional coding.",
-  "payloadDigest": "8163b48dc391579346268072c1cb10f0c2fe97c1979fff1c105303985e65f7a4",
+  "payloadDigest": "1f50adb1fa6e3ad4126409dd8bf8ba624a55dc8fb1f86245580647279bbac0e1",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
@@ -216,8 +216,22 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     }
   },
   "revision": 1,
-  "selector": null,
-  "selectorReason": "Static governance; hosted dispatch disabled until Card 5 pins the route",
+  "selector": {
+    "buildTimeoutSeconds": 600,
+    "runUISmoke": false,
+    "schemaVersion": 1,
+    "setupArtifactTimeoutSeconds": 300,
+    "taskID": "V30-P00-C05",
+    "testTimeoutSeconds": 900,
+    "tier": "N8",
+    "totalBudgetSeconds": 2400,
+    "uiTestSelectors": [],
+    "uiTimeoutSeconds": 0,
+    "unitTestSelectors": [
+      "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests"
+    ]
+  },
+  "selectorReason": "Card5 pins isolated optional hosted diagnostics; no native run or final credit is implied.",
   "sourceEndLine": 974,
   "sourceStartLine": 974,
   "title": "Provisional CI and checkpoint contract"

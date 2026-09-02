@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+python3 -B Scripts/v30/validate_v30_provisional_ci_contract.py --hosted --dispatch-ui "${CI_RUN_UI_SMOKE:?}"
+
 derived_data_path="${RUNNER_TEMP:?}/FieldEvidenceDerivedData"
 result_bundle_path="${CI_ARTIFACT_DIR:?}/UnitTests.xcresult"
 expected_destination="platform=iOS Simulator,id=${CI_SIMULATOR_UDID:?}"
@@ -18,7 +20,7 @@ while IFS= read -r selector; do
     *) printf 'invalid unit selector: %s\n' "$selector" >&2; exit 65 ;;
   esac
   only_testing_args[${#only_testing_args[@]}]="-only-testing:$selector"
-done < <(jq -r '.unitTestSelectors[]' Scripts/ci-selection.json)
+done < <(jq -r '.selector.unitTestSelectors[]' docs/design/v30/execution/V30_CI_SELECTION.json)
 
 test "${#only_testing_args[@]}" -gt 0
 

@@ -39,6 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Asset-Rounds/AssetRounds"
+          test "$GITHUB_REF" = "refs/heads/phase/v30-globalization"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           CI_BUDGET_START_EPOCH="$(date +%s)"
           CI_ARTIFACT_DIR="$RUNNER_TEMP/FieldEvidenceCI"
           mkdir -p "$CI_ARTIFACT_DIR"
@@ -56,11 +59,14 @@ jobs:
           DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
         run: |
           set -euo pipefail
-          test -f Scripts/ci-selection.json
+          test -f docs/design/v30/execution/V30_CI_SELECTION.json
           test -f Scripts/run-with-timeout.sh
           test -f Scripts/build-smoke.sh
           test -f Scripts/test-smoke.sh
           test -f Scripts/ui-smoke.sh
+
+          python3 -B Scripts/v30/validate_v30_provisional_ci_contract.py --hosted --dispatch-ui "$DISPATCH_RUN_UI_SMOKE" \
+            | tee "$CI_ARTIFACT_DIR/v30-selection-validation.json"
 
           jq -e '
             def exact_keys:
@@ -115,7 +121,7 @@ jobs:
                 ] == [300, 900, 1200, 1800, 4500]
               else false
               end;
-            exact_keys
+            .selector | exact_keys
             and (.schemaVersion == 1)
             and (.taskID | nonempty_string)
             and (.tier | type == "string" and IN("N8", "P12", "F25"))
@@ -131,19 +137,19 @@ jobs:
                 and (.uiTestSelectors | selectors("FieldEvidenceAppUITests/"; 1) and length == 1)
               end
             )
-          ' Scripts/ci-selection.json > /dev/null
+          ' docs/design/v30/execution/V30_CI_SELECTION.json > /dev/null
 
-          selection_run_ui="$(jq -r '.runUISmoke | tostring' Scripts/ci-selection.json)"
+          selection_run_ui="$(jq -r '.selector.runUISmoke | tostring' docs/design/v30/execution/V30_CI_SELECTION.json)"
           test "$DISPATCH_RUN_UI_SMOKE" = "$selection_run_ui"
 
-          CI_TASK_ID="$(jq -r '.taskID' Scripts/ci-selection.json)"
-          CI_TIER="$(jq -r '.tier' Scripts/ci-selection.json)"
+          CI_TASK_ID="$(jq -r '.selector.taskID' docs/design/v30/execution/V30_CI_SELECTION.json)"
+          CI_TIER="$(jq -r '.selector.tier' docs/design/v30/execution/V30_CI_SELECTION.json)"
           CI_RUN_UI_SMOKE="$selection_run_ui"
-          CI_SETUP_ARTIFACT_TIMEOUT_SECONDS="$(jq -r '.setupArtifactTimeoutSeconds' Scripts/ci-selection.json)"
-          CI_BUILD_TIMEOUT_SECONDS="$(jq -r '.buildTimeoutSeconds' Scripts/ci-selection.json)"
-          CI_TEST_TIMEOUT_SECONDS="$(jq -r '.testTimeoutSeconds' Scripts/ci-selection.json)"
-          CI_UI_TIMEOUT_SECONDS="$(jq -r '.uiTimeoutSeconds' Scripts/ci-selection.json)"
-          CI_TOTAL_BUDGET_SECONDS="$(jq -r '.totalBudgetSeconds' Scripts/ci-selection.json)"
+          CI_SETUP_ARTIFACT_TIMEOUT_SECONDS="$(jq -r '.selector.setupArtifactTimeoutSeconds' docs/design/v30/execution/V30_CI_SELECTION.json)"
+          CI_BUILD_TIMEOUT_SECONDS="$(jq -r '.selector.buildTimeoutSeconds' docs/design/v30/execution/V30_CI_SELECTION.json)"
+          CI_TEST_TIMEOUT_SECONDS="$(jq -r '.selector.testTimeoutSeconds' docs/design/v30/execution/V30_CI_SELECTION.json)"
+          CI_UI_TIMEOUT_SECONDS="$(jq -r '.selector.uiTimeoutSeconds' docs/design/v30/execution/V30_CI_SELECTION.json)"
+          CI_TOTAL_BUDGET_SECONDS="$(jq -r '.selector.totalBudgetSeconds' docs/design/v30/execution/V30_CI_SELECTION.json)"
 
           printf '%s\n' \
             "CI_TASK_ID=$CI_TASK_ID" \
@@ -155,7 +161,7 @@ jobs:
             "CI_UI_TIMEOUT_SECONDS=$CI_UI_TIMEOUT_SECONDS" \
             "CI_TOTAL_BUDGET_SECONDS=$CI_TOTAL_BUDGET_SECONDS" \
             >> "$GITHUB_ENV"
-          cp Scripts/ci-selection.json "$CI_ARTIFACT_DIR/ci-selection.json"
+          cp docs/design/v30/execution/V30_CI_SELECTION.json "$CI_ARTIFACT_DIR/ci-selection.json"
           printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\n' \
             "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" \
             | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
@@ -174,7 +180,7 @@ jobs:
           test -d "$DEVELOPER_DIR"
           test -f "$PROJECT_PATH/project.pbxproj"
           test -f "$PROJECT_PATH/xcshareddata/xcschemes/$SCHEME.xcscheme"
-          test -f Scripts/ci-selection.json
+          test -f docs/design/v30/execution/V30_CI_SELECTION.json
           test -f Scripts/run-with-timeout.sh
           test -f Scripts/build-smoke.sh
           test -f Scripts/test-smoke.sh
@@ -408,7 +414,7 @@ jobs:
             jq -e --arg key "$selectors_key" --slurpfile executed "$executed_tests" '
               def normalize_identifier:
                 sub("\\(\\)$"; "");
-              .[$key] as $selectors
+              .selector[$key] as $selectors
               | ($executed[0] // []) as $actual
               | (($actual | type) == "array" and ($actual | length) > 0)
                 and all(
@@ -422,7 +428,7 @@ jobs:
                         or ($observed | startswith($wanted + "/"))
                     )
                 )
-            ' Scripts/ci-selection.json > /dev/null
+            ' docs/design/v30/execution/V30_CI_SELECTION.json > /dev/null
           }
 
           test -s "$CI_ARTIFACT_DIR/simulator-boot-start.log"

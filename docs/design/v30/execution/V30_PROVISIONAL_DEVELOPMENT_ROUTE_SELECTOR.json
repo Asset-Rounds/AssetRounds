@@ -1,0 +1,13 @@
+{
+  "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+  "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+  "branchRef": "refs/heads/phase/v30-globalization",
+  "contractPath": "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json",
+  "contractSHA256": "d09867a951978256db19b59ce4066b510ce4598e60e8dc1b322a1d4435a81ab4",
+  "finalCredit": false,
+  "kind": "V30ProvisionalDevelopmentRouteSelectorV1",
+  "optionalDiagnostics": true,
+  "repository": "Asset-Rounds/AssetRounds",
+  "selectorPath": "docs/design/v30/execution/V30_CI_SELECTION.json",
+  "workflowPath": ".github/workflows/ios-ci.yml"
+}

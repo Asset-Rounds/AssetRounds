@@ -1,0 +1,167 @@
+{
+  "artifactLaw": "Required files are nonempty and xcresult directories contain data. Every selected class must have executed tests. UI enabled requires exactly one retained non-failure PNG from that selected class. SHA256SUMS covers collected files and is verified; upload requires files. Preserve raw setup/artifact and total budget accounting.",
+  "artifactName": "ios-ci-<run_id>-<run_attempt>",
+  "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+  "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+  "branchRef": "refs/heads/phase/v30-globalization",
+  "cancelInProgress": false,
+  "checkpointLaw": "PROVISIONAL_CHECKPOINTED may satisfy only the next provisional dependency. Store per-card base/head/tree/diff/overlap and immutable test/run/artifact evidence in existing ledger and execution handoff. All final/canonical/main/phase-close/release/post-S10 credit remains false.",
+  "environment": {
+    "CI_SIMULATOR_BOOT_TIMEOUT_SECONDS": "900",
+    "CODE_SIGNING_ALLOWED": "NO",
+    "CONFIGURATION": "Debug",
+    "DEVELOPER_DIR": "/Applications/Xcode_26.6.app/Contents/Developer",
+    "EXPECTED_MINIMUM_IOS": "18.0",
+    "EXPECTED_XCODE_BUILD": "Build version 17F113",
+    "EXPECTED_XCODE_VERSION": "Xcode 26.6",
+    "NSUnbufferedIO": "YES",
+    "PROJECT_PATH": "FieldEvidenceApp.xcodeproj",
+    "SCHEME": "FieldEvidenceApp",
+    "SIMULATOR_NAME": "iPhone 17",
+    "SIMULATOR_RUNTIME": "iOS 26.2"
+  },
+  "files": [
+    {
+      "path": ".github/workflows/ios-ci.yml",
+      "role": "CARD5_SELECTOR_ADAPTER",
+      "sha256": "94beda88b6995b4f4d47489f1e3fca762c39bb15c78d23b853d94885347faa98"
+    },
+    {
+      "path": "Scripts/test-smoke.sh",
+      "role": "CARD5_SELECTOR_ADAPTER",
+      "sha256": "23e581a4f1e2f3b1a7f0b7ee80ccd5a7ee4e90ef1cb97c5346e670f2884a364f"
+    },
+    {
+      "path": "Scripts/ui-smoke.sh",
+      "role": "CARD5_SELECTOR_ADAPTER",
+      "sha256": "fb1c4d34d654119fb726d0edc3939e8592be1ceedd2b84f1aa02739f7f23c604"
+    },
+    {
+      "path": "Scripts/build-smoke.sh",
+      "role": "FROZEN_UNCHANGED",
+      "sha256": "e1ada653fdef7d174ff61e45e344309019e6c2a9e74f4d2cb8161922ac5225c7"
+    },
+    {
+      "path": "Scripts/run-with-timeout.sh",
+      "role": "FROZEN_UNCHANGED",
+      "sha256": "461c410c4f794b9ba929e76dcb69459f8e848610948b035ed6e9962fb3fa1cb2"
+    },
+    {
+      "path": "Scripts/ci-selection.json",
+      "role": "FROZEN_UNCHANGED",
+      "sha256": "03c23506919733dde0174448e446d26df4753c505be242587886f142d281314f"
+    }
+  ],
+  "finalCredit": false,
+  "frozenSourceBindings": [
+    {
+      "blobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+      "overlapTuple": {
+        "boundedPurpose": "change only the phase/v30-globalization branch copy of the existing iOS CI controller to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned runner/toolchain/simulator/watchdogs/evidence/commands, route/ref isolation, and no main or Phase10 mutation",
+        "cardID": "V30-P00-C05",
+        "expectedBBlobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+        "expectedBSHA256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7",
+        "path": ".github/workflows/ios-ci.yml",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P00-C05-PROVISIONAL-CI-CONTROLLER"
+      },
+      "path": ".github/workflows/ios-ci.yml",
+      "sha256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7"
+    },
+    {
+      "blobOID": "25376fea96a73214ed0abe72d5a547def0ed8f3a",
+      "overlapTuple": null,
+      "path": "Scripts/test-smoke.sh",
+      "sha256": "0462448692b4b128e98a3ff4772b1c3dc14d7b5409be8743b9c39e435195c36b"
+    },
+    {
+      "blobOID": "a1d29aeb3e4a10dcd518d0627af2b351a904481c",
+      "overlapTuple": {
+        "boundedPurpose": "change only the phase/v30-globalization branch copy to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned UI commands, watchdogs, evidence, route/ref isolation, and no main or Phase10 mutation",
+        "cardID": "V30-P00-C05",
+        "expectedBBlobOID": "a1d29aeb3e4a10dcd518d0627af2b351a904481c",
+        "expectedBSHA256": "6304a318ee046b6b19f4fddc43bb143f9b21e8150b9d332e449b87a0182d4cdb",
+        "path": "Scripts/ui-smoke.sh",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P00-C05-PROVISIONAL-CI-CONTROLLER"
+      },
+      "path": "Scripts/ui-smoke.sh",
+      "sha256": "6304a318ee046b6b19f4fddc43bb143f9b21e8150b9d332e449b87a0182d4cdb"
+    }
+  ],
+  "hostedRoute": "Optional registered ios-ci.yml workflow_dispatch on exact V30 branch head only. Verify branch tip immediately before dispatch; accept diagnostic evidence only for matching run head_sha and complete checksummed artifacts. Never query Phase 10 runs or install workflows on main.",
+  "jobWatchdogMinutes": 90,
+  "kind": "V30ProvisionalCIAndCheckpointContractV1",
+  "nativeDiagnosticsAreAcceptance": false,
+  "nativeDiagnosticsOptional": true,
+  "postS10QualificationRequired": true,
+  "recoveryLaw": [
+    "If an exact-ref/head/input candidate is active, wait for that candidate. Reuse a completed green matching diagnostic with complete required evidence.",
+    "Inspect terminal failures and complete logs/artifacts. Retain run ID, URL, head, selector, failure diagnosis and checksums append-only; missing evidence is not a pass.",
+    "For transient infrastructure failure, dispatch one fresh-runner candidate at the same exact authorized branch/head/inputs. Never rerun a failed run ID or weaken commands, watchdogs, selectors or artifact gates.",
+    "For diagnosed current-card product failure, append one direct-child correction with the same logical card ID and correctionOf prior head; preserve all failed/superseded candidates and rerun affected diagnostics.",
+    "Only exact current-card paths may be corrected. If the causal path is outside the fence, retain the hold/diagnosis and do not expand scope.",
+    "Unavailable optional diagnostics are NOT_EXECUTED_NO_NATIVE_CREDIT and do not prevent otherwise valid static provisional coding. Mandatory post-S10 qualification must re-run invalidated evidence on accepted S."
+  ],
+  "repository": "Asset-Rounds/AssetRounds",
+  "requiredArtifacts": [
+    "ci-selection.json",
+    "v30-selection-validation.json",
+    "ci-selection-validation.txt",
+    "runner-image.txt",
+    "github-run.txt",
+    "xcode-version.txt",
+    "xcode-list.json",
+    "build-settings.txt",
+    "simulator-selection.txt",
+    "simulator-runtimes.json",
+    "simulator-devices.json",
+    "simulator-boot-start.log",
+    "simulator-boot.log",
+    "setup-budget.txt",
+    "artifact-budget.txt",
+    "build-smoke.log",
+    "test-smoke.log",
+    "Build.xcresult",
+    "UnitTests.xcresult",
+    "unit-test-results.json",
+    "unit-executed-tests.json",
+    "SHA256SUMS.txt"
+  ],
+  "retentionDays": 14,
+  "runner": "macos-26",
+  "selectionLaw": "Only current-card explicitly fenced Swift test classes; one UI class for P12/F25; no UI for N8. Task and nested typed selector must agree. WINDOWS_STATIC disables dispatch. Selector replacement is current-card-owned and cannot alter route pins.",
+  "selectorPath": "docs/design/v30/execution/V30_CI_SELECTION.json",
+  "tiers": {
+    "F25": [
+      300,
+      900,
+      1200,
+      1800,
+      4500
+    ],
+    "N8": [
+      300,
+      600,
+      900,
+      0,
+      2400
+    ],
+    "P12": [
+      300,
+      600,
+      900,
+      900,
+      3300
+    ]
+  },
+  "uiArtifacts": [
+    "ui-smoke.log",
+    "UISmoke.xcresult",
+    "ui-final.png",
+    "ui-test-results.json",
+    "ui-executed-tests.json"
+  ],
+  "windowsRoute": "Deterministic Python static contract/selector/fence validation and source inspection; no xcodebuild or Simulator claims.",
+  "workflowPath": ".github/workflows/ios-ci.yml"
+}

@@ -1,21 +1,37 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+  "branchRef": "refs/heads/phase/v30-globalization",
   "cardID": "V30-P00-C05",
   "cardTitle": "Provisional CI and checkpoint contract",
-  "hostedDispatchAllowed": false,
+  "developmentRouteSHA256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690",
+  "hostedDispatchAllowed": true,
   "hostedDispatchUnlockCard": "V30-P00-C05",
   "kind": "V30CISelectionV1",
-  "mode": "DISABLED_STATIC_PREFLIGHT",
+  "mode": "PROVISIONAL_DEVELOPMENT",
   "packageBinding": {
     "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
     "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "d81e46fc493d1feca6801becad8d6768b8dd761dbb2c01347fdbf3aee3344076",
+  "payloadDigest": "1bbedfe388becebab52d89afabeeaa3a44b93f771666c44d487adefee8e8453b",
   "preS10FinalCredit": false,
-  "reason": "Static governance; hosted dispatch disabled until Card 5 pins the route",
+  "reason": "Card5 pins isolated optional hosted diagnostics; no native run or final credit is implied.",
   "schemaVersion": "V30BootstrapPayloadV1",
-  "selector": null,
+  "selector": {
+    "buildTimeoutSeconds": 600,
+    "runUISmoke": false,
+    "schemaVersion": 1,
+    "setupArtifactTimeoutSeconds": 300,
+    "taskID": "V30-P00-C05",
+    "testTimeoutSeconds": 900,
+    "tier": "N8",
+    "totalBudgetSeconds": 2400,
+    "uiTestSelectors": [],
+    "uiTimeoutSeconds": 0,
+    "unitTestSelectors": [
+      "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests"
+    ]
+  },
   "windowsStaticChecksAllowed": true
 }
