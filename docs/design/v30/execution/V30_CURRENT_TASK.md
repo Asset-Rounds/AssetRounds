@@ -1,28 +1,153 @@
 # V30 Current Task
 
-- Schema: `V30CurrentTaskV1`
-- Authority ID: `ASSETROUNDS-V30-PRE-S10-20260902-R2`
-- Card: `V30-P00-C01 — Provisional authority and isolated-lane validation`
-- Card ordinal: `1 of 55`
-- Execution epoch: `PRE_S10_PROVISIONAL`
-- Direct prerequisites: `[]`
-- Outcome: Validate authority, package, dedicated worktree, Phase 10 isolation, and zero-credit posture only. No product work.
-- Allowed paths: exactly the generated Card 1 fence; no inferred paths.
-- Exact Card 1 fence: `docs/design/v30/execution/fences/V30-P00-C01-attempt-1.json`.
-- Installation request ID: `ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL`.
-- Active selector: `docs/design/v30/execution/V30_CI_SELECTION.json` (`DISABLED_STATIC_PREFLIGHT`).
-- Hosted dispatch: forbidden until `V30-P00-C05` pins the route.
-- Phase 10 checkout `C:\AssetRounds`: forbidden read/write/poll/build/test/Git/process target.
-- Inherited `docs/execution/CURRENT_TASK.md`, `docs/product/BUILD_PLAN_V4.md`, and `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`: frozen read-only predecessor evidence; not V30 active-task authority.
-- Inherited `Scripts/ci-selection.json`: frozen read-only predecessor evidence; never the V30 active selector and never modified.
-- Credit: all pre-S10 work is provisional and earns no final-card, main, release, or Phase 10 compatibility credit.
+Card 2 of 55 — Frozen V23/S10 reservation and provisional-fence proof
 
-## Exact allowed paths
+Only the exact pre-issued fence below is writable. Embedded context is the active hydration; materialize its allowed context file after selection CAS. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
-- `docs/design/v30/execution/V30_CURRENT_TASK.md`
-- `docs/design/v30/execution/V30_CI_SELECTION.json`
-- `docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json`
-- `docs/design/v30/execution/V30_EXECUTION_HANDOFF.md`
-- `docs/design/v30/execution/V30_PROVISIONAL_ACTIVATION_RECEIPT.json`
-- `docs/design/v30/execution/contexts/V30-P00-C01-attempt-1.json`
-- `docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json`
+```json
+{
+  "acceptance": {
+    "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "required": "Bind V23 head/tree, V23 package and coordination sequence/digests, the ordered 86-path S10 reservation, and the path classification algorithm. An overlap is allowed only when pre-existing external authority supplies its exact tuple `{cardID,path,expectedBBlobHashOrABSENT,boundedPurpose,writerLane,reconciliationObligation}` and the path is card-owned `S10_SHARED_RECONCILIATION_REQUIRED`; it can never earn pre-S10 acceptance.",
+    "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
+  },
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "base": {
+    "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
+    "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
+  },
+  "cardID": "V30-P00-C02",
+  "class": "FOUNDATION",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": false,
+    "releaseCredit": false
+  },
+  "directPrerequisites": [
+    "V30-P00-C01"
+  ],
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "fence": {
+    "allowedPaths": [
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "purpose": "Single selected-card projection; transition only after the current card's provisional checkpoint.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "purpose": "V30-only provisional selector projection; never the inherited Scripts/ci-selection.json.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+        "purpose": "Read-only/current-tip projection of the isolated external provisional coordination ledger; never a canonical ledger.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+        "purpose": "Append-only V30 provisional handoff evidence.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json",
+        "purpose": "Immutable V23/S10 observation context.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json",
+        "purpose": "Ordered reservation and path-classification proof.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json",
+        "purpose": "Card 2 provisional proof receipt.",
+        "serializedSharedPath": false
+      }
+    ],
+    "cardID": "V30-P00-C02",
+    "class": "FOUNDATION",
+    "directPrerequisites": [
+      "V30-P00-C01"
+    ],
+    "ordinal": 2,
+    "preAuthorizedOverlapTuples": [],
+    "s10SharedPaths": [],
+    "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
+    "title": "Frozen V23/S10 reservation and provisional-fence proof"
+  },
+  "fenceSource": {
+    "cardID": "V30-P00-C02",
+    "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
+    "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
+  },
+  "forbiddenPaths": [
+    "C:/AssetRounds",
+    "docs/execution/CURRENT_TASK.md",
+    "docs/product/BUILD_PLAN_V4.md",
+    "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+    "Scripts/ci-selection.json"
+  ],
+  "next": "V30-P00-C03",
+  "observedCoordination": {
+    "head": "41705d370b736fef057d75f3363e0e060e899994",
+    "ledgerDigest": "9d146190198717807ece7f0b99dc5a52743a56a981862145e5b725d03023ef0d",
+    "sequence": 3
+  },
+  "ordinal": 2,
+  "outcome": "Bind V23 head/tree, V23 package and coordination sequence/digests, the ordered 86-path S10 reservation, and the path classification algorithm. An overlap is allowed only when pre-existing external authority supplies its exact tuple `{cardID,path,expectedBBlobHashOrABSENT,boundedPurpose,writerLane,reconciliationObligation}` and the path is card-owned `S10_SHARED_RECONCILIATION_REQUIRED`; it can never earn pre-S10 acceptance.",
+  "payloadDigest": "44abc61d3432e3cd7bd8cfe161b6a9f0335d8a0c33796d0d9aff00095b643951",
+  "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+  "preS10FinalCredit": false,
+  "predecessorEvidence": {
+    "V30-P00-C01": {
+      "candidate": {
+        "base": "d2a153ba730e1894eb82b7cd3cc56e8ff2c3d2bb",
+        "changedPaths": [
+          "docs/design/v30/execution/V30_PROVISIONAL_ACTIVATION_RECEIPT.json",
+          "docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json"
+        ],
+        "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
+        "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
+      },
+      "sequence": 3
+    }
+  },
+  "revision": 1,
+  "selector": null,
+  "selectorReason": "Static governance; hosted dispatch disabled until Card 5 pins the route",
+  "sourceEndLine": 971,
+  "sourceStartLine": 971,
+  "title": "Frozen V23/S10 reservation and provisional-fence proof"
+}
+```
