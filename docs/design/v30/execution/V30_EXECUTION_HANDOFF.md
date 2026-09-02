@@ -71,3 +71,57 @@
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+
+## Card 2 of 55 — Frozen V23/S10 reservation and provisional-fence proof
+
+```json
+{
+  "blockers": [],
+  "candidate": {
+    "base": "1374269994a871236703d5e006fb86f34bb06b68",
+    "changedPaths": [
+      "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json",
+      "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json",
+      "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json"
+    ],
+    "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+    "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
+  },
+  "checkpoint": {
+    "head": "84d7e8a207bb88f508ef3e533dd9f8e4d7713368",
+    "ledgerDigest": "5af093a1d41d221eb011ec63fd8b28d17e5d8756145bd06a417afcb307743fde",
+    "sequence": 5
+  },
+  "evidence": {
+    "independentAudit": "PASS: Luna V23/coordination digest audit and Terra 602-entry frozen-B/tuple proof audit",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "receipt": {
+      "path": "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json",
+      "sha256": "a92785be3b7015c5e48f9f3aebcca767be3dd528907e57b304a48154123ce1d2"
+    }
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT; no runner/Xcode/Simulator/xcresult/screenshots on static governance card",
+  "nextUnstartedCard": "V30-P00-C03",
+  "operationalProvenance": [],
+  "reconciliation": "Replay or reimplement card-scoped evidence against accepted S and rerun invalidated qualification; no final acceptance credit",
+  "s10SharedPaths": [],
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false"
+}
+```
+
+This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.

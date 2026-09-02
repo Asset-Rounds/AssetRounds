@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 2 of 55 — Frozen V23/S10 reservation and provisional-fence proof
+Card 3 of 55 — Namespaced provisional coordination genesis validation
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration; materialize its allowed context file after selection CAS. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Bind V23 head/tree, V23 package and coordination sequence/digests, the ordered 86-path S10 reservation, and the path classification algorithm. An overlap is allowed only when pre-existing external authority supplies its exact tuple `{cardID,path,expectedBBlobHashOrABSENT,boundedPurpose,writerLane,reconciliationObligation}` and the path is card-owned `S10_SHARED_RECONCILIATION_REQUIRED`; it can never earn pre-S10 acceptance.",
+    "required": "Validate, schema-seal, and exercise the sole G3-created expected-absent provisional-ledger genesis at the authority-pinned isolated coordination locator/ref, including distinct ID/writer generation/digest chain and immutable V23 observations. Never create a second genesis, mutate, or claim succession to the canonical V23 ledger.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
-    "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
+    "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+    "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
   },
-  "cardID": "V30-P00-C02",
+  "cardID": "V30-P00-C03",
   "class": "FOUNDATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,7 +33,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P00-C01"
+    "V30-P00-C01",
+    "V30-P00-C02"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -74,40 +75,41 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json",
-        "purpose": "Immutable V23/S10 observation context.",
+        "path": "docs/design/v30/execution/V30_PROVISIONAL_COORDINATION_GENESIS.json",
+        "purpose": "Sole G3-created isolated coordination genesis record.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json",
-        "purpose": "Ordered reservation and path-classification proof.",
+        "path": "docs/design/v30/execution/contexts/V30-P00-C03-attempt-1.json",
+        "purpose": "Card 3 ledger-genesis validation context.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json",
-        "purpose": "Card 2 provisional proof receipt.",
+        "path": "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json",
+        "purpose": "Schema-sealed genesis validation receipt.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P00-C02",
+    "cardID": "V30-P00-C03",
     "class": "FOUNDATION",
     "directPrerequisites": [
-      "V30-P00-C01"
+      "V30-P00-C01",
+      "V30-P00-C02"
     ],
-    "ordinal": 2,
+    "ordinal": 3,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Frozen V23/S10 reservation and provisional-fence proof"
+    "title": "Namespaced provisional coordination genesis validation"
   },
   "fenceSource": {
-    "cardID": "V30-P00-C02",
+    "cardID": "V30-P00-C03",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -118,15 +120,15 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P00-C03",
+  "next": "V30-P00-C04",
   "observedCoordination": {
-    "head": "41705d370b736fef057d75f3363e0e060e899994",
-    "ledgerDigest": "9d146190198717807ece7f0b99dc5a52743a56a981862145e5b725d03023ef0d",
-    "sequence": 3
+    "head": "84d7e8a207bb88f508ef3e533dd9f8e4d7713368",
+    "ledgerDigest": "5af093a1d41d221eb011ec63fd8b28d17e5d8756145bd06a417afcb307743fde",
+    "sequence": 5
   },
-  "ordinal": 2,
-  "outcome": "Bind V23 head/tree, V23 package and coordination sequence/digests, the ordered 86-path S10 reservation, and the path classification algorithm. An overlap is allowed only when pre-existing external authority supplies its exact tuple `{cardID,path,expectedBBlobHashOrABSENT,boundedPurpose,writerLane,reconciliationObligation}` and the path is card-owned `S10_SHARED_RECONCILIATION_REQUIRED`; it can never earn pre-S10 acceptance.",
-  "payloadDigest": "44abc61d3432e3cd7bd8cfe161b6a9f0335d8a0c33796d0d9aff00095b643951",
+  "ordinal": 3,
+  "outcome": "Validate, schema-seal, and exercise the sole G3-created expected-absent provisional-ledger genesis at the authority-pinned isolated coordination locator/ref, including distinct ID/writer generation/digest chain and immutable V23 observations. Never create a second genesis, mutate, or claim succession to the canonical V23 ledger.",
+  "payloadDigest": "981cca19deabfdd72174f86fc56f92afc27b4885c297259825b7f7953c1c1149",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
@@ -141,13 +143,26 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
       },
       "sequence": 3
+    },
+    "V30-P00-C02": {
+      "candidate": {
+        "base": "1374269994a871236703d5e006fb86f34bb06b68",
+        "changedPaths": [
+          "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json",
+          "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json",
+          "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json"
+        ],
+        "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+        "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
+      },
+      "sequence": 5
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Static governance; hosted dispatch disabled until Card 5 pins the route",
-  "sourceEndLine": 971,
-  "sourceStartLine": 971,
-  "title": "Frozen V23/S10 reservation and provisional-fence proof"
+  "sourceEndLine": 972,
+  "sourceStartLine": 972,
+  "title": "Namespaced provisional coordination genesis validation"
 }
 ```

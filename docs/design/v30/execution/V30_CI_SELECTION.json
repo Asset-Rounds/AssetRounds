@@ -1,7 +1,7 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
-  "cardID": "V30-P00-C02",
-  "cardTitle": "Frozen V23/S10 reservation and provisional-fence proof",
+  "cardID": "V30-P00-C03",
+  "cardTitle": "Namespaced provisional coordination genesis validation",
   "hostedDispatchAllowed": false,
   "hostedDispatchUnlockCard": "V30-P00-C05",
   "kind": "V30CISelectionV1",
@@ -12,7 +12,7 @@
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "e39147d542aac012b78c39e27f05d7ed838a5c6760a36ae28656033948601f65",
+  "payloadDigest": "c0fc04c133800222411a71631a1494be9b214f22df02714aed735066553b9f99",
   "preS10FinalCredit": false,
   "reason": "Static governance; hosted dispatch disabled until Card 5 pins the route",
   "schemaVersion": "V30BootstrapPayloadV1",
