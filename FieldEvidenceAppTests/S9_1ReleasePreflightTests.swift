@@ -1778,6 +1778,30 @@ extension S9_1ReleasePreflightTests {
 }
 
 extension S9_1ReleasePreflightTests {
+    func testV23P05C01ReleasePreflightRetainsStaticOnlyCandidateGate() throws {
+        let ledger = try jsonObject("Release/V23P05C01ExactCodeCandidateGateV1.json")
+        let corpus = try jsonObject(
+            "FieldEvidenceAppTests/Fixtures/V23/Release/V23P05C01ExactCodeCandidateGateCorpusV1.json"
+        )
+        XCTAssertEqual(ledger["schema"] as? String, "V23P05C01ExactCodeCandidateGateV1")
+        XCTAssertEqual(corpus["schema"] as? String, "V23P05C01ExactCodeCandidateGateCorpusV1")
+        XCTAssertEqual(try XCTUnwrap(ledger["card"] as? [String: Any])["id"] as? String, "V23-P05-C01")
+        XCTAssertEqual(try XCTUnwrap(corpus["requiredCounts"] as? [String: Any])["selectorMembers"] as? [Int], [19, 40, 65, 15, 132, 11, 72])
+        let flags = try XCTUnwrap(ledger["flags"] as? [String: Bool])
+        XCTAssertTrue(flags.filter { $0.key != "requiresAcceptedS10_6" }.values.allSatisfy { !$0 })
+        XCTAssertEqual(flags["requiresAcceptedS10_6"], true)
+
+        let preflight = try text("Scripts/release-preflight.sh")
+        for required in [
+            "generate_p05_c01_contracts.py --self-test --json",
+            "verify_p05_c01_contracts.py --complete --json",
+            "V23-P05-C01",
+            "PROVISIONAL_STATIC_ONLY",
+        ] {
+            XCTAssertTrue(preflight.contains(required), required)
+        }
+    }
+
     func testV23P04C29ReleasePreflightBindsObservedGeneratorSelfTestWithoutReleaseClaim() throws {
         let corpus = try c29JSON(
             "FieldEvidenceAppTests/Fixtures/V23/Brand/V23P04C29ExactCandidateRegressionFreezeCorpusV1.json"

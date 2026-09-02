@@ -1,0 +1,117 @@
+{
+  "candidatePromotion": false,
+  "cardID": "V23-P05-C01",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "phaseIntegration": false,
+    "physical": false,
+    "publication": false,
+    "release": false,
+    "requiresAcceptedS10_6": true
+  },
+  "observedSelfTest": {
+    "authority": {
+      "allocationDigest": "d05fdbb6e8e06bf65087749d40e8d544ea9cc9e83528935cfbf4705bfb97c18d",
+      "appBaseHead": "2952775307a182d183461f81157af6cb3819be69",
+      "appBaseTree": "36b3c5f0993519aa703a341f6e650989dc5f1102",
+      "attemptID": 1,
+      "cardID": "V23-P05-C01",
+      "contextDigest": "454fb36d385cc9935bb76b596ae7d5e26d3ba89a68cf9d19209e8a71a158e286",
+      "coordinationHead": "30a5be02d3c6b00c084392a9901ebf3915a3ea1c",
+      "coordinationTree": "fd478fc211271f83fee7e74b5426001763e21c45",
+      "existingPathCount": 2,
+      "fencePathCount": 14,
+      "finalHashesSealed": false,
+      "ledgerDigest": "42e12627b00f7c1d23bdb0977a2a16aa078ced888ad611df6542d87d8dd5a379",
+      "newPathCount": 12,
+      "orderedPathFence": [
+        "Scripts/release-preflight.sh",
+        "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+        "Release/V23P05C01ExactCodeCandidateGateV1.json",
+        "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests.swift",
+        "FieldEvidenceAppTests/Fixtures/V23/Release/V23P05C01ExactCodeCandidateGateCorpusV1.json",
+        "FieldEvidenceAppUITests/V23_P05_C01ExactCodeCandidateGateUITests.swift",
+        "Scripts/v23/p05_c01_contracts.py",
+        "Scripts/v23/generate_p05_c01_contracts.py",
+        "Scripts/v23/verify_p05_c01_contracts.py",
+        "Scripts/v23/exact-code-candidate-gate.schema.json",
+        "docs/design/v23/tooling/V23P05C01ExactCodeCandidateGateContractV1.json",
+        "docs/design/v23/tooling/V23P05C01ExactCodeCandidateGateEvidenceReceiptV1.json",
+        "docs/design/v23/tooling/V23P05C01BrandImpactManifestV1.json",
+        "docs/design/v23/tooling/V23-P05-C01-tooling-manifest.json"
+      ],
+      "ordinal": 134,
+      "pathFenceDigest": "1f9286e373c2ddbb2e18b1e61a7226c560842dada45f719bc3a6653449099b45",
+      "prerequisiteDigest": "9914b355d2371cea8e831299c65ecf3947e695933dce05a165c08bc296c09f93",
+      "priorOverlapAuthorizedPaths": [
+        "Scripts/release-preflight.sh",
+        "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift"
+      ],
+      "priorOverlapCount": 13,
+      "projectionDigest": "aad3b7c187217d3e35eb68274a46080d57c1ccf74788a922cdf578398936bbc4",
+      "s10OverlapCount": 0,
+      "sequence": 590,
+      "transitionDigest": "eb3e196f825b30250da007bec328c66754b1be0969431e884cbec9a89502ddbb",
+      "unauthorizedOverlapCount": 0
+    },
+    "candidate": {
+      "head": "2952775307a182d183461f81157af6cb3819be69",
+      "tree": "36b3c5f0993519aa703a341f6e650989dc5f1102"
+    },
+    "canonicalResultSHA256": "93c836df76bfd792e8d7ccf6fa6c4aa60c81492a47bc9bd65257e896f8bbca59",
+    "cardID": "V23-P05-C01",
+    "commands": [
+      {
+        "command": "python -B Scripts/v23/generate_p05_c01_contracts.py --self-test --json",
+        "mode": "GENERATOR_MANIFEST_LAST_RECOVERY"
+      },
+      {
+        "command": "python -B Scripts/v23/verify_p05_c01_contracts.py --complete --json",
+        "mode": "COMPLETE_STATIC_PROVISIONAL"
+      }
+    ],
+    "schema": "V23P05C01ObservedSelfTestV1",
+    "scripts": {
+      "generatorSHA256": "82a35a9207b3be724d7f1dbf2769e7af71f878441394a8dddef048891e136dca",
+      "verifierSHA256": "583f885c9343b5af80f747221415f3f1589d6389c48ec02ccf3cd533a3662208"
+    },
+    "sourceRows": [
+      {
+        "path": "Scripts/release-preflight.sh",
+        "sha256": "ead4fd9344e8ccd2dd0d030962638d0acc50e79a93dccd5f82f1bd7eb8bf3c43",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+        "sha256": "abd8c05f42abb2dfd7de6d79e602207c58bdec1988b4d1d5d9ad0169a9039a08",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "Release/V23P05C01ExactCodeCandidateGateV1.json",
+        "sha256": "93973031405870341fbfd8709a878df89044c6465a4a4da1bd05f22113db720e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests.swift",
+        "sha256": "c05952b611f626b53ddac9061d1cedffc0f50cf44b39dd9d3155bb4a366b9736",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V23/Release/V23P05C01ExactCodeCandidateGateCorpusV1.json",
+        "sha256": "234677ba8d9fc8bd41894202db7ab4f8202d0a378b48f6ee128829ca2e91ded8",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P05_C01ExactCodeCandidateGateUITests.swift",
+        "sha256": "3686bab1dbbd8d4d1dbde03f0b4b4a3e7f51b171cf9a624523524db7befae9e2",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P05C01BrandImpactManifestV1"
+}

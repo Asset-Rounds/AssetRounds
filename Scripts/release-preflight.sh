@@ -58,6 +58,10 @@ c29_schema="Scripts/v23/exact-candidate-regression-freeze.schema.json"
 c29_contracts_script="Scripts/v23/p04_c29_contracts.py"
 c29_generator_script="Scripts/v23/generate_p04_c29_contracts.py"
 c29_verifier_script="Scripts/v23/verify_p04_c29_contracts.py"
+p05_c01_ledger="Release/V23P05C01ExactCodeCandidateGateV1.json"
+p05_c01_corpus="FieldEvidenceAppTests/Fixtures/V23/Release/V23P05C01ExactCodeCandidateGateCorpusV1.json"
+p05_c01_generator="Scripts/v23/generate_p05_c01_contracts.py"
+p05_c01_verifier="Scripts/v23/verify_p05_c01_contracts.py"
 export_options="Release/TestFlightExportOptions.plist"
 workflow=".github/workflows/testflight.yml"
 project="FieldEvidenceApp.xcodeproj/project.pbxproj"
@@ -101,6 +105,10 @@ for path in \
   "$c29_contracts_script" \
   "$c29_generator_script" \
   "$c29_verifier_script" \
+  "$p05_c01_ledger" \
+  "$p05_c01_corpus" \
+  "$p05_c01_generator" \
+  "$p05_c01_verifier" \
   "$export_options" \
   "$workflow" \
   "$project"
@@ -855,6 +863,33 @@ digest = basis.pop("canonicalResultSHA256")
 assert digest == hashlib.sha256(json.dumps(basis, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 assert observed["candidate"] == corpus["candidateFreeze"]
 assert observed["authority"] == corpus["authority"]
+PY
+
+# C134 is a repository-only gate.  These commands bind its generated static
+# evidence without asserting a native, hosted, accepted, or release result.
+python -B "$p05_c01_generator" --check >/dev/null
+p05_c01_self_test="$(python -B "$p05_c01_generator" --self-test --json)"
+p05_c01_verifier_result="$(python -B "$p05_c01_verifier" --complete --json)"
+python -B - "$p05_c01_ledger" "$p05_c01_corpus" "$p05_c01_self_test" "$p05_c01_verifier_result" <<'PY'
+import json, sys
+ledger, corpus, generated, verified = (json.loads(x) for x in (open(sys.argv[1]).read(), open(sys.argv[2]).read(), sys.argv[3], sys.argv[4]))
+assert ledger['schema'] == 'V23P05C01ExactCodeCandidateGateV1'
+assert corpus['schema'] == 'V23P05C01ExactCodeCandidateGateCorpusV1'
+assert ledger['card']['id'] == corpus['cardID'] == 'V23-P05-C01'
+assert [x['memberCount'] for x in ledger['selectorRows']] == [19,40,65,15,132,11,72]
+assert len(ledger['provisionalEvidence']['orderedMemberIDs']) == 132
+assert ledger['provisionalEvidence']['acceptedCount'] == 0
+assert ledger['provisionalEvidence']['predicateSatisfied'] is False
+assert ledger['provisionalEvidence']['creditGranted'] is False
+assert len(ledger['journeyGates']['commonJourneyIDs']) == 14 and len(ledger['journeyGates']['featureJourneyIDs']) == 17
+assert [x['id'] for x in ledger['scenarioRows']] == ['G01','A01','H01','I01','R01']
+assert len(ledger['logicalAcceptanceLanes']) == 5 and len(ledger['readOnlyBindings']) == 17
+assert all(v is False for k,v in ledger['flags'].items() if k != 'requiresAcceptedS10_6')
+assert ledger['flags']['requiresAcceptedS10_6'] is True
+assert generated['result'] == 'PASS' and generated['protocol'] == 'MANIFEST_LAST_ATOMIC_REPLACE'
+assert verified['cardID'] == 'V23-P05-C01' and verified['result'] == 'PASS_STATIC_PROVISIONAL'
+assert verified['sourceReady'] is True and verified['failures'] == []
+assert [x['memberCount'] for x in verified['selectorRows']] == [19,40,65,15,132,11,72]
 PY
 
 python -B - \
