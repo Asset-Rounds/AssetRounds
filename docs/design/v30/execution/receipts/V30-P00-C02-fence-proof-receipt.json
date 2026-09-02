@@ -1,0 +1,57 @@
+{
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "base": {
+    "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
+    "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
+  },
+  "blockers": [],
+  "cardID": "V30-P00-C02",
+  "coordination": {
+    "head": "dd026224d58ed44daf0bc98ed2d8596655edde51",
+    "ledgerDigest": "a314effb651127d260a3ad9b2efd99449affb14aa6cba56cbe1373165f99c0e6",
+    "sequence": 4
+  },
+  "counts": {
+    "cardPathEntries": 602,
+    "cards": 37,
+    "distinctPaths": 327,
+    "reservationPaths": 86,
+    "reservedOverlaps": 63
+  },
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": false,
+    "releaseCredit": false
+  },
+  "failures": [],
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "next": "V30-P00-C03_AFTER_PROVISIONAL_CHECKPOINT",
+  "observedTaskStart": "1374269994a871236703d5e006fb86f34bb06b68",
+  "ordinal": 2,
+  "payloadDigest": "2690984c4e8e80ac0802be9823e9ad71e55aa0ac60e4db87f0aa69d0d39a271b",
+  "proof": {
+    "path": "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json",
+    "payloadDigest": "2a06e74cc13bfda2113af49b58d72c837e9b537313815ef27b67f5f6f25fd0ab",
+    "sha256": "4d727b055bedd845ba55c3eb3bc2552c1cee29d2c92f227aa1f7cb4e660f9862"
+  },
+  "result": "PASS",
+  "s10SharedPaths": [],
+  "staticChecks": {
+    "boundedNegativeClassificationCases": "PASS",
+    "exactAllowedAndSharedPathTupleJoin": "PASS",
+    "existingBlobAndExpectedAbsentValidation": "PASS",
+    "frozenCoordinationDigests": "PASS",
+    "frozenV23Package": "PASS",
+    "fullyExpandedPathCheck": "PASS",
+    "reservationContentAndRawDigests": "PASS"
+  }
+}

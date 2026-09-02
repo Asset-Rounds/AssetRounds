@@ -1,0 +1,4491 @@
+{
+  "algorithm": [
+    "Require exact card allowlist membership and fully expanded relative path",
+    "Read only frozen B tree/blobs; verify existing blob/hash or expected absence",
+    "Join reserved intersections against both card s10SharedPaths and exact card/path authority tuple",
+    "Classify authorized overlap S10_SHARED_RECONCILIATION_REQUIRED; disjoint V30_PROVISIONAL_OWNED; reject missing/mismatched membership/tuple as CONFLICT_HOLD",
+    "All classifications provide zero final credit and preserve post-S10 replay obligations"
+  ],
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "boundedNegativeChecks": {
+    "missingSharedMembership": "CONFLICT_HOLD",
+    "missingTuple": "CONFLICT_HOLD",
+    "unfencedPath": "CONFLICT_HOLD",
+    "wrongFrozenBlobTuple": "CONFLICT_HOLD"
+  },
+  "cardID": "V30-P00-C02",
+  "classifications": [
+    {
+      "cardID": "V30-P00-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P00-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P00-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_ACTIVATION_RECEIPT.json"
+    },
+    {
+      "cardID": "V30-P00-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/contexts/V30-P00-C01-attempt-1.json"
+    },
+    {
+      "cardID": "V30-P00-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_COORDINATION_GENESIS.json"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/contexts/V30-P00-C03-attempt-1.json"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/contracts/V30ProvisionalCandidateReconciliationManifestV1.json"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/schemas/v30-provisional-candidate-reconciliation-manifest.schema.json"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "Scripts/v30/validate_v30_provisional_candidate_manifest.py"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P00_C04CandidateReconciliationManifestTests.swift"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": ".github/workflows/ios-ci.yml"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "Scripts/test-smoke.sh"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "Scripts/ui-smoke.sh"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "Scripts/v30/validate_v30_provisional_ci_contract.py"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/research/V30ResearchManifestV1.json"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/research/V30InitialLanguageCohortV1.json"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/research/V30KeywordEvidenceBindingV1.json"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/inventory/V30TextBearingSurfaceInventoryV1.json"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/inventory/V30TextSurfaceDispositionSchemaV1.json"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "Scripts/v30/validate_v30_text_surface_inventory.py"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P01_C03TextSurfaceInventoryTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/LocalizationCatalogReleaseContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/LocalizationCatalogReleaseStoreV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P01_C08CatalogReleaseIntegrityTests.swift"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/CatalogRelease/catalog-release-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/EnglishCatalog/english-catalog-audit-v1.json"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Signs/NewSignView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Subscription/PaywallView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Activities/InstallationWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Activities/PunchReviewWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/AssetImport/PartyContactSiteRoleImportView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/EvidenceQualityCoachView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Dashboard/ExceptionReviewQueueView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Dashboard/OperationsDashboardView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Rounds/OfflineReadinessPreflightView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/UnicodeEvidenceSafetyContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Globalization/UnicodeEvidenceSafetyCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P02_C02UnicodeEvidenceSafetyTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Unicode/unicode-evidence-hostile-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/ImportExport/EntityIdentityResolutionLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BidirectionalTextSafetyV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Globalization/GlobalizationRTLSemanticsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P02_C03RTLSemanticsTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/RTL/rtl-hostile-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/DesignSystem/GlobalizationAdaptiveLayoutPolicyV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Globalization/GlobalizationAccessibilityPolicyV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Accessibility/expansion-and-type-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Search/GlobalizedSearchNormalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Search/GlobalizedSearchNormalizationServiceV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P02_C05GlobalizedSearchTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Search/globalized-search-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Search/SearchContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Search/SearchPersistenceModelsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_19LocalSearchTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/TestSupport/V30PseudoLocalizationHarnessV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P02_C06PseudoLocalizationHarnessTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppUITests/V30_P02_C06PseudoLocalizationUITests.swift"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppUITests/Fixtures/V30/PseudoLocalization/pseudo-locale-screenshot-matrix-v1.json"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/verification/V30P02C06ProvisionalScreenshotHarnessContractV1.json"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppUITests/V23_P03_C16LocalizationAccessibilityUITests.swift"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppUITests/V23_P04_C16ShellAccessibilityLocalizationUITests.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Settings/GlobalizationSettingsViewV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/ReportLanguageContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Reporting/ReportLanguageCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P02_C07LanguageRegionSettingsTests.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/AuthoredContentLanguageContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Globalization/AuthoredContentLanguageCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C01AuthoredContentLanguageTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/AuthoredContent/authored-content-language-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Packs/PackageSandboxRunnerV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/LocalizedSyncStateContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/LocalizedSyncStateRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C02OfflineSyncLocalizationTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/SyncStates/localized-sync-state-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Replication/IntegrationEventProjectionV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/LocalizedFormSemanticsContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Globalization/LocalizedFormSemanticsCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C03LocalizedFormSemanticsTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Forms/localized-form-semantics-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerContracts.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/ResponseFieldDefinitionV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/ResponseValueV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Packs/SurveyDefinitionCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Workflow/GuidedSurveyFlowCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Packs/SurveyDefinitionLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Packs/PackageSandboxRunnerV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_83GuidedSurveyFlowTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_13TypedResponseTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/GlobalizedAccessibleDocumentContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/GlobalizedAccessibleDocumentRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C04GlobalizedAccessibleDocumentTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Reports/globalized-accessible-document-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/AccessibleDocumentLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Reporting/AccessibleDocumentCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/ImportExport/GlobalizedMachineExportContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/ImportExport/GlobalizedMachineExportAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C05GlobalizedMachineExportTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/ImportExport/globalized-machine-export-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/ImportExport/ImportBulkContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/ImportExport/ImportBulkCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/ImportExport/EntityIdentityResolutionLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_95PartyContactSiteRoleImportTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Reporting/ShopReportProfileCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_52AssetLabelTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Globalization/AssistedInputCapabilityContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Globalization/AssistedInputCapabilityCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C07AssistedInputCapabilityTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/AssistedInput/assisted-input-capability-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Assistance/OCRProposalCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/VoiceStructuring/VoiceStructuringContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Assistance/OCRProposalContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Assistance/OCRProposalLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Assistance/DictationLocationProposalContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Assistance/DictationLocationProposalCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Assistance/DictationLocationProposalLifecycleAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_86OCRProposalTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Backup/GlobalizedCatalogReplayContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/GlobalizedCatalogReplayAdapterV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C08GlobalizedCatalogReplayTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Backup/globalized-catalog-replay-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupImportContracts.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/KernelBackupRestoreRegistryV4.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Application/Globalization/CriticalSurfaceRecoveryCoordinatorV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P03_C09CriticalSurfaceLocalizationTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/CriticalSurfaces/critical-surface-cases-v1.json"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Info.plist"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/InfoPlist.xcstrings"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/translation/V30TermbaseV1.json"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/translation/V30SecureLinguisticReviewWorkflowV1.json"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/translation/V30TranslationReviewPacketSchemaV1.json"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "Scripts/v30/validate_v30_translation_review_packet.py"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P04_C01TranslationWorkflowTests.swift"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/es.app.json"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/es.report.json"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/es.accessibility.json"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/es.json"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P04_C02SpanishLocalizationTests.swift"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/locales/es/V30P04C02ReviewPacketV1.json"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.app.json"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.report.json"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.accessibility.json"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hans.json"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P04_C03SimplifiedChineseLocalizationTests.swift"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/locales/zh-Hans/V30P04C03ReviewPacketV1.json"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.app.json"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.report.json"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.accessibility.json"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hant.json"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P04_C04TraditionalChineseLocalizationTests.swift"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/locales/zh-Hant/V30P04C04ReviewPacketV1.json"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/vi.app.json"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/vi.report.json"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/vi.json"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P04_C05VietnameseLocalizationTests.swift"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/locales/vi/V30P04C05ReviewPacketV1.json"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/ko.app.json"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/ko.report.json"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/ko.json"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P04_C06KoreanLocalizationTests.swift"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/locales/ko/V30P04C06ReviewPacketV1.json"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/translation/V30ProvisionalLocalizationCatalogReleaseV1.json"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/execution/receipts/V30-P04-C07-provisional-integration-receipt.json"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "docs/design/v30/verification/V30P04C07LocaleIntegrationMatrixV1.json"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V30_P04_C07LocaleReleaseIntegrationTests.swift"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/InfoPlist.xcstrings"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "classification": "V30_PROVISIONAL_OWNED",
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    }
+  ],
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": false,
+    "releaseCredit": false
+  },
+  "fenceSourceSHA256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a",
+  "frozenCoordination": {
+    "branch": "main",
+    "head": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+    "ledgerDigest": "973090852e843e895125bea8da87c7e1689611c46d8219a70c1749be49398067",
+    "projectionDigest": "cf57849e8f7c245d38fd21a39da5938d10e13c9aca3976a71b7d3a3ee401f12d",
+    "readOnly": true,
+    "remoteURL": "https://github.com/Asset-Rounds/AssetRounds-v23-coordination.git",
+    "sequence": 626,
+    "tree": "060c83c3d1489fc011b1c921f6c85bec2b074478",
+    "worktree": "C:\\AssetRounds-v23-coordination"
+  },
+  "frozenDigestVerification": {
+    "coordinationLedgerDigest": "973090852e843e895125bea8da87c7e1689611c46d8219a70c1749be49398067",
+    "coordinationProjectionDigest": "cf57849e8f7c245d38fd21a39da5938d10e13c9aca3976a71b7d3a3ee401f12d",
+    "coordinationSequence": 626,
+    "method": "Independent V23PackageDigestV2 logical-manifest computation; frozen c07/card_contracts coordination sorted compact UTF8+LF digest verification",
+    "result": "PASS",
+    "v23LogicalSHA256": {
+      "EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md": "779d91091164d33fc81a77deb689d631c7cca1bc55a80e3806ce7f874f5b3d48",
+      "EXPANSION_V23_FOUNDATION_PLAN.md": "4caf56670c6e211291a6a141e4c8d35762d1155c169c91668f044644f60811c6",
+      "EXPANSION_V23_HANDOFF.md": "ca3e563f072c1ce34207c41272e2755a8d8d474c40640a0612ab33a0deebeab9",
+      "NEXT_CODEX_SESSION_PROMPT.md": "355d511ef73319561b7455d64f7f98cda0a655768282fb8b88f662ef9e13d2f7"
+    },
+    "v23PackageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570"
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "observedFrozenPaths": {
+    ".github/workflows/ios-ci.yml": {
+      "blobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+      "sha256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7"
+    },
+    "FieldEvidenceApp.xcodeproj/project.pbxproj": {
+      "blobOID": "86a4ce64b389bfadb72eb80de63255bd59eb63e9",
+      "sha256": "5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f"
+    },
+    "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift": {
+      "blobOID": "2f35aa6105f83fa7e390622a6dc89c12087aec6e",
+      "sha256": "aafee8825fc36969967009bf10a2dce241474b4e525f40352ed6bcf9fb549aa9"
+    },
+    "FieldEvidenceApp/App/FieldEvidenceAppApp.swift": {
+      "blobOID": "50e6a7e11ff107d608318498fa578d852b5c6b06",
+      "sha256": "7c33e08af4b67ffa60f4574192cca077548e9d1d5989f890be2a3a07c7fa8563"
+    },
+    "FieldEvidenceApp/Application/Assistance/DictationLocationProposalCoordinatorV1.swift": {
+      "blobOID": "5b45d80ad7e06019f3ad5d88c04e16c9dee49eaa",
+      "sha256": "622c0bbee789f3743a85a4f800c3a3838e16a145d6fbca4613b35edbcc36b8d7"
+    },
+    "FieldEvidenceApp/Application/Assistance/OCRProposalCoordinatorV1.swift": {
+      "blobOID": "e9bd0a023512ea2a7757506c3f257741eba4115d",
+      "sha256": "6ca1daa0afe5f1e717e9ba6595882c97ca38174e5bb1c549776e6949dc42f1db"
+    },
+    "FieldEvidenceApp/Application/Globalization/AssistedInputCapabilityCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/Globalization/AuthoredContentLanguageCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/Globalization/CriticalSurfaceRecoveryCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/Globalization/LocalizedFormSemanticsCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/Globalization/UnicodeEvidenceSafetyCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/ImportExport/ImportBulkCoordinatorV1.swift": {
+      "blobOID": "d1848b8298b82ca30070ed3453faa5de532654d1",
+      "sha256": "867636d904e5088b6e334ed1893725ab7df947e588ebcd43eaf3629cca95cfeb"
+    },
+    "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift": {
+      "blobOID": "50b87e2a2fdbcc4b1c35b339751d6e3a645bfa6a",
+      "sha256": "f9964963a642838adf677240c70dd272b1730d70238572aade876d5fa5e55d24"
+    },
+    "FieldEvidenceApp/Application/Packs/SurveyDefinitionCoordinatorV1.swift": {
+      "blobOID": "b2bb1d99bab55b12df661417b613d99570224502",
+      "sha256": "4d081d00c3c9b4dec0849594faf08a40ed86cf3d4966986f8c889e939ba87f59"
+    },
+    "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift": {
+      "blobOID": "b311e66b05b19078c9823b59c91c1f9c81964d49",
+      "sha256": "ddb2bb5579ec9c091f268f09a3552b00318165e44e31f87940931acb8029e2f6"
+    },
+    "FieldEvidenceApp/Application/Reporting/AccessibleDocumentCoordinatorV1.swift": {
+      "blobOID": "5ce1e8b1e1de3137b596b314eb6902ffbeafff33",
+      "sha256": "77b43f39aff3189791f9c33b7b5c02456fa9a3357e85b58758a32f19ae4f2cf9"
+    },
+    "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/Reporting/ReportLanguageCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/Reporting/ShopReportProfileCoordinatorV1.swift": {
+      "blobOID": "445b88c91a7d901f2c978440a11c2278a44ebccf",
+      "sha256": "87e230a01acd36b88a6f138826f1052ab1d0327ce90bd3c01d66f95f4ad9670c"
+    },
+    "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift": {
+      "blobOID": "c3cb1fa6103c35effc8b61e0d7016d753be7702a",
+      "sha256": "f253fdd2746c3ef862df86f7237433be9b46d42928835e373cd5f673664abe39"
+    },
+    "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift": {
+      "blobOID": "2761180c681e70851b5c1d92a27dd9d9af0cba12",
+      "sha256": "775d44f62d257b8748136a7eacd6b95a2a382c784c2275052fbdd1bd212dbafa"
+    },
+    "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift": {
+      "blobOID": "1c962c0c9eeb9821031652933c8d0213eebe8eb1",
+      "sha256": "35cd045a4e992749380e583bb16578309debc268837b8341b0a118f5cc24344a"
+    },
+    "FieldEvidenceApp/Application/Workflow/GuidedSurveyFlowCoordinatorV1.swift": {
+      "blobOID": "6125862fe5b0ba0551b336fb05228b0766b1c618",
+      "sha256": "f27aad32f9645e242cfbe5592c7f15a0f65141e62d0b6df9adacc09955593501"
+    },
+    "FieldEvidenceApp/DesignSystem/GlobalizationAdaptiveLayoutPolicyV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/DesignSystem/WorklightComponents.swift": {
+      "blobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
+      "sha256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d"
+    },
+    "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift": {
+      "blobOID": "47dce913f9d74c67372fd74381193e30f6ed3ea8",
+      "sha256": "6dffb68fd94398664e9ca9a77a52ab8104be3763df03c061fc806438f93940c4"
+    },
+    "FieldEvidenceApp/Domain/Assistance/DictationLocationProposalContractsV1.swift": {
+      "blobOID": "a753e7ef045c44daa414c24f823074a9c8af8a91",
+      "sha256": "3cc0904a9bb6f9e28f0b5910754ed442a1bf59f50381b52096584d2d21f02926"
+    },
+    "FieldEvidenceApp/Domain/Assistance/OCRProposalContractsV1.swift": {
+      "blobOID": "cd491b6b9af2f7ca7adbfdf41346312f44bcc3d5",
+      "sha256": "11bf44c2d34d8051bd4c79ad9643b8cc24abad209a24131412185b0cc9bce6e1"
+    },
+    "FieldEvidenceApp/Domain/Backup/GlobalizedCatalogReplayContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift": {
+      "blobOID": "94faa3ceda6b5ba290c5736b807fc03faa183e9c",
+      "sha256": "fab9f77f8be9d336082634279e675a2728deb38ce5f6d00fd203e8976d9a339d"
+    },
+    "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift": {
+      "blobOID": "8639bed99bec1503f63f556fb044f4ac493be506",
+      "sha256": "d66914b0fd97a95fa7af39ab1502911775a23b883d4be5233cdb4ee778183dba"
+    },
+    "FieldEvidenceApp/Domain/Backup/V4BackupImportContracts.swift": {
+      "blobOID": "91fb0e76cb1f7771b0b0c88a60b6da989e3cd59e",
+      "sha256": "85bf0383d287ba2c5b3d26dca116f47c07ca31f065540bd7d8bb0771e929b2cf"
+    },
+    "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift": {
+      "blobOID": "c77b5a7f8f07bd6a4501ac1aafa8a16027c05f49",
+      "sha256": "9f5a02ea8b3886a9cce19513357071a8349999da388a0e9bbf50f39951ac8834"
+    },
+    "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift": {
+      "blobOID": "ec7e9e1b615baa46195e1b56c1b69bd9b06a03cf",
+      "sha256": "c67a1362ecf340894d359affb6b4ffba52768c77f4e08d16ae913bfc0b61d19f"
+    },
+    "FieldEvidenceApp/Domain/Globalization/AssistedInputCapabilityContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/AuthoredContentLanguageContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/LocalizationCatalogReleaseContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/LocalizedFormSemanticsContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/LocalizedSyncStateContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Globalization/UnicodeEvidenceSafetyContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/ImportExport/GlobalizedMachineExportContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/ImportExport/ImportBulkContractsV1.swift": {
+      "blobOID": "961ca6ad753a73aff61c9b574ef0af11319e5f1f",
+      "sha256": "38629e4a55a5d5d07ebc7159de15ccd6ffe45edfeddae777db40cdab32ab850b"
+    },
+    "FieldEvidenceApp/Domain/InspectionKernel/ResponseFieldDefinitionV1.swift": {
+      "blobOID": "d5bf77dd1d6ce8c7123653c2cd3070c65ca73123",
+      "sha256": "b98b9730a65b87baa64b36696d117eed02ff820deeebb14fbc03612ca1c69e24"
+    },
+    "FieldEvidenceApp/Domain/InspectionKernel/ResponseValueV1.swift": {
+      "blobOID": "608289c8c58b80bb5c2f2f985cdee0d7a65f7d15",
+      "sha256": "a133a918665a2e8eaaf0241ca9e021ae1ce63478f1bc95d91c52a1d26d3074ac"
+    },
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift": {
+      "blobOID": "c14e3bd81b7c53ee5aefcf18fd3325c6405772a5",
+      "sha256": "692266ae13a9e9731504c8e30d82ebc6fef1aae6a4629881ffebfa2ea9e177c2"
+    },
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift": {
+      "blobOID": "a47729b0606d13aa25fa22eee1790e89bf9b23bc",
+      "sha256": "28fadd2c0bac751b75e1932020ecc697b63ef84337067f56b20b220a0aa1e35c"
+    },
+    "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift": {
+      "blobOID": "b68419345153053c5e63dfb8edd585f38cbcd6d8",
+      "sha256": "ed062fa1c2ab895c483799ad66fbc7e5f7ff7b2e0420092af7ea68cc0c5e32f9"
+    },
+    "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift": {
+      "blobOID": "8cd93ce082652e054201409787ba27fb82c63013",
+      "sha256": "5d1982421bea62d1ec5339f5a279b6f1f552afa8d90f7dc16f01e389b575dc4f"
+    },
+    "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift": {
+      "blobOID": "c7d11749e5e30978a538fad5480fec87a19b9fbb",
+      "sha256": "29a7de7e0efdf546ba87674f5730b62e07f8d5a6329fc93852fc675da0a613cd"
+    },
+    "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift": {
+      "blobOID": "f867ebe231a7f998ee89069ca4ce357999efae87",
+      "sha256": "664647c16a9df7342a123b755f41fc041987a439bf5f55f8a70dafc142fd856b"
+    },
+    "FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift": {
+      "blobOID": "2145a692c1100c6345a312ac9255d40041e034e3",
+      "sha256": "972709e5b3dcc357e11552e01e5f0d2a1e3ee2bbb96c243f4ec7486d11590c78"
+    },
+    "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift": {
+      "blobOID": "19f52a71cb2ded5ac20912bb8634263e7ace1ed6",
+      "sha256": "a0065b15ef7059867bb00377bd5b97cbcd2e9ac98c74ea0e154297410773f8bb"
+    },
+    "FieldEvidenceApp/Domain/Reporting/GlobalizedAccessibleDocumentContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Reporting/ReportLanguageContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift": {
+      "blobOID": "783f2db48da3032b9ce3217bfaf45900ae1e4cc4",
+      "sha256": "376a46bed52cccd33fe686f09f60f8f2948afb297f2dbc42305e0fa6e4a475fd"
+    },
+    "FieldEvidenceApp/Domain/Search/GlobalizedSearchNormalizationContractsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Domain/Search/SearchContractsV1.swift": {
+      "blobOID": "1e9dbbed51414fdc966cec2b11710ee75ceb1a27",
+      "sha256": "abe2182a403cb10cc939ba24884973f9c91b8066c47a0cc500e1ad236169312f"
+    },
+    "FieldEvidenceApp/Domain/Search/SearchPersistenceModelsV1.swift": {
+      "blobOID": "b4182deee643168333d22bd4a4b12cfd67cd7c92",
+      "sha256": "ee649eee8f456857c9b722fe04b2028488c88c73169e8cad737b6f594fbc1ac2"
+    },
+    "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift": {
+      "blobOID": "f28f90aa7b8b19519412ed879788166d01309008",
+      "sha256": "8e9814f0a5164b72aea2ba7f7b710e2bd4b20f1b14a3f6ee9306047218a2505d"
+    },
+    "FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift": {
+      "blobOID": "9b07602815af05100569c84cfeee6da50430e736",
+      "sha256": "46e9d97e0d6540cca1cfb4bb9783193ab5144246b1247c58cfc5803494e5c148"
+    },
+    "FieldEvidenceApp/Domain/VoiceStructuring/VoiceStructuringContractsV1.swift": {
+      "blobOID": "723d18181853e872e86e63ce39836b8951422cdc",
+      "sha256": "650bdd12dfb843a978fbde360faae2a8905b9801869d887efe1efc9546bbe7f4"
+    },
+    "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift": {
+      "blobOID": "63991694cff079b0fe82f1ba941c15bf8dde2ffb",
+      "sha256": "faedec6276ef31928285437f049ea1ca34c4cacc35e52ccdcde10dc3d0c0c9c5"
+    },
+    "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift": {
+      "blobOID": "3d3e9c1cd3e7aba2769e77ad4f31d5d60455c9fc",
+      "sha256": "0ab6b0d384018d5f5f670ba0e8d81f7d229245dbedec3b54d4050ad462abd18c"
+    },
+    "FieldEvidenceApp/Features/Activities/InstallationWorkflowView.swift": {
+      "blobOID": "bf638ee402fa66340f4bc58256507759aa628e4c",
+      "sha256": "b3c898bbdb8fa3df3f5f9a89a717d2310311f486aa5b650b0fa5c48074e26748"
+    },
+    "FieldEvidenceApp/Features/Activities/PunchReviewWorkflowView.swift": {
+      "blobOID": "5ab810147d8aaa0e94da6cd455dc9ecaae4bbd7a",
+      "sha256": "9f104c1c7b05c372d8e66e2543c4ed8bbc36b68b46ba09de63a2279531da342d"
+    },
+    "FieldEvidenceApp/Features/AssetImport/PartyContactSiteRoleImportView.swift": {
+      "blobOID": "805e528fe1e4745c5890232408f1b0a02018d5f9",
+      "sha256": "9489c9a0fd1b270e65ee28960c2208afbf493daeb37b395d73113af2490b96cd"
+    },
+    "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift": {
+      "blobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+      "sha256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0"
+    },
+    "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift": {
+      "blobOID": "535a86a3312f537f13c10b5db3f7bed3ac0f3945",
+      "sha256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559"
+    },
+    "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift": {
+      "blobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
+      "sha256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8"
+    },
+    "FieldEvidenceApp/Features/CheckRunner/CheckRunnerContracts.swift": {
+      "blobOID": "efa0d8d30548c9dcbbf724e9b5057f2ce5a7dced",
+      "sha256": "416e124c574a982c4ae8ebea4760065a09f79b18ddb61d516231afca34784edc"
+    },
+    "FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift": {
+      "blobOID": "805c35253d3b2303912a36ceb615f4b685c2b14b",
+      "sha256": "a33abeeddadd8363ecc70d9762867953c63ed4b0a830b41e42ffbff4ea01b411"
+    },
+    "FieldEvidenceApp/Features/CheckRunner/EvidenceQualityCoachView.swift": {
+      "blobOID": "d6e32d1bd99c50baf61a8de049d9b1220253389a",
+      "sha256": "7a3654e928958350d6541cf571644d229fa5f15d4d3d23a6a51df5d76630fa9e"
+    },
+    "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift": {
+      "blobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
+      "sha256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b"
+    },
+    "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift": {
+      "blobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
+      "sha256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955"
+    },
+    "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift": {
+      "blobOID": "0797274e09f174e1caca359c3ce6b030c41054e6",
+      "sha256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8"
+    },
+    "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift": {
+      "blobOID": "6888939c824917f828741644016683a65fe7e8ff",
+      "sha256": "44c6acd28391d5609e668c31266d19c593383a15517e2d874e018f3dd72234a1"
+    },
+    "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift": {
+      "blobOID": "7c639ec9feca4c1828577a34a30b7a5dba188568",
+      "sha256": "c3dbc9b970e748ef24bede3438e219622ae11b6b3cf8059f6f75e122c9f0838f"
+    },
+    "FieldEvidenceApp/Features/Dashboard/ExceptionReviewQueueView.swift": {
+      "blobOID": "f05badc2ac2de4d0fd0f80287280bc14be76f767",
+      "sha256": "e1bb1925806ccc66854cd3eafc5c85a671ff53e284439502e374ec7edd400509"
+    },
+    "FieldEvidenceApp/Features/Dashboard/OperationsDashboardView.swift": {
+      "blobOID": "6de539ccabeb8dee7a4738d3d4bb5fa8d9eac75d",
+      "sha256": "ed3ecf6828d75a66b0afe9d5e66bc251c50d9f0de962a5e94b38971b31daf564"
+    },
+    "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Features/Globalization/GlobalizationAccessibilityPolicyV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Features/Globalization/GlobalizationRTLSemanticsV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift": {
+      "blobOID": "7e2e4fa68cae5bc27f6af6669f41726a73de1ac6",
+      "sha256": "f3557940a31b1251e7598c9384160a8da21f0057e1c5c660fb26817ea1226090"
+    },
+    "FieldEvidenceApp/Features/Issues/IssueDetailView.swift": {
+      "blobOID": "9007a09c8dbca262ddbaa680e8bc6d906c3166c5",
+      "sha256": "217403ff65a8cde53dc0d1402d929720782232391d998eab48afc1fd72159c6c"
+    },
+    "FieldEvidenceApp/Features/Issues/RecordWorkView.swift": {
+      "blobOID": "e830455b14706763c3f9be4a930cd27955ef0890",
+      "sha256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6"
+    },
+    "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift": {
+      "blobOID": "c48fbb8f39643d24cef00d49a5ed90313780c1f5",
+      "sha256": "8c7dd5d1412895266be2ad1c5bffe743c13db2b1c2074e2f35d5b0e6d947f310"
+    },
+    "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift": {
+      "blobOID": "75590cbd581d0f1181ac652f5a160e0ccc24a382",
+      "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+    },
+    "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift": {
+      "blobOID": "6700e9b81495184ac73d94e10f0c9201243829db",
+      "sha256": "e64e024f682bca17ff2ae207f7a512cdeb15ea4db56377b0b8ee23a971039342"
+    },
+    "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift": {
+      "blobOID": "1798cf7b2fd27e4005c2877083108b8362cd450f",
+      "sha256": "fd97a87be8b5e83f9458f2d8e517c79c552876f9adf5eed3e8472a876edc7af5"
+    },
+    "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift": {
+      "blobOID": "2b96a63848c5b77eef63055baf58ed12ba60cca4",
+      "sha256": "243ffe889a67d5ddb032325d35854f3bd4a1fb84ebb23fa3c7069836e53da2ac"
+    },
+    "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift": {
+      "blobOID": "af1cea52cbd507b9a2c5ff4fcb823e8aa999b0ec",
+      "sha256": "dd5d6dddb6e58fbc86e9cbbf7318a8ad6d3271bd93117b4c72ac52d058381fd8"
+    },
+    "FieldEvidenceApp/Features/Reports/ReportDetailView.swift": {
+      "blobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+      "sha256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716"
+    },
+    "FieldEvidenceApp/Features/Reports/ReportFailureView.swift": {
+      "blobOID": "5378ee6c73d8d86cce2c7a316fa23509d4d3250e",
+      "sha256": "e869176ccc9a768f1c351442c3e22d4a560bd7b39ab2ea209d85774c1079d26a"
+    },
+    "FieldEvidenceApp/Features/Reports/ReportsRootView.swift": {
+      "blobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+      "sha256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350"
+    },
+    "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift": {
+      "blobOID": "cbf57069537bc9a75fc50aca6dc7f078ac2adbf2",
+      "sha256": "590e4210beb49052f753b6cdc4fa11d31339bbd317ad78fd139cca88d9657d16"
+    },
+    "FieldEvidenceApp/Features/Rounds/OfflineReadinessPreflightView.swift": {
+      "blobOID": "79b9c8a323e8e2cc08ff5bee104dc7648ed1960d",
+      "sha256": "55a8bfe733a9aa5da7ebd768597f8be14d8ac46d0e1d9db9db0a4ae0758e53ac"
+    },
+    "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift": {
+      "blobOID": "e594bc96cd26e94f4732de20bde119895f30c02e",
+      "sha256": "15b47b3bd21e0eb4d797bdc33867c44ffe441b433a6ac5ec1bf1725e4c9e0c8c"
+    },
+    "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift": {
+      "blobOID": "3292ea5f900962eb6e493fe3a66dd018a240040e",
+      "sha256": "b0b87d4a73ef00818dbe639b8659fe81e343b65ceeb6b423db54025d2345eca2"
+    },
+    "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift": {
+      "blobOID": "89f07cd0696487a163efe1f016a0085cc6cf1340",
+      "sha256": "7b43b61c62700ab28e4f336371f911144235a00b85ee11339c5784b9591149a8"
+    },
+    "FieldEvidenceApp/Features/Settings/BackupExportView.swift": {
+      "blobOID": "0b4f6740f4a5ecbb801ce2dd5bdd7c77f30afe92",
+      "sha256": "82f4862beabd981422629fad66065086571fc66d1f79d982df3deec683ade1a0"
+    },
+    "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift": {
+      "blobOID": "2f9e5a5b606e1170030b91d867374b55b6144d86",
+      "sha256": "007303e9c3ac6125a0833ecd045b5d4338ccc7c49832cd03a9692dcdac7ccc34"
+    },
+    "FieldEvidenceApp/Features/Settings/EraseAllView.swift": {
+      "blobOID": "f6b551d503a0af293cff966a1cb5d725a20f773d",
+      "sha256": "955f13980acd330d98aaa0ee13735bb6f6f2b3c45772fbe8e7ebf8b5c2269c1f"
+    },
+    "FieldEvidenceApp/Features/Settings/FeedbackView.swift": {
+      "blobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+      "sha256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a"
+    },
+    "FieldEvidenceApp/Features/Settings/GlobalizationSettingsViewV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift": {
+      "blobOID": "efbf333be80359a655156d8164ae65c986d1aa7c",
+      "sha256": "d079a41fc20f5a37f8207579071e5ee2d0cb4452567033fd0193bc37d21730cc"
+    },
+    "FieldEvidenceApp/Features/Shell/AppShellView.swift": {
+      "blobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+      "sha256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0"
+    },
+    "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift": {
+      "blobOID": "424f869477fe107d1595763c951abef7193c9c6b",
+      "sha256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f"
+    },
+    "FieldEvidenceApp/Features/Signs/NewSignView.swift": {
+      "blobOID": "9945d02fd9c0680ee79e986fd2a90c3deee6ebeb",
+      "sha256": "ecf83578f59beef12e9aa03a0324acc7779f9847ff163d1ba5271c84a7f230af"
+    },
+    "FieldEvidenceApp/Features/Signs/SignDetailView.swift": {
+      "blobOID": "8844b6684eaf9c44866d9b81057cab872d2c37cd",
+      "sha256": "7f4ff80b1949f0d851358c732a6add07d9567f1e2f50f7701810fccf657e2b39"
+    },
+    "FieldEvidenceApp/Features/Signs/SignsRootView.swift": {
+      "blobOID": "112133d2df57c5f734267a079987277866e74a84",
+      "sha256": "4b59bad89665bbf0b1b7c6189c09090f93e78d1b963152f344b9611490cf527f"
+    },
+    "FieldEvidenceApp/Features/Subscription/PaywallView.swift": {
+      "blobOID": "21d5da5da6c3db7aae50b6e8eaf352de2ae5302a",
+      "sha256": "28c95fc0a9c84f29ef3e26f758f6c22eee92927ee5e9a40a650e62db1d9f11a7"
+    },
+    "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift": {
+      "blobOID": "78af1da11a91694d54dc4539c446685a7e12eb9d",
+      "sha256": "7b25a78ebd2a216ef538bc22260f8b85d1ef2b8d239e94c5f0e93c03eee24a04"
+    },
+    "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift": {
+      "blobOID": "c0ba876826f7041174b64ac8436980f149a85bf2",
+      "sha256": "372f7e93a319db04be167f890ed8347261549cb061642b7a63e37dc23d83da18"
+    },
+    "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift": {
+      "blobOID": "b49bbe5142ca19143643cdf2fb1dc11efa8718e6",
+      "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+    },
+    "FieldEvidenceApp/Info.plist": {
+      "blobOID": "69f72b15fcc7533cc19eba5025506caa3684fa5e",
+      "sha256": "b9cfeba997aebc6503f63e3234d447643c3139101ac11c43cb3a84a938fdb40f"
+    },
+    "FieldEvidenceApp/InfoPlist.xcstrings": {
+      "blobOID": "bd87220a6e04333ca5c3cec8b145d7bf1255f34d",
+      "sha256": "85e1c67daf46b4959705baf42584254197cd1c4561c0fa3e3f2d0ed0dcc82503"
+    },
+    "FieldEvidenceApp/Infrastructure/Assistance/DictationLocationProposalLifecycleAdapterV1.swift": {
+      "blobOID": "7fa83bf0402c6ff94f14277b8f54243ffc12af0f",
+      "sha256": "9bd140c90407820ff6fc186985a7481ffddedaca3e2fbec5beb8fa4ade4fc647"
+    },
+    "FieldEvidenceApp/Infrastructure/Assistance/OCRProposalLifecycleAdapterV1.swift": {
+      "blobOID": "3b93d1b3e7c7dfd09e81ebd99431739562bd1346",
+      "sha256": "070fc442bbf4d53d18500e6b430b6d0c738d08ec00b81231ee26a8be0b360b3f"
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift": {
+      "blobOID": "54e9abdae8e0daea7810e286cac6de8fc08e71ab",
+      "sha256": "1c82f2bb1d449c0a21f65e3e2883c8cb16a06f6211c292aecf070c733c6341a0"
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift": {
+      "blobOID": "6dbfedde09fbd158b1f44a16e692f5e06e4be0ee",
+      "sha256": "d7a2b194dff13e4b63976a288f7ac5aa7561a56df17fb86f717dff1ed18c514d"
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift": {
+      "blobOID": "14416e89d89568aa00881fdaf08302f423aed468",
+      "sha256": "15a454955e266afcf8f3277111bd45d7ba939f8d89ba9add5c93ecb7fd2d1d6f"
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift": {
+      "blobOID": "e563b9940061485c693f82f967dcd04b67227b48",
+      "sha256": "0706245f5d51f835246b66a0cca19783ff524f1b7a5a7ef57c56e9b0e7fb94f9"
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift": {
+      "blobOID": "0bf7f754158823aaa93879f35bcb2993355fef2e",
+      "sha256": "e65a95dd10cb1e1fde2673f80271bf5aea7257867f253fbc91c7d658b25378b5"
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift": {
+      "blobOID": "791d3cebb57ddc4f8844cd0cc6cb5c96c929d4cb",
+      "sha256": "bedeea43e25cceba20b2ed35832e4feba24e9e7db08bdc6bbea33631a029b82d"
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/GlobalizedCatalogReplayAdapterV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/KernelBackupRestoreRegistryV4.swift": {
+      "blobOID": "fbf23b7be50f1309dd38a142cf422727d929a3dc",
+      "sha256": "4fe20ecb85d7f508de887e604ed1b526ece97675b21724af5ff87407f4fcecf2"
+    },
+    "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift": {
+      "blobOID": "9da2ac8413b999eb702b1c99407234fc7bbdb62a",
+      "sha256": "03cfe4e421016895cd1fd6cef4075eb2ff8ac464e7f888c6d382b649770aae3e"
+    },
+    "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift": {
+      "blobOID": "d4a23964c37b46d021c758a05a16b1510b4d0038",
+      "sha256": "e012379cfaf64f4dc2315e32e1dc4584029fabcd9ddac0becca6306d8e1ef237"
+    },
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": {
+      "blobOID": "a498c81add042147f40c6a29e5d05c9c52e1657d",
+      "sha256": "0707f4aeffe62d6bfcfc025b41ac9af5e129833030c42bd664c044b69a761f9d"
+    },
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift": {
+      "blobOID": "ed958cc6b4b16f0ef0c6523dd44226453c43d47b",
+      "sha256": "295cc34f95eb9b3bad1e40dae524131ea77bbbb975e37714cef39ea1b8ac7c3b"
+    },
+    "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift": {
+      "blobOID": "4df51b6f0ccdfaf2bcfde959daaba2c29cc4c545",
+      "sha256": "5cc15018101e38766e11e413aadd9f135ce537fc440a003dfa6324eb7c9410a9"
+    },
+    "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift": {
+      "blobOID": "86c9dffb92cdee4a97fe346770053dc4cba12dbb",
+      "sha256": "5eb0d7928d4a757e65a0355657fb8b1f0f8d0eefe5c294bb575fb6a02289d1a2"
+    },
+    "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift": {
+      "blobOID": "57f1e5a4a964646fd28eda62d995241973d8ac2c",
+      "sha256": "70ba681ed8b32543eceaca7bb44d7924921c28e62a93cd02ab5344ed4bf8ac27"
+    },
+    "FieldEvidenceApp/Infrastructure/ImportExport/EntityIdentityResolutionLifecycleAdapterV1.swift": {
+      "blobOID": "66066190eb633d3a8b7513c0a8d07d2732064044",
+      "sha256": "3d33b479173d30c56245f48fa46db2637b388ff27eb4e5220944979932fce4bf"
+    },
+    "FieldEvidenceApp/Infrastructure/ImportExport/GlobalizedMachineExportAdapterV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift": {
+      "blobOID": "382c11ed2c1e1676fd987613cfb2115649cf204d",
+      "sha256": "620600e8ddfb3844f13433a66e75bb45e1e1020a1336003f654217736a3f3473"
+    },
+    "FieldEvidenceApp/Infrastructure/Localization/BidirectionalTextSafetyV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift": {
+      "blobOID": "66b140364dbe91ac14a57aa49a9ace8cb9a51140",
+      "sha256": "c52cfb7a59f8a016c0a5b4dfb9e2b55a09ec73a94411eb3f09e1039c05ca5788"
+    },
+    "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Localization/LocalizationCatalogReleaseStoreV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Localization/LocalizedSyncStateRendererV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift": {
+      "blobOID": "647167b7ea7d595b2798fca418b3bc0117cd596e",
+      "sha256": "fb2f5c449afd336d972afa95797256f5ea7b9ffab12e4707ad27b17bfd64bf21"
+    },
+    "FieldEvidenceApp/Infrastructure/Packs/PackageSandboxRunnerV1.swift": {
+      "blobOID": "ab0cd81f65c9822d53505491697f91d0de9d15b1",
+      "sha256": "62b1fd6dfefae68ec6beed96e5f743b132adfddc74d7bafdbd350e1a01bf4eb9"
+    },
+    "FieldEvidenceApp/Infrastructure/Packs/SurveyDefinitionLifecycleAdapterV1.swift": {
+      "blobOID": "378d620a586e14076f6f3f2ffa4bae7476b439a0",
+      "sha256": "b5a7892156cb4fae3b2ae47b98af78c353e63033bb5d6ad6dbdc4bb022462756"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift": {
+      "blobOID": "3b45dc04e00db9e01f152dedd30c687f3f7f68e9",
+      "sha256": "60488d3bd40ae65f1c8933c399c46f00525cd799aef6d73b10e64728562c88be"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift": {
+      "blobOID": "a54f89f2b61e470eaa66c2bee7142bdddf83c832",
+      "sha256": "c320713b856bd0a2674ebcbbccc280712993932618ea05dbff321c06d0a19c64"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": {
+      "blobOID": "ae673d8b72d17198b9853d4f482638551d36f308",
+      "sha256": "470424a46a97f48a80efaa7a72e81a6f52311369386027fa298d0807e8488e15"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": {
+      "blobOID": "5673ad8f967e053323eb7186af6d812153314e7a",
+      "sha256": "2e37f0a2961f7051f6d751c4f926d1814eeeace3d456394e49ec1b76d0d45bb7"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift": {
+      "blobOID": "c428c9c4f9128188bb9126d08df2fdab39fe71f3",
+      "sha256": "84cc28ffe7b87eee1459002852a04f8cca701af8726a94ca5bf032e0407759a1"
+    },
+    "FieldEvidenceApp/Infrastructure/Replication/IntegrationEventProjectionV1.swift": {
+      "blobOID": "2809457f13087d6d76d9ea7ec4e20a2392069a9d",
+      "sha256": "628058e22fc146dfda05c841d54d40be7b26132d1d220c4069e567556feb2f1b"
+    },
+    "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift": {
+      "blobOID": "45d5e58ec81cfb61136c895c1756d643a47508ec",
+      "sha256": "2445e1dcfaeedca8d3304999391dca01bf63cf3a7bc8a9aaeb9f492ef9713d0a"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/AccessibleDocumentLifecycleAdapterV1.swift": {
+      "blobOID": "9294d71d5ed0168e4b6c7b3be2e0cad7154c21bf",
+      "sha256": "d0f78088ec989738be1d752d8668f28cfd191d7b6503ffba85ca523deb2b46f7"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift": {
+      "blobOID": "43612cd6cbe36ba197220e03d1b0a00721b5f1e1",
+      "sha256": "354f10a16f9173e583d361f27bd2341a5ab26e2c6ab4247109859fe837025818"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift": {
+      "blobOID": "d8dcc7fe5f5bca80bf21e964ad411aaac2baa837",
+      "sha256": "444d71a74c2b4336ffd4ab7e46850fcb7ee7afc7edaebb1bf311d0431e6d99b4"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift": {
+      "blobOID": "c8d7b6f4eebff67d288c26d3bf3b6a3449ceb27d",
+      "sha256": "e2bffbc3c9a6069c935d3e6b6c92db808435203a51f7dbe441d4013bcf7d4cad"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/GlobalizedAccessibleDocumentRendererV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift": {
+      "blobOID": "28e7f335a3337fb6e353a94181e67daab40b0a50",
+      "sha256": "b4b2627fe05210957e51e54a48841b0cd3b385bf1ba6a384e94e3f6b9a75ecf7"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift": {
+      "blobOID": "fe2466b4df4800d217767dd392c885b08cfb0f51",
+      "sha256": "1f8e0cc7a9eaa8ddddfff5383ae6b0ecc94bbc4c73252f9466889c6ffe466b5d"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift": {
+      "blobOID": "5319ade880b0d30fecb7cc84adc5033b042c536a",
+      "sha256": "7e75d221f29fbf8b7812bcbae7680098758b071e850c7fd45eddf64fbe0e62b2"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift": {
+      "blobOID": "0a1849d7f3957676e55a017661a73c3d5a1c81f5",
+      "sha256": "f9c9b25e7b682586a22591fe2c3905055262a139a1c1506f5bcab0d0def82f75"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift": {
+      "blobOID": "a491e4dbd6152574f518f25fbac5f9847eba953b",
+      "sha256": "e79601a65510f115a2aaf0e6c537532d96ec277ddac08fff939880c62f9cd35e"
+    },
+    "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift": {
+      "blobOID": "fc88143bf623ba193458ef3eabcf6f56872df93f",
+      "sha256": "b47b36127800c20edba871c80f7b32614f674c8f99d22de1d3ddc3a2450efa05"
+    },
+    "FieldEvidenceApp/Infrastructure/Search/GlobalizedSearchNormalizationServiceV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift": {
+      "blobOID": "75c55074e9721a08c66748cdd171ae465b965b7d",
+      "sha256": "1a3b2362041a48b0ab300429df82a4d38feea0a1f4f109f7acf5e53ed57ed433"
+    },
+    "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift": {
+      "blobOID": "450afe0ac8fb7f52c1961823ec4bcec35810297a",
+      "sha256": "2dc0505cabab6b611493108e6573b05aa7e13f1439f08d15478d795cce384a11"
+    },
+    "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift": {
+      "blobOID": "cbcdfe1281de6e98af13f1b12a0e32a6c7b9967b",
+      "sha256": "b7ae0570ef54ba29ddb7c308b3f5236e03045297abddc18c3be99ad0b77d0e12"
+    },
+    "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift": {
+      "blobOID": "fc49c2c1db4a85b5d4c489823dd04b3c69ad5ea2",
+      "sha256": "d29505d9df235de5e6eabf0b56e4780182d32c2cc445c8570c43ff434ca88f4b"
+    },
+    "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift": {
+      "blobOID": "9b609e5b08e00e34375af481bd1800f7de1f6cf3",
+      "sha256": "03d56670fa477ce24e561bb32c59c67ca162bfcad5f0195aabc2f647c3f3b638"
+    },
+    "FieldEvidenceApp/Resources/Globalization/es.accessibility.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/es.app.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/es.report.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/ko.app.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/ko.report.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/vi.app.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/vi.report.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/zh-Hans.accessibility.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/zh-Hans.app.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/zh-Hans.report.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/zh-Hant.accessibility.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/zh-Hant.app.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Globalization/zh-Hant.report.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceApp/Resources/Localizable.xcstrings": {
+      "blobOID": "69a33d27f8db846dd27ae5e554856a4e12e8aeaf",
+      "sha256": "67cbc936089d01bc772330600727ddea7d312a5a52cd8b16f5f3aff3577d8a53"
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Accessibility/expansion-and-type-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/AssistedInput/assisted-input-capability-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/AuthoredContent/authored-content-language-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Backup/globalized-catalog-replay-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/CatalogRelease/catalog-release-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/CriticalSurfaces/critical-surface-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/EnglishCatalog/english-catalog-audit-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Forms/localized-form-semantics-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/ImportExport/globalized-machine-export-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Locales/es.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Locales/ko.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Locales/vi.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hans.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hant.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/RTL/rtl-hostile-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Reports/globalized-accessible-document-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Search/globalized-search-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/SyncStates/localized-sync-state-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/Fixtures/V30/Unicode/unicode-evidence-hostile-cases-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift": {
+      "blobOID": "ea98ec9c1c6c5ff43df541e687df886a772b2f01",
+      "sha256": "a7cbc5e4090a05d465d2c93d47ac17ab0dd8548a43c1d12b6f6ab95fcb90c5aa"
+    },
+    "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift": {
+      "blobOID": "862a87c6d5fb3370c535c1a55a8ca077a6d94691",
+      "sha256": "29bf9d1baf9377b8f88440a5fdb65cb38aeed765b3d8d5f2b3c1980da15736b5"
+    },
+    "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift": {
+      "blobOID": "86a55cf4145939361ebdf82af7b16f052ecdb1c4",
+      "sha256": "74e2ac75ce267ccc455d15c1780f7e0dfb6c8ff8c19433179719a29b2dd2c00e"
+    },
+    "FieldEvidenceAppTests/S6_2BackupExportTests.swift": {
+      "blobOID": "1cb8997fae05384aac4eb8ade5df2651d32cfcee",
+      "sha256": "ab692ca95973359dda379bfbf01911ad157c2a1c5f6878b214214091462ad640"
+    },
+    "FieldEvidenceAppTests/S6_3BackupValidationTests.swift": {
+      "blobOID": "71deca029b00137b1484f24cf9cffbf4a2e92c35",
+      "sha256": "a49ce814c521231a87e5bafb83171ba4643c34389732ec794cbefc4dc2eaa813"
+    },
+    "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift": {
+      "blobOID": "fc13366c237192cc69bcea214813929be3544b4c",
+      "sha256": "cf25c460046ee10aa8a2f044cef5e117c18ff418f3272038eea9c1c9ba606f69"
+    },
+    "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift": {
+      "blobOID": "0c9a8a7625da998a7fc2d52fab0de080aa6e74ac",
+      "sha256": "fdd82805952e37a313c5f156aed6d53c48511a9e038fdeb8a7272ba611eb2694"
+    },
+    "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests.swift": {
+      "blobOID": "a4b7fb85b3862fb703c11df73886e001f1c4cf1f",
+      "sha256": "0a12b4b69570bf8128da7ed0a9c474f2ec9f92cce3badf233aa7010322779d83"
+    },
+    "FieldEvidenceAppTests/TestSupport/V30PseudoLocalizationHarnessV1.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P00_C04CandidateReconciliationManifestTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P01_C03TextSurfaceInventoryTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P01_C08CatalogReleaseIntegrityTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P02_C02UnicodeEvidenceSafetyTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P02_C03RTLSemanticsTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P02_C05GlobalizedSearchTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P02_C06PseudoLocalizationHarnessTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P02_C07LanguageRegionSettingsTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C01AuthoredContentLanguageTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C02OfflineSyncLocalizationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C03LocalizedFormSemanticsTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C04GlobalizedAccessibleDocumentTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C05GlobalizedMachineExportTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C07AssistedInputCapabilityTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C08GlobalizedCatalogReplayTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P03_C09CriticalSurfaceLocalizationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P04_C01TranslationWorkflowTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P04_C02SpanishLocalizationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P04_C03SimplifiedChineseLocalizationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P04_C04TraditionalChineseLocalizationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P04_C05VietnameseLocalizationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P04_C06KoreanLocalizationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V30_P04_C07LocaleReleaseIntegrationTests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift": {
+      "blobOID": "b5e778c0bb5bba83defe92b1fe4ca863991897b7",
+      "sha256": "e0f85f00733d46efce46576466ab568ebbeac59aba0d53015dbcda713e3eb6a8"
+    },
+    "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift": {
+      "blobOID": "a15df49b07e60a6a880757d15d989cc2611d15bb",
+      "sha256": "d217fbe0f59eaf7c9ddf56db38fa5a86370f6378c00123a8c800a9722f284e73"
+    },
+    "FieldEvidenceAppTests/V9_13TypedResponseTests.swift": {
+      "blobOID": "7efcd069543e34ed5c97ce19b8a9597e24d79e69",
+      "sha256": "325c7a5978713ff234146b5ba747bc9b2c2ed89ac58d08ff75e1f6ed3a8f1c80"
+    },
+    "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift": {
+      "blobOID": "f302941d7a5ae65f10418aab396cc6091d98bd50",
+      "sha256": "4955715e9476fd26fa59131a14f681cae2cbe01405ba1893294a73e0185e30ce"
+    },
+    "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift": {
+      "blobOID": "7124849b890d0baf1dd6b3027a65de125226b77d",
+      "sha256": "1db3b7674933f59f0085ad888cc97c5d422c4940e4852580e8140350272dddcc"
+    },
+    "FieldEvidenceAppTests/V9_19LocalSearchTests.swift": {
+      "blobOID": "83fc944c05720c0d132832077a3bf4d571a6284d",
+      "sha256": "d3a73015b8774d8bebf71f408093ca20a5ca00a077a55f2800e43003ac82975a"
+    },
+    "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift": {
+      "blobOID": "1134417b3f24bf056cef13cdb133ea61d34c43fc",
+      "sha256": "7b1c9163359202e97558078c3a782a03faa543ce7c14198ab1893e2fd65da5df"
+    },
+    "FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift": {
+      "blobOID": "7ba2628cc8e12c56597dce13dfa0fc9de78c1e27",
+      "sha256": "43f18e8713db41db6d1555b5b0a024cd82463e2ee06afffd14109bd2b2a20785"
+    },
+    "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift": {
+      "blobOID": "0b107dd4303f35eb4a4947c506de315edb10e551",
+      "sha256": "ac2dd39c003959211c0f310b519f8de3bda1459d6c74c6380a2fed29e00c77e6"
+    },
+    "FieldEvidenceAppTests/V9_52AssetLabelTests.swift": {
+      "blobOID": "6b12a81b0a65e56baa9fab53bcaa614e9b8ac012",
+      "sha256": "314fe6f1387c418a90387f24a9576b2fa1482a8da80e6c19dbd4aa8c01e1a70f"
+    },
+    "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests.swift": {
+      "blobOID": "c164c01fc99331fa785836302b1e168f4cf01276",
+      "sha256": "f9ec728e6e744df08790995eb7dd24e10997414c95f38369a476da2ae6e73084"
+    },
+    "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift": {
+      "blobOID": "48e816bbe971ef570667572d3faa380c0e3e2241",
+      "sha256": "6e30e95f92b4427205f63e68650acf948bfe29115b250782e06abdbb46ed1c41"
+    },
+    "FieldEvidenceAppTests/V9_83GuidedSurveyFlowTests.swift": {
+      "blobOID": "5ee7b099132d21ec001cce0a6af77d28e9262d1c",
+      "sha256": "1bae0d73ac2af2534eaaf68d25124e6e03e53f1dc8e3d19f4bb99140a1f8908b"
+    },
+    "FieldEvidenceAppTests/V9_86OCRProposalTests.swift": {
+      "blobOID": "c13bf071b08bd2ea99f2d5f81ab28f738aea0470",
+      "sha256": "e05082ff9ea78e1540e1c40e3d15045cb4ec95e9a5d8947540532c3d4acaeb77"
+    },
+    "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift": {
+      "blobOID": "5f8298038ce95e7b33a3126470f4b9faa5212fb5",
+      "sha256": "6051d524b8b6e93b509b4f4445206575ea778b76dc67f075c1aaa4488734aeaa"
+    },
+    "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift": {
+      "blobOID": "100b60c05ee9858cbd1ec3d231d25364349d6828",
+      "sha256": "973fd0ace49699d6fa8dfadbe0a94804b023c08c298b09ed20abe57602b937b3"
+    },
+    "FieldEvidenceAppTests/V9_95PartyContactSiteRoleImportTests.swift": {
+      "blobOID": "7aba91ae3ce2c9e70f5b499ce217481d4490d0a0",
+      "sha256": "d1c72a9ad7dcc747384bb3c65dd312a65686592905da86868ca2c6b23a7bb8bd"
+    },
+    "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift": {
+      "blobOID": "c09d86700bb161118f54d96289e0c6167255fc8f",
+      "sha256": "25a59f8401631f6cbe358b3391dc0617660c03b7d3706b8b65e32aee122581ed"
+    },
+    "FieldEvidenceAppUITests/Fixtures/V30/PseudoLocalization/pseudo-locale-screenshot-matrix-v1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "FieldEvidenceAppUITests/V23_P03_C16LocalizationAccessibilityUITests.swift": {
+      "blobOID": "5981d8755ee6c92bb961f377715dbb16b35b42b3",
+      "sha256": "83b0afddfd3cf155d61099620a20dc60baecec95600a764636ade830221d9088"
+    },
+    "FieldEvidenceAppUITests/V23_P04_C16ShellAccessibilityLocalizationUITests.swift": {
+      "blobOID": "cbf43cb3f4393b52cd973570da5d3d4824a9495a",
+      "sha256": "e0027bb9652f2b755226a69217e8cb0b5353babb10634ecb9d4893aa870cb38f"
+    },
+    "FieldEvidenceAppUITests/V30_P02_C06PseudoLocalizationUITests.swift": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "Scripts/test-smoke.sh": {
+      "blobOID": "25376fea96a73214ed0abe72d5a547def0ed8f3a",
+      "sha256": "0462448692b4b128e98a3ff4772b1c3dc14d7b5409be8743b9c39e435195c36b"
+    },
+    "Scripts/ui-smoke.sh": {
+      "blobOID": "a1d29aeb3e4a10dcd518d0627af2b351a904481c",
+      "sha256": "6304a318ee046b6b19f4fddc43bb143f9b21e8150b9d332e449b87a0182d4cdb"
+    },
+    "Scripts/v30/validate_v30_provisional_candidate_manifest.py": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "Scripts/v30/validate_v30_provisional_ci_contract.py": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "Scripts/v30/validate_v30_text_surface_inventory.py": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "Scripts/v30/validate_v30_translation_review_packet.py": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/contracts/V30ProvisionalCandidateReconciliationManifestV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/V30_CI_SELECTION.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/V30_CURRENT_TASK.md": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/V30_PROVISIONAL_ACTIVATION_RECEIPT.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/V30_PROVISIONAL_COORDINATION_GENESIS.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/contexts/V30-P00-C01-attempt-1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/contexts/V30-P00-C03-attempt-1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/execution/receipts/V30-P04-C07-provisional-integration-receipt.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/inventory/V30TextBearingSurfaceInventoryV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/inventory/V30TextSurfaceDispositionSchemaV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/locales/es/V30P04C02ReviewPacketV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/locales/ko/V30P04C06ReviewPacketV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/locales/vi/V30P04C05ReviewPacketV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/locales/zh-Hans/V30P04C03ReviewPacketV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/locales/zh-Hant/V30P04C04ReviewPacketV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/research/V30InitialLanguageCohortV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/research/V30KeywordEvidenceBindingV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/research/V30ResearchManifestV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/schemas/v30-provisional-candidate-reconciliation-manifest.schema.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/translation/V30ProvisionalLocalizationCatalogReleaseV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/translation/V30SecureLinguisticReviewWorkflowV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/translation/V30TermbaseV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/translation/V30TranslationReviewPacketSchemaV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/verification/V30P02C06ProvisionalScreenshotHarnessContractV1.json": {
+      "blobOID": null,
+      "sha256": null
+    },
+    "docs/design/v30/verification/V30P04C07LocaleIntegrationMatrixV1.json": {
+      "blobOID": null,
+      "sha256": null
+    }
+  },
+  "payloadDigest": "2a06e74cc13bfda2113af49b58d72c837e9b537313815ef27b67f5f6f25fd0ab",
+  "reservation": {
+    "contentDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "contentDigestMechanism": "Frozen Scripts/v23/c07_contracts.py canonical_bytes: full object excluding contentDigest, sorted compact UTF-8 JSON plus LF",
+    "historicalFieldClarification": "G3 activation request s10Reservation.orderedPathsDigest carries the pinned reservation artifact contentDigest; it is not the separate ordered-array hash. Both observations are preserved here.",
+    "orderedArraySHA256": "3726cbbf6b5ab29a513294da5874da6cca67bf85177447a07030a51e86be2cb9",
+    "rawSHA256": "9f7c27431271728d167731d4af806c7449447dfbcc8bf46778102e2f9a89b576",
+    "reservedPaths": [
+      ".github/workflows/ios-ci-worker.yml",
+      ".github/workflows/ios-ci.yml",
+      "AGENTS.md",
+      "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "FieldEvidenceApp/App/LaunchView.swift",
+      "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+      "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+      "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+      "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+      "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+      "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+      "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+      "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+      "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+      "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+      "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+      "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift",
+      "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsAccentTeal.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandCanvas.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsCheckpointGreen.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsDeepTeal.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsInk.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsSlate.colorset/Contents.json",
+      "FieldEvidenceAppTests/S10_1BrandInventoryTests.swift",
+      "FieldEvidenceAppTests/S10_2BrandComponentTests.swift",
+      "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+      "FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift",
+      "FieldEvidenceAppUITests/S10_2BrandComponentUITests.swift",
+      "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+      "Scripts/ci-selection.json",
+      "Scripts/s10-4-segment-assembler.sh",
+      "Scripts/s10-4-segment-plan.json",
+      "Scripts/s10-4-shards.json",
+      "Scripts/ui-smoke.sh",
+      "docs/design/s10/authority/asset-manifest.json",
+      "docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+      "docs/design/s10/s10-accessibility-common-tasks.json",
+      "docs/design/s10/s10-activation.json",
+      "docs/design/s10/s10-experience-validation.json",
+      "docs/design/s10/s10-screen-state-inventory.json",
+      "docs/design/s10/s10-stage-checkpoints.json",
+      "docs/design/s10/s10-store-readiness.json",
+      "docs/design/s10/s10-token-coverage.json",
+      "docs/design/s10/s10-visual-regression.json",
+      "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+      "docs/execution/CURRENT_TASK.md",
+      "docs/execution/HANDOFF.md",
+      "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+      "docs/product/BUILD_PLAN_V4.md"
+    ],
+    "sourcePath": "docs/design/v23/foundation/ActiveS10OwnershipReservationV1.json"
+  },
+  "result": "PASS"
+}
