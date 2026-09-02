@@ -3990,8 +3990,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 26_118,
-             "9B2A5F4FC60DDCD1BDF4A8D576752D8EB533789236C48B22651850C538007D26"),
+            (workValidationGateSource, 26_122,
+             "D89D17EEDB662767A41FE00DB761911F5AFA44823C1068A3DEBA06D73EDE3B09"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4011,10 +4011,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workValidationMinimumQuickPathGateRange.lowerBound...
             ]
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 20_387)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 20_391)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "CB142E3254AA504C169146A7E36E0F043FCFF86EE79A8022422FEB86EC6A2BB4"
+            "1D7D00D505F1F9FC9EE289F90E8B9A76EAF6934F4869A0BD2E588882F8E5DF58"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -4898,11 +4898,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 prohibitedMinimumQuickPathForm
             )
         }
+        let minimumWorkValidationKeyboardAccessoryDefinition =
+            "    @MainActor\n" +
+                "    private func dismissMinimumWorkValidationKeyboardAccessory("
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: minimumWorkValidationKeyboardAccessoryDefinition
+            ).count - 1,
+            1,
+            "minimum work-validation keyboard accessory helper definition count"
+        )
         let minimumWorkValidationKeyboardAccessorySource = try boundedSource(
             uiSource,
-            from:
-                "    @MainActor\n" +
-                "    private func dismissMinimumWorkValidationKeyboardAccessory(",
+            from: minimumWorkValidationKeyboardAccessoryDefinition,
             before:
                 "\n\n    @MainActor\n" +
                 "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
@@ -4922,7 +4930,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "automationContrastExceptions.isEmpty",
             "!automatedSegmentFinished",
             "app.state == .runningForeground",
-            #"NSPredicate(format: "hasKeyboardFocus == true")"#,
+            "let focusedPredicate = NSPredicate(\n" +
+                "            format: \"hasKeyboardFocus == true\"\n" +
+                "        )",
             #"identifier: "s5.1.work.screen""#,
             #"identifier: "s5.1.work.description""#,
             #"identifier: "s5.1.work.validation""#,
@@ -23477,10 +23487,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard let range = Range(match.range, in: uiSource) else { return nil }
             return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 453)
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 454)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "910D7BDE9FAEC2AFF49E6CAEAD3C2507A03AF99A30955BD73742E3B1AC0F160A"
+            "DDEF04B3721D5A1610610F916A4C96F0F038C494A297785D3B39B7BAA99492B9"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
