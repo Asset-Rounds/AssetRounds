@@ -1,0 +1,55 @@
+{
+  "cardID": "V23-P06-C08",
+  "cases": [
+    {
+      "descriptor": "synthetic temporal descriptor",
+      "expectedDisposition": "STATIC_DESCRIPTOR_ONLY",
+      "id": "V23-P06-C08-G01",
+      "kind": "golden"
+    },
+    {
+      "descriptor": "manual offline text alternative",
+      "expectedDisposition": "STATIC_DESCRIPTOR_ONLY",
+      "id": "V23-P06-C08-A01",
+      "kind": "accessibility"
+    },
+    {
+      "expectedDisposition": "REJECT_DESCRIPTOR",
+      "expectedSemantics": "NO_CAPTURE_OR_TRANSCODE",
+      "id": "V23-P06-C08-H01-CODEC",
+      "input": "malformed or unsupported codec",
+      "kind": "hostile"
+    },
+    {
+      "expectedDisposition": "REJECT_DESCRIPTOR",
+      "expectedSemantics": "NO_CAPTURE_OR_BACKGROUND_WORK",
+      "id": "V23-P06-C08-H01-DURATION",
+      "input": "duration outside bounded descriptor range",
+      "kind": "hostile"
+    },
+    {
+      "expectedDisposition": "REJECT_NO_TRANSFORM",
+      "expectedSemantics": "NO_REDACTION_MODEL_OR_UPLOAD",
+      "id": "V23-P06-C08-H01-REDACTION-MARKER",
+      "input": "redaction marker requests transformation",
+      "kind": "hostile"
+    },
+    {
+      "expectedDisposition": "NO_RUNTIME_CLAIM",
+      "expectedSemantics": "DISCARD_SYNTHETIC_DESCRIPTOR",
+      "id": "V23-P06-C08-I01",
+      "kind": "interruption"
+    },
+    {
+      "expectedDisposition": "RECONCILE_OR_DISCARD",
+      "expectedSemantics": "EXPIRY_RECONCILIATION_REQUIRED",
+      "id": "V23-P06-C08-R01",
+      "kind": "recovery"
+    }
+  ],
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "noCapturedMediaOrCustomerData": true,
+  "realTerminalValidationResult": false,
+  "schema": "V23P06C08TemporalMediaStaticCorpusV1",
+  "syntheticRepositoryOnly": true
+}
