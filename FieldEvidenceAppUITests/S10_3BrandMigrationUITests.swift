@@ -14210,6 +14210,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let preWorkScreenIdentifier = workScreen.identifier
         let preDescriptionIdentifier = descriptionField.identifier
         let preDescriptionLabel = descriptionField.label
+        let preDescriptionPlaceholderValue =
+            descriptionField.placeholderValue
         let preValidationIdentifier = validationLabel.identifier
         let preValidationLabel = validationLabel.label
         let preNoteHeadingLabel = noteHeading.label
@@ -14245,7 +14247,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if !descriptionField.isHittable { return "description-hittable" }
             if preDescriptionIdentifier != "s5.1.work.description" { return "description-identifier" }
             if preDescriptionLabel != "Short description" { return "description-label" }
-            if (descriptionField.value as? String) != "" { return "description-empty-value" }
+            if preDescriptionPlaceholderValue != "Short description"
+                || (descriptionField.value as? String)
+                    != preDescriptionPlaceholderValue {
+                return "description-placeholder-value"
+            }
             if !validationLabel.exists { return "validation-exists" }
             if !validationLabel.isEnabled { return "validation-enabled" }
             if preValidationIdentifier != "s5.1.work.validation" { return "validation-identifier" }

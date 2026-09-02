@@ -4969,6 +4969,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let preWorkScreenIdentifier = workScreen.identifier",
             "let preDescriptionIdentifier = descriptionField.identifier",
             "let preDescriptionLabel = descriptionField.label",
+            "let preDescriptionPlaceholderValue =",
+            "descriptionField.placeholderValue",
             "let preValidationIdentifier = validationLabel.identifier",
             "let preValidationLabel = validationLabel.label",
             "let preNoteHeadingLabel = noteHeading.label",
@@ -4976,7 +4978,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let preNoteFieldIdentifier = noteField.identifier",
             #"preDescriptionIdentifier != "s5.1.work.description""#,
             #"preDescriptionLabel != "Short description""#,
-            #"(descriptionField.value as? String) != """#,
+            #"preDescriptionPlaceholderValue != "Short description""#,
+            "(descriptionField.value as? String)",
+            "!= preDescriptionPlaceholderValue",
             #"preValidationIdentifier != "s5.1.work.validation""#,
             #"preValidationLabel != "Short description""#,
             #"preNoteHeadingLabel != "Note""#,
@@ -5020,11 +5024,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             minimumWorkValidationKeyboardAccessorySource.utf8.count,
-            15_541
+            15_787
         )
         XCTAssertEqual(
             Data(minimumWorkValidationKeyboardAccessorySource.utf8).sha256,
-            "AE6433E366488B81723E5862BFC50E2167D92FE348DF3571CEBB72931F1B1F1A"
+            "F3B288B97C5096ACF5E1502E2CEDD777EE19DCB4277059FF9DFB39A9EDEE38A8"
         )
         let minimumWorkValidationPreTapSemanticStart =
             "        let firstFailedPreTapSemanticLabel: String? = {"
@@ -5049,11 +5053,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             minimumWorkValidationPreTapSemanticSource.utf8.count,
-            3_821
+            3_976
         )
         XCTAssertEqual(
             Data(minimumWorkValidationPreTapSemanticSource.utf8).sha256,
-            "E815793B7F8BC411FF3D191877575FB14D3B55FF560958F03E0BB69D3DF93B7C"
+            "1B0DF83AB29865E503D6508FA79E457F1402A5C98AE1EB1A4DBDFFDA67358BBF"
         )
         let minimumWorkValidationPreTapSemanticLabels = [
             "app-foreground",
@@ -5082,7 +5086,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "description-hittable",
             "description-identifier",
             "description-label",
-            "description-empty-value",
+            "description-placeholder-value",
             "validation-exists",
             "validation-enabled",
             "validation-identifier",
@@ -21034,10 +21038,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 780_415)
+        XCTAssertEqual(uiSource.utf8.count, 780_661)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "E3806326AD9E587B0FA3BCC765ABD9949A4BE9FFF4DA7F6C1CAEC4277F36F78D"
+            "D1CEDD6DF7CF474DE840E0F58F2ADA8F7777C1550315941701725FD2A38045ED"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
