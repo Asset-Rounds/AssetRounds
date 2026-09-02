@@ -1259,10 +1259,24 @@ jobs:
 
           ROOT_LABEL = "FieldEvidenceDerivedData/Build/Products"
           ALLOWED_MACROS = {"__TESTROOT__", "__PLATFORMS__", "__TESTHOST__", "__TESTBUNDLE__"}
-          CANONICAL_SYSTEM_DYLD_FIELD = (
-              "FieldEvidenceAppTests", "EnvironmentVariables", "DYLD_INSERT_LIBRARIES"
-          )
-          CANONICAL_SYSTEM_DYLD_VALUE = "/usr/lib/libRPAC.dylib"
+          CANONICAL_SYSTEM_DYLD_PAIRS = frozenset({
+              (
+                  ("FieldEvidenceAppTests", "EnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
+                  "/usr/lib/libRPAC.dylib",
+              ),
+              (
+                  ("FieldEvidenceAppTests", "TestingEnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
+                  "__TESTHOST__/Frameworks/libXCTestBundleInject.dylib:__SIMRUNTIMEROOT__/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib",
+              ),
+              (
+                  ("FieldEvidenceAppUITests", "EnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
+                  "/usr/lib/libRPAC.dylib",
+              ),
+              (
+                  ("FieldEvidenceAppUITests", "TestingEnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
+                  "__SIMRUNTIMEROOT__/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib",
+              ),
+          })
 
           def fail(message):
               raise SystemExit("S10.4 pilot payload validation failed: " + message)
@@ -1454,10 +1468,7 @@ jobs:
                   kinds = {}
                   if producer_text in text:
                       kinds["producer-specific-xctestrun-path"] = 1
-                  is_canonical_system_dyld = (
-                      field_path == CANONICAL_SYSTEM_DYLD_FIELD
-                      and text == CANONICAL_SYSTEM_DYLD_VALUE
-                  )
+                  is_canonical_system_dyld = (field_path, text) in CANONICAL_SYSTEM_DYLD_PAIRS
                   if re.search(r"(?:^|[=:])(?:/|~|file:)", text) and not is_canonical_system_dyld:
                       kinds["absolute-xctestrun-path"] = 1
                   if "/../" in text or text.startswith("../"):
@@ -1466,7 +1477,9 @@ jobs:
                       kinds["unresolved-xctestrun-macro"] = 1
                   unknown_macro_count = sum(
                       1 for macro in re.findall(r"__[A-Za-z0-9_]+__", text)
-                      if macro not in ALLOWED_MACROS
+                      if macro not in ALLOWED_MACROS and not (
+                          is_canonical_system_dyld and macro == "__SIMRUNTIMEROOT__"
+                      )
                   )
                   if unknown_macro_count:
                       kinds["unknown-xctestrun-macro"] = unknown_macro_count

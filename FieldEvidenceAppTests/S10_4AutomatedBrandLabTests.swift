@@ -243,8 +243,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 322_553,
-            sha256: "98482EBF091CF28825258E7B45D02163ED65B1842610D3EF0D826350EF223CC1"
+            byteCount: 323_295,
+            sha256: "500C4ED8E120905B25D3F35499103C7985EDC8AF6AA0E26A8CB2D695464EF979"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -1066,10 +1066,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 146_869)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 147_611)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "916612186C17F6EFA4CD2460207F5928419DB195D1E0B4DE65DD68223E70C9E8"
+            "81C9EDC5B8AF9925765874A7CEB8F30EAAD81071D07CA0A03B92150045FE692F"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -1083,10 +1083,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Prepare S10.4 pilot payload verifier",
             before: "\n\n      - name: Download immutable S10.4 pilot payload"
         )
-        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 27_725)
+        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 28_467)
         XCTAssertEqual(
             Data(workerPilotVerifierSource.utf8).sha256,
-            "9AF1C58A055012D62D23BEF966E3379756E953A1BE80AC43EB1F02E201F570AE"
+            "79648F9B580A5680B968BA9E92115CDAA72F768699D00193AB9DCB7AFFC4F100"
         )
         for exact in [
             "FieldEvidencePayload.tar",
@@ -1123,16 +1123,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "replacement_count != source_occurrence_count",
             "normalized_testroot_count != original_testroot_count + replacement_count",
             "xctestrun normalization count mismatch",
-            "          CANONICAL_SYSTEM_DYLD_FIELD = (",
-            "              \"FieldEvidenceAppTests\", \"EnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"",
-            "          CANONICAL_SYSTEM_DYLD_VALUE = \"/usr/lib/libRPAC.dylib\"",
-            "          is_canonical_system_dyld = (",
-            "                      field_path == CANONICAL_SYSTEM_DYLD_FIELD",
-            "                      and text == CANONICAL_SYSTEM_DYLD_VALUE",
+            "ALLOWED_MACROS = {\"__TESTROOT__\", \"__PLATFORMS__\", \"__TESTHOST__\", \"__TESTBUNDLE__\"}",
+            "          CANONICAL_SYSTEM_DYLD_PAIRS = frozenset({",
+            "(\"FieldEvidenceAppTests\", \"EnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"),",
+            "\"/usr/lib/libRPAC.dylib\",",
+            "(\"FieldEvidenceAppTests\", \"TestingEnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"),",
+            "\"__TESTHOST__/Frameworks/libXCTestBundleInject.dylib:__SIMRUNTIMEROOT__/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib\",",
+            "(\"FieldEvidenceAppUITests\", \"EnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"),",
+            "(\"FieldEvidenceAppUITests\", \"TestingEnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"),",
+            "\"__SIMRUNTIMEROOT__/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib\",",
+            "          })",
+            "is_canonical_system_dyld = (field_path, text) in CANONICAL_SYSTEM_DYLD_PAIRS",
             "                  if re.search(r\"(?:^|[=:])(?:/|~|file:)\", text) and not is_canonical_system_dyld:",
             "                  if \"/../\" in text or text.startswith(\"../\"):",
             "                  if \"$\" in text:",
             "1 for macro in re.findall(r\"__[A-Za-z0-9_]+__\", text)",
+            "if macro not in ALLOWED_MACROS and not (",
+            "is_canonical_system_dyld and macro == \"__SIMRUNTIMEROOT__\"",
             "violations = []",
             "text_bytes = text.encode(\"utf-8\")",
             "field_bytes = \"/\".join(field_path).encode(\"utf-8\")",
@@ -1172,9 +1179,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (exact, count) in [
             ("def value_classification(text):", 1),
             ("def redacted_components(parts):", 1),
-            ("CANONICAL_SYSTEM_DYLD_FIELD", 2),
-            ("CANONICAL_SYSTEM_DYLD_VALUE", 2),
-            ("is_canonical_system_dyld", 2),
+            ("CANONICAL_SYSTEM_DYLD_PAIRS", 2),
+            ("is_canonical_system_dyld", 3),
+            ("DYLD_INSERT_LIBRARIES\"),", 4),
             ("displayed = parts[:16]", 1),
             ("displayed = violations[:64]", 1),
             ("violations.sort(key=lambda item: (", 1),
