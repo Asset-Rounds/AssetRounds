@@ -1412,47 +1412,102 @@ jobs:
                   if temporary.exists() or temporary.is_symlink():
                       temporary.unlink()
 
+          def value_classification(text):
+              runner_temp = os.environ.get("RUNNER_TEMP", "")
+              workspace = os.environ.get("GITHUB_WORKSPACE", "")
+              developer_dir = os.environ.get("DEVELOPER_DIR", "")
+              if runner_temp and runner_temp in text:
+                  return "runner-temp"
+              if workspace and workspace in text:
+                  return "workspace"
+              if developer_dir and developer_dir in text:
+                  return "developer-dir"
+              if text.startswith(("/Applications/", "/Library/", "/System/", "/usr/")):
+                  return "system"
+              if "file:" in text:
+                  return "file-url"
+              return "other"
+
+          def redacted_components(parts):
+              component_count = len(parts)
+              displayed = parts[:16]
+              return {
+                  "componentCount": component_count,
+                  "components": [
+                      {
+                          "bytes": len(component.encode("utf-8")),
+                          "class": value_classification(component),
+                          "sha256": hashlib.sha256(component.encode("utf-8")).hexdigest().upper(),
+                      }
+                      for component in displayed
+                  ],
+                  "truncated": component_count > len(displayed),
+              }
+
           def validate_xctestrun(path, producer_root):
               payload = read_xctestrun(path)
-
               producer_text = str(producer_root)
+              violations = []
               for field_path, text in xctestrun_strings(payload):
-                  field = "/".join(field_path).encode("utf-8")
-                  field_digest = hashlib.sha256(field).hexdigest().upper()
-                  digest = hashlib.sha256(text.encode("utf-8")).hexdigest().upper()
-                  if os.environ.get("RUNNER_TEMP", "") in text:
-                      classification = "runner-temp"
-                  elif os.environ.get("GITHUB_WORKSPACE", "") in text:
-                      classification = "workspace"
-                  elif os.environ.get("DEVELOPER_DIR", "") in text:
-                      classification = "developer-dir"
-                  elif text.startswith(("/Applications/", "/Library/", "/System/", "/usr/")):
-                      classification = "system"
-                  elif "file:" in text:
-                      classification = "file-url"
-                  else:
-                      classification = "other"
-                  diagnostic = (
-                      f" fieldSHA256={field_digest} depth={len(field_path)}"
-                      f" valueSHA256={digest} bytes={len(text.encode('utf-8'))}"
-                      f" class={classification}"
-                  )
+                  text_bytes = text.encode("utf-8")
+                  field_bytes = "/".join(field_path).encode("utf-8")
+                  kinds = {}
                   if producer_text in text:
-                      fail("producer-specific xctestrun path" + diagnostic)
+                      kinds["producer-specific-xctestrun-path"] = 1
                   is_canonical_system_dyld = (
                       field_path == CANONICAL_SYSTEM_DYLD_FIELD
                       and text == CANONICAL_SYSTEM_DYLD_VALUE
                   )
                   if re.search(r"(?:^|[=:])(?:/|~|file:)", text) and not is_canonical_system_dyld:
-                      fail("absolute xctestrun path" + diagnostic)
+                      kinds["absolute-xctestrun-path"] = 1
                   if "/../" in text or text.startswith("../"):
-                      fail("traversing xctestrun path" + diagnostic)
+                      kinds["traversing-xctestrun-path"] = 1
                   if "$" in text:
-                      fail("unresolved xctestrun macro" + diagnostic)
-                  for macro in re.findall(r"__[A-Za-z0-9_]+__", text):
-                      if macro not in ALLOWED_MACROS:
-                          macro_digest = hashlib.sha256(macro.encode("utf-8")).hexdigest().upper()
-                          fail("unknown xctestrun macro sha256=" + macro_digest)
+                      kinds["unresolved-xctestrun-macro"] = 1
+                  unknown_macro_count = sum(
+                      1 for macro in re.findall(r"__[A-Za-z0-9_]+__", text)
+                      if macro not in ALLOWED_MACROS
+                  )
+                  if unknown_macro_count:
+                      kinds["unknown-xctestrun-macro"] = unknown_macro_count
+                  if kinds:
+                      field_components = redacted_components(list(field_path))
+                      value_components = redacted_components(text.split(":"))
+                      for component in field_components["components"]:
+                          component.pop("class")
+                      violations.append({
+                          "field": {
+                              "componentCount": field_components["componentCount"],
+                              "components": field_components["components"],
+                              "depth": len(field_path),
+                              "sha256": hashlib.sha256(field_bytes).hexdigest().upper(),
+                              "truncated": field_components["truncated"],
+                          },
+                          "kinds": kinds,
+                          "value": {
+                              "bytes": len(text_bytes),
+                              "class": value_classification(text),
+                              "componentCount": value_components["componentCount"],
+                              "components": value_components["components"],
+                              "sha256": hashlib.sha256(text_bytes).hexdigest().upper(),
+                              "truncated": value_components["truncated"],
+                          },
+                      })
+              if violations:
+                  violations.sort(key=lambda item: (
+                      item["field"]["sha256"], item["value"]["sha256"],
+                      tuple(sorted(item["kinds"].items())),
+                  ))
+                  displayed = violations[:64]
+                  diagnostic = {
+                      "recordCount": len(violations),
+                      "truncated": len(violations) > len(displayed),
+                      "violationCount": sum(sum(item["kinds"].values()) for item in violations),
+                      "violations": displayed,
+                  }
+                  fail("xctestrun residual violations " + json.dumps(
+                      diagnostic, sort_keys=True, separators=(",", ":")
+                  ))
 
           def collect(root):
               require_product_ancestors(root)

@@ -243,8 +243,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 320_009,
-            sha256: "5A3EEC86257B8E1AB81816B05DB9E9D956E8132270B5AC326E1A43A1D6036D8C"
+            byteCount: 322_553,
+            sha256: "98482EBF091CF28825258E7B45D02163ED65B1842610D3EF0D826350EF223CC1"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -1066,10 +1066,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 144_325)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 146_869)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "03860849200EE8784E7BEE09B0D900F325A581A7F39B67249326B2A48DADDD05"
+            "916612186C17F6EFA4CD2460207F5928419DB195D1E0B4DE65DD68223E70C9E8"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -1083,10 +1083,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Prepare S10.4 pilot payload verifier",
             before: "\n\n      - name: Download immutable S10.4 pilot payload"
         )
-        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 25_181)
+        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 27_725)
         XCTAssertEqual(
             Data(workerPilotVerifierSource.utf8).sha256,
-            "46BC355BE42EB39DC65B4706769290670C7A8DFE4679F8BC798FF26C5131E6CE"
+            "9AF1C58A055012D62D23BEF966E3379756E953A1BE80AC43EB1F02E201F570AE"
         )
         for exact in [
             "FieldEvidencePayload.tar",
@@ -1102,8 +1102,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "unsafe archive member path",
             "unsafe archive member type",
             "expected exactly one regular .xctestrun",
-            "producer-specific xctestrun path",
-            "unknown xctestrun macro",
+            "def value_classification(text):",
+            "runner_temp = os.environ.get(\"RUNNER_TEMP\", \"\")",
+            "workspace = os.environ.get(\"GITHUB_WORKSPACE\", \"\")",
+            "developer_dir = os.environ.get(\"DEVELOPER_DIR\", \"\")",
+            "if runner_temp and runner_temp in text:",
+            "if workspace and workspace in text:",
+            "if developer_dir and developer_dir in text:",
+            "def redacted_components(parts):",
+            "component_count = len(parts)",
+            "displayed = parts[:16]",
+            "\"componentCount\": component_count",
+            "\"truncated\": component_count > len(displayed)",
             "def normalize_xctestrun(root, source_root):",
             "def replace_source_root(text):",
             "before_is_boundary = index == 0 or text[index - 1] in \"=:\"",
@@ -1113,9 +1123,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "replacement_count != source_occurrence_count",
             "normalized_testroot_count != original_testroot_count + replacement_count",
             "xctestrun normalization count mismatch",
-            "fieldSHA256={field_digest} depth={len(field_path)}",
-            "valueSHA256={digest} bytes={len(text.encode('utf-8'))}",
-            "class={classification}",
             "          CANONICAL_SYSTEM_DYLD_FIELD = (",
             "              \"FieldEvidenceAppTests\", \"EnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"",
             "          CANONICAL_SYSTEM_DYLD_VALUE = \"/usr/lib/libRPAC.dylib\"",
@@ -1125,16 +1132,70 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                  if re.search(r\"(?:^|[=:])(?:/|~|file:)\", text) and not is_canonical_system_dyld:",
             "                  if \"/../\" in text or text.startswith(\"../\"):",
             "                  if \"$\" in text:",
-            "                  for macro in re.findall(r\"__[A-Za-z0-9_]+__\", text):",
+            "1 for macro in re.findall(r\"__[A-Za-z0-9_]+__\", text)",
+            "violations = []",
+            "text_bytes = text.encode(\"utf-8\")",
+            "field_bytes = \"/\".join(field_path).encode(\"utf-8\")",
+            "kinds = {}",
+            "kinds[\"producer-specific-xctestrun-path\"] = 1",
+            "kinds[\"absolute-xctestrun-path\"] = 1",
+            "kinds[\"traversing-xctestrun-path\"] = 1",
+            "kinds[\"unresolved-xctestrun-macro\"] = 1",
+            "unknown_macro_count = sum(",
+            "if unknown_macro_count:",
+            "kinds[\"unknown-xctestrun-macro\"] = unknown_macro_count",
+            "field_components = redacted_components(list(field_path))",
+            "value_components = redacted_components(text.split(\":\"))",
+            "component.pop(\"class\")",
+            "\"field\": {",
+            "\"depth\": len(field_path)",
+            "\"sha256\": hashlib.sha256(field_bytes).hexdigest().upper()",
+            "\"kinds\": kinds",
+            "\"value\": {",
+            "\"bytes\": len(text_bytes)",
+            "\"class\": value_classification(text)",
+            "\"sha256\": hashlib.sha256(text_bytes).hexdigest().upper()",
+            "violations.sort(key=lambda item: (",
+            "tuple(sorted(item[\"kinds\"].items())),",
+            "displayed = violations[:64]",
+            "\"recordCount\": len(violations)",
+            "\"truncated\": len(violations) > len(displayed)",
+            "\"violationCount\": sum(sum(item[\"kinds\"].values()) for item in violations)",
+            "\"violations\": displayed",
+            "fail(\"xctestrun residual violations \" + json.dumps(",
+            "diagnostic, sort_keys=True, separators=(\",\", \":\")",
             "payload metadata mismatch",
             "payload tree manifest mismatch",
         ] {
             XCTAssertTrue(workerPilotVerifierSource.contains(exact), exact)
         }
         for (exact, count) in [
+            ("def value_classification(text):", 1),
+            ("def redacted_components(parts):", 1),
             ("CANONICAL_SYSTEM_DYLD_FIELD", 2),
             ("CANONICAL_SYSTEM_DYLD_VALUE", 2),
             ("is_canonical_system_dyld", 2),
+            ("displayed = parts[:16]", 1),
+            ("displayed = violations[:64]", 1),
+            ("violations.sort(key=lambda item: (", 1),
+            ("fail(\"xctestrun residual violations \" + json.dumps(", 1),
+        ] {
+            XCTAssertEqual(
+                workerPilotVerifierSource.components(separatedBy: exact).count - 1,
+                count,
+                exact
+            )
+        }
+        XCTAssertFalse(workerPilotVerifierSource.contains("fieldSHA256={field_digest}"))
+        XCTAssertFalse(workerPilotVerifierSource.contains("valueSHA256={digest}"))
+        XCTAssertFalse(workerPilotVerifierSource.contains("class={classification}"))
+        for (exact, count) in [
+            ("runner_temp = os.environ.get(\"RUNNER_TEMP\", \"\")", 1),
+            ("workspace = os.environ.get(\"GITHUB_WORKSPACE\", \"\")", 1),
+            ("developer_dir = os.environ.get(\"DEVELOPER_DIR\", \"\")", 1),
+            ("if runner_temp and runner_temp in text:", 1),
+            ("if workspace and workspace in text:", 1),
+            ("if developer_dir and developer_dir in text:", 1),
         ] {
             XCTAssertEqual(
                 workerPilotVerifierSource.components(separatedBy: exact).count - 1,
