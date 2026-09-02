@@ -26819,9 +26819,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return .failure(.invalidPilotBinding)
         }
         guard rawCheckoutRoot.hasPrefix("/"),
-              rawCheckoutRoot.unicodeScalars.allSatisfy {
+              rawCheckoutRoot.unicodeScalars.allSatisfy({
                   $0.value >= 0x20 && $0.value != 0x7F
-              }
+              })
         else {
             return .failure(.invalidCheckoutRoot)
         }
