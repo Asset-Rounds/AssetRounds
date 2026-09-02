@@ -243,8 +243,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 329_714,
-            sha256: "E87B14F46A10AE85C9885A071B0F8DCB33871403F432887FA7B603A89AB87434"
+            byteCount: 333_886,
+            sha256: "EA2433FE7555F2600D3998B0D8BA82F55C59DB11A28E3D49EE2C459879911DC7"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -1260,10 +1260,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN",
             before: "\n      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_END"
         )
-        XCTAssertEqual(workerPilotFullEvidenceSource.utf8.count, 29_981)
+        XCTAssertEqual(workerPilotFullEvidenceSource.utf8.count, 34_153)
         XCTAssertEqual(
             Data(workerPilotFullEvidenceSource.utf8).sha256,
-            "10C3B6ADBEB1D851E37C292ABBA6C85D8686840C6E6F9E1A7F55776367FB36FC"
+            "FCC3469ADE516A7023954B35F02CCFA7C428F27735A4AE55F84105F9E6281FB3"
         )
         for exact in [
             "s10.4.current.*:iphone-17-ios-26.2-current:iOS\\ 26.2:23C54:iPhone\\ 17",

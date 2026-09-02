@@ -4551,30 +4551,86 @@ jobs:
             --path "$CI_ARTIFACT_DIR/UnitTests.xcresult" --compact > "$unit_results_path"
           xcrun xcresulttool get test-results tests \
             --path "$CI_ARTIFACT_DIR/UISmoke.xcresult" --compact > "$ui_results_path"
-          unit_selectors_json="$(jq -cS '
-            def normalized: sub("\\(\\)$"; "");
-            [.. | objects
-              | select(.nodeType? == "Test Case" and .result? == "Passed")
-              | .nodeIdentifier
-              | normalized] | unique | sort
-          ' "$unit_results_path")"
-          expected_unit_selectors_json="$(jq -cS '
-            [.unitTestSelectors[] | sub("\\(\\)$"; "")] | sort
-          ' Scripts/ci-selection.json)"
-          test "$unit_selectors_json" = "$expected_unit_selectors_json"
+          normalize_pilot_executed_cases() {
+            local result_path="$1"
+            local bundle_type="$2"
+            jq -cS --arg bundleType "$bundle_type" '
+              def normalize_identifier:
+                sub("\\(\\)$"; "");
+              def executed_cases($bundleName; $bundleType):
+                . as $node
+                | (
+                    if $node.nodeType? == $bundleType
+                    then ($node.name? // "")
+                    else $bundleName
+                    end
+                  ) as $nextBundle
+                | if $node.nodeType? == "Test Case" then
+                    if (($nextBundle | type) == "string" and ($nextBundle | length) > 0)
+                      and (($node.nodeIdentifier? | type) == "string"
+                        and ($node.nodeIdentifier | length) > 0)
+                      and (($node.result? | type) == "string" and ($node.result | length) > 0)
+                    then
+                      ($node.nodeIdentifier | normalize_identifier) as $identifier
+                      | {
+                          bundle: $nextBundle,
+                          identifier: (
+                            if ($identifier | startswith($nextBundle + "/"))
+                            then $identifier
+                            else ($nextBundle + "/" + $identifier)
+                            end
+                          ),
+                          result: $node.result
+                        }
+                    else error("invalid pilot test case")
+                    end
+                  else ($node.children[]? | executed_cases($nextBundle; $bundleType))
+                  end;
+              [
+                .testNodes[]?
+                | executed_cases(null; $bundleType)
+              ]
+              | sort_by(.identifier, .result)
+            ' "$result_path"
+          }
+
+          verify_pilot_executed_methods() {
+            local actual_json="$1"
+            local expected_bundle="$2"
+            local expected_json="$3"
+            jq -e --arg bundle "$expected_bundle" --argjson expected "$expected_json" '
+              . as $actual
+              | (($actual | type) == "array")
+                and (($actual | length) == ($expected | length))
+                and all(
+                  $actual[];
+                  .bundle == $bundle
+                  and .result == "Passed"
+                  and (.identifier | type) == "string"
+                )
+                and (([$actual[].identifier] | unique | length) == ($actual | length))
+                and (($actual | map(.identifier) | sort) == ($expected | sort))
+            ' > /dev/null <<< "$actual_json"
+          }
+
+          expected_unit_methods_json='[
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract"
+          ]'
+          expected_ui_methods_json='[
+            "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard"
+          ]'
+          unit_cases_json="$(normalize_pilot_executed_cases "$unit_results_path" "Unit test bundle")"
+          ui_cases_json="$(normalize_pilot_executed_cases "$ui_results_path" "UI test bundle")"
+          verify_pilot_executed_methods \
+            "$unit_cases_json" "FieldEvidenceAppTests" "$expected_unit_methods_json"
+          verify_pilot_executed_methods \
+            "$ui_cases_json" "FieldEvidenceAppUITests" "$expected_ui_methods_json"
+          unit_selectors_json="$(jq -cS '[.[].identifier] | sort' <<< "$unit_cases_json")"
           test "$(jq 'length' <<< "$unit_selectors_json")" -eq 5
-          ui_selectors_json="$(jq -cS '
-            def normalized: sub("\\(\\)$"; "");
-            [.. | objects
-              | select(.nodeType? == "Test Case" and .result? == "Passed")
-              | .nodeIdentifier
-              | normalized] | unique | sort
-          ' "$ui_results_path")"
-          expected_ui_selectors_json="$(jq -cS '
-            [.uiTestSelectors[] | sub("\\(\\)$"; "")] | sort
-          ' Scripts/ci-selection.json)"
-          test "$ui_selectors_json" = "$expected_ui_selectors_json"
-          test "$(jq 'length' <<< "$ui_selectors_json")" -eq 1
 
           expected_state_ids_json="$(jq -cS '[.routes[].states[].state_id] | sort' \
             docs/design/s10/s10-screen-state-inventory.json)"
@@ -4641,7 +4697,16 @@ jobs:
             ' "$shard_evidence_path/contrast.json" > /dev/null
           jq -e --arg shard "$CI_S10_4_SHARD_ID" \
             --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
-            --argjson expectedTasks "$expected_task_ids_json" '
+            --argjson expectedTasks "$expected_task_ids_json" \
+            --slurpfile contrast "$shard_evidence_path/contrast.json" '
+              ([$contrast[0][] | select(.result == "EXCEPTION") | .stateID] | sort)
+                as $validatedExceptionStateIDs
+              | def baseEvidence($shard; $taskID): [
+                  "s10.4-ax-" + $shard + "-" + $taskID,
+                  "s10.4-focus-order-" + $shard + "-" + $taskID,
+                  "s10.4-target-size-" + $shard + "-" + $taskID,
+                  "s10.4-contrast-" + $shard + "-" + $taskID
+                ];
               length == 6
               and ([.[].taskID] | sort) == $expectedTasks
               and all(.[];
@@ -4649,13 +4714,26 @@ jobs:
                 and .deviceProfileID == $profile
                 and (.feature | type == "string" and length > 0)
                 and (.automatedStatus == "PASS" or .automatedStatus == "EXCEPTION")
-                and (.automatedEvidenceIDs | type == "array" and length == 4)
-                and (.automatedEvidenceIDs == [
-                  "s10.4-ax-" + $shard + "-" + .taskID,
-                  "s10.4-focus-order-" + $shard + "-" + .taskID,
-                  "s10.4-target-size-" + $shard + "-" + .taskID,
-                  "s10.4-contrast-" + $shard + "-" + .taskID
-                ]))
+                and (
+                  baseEvidence($shard; .taskID) as $baseEvidence
+                  | if .automatedStatus == "PASS" then
+                      .exceptionStateIDs == []
+                      and .automatedEvidenceIDs == $baseEvidence
+                    else
+                      (.exceptionStateIDs | type == "array" and length > 0)
+                      and ([.exceptionStateIDs[] | type == "string" and length > 0] | all)
+                      and ((.exceptionStateIDs | unique | length) == (.exceptionStateIDs | length))
+                      and (.exceptionStateIDs == (.exceptionStateIDs | sort))
+                      and all(.exceptionStateIDs[];
+                        . as $stateID
+                        | ($validatedExceptionStateIDs | index($stateID)) != null)
+                      and (.automatedEvidenceIDs == (
+                        $baseEvidence + (.exceptionStateIDs | map(
+                          "s10.4-contrast-" + $shard + "-" + .
+                        ))
+                      ))
+                    end
+                ))
             ' "$shard_evidence_path/accessibility.json" > /dev/null
 
           # The preceding Retain S10.4 shard evidence step is the shared strict
@@ -4738,7 +4816,7 @@ jobs:
               -print | LC_ALL=C sort
           )
           test "$(wc -l < "$artifact_rows_path" | tr -d ' ')" -gt 0
-          jq -Rn '[inputs | split("\\t") | {path: .[0], sha256: .[1]}]' \
+          jq -Rn '[inputs | split("\t") | {path: .[0], sha256: .[1]}]' \
             < "$artifact_rows_path" > "$artifact_manifest_path"
           jq -e '
             length > 0
