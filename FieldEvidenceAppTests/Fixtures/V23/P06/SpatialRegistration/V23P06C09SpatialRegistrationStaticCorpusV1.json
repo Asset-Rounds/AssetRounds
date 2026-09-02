@@ -1,0 +1,54 @@
+{
+  "cardID": "V23-P06-C09",
+  "cases": [
+    {
+      "expectedDisposition": "STATIC_DESCRIPTOR_ONLY",
+      "id": "V23-P06-C09-G01",
+      "input": "synthetic spatial descriptor",
+      "kind": "golden"
+    },
+    {
+      "expectedDisposition": "STATIC_DESCRIPTOR_ONLY",
+      "id": "V23-P06-C09-A01",
+      "input": "manual offline coordinate terminology",
+      "kind": "accessibility"
+    },
+    {
+      "expectedDisposition": "REJECT_DESCRIPTOR",
+      "expectedSemantics": "NO_TRANSFORM_EXECUTION_OR_GEOMETRY_FORK",
+      "id": "V23-P06-C09-H01-NONINVERTIBLE",
+      "input": "non-invertible transform descriptor",
+      "kind": "hostile"
+    },
+    {
+      "expectedDisposition": "REJECT_CLAIM",
+      "expectedSemantics": "NO_CALIBRATION_OR_ACCURACY_CLAIM",
+      "id": "V23-P06-C09-H01-ACCURACY",
+      "input": "calibration or accuracy claim",
+      "kind": "hostile"
+    },
+    {
+      "expectedDisposition": "REJECT_NO_SILENT_TRANSFORM",
+      "expectedSemantics": "NO_PLAN_LOCATION_SENSOR_OR_NETWORK",
+      "id": "V23-P06-C09-H01-SILENT-TRANSFORM",
+      "input": "silent transform or actual-plan request",
+      "kind": "hostile"
+    },
+    {
+      "expectedDisposition": "NO_RUNTIME_CLAIM",
+      "expectedSemantics": "DISCARD_SYNTHETIC_DESCRIPTOR",
+      "id": "V23-P06-C09-I01",
+      "kind": "interruption"
+    },
+    {
+      "expectedDisposition": "RECONCILE_OR_DISCARD",
+      "expectedSemantics": "EXPIRY_RECONCILIATION_REQUIRED",
+      "id": "V23-P06-C09-R01",
+      "kind": "recovery"
+    }
+  ],
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "realTerminalValidationResult": false,
+  "schema": "V23P06C09SpatialRegistrationStaticCorpusV1",
+  "syntheticRepositoryOnly": true
+}

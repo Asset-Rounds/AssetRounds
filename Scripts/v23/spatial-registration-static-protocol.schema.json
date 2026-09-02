@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "accuracyClaim": {
+      "const": false
+    },
+    "actualPlans": {
+      "const": false
+    },
+    "calibrationClaim": {
+      "const": false
+    },
+    "canonicalWrites": {
+      "const": 0
+    },
+    "cardID": {
+      "const": "V23-P06-C09"
+    },
+    "customerData": {
+      "const": false
+    },
+    "declarativeSpatialDescriptorsOnly": {
+      "const": true
+    },
+    "disposition": {
+      "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
+    },
+    "expiryDays": {
+      "const": 30
+    },
+    "externalActions": {
+      "const": "NONE"
+    },
+    "geometryForkEnabled": {
+      "const": false
+    },
+    "mapKitCoreLocationARKitLiDARBIMImportLocationSensorNetworkEnabled": {
+      "const": false
+    },
+    "reconciliationRequired": {
+      "const": true
+    },
+    "schema": {
+      "const": "V23P06C09SpatialRegistrationStaticProtocolV1"
+    },
+    "silentTransformEnabled": {
+      "const": false
+    },
+    "syntheticRepositoryOnly": {
+      "const": true
+    },
+    "transformExecuted": {
+      "const": false
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "disposition",
+    "syntheticRepositoryOnly",
+    "declarativeSpatialDescriptorsOnly",
+    "mapKitCoreLocationARKitLiDARBIMImportLocationSensorNetworkEnabled",
+    "transformExecuted",
+    "calibrationClaim",
+    "canonicalWrites",
+    "accuracyClaim",
+    "silentTransformEnabled",
+    "geometryForkEnabled",
+    "customerData",
+    "externalActions",
+    "actualPlans",
+    "expiryDays",
+    "reconciliationRequired",
+    "evidenceIDs",
+    "flags"
+  ],
+  "type": "object"
+}
