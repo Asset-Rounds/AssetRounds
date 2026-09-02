@@ -1,0 +1,624 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "B": {
+      "additionalProperties": false,
+      "properties": {
+        "head": {
+          "pattern": "[0-9a-f]{40}",
+          "type": "string"
+        },
+        "tree": {
+          "pattern": "[0-9a-f]{40}",
+          "type": "string"
+        }
+      },
+      "required": [
+        "head",
+        "tree"
+      ],
+      "type": "object"
+    },
+    "P": {
+      "additionalProperties": false,
+      "properties": {
+        "head": {
+          "const": null,
+          "type": "null"
+        },
+        "state": {
+          "const": "NOT_FROZEN_PRE_S10",
+          "type": "string"
+        },
+        "tree": {
+          "const": null,
+          "type": "null"
+        }
+      },
+      "required": [
+        "head",
+        "tree",
+        "state"
+      ],
+      "type": "object"
+    },
+    "S": {
+      "additionalProperties": false,
+      "properties": {
+        "head": {
+          "const": null,
+          "type": "null"
+        },
+        "state": {
+          "const": "POST_S10_AUTHORITY_REQUIRED",
+          "type": "string"
+        },
+        "tree": {
+          "const": null,
+          "type": "null"
+        }
+      },
+      "required": [
+        "head",
+        "tree",
+        "state"
+      ],
+      "type": "object"
+    },
+    "artifactRole": {
+      "const": "IMMUTABLE_CONTRACT_WITH_C01_C03_REFERENCE_SPECIMENS",
+      "type": "string"
+    },
+    "authorityContentDigest": {
+      "const": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+      "type": "string"
+    },
+    "authorityID": {
+      "const": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+      "type": "string"
+    },
+    "cards": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "base": {
+            "additionalProperties": false,
+            "properties": {
+              "head": {
+                "pattern": "[0-9a-f]{40}",
+                "type": "string"
+              },
+              "tree": {
+                "pattern": "[0-9a-f]{40}",
+                "type": "string"
+              }
+            },
+            "required": [
+              "head",
+              "tree"
+            ],
+            "type": "object"
+          },
+          "candidate": {
+            "additionalProperties": false,
+            "properties": {
+              "head": {
+                "pattern": "[0-9a-f]{40}",
+                "type": "string"
+              },
+              "tree": {
+                "pattern": "[0-9a-f]{40}",
+                "type": "string"
+              }
+            },
+            "required": [
+              "head",
+              "tree"
+            ],
+            "type": "object"
+          },
+          "candidateHistory": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "changedPaths": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "correctionOf": {
+                  "pattern": "([0-9a-f]{40})?",
+                  "type": "string"
+                },
+                "head": {
+                  "pattern": "[0-9a-f]{40}",
+                  "type": "string"
+                },
+                "immutableReceiptBindings": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "sha256": {
+                        "pattern": "[0-9a-f]{64}",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "sha256"
+                    ],
+                    "type": "object"
+                  },
+                  "minItems": 1,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "parent": {
+                  "pattern": "[0-9a-f]{40}",
+                  "type": "string"
+                },
+                "s10SharedPaths": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "state": {
+                  "enum": [
+                    "FAILED",
+                    "SUPERSEDED",
+                    "UNVERIFIED",
+                    "PROVISIONAL_CHECKPOINTED"
+                  ],
+                  "type": "string"
+                },
+                "tree": {
+                  "pattern": "[0-9a-f]{40}",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "head",
+                "tree",
+                "parent",
+                "correctionOf",
+                "state",
+                "changedPaths",
+                "s10SharedPaths",
+                "immutableReceiptBindings"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "cardID": {
+            "enum": [
+              "V30-P00-C01",
+              "V30-P00-C02",
+              "V30-P00-C03"
+            ],
+            "type": "string"
+          },
+          "changedPaths": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "authorityTupleSHA256": {
+                  "pattern": "([0-9a-f]{64})?",
+                  "type": "string"
+                },
+                "classification": {
+                  "enum": [
+                    "V30_PROVISIONAL_OWNED",
+                    "S10_SHARED_RECONCILIATION_REQUIRED"
+                  ],
+                  "type": "string"
+                },
+                "new": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "blobOID": {
+                      "pattern": "([0-9a-f]{40})?",
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "pattern": "([0-9a-f]{64})?",
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "PRESENT",
+                        "ABSENT"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "blobOID",
+                    "sha256"
+                  ],
+                  "type": "object"
+                },
+                "old": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "blobOID": {
+                      "pattern": "([0-9a-f]{40})?",
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "pattern": "([0-9a-f]{64})?",
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "PRESENT",
+                        "ABSENT"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "blobOID",
+                    "sha256"
+                  ],
+                  "type": "object"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "old",
+                "new",
+                "classification",
+                "authorityTupleSHA256"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "directPrerequisites": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "head": {
+                  "pattern": "[0-9a-f]{40}",
+                  "type": "string"
+                },
+                "native": {
+                  "const": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "[0-9a-f]{64}",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "head",
+                "path",
+                "sha256",
+                "native"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "reconciliation": {
+            "additionalProperties": false,
+            "properties": {
+              "compatibility": {
+                "const": "UNASSESSED_PRE_S10",
+                "type": "string"
+              },
+              "evidenceDisposition": {
+                "const": "UNASSESSED_PRE_S10",
+                "type": "string"
+              },
+              "invalidatedEvidence": {
+                "const": "ALL_EXACT_HEAD_EVIDENCE_REQUIRES_POST_S10_REQUALIFICATION",
+                "type": "string"
+              },
+              "originalCandidate": {
+                "additionalProperties": false,
+                "properties": {
+                  "head": {
+                    "pattern": "[0-9a-f]{40}",
+                    "type": "string"
+                  },
+                  "tree": {
+                    "pattern": "[0-9a-f]{40}",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "head",
+                  "tree"
+                ],
+                "type": "object"
+              },
+              "replayedCandidate": {
+                "const": null,
+                "type": "null"
+              },
+              "requiredAction": {
+                "const": "CARD_SCOPED_REPLAY_OR_AUTHORIZED_REIMPLEMENTATION_AFTER_VALID_S",
+                "type": "string"
+              }
+            },
+            "required": [
+              "originalCandidate",
+              "compatibility",
+              "evidenceDisposition",
+              "replayedCandidate",
+              "requiredAction",
+              "invalidatedEvidence"
+            ],
+            "type": "object"
+          },
+          "s10SharedPaths": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "cardID",
+          "directPrerequisites",
+          "base",
+          "candidate",
+          "changedPaths",
+          "s10SharedPaths",
+          "evidence",
+          "candidateHistory",
+          "reconciliation"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "credit": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalAcceptance": {
+          "const": false,
+          "type": "boolean"
+        },
+        "finalCredit": {
+          "const": false,
+          "type": "boolean"
+        },
+        "mainIntegrationCredit": {
+          "const": false,
+          "type": "boolean"
+        },
+        "postS10SuccessorStart": {
+          "const": false,
+          "type": "boolean"
+        },
+        "provisionalDependencySatisfied": {
+          "const": false,
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "const": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "canonicalAcceptance",
+        "finalCredit",
+        "mainIntegrationCredit",
+        "postS10SuccessorStart",
+        "provisionalDependencySatisfied",
+        "releaseCredit"
+      ],
+      "type": "object"
+    },
+    "executionEpoch": {
+      "const": "PRE_S10_PROVISIONAL",
+      "type": "string"
+    },
+    "fenceSHA256": {
+      "pattern": "[0-9a-f]{64}",
+      "type": "string"
+    },
+    "kind": {
+      "const": "V30ProvisionalCandidateReconciliationManifestV1",
+      "type": "string"
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedS": {
+          "const": "Require owner completion trigger AND valid external V30PostS10ReconciliationAuthorityV1; verify Phase 10.6, lossless V23 146 cards/230 edges and preserved unfinished states, plus green exact-main evidence. Do not observe S during pre-S10 work.",
+          "type": "string"
+        },
+        "brandConflict": {
+          "const": "Accepted Phase 10 owns actual brand/design conflicts; reapply V30 localization semantics to accepted UI and reverify without silently discarding functionality.",
+          "type": "string"
+        },
+        "comparison": {
+          "const": "After authorization, compare B..P and B..S paths AND semantic-contract dependencies; classify every delta with proof or rationale. No provisional result is automatically promoted.",
+          "type": "string"
+        },
+        "compatibilityClasses": {
+          "const": [
+            "UNCHANGED_SAFE_REPLAY",
+            "S10_ALREADY_SATISFIES_WITH_PROOF",
+            "CONFLICT_REQUIRES_AUTHORIZED_REIMPLEMENTATION",
+            "OBSOLETE_REJECTED_WITH_RATIONALE"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "contentChangeInvalidates": {
+          "const": [
+            "catalog content or release digest",
+            "key-set digest",
+            "termbase digest",
+            "rendered-artifact digest",
+            "professional/native in-context review"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "evidenceDispositionClasses": {
+          "const": [
+            "COMPATIBLE",
+            "CORRECTION_REQUIRED",
+            "SUPERSEDED",
+            "OBSOLETE_WITH_RATIONALE"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "evidenceStorage": {
+          "const": "This Card4 artifact is immutable after its checkpoint; Cards 1-3 are reference specimens only. Later card-scoped manifests, candidate histories and immutable receipt/artifact bindings are recorded in the existing provisional ledger events and V30_EXECUTION_HANDOFF.md, or another exact path only if that card fence permits it. The ledger retains full test/CI/failure/human-review provenance; no later card may rewrite this specimen or grow support paths.",
+          "type": "string"
+        },
+        "headOrTreeChangeInvalidates": {
+          "const": [
+            "static",
+            "unit",
+            "UI",
+            "accessibility",
+            "localization",
+            "privacy",
+            "persistence",
+            "report",
+            "export",
+            "backup",
+            "offline",
+            "search",
+            "brand",
+            "exact-head hosted CI"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "history": {
+          "const": "Append all failed, superseded, unverified and checkpointed candidates, correctionOf links, test results, CI runs/artifacts and human-review state. Preserve original evidence. Corrections are direct children of the prior candidate under the same logical card.",
+          "type": "string"
+        },
+        "preS10PromotionAllowed": {
+          "const": false,
+          "type": "boolean"
+        },
+        "qualification": {
+          "const": "Rerun invalidated evidence on the exact reconciled tuple through the post-S10 authorized route. Provisional diagnostics/reviews remain zero-credit provenance, including failures and NOT_EXECUTED results.",
+          "type": "string"
+        },
+        "replay": {
+          "const": "Process all 37 frozen provisional cards in original graph order. Record original base/head/tree/diff/evidence and new base/head/tree/diff/evidence for each card-scoped replay or authorized reimplementation from accepted S.",
+          "type": "string"
+        },
+        "sharedPathObligation": {
+          "const": "Carry the exact pre-issued per-card/path tuple and its reconciliation obligation for every S10-shared path. Rehydrate fences against S before replay.",
+          "type": "string"
+        },
+        "terminalP": {
+          "const": "Freeze exact terminal P head/tree, complete B..P ordered commit/diff map and provisional ledger tip/digest only after V30-P04-C07.",
+          "type": "string"
+        },
+        "wholesaleMergeAllowed": {
+          "const": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "terminalP",
+        "acceptedS",
+        "compatibilityClasses",
+        "evidenceDispositionClasses",
+        "comparison",
+        "replay",
+        "brandConflict",
+        "sharedPathObligation",
+        "history",
+        "headOrTreeChangeInvalidates",
+        "contentChangeInvalidates",
+        "qualification",
+        "wholesaleMergeAllowed",
+        "preS10PromotionAllowed",
+        "evidenceStorage"
+      ],
+      "type": "object"
+    },
+    "referenceCardIDs": {
+      "const": [
+        "V30-P00-C01",
+        "V30-P00-C02",
+        "V30-P00-C03"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schemaSHA256": {
+      "pattern": "[0-9a-f]{64}",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "executionEpoch",
+    "authorityID",
+    "authorityContentDigest",
+    "schemaSHA256",
+    "fenceSHA256",
+    "B",
+    "P",
+    "S",
+    "referenceCardIDs",
+    "credit",
+    "policy",
+    "cards",
+    "artifactRole"
+  ],
+  "title": "V30 pre-S10 candidate reconciliation contract with observed Cards 1-3 references",
+  "type": "object"
+}

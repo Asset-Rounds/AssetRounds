@@ -1,0 +1,375 @@
+{
+  "B": {
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+  },
+  "P": {
+    "head": null,
+    "state": "NOT_FROZEN_PRE_S10",
+    "tree": null
+  },
+  "S": {
+    "head": null,
+    "state": "POST_S10_AUTHORITY_REQUIRED",
+    "tree": null
+  },
+  "artifactRole": "IMMUTABLE_CONTRACT_WITH_C01_C03_REFERENCE_SPECIMENS",
+  "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+  "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+  "cards": [
+    {
+      "base": {
+        "head": "d2a153ba730e1894eb82b7cd3cc56e8ff2c3d2bb",
+        "tree": "e859e9a5a2ed4a0f4b59df08c929aee0c846ebce"
+      },
+      "candidate": {
+        "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
+        "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
+      },
+      "candidateHistory": [
+        {
+          "changedPaths": [
+            "docs/design/v30/execution/V30_PROVISIONAL_ACTIVATION_RECEIPT.json",
+            "docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json"
+          ],
+          "correctionOf": "",
+          "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
+          "immutableReceiptBindings": [
+            {
+              "path": "docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json",
+              "sha256": "5013363850dc572e7c45a87d3df89bd3834f1e5d70d944cec800499ec8c9fc08"
+            }
+          ],
+          "parent": "d2a153ba730e1894eb82b7cd3cc56e8ff2c3d2bb",
+          "s10SharedPaths": [],
+          "state": "PROVISIONAL_CHECKPOINTED",
+          "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
+        }
+      ],
+      "cardID": "V30-P00-C01",
+      "changedPaths": [
+        {
+          "authorityTupleSHA256": "",
+          "classification": "V30_PROVISIONAL_OWNED",
+          "new": {
+            "blobOID": "7adbb82e462f9a8598cf4704cfd8f9ba34503efb",
+            "sha256": "c593d71ad37228756e52f79560491988f020396e2b85a616adc51820a267d974",
+            "state": "PRESENT"
+          },
+          "old": {
+            "blobOID": "",
+            "sha256": "",
+            "state": "ABSENT"
+          },
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_ACTIVATION_RECEIPT.json"
+        },
+        {
+          "authorityTupleSHA256": "",
+          "classification": "V30_PROVISIONAL_OWNED",
+          "new": {
+            "blobOID": "57ad2ce37c40c3e79bbda892c9e5bf3b7dd15856",
+            "sha256": "5013363850dc572e7c45a87d3df89bd3834f1e5d70d944cec800499ec8c9fc08",
+            "state": "PRESENT"
+          },
+          "old": {
+            "blobOID": "",
+            "sha256": "",
+            "state": "ABSENT"
+          },
+          "path": "docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json"
+        }
+      ],
+      "directPrerequisites": [],
+      "evidence": [
+        {
+          "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
+          "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+          "path": "docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json",
+          "sha256": "5013363850dc572e7c45a87d3df89bd3834f1e5d70d944cec800499ec8c9fc08"
+        }
+      ],
+      "reconciliation": {
+        "compatibility": "UNASSESSED_PRE_S10",
+        "evidenceDisposition": "UNASSESSED_PRE_S10",
+        "invalidatedEvidence": "ALL_EXACT_HEAD_EVIDENCE_REQUIRES_POST_S10_REQUALIFICATION",
+        "originalCandidate": {
+          "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
+          "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
+        },
+        "replayedCandidate": null,
+        "requiredAction": "CARD_SCOPED_REPLAY_OR_AUTHORIZED_REIMPLEMENTATION_AFTER_VALID_S"
+      },
+      "s10SharedPaths": []
+    },
+    {
+      "base": {
+        "head": "1374269994a871236703d5e006fb86f34bb06b68",
+        "tree": "576e0129f42d83e14628e872123f6eed2cbf663b"
+      },
+      "candidate": {
+        "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+        "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
+      },
+      "candidateHistory": [
+        {
+          "changedPaths": [
+            "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json",
+            "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json",
+            "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json"
+          ],
+          "correctionOf": "",
+          "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+          "immutableReceiptBindings": [
+            {
+              "path": "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json",
+              "sha256": "a92785be3b7015c5e48f9f3aebcca767be3dd528907e57b304a48154123ce1d2"
+            }
+          ],
+          "parent": "1374269994a871236703d5e006fb86f34bb06b68",
+          "s10SharedPaths": [],
+          "state": "PROVISIONAL_CHECKPOINTED",
+          "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
+        }
+      ],
+      "cardID": "V30-P00-C02",
+      "changedPaths": [
+        {
+          "authorityTupleSHA256": "",
+          "classification": "V30_PROVISIONAL_OWNED",
+          "new": {
+            "blobOID": "a6ff2d1c94b64c999989c3f319c90a19a06d4086",
+            "sha256": "663850baacba6fffa79d81b03489e1d1f411d5cb1af26ede2f99a654fbc9cb33",
+            "state": "PRESENT"
+          },
+          "old": {
+            "blobOID": "",
+            "sha256": "",
+            "state": "ABSENT"
+          },
+          "path": "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json"
+        },
+        {
+          "authorityTupleSHA256": "",
+          "classification": "V30_PROVISIONAL_OWNED",
+          "new": {
+            "blobOID": "0c4131d68b42b63818a21d3cdd724355d042bf85",
+            "sha256": "4d727b055bedd845ba55c3eb3bc2552c1cee29d2c92f227aa1f7cb4e660f9862",
+            "state": "PRESENT"
+          },
+          "old": {
+            "blobOID": "",
+            "sha256": "",
+            "state": "ABSENT"
+          },
+          "path": "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json"
+        },
+        {
+          "authorityTupleSHA256": "",
+          "classification": "V30_PROVISIONAL_OWNED",
+          "new": {
+            "blobOID": "22040f74d75ee47d73b54633aed548a8fcf0cf27",
+            "sha256": "a92785be3b7015c5e48f9f3aebcca767be3dd528907e57b304a48154123ce1d2",
+            "state": "PRESENT"
+          },
+          "old": {
+            "blobOID": "",
+            "sha256": "",
+            "state": "ABSENT"
+          },
+          "path": "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json"
+        }
+      ],
+      "directPrerequisites": [
+        "V30-P00-C01"
+      ],
+      "evidence": [
+        {
+          "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+          "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+          "path": "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json",
+          "sha256": "a92785be3b7015c5e48f9f3aebcca767be3dd528907e57b304a48154123ce1d2"
+        }
+      ],
+      "reconciliation": {
+        "compatibility": "UNASSESSED_PRE_S10",
+        "evidenceDisposition": "UNASSESSED_PRE_S10",
+        "invalidatedEvidence": "ALL_EXACT_HEAD_EVIDENCE_REQUIRES_POST_S10_REQUALIFICATION",
+        "originalCandidate": {
+          "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+          "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
+        },
+        "replayedCandidate": null,
+        "requiredAction": "CARD_SCOPED_REPLAY_OR_AUTHORIZED_REIMPLEMENTATION_AFTER_VALID_S"
+      },
+      "s10SharedPaths": []
+    },
+    {
+      "base": {
+        "head": "c7cc89bde7b7f232626a6e7c98f65feb9724813b",
+        "tree": "d4436082179bded0d1eb52291487cb4b99a6aa88"
+      },
+      "candidate": {
+        "head": "2be5f8f58010c5813283ec9e69c17183733d462a",
+        "tree": "1a4a1b6960adc634488b4aae0c1be0f030af63f4"
+      },
+      "candidateHistory": [
+        {
+          "changedPaths": [
+            "docs/design/v30/execution/V30_PROVISIONAL_COORDINATION_GENESIS.json",
+            "docs/design/v30/execution/contexts/V30-P00-C03-attempt-1.json",
+            "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json"
+          ],
+          "correctionOf": "",
+          "head": "2be5f8f58010c5813283ec9e69c17183733d462a",
+          "immutableReceiptBindings": [
+            {
+              "path": "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json",
+              "sha256": "1334289d554277fa9c58db9943e9f90731fe6ff99db3af8f18220c15f08f3a76"
+            }
+          ],
+          "parent": "c7cc89bde7b7f232626a6e7c98f65feb9724813b",
+          "s10SharedPaths": [],
+          "state": "PROVISIONAL_CHECKPOINTED",
+          "tree": "1a4a1b6960adc634488b4aae0c1be0f030af63f4"
+        }
+      ],
+      "cardID": "V30-P00-C03",
+      "changedPaths": [
+        {
+          "authorityTupleSHA256": "",
+          "classification": "V30_PROVISIONAL_OWNED",
+          "new": {
+            "blobOID": "7df32927362c4584dbed381c36e0cfb197176d39",
+            "sha256": "eb24d78c723fdc3a78ca3b8ba8969452f52657b715f9c7e00c71d8e06ecdab1d",
+            "state": "PRESENT"
+          },
+          "old": {
+            "blobOID": "",
+            "sha256": "",
+            "state": "ABSENT"
+          },
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_COORDINATION_GENESIS.json"
+        },
+        {
+          "authorityTupleSHA256": "",
+          "classification": "V30_PROVISIONAL_OWNED",
+          "new": {
+            "blobOID": "b835b6e0553d99ee5515f4362a3328724fbf6874",
+            "sha256": "fd3ff124a67630b910f12cc0e8996e5c3c5060b4eb2f730a61c389d1863435ff",
+            "state": "PRESENT"
+          },
+          "old": {
+            "blobOID": "",
+            "sha256": "",
+            "state": "ABSENT"
+          },
+          "path": "docs/design/v30/execution/contexts/V30-P00-C03-attempt-1.json"
+        },
+        {
+          "authorityTupleSHA256": "",
+          "classification": "V30_PROVISIONAL_OWNED",
+          "new": {
+            "blobOID": "367ef3d9c761ca1d0d676884b606854fe01f6676",
+            "sha256": "1334289d554277fa9c58db9943e9f90731fe6ff99db3af8f18220c15f08f3a76",
+            "state": "PRESENT"
+          },
+          "old": {
+            "blobOID": "",
+            "sha256": "",
+            "state": "ABSENT"
+          },
+          "path": "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json"
+        }
+      ],
+      "directPrerequisites": [
+        "V30-P00-C01",
+        "V30-P00-C02"
+      ],
+      "evidence": [
+        {
+          "head": "2be5f8f58010c5813283ec9e69c17183733d462a",
+          "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+          "path": "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json",
+          "sha256": "1334289d554277fa9c58db9943e9f90731fe6ff99db3af8f18220c15f08f3a76"
+        }
+      ],
+      "reconciliation": {
+        "compatibility": "UNASSESSED_PRE_S10",
+        "evidenceDisposition": "UNASSESSED_PRE_S10",
+        "invalidatedEvidence": "ALL_EXACT_HEAD_EVIDENCE_REQUIRES_POST_S10_REQUALIFICATION",
+        "originalCandidate": {
+          "head": "2be5f8f58010c5813283ec9e69c17183733d462a",
+          "tree": "1a4a1b6960adc634488b4aae0c1be0f030af63f4"
+        },
+        "replayedCandidate": null,
+        "requiredAction": "CARD_SCOPED_REPLAY_OR_AUTHORIZED_REIMPLEMENTATION_AFTER_VALID_S"
+      },
+      "s10SharedPaths": []
+    }
+  ],
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": false,
+    "releaseCredit": false
+  },
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "fenceSHA256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a",
+  "kind": "V30ProvisionalCandidateReconciliationManifestV1",
+  "policy": {
+    "acceptedS": "Require owner completion trigger AND valid external V30PostS10ReconciliationAuthorityV1; verify Phase 10.6, lossless V23 146 cards/230 edges and preserved unfinished states, plus green exact-main evidence. Do not observe S during pre-S10 work.",
+    "brandConflict": "Accepted Phase 10 owns actual brand/design conflicts; reapply V30 localization semantics to accepted UI and reverify without silently discarding functionality.",
+    "comparison": "After authorization, compare B..P and B..S paths AND semantic-contract dependencies; classify every delta with proof or rationale. No provisional result is automatically promoted.",
+    "compatibilityClasses": [
+      "UNCHANGED_SAFE_REPLAY",
+      "S10_ALREADY_SATISFIES_WITH_PROOF",
+      "CONFLICT_REQUIRES_AUTHORIZED_REIMPLEMENTATION",
+      "OBSOLETE_REJECTED_WITH_RATIONALE"
+    ],
+    "contentChangeInvalidates": [
+      "catalog content or release digest",
+      "key-set digest",
+      "termbase digest",
+      "rendered-artifact digest",
+      "professional/native in-context review"
+    ],
+    "evidenceDispositionClasses": [
+      "COMPATIBLE",
+      "CORRECTION_REQUIRED",
+      "SUPERSEDED",
+      "OBSOLETE_WITH_RATIONALE"
+    ],
+    "evidenceStorage": "This Card4 artifact is immutable after its checkpoint; Cards 1-3 are reference specimens only. Later card-scoped manifests, candidate histories and immutable receipt/artifact bindings are recorded in the existing provisional ledger events and V30_EXECUTION_HANDOFF.md, or another exact path only if that card fence permits it. The ledger retains full test/CI/failure/human-review provenance; no later card may rewrite this specimen or grow support paths.",
+    "headOrTreeChangeInvalidates": [
+      "static",
+      "unit",
+      "UI",
+      "accessibility",
+      "localization",
+      "privacy",
+      "persistence",
+      "report",
+      "export",
+      "backup",
+      "offline",
+      "search",
+      "brand",
+      "exact-head hosted CI"
+    ],
+    "history": "Append all failed, superseded, unverified and checkpointed candidates, correctionOf links, test results, CI runs/artifacts and human-review state. Preserve original evidence. Corrections are direct children of the prior candidate under the same logical card.",
+    "preS10PromotionAllowed": false,
+    "qualification": "Rerun invalidated evidence on the exact reconciled tuple through the post-S10 authorized route. Provisional diagnostics/reviews remain zero-credit provenance, including failures and NOT_EXECUTED results.",
+    "replay": "Process all 37 frozen provisional cards in original graph order. Record original base/head/tree/diff/evidence and new base/head/tree/diff/evidence for each card-scoped replay or authorized reimplementation from accepted S.",
+    "sharedPathObligation": "Carry the exact pre-issued per-card/path tuple and its reconciliation obligation for every S10-shared path. Rehydrate fences against S before replay.",
+    "terminalP": "Freeze exact terminal P head/tree, complete B..P ordered commit/diff map and provisional ledger tip/digest only after V30-P04-C07.",
+    "wholesaleMergeAllowed": false
+  },
+  "referenceCardIDs": [
+    "V30-P00-C01",
+    "V30-P00-C02",
+    "V30-P00-C03"
+  ],
+  "schemaSHA256": "ec89c398fae5c1b866986bc920d899f911481a0d5baff6ed02576dcb0c36d85d"
+}
