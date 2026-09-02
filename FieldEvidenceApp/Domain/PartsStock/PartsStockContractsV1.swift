@@ -125,6 +125,19 @@ struct StockQuantityV1: Codable, Equatable, Hashable, Sendable, PartsStockCanoni
     func validate() throws { guard mantissa >= 0, (0...3).contains(scale) else { throw PartsStockFailureV1.invalidValue } }
 }
 
+/// Narrow C44 exact-comparison helpers. They are read-only and do not turn a
+/// material lookup into a stock operation.
+extension StockQuantityV1 {
+    func isLessThan(_ other: StockQuantityV1) throws -> Bool {
+        let scale = max(scale, other.scale)
+        let factors: [Int64] = [1, 10, 100, 1_000]
+        let (left, leftOverflow) = mantissa.multipliedReportingOverflow(by: factors[scale - self.scale])
+        let (right, rightOverflow) = other.mantissa.multipliedReportingOverflow(by: factors[scale - other.scale])
+        guard !leftOverflow, !rightOverflow else { throw PartsStockFailureV1.invalidValue }
+        return left < right
+    }
+}
+
 enum StockStorageKindV1: String, Codable, CaseIterable, Hashable, Sendable { case shop = "SHOP", vehicle = "VEHICLE", kit = "KIT", other = "OTHER" }
 
 struct StockStorageLocationV1: Codable, Equatable, Hashable, Sendable, PartsStockCanonicalValidatingV1 {
@@ -402,6 +415,15 @@ struct PartsStockMutationReceiptV1: Codable, Equatable, Hashable, Sendable, Part
 struct PartsStockReportV1: Codable, Equatable, Sendable {
     /// Reviewed catalog/material truth only. Balances and storage labels are deliberately absent.
     let workspaceID: WorkspaceID; let parts: [LocalPartReferenceSnapshotV1]
+}
+
+enum C44PartsStockContractsBoundaryV1 {
+    static let catalogToken = "LOCAL_PART_CATALOG_V1"
+    static let reportsContainReviewedMaterialOnly = true
+    static let reportsContainBalances = false
+    static let reportsContainInternalLocations = false
+    static let lookupOrTypingMutatesStock = false
+    static let orderedPartialReturnsAreAllowed = true
 }
 
 enum PartsStockSnapshotTopologyV1 {

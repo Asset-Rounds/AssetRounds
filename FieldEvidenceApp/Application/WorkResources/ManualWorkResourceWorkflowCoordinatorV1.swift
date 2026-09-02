@@ -194,6 +194,29 @@ enum ManualWorkResourceWorkflowClaimsV1 {
     static let establishesIdentity = false
 }
 
+enum C44ManualWorkResourceBoundaryV1 {
+    static let typingOrScanningMaterialChangesStock = false
+    static let explicitUseCommandIsRequired = true
+    static let standaloneReturnIsAllowed = false
+
+    static func validateExplicitUse(_ input: ManualWorkResourceUseStockCommandV1, context: ManualWorkResourceWorkflowContextV1) throws {
+        guard input.part.workspaceID == context.workspaceID,
+              input.source.workspaceID == context.workspaceID,
+              input.sourceBalance.workspaceID == context.workspaceID else {
+            throw ManualWorkResourceWorkflowFailureV1.invalidStockUse
+        }
+    }
+
+    static func validateReturn(_ input: ManualWorkResourceReturnStockCommandV1, context: ManualWorkResourceWorkflowContextV1) throws {
+        guard input.sourceUse.workspaceID == context.workspaceID,
+              input.destination.workspaceID == context.workspaceID,
+              input.destinationBalance.workspaceID == context.workspaceID,
+              input.quantity.mantissa > 0 else {
+            throw ManualWorkResourceWorkflowFailureV1.invalidStockReturn
+        }
+    }
+}
+
 @MainActor
 final class ManualWorkResourceWorkflowCoordinatorV1 {
     private let workResources: WorkResourceCoordinatorV1

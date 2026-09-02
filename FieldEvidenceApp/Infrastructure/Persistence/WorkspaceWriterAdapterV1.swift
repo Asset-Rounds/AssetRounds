@@ -1,6 +1,28 @@
 import Foundation
 import SwiftData
 
+/// C44 has no parallel writer. These checks make the existing combined stock
+/// and work-resource mutation seam explicit without changing persistence.
+private enum C44WorkspaceWriterStockBoundaryV1 {
+    static func validateAtomicUse(_ value: StockUseOnWorkReceiptV1) throws {
+        try value.validate()
+        guard value.movement.kind == .useOnWork,
+              value.movement.mutationID == value.mutationID,
+              value.workResourceSuccessor.mutationID == value.mutationID else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    static func validateOrderedReturn(_ value: StockReturnAgainstUseReceiptV1) throws {
+        try value.validate()
+        guard value.returnMovement.kind == .returnAgainstUse,
+              value.returnMovement.relatedMovementID == value.sourceUse.movement.movementID,
+              value.workResourceSuccessor.mutationID == value.mutationID else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+}
+
 /// Applies content changes without saving. MutationJournalStoreV1 owns the
 /// single atomic save containing content, revisions, and immutable receipt.
 @MainActor
@@ -1900,6 +1922,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             case let .appendMovement(value): try appendMovement(value)
             case let .transfer(value): try appendMovement(value.outbound); try appendMovement(value.inbound)
             case let .use(value):
+                try C44WorkspaceWriterStockBoundaryV1.validateAtomicUse(value)
                 try appendMovement(value.movement)
                 guard value.workResourceSuccessor.materials.first(where: { $0.lineID == value.frozenMaterialLineID })?.unit == value.movement.unit.rawValue else {
                     throw WorkspaceMutationFailureV1.invalidCommand
@@ -1921,6 +1944,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                 _ = try applyWorkResource(try .init(workspaceID: value.workspaceID, mutationID: value.mutationID, postImage: value.workResourceSuccessor), temporaryRelativePath: temporaryRelativePath)
                 modelContext.insert(try StockUseReversalReceiptRowV1(value))
             case let .returnAgainstUse(value):
+                try C44WorkspaceWriterStockBoundaryV1.validateOrderedReturn(value)
                 let uses = try modelContext.fetch(FetchDescriptor<StockUseReceiptRowV1>()).filter { $0.workspaceUUID == value.workspaceID.rawValue && $0.receiptID == value.sourceUseReceiptID }
                 guard uses.count == 1 else { throw WorkspaceMutationFailureV1.invalidCommand }
                 let sourceUse = try uses[0].value()

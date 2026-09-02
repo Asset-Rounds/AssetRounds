@@ -1,0 +1,15 @@
+{
+  "schema": "V23P04C44PartsStockWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C44",
+  "catalogID": "LOCAL_PART_CATALOG_V1",
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "evidenceIDs": ["V23-P04-C44-G01", "V23-P04-C44-A01", "V23-P04-C44-H01", "V23-P04-C44-I01", "V23-P04-C44-R01"],
+  "part": {"id": "c4400000-0000-4000-8000-000000000010", "name": "M8 stainless bolt", "sku": "STOCK:M8-SS", "unit": "EACH", "minimum": {"mantissa": 4, "scale": 0}},
+  "quantities": {"opening": 10, "count": 8, "adjustment": 2, "transfer": 3, "use": 2, "partialReturns": [1, 1]},
+  "claims": {"lookupZeroWrite": true, "explicitUseOnly": true, "returnRequiresEligibleUse": true, "returnOrderedFrontier": true, "typedMaterialMutatesStock": false, "reportBalances": false, "reportLocations": false, "featureDisablePreservesDraftExportRecovery": true},
+  "csv": {"exactHeader": "catalog_id,row_index,part_id,display_name,canonical_unit,identities_b64,minimum_mantissa,minimum_scale\\r\\n", "resumableRows": true, "completeOnlyAfterAllReceipts": true},
+  "hostile": ["foreign-scan-namespace", "malformed-csv", "unknown-balance-adjust", "stale-return-frontier", "concurrent-return", "double-return", "excess-return", "destination-overflow", "standalone-return", "divergent-replay"]
+}

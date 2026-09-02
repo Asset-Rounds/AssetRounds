@@ -43,6 +43,15 @@ private enum PartsStockExactMathV1 {
         return (value, try commit(.upsertPart(value)))
     }
 
+    /// C44 CSV import supplies a deterministic row MutationID. Keeping this
+    /// raw command here preserves the incumbent receipt-first journal retry;
+    /// the workflow layer preflights only create-only IDs and product keys.
+    @discardableResult func c44UpsertImportedPart(_ value: LocalPartDefinitionV1) throws -> PartsStockMutationReceiptV1 {
+        try requireWritesEnabled(); try value.validate()
+        guard value.revision == 1, !value.archived else { throw PartsStockFailureV1.invalidTransition }
+        return try commit(.upsertPart(value))
+    }
+
     @discardableResult func revisePart(predecessor: LocalPartDefinitionV1, displayName: String, canonicalUnit: StockUnitV1, productIdentities: [StockProductIdentityV1], preferredMinimum: StockQuantityV1?, hasMovementHistory: Bool) throws -> (LocalPartDefinitionV1, PartsStockMutationReceiptV1) {
         try requireWritesEnabled()
         try predecessor.validate(); guard !predecessor.archived, !hasMovementHistory || canonicalUnit == predecessor.canonicalUnit else { throw PartsStockFailureV1.invalidTransition }
