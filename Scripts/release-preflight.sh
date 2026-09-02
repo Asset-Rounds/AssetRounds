@@ -48,6 +48,16 @@ c28_contracts_script="Scripts/v23/p04_c28_contracts.py"
 c28_generator_script="Scripts/v23/generate_p04_c28_contracts.py"
 c28_verifier_script="Scripts/v23/verify_p04_c28_contracts.py"
 c28_required_fence_path_count=22
+c29_ledger="docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json"
+c29_corpus="FieldEvidenceAppTests/Fixtures/V23/Brand/V23P04C29ExactCandidateRegressionFreezeCorpusV1.json"
+c29_contract="docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeContractV1.json"
+c29_evidence="docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeEvidenceReceiptV1.json"
+c29_impact="docs/design/v23/tooling/V23P04C29BrandImpactManifestV1.json"
+c29_tooling_manifest="docs/design/v23/tooling/V23-P04-C29-tooling-manifest.json"
+c29_schema="Scripts/v23/exact-candidate-regression-freeze.schema.json"
+c29_contracts_script="Scripts/v23/p04_c29_contracts.py"
+c29_generator_script="Scripts/v23/generate_p04_c29_contracts.py"
+c29_verifier_script="Scripts/v23/verify_p04_c29_contracts.py"
 export_options="Release/TestFlightExportOptions.plist"
 workflow=".github/workflows/testflight.yml"
 project="FieldEvidenceApp.xcodeproj/project.pbxproj"
@@ -81,6 +91,16 @@ for path in \
   "$c28_contracts_script" \
   "$c28_generator_script" \
   "$c28_verifier_script" \
+  "$c29_ledger" \
+  "$c29_corpus" \
+  "$c29_contract" \
+  "$c29_evidence" \
+  "$c29_impact" \
+  "$c29_tooling_manifest" \
+  "$c29_schema" \
+  "$c29_contracts_script" \
+  "$c29_generator_script" \
+  "$c29_verifier_script" \
   "$export_options" \
   "$workflow" \
   "$project"
@@ -774,6 +794,68 @@ jq --argjson fencePathCount "$c28_fence_path_count" -e '
   ]
   and (.failures | length) == 0
 ' <<<"$c28_contract_result" >/dev/null
+
+# C29 remains Windows-safe repository/tooling evidence: both commands are
+# observed and bound, but PASS_STATIC_PROVISIONAL is intentionally never a
+# native, hosted, adoption, acceptance, publication, or release claim.
+python -B "$c29_generator_script" --check >/dev/null
+c29_generator_self_test="$(python -B "$c29_generator_script" --self-test --json)"
+c29_contract_result="$(python -B "$c29_verifier_script" --complete --json)"
+python -B - \
+  "$c29_corpus" "$c29_generator_script" "$c29_verifier_script" \
+  "$c29_generator_self_test" "$c29_contract_result" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+corpus_path, generator_path, verifier_path, generator_text, verifier_text = sys.argv[1:]
+root = pathlib.Path.cwd()
+corpus = json.loads((root / corpus_path).read_bytes())
+generator = json.loads(generator_text)
+verifier = json.loads(verifier_text)
+assert corpus["cardID"] == "V23-P04-C29"
+assert corpus["syntheticOnly"] is True and corpus["containsCustomerData"] is False
+assert all(value is False for value in corpus["statusFlags"].values())
+observed = corpus["productLedger"]["observedSelfTest"]
+assert observed == verifier["observedSelfTest"]
+assert generator["result"] == "PASS"
+assert generator["protocol"] == "MANIFEST_LAST_ATOMIC_REPLACE"
+assert verifier["cardID"] == "V23-P04-C29"
+assert verifier["result"] == "PASS_STATIC_PROVISIONAL"
+assert verifier["finalHashesSealed"] is False
+assert verifier["flagsAllFalse"] is True
+assert verifier["sourceReady"] is True
+assert verifier["failures"] == []
+assert observed["schema"] == "V23P04C29ObservedSelfTestV1"
+assert observed["cardID"] == "V23-P04-C29"
+assert observed["commands"] == [
+    {"command": "python -B Scripts/v23/generate_p04_c29_contracts.py --self-test --json", "mode": "GENERATOR_MANIFEST_LAST_RECOVERY"},
+    {"command": "python -B Scripts/v23/verify_p04_c29_contracts.py --complete --json", "mode": "COMPLETE_STATIC_PROVISIONAL"},
+]
+assert observed["scripts"] == {
+    "generatorSHA256": hashlib.sha256((root / generator_path).read_bytes()).hexdigest(),
+    "verifierSHA256": hashlib.sha256((root / verifier_path).read_bytes()).hexdigest(),
+}
+assert observed["sourceRows"] == verifier["observedSelfTest"]["sourceRows"] and observed["sourceRows"]
+generator_rows = [
+    {
+        "boundary": row["boundary"],
+        "acceptedSetCount": row["acceptedSetCount"],
+        "recoveryAcceptedSetCount": row["recoveryAcceptedSetCount"],
+        "secondRetryAcceptedSetCount": row["secondRetryAcceptedSetCount"],
+        "manifestLast": row["manifestLast"],
+        "retryDeterministic": row["retryDeterministic"],
+    }
+    for row in generator["rows"]
+]
+assert observed["manifestLastRows"] == generator_rows
+basis = dict(observed)
+digest = basis.pop("canonicalResultSHA256")
+assert digest == hashlib.sha256(json.dumps(basis, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+assert observed["candidate"] == corpus["candidateFreeze"]
+assert observed["authority"] == corpus["authority"]
+PY
 
 python -B - \
   "$c28_ledger" "$c28_corpus" "$c28_contract" \

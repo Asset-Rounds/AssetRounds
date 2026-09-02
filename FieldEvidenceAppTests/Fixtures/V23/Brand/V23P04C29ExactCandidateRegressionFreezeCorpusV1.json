@@ -1,0 +1,440 @@
+{
+  "authority": {
+    "allocationDigest": "730f558b13aa9f41e8e2b26d32b33f7af49d7948eca235663bf6281fea3e788c",
+    "contextDigest": "73384822786179b49326ed94c51d0e4962aa555571655b2922e1c9d49a116688",
+    "coordinationHead": "24ae47fe78941c090e003b70487f2a9242bcf14f",
+    "coordinationTree": "fc7610930dcaadb95924633c81e8c66ed399238f",
+    "correctionReceiptDigest": "ba8ef3800ce0f502ce08300c6dfee9c9b0d1f6a02f9b670881bacd663e4f9a53",
+    "pathFenceDigest": "da4ba32f2bacaf3d61032ea16bfdfe3cd12914b185070ba767eac791a4f53a5e",
+    "prerequisiteDigest": "a06b26120667c7d72be454289cc1b966ce5b770f50cf994fe962e52bfae9324e",
+    "sequence": 585
+  },
+  "blockedEvidence": {
+    "acceptedS10_6": "BLOCKED",
+    "accessibility": "NOT_RUN",
+    "coverage": "BLOCKED",
+    "journeys": "NOT_RUN",
+    "localization": "NOT_RUN",
+    "nativeCandidate": "NOT_RUN",
+    "releaseState": "NOT_RUN"
+  },
+  "candidateFreeze": {
+    "head": "6bb5875d09e8d17076e269781ccb064451941895",
+    "tree": "ed62c3eaf2765c1dee04f33fdd09d4688ce73753"
+  },
+  "cardID": "V23-P04-C29",
+  "closedShape": {
+    "arrays": {
+      "evidenceRows": "evidenceRow",
+      "hostileCases": "hostileCase",
+      "manifestLastRecovery.boundaries": "recoveryBoundary",
+      "matrixBinding.scenarioIDs": "scalar",
+      "matrixBinding.semanticParityDimensions": "scalar",
+      "prerequisites": "prerequisite",
+      "productLedger.observedSelfTest.commands": "command",
+      "productLedger.observedSelfTest.manifestLastRows": "manifestLastRow",
+      "runtimeProfiles": "runtimeProfile",
+      "productLedger.observedSelfTest.sourceRows": "sourceRow"
+    },
+    "objectKeys": {
+      "authority": [
+        "coordinationHead",
+        "coordinationTree",
+        "sequence",
+        "contextDigest",
+        "pathFenceDigest",
+        "allocationDigest",
+        "prerequisiteDigest",
+        "correctionReceiptDigest"
+      ],
+      "candidate": [
+        "head",
+        "tree"
+      ],
+      "candidateFreeze": [
+        "head",
+        "tree"
+      ],
+      "closedShape": [
+        "objectKeys",
+        "arrays"
+      ],
+      "command": [
+        "command",
+        "mode"
+      ],
+      "diagnosticPolicy": [
+        "acceptanceEligible",
+        "mode",
+        "promotionAllowed"
+      ],
+      "evidenceRow": [
+        "evidenceID",
+        "acceptanceCredit",
+        "status"
+      ],
+      "hostileCase": [
+        "caseID",
+        "disposition"
+      ],
+      "manifestLastRow": [
+        "boundary",
+        "acceptedSetCount",
+        "recoveryAcceptedSetCount",
+        "secondRetryAcceptedSetCount",
+        "manifestLast",
+        "retryDeterministic"
+      ],
+      "matrixBinding": [
+        "accessibilityLabelCount",
+        "c28S10ReservationCount",
+        "candidateRuntimeCount",
+        "closureCount",
+        "commonJourneyCount",
+        "commonJourneyReleaseSHA256",
+        "featureJourneyCount",
+        "featureJourneyReleaseSHA256",
+        "matrixPath",
+        "maximumShardCount",
+        "scenarioIDs",
+        "semanticParityDimensions",
+        "unresolvedEvidenceCount"
+      ],
+      "negativeClaims": [
+        "appStorePromotion",
+        "hosted",
+        "liveAdoption",
+        "native",
+        "physicalDevice",
+        "release",
+        "s10Adoption"
+      ],
+      "observedSelfTest": [
+        "schema",
+        "cardID",
+        "candidate",
+        "authority",
+        "commands",
+        "scripts",
+        "sourceRows",
+        "manifestLastRows",
+        "canonicalResultSHA256"
+      ],
+      "prerequisite": [
+        "cardID",
+        "path",
+        "sha256"
+      ],
+      "productLedger": [
+        "path",
+        "schema",
+        "observedSelfTest"
+      ],
+      "recovery": [
+        "protocol",
+        "deterministicRetry",
+        "boundaries"
+      ],
+      "recoveryBoundary": [
+        "boundary",
+        "acceptedSetCount"
+      ],
+      "root": [
+        "schema",
+        "schemaVersion",
+        "cardID",
+        "syntheticOnly",
+        "containsCustomerData",
+        "authority",
+        "candidateFreeze",
+        "prerequisites",
+        "productLedger",
+        "evidenceRows",
+        "runtimeProfiles",
+        "blockedEvidence",
+        "manifestLastRecovery",
+        "hostileCases",
+        "diagnosticPolicy",
+        "negativeClaims",
+        "selectors",
+        "semanticParityDimensions",
+        "statusFlags",
+        "matrixBinding",
+        "closedShape"
+      ],
+      "runtimeProfile": [
+        "profileID",
+        "status"
+      ],
+      "scripts": [
+        "generatorSHA256",
+        "verifierSHA256"
+      ],
+      "sourceRow": [
+        "path",
+        "status",
+        "sha256"
+      ],
+      "statusFlags": [
+        "acceptance",
+        "adoption",
+        "hosted",
+        "native",
+        "physicalDevice",
+        "publication",
+        "release"
+      ]
+    }
+  },
+  "containsCustomerData": false,
+  "diagnosticPolicy": {
+    "acceptanceEligible": false,
+    "mode": "STATIC_PROVISIONAL",
+    "promotionAllowed": false
+  },
+  "evidenceRows": [
+    {
+      "acceptanceCredit": false,
+      "evidenceID": "V23-P04-C29-G01",
+      "status": "NOT_RUN"
+    },
+    {
+      "acceptanceCredit": false,
+      "evidenceID": "V23-P04-C29-A01",
+      "status": "NOT_RUN"
+    },
+    {
+      "acceptanceCredit": false,
+      "evidenceID": "V23-P04-C29-H01",
+      "status": "NOT_RUN"
+    },
+    {
+      "acceptanceCredit": false,
+      "evidenceID": "V23-P04-C29-I01",
+      "status": "NOT_RUN"
+    },
+    {
+      "acceptanceCredit": false,
+      "evidenceID": "V23-P04-C29-R01",
+      "status": "NOT_RUN"
+    }
+  ],
+  "hostileCases": [
+    {
+      "caseID": "UNKNOWN_OR_EXTRA_KEY",
+      "disposition": "FAIL_CLOSED"
+    },
+    {
+      "caseID": "STALE_HEAD_OR_TREE",
+      "disposition": "FAIL_CLOSED"
+    },
+    {
+      "caseID": "CLOSURE_MANIFEST_DIGEST_DRIFT",
+      "disposition": "FAIL_CLOSED"
+    },
+    {
+      "caseID": "OBSERVED_SELF_TEST_BINDING_DRIFT",
+      "disposition": "FAIL_CLOSED"
+    },
+    {
+      "caseID": "PARTIAL_MANIFEST",
+      "disposition": "FAIL_CLOSED"
+    }
+  ],
+  "manifestLastRecovery": {
+    "boundaries": [
+      {
+        "acceptedSetCount": 0,
+        "boundary": "BEFORE_ARTIFACTS"
+      },
+      {
+        "acceptedSetCount": 0,
+        "boundary": "AFTER_ARTIFACTS_BEFORE_MANIFEST"
+      },
+      {
+        "acceptedSetCount": 1,
+        "boundary": "AFTER_MANIFEST"
+      }
+    ],
+    "deterministicRetry": true,
+    "protocol": "MANIFEST_LAST_ATOMIC_REPLACE"
+  },
+  "matrixBinding": {
+    "accessibilityLabelCount": 9,
+    "c28S10ReservationCount": 4,
+    "candidateRuntimeCount": 2,
+    "closureCount": 16,
+    "commonJourneyCount": 14,
+    "commonJourneyReleaseSHA256": "3a233ef98d116c43a6e349f51699759d53ab3118120decbc0230a2af98427003",
+    "featureJourneyCount": 17,
+    "featureJourneyReleaseSHA256": "4d13350dacbfe16568d06fa11f331741359581567d476db1dfab3cb557ea7aac",
+    "matrixPath": "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json",
+    "maximumShardCount": 5,
+    "scenarioIDs": [
+      "G01",
+      "A01",
+      "H01",
+      "I01",
+      "R01"
+    ],
+    "semanticParityDimensions": [
+      "ACCESSIBILITY",
+      "ACTION",
+      "CONTENT",
+      "DATA_TRUTH",
+      "DURABILITY",
+      "ROUTE",
+      "TASK"
+    ],
+    "unresolvedEvidenceCount": 7
+  },
+  "negativeClaims": {
+    "appStorePromotion": false,
+    "hosted": false,
+    "liveAdoption": false,
+    "native": false,
+    "physicalDevice": false,
+    "release": false,
+    "s10Adoption": false
+  },
+  "prerequisites": [
+    {
+      "cardID": "V23-P00-C13",
+      "path": "docs/design/v23/tooling/V23-P00-C13-tooling-manifest.json",
+      "sha256": "1772fc652c01813addc9cbb1318a80415f2d9684b0f0f654d5b63581c22d1c35"
+    },
+    {
+      "cardID": "V23-P04-C28",
+      "path": "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json",
+      "sha256": "3edc52a47c91c4b79238380bdad92f6a2a1e0ebd0d1084a2e1ad7ae0e6238e14"
+    }
+  ],
+  "productLedger": {
+    "observedSelfTest": {
+      "authority": {
+        "allocationDigest": "730f558b13aa9f41e8e2b26d32b33f7af49d7948eca235663bf6281fea3e788c",
+        "contextDigest": "73384822786179b49326ed94c51d0e4962aa555571655b2922e1c9d49a116688",
+        "coordinationHead": "24ae47fe78941c090e003b70487f2a9242bcf14f",
+        "coordinationTree": "fc7610930dcaadb95924633c81e8c66ed399238f",
+        "correctionReceiptDigest": "ba8ef3800ce0f502ce08300c6dfee9c9b0d1f6a02f9b670881bacd663e4f9a53",
+        "pathFenceDigest": "da4ba32f2bacaf3d61032ea16bfdfe3cd12914b185070ba767eac791a4f53a5e",
+        "prerequisiteDigest": "a06b26120667c7d72be454289cc1b966ce5b770f50cf994fe962e52bfae9324e",
+        "sequence": 585
+      },
+      "candidate": {
+        "head": "6bb5875d09e8d17076e269781ccb064451941895",
+        "tree": "ed62c3eaf2765c1dee04f33fdd09d4688ce73753"
+      },
+      "canonicalResultSHA256": "809beec98533ed1293dfda25a70b1952d8b6cbf1a079126a4f695f2ae3eb5c08",
+      "cardID": "V23-P04-C29",
+      "commands": [
+        {
+          "command": "python -B Scripts/v23/generate_p04_c29_contracts.py --self-test --json",
+          "mode": "GENERATOR_MANIFEST_LAST_RECOVERY"
+        },
+        {
+          "command": "python -B Scripts/v23/verify_p04_c29_contracts.py --complete --json",
+          "mode": "COMPLETE_STATIC_PROVISIONAL"
+        }
+      ],
+      "manifestLastRows": [
+        {
+          "acceptedSetCount": 0,
+          "boundary": "BEFORE_ARTIFACTS",
+          "manifestLast": true,
+          "recoveryAcceptedSetCount": 1,
+          "retryDeterministic": true,
+          "secondRetryAcceptedSetCount": 1
+        },
+        {
+          "acceptedSetCount": 0,
+          "boundary": "AFTER_ARTIFACTS_BEFORE_MANIFEST",
+          "manifestLast": true,
+          "recoveryAcceptedSetCount": 1,
+          "retryDeterministic": true,
+          "secondRetryAcceptedSetCount": 1
+        },
+        {
+          "acceptedSetCount": 1,
+          "boundary": "AFTER_MANIFEST",
+          "manifestLast": true,
+          "recoveryAcceptedSetCount": 1,
+          "retryDeterministic": true,
+          "secondRetryAcceptedSetCount": 1
+        }
+      ],
+      "schema": "V23P04C29ObservedSelfTestV1",
+      "scripts": {
+        "generatorSHA256": "7e1391f9887f440ac1f02aa7ff4fc28bbcbaaceb5a32b95e80bbf623b6c2c202",
+        "verifierSHA256": "58c9ad1fbfbfdaa7c8a8744ca24e6e4b0cc4b8227a41af78009102021383443c"
+      },
+      "sourceRows": [
+        {
+          "path": "Scripts/release-preflight.sh",
+          "sha256": "f921d8f6589fa722ee953ad3a01a49824ea513a6cc5646009fe1a07644f3044e",
+          "status": "SOURCE_PRESENT"
+        },
+        {
+          "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+          "sha256": "a8829e174b6f5ba448fa3e3e0252ccc91994face0ce38e519c4f1456926704d1",
+          "status": "SOURCE_PRESENT"
+        },
+        {
+          "path": "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json",
+          "sha256": "b630bffebe0e2a365ac7e082517d587fef7361a0711425e8574f3e8286ea35c8",
+          "status": "SOURCE_PRESENT"
+        },
+        {
+          "path": "FieldEvidenceAppTests/V9_92ExactCandidateRegressionFreezeTests.swift",
+          "sha256": "cbe31756bf92c88e5a7d9fac12eb2b62c4ed54a29843616068e596a8b8c8f406",
+          "status": "SOURCE_PRESENT"
+        },
+        {
+          "path": "FieldEvidenceAppUITests/V23_P04_C29ExactCandidateRegressionFreezeUITests.swift",
+          "sha256": "6bb2f6bd3578078f3e73366a15ca8625caa4374829608383c985d5bc5ec909f9",
+          "status": "SOURCE_PRESENT"
+        }
+      ]
+    },
+    "path": "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json",
+    "schema": "V23P04C29ExactCandidateRegressionFreezeV1"
+  },
+  "runtimeProfiles": [
+    {
+      "profileID": "MINIMUM_IOS_18",
+      "status": "NOT_RUN"
+    },
+    {
+      "profileID": "LATEST_ACCEPTED_STABLE_SHIPPING_RUNTIME",
+      "status": "NOT_RUN"
+    }
+  ],
+  "schema": "V23P04C29ExactCandidateRegressionFreezeCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    "testV23P04C29G01ExactCandidateFreezeBindsBrandHIGAccessibilityLocalizationJourneyAndReleaseState",
+    "testV23P04C29A01MinimumIOS18AndLatestStableResolveSeparatelyWithSemanticParity",
+    "testV23P04C29H01UnknownStaleCorruptCoverageContrastAccessibilityLocalizationJourneyAndReleaseDriftFailClosed",
+    "testV23P04C29I01ManifestLastInterruptionPreservesCandidateAndNoPartialReceipt",
+    "testV23P04C29R01DeterministicRetryPreservesFrozenCandidateWithoutPromotion"
+  ],
+  "semanticParityDimensions": [
+    "ACCESSIBILITY",
+    "ACTION",
+    "CONTENT",
+    "DATA_TRUTH",
+    "DURABILITY",
+    "ROUTE",
+    "TASK"
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "syntheticOnly": true
+}

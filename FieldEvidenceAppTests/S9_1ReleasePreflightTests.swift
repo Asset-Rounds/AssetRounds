@@ -1778,6 +1778,58 @@ extension S9_1ReleasePreflightTests {
 }
 
 extension S9_1ReleasePreflightTests {
+    func testV23P04C29ReleasePreflightBindsObservedGeneratorSelfTestWithoutReleaseClaim() throws {
+        let corpus = try c29JSON(
+            "FieldEvidenceAppTests/Fixtures/V23/Brand/V23P04C29ExactCandidateRegressionFreezeCorpusV1.json"
+        )
+        let ledger = try c29JSON(
+            "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json"
+        )
+        let observed = try XCTUnwrap(
+            (try XCTUnwrap(corpus["productLedger"] as? [String: Any]))["observedSelfTest"] as? [String: Any]
+        )
+        XCTAssertEqual(corpus["cardID"] as? String, "V23-P04-C29")
+        XCTAssertEqual(ledger["cardID"] as? String, "V23-P04-C29")
+        let c13Coverage = try XCTUnwrap(ledger["p00C13Coverage"] as? [String: Any])
+        XCTAssertEqual(c13Coverage["cardID"] as? String, "V23-P00-C13")
+        XCTAssertEqual(c13Coverage["executionDependency"] as? String, "V23-P04-C28")
+        XCTAssertEqual(c13Coverage["semanticDirectPrerequisite"] as? Bool, true)
+        XCTAssertEqual(
+            observed["commands"] as? [[String: String]],
+            [
+                ["command": "python -B Scripts/v23/generate_p04_c29_contracts.py --self-test --json", "mode": "GENERATOR_MANIFEST_LAST_RECOVERY"],
+                ["command": "python -B Scripts/v23/verify_p04_c29_contracts.py --complete --json", "mode": "COMPLETE_STATIC_PROVISIONAL"],
+            ]
+        )
+        XCTAssertEqual(observed["candidate"] as? [String: String], corpus["candidateFreeze"] as? [String: String])
+        XCTAssertEqual(
+            try JSONSerialization.data(
+                withJSONObject: try XCTUnwrap(observed["authority"] as? [String: Any]),
+                options: [.sortedKeys]
+            ),
+            try JSONSerialization.data(
+                withJSONObject: try XCTUnwrap(corpus["authority"] as? [String: Any]),
+                options: [.sortedKeys]
+            )
+        )
+        XCTAssertTrue((corpus["statusFlags"] as? [String: Bool])?.values.allSatisfy { !$0 } == true)
+
+        let preflight = try text("Scripts/release-preflight.sh")
+        for required in [
+            "generate_p04_c29_contracts.py --self-test --json",
+            "verify_p04_c29_contracts.py --complete --json",
+            "observed == verifier[\"observedSelfTest\"]",
+            "canonicalResultSHA256",
+            "PASS_STATIC_PROVISIONAL",
+        ] {
+            XCTAssertTrue(preflight.contains(required), required)
+        }
+    }
+
+    private func c29JSON(_ path: String) throws -> [String: Any] {
+        try jsonObject(path)
+    }
+
     func testV23P04C28ReleasePreflightMirrorsProvisionalSharedRootCorrection() throws {
         let ledger = try c28JSON(
             "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json"
