@@ -26,6 +26,21 @@ on:
         required: true
         default: none
         type: string
+      s10_4_execution_role:
+        description: Closed S10.4 execution role; ordinary workers remain independent
+        required: false
+        default: independent
+        type: string
+      s10_4_payload_artifact_name:
+        description: Immutable S10.4 pilot payload artifact name; empty outside the pilot
+        required: false
+        default: ""
+        type: string
+      s10_4_pilot_mode:
+        description: Enable the nonaccepting S10.4 build-payload portability pilot
+        required: false
+        default: false
+        type: boolean
     secrets:
       BITRISE_BUILD_CACHE_AUTH_TOKEN:
         description: Bitrise Build Cache token used only by the closed Bitrise development lane
@@ -80,6 +95,9 @@ jobs:
           DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
           DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
+          DISPATCH_S10_4_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
+          DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
+          DISPATCH_S10_4_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
         run: |
           set -euo pipefail
           case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in
@@ -91,6 +109,22 @@ jobs:
           test -f Scripts/build-smoke.sh
           test -f Scripts/test-smoke.sh
           test -f Scripts/ui-smoke.sh
+          case "$DISPATCH_S10_4_EXECUTION_ROLE" in
+            independent | payload-producer | payload-consumer) ;;
+            *) exit 1 ;;
+          esac
+          case "$DISPATCH_S10_4_PILOT_MODE" in true | false) ;; *) exit 1 ;; esac
+          case "$DISPATCH_S10_4_EXECUTION_ROLE" in
+            independent)
+              test "$DISPATCH_S10_4_PILOT_MODE" = false
+              test -z "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME"
+              ;;
+            payload-producer | payload-consumer)
+              test "$DISPATCH_S10_4_PILOT_MODE" = true
+              test "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME" != ""
+              [[ "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME" =~ ^ios-ci-s10-4-hybrid-payload-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
+              ;;
+          esac
 
           jq -e '
             def exact_keys:
@@ -644,6 +678,31 @@ jobs:
               "$(jq -r '.evidenceKernelSHA256' Scripts/s10-4-segment-plan.json)"
           fi
 
+          if test "$DISPATCH_S10_4_EXECUTION_ROLE" != independent; then
+            test "$CI_TASK_ID" = "S10.4"
+            test "$CI_TIER" = "F25"
+            test "$CI_RUN_UI_SMOKE" = true
+            test "$CI_S10_4_SEGMENT_ID" = none
+            case "$DISPATCH_S10_4_EXECUTION_ROLE" in
+              payload-producer)
+                test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+                test "$CI_S10_4_SHARD_ID" = "s10.4.current.default-light"
+                test "$CI_S10_4_DEVICE_PROFILE_ID" = "iphone-17-ios-26.2-current"
+                ;;
+              payload-consumer)
+                case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL:$CI_S10_4_SHARD_ID:$CI_S10_4_DEVICE_PROFILE_ID" in
+                  bitrise:bitrise-m4-pro:s10.4.current.default-light:iphone-17-ios-26.2-current | \
+                  bitrise:bitrise-m4-pro:s10.4.current.default-dark:iphone-17-ios-26.2-current | \
+                  github:macos-26:s10.4.current.default-light:iphone-17-ios-26.2-current | \
+                  github:macos-26:s10.4.current.default-dark:iphone-17-ios-26.2-current | \
+                  github:macos-26:s10.4.minimum.minimum-os:iphone-se-3-ios-18.0-minimum) ;;
+                  *) exit 1 ;;
+                esac
+                ;;
+              *) exit 1 ;;
+            esac
+          fi
+
           printf '%s\n' \
             "CI_TASK_ID=$CI_TASK_ID" \
             "CI_TIER=$CI_TIER" \
@@ -656,6 +715,9 @@ jobs:
             "CI_S10_4_SHARD_ID=$CI_S10_4_SHARD_ID" \
             "CI_S10_4_SEGMENT_ID=$CI_S10_4_SEGMENT_ID" \
             "CI_ARTIFACT_SUFFIX=$CI_ARTIFACT_SUFFIX" \
+            "CI_S10_4_EXECUTION_ROLE=$DISPATCH_S10_4_EXECUTION_ROLE" \
+            "CI_S10_4_PAYLOAD_ARTIFACT_NAME=$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME" \
+            "CI_S10_4_PILOT_MODE=$DISPATCH_S10_4_PILOT_MODE" \
             >> "$GITHUB_ENV"
           if test "$CI_TASK_ID" = "S10.4"; then
             printf '%s\n' \
@@ -720,12 +782,13 @@ jobs:
               fi
             fi
           fi
-          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\ns10_4_segment_id=%s\n' \
+          printf 'task_id=%s\ntier=%s\ndispatch_run_ui_smoke=%s\ns10_4_shard_id=%s\ns10_4_segment_id=%s\ns10_4_execution_role=%s\ns10_4_pilot_mode=%s\n' \
             "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" "$CI_S10_4_SEGMENT_ID" \
+            "$DISPATCH_S10_4_EXECUTION_ROLE" "$DISPATCH_S10_4_PILOT_MODE" \
             | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
 
       - name: Install pinned Bitrise Build Cache command wrappers
-        if: ${{ inputs.runner_provider == 'bitrise' }}
+        if: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' }}
         shell: bash
         env:
           BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}
@@ -866,8 +929,8 @@ jobs:
       - name: Verify pinned toolchain, shared scheme, and simulator
         shell: bash
         env:
-          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
-          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
           mkdir -p "$CI_ARTIFACT_DIR"
@@ -892,14 +955,26 @@ jobs:
               test "$RUNNER_ARCH" = "ARM64"
               test "$(uname -m)" = "arm64"
               test "$(sw_vers -productVersion)" = "26.6.1"
-              test "$DEVELOPER_DIR" = "/Applications/Xcode-26.6.0.app/Contents/Developer"
-              test -x "$CI_BITRISE_CACHE_ACTIVATE_HELPER"
-              test -x "$CI_BITRISE_XCODEBUILD_WRAPPER"
-              test -x "$CI_BITRISE_XCRUN_WRAPPER"
-              test "$(command -v xcodebuild)" = "$RUNNER_TEMP/bitrise-build-cache-command/bin/xcodebuild"
-              test "$(command -v xcrun)" = "$RUNNER_TEMP/bitrise-build-cache-command/bin/xcrun"
-              test "$CI_BITRISE_XCODEBUILD_WRAPPER" = "$HOME/.bitrise-xcelerate/bin/xcodebuild"
-              test "$CI_BITRISE_XCRUN_WRAPPER" = "$HOME/.bitrise-xcelerate/bin/xcrun"
+              if test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "payload-consumer"; then
+                expected_developer_dir="/Applications/Xcode-26.6.0.app/Contents/Developer"
+                test "$(env -u DEVELOPER_DIR xcode-select -p)" = "$expected_developer_dir"
+                DEVELOPER_DIR="$expected_developer_dir"
+                export DEVELOPER_DIR
+                printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
+                test -z "${BITRISE_BUILD_CACHE_AUTH_TOKEN:-}"
+                test -z "${BITRISE_BUILD_CACHE_WORKSPACE_ID:-}"
+                test "$(command -v xcodebuild)" = "/usr/bin/xcodebuild"
+                test "$(command -v xcrun)" = "/usr/bin/xcrun"
+              else
+                test "$DEVELOPER_DIR" = "/Applications/Xcode-26.6.0.app/Contents/Developer"
+                test -x "$CI_BITRISE_CACHE_ACTIVATE_HELPER"
+                test -x "$CI_BITRISE_XCODEBUILD_WRAPPER"
+                test -x "$CI_BITRISE_XCRUN_WRAPPER"
+                test "$(command -v xcodebuild)" = "$RUNNER_TEMP/bitrise-build-cache-command/bin/xcodebuild"
+                test "$(command -v xcrun)" = "$RUNNER_TEMP/bitrise-build-cache-command/bin/xcrun"
+                test "$CI_BITRISE_XCODEBUILD_WRAPPER" = "$HOME/.bitrise-xcelerate/bin/xcodebuild"
+                test "$CI_BITRISE_XCRUN_WRAPPER" = "$HOME/.bitrise-xcelerate/bin/xcrun"
+              fi
               ;;
             *) exit 1 ;;
           esac
@@ -925,19 +1000,21 @@ jobs:
           xcodebuild -version | tee "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_VERSION" "$CI_ARTIFACT_DIR/xcode-version.txt"
           grep -Fxq "$EXPECTED_XCODE_BUILD" "$CI_ARTIFACT_DIR/xcode-version.txt"
-          xcodebuild -list -json -project "$PROJECT_PATH" \
-            | tee "$CI_ARTIFACT_DIR/xcode-list.json"
-          jq -e --arg scheme "$SCHEME" \
-            '.project.schemes | index($scheme) != null' \
-            "$CI_ARTIFACT_DIR/xcode-list.json" > /dev/null
-          xcodebuild -showBuildSettings -project "$PROJECT_PATH" -scheme "$SCHEME" \
-            -configuration "$CONFIGURATION" | tee "$CI_ARTIFACT_DIR/build-settings.txt"
-          deployment_targets="$(awk -F'= ' \
-            '/^[[:space:]]*IPHONEOS_DEPLOYMENT_TARGET = / {print $2}' \
-            "$CI_ARTIFACT_DIR/build-settings.txt" | LC_ALL=C sort -u)"
-          target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
-          test "$target_count" -eq 1
-          test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
+          if test "${CI_S10_4_EXECUTION_ROLE:-independent}" != "payload-consumer"; then
+            xcodebuild -list -json -project "$PROJECT_PATH" \
+              | tee "$CI_ARTIFACT_DIR/xcode-list.json"
+            jq -e --arg scheme "$SCHEME" \
+              '.project.schemes | index($scheme) != null' \
+              "$CI_ARTIFACT_DIR/xcode-list.json" > /dev/null
+            xcodebuild -showBuildSettings -project "$PROJECT_PATH" -scheme "$SCHEME" \
+              -configuration "$CONFIGURATION" | tee "$CI_ARTIFACT_DIR/build-settings.txt"
+            deployment_targets="$(awk -F'= ' \
+              '/^[[:space:]]*IPHONEOS_DEPLOYMENT_TARGET = / {print $2}' \
+              "$CI_ARTIFACT_DIR/build-settings.txt" | LC_ALL=C sort -u)"
+            target_count="$(printf '%s\n' "$deployment_targets" | sed '/^$/d' | wc -l | tr -d ' ')"
+            test "$target_count" -eq 1
+            test "$deployment_targets" = "$EXPECTED_MINIMUM_IOS"
+          fi
 
           if test "${CI_TASK_ID:-}" = "S10.4"; then
             printf 'provider=%s\ndevice_profile_id=%s\nruntime=%s\nruntime_build=%s\nruntime_download_version=%s\nruntime_bootstrap_enabled=%s\n' \
@@ -1086,12 +1163,8 @@ jobs:
               | .identifier' \
             "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
           test -n "$runtime_id"
-          simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
-            '.devices[$runtime][] | select(.name == $name and .isAvailable == true) | .udid' \
-            "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
-          if test -z "$simulator_udid" && \
-             test "${CI_TASK_ID:-}" = "S10.4" && \
-             test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then
+          simulator_udid=""
+          if test "${CI_S10_4_PILOT_MODE:-false}" = "true"; then
             xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
             simulator_device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" \
               '.devicetypes[] | select(.name == $name) | .identifier' \
@@ -1100,7 +1173,26 @@ jobs:
             simulator_udid="$(xcrun simctl create \
               "$SIMULATOR_NAME" "$simulator_device_type_id" "$runtime_id")"
             test -n "$simulator_udid"
+            printf 'CI_S10_4_PILOT_CREATED_SIMULATOR_UDID=%s\n' \
+              "$simulator_udid" >> "$GITHUB_ENV"
             xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+          else
+            simulator_udid="$(jq -r --arg runtime "$runtime_id" --arg name "$SIMULATOR_NAME" \
+              '.devices[$runtime][] | select(.name == $name and .isAvailable == true) | .udid' \
+              "$CI_ARTIFACT_DIR/simulator-devices.json" | head -n 1)"
+            if test -z "$simulator_udid" && \
+               test "${CI_TASK_ID:-}" = "S10.4" && \
+               test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then
+              xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
+              simulator_device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" \
+                '.devicetypes[] | select(.name == $name) | .identifier' \
+                "$CI_ARTIFACT_DIR/simulator-device-types.json" | head -n 1)"
+              test -n "$simulator_device_type_id"
+              simulator_udid="$(xcrun simctl create \
+                "$SIMULATOR_NAME" "$simulator_device_type_id" "$runtime_id")"
+              test -n "$simulator_udid"
+              xcrun simctl list devices available -j > "$CI_ARTIFACT_DIR/simulator-devices.json"
+            fi
           fi
           test -n "$simulator_udid"
           simulator_state="$(jq -er --arg runtime "$runtime_id" --arg udid "$simulator_udid" '
@@ -1109,10 +1201,14 @@ jobs:
               else error("expected exactly one selected Simulator state")
               end
           ' "$CI_ARTIFACT_DIR/simulator-devices.json")"
-          case "$simulator_state" in
-            Shutdown | Booted) ;;
-            *) exit 1 ;;
-          esac
+          if test "${CI_S10_4_PILOT_MODE:-false}" = "true"; then
+            test "$simulator_state" = "Shutdown"
+          else
+            case "$simulator_state" in
+              Shutdown | Booted) ;;
+              *) exit 1 ;;
+            esac
+          fi
           selected_runtime_build="$(jq -er --arg runtime "$runtime_id" \
             '.runtimes[] | select(.identifier == $runtime) | .buildversion' \
             "$CI_ARTIFACT_DIR/simulator-runtimes.json")"
@@ -1142,6 +1238,444 @@ jobs:
           printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' \
             "$setup_elapsed_seconds" >> "$GITHUB_ENV"
           test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
+
+      - name: Prepare S10.4 pilot payload verifier
+        if: ${{ inputs.s10_4_pilot_mode == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          verifier="$RUNNER_TEMP/s10-4-pilot-payload-verifier.py"
+          cat > "$verifier" <<'PY'
+          #!/usr/bin/env python3
+          import hashlib
+          import json
+          import os
+          import plistlib
+          import re
+          import stat
+          import sys
+          import tarfile
+          from pathlib import Path
+
+          ROOT_LABEL = "FieldEvidenceDerivedData/Build/Products"
+          ALLOWED_MACROS = {"__TESTROOT__", "__PLATFORMS__", "__TESTHOST__", "__TESTBUNDLE__"}
+
+          def fail(message):
+              raise SystemExit("S10.4 pilot payload validation failed: " + message)
+
+          def sha256_file(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest().upper()
+
+          def strict_pairs(pairs):
+              output = {}
+              for key, value in pairs:
+                  if key in output:
+                      fail("duplicate JSON key: " + key)
+                  output[key] = value
+              return output
+
+          def read_json(path):
+              try:
+                  with path.open("r", encoding="utf-8") as stream:
+                      return json.load(stream, object_pairs_hook=strict_pairs)
+              except (OSError, ValueError, UnicodeError) as error:
+                  fail(f"invalid JSON {path}: {error}")
+
+          def regular_file(path):
+              try:
+                  return stat.S_ISREG(os.lstat(path).st_mode)
+              except OSError:
+                  return False
+
+          def real_directory(path):
+              try:
+                  mode = os.lstat(path).st_mode
+              except OSError as error:
+                  fail(f"missing directory {path}: {error}")
+              if not stat.S_ISDIR(mode) or stat.S_ISLNK(mode):
+                  fail("unsafe directory ancestor: " + str(path))
+
+          def require_product_ancestors(products):
+              payload_root = products.parents[2]
+              real_directory(payload_root)
+              real_directory(payload_root / "FieldEvidenceDerivedData")
+              real_directory(payload_root / "FieldEvidenceDerivedData" / "Build")
+              real_directory(products)
+
+          def safe_relative(relative):
+              if not relative or relative.startswith("/") or "\\" in relative:
+                  fail("unsafe relative member path")
+              if any(part in ("", ".", "..") for part in relative.split("/")):
+                  fail("unsafe relative member component")
+              if any(char in relative for char in ("\x00", "\n", "\r")):
+                  fail("unsafe relative member character")
+
+          def validate_xctestrun(path, producer_root):
+              try:
+                  with path.open("rb") as stream:
+                      payload = plistlib.load(stream)
+              except (OSError, ValueError, plistlib.InvalidFileException) as error:
+                  fail(f"invalid xctestrun {path}: {error}")
+
+              def strings(value):
+                  if isinstance(value, str):
+                      yield value
+                  elif isinstance(value, dict):
+                      for nested in value.values():
+                          yield from strings(nested)
+                  elif isinstance(value, list):
+                      for nested in value:
+                          yield from strings(nested)
+
+              producer_text = str(producer_root)
+              for text in strings(payload):
+                  if producer_text in text:
+                      fail("producer-specific xctestrun path")
+                  if re.search(r"(?:^|[=:])(?:/|~|file:)", text):
+                      fail("absolute xctestrun path")
+                  if "/../" in text or text.startswith("../"):
+                      fail("traversing xctestrun path")
+                  if "$" in text:
+                      fail("unresolved xctestrun macro")
+                  for macro in re.findall(r"__[A-Za-z0-9_]+__", text):
+                      if macro not in ALLOWED_MACROS:
+                          fail("unknown xctestrun macro: " + macro)
+
+          def collect(root):
+              require_product_ancestors(root)
+              try:
+                  root_mode = os.lstat(root).st_mode
+              except OSError as error:
+                  fail(f"missing product tree: {error}")
+              if not stat.S_ISDIR(root_mode) or stat.S_ISLNK(root_mode):
+                  fail("product root is not a real directory")
+              entries = []
+              folded = set()
+              xctestruns = []
+              for directory, directories, files in os.walk(root, topdown=True, followlinks=False):
+                  directories.sort()
+                  files.sort()
+                  for name in directories + files:
+                      path = Path(directory) / name
+                      relative = path.relative_to(root).as_posix()
+                      safe_relative(relative)
+                      folded_relative = relative.casefold()
+                      if folded_relative in folded:
+                          fail("case-colliding product member: " + relative)
+                      folded.add(folded_relative)
+                      mode = os.lstat(path).st_mode
+                      if stat.S_ISLNK(mode):
+                          fail("symlink product member: " + relative)
+                      if stat.S_ISDIR(mode):
+                          entries.append({
+                              "mode": stat.S_IMODE(mode),
+                              "path": relative,
+                              "type": "directory",
+                          })
+                      elif stat.S_ISREG(mode):
+                          digest = sha256_file(path)
+                          entries.append({
+                              "mode": stat.S_IMODE(mode),
+                              "path": relative,
+                              "sha256": digest,
+                              "size": os.lstat(path).st_size,
+                              "type": "file",
+                          })
+                          if relative.endswith(".xctestrun"):
+                              xctestruns.append((relative, path))
+                      else:
+                          fail("nonregular product member: " + relative)
+              entries.sort(key=lambda entry: entry["path"])
+              if len(xctestruns) != 1:
+                  fail("expected exactly one regular .xctestrun")
+              validate_xctestrun(xctestruns[0][1], root)
+              return entries, xctestruns[0][0]
+
+          def canonical(value):
+              return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+          def create(root, tree_path, checksums_path):
+              entries, xctestrun_path = collect(root)
+              tree = {"entries": entries, "root": ROOT_LABEL, "schemaVersion": 1}
+              tree_path.write_text(canonical(tree) + "\n", encoding="utf-8")
+              checksum_lines = [
+                  f'{entry["sha256"]}  {ROOT_LABEL}/{entry["path"]}'
+                  for entry in entries if entry["type"] == "file"
+              ]
+              checksums_path.write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
+              print(xctestrun_path)
+
+          def validate_payload_root(root):
+              expected_names = {
+                  "FieldEvidenceDerivedData",
+                  "s10-4-payload-metadata.json",
+                  "s10-4-payload-tree.json",
+                  "s10-4-payload-sha256sums.txt",
+                  "s10-4-pilot-receipt.json",
+              }
+              real_directory(root)
+              if {item.name for item in root.iterdir()} != expected_names:
+                  fail("unexpected payload root members")
+              for name in expected_names - {"FieldEvidenceDerivedData"}:
+                  if not regular_file(root / name):
+                      fail("unsafe payload metadata member: " + name)
+              require_product_ancestors(root / "FieldEvidenceDerivedData" / "Build" / "Products")
+
+          def archive_payload(payload_root, transport_root):
+              validate_payload_root(payload_root)
+              if transport_root.exists() or transport_root.is_symlink():
+                  fail("transport root already exists")
+              transport_root.mkdir(mode=0o700)
+              archive_path = transport_root / "FieldEvidencePayload.tar"
+              nodes = [payload_root]
+              for directory, directories, files in os.walk(payload_root, topdown=True, followlinks=False):
+                  directories.sort()
+                  files.sort()
+                  for name in directories + files:
+                      path = Path(directory) / name
+                      mode = os.lstat(path).st_mode
+                      if stat.S_ISLNK(mode) or not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
+                          fail("unsafe payload archive source member: " + str(path))
+                      nodes.append(path)
+              with tarfile.open(archive_path, "w", format=tarfile.GNU_FORMAT) as archive:
+                  for path in nodes:
+                      relative = "." if path == payload_root else path.relative_to(payload_root).as_posix()
+                      arcname = "FieldEvidencePayload" if relative == "." else "FieldEvidencePayload/" + relative
+                      mode = os.lstat(path).st_mode
+                      info = tarfile.TarInfo(arcname)
+                      info.mode = stat.S_IMODE(mode)
+                      info.mtime = 0
+                      info.uid = 0
+                      info.gid = 0
+                      info.uname = ""
+                      info.gname = ""
+                      if stat.S_ISDIR(mode):
+                          info.type = tarfile.DIRTYPE
+                          info.size = 0
+                          archive.addfile(info)
+                      else:
+                          info.type = tarfile.REGTYPE
+                          info.size = os.lstat(path).st_size
+                          with path.open("rb") as stream:
+                              archive.addfile(info, stream)
+              archive_size = os.lstat(archive_path).st_size
+              digest = sha256_file(archive_path)
+              (transport_root / "FieldEvidencePayload.tar.sha256").write_text(
+                  f"{digest} {archive_size} FieldEvidencePayload.tar\n", encoding="utf-8"
+              )
+
+          def extract_payload(transport_root, extraction_root, arguments):
+              if len(arguments) != 11:
+                  fail("wrong archive verifier argument count")
+              real_directory(transport_root)
+              expected_transport_names = {"FieldEvidencePayload.tar", "FieldEvidencePayload.tar.sha256"}
+              if {item.name for item in transport_root.iterdir()} != expected_transport_names:
+                  fail("unexpected transport members")
+              archive_path = transport_root / "FieldEvidencePayload.tar"
+              digest_path = transport_root / "FieldEvidencePayload.tar.sha256"
+              if not regular_file(archive_path) or not regular_file(digest_path):
+                  fail("unsafe transport member")
+              digest_record = digest_path.read_text(encoding="utf-8")
+              match = re.fullmatch(r"([0-9A-F]{64}) ([0-9]+) FieldEvidencePayload\.tar\n", digest_record)
+              if match is None:
+                  fail("invalid detached archive digest")
+              if match.group(1) != sha256_file(archive_path) or int(match.group(2)) != os.lstat(archive_path).st_size:
+                  fail("archive digest or size mismatch")
+              try:
+                  with tarfile.open(archive_path, "r:") as archive:
+                      members = archive.getmembers()
+                      seen = set()
+                      folded = set()
+                      for member in members:
+                          name = member.name.rstrip("/")
+                          if not name or name.startswith("/") or "\\" in name:
+                              fail("unsafe archive member name")
+                          parts = name.split("/")
+                          if parts[0] != "FieldEvidencePayload" or any(part in ("", ".", "..") for part in parts):
+                              fail("unsafe archive member path")
+                          if name in seen or name.casefold() in folded:
+                              fail("duplicate or case-colliding archive member")
+                          seen.add(name)
+                          folded.add(name.casefold())
+                          if member.issym() or member.islnk() or member.isdev() or member.isfifo() or not (member.isdir() or member.isreg()):
+                              fail("unsafe archive member type")
+                      if not members or members[0].name.rstrip("/") != "FieldEvidencePayload" or not members[0].isdir():
+                          fail("archive lacks a single safe root")
+                      if extraction_root.exists() or extraction_root.is_symlink():
+                          fail("extraction root already exists")
+                      extraction_root.mkdir(mode=0o700)
+                      for member in members:
+                          archive.extract(member, extraction_root, set_attrs=True, numeric_owner=False)
+              except (OSError, tarfile.TarError) as error:
+                  fail(f"unsafe archive extraction: {error}")
+              payload_root = extraction_root / "FieldEvidencePayload"
+              verify(payload_root, arguments)
+              return payload_root
+
+          def verify(root, arguments):
+              if len(arguments) != 11:
+                  fail("wrong verifier argument count")
+              head, ref, repository, artifact, xcode_version, xcode_build, sdk_name, sdk_build, architecture, configuration, selector_sha = arguments
+              validate_payload_root(root)
+              products = root / "FieldEvidenceDerivedData" / "Build" / "Products"
+              tree_path = root / "s10-4-payload-tree.json"
+              sums_path = root / "s10-4-payload-sha256sums.txt"
+              metadata_path = root / "s10-4-payload-metadata.json"
+              receipt_path = root / "s10-4-pilot-receipt.json"
+              metadata = read_json(metadata_path)
+              expected_keys = {
+                  "architecture", "checksumsSHA256", "configuration", "deviceProfileID", "head",
+                  "payloadArtifactName", "producerRunnerProvider", "producerSegmentID", "producerShardID",
+                  "productsRoot", "ref", "repository", "schemaVersion", "selectorSHA256",
+                  "simulatorName", "simulatorRuntime", "simulatorRuntimeBuild", "taskID",
+                  "toolchain", "treeManifestSHA256", "xctestrunPath"
+              }
+              if not isinstance(metadata, dict) or set(metadata) != expected_keys:
+                  fail("unexpected payload metadata keys")
+              expected = {
+                  "schemaVersion": 1, "payloadArtifactName": artifact, "head": head, "ref": ref,
+                  "repository": repository, "taskID": "S10.4", "producerRunnerProvider": "bitrise",
+                  "producerShardID": "s10.4.current.default-light", "producerSegmentID": "none",
+                  "deviceProfileID": "iphone-17-ios-26.2-current", "simulatorRuntime": "iOS 26.2",
+                  "simulatorRuntimeBuild": "23C54", "simulatorName": "iPhone 17",
+                  "productsRoot": ROOT_LABEL, "architecture": architecture, "configuration": configuration,
+                  "selectorSHA256": selector_sha,
+              }
+              for key, value in expected.items():
+                  if metadata.get(key) != value:
+                      fail("payload metadata mismatch: " + key)
+              expected_toolchain = {
+                  "sdkBuild": sdk_build, "sdkName": sdk_name, "xcodeBuild": xcode_build,
+                  "xcodeVersion": xcode_version,
+              }
+              if metadata.get("toolchain") != expected_toolchain:
+                  fail("payload toolchain mismatch")
+              if metadata["treeManifestSHA256"] != sha256_file(tree_path):
+                  fail("payload tree manifest digest mismatch")
+              if metadata["checksumsSHA256"] != sha256_file(sums_path):
+                  fail("payload checksum manifest digest mismatch")
+              entries, xctestrun_path = collect(products)
+              tree = read_json(tree_path)
+              if tree != {"entries": entries, "root": ROOT_LABEL, "schemaVersion": 1}:
+                  fail("payload tree manifest mismatch")
+              if metadata["xctestrunPath"] != xctestrun_path:
+                  fail("payload xctestrun identity mismatch")
+              expected_sums = "\n".join(
+                  f'{entry["sha256"]}  {ROOT_LABEL}/{entry["path"]}'
+                  for entry in entries if entry["type"] == "file"
+              ) + "\n"
+              if sums_path.read_text(encoding="utf-8") != expected_sums:
+                  fail("payload checksum manifest mismatch")
+              receipt = read_json(receipt_path)
+              if not isinstance(receipt, dict) or receipt.get("schemaVersion") != 1 \
+                  or receipt.get("head") != head or receipt.get("ref") != ref \
+                  or receipt.get("payloadArtifactName") != artifact \
+                  or receipt.get("executionRole") != "payload-producer" \
+                  or receipt.get("runnerProvider") != "bitrise" \
+                  or receipt.get("shardID") != "s10.4.current.default-light" \
+                  or receipt.get("finalAcceptanceEligible") is not False \
+                  or receipt.get("result") != "payload-produced":
+                  fail("payload producer receipt mismatch")
+              print(xctestrun_path)
+
+          def fingerprint(root):
+              entries, _ = collect(root)
+              print(hashlib.sha256(canonical(entries).encode("utf-8")).hexdigest().upper())
+
+          if len(sys.argv) < 2:
+              fail("missing command")
+          command = sys.argv[1]
+          if command == "create" and len(sys.argv) == 5:
+              create(Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]))
+          elif command == "archive" and len(sys.argv) == 4:
+              archive_payload(Path(sys.argv[2]), Path(sys.argv[3]))
+          elif command == "extract" and len(sys.argv) == 15:
+              extract_payload(Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4:])
+          elif command == "verify" and len(sys.argv) == 14:
+              verify(Path(sys.argv[2]), sys.argv[3:])
+          elif command == "fingerprint" and len(sys.argv) == 3:
+              fingerprint(Path(sys.argv[2]))
+          else:
+              fail("invalid command")
+          PY
+          chmod 700 "$verifier"
+          printf 'CI_S10_4_PILOT_PAYLOAD_VERIFIER=%s\n' "$verifier" >> "$GITHUB_ENV"
+
+      - name: Download immutable S10.4 pilot payload
+        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' }}
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ inputs.s10_4_payload_artifact_name }}
+          path: ${{ runner.temp }}/FieldEvidencePayloadDownload
+
+      - name: Verify and restore immutable S10.4 pilot payload
+        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          download_root="$RUNNER_TEMP/FieldEvidencePayloadDownload"
+          transport_root="$download_root"
+          if test -d "$download_root/FieldEvidencePayloadTransport"; then
+            test ! -e "$download_root/FieldEvidencePayload.tar"
+            transport_root="$download_root/FieldEvidencePayloadTransport"
+          fi
+          test -x "$CI_S10_4_PILOT_PAYLOAD_VERIFIER"
+          sdk_version="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          sdk_build="$(xcrun --sdk iphonesimulator --show-sdk-build-version)"
+          sdk_name="iphonesimulator$sdk_version"
+          test "$sdk_name" = "iphonesimulator26.5"
+          test "$sdk_build" = "23F81a"
+          selector_sha="$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')"
+          extracted_payload_root="$RUNNER_TEMP/FieldEvidencePayloadExtracted"
+          xctestrun_relative_path="$("$CI_S10_4_PILOT_PAYLOAD_VERIFIER" extract \
+            "$transport_root" "$extracted_payload_root" \
+            "$GITHUB_SHA" "$GITHUB_REF" "$GITHUB_REPOSITORY" \
+            "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" "$EXPECTED_XCODE_VERSION" \
+            "${EXPECTED_XCODE_BUILD#Build version }" "$sdk_name" "$sdk_build" \
+            "$(uname -m)" "$CONFIGURATION" "$selector_sha")"
+          payload_root="$extracted_payload_root/FieldEvidencePayload"
+          test -d "$payload_root"
+          test -n "$xctestrun_relative_path"
+          restored_derived_data="$RUNNER_TEMP/FieldEvidenceDerivedData"
+          test ! -e "$restored_derived_data"
+          test ! -L "$restored_derived_data"
+          ditto "$payload_root/FieldEvidenceDerivedData" "$restored_derived_data"
+          test -d "$restored_derived_data/Build/Products"
+          test ! -L "$restored_derived_data/Build/Products"
+          restored_xctestrun_path="$restored_derived_data/Build/Products/$xctestrun_relative_path"
+          test -f "$restored_xctestrun_path"
+          test ! -L "$restored_xctestrun_path"
+          source_fingerprint="$("$CI_S10_4_PILOT_PAYLOAD_VERIFIER" fingerprint "$payload_root/FieldEvidenceDerivedData/Build/Products")"
+          restored_fingerprint="$("$CI_S10_4_PILOT_PAYLOAD_VERIFIER" fingerprint "$restored_derived_data/Build/Products")"
+          test "$source_fingerprint" = "$restored_fingerprint"
+          pilot_evidence_path="$CI_ARTIFACT_DIR/s10-4-pilot-payload"
+          mkdir -p "$pilot_evidence_path"
+          cp "$payload_root/s10-4-payload-metadata.json" \
+            "$payload_root/s10-4-payload-tree.json" \
+            "$payload_root/s10-4-payload-sha256sums.txt" \
+            "$payload_root/s10-4-pilot-receipt.json" \
+            "$pilot_evidence_path/"
+          cp "$transport_root/FieldEvidencePayload.tar.sha256" "$pilot_evidence_path/"
+          printf '%s\n' \
+            "CI_S10_4_PILOT_PAYLOAD_ROOT=$payload_root" \
+            "CI_S10_4_PILOT_TREE_MANIFEST_SHA256=$(shasum -a 256 "$payload_root/s10-4-payload-tree.json" | awk '{print toupper($1)}')" \
+            "CI_S10_4_PILOT_CHECKSUMS_SHA256=$(shasum -a 256 "$payload_root/s10-4-payload-sha256sums.txt" | awk '{print toupper($1)}')" \
+            "CI_S10_4_PILOT_XCTESTRUN_PATH=$restored_xctestrun_path" \
+            "CI_S10_4_PILOT_PAYLOAD_VERIFIED=true" \
+            >> "$GITHUB_ENV"
+
+      - name: Recheck setup budget after pilot payload restore
+        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+          test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
+          printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
 
       # INFRA_RECOVERY_BEGIN: simulator-readiness-scheduling
       - name: Boot selected Simulator
@@ -1229,6 +1763,7 @@ jobs:
         wait: simulator_boot
 
       - name: Build unsigned simulator app
+        if: ${{ inputs.s10_4_execution_role != 'payload-consumer' }}
         shell: bash
         env:
           BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
@@ -1238,31 +1773,207 @@ jobs:
           bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
             bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"
 
+      - name: Seal immutable S10.4 pilot build payload
+        if: ${{ inputs.s10_4_execution_role == 'payload-producer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_products="$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products"
+          payload_root="$RUNNER_TEMP/FieldEvidencePayload"
+          payload_products="$payload_root/FieldEvidenceDerivedData/Build/Products"
+          test -x "$CI_S10_4_PILOT_PAYLOAD_VERIFIER"
+          test -d "$source_products"
+          test ! -e "$payload_root"
+          mkdir -p "$payload_root/FieldEvidenceDerivedData/Build"
+          ditto "$source_products" "$payload_products"
+          xctestrun_path="$("$CI_S10_4_PILOT_PAYLOAD_VERIFIER" create \
+            "$payload_products" \
+            "$payload_root/s10-4-payload-tree.json" \
+            "$payload_root/s10-4-payload-sha256sums.txt")"
+          test -n "$xctestrun_path"
+          sdk_version="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          sdk_build="$(xcrun --sdk iphonesimulator --show-sdk-build-version)"
+          sdk_name="iphonesimulator$sdk_version"
+          test "$sdk_name" = "iphonesimulator26.5"
+          test "$sdk_build" = "23F81a"
+          selector_sha="$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')"
+          tree_manifest_sha="$(shasum -a 256 "$payload_root/s10-4-payload-tree.json" | awk '{print toupper($1)}')"
+          checksums_sha="$(shasum -a 256 "$payload_root/s10-4-payload-sha256sums.txt" | awk '{print toupper($1)}')"
+          jq -n -cS \
+            --arg payloadArtifactName "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" \
+            --arg head "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg architecture "$(uname -m)" \
+            --arg configuration "$CONFIGURATION" \
+            --arg selectorSHA256 "$selector_sha" \
+            --arg xctestrunPath "$xctestrun_path" \
+            --arg treeManifestSHA256 "$tree_manifest_sha" \
+            --arg checksumsSHA256 "$checksums_sha" \
+            --arg xcodeVersion "$EXPECTED_XCODE_VERSION" \
+            --arg xcodeBuild "${EXPECTED_XCODE_BUILD#Build version }" \
+            --arg sdkName "$sdk_name" \
+            --arg sdkBuild "$sdk_build" '
+              {
+                schemaVersion: 1,
+                payloadArtifactName: $payloadArtifactName,
+                head: $head,
+                ref: $ref,
+                repository: $repository,
+                taskID: "S10.4",
+                producerRunnerProvider: "bitrise",
+                producerShardID: "s10.4.current.default-light",
+                producerSegmentID: "none",
+                deviceProfileID: "iphone-17-ios-26.2-current",
+                simulatorRuntime: "iOS 26.2",
+                simulatorRuntimeBuild: "23C54",
+                simulatorName: "iPhone 17",
+                productsRoot: "FieldEvidenceDerivedData/Build/Products",
+                architecture: $architecture,
+                configuration: $configuration,
+                selectorSHA256: $selectorSHA256,
+                xctestrunPath: $xctestrunPath,
+                treeManifestSHA256: $treeManifestSHA256,
+                checksumsSHA256: $checksumsSHA256,
+                toolchain: {
+                  xcodeVersion: $xcodeVersion,
+                  xcodeBuild: $xcodeBuild,
+                  sdkName: $sdkName,
+                  sdkBuild: $sdkBuild
+                }
+              }
+            ' > "$payload_root/s10-4-payload-metadata.json"
+          jq -n -cS \
+            --arg head "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg payloadArtifactName "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
+            --arg xctestrunPath "$xctestrun_path" \
+            --arg treeManifestSHA256 "$tree_manifest_sha" \
+            --arg checksumsSHA256 "$checksums_sha" \
+            --arg xcodeVersion "$EXPECTED_XCODE_VERSION" \
+            --arg xcodeBuild "${EXPECTED_XCODE_BUILD#Build version }" \
+            --arg sdkName "$sdk_name" \
+            --arg sdkBuild "$sdk_build" \
+            --arg architecture "$(uname -m)" \
+            --arg configuration "$CONFIGURATION" '
+              {
+                schemaVersion: 1,
+                head: $head,
+                ref: $ref,
+                repository: $repository,
+                runID: $runID,
+                runAttempt: $runAttempt,
+                payloadArtifactName: $payloadArtifactName,
+                executionRole: "payload-producer",
+                finalAcceptanceEligible: false,
+                runnerProvider: "bitrise",
+                shardID: $shardID,
+                result: "payload-produced",
+                toolchain: {
+                  xcodeVersion: $xcodeVersion,
+                  xcodeBuild: $xcodeBuild,
+                  sdkName: $sdkName,
+                  sdkBuild: $sdkBuild,
+                  architecture: $architecture,
+                  configuration: $configuration
+                },
+                payload: {
+                  xctestrunPath: $xctestrunPath,
+                  treeManifestSHA256: $treeManifestSHA256,
+                  checksumsSHA256: $checksumsSHA256
+                }
+              }
+            ' > "$payload_root/s10-4-pilot-receipt.json"
+          "$CI_S10_4_PILOT_PAYLOAD_VERIFIER" verify \
+            "$payload_root" "$GITHUB_SHA" "$GITHUB_REF" "$GITHUB_REPOSITORY" \
+            "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" "$EXPECTED_XCODE_VERSION" \
+            "${EXPECTED_XCODE_BUILD#Build version }" "$sdk_name" "$sdk_build" \
+            "$(uname -m)" "$CONFIGURATION" "$selector_sha" > /dev/null
+          "$CI_S10_4_PILOT_PAYLOAD_VERIFIER" archive \
+            "$payload_root" "$RUNNER_TEMP/FieldEvidencePayloadTransport"
+
+      - name: Upload immutable S10.4 pilot payload
+        if: ${{ inputs.s10_4_execution_role == 'payload-producer' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.s10_4_payload_artifact_name }}
+          path: ${{ runner.temp }}/FieldEvidencePayloadTransport
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
       # INFRA_RECOVERY_END: simulator-readiness-scheduling
 
+      - name: Hash pilot product tree before unit tests
+        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CI_S10_4_PILOT_PAYLOAD_VERIFIER" fingerprint \
+            "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products" \
+            | tee "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256"
+
       - name: Run targeted tests
+        if: ${{ inputs.s10_4_execution_role != 'payload-producer' }}
         shell: bash
         env:
-          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
-          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS" \
             bash Scripts/test-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/test-smoke.log"
 
+      - name: Verify pilot product tree after unit tests
+        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CI_S10_4_PILOT_PAYLOAD_VERIFIER" fingerprint \
+            "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products" \
+            | tee "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256"
+          cmp -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256"
+
+      - name: Hash pilot product tree before UI smoke
+        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' && inputs.run_ui_smoke == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CI_S10_4_PILOT_PAYLOAD_VERIFIER" fingerprint \
+            "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products" \
+            | tee "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256"
+          cmp -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256"
+
       - name: Run task-authorized UI smoke
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true && inputs.s10_4_execution_role != 'payload-producer' }}
         shell: bash
         env:
-          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
-          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
 
+      - name: Verify pilot product tree after UI smoke
+        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.run_ui_smoke == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CI_S10_4_PILOT_PAYLOAD_VERIFIER" fingerprint \
+            "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products" \
+            | tee "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256"
+          cmp -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256"
+
       - name: Retain Bitrise development-only segment evidence
-        if: ${{ always() && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id != 'none' }}
+        if: ${{ always() && inputs.s10_4_pilot_mode == false && inputs.s10_4_execution_role != 'payload-consumer' && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id != 'none' }}
         shell: bash
         env:
           BITRISE_PRIOR_JOB_STATUS: ${{ job.status }}
@@ -1375,7 +2086,7 @@ jobs:
           ' "$development_path/development-segment-record.json" > /dev/null
 
       - name: Retain S10.4 segment evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_provider == 'github' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id != 'none' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id != 'none' }}
         shell: bash
         env:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -1875,7 +2586,7 @@ jobs:
           test ! -e "$shard_evidence_path/shard-receipt.json"
 
       - name: Retain S10.4 shard evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.s10_4_pilot_mode == false || inputs.s10_4_execution_role == 'payload-consumer') && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' }}
         shell: bash
         env:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -3369,6 +4080,572 @@ jobs:
               }
             ' > "$shard_evidence_path/shard-receipt.json"
 
+      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN
+      - name: Verify complete nonaccepting S10.4 pilot evidence
+        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          require_regular_file() {
+            test -f "$1"
+            test ! -L "$1"
+            test -s "$1"
+          }
+
+          canonical_sha256() {
+            printf '%s' "$1" | shasum -a 256 | awk '{print toupper($1)}'
+          }
+
+          test "$CI_TASK_ID" = "S10.4"
+          test "$CI_S10_4_EXECUTION_ROLE" = "payload-consumer"
+          test "$CI_S10_4_PILOT_MODE" = "true"
+          test "$CI_RUN_UI_SMOKE" = "true"
+          test "$CI_S10_4_SEGMENT_ID" = "none"
+          case "$CI_S10_4_SHARD_ID:$CI_S10_4_DEVICE_PROFILE_ID:$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$SIMULATOR_NAME" in
+            s10.4.current.*:iphone-17-ios-26.2-current:iOS\ 26.2:23C54:iPhone\ 17) ;;
+            s10.4.minimum.minimum-os:iphone-se-3-ios-18.0-minimum:iOS\ 18.0:22A3351:iPhone\ SE\ \(3rd\ generation\)) ;;
+            *) exit 1 ;;
+          esac
+          test "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" -eq 420
+          test "$CI_BUILD_TIMEOUT_SECONDS" -eq 900
+          test "$CI_TEST_TIMEOUT_SECONDS" -eq 1200
+          test "$CI_UI_TIMEOUT_SECONDS" -eq 2520
+          test "$CI_TOTAL_BUDGET_SECONDS" -eq 4500
+          test "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" -eq 900
+          case "${CI_BUDGET_START_EPOCH:-}:${CI_SETUP_ELAPSED_SECONDS:-}" in
+            *[!0-9:]*|:*) exit 1 ;;
+          esac
+          total_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+          test "$CI_SETUP_ELAPSED_SECONDS" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
+          test "$total_elapsed_seconds" -le "$CI_TOTAL_BUDGET_SECONDS"
+
+          pilot_evidence_path="$CI_ARTIFACT_DIR/s10-4-pilot-payload"
+          metadata_path="$pilot_evidence_path/s10-4-payload-metadata.json"
+          producer_receipt_path="$pilot_evidence_path/s10-4-pilot-receipt.json"
+          for required_path in \
+            "$metadata_path" \
+            "$producer_receipt_path" \
+            "$pilot_evidence_path/s10-4-payload-tree.json" \
+            "$pilot_evidence_path/s10-4-payload-sha256sums.txt" \
+            "$pilot_evidence_path/FieldEvidencePayload.tar.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256" \
+            "$CI_ARTIFACT_DIR/setup-budget.txt" \
+            "$CI_ARTIFACT_DIR/simulator-boot-start.log" \
+            "$CI_ARTIFACT_DIR/simulator-boot.log" \
+            "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt" \
+            "$CI_ARTIFACT_DIR/test-smoke.log" \
+            "$CI_ARTIFACT_DIR/ui-smoke.log" \
+            "$CI_ARTIFACT_DIR/ui-final.png"; do
+            require_regular_file "$required_path"
+          done
+          test ! -e "$CI_ARTIFACT_DIR/build-smoke.log"
+          test ! -e "$CI_ARTIFACT_DIR/Build.xcresult"
+          for product_tree_path in \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256"; do
+            grep -Eq '^[0-9A-F]{64}$' "$product_tree_path"
+          done
+          cmp -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256"
+          cmp -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256"
+          cmp -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+            "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256"
+          test ! -L "$CI_ARTIFACT_DIR/UnitTests.xcresult"
+          test ! -L "$CI_ARTIFACT_DIR/UISmoke.xcresult"
+          test -d "$CI_ARTIFACT_DIR/UnitTests.xcresult"
+          test -d "$CI_ARTIFACT_DIR/UISmoke.xcresult"
+          test -n "$(find "$CI_ARTIFACT_DIR/UnitTests.xcresult" -type f -print -quit)"
+          test -n "$(find "$CI_ARTIFACT_DIR/UISmoke.xcresult" -type f -print -quit)"
+          grep -Eq '^ready_elapsed_seconds=[0-9]+$' "$CI_ARTIFACT_DIR/simulator-boot.log"
+          grep -Eq '^budget_seconds=900$' "$CI_ARTIFACT_DIR/simulator-boot.log"
+          grep -Eq '^setup_elapsed_seconds=[0-9]+$' "$CI_ARTIFACT_DIR/setup-budget.txt"
+          grep -Eq '^setup_budget_seconds=420$' "$CI_ARTIFACT_DIR/setup-budget.txt"
+
+          selector_sha="$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')"
+          payload_tree_manifest_sha="$(shasum -a 256 "$pilot_evidence_path/s10-4-payload-tree.json" | awk '{print toupper($1)}')"
+          payload_checksums_sha="$(shasum -a 256 "$pilot_evidence_path/s10-4-payload-sha256sums.txt" | awk '{print toupper($1)}')"
+          jq -e \
+            --arg head "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg artifact "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" \
+            --arg selectorSHA256 "$selector_sha" \
+            --arg treeManifestSHA256 "$payload_tree_manifest_sha" \
+            --arg checksumsSHA256 "$payload_checksums_sha" '
+              .schemaVersion == 1
+              and .head == $head
+              and .ref == $ref
+              and .repository == $repository
+              and .taskID == "S10.4"
+              and .payloadArtifactName == $artifact
+              and .producerRunnerProvider == "bitrise"
+              and .producerShardID == "s10.4.current.default-light"
+              and .producerSegmentID == "none"
+              and .deviceProfileID == "iphone-17-ios-26.2-current"
+              and .simulatorRuntime == "iOS 26.2"
+              and .simulatorRuntimeBuild == "23C54"
+              and .simulatorName == "iPhone 17"
+              and .selectorSHA256 == $selectorSHA256
+              and .treeManifestSHA256 == $treeManifestSHA256
+              and .checksumsSHA256 == $checksumsSHA256
+              and .toolchain == {
+                xcodeVersion: "Xcode 26.6",
+                xcodeBuild: "17F113",
+                sdkName: "iphonesimulator26.5",
+                sdkBuild: "23F81a"
+              }
+            ' "$metadata_path" > /dev/null
+          jq -e \
+            --arg head "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg artifact "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" '
+              .schemaVersion == 1
+              and .head == $head
+              and .ref == $ref
+              and .payloadArtifactName == $artifact
+              and .executionRole == "payload-producer"
+              and .runnerProvider == "bitrise"
+              and .shardID == "s10.4.current.default-light"
+              and .finalAcceptanceEligible == false
+              and .result == "payload-produced"
+            ' "$producer_receipt_path" > /dev/null
+
+          shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+          state_ax_path="$CI_ARTIFACT_DIR/ax/$CI_S10_4_SHARD_ID"
+          state_contrast_path="$CI_ARTIFACT_DIR/contrast/$CI_S10_4_SHARD_ID"
+          task_accessibility_path="$CI_ARTIFACT_DIR/accessibility/$CI_S10_4_SHARD_ID"
+          for required_path in \
+            "$shard_evidence_path/xcresult-attachment-manifest.json" \
+            "$shard_evidence_path/candidate-exports.json" \
+            "$shard_evidence_path/candidate-files.json" \
+            "$shard_evidence_path/accessibility.ndjson" \
+            "$shard_evidence_path/accessibility.json" \
+            "$shard_evidence_path/state-ax.ndjson" \
+            "$shard_evidence_path/state-ax.json" \
+            "$shard_evidence_path/contrast.ndjson" \
+            "$shard_evidence_path/contrast.json" \
+            "$shard_evidence_path/shard-receipt.json"; do
+            require_regular_file "$required_path"
+          done
+          for required_directory in \
+            "$shard_evidence_path/candidates" \
+            "$state_ax_path" \
+            "$state_contrast_path" \
+            "$task_accessibility_path"; do
+            test -d "$required_directory"
+            test ! -L "$required_directory"
+            test -n "$(find "$required_directory" -type f -print -quit)"
+          done
+
+          unit_results_path="$RUNNER_TEMP/s10-4-pilot-unit-test-results.json"
+          ui_results_path="$RUNNER_TEMP/s10-4-pilot-ui-test-results.json"
+          xcrun xcresulttool get test-results tests \
+            --path "$CI_ARTIFACT_DIR/UnitTests.xcresult" --compact > "$unit_results_path"
+          xcrun xcresulttool get test-results tests \
+            --path "$CI_ARTIFACT_DIR/UISmoke.xcresult" --compact > "$ui_results_path"
+          unit_selectors_json="$(jq -cS '
+            def normalized: sub("\\(\\)$"; "");
+            [.. | objects
+              | select(.nodeType? == "Test Case" and .result? == "Passed")
+              | .nodeIdentifier
+              | normalized] | unique | sort
+          ' "$unit_results_path")"
+          expected_unit_selectors_json="$(jq -cS '
+            [.unitTestSelectors[] | sub("\\(\\)$"; "")] | sort
+          ' Scripts/ci-selection.json)"
+          test "$unit_selectors_json" = "$expected_unit_selectors_json"
+          test "$(jq 'length' <<< "$unit_selectors_json")" -eq 5
+          ui_selectors_json="$(jq -cS '
+            def normalized: sub("\\(\\)$"; "");
+            [.. | objects
+              | select(.nodeType? == "Test Case" and .result? == "Passed")
+              | .nodeIdentifier
+              | normalized] | unique | sort
+          ' "$ui_results_path")"
+          expected_ui_selectors_json="$(jq -cS '
+            [.uiTestSelectors[] | sub("\\(\\)$"; "")] | sort
+          ' Scripts/ci-selection.json)"
+          test "$ui_selectors_json" = "$expected_ui_selectors_json"
+          test "$(jq 'length' <<< "$ui_selectors_json")" -eq 1
+
+          expected_state_ids_json="$(jq -cS '[.routes[].states[].state_id] | sort' \
+            docs/design/s10/s10-screen-state-inventory.json)"
+          expected_task_ids_json="$(jq -cS '[.tasks[].task_id] | sort' \
+            docs/design/s10/s10-accessibility-common-tasks.json)"
+          candidate_state_ids_json="$(jq -cS '[.[].stateID] | sort' \
+            "$shard_evidence_path/candidate-files.json")"
+          state_ax_ids_json="$(jq -cS '[.[].stateID] | sort' \
+            "$shard_evidence_path/state-ax.json")"
+          contrast_ids_json="$(jq -cS '[.[].stateID] | sort' \
+            "$shard_evidence_path/contrast.json")"
+          task_ids_json="$(jq -cS '[.[].taskID] | sort' \
+            "$shard_evidence_path/accessibility.json")"
+          test "$candidate_state_ids_json" = "$expected_state_ids_json"
+          test "$state_ax_ids_json" = "$expected_state_ids_json"
+          test "$contrast_ids_json" = "$expected_state_ids_json"
+          test "$task_ids_json" = "$expected_task_ids_json"
+          test "$(jq 'length' <<< "$candidate_state_ids_json")" -eq 67
+          test "$(jq 'length' <<< "$state_ax_ids_json")" -eq 67
+          test "$(jq 'length' <<< "$contrast_ids_json")" -eq 67
+          test "$(jq 'length' <<< "$task_ids_json")" -eq 6
+          test "$(find "$shard_evidence_path/candidates" -type f -name 'state.*.png' | wc -l | tr -d ' ')" -eq 67
+          test "$(find "$state_ax_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" -eq 67
+          test "$(find "$state_contrast_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" -eq 67
+          test "$(find "$task_accessibility_path" -type f -name '*.json' | wc -l | tr -d ' ')" -eq 6
+          jq -e --arg shard "$CI_S10_4_SHARD_ID" \
+            --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" '
+              .taskID == "S10.4"
+              and .shardID == $shard
+              and .requirementID == $requirement
+              and .deviceProfileID == $profile
+              and .productHead == env.GITHUB_SHA
+              and .candidateCount == 67
+              and .stateAXRowCount == 67
+              and .contrastRowCount == 67
+              and .accessibilityRowCount == 6
+            ' "$shard_evidence_path/shard-receipt.json" > /dev/null
+          jq -e --arg shard "$CI_S10_4_SHARD_ID" \
+            --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" '
+              length == 67
+              and all(.[];
+                .shardID == $shard
+                and .requirementID == $requirement
+                and .deviceProfileID == $profile
+                and .result == "PASS"
+                and (.evidenceID == ("s10.4-ax-" + $shard + "-" + .stateID))
+                and .capture == "XCUIApplication.debugDescription"
+                and (.axTreeSHA256 | test("^[0-9A-F]{64}$")))
+            ' "$shard_evidence_path/state-ax.json" > /dev/null
+          jq -e --arg shard "$CI_S10_4_SHARD_ID" \
+            --arg requirement "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" '
+              length == 67
+              and all(.[];
+                .shardID == $shard
+                and .requirementID == $requirement
+                and .deviceProfileID == $profile
+                and (.result == "PASS" or .result == "EXCEPTION")
+                and (.evidenceID == ("s10.4-contrast-" + $shard + "-" + .stateID))
+                and .audit == "XCUIAccessibilityAuditType.contrast"
+                and (.axTreeSHA256 | test("^[0-9A-F]{64}$")))
+            ' "$shard_evidence_path/contrast.json" > /dev/null
+          jq -e --arg shard "$CI_S10_4_SHARD_ID" \
+            --arg profile "$CI_S10_4_DEVICE_PROFILE_ID" \
+            --argjson expectedTasks "$expected_task_ids_json" '
+              length == 6
+              and ([.[].taskID] | sort) == $expectedTasks
+              and all(.[];
+                .taskID != ""
+                and .deviceProfileID == $profile
+                and (.feature | type == "string" and length > 0)
+                and (.automatedStatus == "PASS" or .automatedStatus == "EXCEPTION")
+                and (.automatedEvidenceIDs | type == "array" and length == 4)
+                and (.automatedEvidenceIDs == [
+                  "s10.4-ax-" + $shard + "-" + .taskID,
+                  "s10.4-focus-order-" + $shard + "-" + .taskID,
+                  "s10.4-target-size-" + $shard + "-" + .taskID,
+                  "s10.4-contrast-" + $shard + "-" + .taskID
+                ]))
+            ' "$shard_evidence_path/accessibility.json" > /dev/null
+
+          # The preceding Retain S10.4 shard evidence step is the shared strict
+          # exception validator. Its success is required before these normalized
+          # pilot bindings are emitted; this step independently verifies its exact
+          # 67-row outputs and records their canonical exception semantics digest.
+          candidate_normalized_json="$(jq -cS '[.[] | {stateID}] | sort_by(.stateID)' \
+            "$shard_evidence_path/candidate-files.json")"
+          state_ax_normalized_json="$(jq -cS '[.[] | {stateID, result, evidenceID, capture}] | sort_by(.stateID)' \
+            "$shard_evidence_path/state-ax.json")"
+          contrast_normalized_json="$(jq -cS '[.[] | {
+              stateID, result, evidenceID, audit, exceptionIssueID, exceptionOwner,
+              exceptionExpiresAt, exceptionRationale, ignoredAuditIssues
+            }] | sort_by(.stateID)' "$shard_evidence_path/contrast.json")"
+          task_normalized_json="$(jq -cS '[.[] | {
+              taskID, deviceProfileID, feature, automatedStatus, automatedEvidenceIDs,
+              exceptionIssueID, exceptionOwner, exceptionExpiresAt, exceptionRationale,
+              exceptionStateIDs
+            }] | sort_by(.taskID)' "$shard_evidence_path/accessibility.json")"
+          unit_selectors_sha="$(canonical_sha256 "$unit_selectors_json")"
+          candidate_ids_sha="$(canonical_sha256 "$candidate_state_ids_json")"
+          candidate_rows_sha="$(canonical_sha256 "$candidate_normalized_json")"
+          state_ax_ids_sha="$(canonical_sha256 "$state_ax_ids_json")"
+          state_ax_rows_sha="$(canonical_sha256 "$state_ax_normalized_json")"
+          contrast_ids_sha="$(canonical_sha256 "$contrast_ids_json")"
+          contrast_rows_sha="$(canonical_sha256 "$contrast_normalized_json")"
+          strict_exception_semantics_sha="$(canonical_sha256 "$contrast_normalized_json")"
+          task_ids_sha="$(canonical_sha256 "$task_ids_json")"
+          task_rows_sha="$(canonical_sha256 "$task_normalized_json")"
+          canonical_path="$CI_ARTIFACT_DIR/s10-4-pilot-canonical-normalized-evidence.json"
+          jq -n -cS \
+            --arg head "$GITHUB_SHA" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
+            --arg requirementID "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profileID "$CI_S10_4_DEVICE_PROFILE_ID" \
+            --argjson unitSelectors "$unit_selectors_json" \
+            --argjson stateIDs "$candidate_state_ids_json" \
+            --argjson stateAX "$state_ax_normalized_json" \
+            --argjson contrast "$contrast_normalized_json" \
+            --argjson tasks "$task_normalized_json" '
+              {
+                schemaVersion: 1,
+                head: $head,
+                shardID: $shardID,
+                requirementID: $requirementID,
+                profileID: $profileID,
+                unitSelectors: $unitSelectors,
+                stateIDs: $stateIDs,
+                stateAX: $stateAX,
+                contrast: $contrast,
+                tasks: $tasks
+              }
+            ' > "$canonical_path"
+          canonical_evidence_sha="$(shasum -a 256 "$canonical_path" | awk '{print toupper($1)}')"
+          sealed_shard_receipt_path="$CI_ARTIFACT_DIR/s10-4-pilot-full-evidence-proof.json"
+          cp "$shard_evidence_path/shard-receipt.json" "$sealed_shard_receipt_path"
+          require_regular_file "$sealed_shard_receipt_path"
+          cmp -s "$shard_evidence_path/shard-receipt.json" "$sealed_shard_receipt_path"
+          shard_receipt_sha="$(shasum -a 256 "$sealed_shard_receipt_path" | awk '{print toupper($1)}')"
+          product_tree_before_unit_sha="$(cat "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256")"
+          product_tree_after_unit_sha="$(cat "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256")"
+          product_tree_before_ui_sha="$(cat "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256")"
+          product_tree_after_ui_sha="$(cat "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256")"
+
+          artifact_manifest_path="$CI_ARTIFACT_DIR/s10-4-pilot-full-evidence-manifest.json"
+          artifact_checksums_path="$CI_ARTIFACT_DIR/s10-4-pilot-full-evidence-checksums.txt"
+          artifact_rows_path="$RUNNER_TEMP/s10-4-pilot-full-evidence-rows.tsv"
+          : > "$artifact_rows_path"
+          while IFS= read -r evidence_file; do
+            test ! -L "$evidence_file"
+            printf '%s\t%s\n' \
+              "${evidence_file#"$CI_ARTIFACT_DIR/"}" \
+              "$(shasum -a 256 "$evidence_file" | awk '{print toupper($1)}')" \
+              >> "$artifact_rows_path"
+          done < <(
+            find "$CI_ARTIFACT_DIR" -type f \
+              ! -name 'SHA256SUMS.txt' \
+              ! -name 's10-4-pilot-full-evidence-manifest.json' \
+              ! -name 's10-4-pilot-full-evidence-checksums.txt' \
+              -print | LC_ALL=C sort
+          )
+          test "$(wc -l < "$artifact_rows_path" | tr -d ' ')" -gt 0
+          jq -Rn '[inputs | split("\\t") | {path: .[0], sha256: .[1]}]' \
+            < "$artifact_rows_path" > "$artifact_manifest_path"
+          jq -e '
+            length > 0
+            and ([.[].path] | unique | length) == length
+            and all(.[]; (.path | type == "string" and length > 0)
+              and (.sha256 | test("^[0-9A-F]{64}$")))
+          ' "$artifact_manifest_path" > /dev/null
+          awk -F '\t' '{print $2 "  " $1}' "$artifact_rows_path" > "$artifact_checksums_path"
+          while IFS='  ' read -r artifact_sha artifact_path; do
+            test -n "$artifact_path"
+            test "$artifact_sha" = "$(shasum -a 256 "$CI_ARTIFACT_DIR/$artifact_path" | awk '{print toupper($1)}')"
+          done < "$artifact_checksums_path"
+          artifact_manifest_sha="$(shasum -a 256 "$artifact_manifest_path" | awk '{print toupper($1)}')"
+          artifact_checksums_sha="$(shasum -a 256 "$artifact_checksums_path" | awk '{print toupper($1)}')"
+          artifact_count="$(jq 'length' "$artifact_manifest_path")"
+          watchdogs_json="$(jq -cn \
+            --argjson setupElapsedSeconds "$CI_SETUP_ELAPSED_SECONDS" \
+            --argjson setupBudgetSeconds "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS" \
+            --argjson buildTimeoutSeconds "$CI_BUILD_TIMEOUT_SECONDS" \
+            --argjson unitTimeoutSeconds "$CI_TEST_TIMEOUT_SECONDS" \
+            --argjson uiTimeoutSeconds "$CI_UI_TIMEOUT_SECONDS" \
+            --argjson totalElapsedSeconds "$total_elapsed_seconds" \
+            --argjson totalBudgetSeconds "$CI_TOTAL_BUDGET_SECONDS" \
+            --argjson simulatorReadyBudgetSeconds "$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS" \
+            '{
+              setupElapsedSeconds: $setupElapsedSeconds,
+              setupBudgetSeconds: $setupBudgetSeconds,
+              buildTimeoutSeconds: $buildTimeoutSeconds,
+              unitTimeoutSeconds: $unitTimeoutSeconds,
+              uiTimeoutSeconds: $uiTimeoutSeconds,
+              totalElapsedSeconds: $totalElapsedSeconds,
+              totalBudgetSeconds: $totalBudgetSeconds,
+              simulatorReadyBudgetSeconds: $simulatorReadyBudgetSeconds,
+              validationPassed: true
+            }')"
+          watchdogs_sha="$(canonical_sha256 "$watchdogs_json")"
+          full_evidence_path="$CI_ARTIFACT_DIR/s10-4-pilot-full-evidence.json"
+          jq -n -cS \
+            --arg head "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg runnerProvider "$CI_RUNNER_PROVIDER" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
+            --arg requirementID "$CI_S10_4_REQUIREMENT_ID" \
+            --arg profileID "$CI_S10_4_DEVICE_PROFILE_ID" \
+            --arg payloadArtifactName "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" \
+            --arg producerHead "$(jq -er '.head' "$metadata_path")" \
+            --arg producerRunnerProvider "$(jq -er '.producerRunnerProvider' "$metadata_path")" \
+            --arg producerShardID "$(jq -er '.producerShardID' "$metadata_path")" \
+            --arg selectorSHA256 "$selector_sha" \
+            --arg treeManifestSHA256 "$payload_tree_manifest_sha" \
+            --arg checksumsSHA256 "$payload_checksums_sha" \
+            --arg xctestrunPath "$(jq -er '.xctestrunPath' "$metadata_path")" \
+            --arg unitsSelectorsSHA256 "$unit_selectors_sha" \
+            --arg statesIDsSHA256 "$candidate_ids_sha" \
+            --arg statesRowsSHA256 "$candidate_rows_sha" \
+            --arg accessibilityIDsSHA256 "$state_ax_ids_sha" \
+            --arg accessibilityRowsSHA256 "$state_ax_rows_sha" \
+            --arg contrastIDsSHA256 "$contrast_ids_sha" \
+            --arg contrastRowsSHA256 "$contrast_rows_sha" \
+            --arg strictExceptionSemanticsSHA256 "$strict_exception_semantics_sha" \
+            --arg tasksIDsSHA256 "$task_ids_sha" \
+            --arg tasksRowsSHA256 "$task_rows_sha" \
+            --arg manifestSHA256 "$artifact_manifest_sha" \
+            --arg checksumsArtifactSHA256 "$artifact_checksums_sha" \
+            --arg shardReceiptSHA256 "$shard_receipt_sha" \
+            --arg watchdogsSHA256 "$watchdogs_sha" \
+            --arg canonicalNormalizedEvidenceSHA256 "$canonical_evidence_sha" \
+            --arg productTreeBeforeUnitSHA256 "$product_tree_before_unit_sha" \
+            --arg productTreeAfterUnitSHA256 "$product_tree_after_unit_sha" \
+            --arg productTreeBeforeUISHA256 "$product_tree_before_ui_sha" \
+            --arg productTreeAfterUISHA256 "$product_tree_after_ui_sha" \
+            --argjson artifactCount "$artifact_count" \
+            --argjson watchdogs "$watchdogs_json" '
+              {
+                schemaVersion: 1,
+                pilotFullEvidenceValidationPassed: true,
+                provenance: {
+                  head: $head,
+                  ref: $ref,
+                  runnerProvider: $runnerProvider,
+                  shardID: $shardID,
+                  requirementID: $requirementID,
+                  profileID: $profileID,
+                  payloadArtifactName: $payloadArtifactName,
+                  producerHead: $producerHead,
+                  producerRunnerProvider: $producerRunnerProvider,
+                  producerShardID: $producerShardID,
+                  selectorSHA256: $selectorSHA256,
+                  treeManifestSHA256: $treeManifestSHA256,
+                  checksumsSHA256: $checksumsSHA256,
+                  xctestrunPath: $xctestrunPath
+                },
+                fullEvidence: {
+                  units: {
+                    selectorCount: 5,
+                    selectorsSHA256: $unitsSelectorsSHA256,
+                    resultsSHA256: $unitsSelectorsSHA256,
+                    validationPassed: true
+                  },
+                  states: {
+                    count: 67,
+                    idsSHA256: $statesIDsSHA256,
+                    rowsSHA256: $statesRowsSHA256,
+                    validationPassed: true
+                  },
+                  accessibility: {
+                    count: 67,
+                    idsSHA256: $accessibilityIDsSHA256,
+                    rowsSHA256: $accessibilityRowsSHA256,
+                    validationPassed: true
+                  },
+                  contrast: {
+                    count: 67,
+                    idsSHA256: $contrastIDsSHA256,
+                    rowsSHA256: $contrastRowsSHA256,
+                    strictExceptionSemanticsSHA256: $strictExceptionSemanticsSHA256,
+                    validationPassed: true
+                  },
+                  tasks: {
+                    count: 6,
+                    idsSHA256: $tasksIDsSHA256,
+                    rowsSHA256: $tasksRowsSHA256,
+                    validationPassed: true
+                  },
+                  artifacts: {
+                    artifactCount: $artifactCount,
+                    manifestSHA256: $manifestSHA256,
+                    checksumsSHA256: $checksumsArtifactSHA256,
+                    shardReceiptSHA256: $shardReceiptSHA256,
+                    productTreeBeforeUnitSHA256: $productTreeBeforeUnitSHA256,
+                    productTreeAfterUnitSHA256: $productTreeAfterUnitSHA256,
+                    productTreeBeforeUISHA256: $productTreeBeforeUISHA256,
+                    productTreeAfterUISHA256: $productTreeAfterUISHA256,
+                    validationPassed: true
+                  },
+                  watchdogs: ($watchdogs + {budgetsSHA256: $watchdogsSHA256}),
+                  canonicalNormalizedEvidence: {
+                    sha256: $canonicalNormalizedEvidenceSHA256,
+                    validationPassed: true
+                  },
+                  validationPassed: true
+                }
+              }
+            ' > "$full_evidence_path"
+          jq -e '
+            def digest: type == "string" and test("^[0-9A-F]{64}$");
+            .schemaVersion == 1
+            and .pilotFullEvidenceValidationPassed == true
+            and .fullEvidence.validationPassed == true
+            and .fullEvidence.units.selectorCount == 5
+            and .fullEvidence.states.count == 67
+            and .fullEvidence.accessibility.count == 67
+            and .fullEvidence.contrast.count == 67
+            and .fullEvidence.tasks.count == 6
+            and .fullEvidence.artifacts.validationPassed == true
+            and .fullEvidence.watchdogs.validationPassed == true
+            and .fullEvidence.canonicalNormalizedEvidence.validationPassed == true
+            and (
+              [
+                .provenance.selectorSHA256,
+                .provenance.treeManifestSHA256,
+                .provenance.checksumsSHA256,
+                .fullEvidence.units.selectorsSHA256,
+                .fullEvidence.units.resultsSHA256,
+                .fullEvidence.states.idsSHA256,
+                .fullEvidence.states.rowsSHA256,
+                .fullEvidence.accessibility.idsSHA256,
+                .fullEvidence.accessibility.rowsSHA256,
+                .fullEvidence.contrast.idsSHA256,
+                .fullEvidence.contrast.rowsSHA256,
+                .fullEvidence.contrast.strictExceptionSemanticsSHA256,
+                .fullEvidence.tasks.idsSHA256,
+                .fullEvidence.tasks.rowsSHA256,
+                .fullEvidence.artifacts.manifestSHA256,
+                .fullEvidence.artifacts.checksumsSHA256,
+                .fullEvidence.artifacts.shardReceiptSHA256,
+                .fullEvidence.artifacts.productTreeBeforeUnitSHA256,
+                .fullEvidence.artifacts.productTreeAfterUnitSHA256,
+                .fullEvidence.artifacts.productTreeBeforeUISHA256,
+                .fullEvidence.artifacts.productTreeAfterUISHA256,
+                .fullEvidence.watchdogs.budgetsSHA256,
+                .fullEvidence.canonicalNormalizedEvidence.sha256
+              ] | all(digest)
+            )
+          ' "$full_evidence_path" > /dev/null
+          rm -f \
+            "$shard_evidence_path/shard-receipt.json" \
+            "$shard_evidence_path/segment-receipt.json" \
+            "$shard_evidence_path/segment-receipt.pending.json"
+          test ! -e "$shard_evidence_path/shard-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.pending.json"
+      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_END
+
+      - name: Remove ordinary S10.4 receipts after pilot evidence attempt
+        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+          rm -f \
+            "$shard_evidence_path/shard-receipt.json" \
+            "$shard_evidence_path/segment-receipt.json" \
+            "$shard_evidence_path/segment-receipt.pending.json"
+          test ! -e "$shard_evidence_path/shard-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.pending.json"
+
       - name: Begin evidence-finalization budget
         if: always()
         shell: bash
@@ -3378,7 +4655,7 @@ jobs:
           printf 'CI_ARTIFACT_START_EPOCH=%s\n' "$CI_ARTIFACT_START_EPOCH" >> "$GITHUB_ENV"
 
       - name: Validate required build and test evidence
-        if: ${{ always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_segment_id == 'none') }}
+        if: ${{ always() && inputs.s10_4_pilot_mode == false && (inputs.runner_provider != 'bitrise' || inputs.s10_4_segment_id == 'none') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3734,7 +5011,7 @@ jobs:
           fi
 
       - name: Validate Bitrise development-only segment evidence
-        if: ${{ always() && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id != 'none' }}
+        if: ${{ always() && inputs.s10_4_pilot_mode == false && inputs.s10_4_execution_role != 'payload-consumer' && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id != 'none' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -3793,7 +5070,7 @@ jobs:
           ' "$CI_ARTIFACT_DIR/s10-4-segment-plan-development-binding-redacted.json" > /dev/null
 
       - name: Finalize Bitrise development-only shard evidence
-        if: ${{ always() && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id == 'none' }}
+        if: ${{ always() && inputs.s10_4_pilot_mode == false && inputs.s10_4_execution_role != 'payload-consumer' && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id == 'none' }}
         shell: bash
         env:
           BITRISE_DISPATCH_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -3906,7 +5183,7 @@ jobs:
             ' "$development_record_path" > /dev/null
 
       - name: Finalize successful S10.4 segment receipt
-        if: ${{ success() && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}
+        if: ${{ success() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -4066,7 +5343,7 @@ jobs:
 
       - name: Verify Bitrise evidence contains no cache credentials
         id: bitrise_credential_scan
-        if: ${{ always() && inputs.runner_provider == 'bitrise' }}
+        if: ${{ always() && inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' }}
         shell: bash
         env:
           BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}
@@ -4119,8 +5396,196 @@ jobs:
             > "$CI_ARTIFACT_DIR/bitrise-credential-scan.txt"
           printf 'safe_to_upload=true\n' >> "$GITHUB_OUTPUT"
 
+      - name: Record S10.4 pilot consumer receipt
+        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}
+        shell: bash
+        env:
+          PILOT_PRIOR_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          pilot_evidence_path="$CI_ARTIFACT_DIR/s10-4-pilot-payload"
+          shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+          metadata_path="$pilot_evidence_path/s10-4-payload-metadata.json"
+          full_evidence_path="$CI_ARTIFACT_DIR/s10-4-pilot-full-evidence.json"
+          test -s "$metadata_path"
+          test -s "$full_evidence_path"
+          test ! -e "$shard_evidence_path/shard-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.pending.json"
+          test -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256"
+          test -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256"
+          test -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256"
+          test -s "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256"
+          selector_sha="$(shasum -a 256 Scripts/ci-selection.json | awk '{print toupper($1)}')"
+          sdk_version="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          sdk_build="$(xcrun --sdk iphonesimulator --show-sdk-build-version)"
+          sdk_name="iphonesimulator$sdk_version"
+          test "$sdk_name" = "iphonesimulator26.5"
+          test "$sdk_build" = "23F81a"
+          producer_head="$(jq -er '.head' "$metadata_path")"
+          producer_shard_id="$(jq -er '.producerShardID' "$metadata_path")"
+          producer_provider="$(jq -er '.producerRunnerProvider' "$metadata_path")"
+          payload_tree_manifest_sha="$(jq -er '.treeManifestSHA256' "$metadata_path")"
+          payload_checksums_sha="$(jq -er '.checksumsSHA256' "$metadata_path")"
+          payload_xctestrun_path="$(jq -er '.xctestrunPath' "$metadata_path")"
+          product_tree_before_unit_sha="$(cat "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256")"
+          product_tree_after_unit_sha="$(cat "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256")"
+          product_tree_before_ui_sha="$(cat "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256")"
+          product_tree_after_ui_sha="$(cat "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256")"
+          for product_tree_sha in \
+            "$product_tree_before_unit_sha" \
+            "$product_tree_after_unit_sha" \
+            "$product_tree_before_ui_sha" \
+            "$product_tree_after_ui_sha"; do
+            [[ "$product_tree_sha" =~ ^[0-9A-F]{64}$ ]]
+          done
+          jq -e \
+            --arg head "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg runnerProvider "$CI_RUNNER_PROVIDER" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
+            --arg profileID "$CI_S10_4_DEVICE_PROFILE_ID" \
+            --arg payloadArtifactName "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" '
+              .schemaVersion == 1
+              and .pilotFullEvidenceValidationPassed == true
+              and .provenance.head == $head
+              and .provenance.ref == $ref
+              and .provenance.runnerProvider == $runnerProvider
+              and .provenance.shardID == $shardID
+              and .provenance.profileID == $profileID
+              and .provenance.payloadArtifactName == $payloadArtifactName
+              and .provenance.producerHead == $head
+              and .provenance.producerRunnerProvider == "bitrise"
+              and .provenance.producerShardID == "s10.4.current.default-light"
+              and .fullEvidence.validationPassed == true
+              and .fullEvidence.units.selectorCount == 5
+              and .fullEvidence.states.count == 67
+              and .fullEvidence.accessibility.count == 67
+              and .fullEvidence.contrast.count == 67
+              and .fullEvidence.tasks.count == 6
+              and .fullEvidence.artifacts.validationPassed == true
+              and .fullEvidence.watchdogs.validationPassed == true
+              and .fullEvidence.canonicalNormalizedEvidence.validationPassed == true
+            ' "$full_evidence_path" > /dev/null
+          jq -n -cS \
+            --arg head "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg payloadArtifactName "$CI_S10_4_PAYLOAD_ARTIFACT_NAME" \
+            --arg runnerProvider "$CI_RUNNER_PROVIDER" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
+            --arg result "$PILOT_PRIOR_JOB_STATUS" \
+            --arg selectorSHA256 "$selector_sha" \
+            --arg producerHead "$producer_head" \
+            --arg producerShardID "$producer_shard_id" \
+            --arg producerProvider "$producer_provider" \
+            --arg treeManifestSHA256 "$payload_tree_manifest_sha" \
+            --arg checksumsSHA256 "$payload_checksums_sha" \
+            --arg xctestrunPath "$payload_xctestrun_path" \
+            --arg productTreeBeforeUnitSHA256 "$product_tree_before_unit_sha" \
+            --arg productTreeAfterUnitSHA256 "$product_tree_after_unit_sha" \
+            --arg productTreeBeforeUISHA256 "$product_tree_before_ui_sha" \
+            --arg productTreeAfterUISHA256 "$product_tree_after_ui_sha" \
+            --arg xcodeVersion "$EXPECTED_XCODE_VERSION" \
+            --arg xcodeBuild "${EXPECTED_XCODE_BUILD#Build version }" \
+            --arg sdkName "$sdk_name" \
+            --arg sdkBuild "$sdk_build" \
+            --arg architecture "$(uname -m)" \
+            --arg configuration "$CONFIGURATION" \
+            --slurpfile pilotFullEvidence "$full_evidence_path" '
+              {
+                schemaVersion: 1,
+                head: $head,
+                ref: $ref,
+                repository: $repository,
+                runID: $runID,
+                runAttempt: $runAttempt,
+                payloadArtifactName: $payloadArtifactName,
+                executionRole: "payload-consumer",
+                finalAcceptanceEligible: false,
+                runnerProvider: $runnerProvider,
+                shardID: $shardID,
+                result: $result,
+                selectorSHA256: $selectorSHA256,
+                pilotFullEvidenceValidationPassed:
+                  $pilotFullEvidence[0].pilotFullEvidenceValidationPassed,
+                provenance: $pilotFullEvidence[0].provenance,
+                fullEvidence: $pilotFullEvidence[0].fullEvidence,
+                toolchain: {
+                  xcodeVersion: $xcodeVersion,
+                  xcodeBuild: $xcodeBuild,
+                  sdkName: $sdkName,
+                  sdkBuild: $sdkBuild,
+                  architecture: $architecture,
+                  configuration: $configuration
+                },
+                producer: {
+                  head: $producerHead,
+                  shardID: $producerShardID,
+                  runnerProvider: $producerProvider
+                },
+                payload: {
+                  xctestrunPath: $xctestrunPath,
+                  treeManifestSHA256: $treeManifestSHA256,
+                  checksumsSHA256: $checksumsSHA256,
+                  productTreeBeforeUnitSHA256: $productTreeBeforeUnitSHA256,
+                  productTreeAfterUnitSHA256: $productTreeAfterUnitSHA256,
+                  productTreeBeforeUISHA256: $productTreeBeforeUISHA256,
+                  productTreeAfterUISHA256: $productTreeAfterUISHA256
+                }
+              }
+            ' > "$CI_ARTIFACT_DIR/s10-4-pilot-receipt.json"
+          jq -e '
+            .schemaVersion == 1
+            and .executionRole == "payload-consumer"
+            and .finalAcceptanceEligible == false
+            and .runnerProvider == env.CI_RUNNER_PROVIDER
+            and .head == env.GITHUB_SHA
+            and .payloadArtifactName == env.CI_S10_4_PAYLOAD_ARTIFACT_NAME
+            and .producer.runnerProvider == "bitrise"
+            and .producer.shardID == "s10.4.current.default-light"
+            and .pilotFullEvidenceValidationPassed == true
+            and .provenance.head == env.GITHUB_SHA
+            and .provenance.runnerProvider == env.CI_RUNNER_PROVIDER
+            and .provenance.shardID == env.CI_S10_4_SHARD_ID
+            and .provenance.profileID == env.CI_S10_4_DEVICE_PROFILE_ID
+            and .provenance.payloadArtifactName == env.CI_S10_4_PAYLOAD_ARTIFACT_NAME
+            and .provenance.producerHead == env.GITHUB_SHA
+            and .provenance.producerRunnerProvider == "bitrise"
+            and .provenance.producerShardID == "s10.4.current.default-light"
+            and .fullEvidence.validationPassed == true
+            and .fullEvidence.units.selectorCount == 5
+            and .fullEvidence.states.count == 67
+            and .fullEvidence.accessibility.count == 67
+            and .fullEvidence.contrast.count == 67
+            and .fullEvidence.tasks.count == 6
+            and .fullEvidence.artifacts.validationPassed == true
+            and .fullEvidence.watchdogs.validationPassed == true
+            and .fullEvidence.canonicalNormalizedEvidence.validationPassed == true
+          ' "$CI_ARTIFACT_DIR/s10-4-pilot-receipt.json" > /dev/null
+
+      - name: Remove isolated S10.4 pilot Simulator
+        if: ${{ always() && inputs.s10_4_pilot_mode == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pilot_simulator_udid="${CI_S10_4_PILOT_CREATED_SIMULATOR_UDID:-}"
+          test -n "$pilot_simulator_udid"
+          [[ "$pilot_simulator_udid" =~ ^[0-9A-Fa-f-]{36}$ ]]
+          xcrun simctl shutdown "$pilot_simulator_udid" >/dev/null 2>&1 || true
+          xcrun simctl delete "$pilot_simulator_udid"
+          pilot_simulator_inventory="$RUNNER_TEMP/s10-4-pilot-simulator-after-delete.json"
+          xcrun simctl list devices -j > "$pilot_simulator_inventory"
+          jq -e --arg udid "$pilot_simulator_udid" '
+            all(.devices[][]?; .udid != $udid)
+          ' "$pilot_simulator_inventory" > /dev/null
+          printf 'isolated=true\ndeleted=true\nudid=%s\n' "$pilot_simulator_udid" \
+            > "$CI_ARTIFACT_DIR/s10-4-pilot-simulator-lifecycle.txt"
+
       - name: Hash collected evidence
-        if: ${{ always() && (inputs.runner_provider != 'bitrise' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
+        if: ${{ always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -4150,7 +5615,7 @@ jobs:
           test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
 
       - name: Recheck evidence-finalization budget
-        if: ${{ always() && (inputs.runner_provider != 'bitrise' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
+        if: ${{ always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -4162,7 +5627,7 @@ jobs:
           test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
 
       - name: Verify selected total budget before upload
-        if: ${{ always() && (inputs.runner_provider != 'bitrise' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
+        if: ${{ always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -4177,7 +5642,7 @@ jobs:
           test "$elapsed_seconds" -le "$CI_TOTAL_BUDGET_SECONDS"
 
       - name: Remove nonaccepting partial S10.4 segment receipt
-        if: ${{ always() && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' && (failure() || cancelled()) }}
+        if: ${{ always() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' && (failure() || cancelled()) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -4192,7 +5657,7 @@ jobs:
 
       - name: Upload build evidence
         id: upload_evidence
-        if: ${{ always() && (inputs.runner_provider != 'bitrise' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
+        if: ${{ always() && inputs.s10_4_execution_role != 'payload-producer' && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)))) }}
@@ -4201,7 +5666,7 @@ jobs:
           retention-days: 14
 
       - name: Fail closed after Bitrise development-only evidence
-        if: ${{ always() && inputs.runner_provider == 'bitrise' && steps.upload_evidence.outcome == 'success' }}
+        if: ${{ always() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'bitrise' && steps.upload_evidence.outcome == 'success' }}
         shell: bash
         run: |
           printf '%s\n' 'Bitrise Build Hub Xcode 26.6 development-only evidence is not eligible for S10.4 final acceptance.' >&2

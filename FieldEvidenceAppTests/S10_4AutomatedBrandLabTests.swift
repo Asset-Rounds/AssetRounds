@@ -82,12 +82,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let accessibilitySchemaPath =
             "\(overlayRoot)/s10-accessibility-common-tasks.schema.json"
         let shardPath = "Scripts/s10-4-shards.json"
+        let testSmokePath = "Scripts/test-smoke.sh"
         let uiSmokePath = "Scripts/ui-smoke.sh"
 
         try assertFile(
+            testSmokePath,
+            byteCount: 3_254,
+            sha256: "D8C498784EA60B675651C4F2879622A6C1C76D491BB4F5CCD45D84513CEB3076"
+        )
+        let testSmokeSource = try text(testSmokePath)
+        try assertFile(
             uiSmokePath,
-            byteCount: 13_931,
-            sha256: "02A97F44CB5418FE73061225B2B3524615271C1D6710E8EFC212DAF0E7E738DB"
+            byteCount: 16_058,
+            sha256: "74F58E9BA9F8C5ACAB78E9969CB0B573D68A9EEEA0C5F4B3E32D7292F85522C0"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorRefreshSource = try boundedSource(
@@ -153,17 +160,61 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for forbidden in ["simctl erase", "sleep ", "retry", "test-without-building"] {
             XCTAssertFalse(simulatorRefreshSource.contains(forbidden), forbidden)
         }
-        XCTAssertEqual(uiSmokeSource.components(separatedBy: "test-without-building").count - 1, 1)
+        XCTAssertEqual(uiSmokeSource.components(separatedBy: "test-without-building").count - 1, 2)
+        let testSmokePilotSource = try boundedSource(
+            testSmokeSource,
+            from: "if [ \"$pilot_consumer\" = true ]; then",
+            before: "\nelse"
+        )
+        let uiSmokePilotSource = try boundedSource(
+            uiSmokeSource,
+            from: "if [ \"$pilot_consumer\" = true ]; then",
+            before: "\nelse"
+        )
+        XCTAssertEqual(testSmokePilotSource.utf8.count, 1_888)
+        XCTAssertEqual(
+            Data(testSmokePilotSource.utf8).sha256,
+            "DA7A0814380ECA4D40D1E1C300C42D82E94E3FA2A5ECCA79D851DB2BF0675016"
+        )
+        XCTAssertEqual(uiSmokePilotSource.utf8.count, 1_744)
+        XCTAssertEqual(
+            Data(uiSmokePilotSource.utf8).sha256,
+            "4E87893866AAE4938B4CEE701FB5CE57596893038A7F49F9A2EF0CEEF8C627D6"
+        )
+        for pilotSource in [testSmokePilotSource, uiSmokePilotSource] {
+            for exact in [
+                "CI_S10_4_PILOT_PAYLOAD_VERIFIED",
+                "CI_S10_4_PILOT_XCTESTRUN_PATH",
+                "BITRISE_BUILD_CACHE_AUTH_TOKEN",
+                "BITRISE_BUILD_CACHE_WORKSPACE_ID",
+                "test ! -L \"$pilot_products_root\"",
+                "test ! -L \"$pilot_xctestrun_path\"",
+                "find \"$pilot_products_root\" -name '*.xctestrun' -print",
+                "test ! -e \"$CI_ARTIFACT_DIR/build-smoke.log\"",
+                "test ! -e \"$derived_data_path/Logs/Build\"",
+                "test ! -e \"$derived_data_path/Build/Intermediates.noindex\"",
+                "-xctestrun \"$CI_S10_4_PILOT_XCTESTRUN_PATH\"",
+                "test-without-building",
+            ] {
+                XCTAssertTrue(pilotSource.contains(exact), exact)
+            }
+            for prohibited in [
+                "-project", "-scheme", "-configuration", "-derivedDataPath",
+                "build-for-testing",
+            ] {
+                XCTAssertFalse(pilotSource.contains(prohibited), prohibited)
+            }
+        }
 
         try assertFile(
             manifestPath,
-            byteCount: 19_037,
-            sha256: "7A517533F88A74A6EB2E3676DD3C5BD3D452D271BFC1EDD175F1CC83CAEDDB2E"
+            byteCount: 22_277,
+            sha256: "754FA1ADAC2B825B793E88F41A8800C3D7FA10EBC29F8E22F6696A25BCBF9BEB"
         )
         try assertFile(
             visualSchemaPath,
-            byteCount: 18_485,
-            sha256: "C922EDE2685691B488E8664F2AA89CE52D989C29FD54C0793EBD825DCC1A4DAE"
+            byteCount: 27_763,
+            sha256: "AC8BE499D57D62586DC15A33AF40D52BA3D535C32C1CC4E8CEB52C30CB568C2A"
         )
         try assertFile(
             accessibilitySchemaPath,
@@ -178,8 +229,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 56_665,
-            sha256: "1E52E3A3F5CE5276D05DBC556B95F7ECA1022E2CE378E35782AC0DB2FBF37B4E"
+            byteCount: 83_576,
+            sha256: "1825FC9FAEB1CBA466583764BF2CCE710F04F26CF231CAFFD942105EA9D38C76"
         )
         let dispatcherSource = try text(dispatcherPath)
         let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
@@ -192,8 +243,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 234_398,
-            sha256: "EF3AFD74EF7E434091AAA8166EF62A956CAFFBAC83F49292A219E9E66C88B42E"
+            byteCount: 313_993,
+            sha256: "62CBE4624FD4CA9C4BE98F9623F3BBFA31840062B229E3EA4A32D9099CBB1D41"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -347,7 +398,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 7)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 8)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -390,6 +441,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - s10-4-hybrid-equivalence-pilot"
+            ).count - 1,
+            1
+        )
         XCTAssertFalse(executionLaneSource.contains("default: getmac-xcode-26.6-development-only"))
         XCTAssertFalse(executionLaneSource.contains("default: warp-xcode-26.5-development-only"))
         XCTAssertFalse(
@@ -407,6 +464,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "default: bitrise-build-hub-xcode-26.6-segmented-development-only"
             )
         )
+        XCTAssertFalse(executionLaneSource.contains("default: s10-4-hybrid-equivalence-pilot"))
         XCTAssertFalse(executionLaneSource.contains("type: string"))
 
         let dispatcherConcurrency =
@@ -677,7 +735,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 in: jobsSource,
                 range: NSRange(location: 0, length: jobsSource.utf16.count)
             ),
-            10
+            18
         )
 
         let githubLaneGate =
@@ -744,8 +802,120 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             dispatcherSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
             ).count - 1,
+            11
+        )
+        let pilotRejectSource = try boundedSource(
+            dispatcherSource,
+            from: "  reject-invalid-s10-4-hybrid-equivalence-pilot-selection:",
+            before: "\n\n  s10-4-hybrid-payload-producer:"
+        )
+        XCTAssertEqual(pilotRejectSource.utf8.count, 399)
+        XCTAssertEqual(
+            Data(pilotRejectSource.utf8).sha256,
+            "F78D0DF57B8199C6D341C197E42E02482F2B55A37D0C7852A3DC517E3910439D"
+        )
+        for exact in [
+            "inputs.execution_lane == 's10-4-hybrid-equivalence-pilot'",
+            "inputs.run_ui_smoke != true",
+            "inputs.s10_4_shard_id != 'none'",
+            "runs-on: ubuntu-24.04",
+            "run: exit 1",
+        ] {
+            XCTAssertTrue(pilotRejectSource.contains(exact), exact)
+        }
+        let pilotDispatcherSource = try boundedSource(
+            dispatcherSource,
+            from: "  s10-4-hybrid-payload-producer:",
+            before: "\n\n  github-segmented-shard:"
+        )
+        XCTAssertEqual(pilotDispatcherSource.utf8.count, 26_465)
+        XCTAssertEqual(
+            Data(pilotDispatcherSource.utf8).sha256,
+            "D11D412382A063CD3D3217BA7A6B02608C2B3D47EE882D610B2231A98DE07D9F"
+        )
+        XCTAssertEqual(
+            pilotDispatcherSource.components(
+                separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
+            ).count - 1,
+            6
+        )
+        XCTAssertEqual(
+            pilotDispatcherSource.components(
+                separatedBy: "      s10_4_execution_role: payload-producer"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            pilotDispatcherSource.components(
+                separatedBy: "      s10_4_execution_role: payload-consumer"
+            ).count - 1,
             5
         )
+        XCTAssertEqual(
+            pilotDispatcherSource.components(
+                separatedBy: "    needs: s10-4-hybrid-payload-producer"
+            ).count - 1,
+            5
+        )
+        XCTAssertEqual(
+            pilotDispatcherSource.components(
+                separatedBy: "      s10_4_pilot_mode: true"
+            ).count - 1,
+            6
+        )
+        for exact in [
+            "runner_label: bitrise-m4-pro",
+            "runner_label: macos-26",
+            "runner_provider: bitrise",
+            "runner_provider: github",
+            "s10_4_shard_id: s10.4.current.default-light",
+            "s10_4_shard_id: s10.4.current.default-dark",
+            "s10_4_shard_id: s10.4.minimum.minimum-os",
+            "ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}",
+            "FieldEvidencePayload.tar",
+            "FieldEvidencePayload.tar.sha256",
+            "payload archive digest mismatch",
+            "unsupported payload archive member type",
+            "finalAcceptanceEligible: false",
+            "deliberatelyNonaccepting: true",
+            "S10.4 hybrid-equivalence pilot is deliberately nonaccepting.",
+            "exit 1",
+        ] {
+            XCTAssertTrue(pilotDispatcherSource.contains(exact), exact)
+        }
+        XCTAssertFalse(pilotDispatcherSource.contains("finalAcceptanceEligible: true"))
+        let pilotAssemblerSource = try boundedSource(
+            dispatcherSource,
+            from: "      - name: Verify pilot bindings and assemble nonaccepting report",
+            before: "\n\n      - name: Upload deliberately nonaccepting pilot report"
+        )
+        XCTAssertEqual(pilotAssemblerSource.utf8.count, 18_512)
+        XCTAssertEqual(
+            Data(pilotAssemblerSource.utf8).sha256,
+            "A30B22AD27F7F25ABA782D814A78A4FADFFFECB468D901AB283A06EA2A02BBBD"
+        )
+        for exact in [
+            "pilotFullEvidenceValidationPassed == true",
+            "and (.fullEvidence.units\n                  | .selectorCount == 5",
+            "and (.fullEvidence.states\n                  | .count == 67",
+            "and (.fullEvidence.accessibility\n                  | .count == 67",
+            "and (.fullEvidence.contrast\n                  | .count == 67",
+            "and (.fullEvidence.tasks\n                  | .count == 6",
+            "and (.idsSHA256 | sha256)",
+            "and (.strictExceptionSemanticsSHA256 | sha256)",
+            ".setupBudgetSeconds == 420",
+            ".buildTimeoutSeconds == 900",
+            ".unitTimeoutSeconds == 1200",
+            ".uiTimeoutSeconds == 2520",
+            ".totalBudgetSeconds == 4500",
+            ".simulatorReadyBudgetSeconds == 900",
+            "def sameCanonicalEvidence:",
+            "finalAcceptanceEligible: false",
+            "deliberatelyNonaccepting: true",
+        ] {
+            XCTAssertTrue(pilotAssemblerSource.contains(exact), exact)
+        }
+        XCTAssertFalse(pilotAssemblerSource.contains("finalAcceptanceEligible: true"))
         XCTAssertEqual(
             githubJobSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
@@ -896,11 +1066,173 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 101_018)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 138_307)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "4194E3DAC190DAC173E0B64EE3EE76AD65DD4D4ED969984CE161797F2A850BEB"
+            "2C6D2EB40248881EE09132AAEA788D21971AFAA70F49B295D35870149C541B17"
         )
+        XCTAssertEqual(
+            workerExecutionSource.components(
+                separatedBy:
+                    #"if test "${CI_S10_4_EXECUTION_ROLE:-independent}" != "payload-consumer"; then"#
+            ).count - 1,
+            1
+        )
+        let workerPilotVerifierSource = try boundedSource(
+            workflowSource,
+            from: "      - name: Prepare S10.4 pilot payload verifier",
+            before: "\n\n      - name: Download immutable S10.4 pilot payload"
+        )
+        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 19_198)
+        XCTAssertEqual(
+            Data(workerPilotVerifierSource.utf8).sha256,
+            "5BF82970817D16F70D1920F5A2DC2142A8B0AD695885B85A2971D1E872724E89"
+        )
+        for exact in [
+            "FieldEvidencePayload.tar",
+            "FieldEvidencePayload.tar.sha256",
+            "FieldEvidencePayload\\.tar\\n",
+            "mode = os.lstat(path).st_mode",
+            "info.mtime = 0",
+            "info.uid = 0",
+            "info.gid = 0",
+            "unexpected transport members",
+            "archive digest or size mismatch",
+            "duplicate or case-colliding archive member",
+            "unsafe archive member path",
+            "unsafe archive member type",
+            "expected exactly one regular .xctestrun",
+            "producer-specific xctestrun path",
+            "unknown xctestrun macro",
+            "payload metadata mismatch",
+            "payload tree manifest mismatch",
+        ] {
+            XCTAssertTrue(workerPilotVerifierSource.contains(exact), exact)
+        }
+        let workerPilotRestoreSource = try boundedSource(
+            workflowSource,
+            from: "      - name: Verify and restore immutable S10.4 pilot payload",
+            before: "\n\n      - name: Recheck setup budget after pilot payload restore"
+        )
+        XCTAssertEqual(workerPilotRestoreSource.utf8.count, 3_463)
+        XCTAssertEqual(
+            Data(workerPilotRestoreSource.utf8).sha256,
+            "452BB5E7A3C3F207FCE213803B164555F503E047DF56998F1FC8E5B65AE692D6"
+        )
+        for exact in [
+            "sdk_name=\"iphonesimulator$sdk_version\"",
+            "test \"$sdk_name\" = \"iphonesimulator26.5\"",
+            "test \"$sdk_build\" = \"23F81a\"",
+            "test ! -e \"$restored_derived_data\"",
+            "ditto \"$payload_root/FieldEvidenceDerivedData\" \"$restored_derived_data\"",
+            "CI_S10_4_PILOT_XCTESTRUN_PATH=$restored_xctestrun_path",
+            "CI_S10_4_PILOT_PAYLOAD_VERIFIED=true",
+        ] {
+            XCTAssertTrue(workerPilotRestoreSource.contains(exact), exact)
+        }
+        let workerPilotSealSource = try boundedSource(
+            workflowSource,
+            from: "      - name: Seal immutable S10.4 pilot build payload",
+            before: "\n\n      - name: Upload immutable S10.4 pilot payload"
+        )
+        XCTAssertEqual(workerPilotSealSource.utf8.count, 5_954)
+        XCTAssertEqual(
+            Data(workerPilotSealSource.utf8).sha256,
+            "99B4251000AA75AF1FA3D505E057D6267C1A2195304A4EE9C7220BE794F80D11"
+        )
+        for exact in [
+            "source_products=\"$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products\"",
+            "s10-4-payload-tree.json",
+            "s10-4-payload-sha256sums.txt",
+            "s10-4-payload-metadata.json",
+            "s10-4-pilot-receipt.json",
+            "executionRole: \"payload-producer\"",
+            "finalAcceptanceEligible: false",
+            "result: \"payload-produced\"",
+        ] {
+            XCTAssertTrue(workerPilotSealSource.contains(exact), exact)
+        }
+        let workerPilotFullEvidenceSource = try boundedSource(
+            workflowSource,
+            from: "      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN",
+            before: "\n      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_END"
+        )
+        XCTAssertEqual(workerPilotFullEvidenceSource.utf8.count, 29_981)
+        XCTAssertEqual(
+            Data(workerPilotFullEvidenceSource.utf8).sha256,
+            "10C3B6ADBEB1D851E37C292ABBA6C85D8686840C6E6F9E1A7F55776367FB36FC"
+        )
+        for exact in [
+            "s10.4.current.*:iphone-17-ios-26.2-current:iOS\\ 26.2:23C54:iPhone\\ 17",
+            "s10.4.minimum.minimum-os:iphone-se-3-ios-18.0-minimum:iOS\\ 18.0:22A3351:iPhone\\ SE\\ \\(3rd\\ generation\\)",
+            "test \"$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS\" -eq 420",
+            "test \"$CI_BUILD_TIMEOUT_SECONDS\" -eq 900",
+            "test \"$CI_TEST_TIMEOUT_SECONDS\" -eq 1200",
+            "test \"$CI_UI_TIMEOUT_SECONDS\" -eq 2520",
+            "test \"$CI_TOTAL_BUDGET_SECONDS\" -eq 4500",
+            "test \"$CI_SIMULATOR_BOOT_TIMEOUT_SECONDS\" -eq 900",
+            "candidate_normalized_json=\"$(jq -cS '[.[] | {stateID}] | sort_by(.stateID)'",
+            "s10-4-pilot-full-evidence-proof.json",
+            "pilotFullEvidenceValidationPassed: true",
+            "strictExceptionSemanticsSHA256",
+            "canonicalNormalizedEvidence",
+            "rm -f \\",
+            "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
+        ] {
+            XCTAssertTrue(workerPilotFullEvidenceSource.contains(exact), exact)
+        }
+        let workerPilotAlwaysCleanupSource = try boundedSource(
+            workflowSource,
+            from: "      - name: Remove ordinary S10.4 receipts after pilot evidence attempt",
+            before: "\n\n      - name: Begin evidence-finalization budget"
+        )
+        XCTAssertEqual(workerPilotAlwaysCleanupSource.utf8.count, 685)
+        XCTAssertEqual(
+            Data(workerPilotAlwaysCleanupSource.utf8).sha256,
+            "BEFC3301BF0FB7247DFCDAEB32D3AE932D43B73B89A70C50A1B8FA6FC6356BC0"
+        )
+        for exact in [
+            "if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}",
+            "rm -f \\",
+            "$shard_evidence_path/shard-receipt.json",
+            "$shard_evidence_path/segment-receipt.json",
+            "$shard_evidence_path/segment-receipt.pending.json",
+            "test ! -e",
+        ] {
+            XCTAssertTrue(workerPilotAlwaysCleanupSource.contains(exact), exact)
+        }
+        let workerPilotReceiptSource = try boundedSource(
+            workflowSource,
+            from: "      - name: Record S10.4 pilot consumer receipt",
+            before: "\n\n      - name: Remove isolated S10.4 pilot Simulator"
+        )
+        XCTAssertEqual(workerPilotReceiptSource.utf8.count, 9_340)
+        XCTAssertEqual(
+            Data(workerPilotReceiptSource.utf8).sha256,
+            "33B167B47F14F0D56DF6F2406BA9A5F9A193ADF14053D25D87A312B3DD7094DE"
+        )
+        for exact in [
+            "executionRole: \"payload-consumer\"",
+            "finalAcceptanceEligible: false",
+            "producer.runnerProvider == \"bitrise\"",
+            "producer.shardID == \"s10.4.current.default-light\"",
+            "productTreeBeforeUnitSHA256",
+            "productTreeAfterUnitSHA256",
+            "productTreeBeforeUISHA256",
+            "productTreeAfterUISHA256",
+        ] {
+            XCTAssertTrue(workerPilotReceiptSource.contains(exact), exact)
+        }
+        for (exact, count) in [
+            ("CI_S10_4_PILOT_CREATED_SIMULATOR_UDID", 2),
+            ("xcrun simctl create", 2),
+            ("Remove isolated S10.4 pilot Simulator", 1),
+            ("xcrun simctl delete", 1),
+            ("all(.devices[][]?; .udid != $udid)", 1),
+            ("if test \"${CI_S10_4_PILOT_MODE:-false}\" = \"true\"; then", 2),
+        ] {
+            XCTAssertEqual(workflowSource.components(separatedBy: exact).count - 1, count, exact)
+        }
         let selectedSimulatorWait =
             "      - name: Await selected Simulator boot\n" +
                 "        wait: simulator_boot"
@@ -24180,7 +24512,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(matrixSource.contains("warp"))
         XCTAssertEqual(
             dispatcherSource.components(separatedBy: "      s10_4_segment_id: none").count - 1,
-            3
+            9
         )
         let rejectSource = try boundedSource(
             dispatcherSource,
@@ -24267,6 +24599,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(workerInputSource.contains("required: true"))
         XCTAssertTrue(workerInputSource.contains("default: none"))
         XCTAssertTrue(workerInputSource.contains("type: string"))
+        for exact in [
+            "s10_4_execution_role:",
+            "default: independent",
+            "s10_4_payload_artifact_name:",
+            "default: \"\"",
+            "s10_4_pilot_mode:",
+            "default: false",
+            "type: boolean",
+        ] {
+            XCTAssertTrue(workerInputSource.contains(exact), exact)
+        }
         XCTAssertTrue(workerInputSource.contains("BITRISE_BUILD_CACHE_AUTH_TOKEN:"))
         XCTAssertTrue(workerInputSource.contains("required: false"))
         XCTAssertTrue(
@@ -24295,6 +24638,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Validate task selection and timeout tier",
             before: "\n\n      - name: Install pinned Bitrise Build Cache command wrappers"
         )
+        for exact in [
+            "independent | payload-producer | payload-consumer",
+            "test \"$DISPATCH_S10_4_PILOT_MODE\" = false",
+            "test -z \"$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME\"",
+            "test \"$DISPATCH_S10_4_PILOT_MODE\" = true",
+            "payload-producer)",
+            "bitrise:bitrise-m4-pro",
+            "s10.4.current.default-light",
+            "payload-consumer)",
+            "github:macos-26:s10.4.minimum.minimum-os:iphone-se-3-ios-18.0-minimum",
+            "CI_S10_4_EXECUTION_ROLE=$DISPATCH_S10_4_EXECUTION_ROLE",
+            "CI_S10_4_PILOT_MODE=$DISPATCH_S10_4_PILOT_MODE",
+        ] {
+            XCTAssertTrue(workerTaskSelectionSource.contains(exact), exact)
+        }
         let bitriseProfileSelection = try boundedSource(
             workerTaskSelectionSource,
             from:
@@ -24333,7 +24691,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n\n      - name: Verify pinned toolchain, shared scheme, and simulator"
         )
         for exact in [
-            "if: ${{ inputs.runner_provider == 'bitrise' }}",
+            "if: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' }}",
             "BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}",
             "BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}",
             "BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE: established",
@@ -24728,7 +25086,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertTrue(
             finalReceiptSource.contains(
-                "if: ${{ success() && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}"
+                "if: ${{ success() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}"
             )
         )
         XCTAssertTrue(finalReceiptSource.contains(".receiptKind = \"s10.4-segment\""))

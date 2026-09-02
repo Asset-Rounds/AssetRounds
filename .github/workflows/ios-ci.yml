@@ -17,6 +17,7 @@ on:
           - bitrise-build-hub-cache-probe-development-only
           - bitrise-build-hub-xcode-26.6-development-only
           - bitrise-build-hub-xcode-26.6-segmented-development-only
+          - s10-4-hybrid-equivalence-pilot
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
@@ -109,6 +110,527 @@ jobs:
       - name: Reject invalid segmented provider, shard, or UI selection
         shell: bash
         run: exit 1
+
+  reject-invalid-s10-4-hybrid-equivalence-pilot-selection:
+    name: Reject invalid S10.4 hybrid-equivalence pilot selection
+    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 'none') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the fixed pilot dispatch selection
+        shell: bash
+        run: exit 1
+
+  s10-4-hybrid-payload-producer:
+    name: S10.4 hybrid pilot payload producer · Bitrise M4
+    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: bitrise-m4-pro
+      runner_provider: bitrise
+      # The fixed S10.4 selector requires UI=true. The producer role gates test execution.
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-producer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-hybrid-bitrise-default-light:
+    name: S10.4 hybrid pilot consumer · Bitrise current default-light
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: bitrise-m4-pro
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-hybrid-bitrise-default-dark:
+    name: S10.4 hybrid pilot consumer · Bitrise current default-dark
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: bitrise-m4-pro
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-dark
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-hybrid-github-default-light:
+    name: S10.4 hybrid pilot consumer · GitHub current default-light
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+
+  s10-4-hybrid-github-default-dark:
+    name: S10.4 hybrid pilot consumer · GitHub current default-dark
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-dark
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+
+  s10-4-hybrid-github-minimum-os:
+    name: S10.4 hybrid pilot consumer · GitHub minimum-OS portability
+    needs: s10-4-hybrid-payload-producer
+    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.minimum.minimum-os
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+
+  assemble-s10-4-hybrid-equivalence-pilot:
+    name: Assemble deliberately nonaccepting S10.4 hybrid-equivalence pilot
+    needs:
+      - s10-4-hybrid-payload-producer
+      - s10-4-hybrid-bitrise-default-light
+      - s10-4-hybrid-bitrise-default-dark
+      - s10-4-hybrid-github-default-light
+      - s10-4-hybrid-github-default-dark
+      - s10-4-hybrid-github-minimum-os
+    if: ${{ always() && inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Download immutable producer payload
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/payload
+
+      - name: Download Bitrise default-light pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-development-only-bitrise-xcode-26.6-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.default-light-none
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/bitrise-default-light
+
+      - name: Download Bitrise default-dark pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-development-only-bitrise-xcode-26.6-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.default-dark-none
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/bitrise-default-dark
+
+      - name: Download GitHub default-light pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.default-light
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/github-default-light
+
+      - name: Download GitHub default-dark pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.current.default-dark
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/github-default-dark
+
+      - name: Download GitHub minimum-OS pilot evidence
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ios-ci-${{ github.run_id }}-${{ github.run_attempt }}-s10.4.minimum.minimum-os
+          path: ${{ runner.temp }}/S10_4_HYBRID_PILOT/github-minimum-os
+
+      - name: Verify pilot bindings and assemble nonaccepting report
+        id: assemble
+        shell: bash
+        env:
+          PRODUCER_RESULT: ${{ needs.s10-4-hybrid-payload-producer.result }}
+          BITRISE_DEFAULT_LIGHT_RESULT: ${{ needs.s10-4-hybrid-bitrise-default-light.result }}
+          BITRISE_DEFAULT_DARK_RESULT: ${{ needs.s10-4-hybrid-bitrise-default-dark.result }}
+          GITHUB_DEFAULT_LIGHT_RESULT: ${{ needs.s10-4-hybrid-github-default-light.result }}
+          GITHUB_DEFAULT_DARK_RESULT: ${{ needs.s10-4-hybrid-github-default-dark.result }}
+          GITHUB_MINIMUM_OS_RESULT: ${{ needs.s10-4-hybrid-github-minimum-os.result }}
+          EXPECTED_PAYLOAD_ARTIFACT: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+        run: |
+          set -uo pipefail
+          pilot_root="$RUNNER_TEMP/S10_4_HYBRID_PILOT"
+          report_dir="$RUNNER_TEMP/FieldEvidenceCI"
+          report="$report_dir/s10-4-hybrid-equivalence-pilot-report.json"
+          mkdir -p "$pilot_root" "$report_dir"
+          failures=0
+          require() {
+            if ! "$@"; then
+              failures=1
+              printf 'FAILED: %q' "$1" >> "$report_dir/s10-4-hybrid-equivalence-pilot-verification.log"
+              shift
+              printf ' %q' "$@" >> "$report_dir/s10-4-hybrid-equivalence-pilot-verification.log"
+              printf '\n' >> "$report_dir/s10-4-hybrid-equivalence-pilot-verification.log"
+            fi
+          }
+          for result in \
+            "$PRODUCER_RESULT" \
+            "$BITRISE_DEFAULT_LIGHT_RESULT" \
+            "$BITRISE_DEFAULT_DARK_RESULT" \
+            "$GITHUB_DEFAULT_LIGHT_RESULT" \
+            "$GITHUB_DEFAULT_DARK_RESULT" \
+            "$GITHUB_MINIMUM_OS_RESULT"; do
+            require test "$result" = success
+          done
+
+          payload_transport_root="$pilot_root/payload"
+          if test -d "$payload_transport_root/FieldEvidencePayloadTransport"; then
+            payload_transport_root="$payload_transport_root/FieldEvidencePayloadTransport"
+          fi
+          payload_extract_root="$pilot_root/payload-extracted"
+          if ! python3 - "$payload_transport_root" "$payload_extract_root" <<'PY'
+          import hashlib
+          import os
+          import pathlib
+          import re
+          import shutil
+          import stat
+          import sys
+          import tarfile
+
+          transport_root = pathlib.Path(sys.argv[1])
+          extraction_root = pathlib.Path(sys.argv[2])
+          expected_names = {"FieldEvidencePayload.tar", "FieldEvidencePayload.tar.sha256"}
+          if not transport_root.is_dir() or transport_root.is_symlink():
+              raise SystemExit("invalid payload transport root")
+          entries = list(transport_root.iterdir())
+          if {entry.name for entry in entries} != expected_names:
+              raise SystemExit("unexpected payload transport membership")
+          for entry in entries:
+              mode = entry.lstat().st_mode
+              if not stat.S_ISREG(mode) or entry.is_symlink():
+                  raise SystemExit("payload transport member is not a regular file")
+
+          archive_path = transport_root / "FieldEvidencePayload.tar"
+          digest_path = transport_root / "FieldEvidencePayload.tar.sha256"
+          digest_record = digest_path.read_text(encoding="utf-8")
+          match = re.fullmatch(
+              r"([0-9A-F]{64}) ([1-9][0-9]*) FieldEvidencePayload[.]tar\n",
+              digest_record,
+          )
+          if match is None:
+              raise SystemExit("invalid payload archive digest record")
+          archive_bytes = archive_path.read_bytes()
+          if len(archive_bytes) != int(match.group(2)):
+              raise SystemExit("payload archive size mismatch")
+          if hashlib.sha256(archive_bytes).hexdigest().upper() != match.group(1):
+              raise SystemExit("payload archive digest mismatch")
+
+          members = []
+          seen = set()
+          seen_folded = set()
+          with tarfile.open(archive_path, mode="r:") as archive:
+              for member in archive.getmembers():
+                  name = member.name
+                  if not name or "\\" in name or name.startswith("/"):
+                      raise SystemExit("unsafe payload archive member")
+                  parts = pathlib.PurePosixPath(name).parts
+                  if not parts or parts[0] != "FieldEvidencePayload":
+                      raise SystemExit("payload member outside the required root")
+                  if any(part in {"", ".", ".."} for part in parts):
+                      raise SystemExit("unsafe payload archive path component")
+                  if name in seen or name.casefold() in seen_folded:
+                      raise SystemExit("duplicate or case-colliding payload member")
+                  seen.add(name)
+                  seen_folded.add(name.casefold())
+                  if not (member.isdir() or member.isreg()):
+                      raise SystemExit("unsupported payload archive member type")
+                  members.append(member)
+
+              if not members or members[0].name.rstrip("/") != "FieldEvidencePayload" or not members[0].isdir():
+                  raise SystemExit("missing payload archive root")
+              if extraction_root.exists() or extraction_root.is_symlink():
+                  raise SystemExit("payload extraction root already exists")
+              extraction_root.mkdir(parents=True, mode=0o700)
+              for member in members:
+                  destination = extraction_root.joinpath(*pathlib.PurePosixPath(member.name).parts)
+                  if member.isdir():
+                      destination.mkdir(parents=True, exist_ok=True)
+                      os.chmod(destination, member.mode & 0o777)
+                      continue
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  source = archive.extractfile(member)
+                  if source is None:
+                      raise SystemExit("missing payload archive file body")
+                  with source, destination.open("xb") as output:
+                      shutil.copyfileobj(source, output)
+                  os.chmod(destination, member.mode & 0o777)
+          PY
+          then
+            failures=1
+            printf '%s\n' 'FAILED: immutable producer payload transport verification' \
+              >> "$report_dir/s10-4-hybrid-equivalence-pilot-verification.log"
+          fi
+
+          payload_root="$payload_extract_root/FieldEvidencePayload"
+          require test -s "$payload_root/s10-4-payload-sha256sums.txt"
+          require test -s "$payload_root/s10-4-pilot-receipt.json"
+          require test -s "$payload_root/s10-4-payload-metadata.json"
+          require jq -e --arg head "$GITHUB_SHA" --arg artifact "$EXPECTED_PAYLOAD_ARTIFACT" '
+            .head == $head
+            and .payloadArtifactName == $artifact
+            and .executionRole == "payload-producer"
+            and .finalAcceptanceEligible == false
+            and (.toolchain | type == "object")
+          ' "$payload_root/s10-4-pilot-receipt.json"
+          require jq -e --arg head "$GITHUB_SHA" --arg artifact "$EXPECTED_PAYLOAD_ARTIFACT" '
+            .head == $head
+            and .payloadArtifactName == $artifact
+          ' "$payload_root/s10-4-payload-metadata.json"
+          require test ! -e "$payload_root/s10-4/s10.4.current.default-light/shard-receipt.json"
+          if test -s "$payload_root/s10-4-payload-sha256sums.txt"; then
+            require bash -c 'cd "$1" && shasum -a 256 -c s10-4-payload-sha256sums.txt' _ "$payload_root"
+          fi
+
+          receipt_count=0
+          while IFS='|' read -r evidence_dir provider shard profile; do
+            receipt="$evidence_dir/s10-4-pilot-receipt.json"
+            receipt_count=$((receipt_count + 1))
+            require test -s "$receipt"
+            require test -s "$evidence_dir/SHA256SUMS.txt"
+            require test ! -e "$evidence_dir/s10-4/$shard/shard-receipt.json"
+            require jq -e \
+              --arg head "$GITHUB_SHA" \
+              --arg payload "$EXPECTED_PAYLOAD_ARTIFACT" \
+              --arg provider "$provider" \
+              --arg shard "$shard" '
+                .head == $head
+                and .payloadArtifactName == $payload
+                and .executionRole == "payload-consumer"
+                and .finalAcceptanceEligible == false
+                and .runnerProvider == $provider
+                and .shardID == $shard
+                and (.toolchain | type == "object")
+              ' "$receipt"
+            require jq -e \
+              --arg head "$GITHUB_SHA" \
+              --arg payload "$EXPECTED_PAYLOAD_ARTIFACT" \
+              --arg provider "$provider" \
+              --arg shard "$shard" \
+              --arg profile "$profile" '
+                def sha256:
+                  type == "string" and test("^[0-9A-F]{64}$");
+                .pilotFullEvidenceValidationPassed == true
+                and (.fullEvidence | type == "object")
+                and (.fullEvidence.validationPassed == true)
+                and (.fullEvidence.units
+                  | .selectorCount == 5
+                    and (.selectorsSHA256 | sha256)
+                    and (.resultsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.states
+                  | .count == 67
+                    and (.idsSHA256 | sha256)
+                    and (.rowsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.accessibility
+                  | .count == 67
+                    and (.idsSHA256 | sha256)
+                    and (.rowsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.contrast
+                  | .count == 67
+                    and (.idsSHA256 | sha256)
+                    and (.rowsSHA256 | sha256)
+                    and (.strictExceptionSemanticsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.tasks
+                  | .count == 6
+                    and (.idsSHA256 | sha256)
+                    and (.rowsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.artifacts
+                  | (.manifestSHA256 | sha256)
+                    and (.checksumsSHA256 | sha256)
+                    and .validationPassed == true)
+                and (.fullEvidence.watchdogs
+                  | (.setupElapsedSeconds | type == "number")
+                    and .setupBudgetSeconds == 420
+                    and .buildTimeoutSeconds == 900
+                    and .unitTimeoutSeconds == 1200
+                    and .uiTimeoutSeconds == 2520
+                    and (.totalElapsedSeconds | type == "number")
+                    and .totalBudgetSeconds == 4500
+                    and .simulatorReadyBudgetSeconds == 900
+                    and (.setupElapsedSeconds <= .setupBudgetSeconds)
+                    and (.totalElapsedSeconds <= .totalBudgetSeconds)
+                    and .validationPassed == true)
+                and (.fullEvidence.canonicalNormalizedEvidence
+                  | (.sha256 | sha256) and .validationPassed == true)
+                and (.provenance
+                  | .head == $head
+                    and .runnerProvider == $provider
+                    and .shardID == $shard
+                    and .profileID == $profile
+                    and .payloadArtifactName == $payload
+                    and .producerHead == $head
+                    and .producerRunnerProvider == "bitrise"
+                    and .producerShardID == "s10.4.current.default-light")
+              ' "$receipt"
+            if test -s "$evidence_dir/SHA256SUMS.txt"; then
+              require bash -c 'cd "$1" && shasum -a 256 -c SHA256SUMS.txt' _ "$evidence_dir"
+            fi
+          done <<EOF
+          $pilot_root/bitrise-default-light|bitrise|s10.4.current.default-light|iphone-17-ios-26.2-current
+          $pilot_root/bitrise-default-dark|bitrise|s10.4.current.default-dark|iphone-17-ios-26.2-current
+          $pilot_root/github-default-light|github|s10.4.current.default-light|iphone-17-ios-26.2-current
+          $pilot_root/github-default-dark|github|s10.4.current.default-dark|iphone-17-ios-26.2-current
+          $pilot_root/github-minimum-os|github|s10.4.minimum.minimum-os|iphone-se-3-ios-18.0-minimum
+          EOF
+          require test "$receipt_count" -eq 5
+
+          require jq -s -e '
+            def sameCanonicalEvidence:
+              .[0].fullEvidence.canonicalNormalizedEvidence.sha256
+                == .[1].fullEvidence.canonicalNormalizedEvidence.sha256
+              and .[0].fullEvidence.units.selectorCount
+                == .[1].fullEvidence.units.selectorCount
+              and .[0].fullEvidence.units.resultsSHA256
+                == .[1].fullEvidence.units.resultsSHA256
+              and .[0].fullEvidence.states.count
+                == .[1].fullEvidence.states.count
+              and .[0].fullEvidence.states.rowsSHA256
+                == .[1].fullEvidence.states.rowsSHA256
+              and .[0].fullEvidence.accessibility.count
+                == .[1].fullEvidence.accessibility.count
+              and .[0].fullEvidence.accessibility.rowsSHA256
+                == .[1].fullEvidence.accessibility.rowsSHA256
+              and .[0].fullEvidence.contrast.count
+                == .[1].fullEvidence.contrast.count
+              and .[0].fullEvidence.contrast.rowsSHA256
+                == .[1].fullEvidence.contrast.rowsSHA256
+              and .[0].fullEvidence.contrast.strictExceptionSemanticsSHA256
+                == .[1].fullEvidence.contrast.strictExceptionSemanticsSHA256
+              and .[0].fullEvidence.tasks.count
+                == .[1].fullEvidence.tasks.count
+              and .[0].fullEvidence.tasks.rowsSHA256
+                == .[1].fullEvidence.tasks.rowsSHA256
+              and .[0].provenance.head == .[1].provenance.head
+              and .[0].provenance.profileID == .[1].provenance.profileID
+              and .[0].provenance.payloadArtifactName == .[1].provenance.payloadArtifactName
+              and .[0].provenance.producerHead == .[1].provenance.producerHead
+              and .[0].provenance.producerRunnerProvider == .[1].provenance.producerRunnerProvider
+              and .[0].provenance.producerShardID == .[1].provenance.producerShardID;
+            length == 2 and sameCanonicalEvidence
+          ' \
+            "$pilot_root/bitrise-default-light/s10-4-pilot-receipt.json" \
+            "$pilot_root/github-default-light/s10-4-pilot-receipt.json"
+          require jq -s -e '
+            def sameCanonicalEvidence:
+              .[0].fullEvidence.canonicalNormalizedEvidence.sha256
+                == .[1].fullEvidence.canonicalNormalizedEvidence.sha256
+              and .[0].fullEvidence.units.selectorCount
+                == .[1].fullEvidence.units.selectorCount
+              and .[0].fullEvidence.units.resultsSHA256
+                == .[1].fullEvidence.units.resultsSHA256
+              and .[0].fullEvidence.states.count
+                == .[1].fullEvidence.states.count
+              and .[0].fullEvidence.states.rowsSHA256
+                == .[1].fullEvidence.states.rowsSHA256
+              and .[0].fullEvidence.accessibility.count
+                == .[1].fullEvidence.accessibility.count
+              and .[0].fullEvidence.accessibility.rowsSHA256
+                == .[1].fullEvidence.accessibility.rowsSHA256
+              and .[0].fullEvidence.contrast.count
+                == .[1].fullEvidence.contrast.count
+              and .[0].fullEvidence.contrast.rowsSHA256
+                == .[1].fullEvidence.contrast.rowsSHA256
+              and .[0].fullEvidence.contrast.strictExceptionSemanticsSHA256
+                == .[1].fullEvidence.contrast.strictExceptionSemanticsSHA256
+              and .[0].fullEvidence.tasks.count
+                == .[1].fullEvidence.tasks.count
+              and .[0].fullEvidence.tasks.rowsSHA256
+                == .[1].fullEvidence.tasks.rowsSHA256
+              and .[0].provenance.head == .[1].provenance.head
+              and .[0].provenance.profileID == .[1].provenance.profileID
+              and .[0].provenance.payloadArtifactName == .[1].provenance.payloadArtifactName
+              and .[0].provenance.producerHead == .[1].provenance.producerHead
+              and .[0].provenance.producerRunnerProvider == .[1].provenance.producerRunnerProvider
+              and .[0].provenance.producerShardID == .[1].provenance.producerShardID;
+            length == 2 and sameCanonicalEvidence
+          ' \
+            "$pilot_root/bitrise-default-dark/s10-4-pilot-receipt.json" \
+            "$pilot_root/github-default-dark/s10-4-pilot-receipt.json"
+
+          jq -n \
+            --arg head "$GITHUB_SHA" \
+            --arg payloadArtifactName "$EXPECTED_PAYLOAD_ARTIFACT" \
+            --arg producerResult "$PRODUCER_RESULT" \
+            --arg bitriseDefaultLightResult "$BITRISE_DEFAULT_LIGHT_RESULT" \
+            --arg bitriseDefaultDarkResult "$BITRISE_DEFAULT_DARK_RESULT" \
+            --arg githubDefaultLightResult "$GITHUB_DEFAULT_LIGHT_RESULT" \
+            --arg githubDefaultDarkResult "$GITHUB_DEFAULT_DARK_RESULT" \
+            --arg githubMinimumOSResult "$GITHUB_MINIMUM_OS_RESULT" \
+            --argjson verificationPassed "$([ "$failures" -eq 0 ] && echo true || echo false)" \
+            '{
+              schemaVersion: 1,
+              finalAcceptanceEligible: false,
+              deliberatelyNonaccepting: true,
+              head: $head,
+              payloadArtifactName: $payloadArtifactName,
+              producerResult: $producerResult,
+              consumers: {
+                bitriseDefaultLight: $bitriseDefaultLightResult,
+                bitriseDefaultDark: $bitriseDefaultDarkResult,
+                githubDefaultLight: $githubDefaultLightResult,
+                githubDefaultDark: $githubDefaultDarkResult,
+                githubMinimumOS: $githubMinimumOSResult
+              },
+              verificationPassed: $verificationPassed
+            }' > "$report"
+          printf 'finalAcceptanceEligible=false\nverificationPassed=%s\nhead=%s\npayloadArtifactName=%s\n' \
+            "$([ "$failures" -eq 0 ] && echo true || echo false)" "$GITHUB_SHA" "$EXPECTED_PAYLOAD_ARTIFACT" \
+            > "$report_dir/s10-4-hybrid-equivalence-pilot-report.txt"
+
+      - name: Upload deliberately nonaccepting pilot report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-s10-4-hybrid-equivalence-pilot-report-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/FieldEvidenceCI
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Intentionally fail the nonaccepting hybrid-equivalence pilot
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          printf '%s\n' 'S10.4 hybrid-equivalence pilot is deliberately nonaccepting.' >&2
+          exit 1
 
   github-segmented-shard:
     name: GitHub Xcode 26.6 segmented acceptance · ${{ matrix.segment_id }}
