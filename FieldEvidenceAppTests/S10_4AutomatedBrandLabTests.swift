@@ -243,8 +243,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 313_993,
-            sha256: "62CBE4624FD4CA9C4BE98F9623F3BBFA31840062B229E3EA4A32D9099CBB1D41"
+            byteCount: 319_603,
+            sha256: "7560FB19D260AD1FA5BED5D58F0DF1259E9903E10345A73FF1AE54892C0E9134"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -1066,10 +1066,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 138_309)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 143_919)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "49CCFAFDE378385479CA4BCC3EA6077E8120CA481BF41485790C753C232D1ADB"
+            "3C55F30073AB7DB33FF79BC51A67ADED4AB14DF485347D93EDA2B2785D70330F"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -1083,10 +1083,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Prepare S10.4 pilot payload verifier",
             before: "\n\n      - name: Download immutable S10.4 pilot payload"
         )
-        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 19_198)
+        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 24_775)
         XCTAssertEqual(
             Data(workerPilotVerifierSource.utf8).sha256,
-            "5BF82970817D16F70D1920F5A2DC2142A8B0AD695885B85A2971D1E872724E89"
+            "55DEA08C9070572C097043419FDAB4C895C65A94D82A6CE27FE8682B8FD57055"
         )
         for exact in [
             "FieldEvidencePayload.tar",
@@ -1104,6 +1104,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "expected exactly one regular .xctestrun",
             "producer-specific xctestrun path",
             "unknown xctestrun macro",
+            "def normalize_xctestrun(root, source_root):",
+            "def replace_source_root(text):",
+            "before_is_boundary = index == 0 or text[index - 1] in \"=:\"",
+            "after_is_boundary = end == len(text) or text[end] == \"/\"",
+            "incomplete source products root normalization",
+            "xctestrun source products root was not bound",
+            "replacement_count != source_occurrence_count",
+            "normalized_testroot_count != original_testroot_count + replacement_count",
+            "xctestrun normalization count mismatch",
+            "fieldSHA256={field_digest} depth={len(field_path)}",
+            "valueSHA256={digest} bytes={len(text.encode('utf-8'))}",
+            "class={classification}",
             "payload metadata mismatch",
             "payload tree manifest mismatch",
         ] {
@@ -1135,13 +1147,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Seal immutable S10.4 pilot build payload",
             before: "\n\n      - name: Upload immutable S10.4 pilot payload"
         )
-        XCTAssertEqual(workerPilotSealSource.utf8.count, 5_954)
+        XCTAssertEqual(workerPilotSealSource.utf8.count, 5_987)
         XCTAssertEqual(
             Data(workerPilotSealSource.utf8).sha256,
-            "99B4251000AA75AF1FA3D505E057D6267C1A2195304A4EE9C7220BE794F80D11"
+            "0E85D2E6239D27464B195AC50D5530841441EDEF474BC7791A7B46B49BEBF186"
         )
         for exact in [
             "source_products=\"$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products\"",
+            "\"$source_products\" \\",
             "s10-4-payload-tree.json",
             "s10-4-payload-sha256sums.txt",
             "s10-4-payload-metadata.json",

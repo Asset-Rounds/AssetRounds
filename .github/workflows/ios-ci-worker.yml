@@ -1314,36 +1314,137 @@ jobs:
               if any(char in relative for char in ("\x00", "\n", "\r")):
                   fail("unsafe relative member character")
 
-          def validate_xctestrun(path, producer_root):
+          def read_xctestrun(path):
               try:
                   with path.open("rb") as stream:
-                      payload = plistlib.load(stream)
+                      return plistlib.load(stream)
               except (OSError, ValueError, plistlib.InvalidFileException) as error:
-                  fail(f"invalid xctestrun {path}: {error}")
+                  fail("invalid xctestrun type=" + type(error).__name__)
 
-              def strings(value):
+          def xctestrun_strings(value, field_path=()):
+              if isinstance(value, str):
+                  yield field_path, value
+              elif isinstance(value, dict):
+                  for key in sorted(value, key=str):
+                      yield from xctestrun_strings(value[key], field_path + (str(key),))
+              elif isinstance(value, list):
+                  for index, nested in enumerate(value):
+                      yield from xctestrun_strings(nested, field_path + (str(index),))
+
+          def normalize_xctestrun(root, source_root):
+              xctestruns = []
+              for directory, directories, files in os.walk(root, topdown=True, followlinks=False):
+                  directories.sort()
+                  files.sort()
+                  for name in files:
+                      path = Path(directory) / name
+                      if name.endswith(".xctestrun") and regular_file(path):
+                          xctestruns.append(path)
+              if len(xctestruns) != 1:
+                  fail("expected exactly one regular .xctestrun before normalization")
+              source_text = str(source_root)
+              if not source_root.is_absolute() or not source_text.endswith("/Build/Products"):
+                  fail("invalid source products root")
+              payload = read_xctestrun(xctestruns[0])
+              source_occurrence_count = sum(
+                  text.count(source_text) for _, text in xctestrun_strings(payload)
+              )
+              original_testroot_count = sum(
+                  text.count("__TESTROOT__") for _, text in xctestrun_strings(payload)
+              )
+              replacement_count = 0
+
+              def replace_source_root(text):
+                  nonlocal replacement_count
+                  output = []
+                  cursor = 0
+                  while True:
+                      index = text.find(source_text, cursor)
+                      if index < 0:
+                          output.append(text[cursor:])
+                          break
+                      end = index + len(source_text)
+                      before_is_boundary = index == 0 or text[index - 1] in "=:"
+                      after_is_boundary = end == len(text) or text[end] == "/"
+                      if not before_is_boundary or not after_is_boundary:
+                          fail("noncanonical source products root occurrence")
+                      output.append(text[cursor:index])
+                      output.append("__TESTROOT__")
+                      replacement_count += 1
+                      cursor = end
+                  rewritten = "".join(output)
+                  if source_text in rewritten:
+                      fail("incomplete source products root normalization")
+                  return rewritten
+
+              def rewrite(value):
                   if isinstance(value, str):
-                      yield value
-                  elif isinstance(value, dict):
-                      for nested in value.values():
-                          yield from strings(nested)
+                      return replace_source_root(value)
+                  if isinstance(value, dict):
+                      return {key: rewrite(nested) for key, nested in value.items()}
                   elif isinstance(value, list):
-                      for nested in value:
-                          yield from strings(nested)
+                      return [rewrite(nested) for nested in value]
+                  return value
+
+              normalized = rewrite(payload)
+              if replacement_count == 0 or replacement_count != source_occurrence_count:
+                  fail("xctestrun source products root was not bound")
+              normalized_testroot_count = sum(
+                  text.count("__TESTROOT__") for _, text in xctestrun_strings(normalized)
+              )
+              if normalized_testroot_count != original_testroot_count + replacement_count:
+                  fail("xctestrun normalization count mismatch")
+              temporary = xctestruns[0].with_name(xctestruns[0].name + ".normalized")
+              if temporary.exists() or temporary.is_symlink():
+                  fail("xctestrun normalization temporary path exists")
+              try:
+                  with temporary.open("wb") as stream:
+                      plistlib.dump(normalized, stream, fmt=plistlib.FMT_XML, sort_keys=True)
+                      stream.flush()
+                      os.fsync(stream.fileno())
+                  os.chmod(temporary, stat.S_IMODE(os.lstat(xctestruns[0]).st_mode))
+                  os.replace(temporary, xctestruns[0])
+              finally:
+                  if temporary.exists() or temporary.is_symlink():
+                      temporary.unlink()
+
+          def validate_xctestrun(path, producer_root):
+              payload = read_xctestrun(path)
 
               producer_text = str(producer_root)
-              for text in strings(payload):
+              for field_path, text in xctestrun_strings(payload):
+                  field = "/".join(field_path).encode("utf-8")
+                  field_digest = hashlib.sha256(field).hexdigest().upper()
+                  digest = hashlib.sha256(text.encode("utf-8")).hexdigest().upper()
+                  if os.environ.get("RUNNER_TEMP", "") in text:
+                      classification = "runner-temp"
+                  elif os.environ.get("GITHUB_WORKSPACE", "") in text:
+                      classification = "workspace"
+                  elif os.environ.get("DEVELOPER_DIR", "") in text:
+                      classification = "developer-dir"
+                  elif text.startswith(("/Applications/", "/Library/", "/System/", "/usr/")):
+                      classification = "system"
+                  elif "file:" in text:
+                      classification = "file-url"
+                  else:
+                      classification = "other"
+                  diagnostic = (
+                      f" fieldSHA256={field_digest} depth={len(field_path)}"
+                      f" valueSHA256={digest} bytes={len(text.encode('utf-8'))}"
+                      f" class={classification}"
+                  )
                   if producer_text in text:
-                      fail("producer-specific xctestrun path")
+                      fail("producer-specific xctestrun path" + diagnostic)
                   if re.search(r"(?:^|[=:])(?:/|~|file:)", text):
-                      fail("absolute xctestrun path")
+                      fail("absolute xctestrun path" + diagnostic)
                   if "/../" in text or text.startswith("../"):
-                      fail("traversing xctestrun path")
+                      fail("traversing xctestrun path" + diagnostic)
                   if "$" in text:
-                      fail("unresolved xctestrun macro")
+                      fail("unresolved xctestrun macro" + diagnostic)
                   for macro in re.findall(r"__[A-Za-z0-9_]+__", text):
                       if macro not in ALLOWED_MACROS:
-                          fail("unknown xctestrun macro: " + macro)
+                          macro_digest = hashlib.sha256(macro.encode("utf-8")).hexdigest().upper()
+                          fail("unknown xctestrun macro sha256=" + macro_digest)
 
           def collect(root):
               require_product_ancestors(root)
@@ -1398,7 +1499,8 @@ jobs:
           def canonical(value):
               return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
-          def create(root, tree_path, checksums_path):
+          def create(root, source_root, tree_path, checksums_path):
+              normalize_xctestrun(root, source_root)
               entries, xctestrun_path = collect(root)
               tree = {"entries": entries, "root": ROOT_LABEL, "schemaVersion": 1}
               tree_path.write_text(canonical(tree) + "\n", encoding="utf-8")
@@ -1589,8 +1691,8 @@ jobs:
           if len(sys.argv) < 2:
               fail("missing command")
           command = sys.argv[1]
-          if command == "create" and len(sys.argv) == 5:
-              create(Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]))
+          if command == "create" and len(sys.argv) == 6:
+              create(Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]), Path(sys.argv[5]))
           elif command == "archive" and len(sys.argv) == 4:
               archive_payload(Path(sys.argv[2]), Path(sys.argv[3]))
           elif command == "extract" and len(sys.argv) == 15:
@@ -1788,6 +1890,7 @@ jobs:
           ditto "$source_products" "$payload_products"
           xctestrun_path="$("$CI_S10_4_PILOT_PAYLOAD_VERIFIER" create \
             "$payload_products" \
+            "$source_products" \
             "$payload_root/s10-4-payload-tree.json" \
             "$payload_root/s10-4-payload-sha256sums.txt")"
           test -n "$xctestrun_path"
