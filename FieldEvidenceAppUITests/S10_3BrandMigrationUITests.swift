@@ -5294,7 +5294,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
         }
         if automationShard?.shardID == "s10.4.minimum.minimum-os" {
-            try diagnoseMinimumWorkValidationNoteContrast(in: app)
+            try dismissMinimumWorkValidationKeyboardAccessory(in: app)
         }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
@@ -14095,7 +14095,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func diagnoseMinimumWorkValidationNoteContrast(
+    private func dismissMinimumWorkValidationKeyboardAccessory(
         in app: XCUIApplication
     ) throws {
         let stateID = "state.work.validation-error"
@@ -14116,18 +14116,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               automationAXTreeDigests.keys.sorted()
                 == expectedMigratedStateIDs.sorted(),
               automationContrastExceptions.isEmpty,
-              !automatedSegmentFinished,
-              app.state == .runningForeground else {
+              !automatedSegmentFinished else {
             throw AutomationConfigurationError.invalid(
-                "S10.4 minimum work-validation Note contrast diagnostic gate is invalid"
+                "S10.4 minimum work-validation keyboard accessory gate is invalid"
             )
         }
 
+        let focusedPredicate = NSPredicate(
+            format: "hasKeyboardFocus == true"
+        )
         let workScreens = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.screen"
         )
         let descriptionFields = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.description"
+        )
+        let focusedDescriptionFields = descriptionFields.matching(
+            focusedPredicate
         )
         let validationLabels = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.validation"
@@ -14138,76 +14143,43 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let noteFields = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.note"
         )
-        let navigationBars = app.navigationBars
         let keyboards = app.keyboards
+        let doneButtons = app.buttons.matching(
+            identifier: "s5.1.work.keyboard-done"
+        )
         let quickPathIntroductionViews = app.descendants(
             matching: .other
         ).matching(identifier: "UIContinuousPathIntroductionView")
         let quickPathIntroductionButtons = quickPathIntroductionViews.buttons
-        let quickPathIntroductionStaticTexts = quickPathIntroductionViews.staticTexts
+        let quickPathIntroductionStaticTexts =
+            quickPathIntroductionViews.staticTexts
 
         let workScreenCount = workScreens.count
         let descriptionFieldCount = descriptionFields.count
+        let focusedDescriptionFieldCount = focusedDescriptionFields.count
         let validationLabelCount = validationLabels.count
         let noteHeadingCount = noteHeadings.count
         let noteFieldCount = noteFields.count
-        let navigationBarCount = navigationBars.count
         let keyboardCount = keyboards.count
+        let doneButtonCount = doneButtons.count
         let quickPathIntroductionCount = quickPathIntroductionViews.count
-        let quickPathIntroductionButtonCount = quickPathIntroductionButtons.count
-        let quickPathIntroductionStaticTextCount = quickPathIntroductionStaticTexts.count
-        let structureCounts: [String: Int] = [
-            "descriptionFieldCount": descriptionFieldCount,
-            "keyboardCount": keyboardCount,
-            "navigationBarCount": navigationBarCount,
-            "noteFieldCount": noteFieldCount,
-            "noteHeadingCount": noteHeadingCount,
-            "quickPathWrapperButtonDescendantCount": quickPathIntroductionButtonCount,
-            "quickPathWrapperCount": quickPathIntroductionCount,
-            "quickPathWrapperStaticTextDescendantCount":
-                quickPathIntroductionStaticTextCount,
-            "validationLabelCount": validationLabelCount,
-            "workScreenCount": workScreenCount,
-        ]
-        let expectedStructureCounts: [String: Int] = [
-            "descriptionFieldCount": 1,
-            "keyboardCount": 1,
-            "navigationBarCount": 1,
-            "noteFieldCount": 1,
-            "noteHeadingCount": 1,
-            "quickPathWrapperButtonDescendantCount": 0,
-            "quickPathWrapperCount": 0,
-            "quickPathWrapperStaticTextDescendantCount": 0,
-            "validationLabelCount": 1,
-            "workScreenCount": 1,
-        ]
-        printJSONLine(
-            prefix: "S10_4_MINIMUM_WORK_VALIDATION_NOTE_STRUCTURE_DIAGNOSTIC",
-            object: [
-                "acceptanceEligible": false,
-                "deviceProfileID": shard.deviceProfileID,
-                "expectedCounts": expectedStructureCounts,
-                "observedCounts": structureCounts,
-                "requirementID": shard.requirementID,
-                "schemaVersion": 1,
-                "segmentID": automationSegment.rawValue,
-                "shardID": shard.shardID,
-                "stateID": stateID,
-                "stateOrdinal": 23,
-            ]
-        )
+        let quickPathIntroductionButtonCount =
+            quickPathIntroductionButtons.count
+        let quickPathIntroductionStaticTextCount =
+            quickPathIntroductionStaticTexts.count
         guard workScreenCount == 1,
               descriptionFieldCount == 1,
+              focusedDescriptionFieldCount == 1,
               validationLabelCount == 1,
               noteHeadingCount == 1,
               noteFieldCount == 1,
-              navigationBarCount == 1,
               keyboardCount == 1,
+              doneButtonCount == 1,
               quickPathIntroductionCount == 0,
               quickPathIntroductionButtonCount == 0,
               quickPathIntroductionStaticTextCount == 0 else {
             throw AutomationConfigurationError.invalid(
-                "S10.4 minimum work-validation Note contrast diagnostic structure is invalid"
+                "S10.4 minimum work-validation keyboard accessory structure is invalid"
             )
         }
 
@@ -14216,26 +14188,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let validationLabel = validationLabels.element(boundBy: 0)
         let noteHeading = noteHeadings.element(boundBy: 0)
         let noteField = noteFields.element(boundBy: 0)
-        let navigationBar = navigationBars.element(boundBy: 0)
         let keyboard = keyboards.element(boundBy: 0)
-        let elementObject: (XCUIElement) -> [String: Any] = { element in
-            let valueObject: Any
-            if let value = element.value as? String {
-                valueObject = value
-            } else {
-                valueObject = NSNull()
-            }
-            return [
-                "exists": element.exists,
-                "isEnabled": element.isEnabled,
-                "isHittable": element.isHittable,
-                "identifier": element.identifier,
-                "label": element.label,
-                "value": valueObject,
-                "elementTypeRawValue": element.elementType.rawValue,
-                "elementTypeDescription": String(describing: element.elementType),
-                "frame": self.auditFrameObject(element.frame),
-            ]
+        let doneButton = doneButtons.element(boundBy: 0)
+        let frameIsValid: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
         }
         let applicationFrame = app.frame
         let workScreenFrame = workScreen.frame
@@ -14243,153 +14205,191 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let validationFrame = validationLabel.frame
         let noteHeadingFrame = noteHeading.frame
         let noteFieldFrame = noteField.frame
-        let navigationFrame = navigationBar.frame
         let keyboardFrame = keyboard.frame
-        let applicationVisibleAboveKeyboard = CGRect(
-            x: applicationFrame.minX,
-            y: applicationFrame.minY,
-            width: applicationFrame.width,
-            height: max(0, keyboardFrame.minY - applicationFrame.minY)
-        )
-        let geometryRelations: [String: Any] = [
-            "applicationContainsWorkScreen": applicationFrame.contains(workScreenFrame),
-            "applicationContainsDescription": applicationFrame.contains(descriptionFrame),
-            "applicationContainsValidation": applicationFrame.contains(validationFrame),
-            "applicationContainsNoteHeading": applicationFrame.contains(noteHeadingFrame),
-            "applicationContainsNoteField": applicationFrame.contains(noteFieldFrame),
-            "applicationContainsNavigation": applicationFrame.contains(navigationFrame),
-            "applicationContainsKeyboard": applicationFrame.contains(keyboardFrame),
-            "applicationIntersectsNoteHeading": applicationFrame.intersects(noteHeadingFrame),
-            "visibleAboveKeyboardContainsNoteHeading":
-                applicationVisibleAboveKeyboard.contains(noteHeadingFrame),
-            "visibleAboveKeyboardIntersectsNoteHeading":
-                applicationVisibleAboveKeyboard.intersects(noteHeadingFrame),
-            "keyboardContainsNoteHeading": keyboardFrame.contains(noteHeadingFrame),
-            "keyboardIntersectsNoteHeading": keyboardFrame.intersects(noteHeadingFrame),
-            "noteHeadingIntersectsNoteField": noteHeadingFrame.intersects(noteFieldFrame),
-            "noteHeadingIntersectsValidation": noteHeadingFrame.intersects(validationFrame),
-            "quickPathWrapperCount": quickPathIntroductionCount,
-            "quickPathWrapperButtonDescendantCount": quickPathIntroductionButtonCount,
-            "quickPathWrapperStaticTextDescendantCount":
-                quickPathIntroductionStaticTextCount,
-            "applicationVisibleAboveKeyboardFrame":
-                auditFrameObject(applicationVisibleAboveKeyboard),
-        ]
-
-        var issueObjects: [[String: Any]] = []
-        var auditedElements: [XCUIElement] = []
-        try app.performAccessibilityAudit(for: .contrast) { issue in
-            let auditedElement = issue.element
-            var issueObject: [String: Any] = [
-                "issueOrdinal": issueObjects.count + 1,
-                "auditTypeRawValue": String(issue.auditType.rawValue),
-                "compactDescription": issue.compactDescription,
-                "detailedDescription": issue.detailedDescription,
-                "element": NSNull(),
-                "applicationFrame": self.auditFrameObject(app.frame),
-            ]
-            if let auditedElement {
-                auditedElements.append(auditedElement)
-                issueObject["element"] = elementObject(auditedElement)
-            }
-            issueObjects.append(issueObject)
-            return true
-        }
-        guard issueObjects.count == 1,
-              auditedElements.count == 1 else {
+        let doneButtonFrame = doneButton.frame
+        let preWorkScreenIdentifier = workScreen.identifier
+        let preDescriptionIdentifier = descriptionField.identifier
+        let preDescriptionLabel = descriptionField.label
+        let preValidationIdentifier = validationLabel.identifier
+        let preValidationLabel = validationLabel.label
+        let preNoteHeadingLabel = noteHeading.label
+        let preNoteHeadingType = noteHeading.elementType
+        let preNoteFieldIdentifier = noteField.identifier
+        let noteHeadingOverlapsDoneAccessoryBand =
+            noteHeadingFrame.minY < doneButtonFrame.maxY
+                && noteHeadingFrame.maxY > doneButtonFrame.minY
+        guard app.state == .runningForeground,
+              frameIsValid(applicationFrame),
+              frameIsValid(workScreenFrame),
+              frameIsValid(descriptionFrame),
+              frameIsValid(validationFrame),
+              frameIsValid(noteHeadingFrame),
+              frameIsValid(noteFieldFrame),
+              frameIsValid(keyboardFrame),
+              frameIsValid(doneButtonFrame),
+              applicationFrame.contains(workScreenFrame),
+              applicationFrame.contains(descriptionFrame),
+              applicationFrame.contains(validationFrame),
+              applicationFrame.contains(noteHeadingFrame),
+              applicationFrame.contains(noteFieldFrame),
+              applicationFrame.contains(keyboardFrame),
+              applicationFrame.contains(doneButtonFrame),
+              noteHeadingOverlapsDoneAccessoryBand,
+              workScreen.exists,
+              workScreen.isEnabled,
+              workScreen.isHittable,
+              preWorkScreenIdentifier == "s5.1.work.screen",
+              descriptionField.exists,
+              descriptionField.isEnabled,
+              descriptionField.isHittable,
+              preDescriptionIdentifier == "s5.1.work.description",
+              preDescriptionLabel == "Short description",
+              (descriptionField.value as? String) == "",
+              validationLabel.exists,
+              validationLabel.isEnabled,
+              preValidationIdentifier == "s5.1.work.validation",
+              preValidationLabel == "Short description",
+              noteHeading.exists,
+              preNoteHeadingLabel == "Note",
+              preNoteHeadingType == .staticText,
+              noteField.exists,
+              preNoteFieldIdentifier == "s5.1.work.note",
+              keyboard.exists,
+              doneButton.exists,
+              doneButton.isEnabled,
+              doneButton.isHittable,
+              doneButton.identifier == "s5.1.work.keyboard-done",
+              doneButton.label == "Done",
+              doneButton.elementType == .button else {
             throw AutomationConfigurationError.invalid(
-                "S10.4 minimum work-validation Note contrast diagnostic issue cardinality is invalid"
+                "S10.4 minimum work-validation keyboard accessory semantics are invalid"
             )
         }
 
-        let queryObjects: [String: Any] = [
-            "workScreens": ["count": workScreenCount, "element": elementObject(workScreen)],
-            "descriptionFields": [
-                "count": descriptionFieldCount,
-                "element": elementObject(descriptionField),
-            ],
-            "validationLabels": [
-                "count": validationLabelCount,
-                "element": elementObject(validationLabel),
-            ],
-            "noteHeadings": ["count": noteHeadingCount, "element": elementObject(noteHeading)],
-            "noteFields": ["count": noteFieldCount, "element": elementObject(noteField)],
-            "navigationBars": [
-                "count": navigationBarCount,
-                "element": elementObject(navigationBar),
-            ],
-            "keyboards": ["count": keyboardCount, "element": elementObject(keyboard)],
-            "quickPathIntroductionViews": [
-                "count": quickPathIntroductionCount,
-                "buttonDescendantCount": quickPathIntroductionButtonCount,
-                "staticTextDescendantCount": quickPathIntroductionStaticTextCount,
-            ],
-        ]
-        let diagnosticContext: [String: Any] = [
-            "schemaVersion": 1,
-            "acceptanceEligible": false,
-            "shardID": shard.shardID,
-            "requirementID": shard.requirementID,
-            "deviceProfileID": shard.deviceProfileID,
-            "segmentID": automationSegment.rawValue,
-            "segmentStateCursor": segmentedRouteStateCursor,
-            "stateID": stateID,
-            "stateOrdinal": 23,
-            "predecessorStateID": "state.sign-detail.open-issue",
-            "predecessorOrdinal": 22,
-            "successorStateID": "state.work.editing",
-            "successorOrdinal": 24,
-            "migratedStateIDs": migratedStateIDs,
-            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
-            "contrastExceptionStateIDs": automationContrastExceptions.keys.sorted(),
-            "applicationState": String(describing: app.state),
-            "applicationStateRawValue": app.state.rawValue,
-            "applicationForeground": app.state == .runningForeground,
-            "applicationFrame": auditFrameObject(applicationFrame),
-            "application": elementObject(app),
-            "queries": queryObjects,
-            "geometryRelations": geometryRelations,
-            "observedIssueCount": issueObjects.count,
-            "auditedElementCount": auditedElements.count,
-            "issues": issueObjects,
-        ]
-        printJSONLine(
-            prefix: "S10_4_MINIMUM_WORK_VALIDATION_NOTE_CONTRAST_DIAGNOSTIC",
-            object: diagnosticContext
-        )
+        doneButton.tap()
+        guard keyboard.waitForNonExistence(timeout: 10),
+              doneButton.waitForNonExistence(timeout: 10) else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation keyboard accessory did not dismiss"
+            )
+        }
 
-        let appAttachment = XCTAttachment(screenshot: app.screenshot())
-        appAttachment.name =
-            "S10.4 minimum work-validation Note contrast diagnostic app"
-        appAttachment.lifetime = .keepAlways
-        add(appAttachment)
-        let treeAttachment = XCTAttachment(string: app.debugDescription)
-        treeAttachment.name =
-            "S10.4 minimum work-validation Note contrast diagnostic tree"
-        treeAttachment.lifetime = .keepAlways
-        add(treeAttachment)
-        let contextData = try JSONSerialization.data(
-            withJSONObject: diagnosticContext,
-            options: [.prettyPrinted, .sortedKeys]
+        let postWorkScreens = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.screen"
         )
-        let contextAttachment = XCTAttachment(
-            string: String(decoding: contextData, as: UTF8.self)
+        let postDescriptionFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.description"
         )
-        contextAttachment.name =
-            "S10.4 minimum work-validation Note contrast diagnostic context"
-        contextAttachment.lifetime = .keepAlways
-        add(contextAttachment)
-        let auditedElementAttachment = XCTAttachment(
-            screenshot: auditedElements[0].screenshot()
+        let postFocusedDescriptionFields = postDescriptionFields.matching(
+            focusedPredicate
         )
-        auditedElementAttachment.name =
-            "S10.4 minimum work-validation Note contrast diagnostic audited element"
-        auditedElementAttachment.lifetime = .keepAlways
-        add(auditedElementAttachment)
+        let postValidationLabels = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.validation"
+        )
+        let postNoteHeadings = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "Note")
+        )
+        let postNoteFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.note"
+        )
+        let postKeyboards = app.keyboards
+        let postDoneButtons = app.buttons.matching(
+            identifier: "s5.1.work.keyboard-done"
+        )
+        let postQuickPathIntroductionViews = app.descendants(
+            matching: .other
+        ).matching(identifier: "UIContinuousPathIntroductionView")
+        let postQuickPathIntroductionButtons =
+            postQuickPathIntroductionViews.buttons
+        let postQuickPathIntroductionStaticTexts =
+            postQuickPathIntroductionViews.staticTexts
 
-        throw AutomationConfigurationError.invalid(
-            "S10.4 minimum work-validation Note contrast diagnostic completed nonaccepting"
-        )
+        let postWorkScreenCount = postWorkScreens.count
+        let postDescriptionFieldCount = postDescriptionFields.count
+        let postFocusedDescriptionFieldCount =
+            postFocusedDescriptionFields.count
+        let postValidationLabelCount = postValidationLabels.count
+        let postNoteHeadingCount = postNoteHeadings.count
+        let postNoteFieldCount = postNoteFields.count
+        let postKeyboardCount = postKeyboards.count
+        let postDoneButtonCount = postDoneButtons.count
+        let postQuickPathIntroductionCount =
+            postQuickPathIntroductionViews.count
+        let postQuickPathIntroductionButtonCount =
+            postQuickPathIntroductionButtons.count
+        let postQuickPathIntroductionStaticTextCount =
+            postQuickPathIntroductionStaticTexts.count
+        guard postWorkScreenCount == 1,
+              postDescriptionFieldCount == 1,
+              postFocusedDescriptionFieldCount == 0,
+              postValidationLabelCount == 1,
+              postNoteHeadingCount == 1,
+              postNoteFieldCount == 1,
+              postKeyboardCount == 0,
+              postDoneButtonCount == 0,
+              postQuickPathIntroductionCount == 0,
+              postQuickPathIntroductionButtonCount == 0,
+              postQuickPathIntroductionStaticTextCount == 0 else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation post-dismiss structure is invalid"
+            )
+        }
+
+        let postWorkScreen = postWorkScreens.element(boundBy: 0)
+        let postDescriptionField = postDescriptionFields.element(boundBy: 0)
+        let postValidationLabel = postValidationLabels.element(boundBy: 0)
+        let postNoteHeading = postNoteHeadings.element(boundBy: 0)
+        let postNoteField = postNoteFields.element(boundBy: 0)
+        let postApplicationFrame = app.frame
+        let postWorkScreenFrame = postWorkScreen.frame
+        let postDescriptionFrame = postDescriptionField.frame
+        let postValidationFrame = postValidationLabel.frame
+        let postNoteHeadingFrame = postNoteHeading.frame
+        let postNoteFieldFrame = postNoteField.frame
+        guard app.state == .runningForeground,
+              segmentedRouteStateCursor == 0,
+              migratedStateIDs == expectedMigratedStateIDs,
+              automationAXTreeDigests.keys.sorted()
+                == expectedMigratedStateIDs.sorted(),
+              automationContrastExceptions.isEmpty,
+              !automatedSegmentFinished,
+              frameIsValid(postApplicationFrame),
+              frameIsValid(postWorkScreenFrame),
+              frameIsValid(postDescriptionFrame),
+              frameIsValid(postValidationFrame),
+              frameIsValid(postNoteHeadingFrame),
+              frameIsValid(postNoteFieldFrame),
+              postApplicationFrame.contains(postWorkScreenFrame),
+              postApplicationFrame.contains(postDescriptionFrame),
+              postApplicationFrame.contains(postValidationFrame),
+              postApplicationFrame.contains(postNoteHeadingFrame),
+              postApplicationFrame.contains(postNoteFieldFrame),
+              postNoteHeadingFrame.maxY <= postNoteFieldFrame.minY,
+              postWorkScreen.exists,
+              postWorkScreen.isEnabled,
+              postWorkScreen.isHittable,
+              postWorkScreen.identifier == preWorkScreenIdentifier,
+              postDescriptionField.exists,
+              postDescriptionField.isEnabled,
+              postDescriptionField.isHittable,
+              postDescriptionField.identifier == preDescriptionIdentifier,
+              postDescriptionField.label == preDescriptionLabel,
+              (postDescriptionField.value as? String) == "",
+              postValidationLabel.exists,
+              postValidationLabel.isEnabled,
+              postValidationLabel.identifier == preValidationIdentifier,
+              postValidationLabel.label == preValidationLabel,
+              postNoteHeading.exists,
+              postNoteHeading.isHittable,
+              postNoteHeading.label == preNoteHeadingLabel,
+              postNoteHeading.elementType == preNoteHeadingType,
+              postNoteField.exists,
+              postNoteField.isHittable,
+              postNoteField.identifier == preNoteFieldIdentifier else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation post-dismiss semantics are invalid"
+            )
+        }
     }
 
     @MainActor

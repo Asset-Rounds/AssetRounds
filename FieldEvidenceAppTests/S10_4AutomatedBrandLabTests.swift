@@ -3743,7 +3743,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "    private func positionMinimumRTLReportsViewReport("
         let minimumRTLReportsPositioningEnd =
             "\n\n    @MainActor\n" +
-                "    private func diagnoseMinimumWorkValidationNoteContrast("
+                "    private func dismissMinimumWorkValidationKeyboardAccessory("
         guard let minimumRTLReportsPositioningStartRange = uiSource.range(
             of: minimumRTLReportsPositioningStart
         ), let minimumRTLReportsPositioningEndRange = uiSource.range(
@@ -4851,14 +4851,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let minimumWorkValidationNoteDiagnosticCall =
+        let minimumWorkValidationKeyboardAccessoryCall =
             "        if automationShard?.shardID " +
                 "== \"s10.4.minimum.minimum-os\" {\n" +
-                "            try diagnoseMinimumWorkValidationNoteContrast(in: app)\n" +
+                "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n" +
                 "        }\n"
         XCTAssertEqual(
             workValidationMinimumQuickPathSource.components(
-                separatedBy: minimumWorkValidationNoteDiagnosticCall
+                separatedBy: minimumWorkValidationKeyboardAccessoryCall
             ).count - 1,
             1
         )
@@ -4898,16 +4898,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 prohibitedMinimumQuickPathForm
             )
         }
-        let minimumWorkValidationNoteDiagnosticSource = try boundedSource(
+        let minimumWorkValidationKeyboardAccessorySource = try boundedSource(
             uiSource,
             from:
                 "    @MainActor\n" +
-                "    private func diagnoseMinimumWorkValidationNoteContrast(",
+                "    private func dismissMinimumWorkValidationKeyboardAccessory(",
             before:
                 "\n\n    @MainActor\n" +
                 "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
         )
-        let minimumWorkValidationNoteDiagnosticLocks = [
+        let minimumWorkValidationKeyboardAccessoryLocks = [
             #"let stateID = "state.work.validation-error""#,
             "Self.segmentedRouteStateIDs.prefix(22)",
             "shard.ordinal == 8",
@@ -4916,208 +4916,265 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
             "automationSegment == .none",
             "Self.segmentedRouteStateIDs[22] == stateID",
+            "segmentedRouteStateCursor == 0",
             "migratedStateIDs == expectedMigratedStateIDs",
             "automationAXTreeDigests.keys.sorted()",
             "automationContrastExceptions.isEmpty",
             "!automatedSegmentFinished",
             "app.state == .runningForeground",
+            #"NSPredicate(format: "hasKeyboardFocus == true")"#,
             #"identifier: "s5.1.work.screen""#,
             #"identifier: "s5.1.work.description""#,
             #"identifier: "s5.1.work.validation""#,
             #"NSPredicate(format: "label == %@", "Note")"#,
             #"identifier: "s5.1.work.note""#,
+            #"identifier: "s5.1.work.keyboard-done""#,
             #"matching(identifier: "UIContinuousPathIntroductionView")"#,
             "quickPathIntroductionViews.buttons",
             "quickPathIntroductionViews.staticTexts",
             "workScreenCount == 1",
             "descriptionFieldCount == 1",
+            "focusedDescriptionFieldCount == 1",
             "validationLabelCount == 1",
             "noteHeadingCount == 1",
             "noteFieldCount == 1",
-            "navigationBarCount == 1",
             "keyboardCount == 1",
+            "doneButtonCount == 1",
             "quickPathIntroductionCount == 0",
             "quickPathIntroductionButtonCount == 0",
             "quickPathIntroductionStaticTextCount == 0",
-            "let structureCounts: [String: Int] = [",
-            "let expectedStructureCounts: [String: Int] = [",
-            #""descriptionFieldCount": descriptionFieldCount"#,
-            #""keyboardCount": keyboardCount"#,
-            #""navigationBarCount": navigationBarCount"#,
-            #""noteFieldCount": noteFieldCount"#,
-            #""noteHeadingCount": noteHeadingCount"#,
-            #""quickPathWrapperButtonDescendantCount": quickPathIntroductionButtonCount"#,
-            #""quickPathWrapperCount": quickPathIntroductionCount"#,
-            #""validationLabelCount": validationLabelCount"#,
-            #""workScreenCount": workScreenCount"#,
-            #""descriptionFieldCount": 1"#,
-            #""keyboardCount": 1"#,
-            #""navigationBarCount": 1"#,
-            #""noteFieldCount": 1"#,
-            #""noteHeadingCount": 1"#,
-            #""quickPathWrapperButtonDescendantCount": 0"#,
-            #""quickPathWrapperCount": 0"#,
-            #""quickPathWrapperStaticTextDescendantCount": 0"#,
-            #""validationLabelCount": 1"#,
-            #""workScreenCount": 1"#,
-            #""expectedCounts": expectedStructureCounts"#,
-            #""observedCounts": structureCounts"#,
-            "S10_4_MINIMUM_WORK_VALIDATION_NOTE_STRUCTURE_DIAGNOSTIC",
             "workScreens.element(boundBy: 0)",
             "descriptionFields.element(boundBy: 0)",
             "validationLabels.element(boundBy: 0)",
             "noteHeadings.element(boundBy: 0)",
             "noteFields.element(boundBy: 0)",
-            "navigationBars.element(boundBy: 0)",
             "keyboards.element(boundBy: 0)",
-            "\"elementTypeRawValue\": element.elementType.rawValue",
-            "\"elementTypeDescription\": String(describing: element.elementType)",
-            "\"frame\": self.auditFrameObject(element.frame)",
-            "applicationVisibleAboveKeyboard",
-            "\"applicationContainsKeyboard\"",
-            "\"visibleAboveKeyboardContainsNoteHeading\"",
-            "\"visibleAboveKeyboardIntersectsNoteHeading\"",
-            "\"keyboardContainsNoteHeading\"",
-            "\"keyboardIntersectsNoteHeading\"",
-            "\"noteHeadingIntersectsNoteField\"",
-            "\"quickPathWrapperButtonDescendantCount\": quickPathIntroductionButtonCount",
-            "\"quickPathWrapperStaticTextDescendantCount\":" +
-                "\n                quickPathIntroductionStaticTextCount",
-            "try app.performAccessibilityAudit(for: .contrast) { issue in",
-            "\"auditTypeRawValue\": String(issue.auditType.rawValue)",
-            "\"compactDescription\": issue.compactDescription",
-            "\"detailedDescription\": issue.detailedDescription",
-            "issueObjects.count == 1",
-            "auditedElements.count == 1",
-            "\"schemaVersion\": 1",
-            "\"acceptanceEligible\": false",
-            "\"stateOrdinal\": 23",
-            #""predecessorStateID": "state.sign-detail.open-issue""#,
-            #""successorStateID": "state.work.editing""#,
-            "\"queries\": queryObjects",
-            "\"geometryRelations\": geometryRelations",
-            "\"issues\": issueObjects",
-            "S10_4_MINIMUM_WORK_VALIDATION_NOTE_CONTRAST_DIAGNOSTIC",
-            "S10.4 minimum work-validation Note contrast diagnostic app",
-            "S10.4 minimum work-validation Note contrast diagnostic tree",
-            "S10.4 minimum work-validation Note contrast diagnostic context",
-            "S10.4 minimum work-validation Note contrast diagnostic audited element",
-            "options: [.prettyPrinted, .sortedKeys]",
-            "S10.4 minimum work-validation Note contrast diagnostic completed nonaccepting",
+            "doneButtons.element(boundBy: 0)",
+            "let frameIsValid: (CGRect) -> Bool = { frame in",
+            "let noteHeadingOverlapsDoneAccessoryBand =",
+            "noteHeadingFrame.minY < doneButtonFrame.maxY",
+            "noteHeadingFrame.maxY > doneButtonFrame.minY",
+            "applicationFrame.contains(doneButtonFrame)",
+            "noteHeadingOverlapsDoneAccessoryBand",
+            "let preWorkScreenIdentifier = workScreen.identifier",
+            "let preDescriptionIdentifier = descriptionField.identifier",
+            "let preDescriptionLabel = descriptionField.label",
+            "let preValidationIdentifier = validationLabel.identifier",
+            "let preValidationLabel = validationLabel.label",
+            "let preNoteHeadingLabel = noteHeading.label",
+            "let preNoteHeadingType = noteHeading.elementType",
+            "let preNoteFieldIdentifier = noteField.identifier",
+            #"preDescriptionIdentifier == "s5.1.work.description""#,
+            #"preDescriptionLabel == "Short description""#,
+            #"(descriptionField.value as? String) == """#,
+            #"preValidationIdentifier == "s5.1.work.validation""#,
+            #"preValidationLabel == "Short description""#,
+            #"preNoteHeadingLabel == "Note""#,
+            "preNoteHeadingType == .staticText",
+            #"preNoteFieldIdentifier == "s5.1.work.note""#,
+            #"doneButton.identifier == "s5.1.work.keyboard-done""#,
+            #"doneButton.label == "Done""#,
+            "doneButton.elementType == .button",
+            "doneButton.tap()",
+            "keyboard.waitForNonExistence(timeout: 10)",
+            "doneButton.waitForNonExistence(timeout: 10)",
+            "postWorkScreenCount == 1",
+            "postDescriptionFieldCount == 1",
+            "postFocusedDescriptionFieldCount == 0",
+            "postValidationLabelCount == 1",
+            "postNoteHeadingCount == 1",
+            "postNoteFieldCount == 1",
+            "postKeyboardCount == 0",
+            "postDoneButtonCount == 0",
+            "postQuickPathIntroductionCount == 0",
+            "postQuickPathIntroductionButtonCount == 0",
+            "postQuickPathIntroductionStaticTextCount == 0",
+            "postNoteHeadingFrame.maxY <= postNoteFieldFrame.minY",
+            "postWorkScreen.identifier == preWorkScreenIdentifier",
+            "postDescriptionField.identifier == preDescriptionIdentifier",
+            "postDescriptionField.label == preDescriptionLabel",
+            #"(postDescriptionField.value as? String) == """#,
+            "postValidationLabel.identifier == preValidationIdentifier",
+            "postValidationLabel.label == preValidationLabel",
+            "postNoteHeading.isHittable",
+            "postNoteHeading.label == preNoteHeadingLabel",
+            "postNoteHeading.elementType == preNoteHeadingType",
+            "postNoteField.isHittable",
+            "postNoteField.identifier == preNoteFieldIdentifier",
         ]
-        for lock in minimumWorkValidationNoteDiagnosticLocks {
+        for lock in minimumWorkValidationKeyboardAccessoryLocks {
             XCTAssertTrue(
-                minimumWorkValidationNoteDiagnosticSource.contains(lock),
+                minimumWorkValidationKeyboardAccessorySource.contains(lock),
                 lock
             )
         }
         for (token, count) in [
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
-            ("return true", 1),
-            ("printJSONLine(", 2),
-            ("XCTAttachment(", 4),
-            (".lifetime = .keepAlways", 4),
-            ("add(", 4),
-            ("throw AutomationConfigurationError.invalid(", 4),
+            ("doneButton.tap()", 1),
+            ("waitForNonExistence(timeout: 10)", 2),
+            ("try app.performAccessibilityAudit", 0),
+            ("printJSONLine(", 0),
+            ("XCTAttachment(", 0),
+            (".lifetime = .keepAlways", 0),
+            ("captureBaseline(", 0),
+            (".swipe", 0),
+            (".press(", 0),
+            (".coordinate(", 0),
+            (#"buttons["Return"]"#, 0),
+            ("Thread.sleep", 0),
+            ("sleep(", 0),
+            ("tolerance", 0),
+            ("epsilon", 0),
+            ("ContrastAuditExceptionSignature", 0),
             ("S10_4_CANDIDATE", 0),
             ("S10_4_AX", 0),
             ("S10_4_CONTRAST", 0),
             ("S10_4_TASK", 0),
             ("S10_4_SHARD_RECEIPT", 0),
-            ("ContrastAuditExceptionSignature", 0),
-            ("captureBaseline(", 0),
-            (".tap()", 0),
-            (".swipe", 0),
-            (".press(", 0),
-            (".coordinate(", 0),
-            ("waitForExistence", 0),
-            ("waitForNonExistence", 0),
-            ("Thread.sleep", 0),
-            ("sleep(", 0),
-            ("tolerance", 0),
-            ("epsilon", 0),
-            ("inputView", 0),
         ] {
             XCTAssertEqual(
-                minimumWorkValidationNoteDiagnosticSource.components(
+                minimumWorkValidationKeyboardAccessorySource.components(
                     separatedBy: token
                 ).count - 1,
                 count,
                 token
             )
         }
-        guard let minimumWorkValidationNoteObservedMapRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
-                    of: "let structureCounts: [String: Int] = ["
+        for consumedMinimumWorkValidationNoteDiagnostic in [
+            "diagnoseMinimumWorkValidationNoteContrast",
+            "S10_4_MINIMUM_WORK_VALIDATION_NOTE_STRUCTURE_DIAGNOSTIC",
+            "S10_4_MINIMUM_WORK_VALIDATION_NOTE_CONTRAST_DIAGNOSTIC",
+            "S10.4 minimum work-validation Note contrast diagnostic app",
+            "S10.4 minimum work-validation Note contrast diagnostic tree",
+            "S10.4 minimum work-validation Note contrast diagnostic context",
+            "S10.4 minimum work-validation Note contrast diagnostic audited element",
+            "S10.4 minimum work-validation Note contrast diagnostic completed nonaccepting",
+        ] {
+            XCTAssertFalse(
+                uiSource.contains(consumedMinimumWorkValidationNoteDiagnostic),
+                consumedMinimumWorkValidationNoteDiagnostic
+            )
+        }
+        guard let minimumWorkValidationPreQueryRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "let workScreens = app.descendants"
                 ),
-              let minimumWorkValidationNoteExpectedMapRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
-                    of: "let expectedStructureCounts: [String: Int] = ["
+              let minimumWorkValidationPreCountRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "let workScreenCount = workScreens.count"
                 ),
-              let minimumWorkValidationNoteStructureRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
-                    of: "S10_4_MINIMUM_WORK_VALIDATION_NOTE_STRUCTURE_DIAGNOSTIC"
-                ),
-              let minimumWorkValidationNoteCardinalityRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
+              let minimumWorkValidationPreCardinalityRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
                     of: "guard workScreenCount == 1,"
                 ),
-              let minimumWorkValidationNoteFirstElementRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
+              let minimumWorkValidationPreBindingRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
                     of: "let workScreen = workScreens.element(boundBy: 0)"
                 ),
-              let minimumWorkValidationNoteAuditRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
-                    of: "try app.performAccessibilityAudit(for: .contrast)"
+              let minimumWorkValidationPrePropertyRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "let applicationFrame = app.frame"
                 ),
-              let minimumWorkValidationNoteContextRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
-                    of: "let diagnosticContext: [String: Any] = ["
+              let minimumWorkValidationTapRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "doneButton.tap()"
                 ),
-              let minimumWorkValidationNoteAttachmentRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
-                    of: "let appAttachment = XCTAttachment("
+              let minimumWorkValidationWaitRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "keyboard.waitForNonExistence(timeout: 10)"
                 ),
-              let minimumWorkValidationNoteTerminalRange =
-                minimumWorkValidationNoteDiagnosticSource.range(
-                    of: "S10.4 minimum work-validation Note contrast diagnostic completed nonaccepting"
+              let minimumWorkValidationPostQueryRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "let postWorkScreens = app.descendants"
+                ),
+              let minimumWorkValidationPostCountRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "let postWorkScreenCount = postWorkScreens.count"
+                ),
+              let minimumWorkValidationPostCardinalityRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "guard postWorkScreenCount == 1,"
+                ),
+              let minimumWorkValidationPostBindingRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of:
+                        "let postWorkScreen = postWorkScreens.element(boundBy: 0)"
+                ),
+              let minimumWorkValidationPostPropertyRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "let postApplicationFrame = app.frame"
+                ),
+              let minimumWorkValidationPostSemanticRange =
+                minimumWorkValidationKeyboardAccessorySource.range(
+                    of: "guard app.state == .runningForeground,\n" +
+                        "              segmentedRouteStateCursor == 0,"
+                ),
+              let minimumWorkValidationCallRange =
+                workValidationRouteSource.range(
+                    of: minimumWorkValidationKeyboardAccessoryCall
+                ),
+              let minimumWorkValidationBaselineRange =
+                workValidationRouteSource.range(
+                    of: workValidationBaseline
                 ) else {
-            XCTFail("Missing the bounded minimum work-validation Note diagnostic ordering")
+            XCTFail("Missing bounded minimum work-validation accessory ordering")
             return
         }
-        XCTAssertLessThan(
-            minimumWorkValidationNoteObservedMapRange.lowerBound,
-            minimumWorkValidationNoteExpectedMapRange.lowerBound
-        )
-        XCTAssertLessThan(
-            minimumWorkValidationNoteExpectedMapRange.lowerBound,
-            minimumWorkValidationNoteStructureRange.lowerBound
-        )
-        XCTAssertLessThan(
-            minimumWorkValidationNoteStructureRange.lowerBound,
-            minimumWorkValidationNoteCardinalityRange.lowerBound
-        )
-        XCTAssertLessThan(
-            minimumWorkValidationNoteCardinalityRange.lowerBound,
-            minimumWorkValidationNoteFirstElementRange.lowerBound
-        )
-        XCTAssertLessThan(
-            minimumWorkValidationNoteFirstElementRange.lowerBound,
-            minimumWorkValidationNoteAuditRange.lowerBound
-        )
-        XCTAssertLessThan(
-            minimumWorkValidationNoteAuditRange.lowerBound,
-            minimumWorkValidationNoteContextRange.lowerBound
-        )
-        XCTAssertLessThan(
-            minimumWorkValidationNoteContextRange.lowerBound,
-            minimumWorkValidationNoteAttachmentRange.lowerBound
-        )
-        XCTAssertLessThan(
-            minimumWorkValidationNoteAttachmentRange.lowerBound,
-            minimumWorkValidationNoteTerminalRange.lowerBound
-        )
-
+        for (earlier, later) in [
+            (
+                minimumWorkValidationPreQueryRange,
+                minimumWorkValidationPreCountRange
+            ),
+            (
+                minimumWorkValidationPreCountRange,
+                minimumWorkValidationPreCardinalityRange
+            ),
+            (
+                minimumWorkValidationPreCardinalityRange,
+                minimumWorkValidationPreBindingRange
+            ),
+            (
+                minimumWorkValidationPreBindingRange,
+                minimumWorkValidationPrePropertyRange
+            ),
+            (
+                minimumWorkValidationPrePropertyRange,
+                minimumWorkValidationTapRange
+            ),
+            (
+                minimumWorkValidationTapRange,
+                minimumWorkValidationWaitRange
+            ),
+            (
+                minimumWorkValidationWaitRange,
+                minimumWorkValidationPostQueryRange
+            ),
+            (
+                minimumWorkValidationPostQueryRange,
+                minimumWorkValidationPostCountRange
+            ),
+            (
+                minimumWorkValidationPostCountRange,
+                minimumWorkValidationPostCardinalityRange
+            ),
+            (
+                minimumWorkValidationPostCardinalityRange,
+                minimumWorkValidationPostBindingRange
+            ),
+            (
+                minimumWorkValidationPostBindingRange,
+                minimumWorkValidationPostPropertyRange
+            ),
+            (
+                minimumWorkValidationPostPropertyRange,
+                minimumWorkValidationPostSemanticRange
+            ),
+            (
+                minimumWorkValidationCallRange,
+                minimumWorkValidationBaselineRange
+            ),
+        ] {
+            XCTAssertLessThan(earlier.lowerBound, later.lowerBound)
+        }
 
 
         for consumedWorkValidationDiagnosticForm in [
@@ -20844,10 +20901,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 779_129)
+        XCTAssertEqual(uiSource.utf8.count, 778_818)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "8B5BD99BB9094FE0E7F1D5EBB81EE4B8265EF2357A500EDF8C42EB3FA3435F53"
+            "087932B05D059E24E7060F5A1B0354E7D36A77D8C4697F3DF8E6EB2CB60C2A3E"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
