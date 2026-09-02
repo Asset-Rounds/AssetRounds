@@ -209,12 +209,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 22_277,
-            sha256: "754FA1ADAC2B825B793E88F41A8800C3D7FA10EBC29F8E22F6696A25BCBF9BEB"
+            sha256: "A3FCAB8091B34B7BC1E179C1BBD8B45E018A932C20603A3CBBDAB2E28D58404B"
         )
         try assertFile(
             visualSchemaPath,
-            byteCount: 27_763,
-            sha256: "AC8BE499D57D62586DC15A33AF40D52BA3D535C32C1CC4E8CEB52C30CB568C2A"
+            byteCount: 27_765,
+            sha256: "07E272957EB850AFAB888BE5E4C4CC55097C597D57D2EA9C249F1575DE9F58C2"
         )
         try assertFile(
             accessibilitySchemaPath,
