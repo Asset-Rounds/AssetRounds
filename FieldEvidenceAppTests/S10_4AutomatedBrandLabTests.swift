@@ -243,8 +243,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 319_577,
-            sha256: "E0B10B7FF5048A9AC5BCBC790F836ED05C7CE818D37B4E3B0EC3BEA3BDA8C707"
+            byteCount: 320_009,
+            sha256: "5A3EEC86257B8E1AB81816B05DB9E9D956E8132270B5AC326E1A43A1D6036D8C"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -1066,10 +1066,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 143_893)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 144_325)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "73CA12E82C4A5905AE6EFEEF5E78775E7766C9FABFFBD5FF56F7AAA7BF0D6621"
+            "03860849200EE8784E7BEE09B0D900F325A581A7F39B67249326B2A48DADDD05"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -1083,10 +1083,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Prepare S10.4 pilot payload verifier",
             before: "\n\n      - name: Download immutable S10.4 pilot payload"
         )
-        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 24_749)
+        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 25_181)
         XCTAssertEqual(
             Data(workerPilotVerifierSource.utf8).sha256,
-            "C92BE63E015DC109C56A58060F1AD093B4EE6A3AF02B72048F532D51BB259C6B"
+            "46BC355BE42EB39DC65B4706769290670C7A8DFE4679F8BC798FF26C5131E6CE"
         )
         for exact in [
             "FieldEvidencePayload.tar",
@@ -1116,10 +1116,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "fieldSHA256={field_digest} depth={len(field_path)}",
             "valueSHA256={digest} bytes={len(text.encode('utf-8'))}",
             "class={classification}",
+            "          CANONICAL_SYSTEM_DYLD_FIELD = (",
+            "              \"FieldEvidenceAppTests\", \"EnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"",
+            "          CANONICAL_SYSTEM_DYLD_VALUE = \"/usr/lib/libRPAC.dylib\"",
+            "          is_canonical_system_dyld = (",
+            "                      field_path == CANONICAL_SYSTEM_DYLD_FIELD",
+            "                      and text == CANONICAL_SYSTEM_DYLD_VALUE",
+            "                  if re.search(r\"(?:^|[=:])(?:/|~|file:)\", text) and not is_canonical_system_dyld:",
+            "                  if \"/../\" in text or text.startswith(\"../\"):",
+            "                  if \"$\" in text:",
+            "                  for macro in re.findall(r\"__[A-Za-z0-9_]+__\", text):",
             "payload metadata mismatch",
             "payload tree manifest mismatch",
         ] {
             XCTAssertTrue(workerPilotVerifierSource.contains(exact), exact)
+        }
+        for (exact, count) in [
+            ("CANONICAL_SYSTEM_DYLD_FIELD", 2),
+            ("CANONICAL_SYSTEM_DYLD_VALUE", 2),
+            ("is_canonical_system_dyld", 2),
+        ] {
+            XCTAssertEqual(
+                workerPilotVerifierSource.components(separatedBy: exact).count - 1,
+                count,
+                exact
+            )
         }
         XCTAssertFalse(workerPilotVerifierSource.contains("replacement_count == 0"))
         let workerPilotRestoreSource = try boundedSource(

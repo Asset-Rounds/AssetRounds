@@ -1259,6 +1259,10 @@ jobs:
 
           ROOT_LABEL = "FieldEvidenceDerivedData/Build/Products"
           ALLOWED_MACROS = {"__TESTROOT__", "__PLATFORMS__", "__TESTHOST__", "__TESTBUNDLE__"}
+          CANONICAL_SYSTEM_DYLD_FIELD = (
+              "FieldEvidenceAppTests", "EnvironmentVariables", "DYLD_INSERT_LIBRARIES"
+          )
+          CANONICAL_SYSTEM_DYLD_VALUE = "/usr/lib/libRPAC.dylib"
 
           def fail(message):
               raise SystemExit("S10.4 pilot payload validation failed: " + message)
@@ -1435,7 +1439,11 @@ jobs:
                   )
                   if producer_text in text:
                       fail("producer-specific xctestrun path" + diagnostic)
-                  if re.search(r"(?:^|[=:])(?:/|~|file:)", text):
+                  is_canonical_system_dyld = (
+                      field_path == CANONICAL_SYSTEM_DYLD_FIELD
+                      and text == CANONICAL_SYSTEM_DYLD_VALUE
+                  )
+                  if re.search(r"(?:^|[=:])(?:/|~|file:)", text) and not is_canonical_system_dyld:
                       fail("absolute xctestrun path" + diagnostic)
                   if "/../" in text or text.startswith("../"):
                       fail("traversing xctestrun path" + diagnostic)
