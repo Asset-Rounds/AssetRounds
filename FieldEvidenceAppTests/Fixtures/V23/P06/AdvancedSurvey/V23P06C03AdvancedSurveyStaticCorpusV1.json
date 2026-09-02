@@ -1,0 +1,59 @@
+{
+  "cardID": "V23-P06-C03",
+  "cases": [
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C03-G01",
+      "input": "synthetic advanced survey grammar",
+      "kind": "golden"
+    },
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C03-A01",
+      "input": "synthetic field label and RTL review",
+      "kind": "accessibility"
+    },
+    {
+      "expected": "REJECT_NO_STUDY",
+      "id": "V23-P06-C03-H01-MALFORMED",
+      "input": "malformed field type",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_OUT_OF_SCOPE",
+      "id": "V23-P06-C03-H01-EAV",
+      "input": "EAV or new writer/store/renderer request",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_OUT_OF_SCOPE",
+      "id": "V23-P06-C03-H01-EXCHANGE",
+      "input": "import export backend network customer payload or public claim",
+      "kind": "hostile"
+    },
+    {
+      "expected": "NO_RUNTIME_CLAIM",
+      "id": "V23-P06-C03-I01",
+      "input": "synthetic static review interruption",
+      "kind": "interruption"
+    },
+    {
+      "expected": "RECONCILE_OR_DISCARD",
+      "id": "V23-P06-C03-R01",
+      "input": "expired or revoked protocol",
+      "kind": "recovery"
+    }
+  ],
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "forbiddenResults": [
+    "VALIDATED_PASS",
+    "VALIDATED_FAIL",
+    "ACCEPTED",
+    "READY",
+    "RELEASED",
+    "PHASE_INTEGRATED"
+  ],
+  "realTerminalValidationResult": false,
+  "schema": "V23P06C03AdvancedSurveyStaticCorpusV1",
+  "syntheticOnly": true
+}
