@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ble": {
+      "const": false
+    },
+    "camera": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P06-C04"
+    },
+    "deviceMeasurement": {
+      "const": false
+    },
+    "disposition": {
+      "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
+    },
+    "meterAdapterInvoked": {
+      "const": false
+    },
+    "network": {
+      "const": false
+    },
+    "schema": {
+      "const": "V23P06C04PhotometricScreeningStaticProtocolV1"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "disposition",
+    "meterAdapterInvoked",
+    "deviceMeasurement",
+    "ble",
+    "camera",
+    "network",
+    "licenseContent",
+    "complianceClaim",
+    "accuracyClaim",
+    "attestationClaim",
+    "scope",
+    "preconditions",
+    "evidenceIDs",
+    "flags",
+    "forbiddenResults"
+  ],
+  "type": "object"
+}

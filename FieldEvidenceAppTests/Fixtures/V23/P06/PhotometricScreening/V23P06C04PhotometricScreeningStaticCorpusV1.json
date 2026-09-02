@@ -1,0 +1,59 @@
+{
+  "cardID": "V23-P06-C04",
+  "cases": [
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C04-G01",
+      "input": "synthetic threshold descriptors",
+      "kind": "golden"
+    },
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C04-A01",
+      "input": "synthetic text alternatives",
+      "kind": "accessibility"
+    },
+    {
+      "expected": "REJECT_NO_STUDY",
+      "id": "V23-P06-C04-H01-MALFORMED",
+      "input": "malformed threshold descriptor",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_DEVICE_INVOCATION",
+      "id": "V23-P06-C04-H01-DEVICE",
+      "input": "meter device BLE camera or network request",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_CLAIM",
+      "id": "V23-P06-C04-H01-CLAIM",
+      "input": "license compliance accuracy or attestation claim",
+      "kind": "hostile"
+    },
+    {
+      "expected": "NO_RUNTIME_CLAIM",
+      "id": "V23-P06-C04-I01",
+      "input": "synthetic static interruption",
+      "kind": "interruption"
+    },
+    {
+      "expected": "RECONCILE_OR_DISCARD",
+      "id": "V23-P06-C04-R01",
+      "input": "expired protocol",
+      "kind": "recovery"
+    }
+  ],
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "forbiddenResults": [
+    "VALIDATED_PASS",
+    "VALIDATED_FAIL",
+    "ACCEPTED",
+    "READY",
+    "RELEASED",
+    "PHASE_INTEGRATED"
+  ],
+  "realTerminalValidationResult": false,
+  "schema": "V23P06C04PhotometricScreeningStaticCorpusV1",
+  "syntheticOnly": true
+}
