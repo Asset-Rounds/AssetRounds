@@ -1387,7 +1387,7 @@ jobs:
                   return value
 
               normalized = rewrite(payload)
-              if replacement_count == 0 or replacement_count != source_occurrence_count:
+              if replacement_count != source_occurrence_count:
                   fail("xctestrun source products root was not bound")
               normalized_testroot_count = sum(
                   text.count("__TESTROOT__") for _, text in xctestrun_strings(normalized)

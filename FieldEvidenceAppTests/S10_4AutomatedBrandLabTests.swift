@@ -243,8 +243,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 319_603,
-            sha256: "7560FB19D260AD1FA5BED5D58F0DF1259E9903E10345A73FF1AE54892C0E9134"
+            byteCount: 319_577,
+            sha256: "E0B10B7FF5048A9AC5BCBC790F836ED05C7CE818D37B4E3B0EC3BEA3BDA8C707"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -1066,10 +1066,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 143_919)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 143_893)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "3C55F30073AB7DB33FF79BC51A67ADED4AB14DF485347D93EDA2B2785D70330F"
+            "73CA12E82C4A5905AE6EFEEF5E78775E7766C9FABFFBD5FF56F7AAA7BF0D6621"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -1083,10 +1083,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Prepare S10.4 pilot payload verifier",
             before: "\n\n      - name: Download immutable S10.4 pilot payload"
         )
-        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 24_775)
+        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 24_749)
         XCTAssertEqual(
             Data(workerPilotVerifierSource.utf8).sha256,
-            "55DEA08C9070572C097043419FDAB4C895C65A94D82A6CE27FE8682B8FD57055"
+            "C92BE63E015DC109C56A58060F1AD093B4EE6A3AF02B72048F532D51BB259C6B"
         )
         for exact in [
             "FieldEvidencePayload.tar",
@@ -1121,6 +1121,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(workerPilotVerifierSource.contains(exact), exact)
         }
+        XCTAssertFalse(workerPilotVerifierSource.contains("replacement_count == 0"))
         let workerPilotRestoreSource = try boundedSource(
             workflowSource,
             from: "      - name: Verify and restore immutable S10.4 pilot payload",
