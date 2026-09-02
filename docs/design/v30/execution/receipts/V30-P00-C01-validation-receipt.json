@@ -1,0 +1,142 @@
+{
+  "acceptance": "PASS_STATIC_AUTHORITY_AND_ISOLATION_VALIDATION",
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "base": {
+    "head": "d2a153ba730e1894eb82b7cd3cc56e8ff2c3d2bb",
+    "tree": "e859e9a5a2ed4a0f4b59df08c929aee0c846ebce"
+  },
+  "blockers": [],
+  "bootstrapChangedPaths": [
+    "Scripts/v30/generate_v30_authority.py",
+    "Scripts/v30/generate_v30_bootstrap_payloads.py",
+    "Scripts/v30/generate_v30_machine_artifacts.py",
+    "Scripts/v30/generate_v30_manifest.py",
+    "Scripts/v30/generate_v30_path_fences.py",
+    "Scripts/v30/validate_v30_package.py",
+    "docs/design/v30/EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+    "docs/design/v30/EXPANSION_V30_FOUNDATION_PLAN.md",
+    "docs/design/v30/EXPANSION_V30_HANDOFF.md",
+    "docs/design/v30/NEXT_CODEX_SESSION_PROMPT.md",
+    "docs/design/v30/authority/V30CardRegisterV1.json",
+    "docs/design/v30/authority/V30DirectDependencyGraphV1.json",
+    "docs/design/v30/authority/V30LocaleRegistryV1.json",
+    "docs/design/v30/authority/V30PackageManifestV1.json",
+    "docs/design/v30/authority/V30PreS10PathFencesV1.json",
+    "docs/design/v30/authority/V30PreS10ProvisionalImplementationAuthorityV1.json",
+    "docs/design/v30/authority/V30V24DispositionProjectionV1.json",
+    "docs/design/v30/authority/bootstrap/V30_CARD_001_CI_SELECTION.json",
+    "docs/design/v30/authority/bootstrap/V30_CARD_001_CONTEXT.json",
+    "docs/design/v30/authority/bootstrap/V30_CARD_001_CURRENT_TASK.md",
+    "docs/design/v30/authority/bootstrap/V30_CARD_001_FENCE.json",
+    "docs/design/v30/authority/bootstrap/V30_EXECUTION_HANDOFF_GENESIS.md",
+    "docs/design/v30/authority/bootstrap/V30_PROVISIONAL_LEDGER_GENESIS.json",
+    "docs/design/v30/authority/bootstrap/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+    "docs/design/v30/execution/V30_CI_SELECTION.json",
+    "docs/design/v30/execution/V30_CURRENT_TASK.md",
+    "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+    "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+    "docs/design/v30/execution/contexts/V30-P00-C01-attempt-1.json",
+    "docs/design/v30/execution/fences/V30-P00-C01-attempt-1.json"
+  ],
+  "branch": "phase/v30-globalization",
+  "cardID": "V30-P00-C01",
+  "contextSHA256": "fb760b13beeb6007d1ff31f69af3c321bdf1db7575e12e8ed057efffc86af808",
+  "coordination": {
+    "head": "b9da6fae7dcc7f796d9af8f777d6a436d6ff7868",
+    "ledgerDigest": "a352a723a0c782ad42de5bf717f8a999551cf675b8093114a462273bc76eee6f",
+    "sequence": 2,
+    "tree": "b4119c47c039476573ac4dad7180ddbd4c5930c9"
+  },
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": false,
+    "releaseCredit": false
+  },
+  "failures": [],
+  "fenceSHA256": "bc85eb23e0e846ccc622c635a609bfd70f535aced5774baac048708a757b32a8",
+  "frozenCoordination": {
+    "branch": "main",
+    "head": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+    "ledgerDigest": "973090852e843e895125bea8da87c7e1689611c46d8219a70c1749be49398067",
+    "projectionDigest": "cf57849e8f7c245d38fd21a39da5938d10e13c9aca3976a71b7d3a3ee401f12d",
+    "readOnly": true,
+    "remoteURL": "https://github.com/Asset-Rounds/AssetRounds-v23-coordination.git",
+    "sequence": 626,
+    "tree": "060c83c3d1489fc011b1c921f6c85bec2b074478",
+    "worktree": "C:\\AssetRounds-v23-coordination"
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "knownBugs": "Empty inherited template; no current card defect found",
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT; Card 1 forbids hosted dispatch",
+  "next": "V30-P00-C02_AFTER_PROVISIONAL_CHECKPOINT",
+  "observedTaskStart": "d2a153ba730e1894eb82b7cd3cc56e8ff2c3d2bb",
+  "ordinal": 1,
+  "reconciliationObligation": "Replay governance evidence onto accepted post-S10 lineage; no Phase10 compatibility or final credit",
+  "repository": {
+    "name": "AssetRounds",
+    "remoteURL": "https://github.com/Asset-Rounds/AssetRounds.git"
+  },
+  "s10SharedPaths": [],
+  "selectorSHA256": "681204296d5751da99740640297b06a4ca1ad8da9fc032f9fa087979bfd44d82",
+  "staticChecks": [
+    {
+      "command": "python -B validate_v30_package.py",
+      "exitCode": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "python -B generate_v30_machine_artifacts.py --check",
+      "exitCode": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "python -B generate_v30_path_fences.py --check",
+      "exitCode": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "python -B generate_v30_authority.py --check",
+      "exitCode": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "python -B generate_v30_bootstrap_payloads.py --check",
+      "exitCode": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "python -B generate_v30_manifest.py --check",
+      "exitCode": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "python -B validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+      "exitCode": 0,
+      "result": "PASS"
+    }
+  ],
+  "worktree": "C:\\AssetRounds-v30-globalization"
+}

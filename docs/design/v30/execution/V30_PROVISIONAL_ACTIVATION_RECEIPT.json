@@ -1,0 +1,42 @@
+{
+  "activationReceipt": {
+    "path": "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json",
+    "sha256": "b249d12c37bbf207df608fd149706a19e39de4a4a6ba2df2e2e441da50125bcf"
+  },
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "coordinationSelection": {
+    "head": "b9da6fae7dcc7f796d9af8f777d6a436d6ff7868",
+    "ledgerDigest": "a352a723a0c782ad42de5bf717f8a999551cf675b8093114a462273bc76eee6f",
+    "sequence": 2,
+    "tree": "b4119c47c039476573ac4dad7180ddbd4c5930c9"
+  },
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": false,
+    "releaseCredit": false
+  },
+  "disposition": "PRODUCT_SIDE_VALIDATION_MIRROR_ONLY",
+  "installationRequestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+  "ownerMessageSHA256": "d53c802ab5d7b7f85d907aa81b8a847328867ded2300b380ff2d7c793af66a90",
+  "phase10Access": "FORBIDDEN_NO_READ_NO_WRITE_NO_POLL",
+  "productInstall": {
+    "head": "9d82f0b2b7b5455c1dff628a9a488abd815a25b3",
+    "tree": "1d4b3e0a01ce70a3759084365ffea685604a4723"
+  },
+  "selectionProjection": {
+    "head": "d2a153ba730e1894eb82b7cd3cc56e8ff2c3d2bb",
+    "tree": "e859e9a5a2ed4a0f4b59df08c929aee0c846ebce"
+  },
+  "selectionReceipt": {
+    "path": "docs/design/v30/execution/receipts/V30_G3_CARD_001_SELECTION_RECEIPT.json",
+    "sha256": "6e6f10b4b8d7bd24b5e54831eebff64e1c25a0e639c88c9cebc5d6a65956ec20"
+  }
+}
