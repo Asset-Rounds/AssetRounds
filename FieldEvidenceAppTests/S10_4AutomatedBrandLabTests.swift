@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 16_058,
-            sha256: "74F58E9BA9F8C5ACAB78E9969CB0B573D68A9EEEA0C5F4B3E32D7292F85522C0"
+            byteCount: 16_067,
+            sha256: "64FF8D9A3AD61DE8D3D6BF9AD8CA8B3341B57FF1B64F7D125DE90A344BB15133"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorRefreshSource = try boundedSource(
@@ -176,10 +176,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(testSmokePilotSource.utf8).sha256,
             "5845F108F69F71A2BFE2383B53F58631DC5542F616BB03A556C766E9CE8D4402"
         )
-        XCTAssertEqual(uiSmokePilotSource.utf8.count, 1_744)
+        XCTAssertEqual(uiSmokePilotSource.utf8.count, 1_753)
         XCTAssertEqual(
             Data(uiSmokePilotSource.utf8).sha256,
-            "4E87893866AAE4938B4CEE701FB5CE57596893038A7F49F9A2EF0CEEF8C627D6"
+            "94804A4F6FEF8FC321391DFD34B1D4B1B74FC7F07BB1C20DD19DB1609214A55D"
         )
         for pilotSource in [testSmokePilotSource, uiSmokePilotSource] {
             for exact in [

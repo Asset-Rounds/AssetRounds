@@ -114,6 +114,7 @@ if [ "$pilot_consumer" = true ]; then
   test ! -e "$derived_data_path/Logs/Build"
   test ! -e "$derived_data_path/Build/Intermediates.noindex"
 
+  set +e
   xcodebuild \
     -xctestrun "$CI_S10_4_PILOT_XCTESTRUN_PATH" \
     -destination "$CI_DESTINATION" \
