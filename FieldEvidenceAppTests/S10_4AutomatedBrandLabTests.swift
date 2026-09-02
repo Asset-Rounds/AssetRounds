@@ -3990,8 +3990,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 26_122,
-             "D89D17EEDB662767A41FE00DB761911F5AFA44823C1068A3DEBA06D73EDE3B09"),
+            (workValidationGateSource, 26_191,
+             "626396BF97B8121236C306777DDB22BCBAFC649A1099EBD14A4D3841B0E61B66"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
@@ -4011,10 +4011,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workValidationMinimumQuickPathGateRange.lowerBound...
             ]
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 20_391)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 20_460)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "1D7D00D505F1F9FC9EE289F90E8B9A76EAF6934F4869A0BD2E588882F8E5DF58"
+            "33831C457BC1482213AE52757646828E8D5E129402B44321C2F26B5ABBF95091"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -4855,6 +4855,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        if automationShard?.shardID " +
                 "== \"s10.4.minimum.minimum-os\" {\n" +
                 "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n" +
+                "            try diagnoseMinimumWorkValidationNativeContrast(in: app)\n" +
                 "        }\n"
         XCTAssertEqual(
             workValidationMinimumQuickPathSource.components(
@@ -4913,7 +4914,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: minimumWorkValidationKeyboardAccessoryDefinition,
             before:
                 "\n\n    @MainActor\n" +
-                "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
+                "    private func diagnoseMinimumWorkValidationNativeContrast("
         )
         let minimumWorkValidationKeyboardAccessoryLocks = [
             #"let stateID = "state.work.validation-error""#,
@@ -5283,6 +5284,225 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 count,
                 token
             )
+        }
+        let minimumWorkValidationNativeContrastDiagnosticDefinition =
+            "    @MainActor\n" +
+                "    private func diagnoseMinimumWorkValidationNativeContrast("
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy:
+                    minimumWorkValidationNativeContrastDiagnosticDefinition
+            ).count - 1,
+            1,
+            "minimum work-validation native contrast diagnostic definition count"
+        )
+        let minimumWorkValidationNativeContrastDiagnosticSource =
+            try boundedSource(
+                uiSource,
+                from:
+                    minimumWorkValidationNativeContrastDiagnosticDefinition,
+                before:
+                    "\n\n    @MainActor\n" +
+                        "    private func " +
+                        "diagnoseMinimumDoubleLengthPreflightNativeContrast("
+            )
+        XCTAssertEqual(
+            minimumWorkValidationNativeContrastDiagnosticSource.utf8.count,
+            12_455
+        )
+        XCTAssertEqual(
+            Data(
+                minimumWorkValidationNativeContrastDiagnosticSource.utf8
+            ).sha256,
+            "8C807E35756A7C100D318733EAFB4D77CFF0DAC30743CC62FD64767C924F6ADB"
+        )
+        let minimumWorkValidationNativeContrastDiagnosticLocks = [
+            #"let stateID = "state.work.validation-error""#,
+            "Self.segmentedRouteStateIDs.prefix(22)",
+            "shard.ordinal == 8",
+            #"shard.shardID == "s10.4.minimum.minimum-os""#,
+            #"shard.requirementID == "minimum_os""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "automationSegment == .none",
+            "Self.segmentedRouteStateIDs[22] == stateID",
+            "segmentedRouteStateCursor == 0",
+            "migratedStateIDs == expectedMigratedStateIDs",
+            "automationAXTreeDigests.keys.sorted()",
+            "automationContrastExceptions.isEmpty",
+            "!automatedSegmentFinished",
+            "app.state == .runningForeground",
+            #"identifier: "s5.1.work.screen""#,
+            #"identifier: "s5.1.work.description""#,
+            #"identifier: "s5.1.work.validation""#,
+            #"NSPredicate(format: "label == %@", "Note")"#,
+            #"identifier: "s5.1.work.note""#,
+            "let navigationBars = app.navigationBars",
+            "let tabBars = app.tabBars",
+            #"identifier: "s1.tab.signs""#,
+            #"identifier: "s1.tab.reports""#,
+            "let keyboards = app.keyboards",
+            #"identifier: "s5.1.work.keyboard-done""#,
+            #"matching(identifier: "UIContinuousPathIntroductionView")"#,
+            "quickPathIntroductionViews.buttons",
+            "quickPathIntroductionViews.staticTexts",
+            "workScreenCount == 1",
+            "descriptionFieldCount == 1",
+            "validationLabelCount == 1",
+            "noteHeadingCount == 1",
+            "noteFieldCount == 1",
+            "navigationBarCount == 1",
+            "tabBarCount == 1",
+            "signsTabCount == 1",
+            "reportsTabCount == 1",
+            "keyboardCount == 0",
+            "doneButtonCount == 0",
+            "quickPathIntroductionCount == 0",
+            "quickPathIntroductionButtonCount == 0",
+            "quickPathIntroductionStaticTextCount == 0",
+            "let diagnosticQueryBindings:",
+            #"("workScreens", workScreens)"#,
+            #"("descriptionFields", descriptionFields)"#,
+            #"("validationLabels", validationLabels)"#,
+            #"("noteHeadings", noteHeadings)"#,
+            #"("noteFields", noteFields)"#,
+            #"("navigationBars", navigationBars)"#,
+            #"("tabBars", tabBars)"#,
+            #"("signsTabs", signsTabs)"#,
+            #"("reportsTabs", reportsTabs)"#,
+            #"("keyboards", keyboards)"#,
+            #"("doneButtons", doneButtons)"#,
+            "try app.performAccessibilityAudit(for: .contrast) { issue in",
+            #""auditTypeRawValue": String(issue.auditType.rawValue)"#,
+            #""compactDescription": issue.compactDescription"#,
+            #""detailedDescription": issue.detailedDescription"#,
+            #""elementIdentifier": NSNull()"#,
+            #""elementLabel": NSNull()"#,
+            #""elementTypeDescription": NSNull()"#,
+            #""elementFrame": NSNull()"#,
+            "var firstAuditedElement: XCUIElement?",
+            "if observedIssueObjects.isEmpty {",
+            "firstAuditedElement = auditedElement",
+            "observedIssueObjects.append(diagnosticIssue)",
+            "return true",
+            "!observedIssueObjects.isEmpty",
+            "let firstAuditedElement else",
+            #""schemaVersion": 1"#,
+            #""acceptanceEligible": false"#,
+            #""stateOrdinal": 23"#,
+            #""predecessorStateID": "state.sign-detail.open-issue""#,
+            #""successorStateID": "state.work.editing""#,
+            "S10_4_MINIMUM_WORK_VALIDATION_NATIVE_CONTRAST_DIAGNOSTIC",
+            "options: [.prettyPrinted, .sortedKeys]",
+            "S10.4 minimum work-validation native contrast diagnostic app",
+            "S10.4 minimum work-validation native contrast diagnostic tree",
+            "S10.4 minimum work-validation native contrast diagnostic context",
+            "S10.4 minimum work-validation native contrast diagnostic audited element",
+            "S10.4 minimum work-validation native contrast diagnostic " +
+                "completed nonaccepting",
+        ]
+        for lock in minimumWorkValidationNativeContrastDiagnosticLocks {
+            XCTAssertTrue(
+                minimumWorkValidationNativeContrastDiagnosticSource.contains(lock),
+                lock
+            )
+        }
+        for (token, count) in [
+            ("try app.performAccessibilityAudit(for: .contrast)", 1),
+            ("return true", 1),
+            ("XCTAttachment(", 4),
+            (".lifetime = .keepAlways", 4),
+            ("printJSONLine(", 1),
+        ] {
+            XCTAssertEqual(
+                minimumWorkValidationNativeContrastDiagnosticSource.components(
+                    separatedBy: token
+                ).count - 1,
+                count,
+                token
+            )
+        }
+        for prohibitedDiagnosticForm in [
+            "captureBaseline(",
+            "ContrastAuditExceptionSignature",
+            "return false",
+            "doneButton.tap()",
+            ".swipe",
+            ".press(",
+            ".coordinate(",
+            "Thread.sleep",
+            "sleep(",
+            "tolerance",
+            "epsilon",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_SHARD_RECEIPT",
+        ] {
+            XCTAssertFalse(
+                minimumWorkValidationNativeContrastDiagnosticSource.contains(
+                    prohibitedDiagnosticForm
+                ),
+                prohibitedDiagnosticForm
+            )
+        }
+        guard let nativeContrastQueryRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "let workScreens = app.descendants"
+                ),
+              let nativeContrastCountRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "let workScreenCount = workScreens.count"
+                ),
+              let nativeContrastCardinalityRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "guard workScreenCount == 1,"
+                ),
+              let nativeContrastSnapshotRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "let diagnosticQueryBindings:"
+                ),
+              let nativeContrastAuditRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "try app.performAccessibilityAudit(for: .contrast)"
+                ),
+              let nativeContrastIssueRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "guard !observedIssueObjects.isEmpty,"
+                ),
+              let nativeContrastContextRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "let diagnosticContext: [String: Any] = ["
+                ),
+              let nativeContrastEmissionRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "printJSONLine("
+                ),
+              let nativeContrastAttachmentRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of: "let appAttachment = XCTAttachment("
+                ),
+              let nativeContrastTerminalRange =
+                minimumWorkValidationNativeContrastDiagnosticSource.range(
+                    of:
+                        "S10.4 minimum work-validation native contrast " +
+                        "diagnostic completed nonaccepting"
+                ) else {
+            XCTFail("Missing minimum work-validation diagnostic ordering")
+            return
+        }
+        for (earlier, later) in [
+            (nativeContrastQueryRange, nativeContrastCountRange),
+            (nativeContrastCountRange, nativeContrastCardinalityRange),
+            (nativeContrastCardinalityRange, nativeContrastSnapshotRange),
+            (nativeContrastSnapshotRange, nativeContrastAuditRange),
+            (nativeContrastAuditRange, nativeContrastIssueRange),
+            (nativeContrastIssueRange, nativeContrastContextRange),
+            (nativeContrastContextRange, nativeContrastEmissionRange),
+            (nativeContrastEmissionRange, nativeContrastAttachmentRange),
+            (nativeContrastAttachmentRange, nativeContrastTerminalRange),
+        ] {
+            XCTAssertLessThan(earlier.lowerBound, later.lowerBound)
         }
         for consumedMinimumWorkValidationNoteDiagnostic in [
             "diagnoseMinimumWorkValidationNoteContrast",
@@ -21146,10 +21366,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 783_399)
+        XCTAssertEqual(uiSource.utf8.count, 795_925)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "895058CD68FF209CDA90D9322A8A7AF5774488EF07026E0BF8426EA993EC70EE"
+            "BC6E19F49FDEFC5F6FF6FD77EB1B7FF26E7647E637475FAC90802137F4F3A9E7"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

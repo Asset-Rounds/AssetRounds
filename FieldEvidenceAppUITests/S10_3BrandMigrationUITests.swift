@@ -5295,6 +5295,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         if automationShard?.shardID == "s10.4.minimum.minimum-os" {
             try dismissMinimumWorkValidationKeyboardAccessory(in: app)
+            try diagnoseMinimumWorkValidationNativeContrast(in: app)
         }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
@@ -14458,6 +14459,288 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     + firstFailedPostDismissSemanticLabel
             )
         }
+    }
+
+    @MainActor
+    private func diagnoseMinimumWorkValidationNativeContrast(
+        in app: XCUIApplication
+    ) throws {
+        let stateID = "state.work.validation-error"
+        let expectedMigratedStateIDs = Array(
+            Self.segmentedRouteStateIDs.prefix(22)
+        )
+        guard let shard = automationShard,
+              shard.ordinal == 8,
+              shard.shardID == "s10.4.minimum.minimum-os",
+              shard.requirementID == "minimum_os",
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+              automationSegment == .none,
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              Self.segmentedRouteStateIDs[22] == stateID,
+              segmentedRouteStateCursor == 0,
+              migratedStateIDs == expectedMigratedStateIDs,
+              automationAXTreeDigests.keys.sorted()
+                == expectedMigratedStateIDs.sorted(),
+              automationContrastExceptions.isEmpty,
+              !automatedSegmentFinished,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation native contrast diagnostic gate is invalid"
+            )
+        }
+
+        let workScreens = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.screen"
+        )
+        let descriptionFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.description"
+        )
+        let validationLabels = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.validation"
+        )
+        let noteHeadings = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "Note")
+        )
+        let noteFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.note"
+        )
+        let navigationBars = app.navigationBars
+        let tabBars = app.tabBars
+        let signsTabs = app.buttons.matching(identifier: "s1.tab.signs")
+        let reportsTabs = app.buttons.matching(identifier: "s1.tab.reports")
+        let keyboards = app.keyboards
+        let doneButtons = app.buttons.matching(
+            identifier: "s5.1.work.keyboard-done"
+        )
+        let quickPathIntroductionViews = app.descendants(
+            matching: .other
+        ).matching(identifier: "UIContinuousPathIntroductionView")
+        let quickPathIntroductionButtons = quickPathIntroductionViews.buttons
+        let quickPathIntroductionStaticTexts =
+            quickPathIntroductionViews.staticTexts
+
+        let workScreenCount = workScreens.count
+        let descriptionFieldCount = descriptionFields.count
+        let validationLabelCount = validationLabels.count
+        let noteHeadingCount = noteHeadings.count
+        let noteFieldCount = noteFields.count
+        let navigationBarCount = navigationBars.count
+        let tabBarCount = tabBars.count
+        let signsTabCount = signsTabs.count
+        let reportsTabCount = reportsTabs.count
+        let keyboardCount = keyboards.count
+        let doneButtonCount = doneButtons.count
+        let quickPathIntroductionCount = quickPathIntroductionViews.count
+        let quickPathIntroductionButtonCount =
+            quickPathIntroductionButtons.count
+        let quickPathIntroductionStaticTextCount =
+            quickPathIntroductionStaticTexts.count
+        guard workScreenCount == 1,
+              descriptionFieldCount == 1,
+              validationLabelCount == 1,
+              noteHeadingCount == 1,
+              noteFieldCount == 1,
+              navigationBarCount == 1,
+              tabBarCount == 1,
+              signsTabCount == 1,
+              reportsTabCount == 1,
+              keyboardCount == 0,
+              doneButtonCount == 0,
+              quickPathIntroductionCount == 0,
+              quickPathIntroductionButtonCount == 0,
+              quickPathIntroductionStaticTextCount == 0 else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation native contrast diagnostic structure is invalid"
+            )
+        }
+
+        let diagnosticQueryBindings: [(
+            name: String,
+            query: XCUIElementQuery
+        )] = [
+            ("workScreens", workScreens),
+            ("descriptionFields", descriptionFields),
+            ("validationLabels", validationLabels),
+            ("noteHeadings", noteHeadings),
+            ("noteFields", noteFields),
+            ("navigationBars", navigationBars),
+            ("tabBars", tabBars),
+            ("signsTabs", signsTabs),
+            ("reportsTabs", reportsTabs),
+            ("keyboards", keyboards),
+            ("doneButtons", doneButtons),
+            ("quickPathIntroductionViews", quickPathIntroductionViews),
+            ("quickPathIntroductionButtons", quickPathIntroductionButtons),
+            (
+                "quickPathIntroductionStaticTexts",
+                quickPathIntroductionStaticTexts
+            ),
+        ]
+        let diagnosticElementObject: (XCUIElement) -> [String: Any] = {
+            element in
+            let valueObject: Any
+            if let value = element.value as? String {
+                valueObject = value
+            } else {
+                valueObject = NSNull()
+            }
+            return [
+                "exists": element.exists,
+                "isEnabled": element.isEnabled,
+                "isHittable": element.isHittable,
+                "identifier": element.identifier,
+                "label": element.label,
+                "value": valueObject,
+                "elementTypeRawValue": element.elementType.rawValue,
+                "elementTypeDescription": String(describing: element.elementType),
+                "frame": self.auditFrameObject(element.frame),
+            ]
+        }
+        let diagnosticQueryObject: (XCUIElementQuery) -> [String: Any] = {
+            query in
+            let count = query.count
+            var elements: [[String: Any]] = []
+            for index in 0..<count {
+                elements.append(
+                    diagnosticElementObject(query.element(boundBy: index))
+                )
+            }
+            return [
+                "count": count,
+                "elements": elements,
+            ]
+        }
+        var diagnosticQueryObjects: [String: Any] = [:]
+        for binding in diagnosticQueryBindings {
+            diagnosticQueryObjects[binding.name] =
+                diagnosticQueryObject(binding.query)
+        }
+
+        var observedIssueObjects: [[String: Any]] = []
+        var auditedElements: [XCUIElement] = []
+        var firstAuditedElement: XCUIElement?
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            let auditedElement = issue.element
+            var diagnosticIssue: [String: Any] = [
+                "issueOrdinal": observedIssueObjects.count + 1,
+                "auditTypeRawValue": String(issue.auditType.rawValue),
+                "compactDescription": issue.compactDescription,
+                "detailedDescription": issue.detailedDescription,
+                "elementExists": NSNull(),
+                "elementEnabled": NSNull(),
+                "elementHittable": NSNull(),
+                "elementIdentifier": NSNull(),
+                "elementLabel": NSNull(),
+                "elementValue": NSNull(),
+                "elementTypeRawValue": NSNull(),
+                "elementTypeDescription": NSNull(),
+                "elementFrame": NSNull(),
+                "applicationFrame": self.auditFrameObject(app.frame),
+                "segmentID": self.automationSegment.rawValue,
+                "segmentStateCursor": self.segmentedRouteStateCursor,
+            ]
+            if let auditedElement {
+                if observedIssueObjects.isEmpty {
+                    firstAuditedElement = auditedElement
+                }
+                auditedElements.append(auditedElement)
+                let auditedElementObject = diagnosticElementObject(auditedElement)
+                diagnosticIssue["elementExists"] =
+                    auditedElementObject["exists"]
+                diagnosticIssue["elementEnabled"] =
+                    auditedElementObject["isEnabled"]
+                diagnosticIssue["elementHittable"] =
+                    auditedElementObject["isHittable"]
+                diagnosticIssue["elementIdentifier"] =
+                    auditedElementObject["identifier"]
+                diagnosticIssue["elementLabel"] =
+                    auditedElementObject["label"]
+                diagnosticIssue["elementValue"] =
+                    auditedElementObject["value"]
+                diagnosticIssue["elementTypeRawValue"] =
+                    auditedElementObject["elementTypeRawValue"]
+                diagnosticIssue["elementTypeDescription"] =
+                    auditedElementObject["elementTypeDescription"]
+                diagnosticIssue["elementFrame"] =
+                    auditedElementObject["frame"]
+            }
+            observedIssueObjects.append(diagnosticIssue)
+            return true
+        }
+        guard !observedIssueObjects.isEmpty,
+              let firstAuditedElement else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 minimum work-validation native contrast diagnostic issue cardinality is invalid"
+            )
+        }
+
+        let diagnosticContext: [String: Any] = [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "segmentID": automationSegment.rawValue,
+            "segmentStateCursor": segmentedRouteStateCursor,
+            "stateID": stateID,
+            "stateOrdinal": 23,
+            "predecessorStateID": "state.sign-detail.open-issue",
+            "predecessorOrdinal": 22,
+            "successorStateID": "state.work.editing",
+            "successorOrdinal": 24,
+            "migratedStateIDs": migratedStateIDs,
+            "axTreeDigestStateIDs": automationAXTreeDigests.keys.sorted(),
+            "contrastExceptionStateIDs":
+                automationContrastExceptions.keys.sorted(),
+            "applicationState": String(describing: app.state),
+            "applicationStateRawValue": app.state.rawValue,
+            "applicationForeground": app.state == .runningForeground,
+            "applicationFrame": auditFrameObject(app.frame),
+            "application": diagnosticElementObject(app),
+            "queries": diagnosticQueryObjects,
+            "observedIssueCount": observedIssueObjects.count,
+            "auditedElementCount": auditedElements.count,
+            "issues": observedIssueObjects,
+        ]
+        printJSONLine(
+            prefix:
+                "S10_4_MINIMUM_WORK_VALIDATION_NATIVE_CONTRAST_DIAGNOSTIC",
+            object: diagnosticContext
+        )
+
+        let appAttachment = XCTAttachment(screenshot: app.screenshot())
+        appAttachment.name =
+            "S10.4 minimum work-validation native contrast diagnostic app"
+        appAttachment.lifetime = .keepAlways
+        add(appAttachment)
+        let treeAttachment = XCTAttachment(string: app.debugDescription)
+        treeAttachment.name =
+            "S10.4 minimum work-validation native contrast diagnostic tree"
+        treeAttachment.lifetime = .keepAlways
+        add(treeAttachment)
+        let contextData = try JSONSerialization.data(
+            withJSONObject: diagnosticContext,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let contextAttachment = XCTAttachment(
+            string: String(decoding: contextData, as: UTF8.self)
+        )
+        contextAttachment.name =
+            "S10.4 minimum work-validation native contrast diagnostic context"
+        contextAttachment.lifetime = .keepAlways
+        add(contextAttachment)
+        let auditedElementAttachment = XCTAttachment(
+            screenshot: firstAuditedElement.screenshot()
+        )
+        auditedElementAttachment.name =
+            "S10.4 minimum work-validation native contrast diagnostic audited element"
+        auditedElementAttachment.lifetime = .keepAlways
+        add(auditedElementAttachment)
+
+        throw AutomationConfigurationError.invalid(
+            "S10.4 minimum work-validation native contrast diagnostic completed nonaccepting"
+        )
     }
 
     @MainActor
