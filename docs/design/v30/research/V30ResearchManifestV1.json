@@ -1,0 +1,784 @@
+{
+  "acs": {
+    "geography": {
+      "retrievedAt": "2026-09-02T18:51:26.586544+00:00",
+      "sourceSHA256": "23750f9b5403a1cb82f55ff14bdf0e719edd91c160a58daca35b4623c1074d11",
+      "sourceURL": "https://www2.census.gov/programs-surveys/acs/summary_file/2024/table-based-SF/data/1YRData/acsdt1y2024-c16001.dat",
+      "topStates": {
+        "Chinese": [
+          {
+            "estimate": 1334399,
+            "marginOfError": 31335,
+            "stateFIPS": "06"
+          },
+          {
+            "estimate": 646302,
+            "marginOfError": 19007,
+            "stateFIPS": "36"
+          },
+          {
+            "estimate": 204912,
+            "marginOfError": 12871,
+            "stateFIPS": "48"
+          },
+          {
+            "estimate": 160131,
+            "marginOfError": 9934,
+            "stateFIPS": "53"
+          },
+          {
+            "estimate": 153698,
+            "marginOfError": 8814,
+            "stateFIPS": "25"
+          }
+        ],
+        "Korean": [
+          {
+            "estimate": 350520,
+            "marginOfError": 14531,
+            "stateFIPS": "06"
+          },
+          {
+            "estimate": 88591,
+            "marginOfError": 8549,
+            "stateFIPS": "36"
+          },
+          {
+            "estimate": 78252,
+            "marginOfError": 7078,
+            "stateFIPS": "34"
+          },
+          {
+            "estimate": 76938,
+            "marginOfError": 8413,
+            "stateFIPS": "48"
+          },
+          {
+            "estimate": 60889,
+            "marginOfError": 7028,
+            "stateFIPS": "51"
+          }
+        ],
+        "Spanish": [
+          {
+            "estimate": 10754818,
+            "marginOfError": 52646,
+            "stateFIPS": "06"
+          },
+          {
+            "estimate": 8272577,
+            "marginOfError": 53026,
+            "stateFIPS": "48"
+          },
+          {
+            "estimate": 5191207,
+            "marginOfError": 29913,
+            "stateFIPS": "12"
+          },
+          {
+            "estimate": 2826836,
+            "marginOfError": 23352,
+            "stateFIPS": "36"
+          },
+          {
+            "estimate": 1702816,
+            "marginOfError": 19112,
+            "stateFIPS": "17"
+          }
+        ],
+        "Vietnamese": [
+          {
+            "estimate": 559609,
+            "marginOfError": 22108,
+            "stateFIPS": "06"
+          },
+          {
+            "estimate": 254659,
+            "marginOfError": 15399,
+            "stateFIPS": "48"
+          },
+          {
+            "estimate": 73907,
+            "marginOfError": 7771,
+            "stateFIPS": "53"
+          },
+          {
+            "estimate": 73835,
+            "marginOfError": 8428,
+            "stateFIPS": "12"
+          },
+          {
+            "estimate": 59063,
+            "marginOfError": 7182,
+            "stateFIPS": "51"
+          }
+        ]
+      },
+      "universe": "50 states and DC; excludes Puerto Rico to match national United States universe"
+    },
+    "limitations": [
+      "Language at home and self-reported English ability are access proxies, not technician language preference or buyer demand.",
+      "Chinese aggregate does not identify dialect or script preference; two-script selection is owner-approved analyst inference.",
+      "State rankings use point estimates, not statistical significance; no foreign commercial jurisdiction is activated."
+    ],
+    "nationalGEOID": "0100000US",
+    "nationalLanguageRows": [
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 18432221,
+          "marginOfError": 123301
+        },
+        "language": "Spanish",
+        "lessThanVeryWellVariable": "C16001_E005",
+        "speakAtHome": {
+          "estimate": 44867699,
+          "marginOfError": 143192
+        },
+        "table": "C16001",
+        "totalVariable": "C16001_E003"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 1895001,
+          "marginOfError": 26853
+        },
+        "language": "Chinese including Mandarin and Cantonese",
+        "lessThanVeryWellVariable": "C16001_E023",
+        "speakAtHome": {
+          "estimate": 3734956,
+          "marginOfError": 51891
+        },
+        "table": "C16001",
+        "totalVariable": "C16001_E021"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 584724,
+          "marginOfError": 17379
+        },
+        "language": "Tagalog",
+        "lessThanVeryWellVariable": "C16001_E029",
+        "speakAtHome": {
+          "estimate": 1921526,
+          "marginOfError": 36451
+        },
+        "table": "C16001",
+        "totalVariable": "C16001_E027"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 918210,
+          "marginOfError": 26456
+        },
+        "language": "Vietnamese",
+        "lessThanVeryWellVariable": "C16001_E026",
+        "speakAtHome": {
+          "estimate": 1599409,
+          "marginOfError": 35915
+        },
+        "table": "C16001",
+        "totalVariable": "C16001_E024"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 513293,
+          "marginOfError": 25498
+        },
+        "language": "Arabic",
+        "lessThanVeryWellVariable": "C16001_E035",
+        "speakAtHome": {
+          "estimate": 1484439,
+          "marginOfError": 47591
+        },
+        "table": "C16001",
+        "totalVariable": "C16001_E033"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 565989,
+          "marginOfError": 18638
+        },
+        "language": "Korean",
+        "lessThanVeryWellVariable": "C16001_E020",
+        "speakAtHome": {
+          "estimate": 1150701,
+          "marginOfError": 31218
+        },
+        "table": "C16001",
+        "totalVariable": "C16001_E018"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 394010,
+          "marginOfError": 18067
+        },
+        "language": "Portuguese",
+        "lessThanVeryWellVariable": "B16001_E017",
+        "speakAtHome": {
+          "estimate": 1099503,
+          "marginOfError": 30024
+        },
+        "table": "B16001",
+        "totalVariable": "B16001_E015"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 279230,
+          "marginOfError": 14483
+        },
+        "language": "French including Cajun",
+        "lessThanVeryWellVariable": "B16001_E008",
+        "speakAtHome": {
+          "estimate": 1276702,
+          "marginOfError": 33027
+        },
+        "table": "B16001",
+        "totalVariable": "B16001_E006"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 454970,
+          "marginOfError": 21691
+        },
+        "language": "Haitian Creole",
+        "lessThanVeryWellVariable": "B16001_E011",
+        "speakAtHome": {
+          "estimate": 1041231,
+          "marginOfError": 42340
+        },
+        "table": "B16001",
+        "totalVariable": "B16001_E009"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 429378,
+          "marginOfError": 18594
+        },
+        "language": "Russian",
+        "lessThanVeryWellVariable": "B16001_E029",
+        "speakAtHome": {
+          "estimate": 1021165,
+          "marginOfError": 27056
+        },
+        "table": "B16001",
+        "totalVariable": "B16001_E027"
+      },
+      {
+        "englishLessThanVeryWell": {
+          "estimate": 185755,
+          "marginOfError": 10255
+        },
+        "language": "Polish",
+        "lessThanVeryWellVariable": "B16001_E032",
+        "speakAtHome": {
+          "estimate": 508512,
+          "marginOfError": 20329
+        },
+        "table": "B16001",
+        "totalVariable": "B16001_E030"
+      }
+    ],
+    "sourceType": "OFFICIAL_MEASURED",
+    "sources": [
+      {
+        "bytes": 1235364,
+        "rawSHA256": "23750f9b5403a1cb82f55ff14bdf0e719edd91c160a58daca35b4623c1074d11",
+        "retrievedAt": "2026-09-02T18:50:40.371309+00:00",
+        "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2024/table-based-SF/data/1YRData/acsdt1y2024-c16001.dat"
+      },
+      {
+        "bytes": 984767,
+        "rawSHA256": "cfeaa6e3a1796fe3bacda70b4fa67be5a9a38b1199ebd8ab483ebb1bfe663f32",
+        "retrievedAt": "2026-09-02T18:50:40.674131+00:00",
+        "url": "https://www2.census.gov/programs-surveys/acs/summary_file/2024/table-based-SF/data/1YRData/acsdt1y2024-b16001.dat"
+      }
+    ],
+    "survey": "ACS 1-year",
+    "universe": "United States population age 5 and over",
+    "year": 2024
+  },
+  "asOfUTC": "2026-09-02T19:07:42.936815+00:00",
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "cardID": "V30-P01-C01",
+  "competitorEvidence": {
+    "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
+    "sha256": "a890efcee9fcefbf858d854ed7d2d5ffcfb37b59d63ec5ac4ad22a874431378c"
+  },
+  "conclusion": {
+    "cohortChangeResult": "AMENDMENT_REQUIRED",
+    "commercialStorefronts": [
+      "US"
+    ],
+    "decision": "CONFIRM_PINNED_COHORT",
+    "localeIDs": [
+      "en",
+      "es",
+      "zh-Hans",
+      "zh-Hant",
+      "vi",
+      "ko"
+    ],
+    "projectJurisdiction": "US",
+    "shippingClaim": false,
+    "sourceType": "ANALYST_INFERENCE"
+  },
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "finalCredit": false,
+  "keywordEvidence": {
+    "appStoreCompetitors": 85,
+    "datasetTopLevelKeys": [
+      "schema_version",
+      "dataset_name",
+      "generated_at",
+      "research_date",
+      "market",
+      "language",
+      "metadata",
+      "source_manifest",
+      "scoring_model",
+      "vertical_scorecard",
+      "keyword_rows",
+      "serp_competitors",
+      "app_store_competitors",
+      "dataforseo_historical_metrics",
+      "app_store_query_evidence",
+      "market_vertical_profiles",
+      "app_store_positioning",
+      "current_build_classification",
+      "validation"
+    ],
+    "excludedSource": "The zero-byte Desktop-root workbook is excluded; only the folder-scoped workbook was used.",
+    "ideaOnlySourceType": "HYPOTHESIS",
+    "integrityRecheckedAtUTC": "2026-09-02T19:04:21.494795+00:00",
+    "keywordRows": 1757,
+    "language": "English",
+    "limitations": [
+      "U.S.-English research only. No non-English measured demand.",
+      "Keyword measurements do not establish product truth, conversion, profitability or willingness to pay.",
+      "2016 workbook keyword rows are a distinct representation from 1757 normalized JSON rows. Formula checks were not rerun.",
+      "No authority to activate new verticals, backends, modules or localized public metadata.",
+      "Exclude competitor trademarks and unshipped compliance/certification claims."
+    ],
+    "manifest": {
+      "bytes": 1521,
+      "filename": "PACKAGE_MANIFEST_SHA256.txt",
+      "sha256": "cba5a098ec1e87cc2fbd50598c2564f9671fb37c14b95dd75b747cabdaf08e80"
+    },
+    "market": "United States",
+    "payloads": [
+      {
+        "bytes": 69643,
+        "filename": "ASSETROUNDS_VERTICAL_EXPANSION_REPORT_2026-08-12.md",
+        "matchesBlueprint": true,
+        "sha256": "0db3f5110bc7a231b2a157f5e00d2efdee52ba00a108a85e68f2934e7315dfda"
+      },
+      {
+        "bytes": 37057,
+        "filename": "ASSETROUNDS_FUTURE_CODEX_VERTICAL_BRIEF_2026-08-12.md",
+        "matchesBlueprint": true,
+        "sha256": "0d852b757db715f8394461fe8f897bd94408cb707f7b4397a15993d7d3ecde69"
+      },
+      {
+        "bytes": 4177219,
+        "filename": "normalized_research_dataset.json",
+        "matchesBlueprint": true,
+        "sha256": "42f18e70a8c6d642e5190d8aba2ccf8a9ca9e6fccb84ed85211c938108c9e932"
+      },
+      {
+        "bytes": 216326,
+        "filename": "semrush_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "4ee890e47ea2c1093d7eacb620438783e1b3cadd913f249fdd15ef23406ed3cb"
+      },
+      {
+        "bytes": 884972,
+        "filename": "dataforseo_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "17f659eaaa26036502f37e54d3a49507b1490369e41dec1ef47c15c9188d70f7"
+      },
+      {
+        "bytes": 220768,
+        "filename": "dataforseo_blindspot_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "78ee056d18c8de78807a2a626e5c64156e1cb5f91a90e49d1d9d6685b53e2830"
+      },
+      {
+        "bytes": 86779,
+        "filename": "app_store_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "53853863171042eda31725835676bd82041a559bd73144db949d28d0f062051d"
+      },
+      {
+        "bytes": 115254,
+        "filename": "app_store_blindspot_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "fcaf429be85ef42b3eb198485b75c16a2c4b50449d034f91ce92788ee687b89a"
+      },
+      {
+        "bytes": 99138,
+        "filename": "market_vertical_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "7894c141d67be1ff58ca3fd45d8ad5e6c46378b49046d9735a4fc53e6be47743"
+      },
+      {
+        "bytes": 88636,
+        "filename": "current_build_keyword_fit.json",
+        "matchesBlueprint": true,
+        "sha256": "0c5c4f8de40b2007afb65953fe26b72ac1d5e27502aebee9b49a4ba4fd3d5dd7"
+      },
+      {
+        "bytes": 267111,
+        "filename": "ASSETROUNDS_KEYWORD_AND_VERTICAL_SCORECARD_2026-08-12.xlsx",
+        "matchesBlueprint": true,
+        "sha256": "3d2bb847268bd69da5c1841a8d24b779b2db7e8414658f5be7f885d29006f01d"
+      }
+    ],
+    "researchDate": "2026-08-12",
+    "retrievedAt": "2026-09-02T18:53:12.495188+00:00",
+    "snapshotValidation": {
+      "app_store_competitor_count": 85,
+      "dataforseo_blindspot_keyword_count": 128,
+      "dataforseo_history_count": 697,
+      "dataforseo_keyword_count": 149,
+      "duplicate_normalized_keyword_count": 0,
+      "excluded_or_irrelevant_count": 178,
+      "hidden_keyword_field_utf8_bytes": 96,
+      "idea_only_keyword_count": 1185,
+      "keyword_row_count": 1757,
+      "measured_keyword_count": 572,
+      "non_finite_numeric_paths": [],
+      "score_formula_mismatches": [],
+      "semrush_raw_row_count": 480,
+      "semrush_unique_keyword_count": 441,
+      "serp_snapshot_count": 23,
+      "status": "PASS",
+      "subtitle_utf8_bytes": 30,
+      "title_utf8_bytes": 28,
+      "unique_normalized_keyword_count": 1757,
+      "vertical_score_count": 19,
+      "weight_sum": 100
+    },
+    "sourceType": "KEYWORD_MEASURED",
+    "statusKindCounts": {
+      "idea": 1185,
+      "measured": 572
+    },
+    "workbook": {
+      "bytes": 267111,
+      "formulaValidation": "NOT_PERFORMED_HASH_INTEGRITY_ONLY",
+      "matchesZIPBytes": true,
+      "path": "C:\\Users\\palat\\OneDrive\\Desktop\\Asset Rounds Research\\ASSETROUNDS_KEYWORD_AND_VERTICAL_SCORECARD_2026-08-12.xlsx",
+      "sha256": "3d2bb847268bd69da5c1841a8d24b779b2db7e8414658f5be7f885d29006f01d"
+    },
+    "zip": {
+      "bytes": 719945,
+      "path": "C:\\Users\\palat\\OneDrive\\Desktop\\Asset Rounds Research\\ASSETROUNDS_VERTICAL_RESEARCH_HANDOFF_2026-08-12.zip",
+      "sha256": "c2593559ea72a161c3be940fdd982c6979b422b91665fe7197af868bde57e633"
+    }
+  },
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "officialSources": [
+    {
+      "bytes": 414777,
+      "dataYearOrPublicationContext": "CURRENT_PAGE_NO_VISIBLE_PUBLICATION_DATE",
+      "evidenceRoute": "HTTP_RAW",
+      "finalURL": "https://developer.apple.com/help/app-store-connect/reference/app-information/app-store-localizations",
+      "httpStatus": 200,
+      "id": "appleMetadata",
+      "limitation": "Metadata localization is independent from binary language resources and commercial storefront availability.",
+      "observations": {
+        "USMetadataLanguagesForCohort": [
+          "English (US)",
+          "Spanish (Mexico)",
+          "Chinese (Simplified)",
+          "Chinese (Traditional)",
+          "Vietnamese",
+          "Korean"
+        ]
+      },
+      "rawSHA256": "81912fb67fd772cb0e7ad2e79af78a13f212c4fcc024f40910f44c16df97be3f",
+      "retrievedAt": "2026-09-02T18:52:00.894586+00:00",
+      "sourceType": "VENDOR_DOCUMENTED",
+      "universe": "App Store Connect metadata languages by storefront",
+      "url": "https://developer.apple.com/help/app-store-connect/reference/app-information/app-store-localizations"
+    },
+    {
+      "bytes": 14189,
+      "containsScriptExamples": true,
+      "dataYearOrPublicationContext": "2016",
+      "evidenceRoute": "HTTP_RAW",
+      "id": "appleIdentifiers",
+      "limitation": "Archived documentation; no exact Xcode 26.6 runtime or build verification has occurred.",
+      "observations": {
+        "identifierSyntax": "BCP47_LANGUAGE_OPTIONAL_SCRIPT_OR_REGION",
+        "scriptExamples": [
+          "zh-Hans",
+          "zh-Hant"
+        ]
+      },
+      "rawSHA256": "a7d325c88224bd6b2bd22e738f7e5f15f0114153186513a8c4e126a3b7d61197",
+      "retrievedAt": "2026-09-02T19:00:02.486149+00:00",
+      "sourceType": "VENDOR_DOCUMENTED",
+      "universe": "Apple bundle language matching guidance",
+      "url": "https://developer.apple.com/library/archive/technotes/tn2418/_index.html"
+    },
+    {
+      "bytes": 12037,
+      "dataYearOrPublicationContext": "2014",
+      "evidenceRoute": "HTTP_RAW",
+      "finalURL": "https://developer.apple.com/library/archive/qa/qa1828/_index.html",
+      "httpStatus": 200,
+      "id": "appleLanguageResolution",
+      "limitation": "Use Foundation/Bundle; no bundle swizzling or manual hidden language engine.",
+      "observations": {
+        "selection": "Device/per-app preferences matched against bundle localizations; development language when no supported match."
+      },
+      "rawSHA256": "41ff1a2b876c7d552392e197420c395a1b93f33a4b5811b4b6a667be43037ee7",
+      "retrievedAt": "2026-09-02T18:52:00.895524+00:00",
+      "sourceType": "VENDOR_DOCUMENTED",
+      "universe": "iOS bundle localization selection",
+      "url": "https://developer.apple.com/library/archive/qa/qa1828/_index.html"
+    },
+    {
+      "captureError": "HTTP Error 403: Forbidden",
+      "dataYearOrPublicationContext": "2026",
+      "evidenceRoute": "WEB_TOOL_TEXT_OBSERVATION",
+      "id": "censusRelease",
+      "limitation": "As observed September 2; recheck at future research refresh.",
+      "observations": {
+        "ACS2025ReleaseStatus": "DATE_BEING_DETERMINED",
+        "latestAvailableBaselineUsed": 2024
+      },
+      "rawSHA256": null,
+      "retrievedAt": "2026-09-02T18:52:00.895708+00:00",
+      "sourceType": "OFFICIAL_MEASURED",
+      "universe": "ACS release availability",
+      "url": "https://www.census.gov/newsroom/press-releases/2026/iphi-acs-media-advisory.html"
+    },
+    {
+      "captureError": "HTTP Error 403: Forbidden",
+      "dataYearOrPublicationContext": "2025",
+      "evidenceRoute": "WEB_TOOL_TEXT_OBSERVATION",
+      "id": "bls2025",
+      "limitation": "11-month average excludes October 2025 because of shutdown. Not strictly comparable to other annual averages. Ethnicity is not language or demand.",
+      "observations": {
+        "carpenters": {
+          "hispanicLatinoPercent": 43.3,
+          "thousands": 1178
+        },
+        "constructionExtraction": {
+          "hispanicLatinoPercent": 41.7,
+          "thousands": 8490
+        },
+        "constructionLaborers": {
+          "hispanicLatinoPercent": 55.2,
+          "thousands": 2382
+        },
+        "installationMaintenanceRepair": {
+          "hispanicLatinoPercent": 22.2,
+          "thousands": 5060
+        },
+        "roofers": {
+          "hispanicLatinoPercent": 64.7,
+          "thousands": 259
+        }
+      },
+      "rawSHA256": null,
+      "retrievedAt": "2026-09-02T18:52:00.895913+00:00",
+      "sourceType": "OFFICIAL_MEASURED",
+      "universe": "Employed U.S. people, CPS occupation and ethnicity; counts in thousands",
+      "url": "https://www.bls.gov/cps/cpsaat11.htm"
+    },
+    {
+      "captureError": "HTTP Error 403: Forbidden",
+      "dataYearOrPublicationContext": "2024",
+      "evidenceRoute": "WEB_TOOL_TEXT_OBSERVATION",
+      "id": "bls2024",
+      "limitation": "Historical comparator; do not interpret ethnicity as a preferred language.",
+      "observations": {
+        "carpenters": {
+          "hispanicLatinoPercent": 41.4,
+          "thousands": 1279
+        },
+        "constructionExtraction": {
+          "hispanicLatinoPercent": 41.6,
+          "thousands": 8520
+        },
+        "constructionLaborers": {
+          "hispanicLatinoPercent": 53.9,
+          "thousands": 2293
+        },
+        "installationMaintenanceRepair": {
+          "hispanicLatinoPercent": 23.6,
+          "thousands": 4901
+        },
+        "roofers": {
+          "hispanicLatinoPercent": 68.2,
+          "thousands": 240
+        }
+      },
+      "rawSHA256": null,
+      "retrievedAt": "2026-09-02T18:52:01.146192+00:00",
+      "sourceType": "OFFICIAL_MEASURED",
+      "universe": "Employed U.S. people, CPS occupation and ethnicity; counts in thousands",
+      "url": "https://www.bls.gov/cps/data/aa2024/cpsaat11.htm"
+    },
+    {
+      "captureError": "HTTP Error 403: Forbidden",
+      "dataYearOrPublicationContext": "2025",
+      "evidenceRoute": "WEB_TOOL_TEXT_OBSERVATION",
+      "id": "blsForeignBorn",
+      "limitation": "May 19, 2026 release; 11-month 2025 average. Nativity and ethnicity cannot establish language preference.",
+      "observations": {
+        "foreignBornLaborForcePercent": 19.1,
+        "foreignBornNaturalResourcesConstructionMaintenancePercent": 13.3,
+        "foreignBornRegionalLaborForcePercent": {
+          "Midwest": 10.8,
+          "Northeast": 22.7,
+          "South": 18.7,
+          "West": 24.5
+        },
+        "nativeBornNaturalResourcesConstructionMaintenancePercent": 7.9
+      },
+      "rawSHA256": null,
+      "retrievedAt": "2026-09-02T18:52:01.171816+00:00",
+      "sourceType": "OFFICIAL_MEASURED",
+      "universe": "U.S. civilian labor force, nativity",
+      "url": "https://www.bls.gov/news.release/forbrn.nr0.htm"
+    },
+    {
+      "bytes": 61281,
+      "dataYearOrPublicationContext": "2024_PAGE_WITH_OLDER_WORKFORCE_REFERENCES",
+      "evidenceRoute": "HTTP_RAW",
+      "finalURL": "https://www.cdc.gov/niosh/construction/about/index.html",
+      "httpStatus": 200,
+      "id": "nioshConstruction",
+      "limitation": "Page May 22, 2024; older workforce references are not fresh 2026 estimates. No AssetRounds safety/compliance claim.",
+      "observations": {
+        "observation": "Identifies missing Spanish training material as a language-access disparity."
+      },
+      "rawSHA256": "13f8d27f9f743188a9d618ea7c3703b9187a73171c74d235ce0e65def1006980",
+      "retrievedAt": "2026-09-02T18:52:01.173481+00:00",
+      "sourceType": "OFFICIAL_MEASURED",
+      "universe": "U.S. construction occupational safety context",
+      "url": "https://www.cdc.gov/niosh/construction/about/index.html"
+    },
+    {
+      "bytes": 72726,
+      "dataYearOrPublicationContext": "2023",
+      "evidenceRoute": "HTTP_RAW",
+      "finalURL": "https://www.cdc.gov/niosh/bulletin/2023/falls-stand-down.html",
+      "httpStatus": 200,
+      "id": "nioshLanguageResources",
+      "limitation": "April 24, 2023 publication; context only, not a current population or buyer-preference estimate.",
+      "observations": {
+        "observation": "Discusses terminology barriers and English/Spanish resources, with some Polish, Portuguese and Vietnamese materials."
+      },
+      "rawSHA256": "2b897e1a087d3e4ad38f3f3fbf49fe5c4360ba36fd015c8607eaf48a31afc1d3",
+      "retrievedAt": "2026-09-02T18:52:01.208693+00:00",
+      "sourceType": "OFFICIAL_MEASURED",
+      "universe": "Construction fall-prevention resources and language access",
+      "url": "https://www.cdc.gov/niosh/bulletin/2023/falls-stand-down.html"
+    },
+    {
+      "bytes": 101801,
+      "dataYearOrPublicationContext": "2010",
+      "evidenceRoute": "HTTP_RAW",
+      "finalURL": "https://www.osha.gov/laws-regs/standardinterpretations/2010-04-28",
+      "httpStatus": 200,
+      "id": "oshaTraining",
+      "limitation": "April 28, 2010 interpretation; language-access context only. A translated app does not establish legal or safety compliance.",
+      "observations": {
+        "observation": "Training must be understandable in language and vocabulary to workers receiving it."
+      },
+      "rawSHA256": "fdd345a14649c6f86be4dc582f16a90fc91461b0749c173b3aec30005575fd8b",
+      "retrievedAt": "2026-09-02T18:52:01.280295+00:00",
+      "sourceType": "OFFICIAL_MEASURED",
+      "universe": "OSHA worker-training language interpretation",
+      "url": "https://www.osha.gov/laws-regs/standardinterpretations/2010-04-28"
+    },
+    {
+      "bytes": 731799,
+      "dataYearOrPublicationContext": "2026-08-08_REGISTRY_FILE_DATE",
+      "evidenceRoute": "HTTP_RAW",
+      "id": "ianaIdentifiers",
+      "limitation": "Registered identifiers plus Apple syntax guidance; native Xcode compatibility remains unexecuted.",
+      "rawSHA256": "be21e91b6851f750a7b1a687f11209d46ad5a8471d6b10a1efc8d1dac4c8a926",
+      "records": {
+        "Hans": "Type: script\nSubtag: Hans\nDescription: Han (Simplified variant)\nAdded: 2005-10-16",
+        "Hant": "Type: script\nSubtag: Hant\nDescription: Han (Traditional variant)\nAdded: 2005-10-16",
+        "en": "Type: language\nSubtag: en\nDescription: English\nAdded: 2005-10-16\nSuppress-Script: Latn",
+        "es": "Type: language\nSubtag: es\nDescription: Spanish\nDescription: Castilian\nAdded: 2005-10-16\nSuppress-Script: Latn",
+        "ko": "Type: language\nSubtag: ko\nDescription: Korean\nAdded: 2005-10-16\nSuppress-Script: Kore",
+        "vi": "Type: language\nSubtag: vi\nDescription: Vietnamese\nAdded: 2005-10-16\nSuppress-Script: Latn",
+        "zh": "Type: language\nSubtag: zh\nDescription: Chinese\nAdded: 2005-10-16\nScope: macrolanguage"
+      },
+      "retrievedAt": "2026-09-02T19:01:50.840821+00:00",
+      "sourceType": "VENDOR_DOCUMENTED",
+      "universe": "Registered BCP47 language and script subtags",
+      "url": "https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry"
+    }
+  ],
+  "packageBindings": {
+    "authority": {
+      "path": "docs/design/v30/authority/V30PreS10ProvisionalImplementationAuthorityV1.json",
+      "sha256": "cdf291f0444b26bc08f1bdaa98314f16d6925e0f247a5d9c33318d158ff89aa1"
+    },
+    "blueprint": {
+      "path": "docs/design/v30/EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+      "sha256": "28facff3aca8bc4582031e3f0d609b9ab4eb26cd91d6c4b35144596a346b154e"
+    },
+    "localeRegistry": {
+      "path": "docs/design/v30/authority/V30LocaleRegistryV1.json",
+      "sha256": "d07fd25fd49ffa2869d16c6d694540864b87d21cdd43052a3786bf84115ec7f5"
+    }
+  },
+  "payloadDigest": "c88423292e2a38ff5d6f8f935193b4b3049c689e5ed258b840a93cf2e0e0a628",
+  "researchRetrievalProvenance": [
+    "Census API data request redirected to missing_key.html; used public official table-based summary files without credentials.",
+    "Initial guessed summary-file routes returned 404 before locating the official table-based path.",
+    "Census release and BLS direct HTTP returned 403; official page text was read with the web tool. Their rawSHA256 remains null.",
+    "Apple TN2418 directory URL returned a meta-refresh stub; actual _index.html was fetched and hashed. Stub is not identifier evidence.",
+    "LOC code-list request returned 403 and web tool failed; identifiers were checked against IANA registry plus Apple guidance.",
+    "Historical review dates remain raw; the rolling 12-month review sample belongs to the immediate next research card."
+  ],
+  "schema": "V30ResearchManifestV1",
+  "sourceClassPolicy": {
+    "allowed": [
+      "PRODUCT_TRUTH",
+      "OFFICIAL_MEASURED",
+      "BINARY_OBSERVED",
+      "VENDOR_DOCUMENTED",
+      "CUSTOMER_REPORTED",
+      "KEYWORD_MEASURED",
+      "ANALYST_INFERENCE",
+      "HYPOTHESIS",
+      "OWNER_ACTION"
+    ],
+    "rule": "Keep source observation, inference and product acceptance separate; missing evidence is never fabricated."
+  },
+  "supportCapacity": {
+    "assessment": "NOT_VERIFIED",
+    "claimStatus": "NOT_SUPPORTED_UNTIL_ACCEPTED",
+    "cohortMayProceedProvisionally": true,
+    "evidenceReviewed": [
+      "Owner activation message",
+      "Pinned V30 package and locale registry"
+    ],
+    "limitation": "No staffing or reviewer receipts supplied in these inputs; this is unknown capacity, not a claim of zero staff.",
+    "requiredBeforeAcceptance": [
+      "Professional/native in-context review for every required non-English locale after reconciliation",
+      "Field-practitioner review, support workflow and ongoing release coverage",
+      "Owner-qualified support and linguistic receipts"
+    ],
+    "sourceType": "OWNER_ACTION",
+    "staffingCount": null,
+    "staffingOrProfessionalNativeReceiptsProvided": false,
+    "supportStatus": "PLANNED_REQUIRED_INITIAL"
+  }
+}

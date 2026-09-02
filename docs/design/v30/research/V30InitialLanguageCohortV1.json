@@ -1,0 +1,249 @@
+{
+  "asOfUTC": "2026-09-02T19:07:42.936815+00:00",
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "cardID": "V30-P01-C01",
+  "cohortChangeResult": "AMENDMENT_REQUIRED",
+  "competitorEvidence": {
+    "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
+    "sha256": "a890efcee9fcefbf858d854ed7d2d5ffcfb37b59d63ec5ac4ad22a874431378c"
+  },
+  "decision": "CONFIRM_PINNED_COHORT",
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "finalAcceptanceRequiredAfterReconciliation": true,
+  "finalCredit": false,
+  "identifierVerification": {
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "note": "Native Bundle/Xcode tests are authored for hosted verification; no Windows build or runtime result.",
+    "sourceIDs": [
+      "appleIdentifiers",
+      "ianaIdentifiers",
+      "appleMetadata"
+    ],
+    "static": "APPLE_DOCUMENTED_SYNTAX_AND_IANA_REGISTERED_SUBTAGS"
+  },
+  "independentAxes": [
+    "appLanguage",
+    "formattingLocale",
+    "authoredContentLanguage",
+    "reportLanguage",
+    "storefrontCountry",
+    "projectJurisdiction"
+  ],
+  "languageFamilies": 5,
+  "localeIDs": [
+    "en",
+    "es",
+    "zh-Hans",
+    "zh-Hant",
+    "vi",
+    "ko"
+  ],
+  "localeMarketMatrix": [
+    {
+      "claimStatus": "NOT_SUPPORTED_UNTIL_ACCEPTED",
+      "formattingProfiles": [
+        "en-US",
+        "en-GB"
+      ],
+      "id": "en",
+      "identifierEvidence": [
+        "appleIdentifiers",
+        "ianaIdentifiers",
+        "appleMetadata"
+      ],
+      "language": "English",
+      "metadataLanguage": "English (US)",
+      "professionalNativeAcceptance": "NOT_EXECUTED",
+      "projectJurisdiction": "US",
+      "script": "Latin",
+      "storefrontCountries": [
+        "US"
+      ],
+      "supportCapacityAssessment": "NOT_VERIFIED",
+      "supportStatus": "PLANNED_REQUIRED_INITIAL"
+    },
+    {
+      "claimStatus": "NOT_SUPPORTED_UNTIL_ACCEPTED",
+      "formattingProfiles": [
+        "es-US",
+        "es-MX",
+        "es-419"
+      ],
+      "id": "es",
+      "identifierEvidence": [
+        "appleIdentifiers",
+        "ianaIdentifiers",
+        "appleMetadata"
+      ],
+      "language": "Spanish",
+      "metadataLanguage": "Spanish (Mexico)",
+      "professionalNativeAcceptance": "NOT_EXECUTED",
+      "projectJurisdiction": "US",
+      "script": "Latin",
+      "storefrontCountries": [
+        "US"
+      ],
+      "supportCapacityAssessment": "NOT_VERIFIED",
+      "supportStatus": "PLANNED_REQUIRED_INITIAL"
+    },
+    {
+      "claimStatus": "NOT_SUPPORTED_UNTIL_ACCEPTED",
+      "formattingProfiles": [
+        "zh-Hans-US",
+        "zh-Hans-CN"
+      ],
+      "id": "zh-Hans",
+      "identifierEvidence": [
+        "appleIdentifiers",
+        "ianaIdentifiers",
+        "appleMetadata"
+      ],
+      "language": "Chinese",
+      "metadataLanguage": "Chinese (Simplified)",
+      "professionalNativeAcceptance": "NOT_EXECUTED",
+      "projectJurisdiction": "US",
+      "script": "Simplified",
+      "storefrontCountries": [
+        "US"
+      ],
+      "supportCapacityAssessment": "NOT_VERIFIED",
+      "supportStatus": "PLANNED_REQUIRED_INITIAL"
+    },
+    {
+      "claimStatus": "NOT_SUPPORTED_UNTIL_ACCEPTED",
+      "formattingProfiles": [
+        "zh-Hant-US",
+        "zh-Hant-TW"
+      ],
+      "id": "zh-Hant",
+      "identifierEvidence": [
+        "appleIdentifiers",
+        "ianaIdentifiers",
+        "appleMetadata"
+      ],
+      "language": "Chinese",
+      "metadataLanguage": "Chinese (Traditional)",
+      "professionalNativeAcceptance": "NOT_EXECUTED",
+      "projectJurisdiction": "US",
+      "script": "Traditional",
+      "storefrontCountries": [
+        "US"
+      ],
+      "supportCapacityAssessment": "NOT_VERIFIED",
+      "supportStatus": "PLANNED_REQUIRED_INITIAL"
+    },
+    {
+      "claimStatus": "NOT_SUPPORTED_UNTIL_ACCEPTED",
+      "formattingProfiles": [
+        "vi-US",
+        "vi-VN"
+      ],
+      "id": "vi",
+      "identifierEvidence": [
+        "appleIdentifiers",
+        "ianaIdentifiers",
+        "appleMetadata"
+      ],
+      "language": "Vietnamese",
+      "metadataLanguage": "Vietnamese",
+      "professionalNativeAcceptance": "NOT_EXECUTED",
+      "projectJurisdiction": "US",
+      "script": "Latin",
+      "storefrontCountries": [
+        "US"
+      ],
+      "supportCapacityAssessment": "NOT_VERIFIED",
+      "supportStatus": "PLANNED_REQUIRED_INITIAL"
+    },
+    {
+      "claimStatus": "NOT_SUPPORTED_UNTIL_ACCEPTED",
+      "formattingProfiles": [
+        "ko-US",
+        "ko-KR"
+      ],
+      "id": "ko",
+      "identifierEvidence": [
+        "appleIdentifiers",
+        "ianaIdentifiers",
+        "appleMetadata"
+      ],
+      "language": "Korean",
+      "metadataLanguage": "Korean",
+      "professionalNativeAcceptance": "NOT_EXECUTED",
+      "projectJurisdiction": "US",
+      "script": "Hangul",
+      "storefrontCountries": [
+        "US"
+      ],
+      "supportCapacityAssessment": "NOT_VERIFIED",
+      "supportStatus": "PLANNED_REQUIRED_INITIAL"
+    }
+  ],
+  "localizations": 6,
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "payloadDigest": "c05f81ae81cb18db73ced3c34f2f2e46a1d8db4e99b13271b9895f6f98f5600d",
+  "preservedInvariants": [
+    "Authored source content remains original; translations are derived artifacts with provenance.",
+    "Canonical IDs, enums, data hashes, journals, evidence and machine exports remain language-neutral.",
+    "App language does not select formatting, authored content, report language, storefront or jurisdiction.",
+    "No hidden localization engine or bundle swizzling.",
+    "Translated UI implies no OCR, dictation, speech, grammar, support, legal or release capability."
+  ],
+  "rationale": {
+    "en": "Source language and English fallback.",
+    "es": "Largest U.S. non-English ACS group with contextual field-work language-access evidence.",
+    "ko": "U.S. access need and recurring field-app listing declarations.",
+    "vi": "U.S. access need, construction-resource context and recurring listing declarations.",
+    "zh-Hans": "Owner-approved analyst inference; separate script resources and review, not an ACS script finding.",
+    "zh-Hant": "Owner-approved analyst inference; cannot claim coverage through Simplified Chinese."
+  },
+  "registry": {
+    "path": "docs/design/v30/authority/V30LocaleRegistryV1.json",
+    "sha256": "d07fd25fd49ffa2869d16c6d694540864b87d21cdd43052a3786bf84115ec7f5"
+  },
+  "researchManifest": {
+    "path": "docs/design/v30/research/V30ResearchManifestV1.json",
+    "sha256": "81a1e4d2d22d54ec866bbe639643a98e012b8e7c8254408a11474062611d5551"
+  },
+  "schema": "V30InitialLanguageCohortV1",
+  "selectionPolicy": {
+    "applePerAppLanguage": true,
+    "applePreferredLanguages": true,
+    "defaultLanguage": "en",
+    "fallbackChain": [
+      "exactLocale",
+      "baseLanguage",
+      "en"
+    ],
+    "inAppPicker": "SETTINGS_DISCOVERY_ONLY",
+    "languageDoesNotSelectJurisdiction": true,
+    "regionDoesNotSelectLanguage": true,
+    "systemFirst": true,
+    "unsupportedLanguageFallback": "en"
+  },
+  "sourceAndFinalFallback": "en",
+  "supportCapacity": {
+    "assessment": "NOT_VERIFIED",
+    "claimStatus": "NOT_SUPPORTED_UNTIL_ACCEPTED",
+    "cohortMayProceedProvisionally": true,
+    "evidenceReviewed": [
+      "Owner activation message",
+      "Pinned V30 package and locale registry"
+    ],
+    "limitation": "No staffing or reviewer receipts supplied in these inputs; this is unknown capacity, not a claim of zero staff.",
+    "requiredBeforeAcceptance": [
+      "Professional/native in-context review for every required non-English locale after reconciliation",
+      "Field-practitioner review, support workflow and ongoing release coverage",
+      "Owner-qualified support and linguistic receipts"
+    ],
+    "sourceType": "OWNER_ACTION",
+    "staffingCount": null,
+    "staffingOrProfessionalNativeReceiptsProvided": false,
+    "supportStatus": "PLANNED_REQUIRED_INITIAL"
+  }
+}
