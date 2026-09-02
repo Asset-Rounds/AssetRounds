@@ -5007,7 +5007,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "postWorkScreen.identifier == preWorkScreenIdentifier",
             "postDescriptionField.identifier == preDescriptionIdentifier",
             "postDescriptionField.label == preDescriptionLabel",
-            #"(postDescriptionField.value as? String) == """#,
+            "let postDescriptionValue = postDescriptionField.value as? String",
+            #"if postDescriptionValue != """#,
+            "postDescriptionValue == preDescriptionPlaceholderValue",
+            #"preDescriptionPlaceholderValue == "Short description""#,
+            #"return "post-description-value-placeholder""#,
+            #"return "post-description-value-type-mismatch""#,
+            #"return "post-description-value-other""#,
             "postValidationLabel.identifier == preValidationIdentifier",
             "postValidationLabel.label == preValidationLabel",
             "postNoteHeading.isHittable",
@@ -5024,11 +5030,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             minimumWorkValidationKeyboardAccessorySource.utf8.count,
-            15_787
+            18_532
         )
         XCTAssertEqual(
             Data(minimumWorkValidationKeyboardAccessorySource.utf8).sha256,
-            "F3B288B97C5096ACF5E1502E2CEDD777EE19DCB4277059FF9DFB39A9EDEE38A8"
+            "D85133259D22631D4230178BBCF0DE46375CBF24ACF222D050B9F92634CD3016"
         )
         let minimumWorkValidationPreTapSemanticStart =
             "        let firstFailedPreTapSemanticLabel: String? = {"
@@ -5126,16 +5132,118 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             }
             minimumWorkValidationPreTapSemanticCursor = range.upperBound
         }
+        let minimumWorkValidationPostDismissSemanticStart =
+            "        let firstFailedPostDismissSemanticLabel: String? = {"
+        let minimumWorkValidationPostDismissSemanticEnd =
+            "\n        if let firstFailedPostDismissSemanticLabel {"
+        XCTAssertEqual(
+            minimumWorkValidationKeyboardAccessorySource.components(
+                separatedBy: minimumWorkValidationPostDismissSemanticStart
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            minimumWorkValidationKeyboardAccessorySource.components(
+                separatedBy: minimumWorkValidationPostDismissSemanticEnd
+            ).count - 1,
+            1
+        )
+        let minimumWorkValidationPostDismissSemanticSource = try boundedSource(
+            minimumWorkValidationKeyboardAccessorySource,
+            from: minimumWorkValidationPostDismissSemanticStart,
+            before: minimumWorkValidationPostDismissSemanticEnd
+        )
+        XCTAssertEqual(
+            minimumWorkValidationPostDismissSemanticSource.utf8.count,
+            4_777
+        )
+        XCTAssertEqual(
+            Data(minimumWorkValidationPostDismissSemanticSource.utf8).sha256,
+            "1F5B119977B044778F576E17EE49391A583F8C47E09820AE988027B7AF1333D4"
+        )
+        let minimumWorkValidationPostDismissSemanticLabels = [
+            "post-app-foreground",
+            "post-route-cursor",
+            "post-migrated-state-ids",
+            "post-ax-tree-digests",
+            "post-contrast-exceptions-empty",
+            "post-segment-unfinished",
+            "post-app-frame-valid",
+            "post-work-frame-valid",
+            "post-description-frame-valid",
+            "post-validation-frame-valid",
+            "post-note-heading-frame-valid",
+            "post-note-field-frame-valid",
+            "post-app-contains-work",
+            "post-app-contains-description",
+            "post-app-contains-validation",
+            "post-app-contains-note-heading",
+            "post-app-contains-note-field",
+            "post-note-heading-before-note-field",
+            "post-work-exists",
+            "post-work-enabled",
+            "post-work-hittable",
+            "post-work-identifier",
+            "post-description-exists",
+            "post-description-enabled",
+            "post-description-hittable",
+            "post-description-identifier",
+            "post-description-label",
+            "post-description-value-placeholder",
+            "post-description-value-type-mismatch",
+            "post-description-value-other",
+            "post-validation-exists",
+            "post-validation-enabled",
+            "post-validation-identifier",
+            "post-validation-label",
+            "post-note-heading-exists",
+            "post-note-heading-hittable",
+            "post-note-heading-label",
+            "post-note-heading-type",
+            "post-note-field-exists",
+            "post-note-field-hittable",
+            "post-note-field-identifier",
+        ]
+        XCTAssertEqual(minimumWorkValidationPostDismissSemanticLabels.count, 41)
+        var minimumWorkValidationPostDismissSemanticCursor =
+            minimumWorkValidationKeyboardAccessorySource.startIndex
+        for label in minimumWorkValidationPostDismissSemanticLabels {
+            let token = #"return "\#(label)""#
+            let searchRange = minimumWorkValidationPostDismissSemanticCursor..<minimumWorkValidationKeyboardAccessorySource.endIndex
+            XCTAssertEqual(
+                minimumWorkValidationKeyboardAccessorySource.components(
+                    separatedBy: token
+                ).count - 1,
+                1,
+                label
+            )
+            guard let range = minimumWorkValidationKeyboardAccessorySource.range(
+                of: token,
+                range: searchRange
+            ) else {
+                XCTFail("Missing ordered minimum post-dismiss predicate: \(label)")
+                return
+            }
+            minimumWorkValidationPostDismissSemanticCursor = range.upperBound
+        }
         for (token, count) in [
             ("let firstFailedPreTapSemanticLabel: String? = {", 1),
             ("if let firstFailedPreTapSemanticLabel {", 1),
-            ("return nil", 1),
+            ("let firstFailedPostDismissSemanticLabel: String? = {", 1),
+            ("if let firstFailedPostDismissSemanticLabel {", 1),
+            ("return nil", 2),
             (
                 "S10.4 minimum work-validation keyboard accessory " +
                     "semantics are invalid: ",
                 1
             ),
             ("+ firstFailedPreTapSemanticLabel", 1),
+            (
+                "S10.4 minimum work-validation post-dismiss " +
+                    "semantics are invalid: ",
+                1
+            ),
+            ("+ firstFailedPostDismissSemanticLabel", 1),
         ] {
             XCTAssertEqual(
                 minimumWorkValidationKeyboardAccessorySource.components(
@@ -5242,8 +5350,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ),
               let minimumWorkValidationPostSemanticRange =
                 minimumWorkValidationKeyboardAccessorySource.range(
-                    of: "guard app.state == .runningForeground,\n" +
-                        "              segmentedRouteStateCursor == 0,"
+                    of:
+                        "let firstFailedPostDismissSemanticLabel: String? = {"
                 ),
               let minimumWorkValidationCallRange =
                 workValidationRouteSource.range(
@@ -21038,10 +21146,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 780_661)
+        XCTAssertEqual(uiSource.utf8.count, 783_406)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "D1CEDD6DF7CF474DE840E0F58F2ADA8F7777C1550315941701725FD2A38045ED"
+            "11FDB0A7BD427F67236CD67A82C1B3756D8C738A158DABA0B45558C79E377745"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

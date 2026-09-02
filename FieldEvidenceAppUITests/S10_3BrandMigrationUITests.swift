@@ -14357,48 +14357,105 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let postValidationFrame = postValidationLabel.frame
         let postNoteHeadingFrame = postNoteHeading.frame
         let postNoteFieldFrame = postNoteField.frame
-        guard app.state == .runningForeground,
-              segmentedRouteStateCursor == 0,
-              migratedStateIDs == expectedMigratedStateIDs,
-              automationAXTreeDigests.keys.sorted()
-                == expectedMigratedStateIDs.sorted(),
-              automationContrastExceptions.isEmpty,
-              !automatedSegmentFinished,
-              frameIsValid(postApplicationFrame),
-              frameIsValid(postWorkScreenFrame),
-              frameIsValid(postDescriptionFrame),
-              frameIsValid(postValidationFrame),
-              frameIsValid(postNoteHeadingFrame),
-              frameIsValid(postNoteFieldFrame),
-              postApplicationFrame.contains(postWorkScreenFrame),
-              postApplicationFrame.contains(postDescriptionFrame),
-              postApplicationFrame.contains(postValidationFrame),
-              postApplicationFrame.contains(postNoteHeadingFrame),
-              postApplicationFrame.contains(postNoteFieldFrame),
-              postNoteHeadingFrame.maxY <= postNoteFieldFrame.minY,
-              postWorkScreen.exists,
-              postWorkScreen.isEnabled,
-              postWorkScreen.isHittable,
-              postWorkScreen.identifier == preWorkScreenIdentifier,
-              postDescriptionField.exists,
-              postDescriptionField.isEnabled,
-              postDescriptionField.isHittable,
-              postDescriptionField.identifier == preDescriptionIdentifier,
-              postDescriptionField.label == preDescriptionLabel,
-              (postDescriptionField.value as? String) == "",
-              postValidationLabel.exists,
-              postValidationLabel.isEnabled,
-              postValidationLabel.identifier == preValidationIdentifier,
-              postValidationLabel.label == preValidationLabel,
-              postNoteHeading.exists,
-              postNoteHeading.isHittable,
-              postNoteHeading.label == preNoteHeadingLabel,
-              postNoteHeading.elementType == preNoteHeadingType,
-              postNoteField.exists,
-              postNoteField.isHittable,
-              postNoteField.identifier == preNoteFieldIdentifier else {
+        let firstFailedPostDismissSemanticLabel: String? = {
+            if app.state != .runningForeground { return "post-app-foreground" }
+            if segmentedRouteStateCursor != 0 { return "post-route-cursor" }
+            if migratedStateIDs != expectedMigratedStateIDs {
+                return "post-migrated-state-ids"
+            }
+            if automationAXTreeDigests.keys.sorted()
+                != expectedMigratedStateIDs.sorted() {
+                return "post-ax-tree-digests"
+            }
+            if !automationContrastExceptions.isEmpty {
+                return "post-contrast-exceptions-empty"
+            }
+            if automatedSegmentFinished { return "post-segment-unfinished" }
+            if !frameIsValid(postApplicationFrame) { return "post-app-frame-valid" }
+            if !frameIsValid(postWorkScreenFrame) { return "post-work-frame-valid" }
+            if !frameIsValid(postDescriptionFrame) {
+                return "post-description-frame-valid"
+            }
+            if !frameIsValid(postValidationFrame) {
+                return "post-validation-frame-valid"
+            }
+            if !frameIsValid(postNoteHeadingFrame) {
+                return "post-note-heading-frame-valid"
+            }
+            if !frameIsValid(postNoteFieldFrame) {
+                return "post-note-field-frame-valid"
+            }
+            if !postApplicationFrame.contains(postWorkScreenFrame) {
+                return "post-app-contains-work"
+            }
+            if !postApplicationFrame.contains(postDescriptionFrame) {
+                return "post-app-contains-description"
+            }
+            if !postApplicationFrame.contains(postValidationFrame) {
+                return "post-app-contains-validation"
+            }
+            if !postApplicationFrame.contains(postNoteHeadingFrame) {
+                return "post-app-contains-note-heading"
+            }
+            if !postApplicationFrame.contains(postNoteFieldFrame) {
+                return "post-app-contains-note-field"
+            }
+            if postNoteHeadingFrame.maxY > postNoteFieldFrame.minY {
+                return "post-note-heading-before-note-field"
+            }
+            if !postWorkScreen.exists { return "post-work-exists" }
+            if !postWorkScreen.isEnabled { return "post-work-enabled" }
+            if !postWorkScreen.isHittable { return "post-work-hittable" }
+            if postWorkScreen.identifier != preWorkScreenIdentifier {
+                return "post-work-identifier"
+            }
+            if !postDescriptionField.exists { return "post-description-exists" }
+            if !postDescriptionField.isEnabled { return "post-description-enabled" }
+            if !postDescriptionField.isHittable { return "post-description-hittable" }
+            if postDescriptionField.identifier != preDescriptionIdentifier {
+                return "post-description-identifier"
+            }
+            if postDescriptionField.label != preDescriptionLabel {
+                return "post-description-label"
+            }
+            let postDescriptionValue = postDescriptionField.value as? String
+            if postDescriptionValue != "" {
+                if postDescriptionValue == preDescriptionPlaceholderValue,
+                   preDescriptionPlaceholderValue == "Short description" {
+                    return "post-description-value-placeholder"
+                }
+                if postDescriptionValue == nil {
+                    return "post-description-value-type-mismatch"
+                }
+                return "post-description-value-other"
+            }
+            if !postValidationLabel.exists { return "post-validation-exists" }
+            if !postValidationLabel.isEnabled { return "post-validation-enabled" }
+            if postValidationLabel.identifier != preValidationIdentifier {
+                return "post-validation-identifier"
+            }
+            if postValidationLabel.label != preValidationLabel {
+                return "post-validation-label"
+            }
+            if !postNoteHeading.exists { return "post-note-heading-exists" }
+            if !postNoteHeading.isHittable { return "post-note-heading-hittable" }
+            if postNoteHeading.label != preNoteHeadingLabel {
+                return "post-note-heading-label"
+            }
+            if postNoteHeading.elementType != preNoteHeadingType {
+                return "post-note-heading-type"
+            }
+            if !postNoteField.exists { return "post-note-field-exists" }
+            if !postNoteField.isHittable { return "post-note-field-hittable" }
+            if postNoteField.identifier != preNoteFieldIdentifier {
+                return "post-note-field-identifier"
+            }
+            return nil
+        }()
+        if let firstFailedPostDismissSemanticLabel {
             throw AutomationConfigurationError.invalid(
-                "S10.4 minimum work-validation post-dismiss semantics are invalid"
+                "S10.4 minimum work-validation post-dismiss semantics are invalid: "
+                    + firstFailedPostDismissSemanticLabel
             )
         }
     }
