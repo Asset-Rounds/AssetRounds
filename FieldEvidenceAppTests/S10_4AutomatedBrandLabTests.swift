@@ -1066,10 +1066,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 138_307)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 138_309)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "2C6D2EB40248881EE09132AAEA788D21971AFAA70F49B295D35870149C541B17"
+            "49CCFAFDE378385479CA4BCC3EA6077E8120CA481BF41485790C753C232D1ADB"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
