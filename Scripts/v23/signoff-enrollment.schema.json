@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "cardID": {
+      "const": "V23-P04-C43"
+    },
+    "finalHashesSealed": {
+      "const": false
+    },
+    "flags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    },
+    "schema": {
+      "const": "V23P04C43SignoffEnrollmentToolingV1"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "authority",
+    "flags",
+    "finalHashesSealed"
+  ],
+  "title": "V23 P04 C43 signoff enrollment",
+  "type": "object"
+}

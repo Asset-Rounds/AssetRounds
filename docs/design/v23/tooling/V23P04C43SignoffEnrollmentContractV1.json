@@ -1,0 +1,198 @@
+{
+  "authority": {
+    "allocationDigest": "a3a73085ce30f95d7cff0530d132ac6e8bd45e5a4264e2daa9493574f95c6045",
+    "appBaseHead": "ff594be4b8ed4f6b73330775a3db8ea2d3ae739d",
+    "appBaseTree": "aa84d07e63f50ccc23b5adadd4d690fd045f15d3",
+    "cardID": "V23-P04-C43",
+    "contextDigest": "9f41da0b28cbb8e7e85a0a4ee017adc97cad387cf699f7e93f987901639f7458",
+    "coordinationHead": "3db4113cc825a60d335fda3b1ae6b6f22c4364cd",
+    "coordinationTree": "0e0bad30d736f38bd2d5886298b2d2dbc9593c55",
+    "fenceDigest": "f27bee7cb03540b9b2fcc5030f30596b497692f3d4ad97e070fcfa0c36c1c8f6",
+    "ledgerDigest": "6b44edeba5b0f7e8924ec7fd3652dd53ac33f307989350cde0dc653ae05bb499",
+    "ordinal": 131,
+    "pathFence": [
+      "FieldEvidenceApp/Application/Accountability/PartyAccountabilityCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Accountability/PartyAccountabilityContractsV1.swift",
+      "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+      "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+      "FieldEvidenceApp/Application/Accountability/SignoffEnrollmentCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Accountability/SignoffEnrollmentContractsV1.swift",
+      "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Accountability/V23P04C43SignoffEnrollmentCorpusV1.json",
+      "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C43SignoffEnrollmentUITests.swift",
+      "Scripts/v23/generate_p04_c43_contracts.py",
+      "Scripts/v23/p04_c43_contracts.py",
+      "Scripts/v23/verify_p04_c43_contracts.py",
+      "Scripts/v23/signoff-enrollment.schema.json",
+      "docs/design/v23/tooling/V23-P04-C43-tooling-manifest.json",
+      "docs/design/v23/tooling/V23P04C43BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23P04C43SignoffEnrollmentContractV1.json",
+      "docs/design/v23/tooling/V23P04C43SignoffEnrollmentEvidenceReceiptV1.json"
+    ],
+    "prerequisiteDigest": "7ecb6877135b87cc18953a8c6e8a9a380e23739617b11e32b42b788df8fd2344",
+    "projectionDigest": "7904e9fb570c91d6f5a747488173f1b936c30aa6d67079f354967db4cb871b90",
+    "sequence": 572,
+    "transitionDigest": "7657d6c7c16cd605daef3cf01eead666ddcf9340000027af602721c14fe68d71"
+  },
+  "cardID": "V23-P04-C43",
+  "claims": {
+    "authorityProof": false,
+    "biometricMark": false,
+    "deepLinkOnlyAcceptance": false,
+    "finalApproval": false,
+    "hostedDependency": false,
+    "identityProof": false,
+    "legalApproval": false,
+    "nativeBuildVerified": false,
+    "nonrepudiation": false,
+    "verifiedApproval": false
+  },
+  "contract": "SignoffEnrollmentContractV1",
+  "exactAction": "Record approval response",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "ordinal": 131,
+  "persistenceDecision": {
+    "acknowledgementSnapshotV1BytePreserved": true,
+    "acknowledgementSnapshotV1Migration": false,
+    "authorityClaim": false,
+    "deepLinkOnlyAcceptance": false,
+    "drawnMarkBiometric": false,
+    "exactAction": "Record approval response",
+    "identityClaim": false,
+    "legalClaim": false,
+    "newDurableFamilyCount": 0,
+    "newMigrationCount": 0,
+    "newModelCount": 0,
+    "newSchemaCount": 0,
+    "newStoreCount": 0,
+    "newWriterCount": 0,
+    "nonrepudiationClaim": false,
+    "optionalDrawnMark": true,
+    "rootOrNetworkOrTelemetry": false,
+    "typedPathAccessible": true,
+    "verifiedOrFinalApprovalClaim": false,
+    "visibleWorkRootPathRequired": true
+  },
+  "requirements": {
+    "acknowledgementSnapshotV1Untouched": true,
+    "deepLinkAloneNeverAccepted": true,
+    "oneExistingWriter": true,
+    "optionalNonBiometricNonDurableMark": true,
+    "prohibitedClaimsAllFalse": true,
+    "receiptFirstSameMutationIDExpectedRevisionRecovery": true,
+    "s10IssueDetailViewReconciliationOnly": true,
+    "typedAccessiblePath": true,
+    "workPath": [
+      "Work root",
+      "immutable completed detail",
+      "More",
+      "Record response",
+      "editor",
+      "history"
+    ]
+  },
+  "scenarioEvidenceIDs": [
+    "V23-P04-C43-G01",
+    "V23-P04-C43-A01",
+    "V23-P04-C43-H01",
+    "V23-P04-C43-I01",
+    "V23-P04-C43-R01"
+  ],
+  "scenarioRows": [
+    {
+      "evidenceID": "V23-P04-C43-G01",
+      "id": "G01",
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P04-C43-A01",
+      "id": "A01",
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P04-C43-H01",
+      "id": "H01",
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P04-C43-I01",
+      "id": "I01",
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P04-C43-R01",
+      "id": "R01",
+      "kind": "RECOVERY"
+    }
+  ],
+  "schema": "V23P04C43SignoffEnrollmentToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Application/Accountability/PartyAccountabilityCoordinatorV1.swift",
+      "sha256": "c249881d6ede2f6b99e6b005d3b4812f7dd87205f68eb7d8c7f05a97660f029f",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Accountability/PartyAccountabilityContractsV1.swift",
+      "sha256": "eab09dc123abf442727fd9cd86d6676dd71c5d059ba898e20763effb80d92f24",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+      "sha256": "217403ff65a8cde53dc0d1402d929720782232391d998eab48afc1fd72159c6c",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+      "sha256": "990e0e7257a73fa253240d42114ac033401950bb0a26f2da754eac3e53da4088",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Accountability/SignoffEnrollmentCoordinatorV1.swift",
+      "sha256": "259e6728c34b58d2a5b9a5ab1d7fe3108762b73e9430d3ab646ca31b593c9824",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Accountability/SignoffEnrollmentContractsV1.swift",
+      "sha256": "dbb60625718e82fdad1d6d6afa91522985a77f47e5761983b81d37f7ff616113",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift",
+      "sha256": "0ab6b0d384018d5f5f670ba0e8d81f7d229245dbedec3b54d4050ad462abd18c",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/Accountability/V23P04C43SignoffEnrollmentCorpusV1.json",
+      "sha256": "02d0b11728d1836efead76a842bc385eae970976f48f17c49b63857f3e8aa668",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests.swift",
+      "sha256": "0fb3ddb89a21ece8a0805b2b4a298ca98b0bb309341db636dba35a0881a90757",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C43SignoffEnrollmentUITests.swift",
+      "sha256": "27cda5e85b5c25f06b09f1a109d8821404ba3d1aa1f3e839dbf53e040721a9b9",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

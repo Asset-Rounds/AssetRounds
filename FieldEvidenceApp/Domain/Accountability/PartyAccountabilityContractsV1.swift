@@ -706,6 +706,43 @@ extension SignoffSnapshotV1 {
     }
 }
 
+/// C43 is an intentionally narrow interpretation of an existing signoff
+/// snapshot.  It does not change the persisted snapshot schema or broaden
+/// the semantics available to neighboring signoff flows.
+enum C43SignoffEnrollmentBoundaryV1 {
+    static let manifest: SignoffEnrollmentManifestV1 = .workDetailCompletedResponseV1
+    static let disclosureReleaseID = SignoffEnrollmentDisclosureV1.releaseID
+    static let actionTitle = SignoffEnrollmentManifestV1.actionTitle
+    static let drawnMarkIsNonDurable = true
+
+    static func isEnrollmentSnapshot(_ snapshot: SignoffSnapshotV1) -> Bool {
+        snapshot.purpose == manifest.purpose
+            || snapshot.roleAssertion?.disclosureRelease.releaseID == disclosureReleaseID
+    }
+
+    static func validate(_ snapshot: SignoffSnapshotV1) throws {
+        try snapshot.validate()
+        guard snapshot.purpose == manifest.purpose,
+              snapshot.subjectRevision > 0,
+              snapshot.disposition == .recordedLocalAssertion,
+              snapshot.method == .typedLocalAssertion
+                || snapshot.method == .explicitLocalAcknowledgement,
+              snapshot.qualification == nil,
+              snapshot.externalEvidenceID == nil,
+              snapshot.supersedesSnapshotID == nil,
+              let assertion = snapshot.roleAssertion,
+              assertion.actor.workspaceID == snapshot.workspaceID,
+              assertion.disclosureRelease.releaseID == disclosureReleaseID,
+              assertion.disclosureRelease.disclosureText
+                == SignoffEnrollmentDisclosureV1.disclosureText,
+              assertion.disclosureRelease.statesLocalAssertionOnly,
+              assertion.disclosureRelease.disclaimsIdentityVerification,
+              assertion.disclosureRelease.disclaimsLegalSignature else {
+            throw PartyAccountabilityFailureV1.unsupportedClaim
+        }
+    }
+}
+
 // Synthesized Encodable output is retained, while every Decodable entry point
 // is routed back through the same validating initializer used by writers.
 extension SitePartyRoleEventV1 {

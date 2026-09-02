@@ -5533,6 +5533,13 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             let snapshotID = value.snapshotID
             var d = FetchDescriptor<SignoffSnapshotRow>(predicate: #Predicate { $0.snapshotID == snapshotID }); d.fetchLimit = 1
             guard try modelContext.fetch(d).isEmpty else { throw WorkspaceMutationFailureV1.invalidCommand }
+            if C43SignoffEnrollmentBoundaryV1.isEnrollmentSnapshot(value) {
+                do {
+                    try C43SignoffEnrollmentBoundaryV1.validate(value)
+                } catch {
+                    throw WorkspaceMutationFailureV1.invalidCommand
+                }
+            }
             if let embeddedActor = value.roleAssertion?.actor {
                 let actorID = embeddedActor.snapshotID
                 var actorDescriptor = FetchDescriptor<ActorSnapshotRow>(predicate: #Predicate { $0.snapshotID == actorID })

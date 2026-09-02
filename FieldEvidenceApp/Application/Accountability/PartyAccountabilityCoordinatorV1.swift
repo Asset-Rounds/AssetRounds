@@ -724,6 +724,25 @@ final class PartyAccountabilityCoordinatorV1 {
         )
     }
 
+    /// C43 may use only the existing append-signoff command.  This helper
+    /// keeps the extra enrollment constraints at the application seam while
+    /// preserving the generic coordinator for all other accountability work.
+    func previewC43SignoffEnrollment(
+        mutation: PartyAccountabilityMutationV1,
+        expectedRevision: WorkspaceExpectedRevisionV1,
+        workspaceID: WorkspaceID
+    ) throws -> PartyAccountabilityChangePlanV1 {
+        guard case let .appendSignoff(snapshot) = mutation else {
+            throw PartyAccountabilityCoordinatorFailureV1.invalidPlan
+        }
+        try C43SignoffEnrollmentBoundaryV1.validate(snapshot)
+        return try preview(
+            mutation: mutation,
+            expectedRevision: expectedRevision,
+            workspaceID: workspaceID
+        )
+    }
+
     func commit(
         _ plan: PartyAccountabilityChangePlanV1
     ) throws -> PartyAccountabilityChangeReceiptV1 {
@@ -752,6 +771,18 @@ final class PartyAccountabilityCoordinatorV1 {
             plan: plan,
             mutationReceipt: durableReceipt
         )
+    }
+
+    /// Recovery remains receipt-first through `commit(_:)`; this wrapper only
+    /// proves that the saved plan is the C43 subset before delegating to it.
+    func commitC43SignoffEnrollment(
+        _ plan: PartyAccountabilityChangePlanV1
+    ) throws -> PartyAccountabilityChangeReceiptV1 {
+        guard case let .appendSignoff(snapshot) = plan.basis.mutation else {
+            throw PartyAccountabilityCoordinatorFailureV1.invalidPlan
+        }
+        try C43SignoffEnrollmentBoundaryV1.validate(snapshot)
+        return try commit(plan)
     }
 
     private static func normalizedBasis(
