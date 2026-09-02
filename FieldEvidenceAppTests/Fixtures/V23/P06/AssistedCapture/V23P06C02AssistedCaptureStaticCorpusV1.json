@@ -1,0 +1,59 @@
+{
+  "cardID": "V23-P06-C02",
+  "cases": [
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C02-G01",
+      "input": "synthetic declarative OCR/dictation/location protocol",
+      "kind": "golden"
+    },
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C02-A01",
+      "input": "synthetic text alternatives and locale review",
+      "kind": "accessibility"
+    },
+    {
+      "expected": "REJECT_NO_STUDY",
+      "id": "V23-P06-C02-H01-MALFORMED",
+      "input": "malformed capability descriptor",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_OUT_OF_SCOPE",
+      "id": "V23-P06-C02-H01-NETWORK",
+      "input": "network invocation request",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_NO_DATA_CAPTURE",
+      "id": "V23-P06-C02-H01-DATA",
+      "input": "captured media model output or location data",
+      "kind": "hostile"
+    },
+    {
+      "expected": "NO_RUNTIME_CLAIM",
+      "id": "V23-P06-C02-I01",
+      "input": "synthetic static-review interruption",
+      "kind": "interruption"
+    },
+    {
+      "expected": "RECONCILE_OR_DISCARD",
+      "id": "V23-P06-C02-R01",
+      "input": "expired or revoked static protocol",
+      "kind": "recovery"
+    }
+  ],
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "forbiddenResults": [
+    "VALIDATED_PASS",
+    "VALIDATED_FAIL",
+    "ACCEPTED",
+    "READY",
+    "RELEASED",
+    "PHASE_INTEGRATED"
+  ],
+  "realTerminalValidationResult": false,
+  "schema": "V23P06C02AssistedCaptureStaticCorpusV1",
+  "syntheticOnly": true
+}

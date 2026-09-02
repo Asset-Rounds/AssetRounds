@@ -1,0 +1,88 @@
+{
+  "appBaseIdentity": {
+    "head": "01d5fdcdaad3bd9b4f59dba22b42a51f1ac4c3b3",
+    "tree": "bbb05df9632fda7e23294af1e073a4242ff0c969"
+  },
+  "authority": {
+    "appBaseHead": "01d5fdcdaad3bd9b4f59dba22b42a51f1ac4c3b3",
+    "appBaseTree": "bbb05df9632fda7e23294af1e073a4242ff0c969",
+    "attemptID": 1,
+    "cardID": "V23-P06-C02",
+    "coordinationHead": "edbd7235b1097f04f98c0fc70bdc4035082378f3",
+    "coordinationTree": "61d43e7b9297b6090e1d0e89c7429529192decbb",
+    "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+    "executionSpecDigest": "3d4db1bd5e29ce55debc1b622eed2e776afac9d18b1894fe305014a4a696e27f",
+    "existingPathCount": 0,
+    "fencePathCount": 9,
+    "finalHashesSealed": false,
+    "ledgerDigest": "4058e103c2924150cdc08a21b4f7783221e89651df20d79ee4afc5e35daa7ee6",
+    "newPathCount": 9,
+    "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
+    "ordinal": 138,
+    "ownerOverrideV5SHA256": "33ca39e0996baf62069f60d68b96181844160dfdcc97a2ba05e8ba045dfc46b5",
+    "ownerOverrideV5SemanticDigest": "57255dfd005eedb7971f1dffb42257d06d44f4dd929788b125be1abb6fdf1e38",
+    "pathFenceDigest": "efee91b7c07695426561d5a3b220ebf829f8d5cec8bbcb0778cd0fd5dad1291a",
+    "prerequisiteSetDigest": "ef8f5ce259d8ebe1922fb11f2c31dd7893fa99717fc0b914c98e84c90adf7c41",
+    "projectionDigest": "1108643c3014e1da8fed418cca7c8518af12e3dbafc356a9c86366edd202b49f",
+    "s10ReservationOverlapCount": 0,
+    "sequence": 599,
+    "staticPreparationAnchorDigest": "6deb25429aac46a6beb9feda5c367909f048f22b719573dcc66f88db0ab603d3",
+    "transitionDigest": "1644d21dc5099b6ef14a8e8d5953ad4bd5c20de162357b2667d90f3766bf3653"
+  },
+  "canonicalGeneration": "MANIFEST_LAST_ATOMIC_REPLACE",
+  "cardID": "V23-P06-C02",
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "flags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "implementation": false,
+    "main": false,
+    "merge": false,
+    "native": false,
+    "phase": false,
+    "physical": false,
+    "publication": false,
+    "release": false,
+    "selector": false
+  },
+  "generatedFiles": [
+    {
+      "path": "Scripts/v23/assisted-capture-static-protocol.schema.json",
+      "sha256": "555f7e0d8d9e068c520acc454d3a07140ff36d4a3fd9243ab3474f394496b56b"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/P06/AssistedCapture/V23P06C02AssistedCaptureStaticCorpusV1.json",
+      "sha256": "33cf82cf05a5f90359f8610fd10e30d336eaf2df4e17a6166488a5cb1301ad92"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C02AssistedCaptureStaticPreparationContractV1.json",
+      "sha256": "b656eb3fb5d25ac40b3e33adcb12b48cb87426403cf1cbc83fe13e632247dd06"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C02AssistedCaptureStaticPreparationEvidenceReceiptV1.json",
+      "sha256": "a7dfabda5f1098722ad9a2527658b68cb9de7e02c540b07c0cbe68af05f3f823"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C02BrandImpactManifestV1.json",
+      "sha256": "4760056b5e2627139997f7cd4732bdd01dc71b61dff08ca1bc0b83db66578ef6"
+    }
+  ],
+  "manifest": "V23P06C02ToolingManifestV1",
+  "noAcceptanceCredit": true,
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
+  "pathFence": [
+    "Scripts/v23/p06_c02_contracts.py",
+    "Scripts/v23/generate_p06_c02_contracts.py",
+    "Scripts/v23/verify_p06_c02_contracts.py",
+    "Scripts/v23/assisted-capture-static-protocol.schema.json",
+    "FieldEvidenceAppTests/Fixtures/V23/P06/AssistedCapture/V23P06C02AssistedCaptureStaticCorpusV1.json",
+    "docs/design/v23/tooling/V23P06C02AssistedCaptureStaticPreparationContractV1.json",
+    "docs/design/v23/tooling/V23P06C02AssistedCaptureStaticPreparationEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P06C02BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P06-C02-tooling-manifest.json"
+  ],
+  "schema": "V23P06C02StaticPreparationToolingV1"
+}
