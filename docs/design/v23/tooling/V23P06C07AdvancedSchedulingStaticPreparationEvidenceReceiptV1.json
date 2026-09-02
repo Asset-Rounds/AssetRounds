@@ -1,0 +1,25 @@
+{
+  "appBaseHead": "a3ab088f7b8a86fe952f3f1bc9064360fb1ac38e",
+  "appBaseTree": "dd3e1940d459c7c869b9dec5b617f523052f595a",
+  "cardID": "V23-P06-C07",
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "flags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "implementation": false,
+    "main": false,
+    "merge": false,
+    "native": false,
+    "phase": false,
+    "physical": false,
+    "release": false,
+    "selector": false
+  },
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "protocolSHA256": "2e98abfdba64ec151450742f828ebd2ca8c0d669377febf61e0a200d8f1089d7",
+  "receipt": "AdvancedSchedulingStaticPreparationEvidenceReceiptV1",
+  "result": "PASS_STATIC_PROVISIONAL",
+  "schema": "V23P06C07StaticPreparationToolingV1"
+}

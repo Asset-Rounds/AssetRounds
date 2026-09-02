@@ -1,0 +1,64 @@
+{
+  "appBaseHead": "a3ab088f7b8a86fe952f3f1bc9064360fb1ac38e",
+  "appBaseTree": "dd3e1940d459c7c869b9dec5b617f523052f595a",
+  "cardID": "V23-P06-C07",
+  "contract": "AdvancedSchedulingStaticPreparationContractV1",
+  "corpusPath": "FieldEvidenceAppTests/Fixtures/V23/P06/AdvancedScheduling/V23P06C07AdvancedSchedulingStaticCorpusV1.json",
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "flags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "implementation": false,
+    "main": false,
+    "merge": false,
+    "native": false,
+    "phase": false,
+    "physical": false,
+    "release": false,
+    "selector": false
+  },
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "protocol": {
+    "assignmentInvoked": false,
+    "calendarInvoked": false,
+    "canonicalWrites": 0,
+    "cardID": "V23-P06-C07",
+    "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+    "evidenceIDs": [
+      "V23-P06-C07-G01",
+      "V23-P06-C07-A01",
+      "V23-P06-C07-H01-DST",
+      "V23-P06-C07-H01-TIMEZONE",
+      "V23-P06-C07-H01-BLACKOUT",
+      "V23-P06-C07-I01",
+      "V23-P06-C07-R01"
+    ],
+    "flags": {
+      "acceptance": false,
+      "adoption": false,
+      "hosted": false,
+      "implementation": false,
+      "main": false,
+      "merge": false,
+      "native": false,
+      "phase": false,
+      "physical": false,
+      "release": false,
+      "selector": false
+    },
+    "historyMutation": false,
+    "network": false,
+    "notificationsScheduled": 0,
+    "schema": "V23P06C07AdvancedSchedulingStaticProtocolV1",
+    "scope": {
+      "customerData": false,
+      "externalActions": "NONE",
+      "manualOfflineFallback": true,
+      "syntheticOnly": true
+    },
+    "unboundedHorizon": false
+  },
+  "schema": "V23P06C07StaticPreparationToolingV1"
+}
