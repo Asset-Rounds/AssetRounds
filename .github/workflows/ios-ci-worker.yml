@@ -1253,12 +1253,15 @@ jobs:
           import plistlib
           import re
           import stat
+          import subprocess
           import sys
           import tarfile
           from pathlib import Path
 
           ROOT_LABEL = "FieldEvidenceDerivedData/Build/Products"
           ALLOWED_MACROS = {"__TESTROOT__", "__PLATFORMS__", "__TESTHOST__", "__TESTBUNDLE__"}
+          PILOT_UNIT_SOURCE_PARTS = ("FieldEvidenceAppTests", "S10_4AutomatedBrandLabTests.swift")
+          PILOT_UNIT_SOURCE_PATH = "/".join(PILOT_UNIT_SOURCE_PARTS)
           CANONICAL_SYSTEM_DYLD_PAIRS = frozenset({
               (
                   ("FieldEvidenceAppTests", "EnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
@@ -1287,6 +1290,96 @@ jobs:
                   for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                       digest.update(chunk)
               return digest.hexdigest().upper()
+
+          def require_checkout_head(value):
+              if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
+                  fail("malformed checkout head")
+              return value
+
+          def require_checkout_sha256(value):
+              if not isinstance(value, str) or re.fullmatch(r"[0-9A-F]{64}", value) is None:
+                  fail("malformed checkout source digest")
+              return value
+
+          def checkout_directory(path):
+              try:
+                  mode = os.lstat(path).st_mode
+              except OSError:
+                  fail("unsafe checkout directory")
+              if not stat.S_ISDIR(mode) or stat.S_ISLNK(mode):
+                  fail("unsafe checkout directory")
+
+          def validate_checkout_root(root_text):
+              if not isinstance(root_text, str) or not root_text:
+                  fail("unsafe checkout root")
+              if any(ord(character) < 32 or ord(character) == 127 for character in root_text):
+                  fail("unsafe checkout root")
+              if not os.path.isabs(root_text) or os.path.normpath(root_text) != root_text:
+                  fail("unsafe checkout root")
+              try:
+                  physical_root = os.path.realpath(root_text)
+              except OSError:
+                  fail("unsafe checkout root")
+              if physical_root != root_text:
+                  fail("unsafe checkout root")
+              root = Path(root_text)
+              checkout_directory(root)
+              return root
+
+          def run_checkout_git(root, arguments, capture=False):
+              try:
+                  result = subprocess.run(
+                      ["git", "-C", os.fspath(root), *arguments],
+                      stdin=subprocess.DEVNULL,
+                      stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL,
+                      check=False,
+                      shell=False,
+                      text=capture,
+                      encoding="ascii" if capture else None,
+                      errors="strict" if capture else None,
+                      timeout=15,
+                  )
+              except (OSError, subprocess.SubprocessError, UnicodeError):
+                  fail("checkout git verification failed")
+              return result
+
+          def validate_checkout_source(root_text, expected_head, expected_sha256=None):
+              root = validate_checkout_root(root_text)
+              expected_head = require_checkout_head(expected_head)
+              if expected_sha256 is not None:
+                  expected_sha256 = require_checkout_sha256(expected_sha256)
+              source_directory = root
+              for component in PILOT_UNIT_SOURCE_PARTS[:-1]:
+                  source_directory = source_directory / component
+                  checkout_directory(source_directory)
+              source_path = source_directory / PILOT_UNIT_SOURCE_PARTS[-1]
+              try:
+                  source_mode = os.lstat(source_path).st_mode
+              except OSError:
+                  fail("unsafe checkout source")
+              if not stat.S_ISREG(source_mode) or stat.S_ISLNK(source_mode):
+                  fail("unsafe checkout source")
+              head_result = run_checkout_git(root, ["rev-parse", "--verify", "HEAD"], capture=True)
+              if head_result.returncode != 0 or head_result.stdout.strip() != expected_head:
+                  fail("checkout head mismatch")
+              tracked_result = run_checkout_git(
+                  root, ["ls-files", "--error-unmatch", "--", PILOT_UNIT_SOURCE_PATH]
+              )
+              if tracked_result.returncode != 0:
+                  fail("checkout source is not tracked")
+              clean_result = run_checkout_git(
+                  root, ["diff", "--quiet", "--exit-code", expected_head, "--", PILOT_UNIT_SOURCE_PATH]
+              )
+              if clean_result.returncode != 0:
+                  fail("checkout source is not clean")
+              try:
+                  source_sha256 = sha256_file(source_path)
+              except OSError:
+                  fail("checkout source unreadable")
+              if expected_sha256 is not None and source_sha256 != expected_sha256:
+                  fail("checkout source digest mismatch")
+              return source_sha256
 
           def strict_pairs(pairs):
               output = {}
@@ -1710,7 +1803,7 @@ jobs:
                   "payloadArtifactName", "producerRunnerProvider", "producerSegmentID", "producerShardID",
                   "productsRoot", "ref", "repository", "schemaVersion", "selectorSHA256",
                   "simulatorName", "simulatorRuntime", "simulatorRuntimeBuild", "taskID",
-                  "toolchain", "treeManifestSHA256", "xctestrunPath"
+                  "sourceBinding", "toolchain", "treeManifestSHA256", "xctestrunPath"
               }
               if not isinstance(metadata, dict) or set(metadata) != expected_keys:
                   fail("unexpected payload metadata keys")
@@ -1726,6 +1819,11 @@ jobs:
               for key, value in expected.items():
                   if metadata.get(key) != value:
                       fail("payload metadata mismatch: " + key)
+              source_binding = metadata.get("sourceBinding")
+              if not isinstance(source_binding, dict) or set(source_binding) != {"path", "sha256"} \
+                  or source_binding.get("path") != PILOT_UNIT_SOURCE_PATH:
+                  fail("payload source binding mismatch")
+              require_checkout_sha256(source_binding.get("sha256"))
               expected_toolchain = {
                   "sdkBuild": sdk_build, "sdkName": sdk_name, "xcodeBuild": xcode_build,
                   "xcodeVersion": xcode_version,
@@ -1775,6 +1873,10 @@ jobs:
               extract_payload(Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4:])
           elif command == "verify" and len(sys.argv) == 14:
               verify(Path(sys.argv[2]), sys.argv[3:])
+          elif command == "checkout-source" and len(sys.argv) == 4:
+              print(validate_checkout_source(sys.argv[2], sys.argv[3]))
+          elif command == "verify-checkout" and len(sys.argv) == 5:
+              validate_checkout_source(sys.argv[2], sys.argv[3], sys.argv[4])
           elif command == "fingerprint" and len(sys.argv) == 3:
               fingerprint(Path(sys.argv[2]))
           else:
@@ -1818,6 +1920,12 @@ jobs:
           payload_root="$extracted_payload_root/FieldEvidencePayload"
           test -d "$payload_root"
           test -n "$xctestrun_relative_path"
+          metadata_path="$payload_root/s10-4-payload-metadata.json"
+          pilot_source_head="$(jq -er '.head' "$metadata_path")"
+          pilot_unit_source_sha="$(jq -er '.sourceBinding.sha256' "$metadata_path")"
+          test "$pilot_source_head" = "$GITHUB_SHA"
+          "$CI_S10_4_PILOT_PAYLOAD_VERIFIER" verify-checkout \
+            "$GITHUB_WORKSPACE" "$pilot_source_head" "$pilot_unit_source_sha"
           restored_derived_data="$RUNNER_TEMP/FieldEvidenceDerivedData"
           test ! -e "$restored_derived_data"
           test ! -L "$restored_derived_data"
@@ -1844,6 +1952,11 @@ jobs:
             "CI_S10_4_PILOT_CHECKSUMS_SHA256=$(shasum -a 256 "$payload_root/s10-4-payload-sha256sums.txt" | awk '{print toupper($1)}')" \
             "CI_S10_4_PILOT_XCTESTRUN_PATH=$restored_xctestrun_path" \
             "CI_S10_4_PILOT_PAYLOAD_VERIFIED=true" \
+            "CI_S10_4_PILOT_CHECKOUT_ROOT=$GITHUB_WORKSPACE" \
+            "CI_S10_4_PILOT_SOURCE_HEAD=$pilot_source_head" \
+            "CI_S10_4_PILOT_UNIT_SOURCE_SHA256=$pilot_unit_source_sha" \
+            "CI_S10_4_PILOT_CHECKOUT_VERIFIED=true" \
+            "CI_S10_4_PILOT_EXPECTED_HEAD=$GITHUB_SHA" \
             >> "$GITHUB_ENV"
 
       - name: Recheck setup budget after pilot payload restore
@@ -1961,6 +2074,9 @@ jobs:
           payload_products="$payload_root/FieldEvidenceDerivedData/Build/Products"
           test -x "$CI_S10_4_PILOT_PAYLOAD_VERIFIER"
           test -d "$source_products"
+          unit_source_path="FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
+          unit_source_sha="$("$CI_S10_4_PILOT_PAYLOAD_VERIFIER" checkout-source \
+            "$GITHUB_WORKSPACE" "$GITHUB_SHA")"
           test ! -e "$payload_root"
           mkdir -p "$payload_root/FieldEvidenceDerivedData/Build"
           ditto "$source_products" "$payload_products"
@@ -1986,6 +2102,8 @@ jobs:
             --arg architecture "$(uname -m)" \
             --arg configuration "$CONFIGURATION" \
             --arg selectorSHA256 "$selector_sha" \
+            --arg unitSourcePath "$unit_source_path" \
+            --arg unitSourceSHA256 "$unit_source_sha" \
             --arg xctestrunPath "$xctestrun_path" \
             --arg treeManifestSHA256 "$tree_manifest_sha" \
             --arg checksumsSHA256 "$checksums_sha" \
@@ -2011,6 +2129,10 @@ jobs:
                 architecture: $architecture,
                 configuration: $configuration,
                 selectorSHA256: $selectorSHA256,
+                sourceBinding: {
+                  path: $unitSourcePath,
+                  sha256: $unitSourceSHA256
+                },
                 xctestrunPath: $xctestrunPath,
                 treeManifestSHA256: $treeManifestSHA256,
                 checksumsSHA256: $checksumsSHA256,

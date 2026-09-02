@@ -87,8 +87,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         try assertFile(
             testSmokePath,
-            byteCount: 3_254,
-            sha256: "D8C498784EA60B675651C4F2879622A6C1C76D491BB4F5CCD45D84513CEB3076"
+            byteCount: 7_520,
+            sha256: "9048B36470A4E1CDFC277242F7ECCB33348EA9F4457C44615C6928C5DBDEB19B"
         )
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
@@ -171,10 +171,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "if [ \"$pilot_consumer\" = true ]; then",
             before: "\nelse"
         )
-        XCTAssertEqual(testSmokePilotSource.utf8.count, 1_888)
+        XCTAssertEqual(testSmokePilotSource.utf8.count, 5_320)
         XCTAssertEqual(
             Data(testSmokePilotSource.utf8).sha256,
-            "DA7A0814380ECA4D40D1E1C300C42D82E94E3FA2A5ECCA79D851DB2BF0675016"
+            "5845F108F69F71A2BFE2383B53F58631DC5542F616BB03A556C766E9CE8D4402"
         )
         XCTAssertEqual(uiSmokePilotSource.utf8.count, 1_744)
         XCTAssertEqual(
@@ -243,8 +243,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 323_295,
-            sha256: "500C4ED8E120905B25D3F35499103C7985EDC8AF6AA0E26A8CB2D695464EF979"
+            byteCount: 329_714,
+            sha256: "E87B14F46A10AE85C9885A071B0F8DCB33871403F432887FA7B603A89AB87434"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -1066,10 +1066,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 147_611)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 154_030)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "81C9EDC5B8AF9925765874A7CEB8F30EAAD81071D07CA0A03B92150045FE692F"
+            "060D30245D081540ACB959BC072A15B0A3770D7E60B4D32A8347C00AD49151B2"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -1083,10 +1083,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Prepare S10.4 pilot payload verifier",
             before: "\n\n      - name: Download immutable S10.4 pilot payload"
         )
-        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 28_467)
+        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 33_703)
         XCTAssertEqual(
             Data(workerPilotVerifierSource.utf8).sha256,
-            "79648F9B580A5680B968BA9E92115CDAA72F768699D00193AB9DCB7AFFC4F100"
+            "624FE2BDD52E3FF6C86D4030EFDA54A785B1B66DD8C90C519A7960845C3F3A2C"
         )
         for exact in [
             "FieldEvidencePayload.tar",
@@ -1216,10 +1216,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Verify and restore immutable S10.4 pilot payload",
             before: "\n\n      - name: Recheck setup budget after pilot payload restore"
         )
-        XCTAssertEqual(workerPilotRestoreSource.utf8.count, 3_463)
+        XCTAssertEqual(workerPilotRestoreSource.utf8.count, 4_183)
         XCTAssertEqual(
             Data(workerPilotRestoreSource.utf8).sha256,
-            "452BB5E7A3C3F207FCE213803B164555F503E047DF56998F1FC8E5B65AE692D6"
+            "6F37FCB98495131FFE4436ABB96C1A4DFA14E8925819A8659906E7F2565E48A0"
         )
         for exact in [
             "sdk_name=\"iphonesimulator$sdk_version\"",
@@ -1237,10 +1237,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Seal immutable S10.4 pilot build payload",
             before: "\n\n      - name: Upload immutable S10.4 pilot payload"
         )
-        XCTAssertEqual(workerPilotSealSource.utf8.count, 5_987)
+        XCTAssertEqual(workerPilotSealSource.utf8.count, 6_450)
         XCTAssertEqual(
             Data(workerPilotSealSource.utf8).sha256,
-            "0E85D2E6239D27464B195AC50D5530841441EDEF474BC7791A7B46B49BEBF186"
+            "A2BDBAE190DB2DC5ED5FDE8EB51B9863A6C02E23817AAE7E07202CD05BE363DD"
         )
         for exact in [
             "source_products=\"$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products\"",
@@ -1434,7 +1434,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workflowSource.components(
                 separatedBy: #"printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV""#
             ).count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             workflowSource.components(
@@ -1935,9 +1935,149 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workflowSource.components(separatedBy: "  cancel-in-progress: false").count - 1, 1)
         let unitPath = "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
         let unitSource = try text(unitPath)
+        let repositoryRootHelperSource = try boundedSource(
+            unitSource,
+            from: "\n    private enum " + "RepositoryRootResolutionError: Error {",
+            before: "\n    private func " + "boundedSource("
+        )
+        for exact in [
+            "CI_S10_4_PILOT_CHECKOUT_ROOT",
+            "CI_S10_4_PILOT_SOURCE_HEAD",
+            "CI_S10_4_PILOT_EXPECTED_HEAD",
+            "CI_S10_4_PILOT_UNIT_SOURCE_SHA256",
+            "CI_S10_4_PILOT_CHECKOUT_VERIFIED",
+            "CI_S10_4_PILOT_MODE",
+            "CI_S10_4_EXECUTION_ROLE",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+            "ProcessInfo.processInfo.environment",
+            "role == \"payload-consumer\"",
+            "sourceHead == expectedHead",
+            "resolvingSymlinksInPath().standardizedFileURL",
+            "sourceData.sha256 == digest",
+            "guard let root = try? resolvedRepositoryRoot() else { return false }",
+            "let root = try resolvedRepositoryRoot()",
+            "return .failure(.invalidPilotBinding)",
+            "return .failure(.invalidCheckoutRoot)",
+            "return .failure(.invalidSource)",
+            "return .failure(.sourceDigestMismatch)",
+        ] {
+            XCTAssertTrue(repositoryRootHelperSource.contains(exact), exact)
+        }
+        for prohibited in [
+            "try! resolvedRepositoryRoot()",
+            "fatalError(\"",
+            "precondition(\"",
+            "?? compileTimeRoot",
+        ] {
+            XCTAssertFalse(repositoryRootHelperSource.contains(prohibited), prohibited)
+        }
+        let verifiedRoot = try resolvedRepositoryRoot()
+        let verifiedSourceURL = verifiedRoot.appendingPathComponent(Self.pilotUnitSourcePath)
+        let compileTimeRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let validPilotEnvironment = [
+            Self.pilotModeKey: "true",
+            Self.executionRoleKey: "payload-consumer",
+            Self.pilotCheckoutRootKey: verifiedRoot.path,
+            Self.pilotSourceHeadKey: String(repeating: "a", count: 40),
+            Self.pilotExpectedHeadKey: String(repeating: "a", count: 40),
+            Self.pilotUnitSourceSHA256Key: try Data(contentsOf: verifiedSourceURL).sha256,
+            Self.pilotCheckoutVerifiedKey: "true",
+        ]
+        if case let .success(pilotRoot) = Self.resolveRepositoryRoot(
+            environment: validPilotEnvironment
+        ) {
+            XCTAssertEqual(pilotRoot.path, verifiedRoot.path)
+        } else {
+            XCTFail("The exact pilot checkout binding must resolve")
+        }
+        if case let .success(ordinaryRoot) = Self.resolveRepositoryRoot(environment: [:]) {
+            XCTAssertEqual(ordinaryRoot.path, compileTimeRoot.path)
+        } else {
+            XCTFail("The ordinary lane must retain the compile-time root")
+        }
+        let missingPilotBindings = [
+            Self.pilotModeKey,
+            Self.executionRoleKey,
+            Self.pilotCheckoutRootKey,
+            Self.pilotSourceHeadKey,
+            Self.pilotExpectedHeadKey,
+            Self.pilotUnitSourceSHA256Key,
+            Self.pilotCheckoutVerifiedKey,
+        ]
+        for missingKey in missingPilotBindings {
+            var environment = validPilotEnvironment
+            environment.removeValue(forKey: missingKey)
+            if case .failure = Self.resolveRepositoryRoot(environment: environment) {
+            } else {
+                XCTFail("Missing pilot binding must fail closed: \(missingKey)")
+            }
+        }
+        var mismatchedHeadEnvironment = validPilotEnvironment
+        mismatchedHeadEnvironment[Self.pilotExpectedHeadKey] = String(repeating: "b", count: 40)
+        var trailingNewlineHeadEnvironment = validPilotEnvironment
+        trailingNewlineHeadEnvironment[Self.pilotSourceHeadKey] =
+            String(repeating: "a", count: 40) + "\n"
+        trailingNewlineHeadEnvironment[Self.pilotExpectedHeadKey] =
+            String(repeating: "a", count: 40) + "\n"
+        var malformedHeadEnvironment = validPilotEnvironment
+        malformedHeadEnvironment[Self.pilotSourceHeadKey] = String(repeating: "A", count: 40)
+        var malformedDigestEnvironment = validPilotEnvironment
+        malformedDigestEnvironment[Self.pilotUnitSourceSHA256Key] = String(repeating: "a", count: 64)
+        var unverifiedEnvironment = validPilotEnvironment
+        unverifiedEnvironment[Self.pilotCheckoutVerifiedKey] = "false"
+        var wrongRoleEnvironment = validPilotEnvironment
+        wrongRoleEnvironment[Self.executionRoleKey] = "independent"
+        var relativeRootEnvironment = validPilotEnvironment
+        relativeRootEnvironment[Self.pilotCheckoutRootKey] = "checkout"
+        var traversingRootEnvironment = validPilotEnvironment
+        traversingRootEnvironment[Self.pilotCheckoutRootKey] =
+            verifiedRoot.path + "/../" + verifiedRoot.lastPathComponent
+        var controlRootEnvironment = validPilotEnvironment
+        controlRootEnvironment[Self.pilotCheckoutRootKey] = verifiedRoot.path + "/\u{7F}"
+        var mismatchedSourceEnvironment = validPilotEnvironment
+        mismatchedSourceEnvironment[Self.pilotUnitSourceSHA256Key] =
+            String(repeating: "0", count: 64)
+        for (label, environment) in [
+            ("head mismatch", mismatchedHeadEnvironment),
+            ("trailing-newline head", trailingNewlineHeadEnvironment),
+            ("malformed head", malformedHeadEnvironment),
+            ("malformed digest", malformedDigestEnvironment),
+            ("unverified checkout", unverifiedEnvironment),
+            ("wrong role", wrongRoleEnvironment),
+            ("relative root", relativeRootEnvironment),
+            ("traversing root", traversingRootEnvironment),
+            ("control root", controlRootEnvironment),
+            ("source mismatch", mismatchedSourceEnvironment),
+        ] {
+            if case .failure = Self.resolveRepositoryRoot(environment: environment) {
+            } else {
+                XCTFail("Hostile pilot binding must fail closed: \(label)")
+            }
+        }
+        var pilotFieldsInOrdinaryEnvironment = validPilotEnvironment
+        pilotFieldsInOrdinaryEnvironment[Self.pilotModeKey] = "false"
+        if case .failure = Self.resolveRepositoryRoot(
+            environment: pilotFieldsInOrdinaryEnvironment
+        ) {
+        } else {
+            XCTFail("Pilot fields cannot be smuggled into an ordinary lane")
+        }
+        let ordinaryEnvironment = [
+            Self.pilotModeKey: "false",
+            Self.executionRoleKey: "independent",
+        ]
+        if case let .success(ordinaryRoot) = Self.resolveRepositoryRoot(
+            environment: ordinaryEnvironment
+        ) {
+            XCTAssertEqual(ordinaryRoot.path, compileTimeRoot.path)
+        } else {
+            XCTFail("The independent ordinary lane must retain the compile-time root")
+        }
         let retainStepMarker = "      - name: Retain S10.4 shard evidence\n"
         let retainBoundaryMarker =
-            "      - name: Begin evidence-finalization budget\n"
+            "\n\n      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN\n"
         let retainStepParts = workflowSource.components(separatedBy: retainStepMarker)
         guard retainStepParts.count == 2 else {
             XCTFail("The workflow must contain exactly one S10.4 retention step")
@@ -21273,13 +21413,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             12
         )
         XCTAssertFalse(workflowSource.contains("S10_4_AUDIT_DIAGNOSTIC"))
-        XCTAssertFalse(
-            FileManager.default.fileExists(
-                atPath: repositoryRoot
-                    .appendingPathComponent("FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests.swift")
-                    .path
-            )
-        )
+        XCTAssertFalse(fileExists("FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests.swift"))
     }
 
     private func assertSegmentedAXAcceptanceHarnessIsFixedIndependentAndFailClosed() throws {
@@ -26610,20 +26744,153 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(try strings(matrix, "required_requirement_ids"), requirementIDs, file: file, line: line)
     }
 
-    private var repositoryRoot: URL {
-        URL(fileURLWithPath: #filePath)
+    private enum RepositoryRootResolutionError: Error {
+        case invalidPilotBinding
+        case invalidCheckoutRoot
+        case invalidSource
+        case sourceDigestMismatch
+    }
+
+    private static let pilotCheckoutRootKey =
+        "CI_S10_4_PILOT_CHECKOUT_ROOT"
+    private static let pilotSourceHeadKey =
+        "CI_S10_4_PILOT_SOURCE_HEAD"
+    private static let pilotExpectedHeadKey =
+        "CI_S10_4_PILOT_EXPECTED_HEAD"
+    private static let pilotUnitSourceSHA256Key =
+        "CI_S10_4_PILOT_UNIT_SOURCE_SHA256"
+    private static let pilotCheckoutVerifiedKey =
+        "CI_S10_4_PILOT_CHECKOUT_VERIFIED"
+    private static let pilotModeKey =
+        "CI_S10_4_PILOT_MODE"
+    private static let executionRoleKey =
+        "CI_S10_4_EXECUTION_ROLE"
+    private static let pilotUnitSourcePath =
+        "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
+
+    private lazy var repositoryRootResolution: Result<URL, RepositoryRootResolutionError> = {
+        Self.resolveRepositoryRoot(environment: ProcessInfo.processInfo.environment)
+    }()
+
+    private static func resolveRepositoryRoot(
+        environment: [String: String]
+    ) -> Result<URL, RepositoryRootResolutionError> {
+        let compileTimeRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+        let mode = environment[pilotModeKey]
+        let role = environment[executionRoleKey]
+        let pilotBindingKeys = [
+            pilotCheckoutRootKey,
+            pilotSourceHeadKey,
+            pilotExpectedHeadKey,
+            pilotUnitSourceSHA256Key,
+            pilotCheckoutVerifiedKey,
+        ]
+        let hasPilotBinding = mode != nil || role != nil
+            || pilotBindingKeys.contains { environment[$0] != nil }
+        guard hasPilotBinding else {
+            return .success(compileTimeRoot)
+        }
+        guard mode == "true" || mode == "false" else {
+            return .failure(.invalidPilotBinding)
+        }
+        if mode == "false" {
+            guard (role == nil || role == "independent")
+                && !pilotBindingKeys.contains(where: { environment[$0] != nil }) else {
+                return .failure(.invalidPilotBinding)
+            }
+            return .success(compileTimeRoot)
+        }
+        guard mode == "true",
+              role == "payload-consumer",
+              environment[pilotCheckoutVerifiedKey] == "true",
+              let rawCheckoutRoot = environment[pilotCheckoutRootKey],
+              let sourceHead = environment[pilotSourceHeadKey],
+              let expectedHead = environment[pilotExpectedHeadKey],
+              let digest = environment[pilotUnitSourceSHA256Key],
+              sourceHead.utf8.count == 40,
+              expectedHead.utf8.count == 40,
+              sourceHead.range(of: "^[0-9a-f]{40}$", options: .regularExpression) != nil,
+              sourceHead == expectedHead,
+              digest.utf8.count == 64,
+              digest.range(of: "^[0-9A-F]{64}$", options: .regularExpression) != nil
+        else {
+            return .failure(.invalidPilotBinding)
+        }
+        guard rawCheckoutRoot.hasPrefix("/"),
+              rawCheckoutRoot.unicodeScalars.allSatisfy {
+                  $0.value >= 0x20 && $0.value != 0x7F
+              }
+        else {
+            return .failure(.invalidCheckoutRoot)
+        }
+        let checkoutRoot = URL(fileURLWithPath: rawCheckoutRoot, isDirectory: true)
+        let standardizedRoot = checkoutRoot.standardizedFileURL
+        let physicalRoot = checkoutRoot.resolvingSymlinksInPath().standardizedFileURL
+        guard rawCheckoutRoot == standardizedRoot.path,
+              standardizedRoot.path == physicalRoot.path
+        else {
+            return .failure(.invalidCheckoutRoot)
+        }
+        var rootIsDirectory = ObjCBool(false)
+        guard FileManager.default.fileExists(
+            atPath: standardizedRoot.path,
+            isDirectory: &rootIsDirectory
+        ), rootIsDirectory.boolValue else {
+            return .failure(.invalidCheckoutRoot)
+        }
+        let sourceURL = standardizedRoot.appendingPathComponent(
+            pilotUnitSourcePath,
+            isDirectory: false
+        )
+        let sourceDirectory = sourceURL.deletingLastPathComponent()
+        let physicalSourceDirectory = sourceDirectory.resolvingSymlinksInPath().standardizedFileURL
+        guard sourceDirectory.path == physicalSourceDirectory.path else {
+            return .failure(.invalidSource)
+        }
+        let physicalSource = sourceURL.resolvingSymlinksInPath().standardizedFileURL
+        guard sourceURL.path == physicalSource.path else {
+            return .failure(.invalidSource)
+        }
+        var sourceIsDirectory = ObjCBool(false)
+        guard FileManager.default.fileExists(
+            atPath: sourceURL.path,
+            isDirectory: &sourceIsDirectory
+        ), !sourceIsDirectory.boolValue else {
+            return .failure(.invalidSource)
+        }
+        guard let sourceAttributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
+              sourceAttributes[.type] as? FileAttributeType == .typeRegular
+        else {
+            return .failure(.invalidSource)
+        }
+        let sourceData: Data
+        do {
+            sourceData = try Data(contentsOf: sourceURL)
+        } catch {
+            return .failure(.invalidSource)
+        }
+        guard sourceData.sha256 == digest else {
+            return .failure(.sourceDigestMismatch)
+        }
+        return .success(standardizedRoot)
+    }
+
+    private func resolvedRepositoryRoot() throws -> URL {
+        try repositoryRootResolution.get()
     }
 
     private func fileExists(_ relativePath: String) -> Bool {
-        FileManager.default.fileExists(
-            atPath: repositoryRoot.appendingPathComponent(relativePath).path
+        guard let root = try? resolvedRepositoryRoot() else { return false }
+        return FileManager.default.fileExists(
+            atPath: root.appendingPathComponent(relativePath).path
         )
     }
 
     private func data(_ relativePath: String) throws -> Data {
-        try Data(contentsOf: repositoryRoot.appendingPathComponent(relativePath))
+        let root = try resolvedRepositoryRoot()
+        return try Data(contentsOf: root.appendingPathComponent(relativePath))
     }
 
     private func text(_ relativePath: String) throws -> String {
