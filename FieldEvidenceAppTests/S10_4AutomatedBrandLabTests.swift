@@ -5008,10 +5008,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "if postDescriptionField.identifier != preDescriptionIdentifier",
             "if postDescriptionField.label != preDescriptionLabel",
             "let postDescriptionValue = postDescriptionField.value as? String",
-            #"if postDescriptionValue != """#,
-            "postDescriptionValue == preDescriptionPlaceholderValue",
-            #"preDescriptionPlaceholderValue == "Short description""#,
-            #"return "post-description-value-placeholder""#,
+            "if postDescriptionValue != preDescriptionPlaceholderValue",
+            #"preDescriptionPlaceholderValue != "Short description""#,
+            #"if postDescriptionValue == """#,
+            #"return "post-description-value-empty""#,
             #"return "post-description-value-type-mismatch""#,
             #"return "post-description-value-other""#,
             "if postValidationLabel.identifier != preValidationIdentifier",
@@ -5030,11 +5030,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             minimumWorkValidationKeyboardAccessorySource.utf8.count,
-            18_532
+            18_525
         )
         XCTAssertEqual(
             Data(minimumWorkValidationKeyboardAccessorySource.utf8).sha256,
-            "D85133259D22631D4230178BBCF0DE46375CBF24ACF222D050B9F92634CD3016"
+            "48C982595E8FD0012A145535C464F07BE72B96A19F184597EDF5E7C2F17B29AC"
         )
         let minimumWorkValidationPreTapSemanticStart =
             "        let firstFailedPreTapSemanticLabel: String? = {"
@@ -5155,11 +5155,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             minimumWorkValidationPostDismissSemanticSource.utf8.count,
-            4_777
+            4_770
         )
         XCTAssertEqual(
             Data(minimumWorkValidationPostDismissSemanticSource.utf8).sha256,
-            "1F5B119977B044778F576E17EE49391A583F8C47E09820AE988027B7AF1333D4"
+            "60077C0951257ED60FC0F4C28DDC29D32AC38DBFC1020B89B42BC9DE2B771EF0"
         )
         let minimumWorkValidationPostDismissSemanticLabels = [
             "post-app-foreground",
@@ -5189,7 +5189,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "post-description-hittable",
             "post-description-identifier",
             "post-description-label",
-            "post-description-value-placeholder",
+            "post-description-value-empty",
             "post-description-value-type-mismatch",
             "post-description-value-other",
             "post-validation-exists",
@@ -21146,10 +21146,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 783_406)
+        XCTAssertEqual(uiSource.utf8.count, 783_399)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "11FDB0A7BD427F67236CD67A82C1B3756D8C738A158DABA0B45558C79E377745"
+            "895058CD68FF209CDA90D9322A8A7AF5774488EF07026E0BF8426EA993EC70EE"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

@@ -14419,10 +14419,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return "post-description-label"
             }
             let postDescriptionValue = postDescriptionField.value as? String
-            if postDescriptionValue != "" {
-                if postDescriptionValue == preDescriptionPlaceholderValue,
-                   preDescriptionPlaceholderValue == "Short description" {
-                    return "post-description-value-placeholder"
+            if postDescriptionValue != preDescriptionPlaceholderValue
+                || preDescriptionPlaceholderValue != "Short description" {
+                if postDescriptionValue == "" {
+                    return "post-description-value-empty"
                 }
                 if postDescriptionValue == nil {
                     return "post-description-value-type-mismatch"
