@@ -1,0 +1,64 @@
+{
+  "admission": {
+    "path": "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json",
+    "sha256": "77bbc815ae13979523f7c1900c250b2ba07a60559fb776ea8ed65d90c155c2c7"
+  },
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "blockers": [],
+  "cardID": "V30-P00-C06",
+  "checks": {
+    "completedPredecessors": [
+      "V30-P00-C01",
+      "V30-P00-C02",
+      "V30-P00-C03",
+      "V30-P00-C04",
+      "V30-P00-C05"
+    ],
+    "directCASParent": "PASS",
+    "graphEdges": 107,
+    "laterPreS10Skip": "REJECTED",
+    "malformedProjections": {
+      "changed next card": "REJECTED",
+      "final credit": "REJECTED",
+      "omitted locked card": "REJECTED",
+      "promoted post-S10 row": "REJECTED",
+      "reordered pre-S10 cohort": "REJECTED"
+    },
+    "nextBeforeCheckpoint": "REJECTED",
+    "oneSoleGenesis": "PASS",
+    "onlyNextAfterCheckpoint": "V30-P01-C01_POLICY_VECTOR_ONLY_NOT_AN_ACTUAL_SELECTION",
+    "p00InternalEdges": 9,
+    "postS10CardsRejected": 18,
+    "postS10WithAllPredecessors": "ALL_18_REJECTED",
+    "preS10Cards": 37,
+    "preservedDigestChain": "PASS_SEQUENCES_0_THROUGH_13",
+    "transitivePrerequisites": [
+      "V30-P00-C01",
+      "V30-P00-C02",
+      "V30-P00-C03",
+      "V30-P00-C04",
+      "V30-P00-C05"
+    ]
+  },
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "releaseCredit": false
+  },
+  "kind": "V30ProvisionalAdmissionValidationReceiptV1",
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "payloadDigest": "333ced4a19331052f2122771e4437b53006a6e23a7c70543abab9b1b44dc2361",
+  "projection": {
+    "path": "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json",
+    "sha256": "ce8bdeb69845a8532094c4719efdaa373c35e32eeb474df0b9fa6c5e5f516260"
+  },
+  "projectionCompletion": "Actual V30-P01-C01 task/selector projection and selection CAS follow only this Card6 checkpoint; verify those observed commits in subsequent handoff.",
+  "result": "PASS"
+}

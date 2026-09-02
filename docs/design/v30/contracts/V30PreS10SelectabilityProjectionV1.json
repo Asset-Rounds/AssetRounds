@@ -1,0 +1,690 @@
+{
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "releaseCredit": false
+  },
+  "currentSelection": "V30-P00-C06",
+  "kind": "V30PreS10SelectabilityProjectionV1",
+  "observedAdmissionCAS": {
+    "head": "b0dc52ce0126a9b931a707dac7fdf074ad0adecd",
+    "ledgerDigest": "1cd3fc4933f04242b923d07746218744fb34ba1f66cd5601c20ade2323582dd7",
+    "sequence": 13,
+    "tree": "ce5604bcb2b51d58dc1790eab3ce0987de43d901"
+  },
+  "onlyNextSelectionAfterCurrentCheckpoint": "V30-P01-C01",
+  "payloadDigest": "03031568479df5690b047c2ee18ab0dfafae7714881c5d5aecd7fa008f492e9d",
+  "postS10Gate": "Owner completion message is a read-only trigger only. Valid separate externally supplied V30PostS10ReconciliationAuthorityV1 and exact accepted S verification are required before any post-S10 mutation.",
+  "postS10LockedCohort": [
+    "V30-P05-C01",
+    "V30-P05-C02",
+    "V30-P05-C03",
+    "V30-P05-C04",
+    "V30-P05-C05",
+    "V30-P05-C06",
+    "V30-P06-C01",
+    "V30-P06-C02",
+    "V30-P06-C03",
+    "V30-P06-C04",
+    "V30-P06-C05",
+    "V30-P06-C06",
+    "V30-P06-C07",
+    "V30-P07-C01",
+    "V30-P07-C02",
+    "V30-P07-C03",
+    "V30-P07-C04",
+    "V30-P07-C05"
+  ],
+  "preS10Cohort": [
+    "V30-P00-C01",
+    "V30-P00-C02",
+    "V30-P00-C03",
+    "V30-P00-C04",
+    "V30-P00-C05",
+    "V30-P00-C06",
+    "V30-P01-C01",
+    "V30-P01-C02",
+    "V30-P01-C03",
+    "V30-P01-C04",
+    "V30-P01-C05",
+    "V30-P01-C06",
+    "V30-P01-C07",
+    "V30-P01-C08",
+    "V30-P02-C01",
+    "V30-P02-C02",
+    "V30-P02-C03",
+    "V30-P02-C04",
+    "V30-P02-C05",
+    "V30-P02-C06",
+    "V30-P02-C07",
+    "V30-P03-C01",
+    "V30-P03-C02",
+    "V30-P03-C03",
+    "V30-P03-C04",
+    "V30-P03-C05",
+    "V30-P03-C06",
+    "V30-P03-C07",
+    "V30-P03-C08",
+    "V30-P03-C09",
+    "V30-P04-C01",
+    "V30-P04-C02",
+    "V30-P04-C03",
+    "V30-P04-C04",
+    "V30-P04-C05",
+    "V30-P04-C06",
+    "V30-P04-C07"
+  ],
+  "rows": [
+    {
+      "cardID": "V30-P00-C01",
+      "directPrerequisites": [],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 1,
+      "state": "PROVISIONAL_CHECKPOINTED"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "directPrerequisites": [
+        "V30-P00-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 2,
+      "state": "PROVISIONAL_CHECKPOINTED"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "directPrerequisites": [
+        "V30-P00-C01",
+        "V30-P00-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 3,
+      "state": "PROVISIONAL_CHECKPOINTED"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "directPrerequisites": [
+        "V30-P00-C02",
+        "V30-P00-C03"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 4,
+      "state": "PROVISIONAL_CHECKPOINTED"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "directPrerequisites": [
+        "V30-P00-C03",
+        "V30-P00-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 5,
+      "state": "PROVISIONAL_CHECKPOINTED"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "directPrerequisites": [
+        "V30-P00-C04",
+        "V30-P00-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 6,
+      "state": "CURRENT_ADMISSION"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "directPrerequisites": [
+        "V30-P00-C06"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 7,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "directPrerequisites": [
+        "V30-P01-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 8,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "directPrerequisites": [
+        "V30-P01-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 9,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "directPrerequisites": [
+        "V30-P01-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 10,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "directPrerequisites": [
+        "V30-P01-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 11,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "directPrerequisites": [
+        "V30-P01-C03",
+        "V30-P01-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 12,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "directPrerequisites": [
+        "V30-P01-C04",
+        "V30-P01-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 13,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "directPrerequisites": [
+        "V30-P01-C03",
+        "V30-P01-C04",
+        "V30-P01-C05",
+        "V30-P01-C06"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 14,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "directPrerequisites": [
+        "V30-P01-C03",
+        "V30-P01-C08"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 15,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "directPrerequisites": [
+        "V30-P01-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 16,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "directPrerequisites": [
+        "V30-P01-C06",
+        "V30-P02-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 17,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "directPrerequisites": [
+        "V30-P02-C01",
+        "V30-P02-C03"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 18,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "directPrerequisites": [
+        "V30-P01-C07",
+        "V30-P02-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 19,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "directPrerequisites": [
+        "V30-P02-C03",
+        "V30-P02-C04",
+        "V30-P02-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 20,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "directPrerequisites": [
+        "V30-P01-C06",
+        "V30-P01-C07",
+        "V30-P02-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 21,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "directPrerequisites": [
+        "V30-P01-C04",
+        "V30-P02-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 22,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "directPrerequisites": [
+        "V30-P01-C08",
+        "V30-P02-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 23,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "directPrerequisites": [
+        "V30-P01-C07",
+        "V30-P02-C04",
+        "V30-P03-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 24,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "directPrerequisites": [
+        "V30-P01-C07",
+        "V30-P02-C04",
+        "V30-P03-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 25,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "directPrerequisites": [
+        "V30-P01-C05",
+        "V30-P03-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 26,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "directPrerequisites": [
+        "V30-P02-C04",
+        "V30-P03-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 27,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "directPrerequisites": [
+        "V30-P01-C06",
+        "V30-P03-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 28,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "directPrerequisites": [
+        "V30-P01-C08",
+        "V30-P03-C04",
+        "V30-P03-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 29,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "directPrerequisites": [
+        "V30-P01-C06",
+        "V30-P02-C04",
+        "V30-P03-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 30,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "directPrerequisites": [
+        "V30-P02-C06",
+        "V30-P03-C03",
+        "V30-P03-C04",
+        "V30-P03-C05",
+        "V30-P03-C06",
+        "V30-P03-C09"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 31,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 32,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 33,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 34,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 35,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 36,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "directPrerequisites": [
+        "V30-P02-C07",
+        "V30-P03-C08",
+        "V30-P04-C02",
+        "V30-P04-C03",
+        "V30-P04-C04",
+        "V30-P04-C05",
+        "V30-P04-C06"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "finalCredit": false,
+      "ordinal": 37,
+      "state": "LOCKED_UNTIL_OWN_ORDERED_SELECTION"
+    },
+    {
+      "cardID": "V30-P05-C01",
+      "directPrerequisites": [
+        "V30-P04-C07"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "finalCredit": false,
+      "ordinal": 38,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P05-C02",
+      "directPrerequisites": [
+        "V30-P05-C01"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "finalCredit": false,
+      "ordinal": 39,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P05-C03",
+      "directPrerequisites": [
+        "V30-P05-C02"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "finalCredit": false,
+      "ordinal": 40,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P05-C04",
+      "directPrerequisites": [
+        "V30-P05-C02",
+        "V30-P05-C03"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "finalCredit": false,
+      "ordinal": 41,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P05-C05",
+      "directPrerequisites": [
+        "V30-P05-C04"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "finalCredit": false,
+      "ordinal": 42,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P05-C06",
+      "directPrerequisites": [
+        "V30-P05-C05"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "finalCredit": false,
+      "ordinal": 43,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P06-C01",
+      "directPrerequisites": [
+        "V30-P05-C06"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 44,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P06-C02",
+      "directPrerequisites": [
+        "V30-P06-C01"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 45,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P06-C03",
+      "directPrerequisites": [
+        "V30-P02-C06",
+        "V30-P06-C01",
+        "V30-P06-C02"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 46,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P06-C04",
+      "directPrerequisites": [
+        "V30-P03-C08",
+        "V30-P06-C01",
+        "V30-P06-C02"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 47,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P06-C05",
+      "directPrerequisites": [
+        "V30-P06-C02",
+        "V30-P06-C03",
+        "V30-P06-C04"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 48,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P06-C06",
+      "directPrerequisites": [
+        "V30-P01-C04",
+        "V30-P06-C05"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 49,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P06-C07",
+      "directPrerequisites": [
+        "V30-P06-C02",
+        "V30-P06-C03",
+        "V30-P06-C04",
+        "V30-P06-C06"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 50,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P07-C01",
+      "directPrerequisites": [
+        "V30-P06-C07"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 51,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P07-C02",
+      "directPrerequisites": [
+        "V30-P07-C01"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 52,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P07-C03",
+      "directPrerequisites": [
+        "V30-P07-C01"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 53,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P07-C04",
+      "directPrerequisites": [
+        "V30-P07-C01",
+        "V30-P07-C03"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 54,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    },
+    {
+      "cardID": "V30-P07-C05",
+      "directPrerequisites": [
+        "V30-P07-C02"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "finalCredit": false,
+      "ordinal": 55,
+      "state": "POST_S10_AUTHORITY_REQUIRED"
+    }
+  ],
+  "selectionLaw": "A new selection requires this card checkpoint plus separate later selection CAS and exact task/selector projection. Only V30-P01-C01 may follow Card6. Every later pre-S10 card requires the immediate preceding ordered checkpoint and direct prerequisites. No post-S10 card is selectable under R2, even if all provisional prerequisites pass.",
+  "snapshot": "IMMUTABLE_CARD6_ADMISSION_OBSERVATION_NOT_A_RUNTIME_WRITER"
+}

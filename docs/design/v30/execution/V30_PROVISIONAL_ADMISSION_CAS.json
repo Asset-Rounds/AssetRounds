@@ -1,0 +1,254 @@
+{
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "cardID": "V30-P00-C06",
+  "changesCanonicalCoordination": false,
+  "createsGenesis": false,
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "releaseCredit": false
+  },
+  "gitCAS": {
+    "directParentVerified": true,
+    "expectedOldHead": "29fdcef5f89a1fb58f2c646121b2b04d11868c10",
+    "newHead": "b0dc52ce0126a9b931a707dac7fdf074ad0adecd",
+    "ref": "refs/heads/coord/v30-globalization-provisional"
+  },
+  "kind": "V30ProvisionalAdmissionCASRecordV1",
+  "observedResult": {
+    "head": "b0dc52ce0126a9b931a707dac7fdf074ad0adecd",
+    "ledgerDigest": "1cd3fc4933f04242b923d07746218744fb34ba1f66cd5601c20ade2323582dd7",
+    "sequence": 13,
+    "tree": "ce5604bcb2b51d58dc1790eab3ce0987de43d901"
+  },
+  "payloadDigest": "fd5f7299a3d189683ee33b9d99088c9271147ab70128c3c91b8865baa8ef7699",
+  "request": {
+    "authority": {
+      "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+      "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+      "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+      "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+    },
+    "cardID": "V30-P00-C06",
+    "credit": {
+      "canonicalAcceptance": false,
+      "finalCredit": false,
+      "mainIntegrationCredit": false,
+      "postS10SuccessorStart": false,
+      "releaseCredit": false
+    },
+    "directPrerequisites": [
+      "V30-P00-C04",
+      "V30-P00-C05"
+    ],
+    "expectedLedgerDigest": "fe3d61515fb3f2d10671e7e95c4937cad2633b527c907a15761289c7420d24d1",
+    "expectedOldRef": "29fdcef5f89a1fb58f2c646121b2b04d11868c10",
+    "expectedSequence": 12,
+    "graphSHA256": "d6d3c7f1489c449c6ca50cfbfbab20b16cca33c08b57098925154a664b252807",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "observedCoordination": {
+      "head": "29fdcef5f89a1fb58f2c646121b2b04d11868c10",
+      "ledgerDigest": "fe3d61515fb3f2d10671e7e95c4937cad2633b527c907a15761289c7420d24d1",
+      "sequence": 12
+    },
+    "observedProduct": {
+      "head": "c2f7225afe01714e553c18ce1d77fd9c454c6a3b",
+      "tree": "550702294744a423640f6cc93df628df067ebf66"
+    },
+    "onlyNextSelectionAfterCheckpoint": "V30-P01-C01",
+    "p00InternalEdges": [
+      {
+        "from": "V30-P00-C01",
+        "to": "V30-P00-C02"
+      },
+      {
+        "from": "V30-P00-C01",
+        "to": "V30-P00-C03"
+      },
+      {
+        "from": "V30-P00-C02",
+        "to": "V30-P00-C03"
+      },
+      {
+        "from": "V30-P00-C02",
+        "to": "V30-P00-C04"
+      },
+      {
+        "from": "V30-P00-C03",
+        "to": "V30-P00-C04"
+      },
+      {
+        "from": "V30-P00-C03",
+        "to": "V30-P00-C05"
+      },
+      {
+        "from": "V30-P00-C04",
+        "to": "V30-P00-C05"
+      },
+      {
+        "from": "V30-P00-C04",
+        "to": "V30-P00-C06"
+      },
+      {
+        "from": "V30-P00-C05",
+        "to": "V30-P00-C06"
+      }
+    ],
+    "packageActivation": {
+      "head": "deae5a35aa08b2a991c6e3739f83628d9a23640d",
+      "ledgerDigest": "612702693492eaefe266aab06eb93cf3ff9248f2e9274fdf2a692d18ecadbc0c",
+      "receiptPath": "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json",
+      "receiptSHA256": "b249d12c37bbf207df608fd149706a19e39de4a4a6ba2df2e2e441da50125bcf"
+    },
+    "phase10Access": "FORBIDDEN_NOT_ACCESSED",
+    "postS10LockedCohort": [
+      "V30-P05-C01",
+      "V30-P05-C02",
+      "V30-P05-C03",
+      "V30-P05-C04",
+      "V30-P05-C05",
+      "V30-P05-C06",
+      "V30-P06-C01",
+      "V30-P06-C02",
+      "V30-P06-C03",
+      "V30-P06-C04",
+      "V30-P06-C05",
+      "V30-P06-C06",
+      "V30-P06-C07",
+      "V30-P07-C01",
+      "V30-P07-C02",
+      "V30-P07-C03",
+      "V30-P07-C04",
+      "V30-P07-C05"
+    ],
+    "preS10Cohort": [
+      "V30-P00-C01",
+      "V30-P00-C02",
+      "V30-P00-C03",
+      "V30-P00-C04",
+      "V30-P00-C05",
+      "V30-P00-C06",
+      "V30-P01-C01",
+      "V30-P01-C02",
+      "V30-P01-C03",
+      "V30-P01-C04",
+      "V30-P01-C05",
+      "V30-P01-C06",
+      "V30-P01-C07",
+      "V30-P01-C08",
+      "V30-P02-C01",
+      "V30-P02-C02",
+      "V30-P02-C03",
+      "V30-P02-C04",
+      "V30-P02-C05",
+      "V30-P02-C06",
+      "V30-P02-C07",
+      "V30-P03-C01",
+      "V30-P03-C02",
+      "V30-P03-C03",
+      "V30-P03-C04",
+      "V30-P03-C05",
+      "V30-P03-C06",
+      "V30-P03-C07",
+      "V30-P03-C08",
+      "V30-P03-C09",
+      "V30-P04-C01",
+      "V30-P04-C02",
+      "V30-P04-C03",
+      "V30-P04-C04",
+      "V30-P04-C05",
+      "V30-P04-C06",
+      "V30-P04-C07"
+    ],
+    "predecessorCandidates": {
+      "V30-P00-C01": {
+        "base": "d2a153ba730e1894eb82b7cd3cc56e8ff2c3d2bb",
+        "changedPaths": [
+          "docs/design/v30/execution/V30_PROVISIONAL_ACTIVATION_RECEIPT.json",
+          "docs/design/v30/execution/receipts/V30-P00-C01-validation-receipt.json"
+        ],
+        "head": "33566fa40a36903c11b7bab461e1531d8930cfbe",
+        "tree": "aa7ec303155a7caeb376ac23a36967f215d2043b"
+      },
+      "V30-P00-C02": {
+        "base": "1374269994a871236703d5e006fb86f34bb06b68",
+        "changedPaths": [
+          "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json",
+          "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json",
+          "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json"
+        ],
+        "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+        "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
+      },
+      "V30-P00-C03": {
+        "base": "c7cc89bde7b7f232626a6e7c98f65feb9724813b",
+        "changedPaths": [
+          "docs/design/v30/execution/V30_PROVISIONAL_COORDINATION_GENESIS.json",
+          "docs/design/v30/execution/contexts/V30-P00-C03-attempt-1.json",
+          "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json"
+        ],
+        "head": "2be5f8f58010c5813283ec9e69c17183733d462a",
+        "tree": "1a4a1b6960adc634488b4aae0c1be0f030af63f4"
+      },
+      "V30-P00-C04": {
+        "base": "9b9ecabf0289455be4be44c4ca1f5de0b1b5bc7d",
+        "baseTree": "7be2bd9eb7ea634128f1bd103fc9b2296c43d728",
+        "changedPaths": [
+          "FieldEvidenceAppTests/V30_P00_C04CandidateReconciliationManifestTests.swift",
+          "Scripts/v30/validate_v30_provisional_candidate_manifest.py",
+          "docs/design/v30/contracts/V30ProvisionalCandidateReconciliationManifestV1.json",
+          "docs/design/v30/schemas/v30-provisional-candidate-reconciliation-manifest.schema.json"
+        ],
+        "head": "97c7d08881c0a3479f73ca174a6460465ac335cf",
+        "tree": "3bda0a1b6e6ee483dd318863266ab2021d273c74"
+      },
+      "V30-P00-C05": {
+        "base": "d0fd402a293a3b8d0ad534c650aaf73f620321a9",
+        "baseTree": "db86f8b71c86d685bf8c9cb2124381701c053fea",
+        "changedPaths": [
+          ".github/workflows/ios-ci.yml",
+          "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift",
+          "Scripts/test-smoke.sh",
+          "Scripts/ui-smoke.sh",
+          "Scripts/v30/validate_v30_provisional_ci_contract.py",
+          "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json",
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json"
+        ],
+        "head": "8414a4a4a2835b32e06d059cbf713ffbf03fdd03",
+        "tree": "fca72009b36fd36ff2bba49716b5e6c57f116647"
+      }
+    },
+    "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P00-C06/ADMISSION/1",
+    "selectedCard": "V30-P00-C06",
+    "soleGenesis": {
+      "createsAnotherGenesis": false,
+      "head": "c1bd98dc9cba07969a23e5bbccf13bb5174592e4",
+      "ledgerID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/PROVISIONAL-LEDGER",
+      "payloadDigest": "b8c1013dffdc36a8b0f746b1d754b41d1edfe90639c22b16292a02bb8404fe53",
+      "rawSHA256": "832c2fc0fdfe64b4f4b4561c53b2754a2c10666f3e95baa5a2bbe81a7f12f78f",
+      "writerGeneration": 1
+    },
+    "transitivePrerequisites": [
+      "V30-P00-C01",
+      "V30-P00-C02",
+      "V30-P00-C03",
+      "V30-P00-C04",
+      "V30-P00-C05"
+    ]
+  },
+  "result": "SEALED_PROVISIONAL_ONLY",
+  "selectabilityProjection": {
+    "path": "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json",
+    "sha256": "ce8bdeb69845a8532094c4719efdaa373c35e32eeb474df0b9fa6c5e5f516260"
+  },
+  "selectionAfterAdmission": "V30-P00-C06_REMAINS_SELECTED_UNTIL_CHECKPOINT_AND_LATER_PROJECTION_CAS"
+}
