@@ -299,3 +299,425 @@ This entry does not self-record its containing transition commit. Phase 10 was n
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+
+## Card 5 of 55 — Provisional CI and checkpoint contract
+
+```json
+{
+  "blockers": [],
+  "candidate": {
+    "base": "d0fd402a293a3b8d0ad534c650aaf73f620321a9",
+    "baseTree": "db86f8b71c86d685bf8c9cb2124381701c053fea",
+    "changedPaths": [
+      ".github/workflows/ios-ci.yml",
+      "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift",
+      "Scripts/test-smoke.sh",
+      "Scripts/ui-smoke.sh",
+      "Scripts/v30/validate_v30_provisional_ci_contract.py",
+      "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json"
+    ],
+    "head": "8414a4a4a2835b32e06d059cbf713ffbf03fdd03",
+    "tree": "fca72009b36fd36ff2bba49716b5e6c57f116647"
+  },
+  "checkpoint": {
+    "head": "2684ad76d68792843e6ec050be1b14c7bc6709f2",
+    "ledgerDigest": "e5ed6246e4f665ce6257212d81a34e3a228b8647ee4ae17810e8524b890879bc",
+    "sequence": 11
+  },
+  "evidence": {
+    "artifacts": [
+      {
+        "path": ".github/workflows/ios-ci.yml",
+        "sha256": "94beda88b6995b4f4d47489f1e3fca762c39bb15c78d23b853d94885347faa98"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift",
+        "sha256": "9042c30b554b59bf418784d7feed0e9355f32f00b30c51c55e50ba80b7d11e8c"
+      },
+      {
+        "path": "Scripts/test-smoke.sh",
+        "sha256": "23e581a4f1e2f3b1a7f0b7ee80ccd5a7ee4e90ef1cb97c5346e670f2884a364f"
+      },
+      {
+        "path": "Scripts/ui-smoke.sh",
+        "sha256": "fb1c4d34d654119fb726d0edc3939e8592be1ceedd2b84f1aa02739f7f23c604"
+      },
+      {
+        "path": "Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "sha256": "2678461b82dd758027508d0cc50c7ab5803a253128b29b5957f57786751a452a"
+      },
+      {
+        "path": "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json",
+        "sha256": "d09867a951978256db19b59ce4066b510ce4598e60e8dc1b322a1d4435a81ab4"
+      },
+      {
+        "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "sha256": "59d88b05d413e4c9490eb4ce9fb06c73339619133d56b63d0fa34af7552b3194"
+      },
+      {
+        "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "sha256": "51f69b877596b1047d9094c2fa1ee99ea1e44781d80fb112a031ddd02f15cd83"
+      },
+      {
+        "path": "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json",
+        "sha256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690"
+      }
+    ],
+    "commands": [
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py --self-test",
+        "result": {
+          "finalCredit": false,
+          "nativeCredit": false,
+          "rejectedAdapterChanges": [
+            "changed Xcode",
+            "changed watchdog",
+            "removed ref guard",
+            "inherited selector read",
+            "weakened artifact gate"
+          ],
+          "rejectedCases": [
+            "wrong ref",
+            "final credit",
+            "wrong route",
+            "wrong authority",
+            "unknown field",
+            "wrong card",
+            "disabled hosted with selector",
+            "altered watchdog",
+            "integer boolean",
+            "wrong nested task",
+            "broad unit suite",
+            "unfenced class",
+            "UI in N8"
+          ],
+          "result": "PASS"
+        }
+      },
+      {
+        "command": "Git Bash -n Scripts/test-smoke.sh; Git Bash -n Scripts/ui-smoke.sh",
+        "result": "PASS; syntax only, no script execution"
+      },
+      {
+        "command": "external validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS"
+      },
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py --hosted --dispatch-ui false on Windows authoring context",
+        "result": "EXPECTED_REJECTION: hosted repository/ref/event; no native execution"
+      }
+    ],
+    "diagnosticDisposition": "NOT_EXECUTED_OPTIONAL_DIAGNOSTICS_NOT_REQUESTED",
+    "hostedRuns": [],
+    "independentAudit": "PASS: Terra closed route/selector/fence/hosted guards/reverse-adapter review; Luna complete five-script invariant inventory",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "swiftTests": "AUTHORED_NOT_EXECUTED; optional hosted diagnostics not requested; no native result asserted"
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT; no runner/Xcode/Simulator/xcresult/screenshots on static governance card",
+  "nextUnstartedCard": "V30-P00-C06",
+  "operationalProvenance": [
+    {
+      "event": "ORCHESTRATION_SYNTAX_REJECTED",
+      "reason": "JavaScript template interpreted a shell variable expression before any tool command ran",
+      "resolution": "Built the literal shell expression explicitly; retry changed only authorized files; no partial execution"
+    },
+    {
+      "event": "COMMIT_PREFLIGHT_COMMAND_FAILED",
+      "reason": "Whitespace-stripping read helper altered first porcelain status line, producing a nonexistent path; read_bytes failed before staging or commit",
+      "resolution": "Read raw porcelain output preserving leading columns, rebuilt exact nine-path set and committed; no product/CI failure or history loss"
+    }
+  ],
+  "reconciliation": "Replay or reimplement this exact card delta after valid accepted S; preserve all provenance and rerun invalidated evidence. No wholesale merge or automatic promotion.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "correctionOf": "",
+        "evidence": {
+          "artifacts": [
+            {
+              "path": ".github/workflows/ios-ci.yml",
+              "sha256": "94beda88b6995b4f4d47489f1e3fca762c39bb15c78d23b853d94885347faa98"
+            },
+            {
+              "path": "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift",
+              "sha256": "9042c30b554b59bf418784d7feed0e9355f32f00b30c51c55e50ba80b7d11e8c"
+            },
+            {
+              "path": "Scripts/test-smoke.sh",
+              "sha256": "23e581a4f1e2f3b1a7f0b7ee80ccd5a7ee4e90ef1cb97c5346e670f2884a364f"
+            },
+            {
+              "path": "Scripts/ui-smoke.sh",
+              "sha256": "fb1c4d34d654119fb726d0edc3939e8592be1ceedd2b84f1aa02739f7f23c604"
+            },
+            {
+              "path": "Scripts/v30/validate_v30_provisional_ci_contract.py",
+              "sha256": "2678461b82dd758027508d0cc50c7ab5803a253128b29b5957f57786751a452a"
+            },
+            {
+              "path": "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json",
+              "sha256": "d09867a951978256db19b59ce4066b510ce4598e60e8dc1b322a1d4435a81ab4"
+            },
+            {
+              "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+              "sha256": "59d88b05d413e4c9490eb4ce9fb06c73339619133d56b63d0fa34af7552b3194"
+            },
+            {
+              "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+              "sha256": "51f69b877596b1047d9094c2fa1ee99ea1e44781d80fb112a031ddd02f15cd83"
+            },
+            {
+              "path": "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json",
+              "sha256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690"
+            }
+          ],
+          "commands": [
+            {
+              "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py --self-test",
+              "result": {
+                "finalCredit": false,
+                "nativeCredit": false,
+                "rejectedAdapterChanges": [
+                  "changed Xcode",
+                  "changed watchdog",
+                  "removed ref guard",
+                  "inherited selector read",
+                  "weakened artifact gate"
+                ],
+                "rejectedCases": [
+                  "wrong ref",
+                  "final credit",
+                  "wrong route",
+                  "wrong authority",
+                  "unknown field",
+                  "wrong card",
+                  "disabled hosted with selector",
+                  "altered watchdog",
+                  "integer boolean",
+                  "wrong nested task",
+                  "broad unit suite",
+                  "unfenced class",
+                  "UI in N8"
+                ],
+                "result": "PASS"
+              }
+            },
+            {
+              "command": "Git Bash -n Scripts/test-smoke.sh; Git Bash -n Scripts/ui-smoke.sh",
+              "result": "PASS; syntax only, no script execution"
+            },
+            {
+              "command": "external validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+              "result": "PASS"
+            },
+            {
+              "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py --hosted --dispatch-ui false on Windows authoring context",
+              "result": "EXPECTED_REJECTION: hosted repository/ref/event; no native execution"
+            }
+          ],
+          "diagnosticDisposition": "NOT_EXECUTED_OPTIONAL_DIAGNOSTICS_NOT_REQUESTED",
+          "hostedRuns": [],
+          "independentAudit": "PASS: Terra closed route/selector/fence/hosted guards/reverse-adapter review; Luna complete five-script invariant inventory",
+          "swiftTests": "AUTHORED_NOT_EXECUTED; optional hosted diagnostics not requested; no native result asserted"
+        },
+        "head": "8414a4a4a2835b32e06d059cbf713ffbf03fdd03",
+        "parent": "d0fd402a293a3b8d0ad534c650aaf73f620321a9",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "tree": "fca72009b36fd36ff2bba49716b5e6c57f116647"
+      }
+    ],
+    "changedPaths": [
+      {
+        "authorityTuple": {
+          "boundedPurpose": "change only the phase/v30-globalization branch copy of the existing iOS CI controller to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned runner/toolchain/simulator/watchdogs/evidence/commands, route/ref isolation, and no main or Phase10 mutation",
+          "cardID": "V30-P00-C05",
+          "expectedBBlobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+          "expectedBSHA256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7",
+          "path": ".github/workflows/ios-ci.yml",
+          "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+          "writerLane": "V30-P00-C05-PROVISIONAL-CI-CONTROLLER"
+        },
+        "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+        "new": {
+          "blobOID": "952ab8f504e94b185a0c872efd46c47bd8cbfb6c",
+          "sha256": "94beda88b6995b4f4d47489f1e3fca762c39bb15c78d23b853d94885347faa98",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+          "sha256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7",
+          "state": "PRESENT"
+        },
+        "path": ".github/workflows/ios-ci.yml"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "8cb8d438cf5253edd06ce8d9a0432591a751650d",
+          "sha256": "9042c30b554b59bf418784d7feed0e9355f32f00b30c51c55e50ba80b7d11e8c",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "107c56cd40e7248abccc2a901f5dc2f8726623d4",
+          "sha256": "23e581a4f1e2f3b1a7f0b7ee80ccd5a7ee4e90ef1cb97c5346e670f2884a364f",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "25376fea96a73214ed0abe72d5a547def0ed8f3a",
+          "sha256": "0462448692b4b128e98a3ff4772b1c3dc14d7b5409be8743b9c39e435195c36b",
+          "state": "PRESENT"
+        },
+        "path": "Scripts/test-smoke.sh"
+      },
+      {
+        "authorityTuple": {
+          "boundedPurpose": "change only the phase/v30-globalization branch copy to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned UI commands, watchdogs, evidence, route/ref isolation, and no main or Phase10 mutation",
+          "cardID": "V30-P00-C05",
+          "expectedBBlobOID": "a1d29aeb3e4a10dcd518d0627af2b351a904481c",
+          "expectedBSHA256": "6304a318ee046b6b19f4fddc43bb143f9b21e8150b9d332e449b87a0182d4cdb",
+          "path": "Scripts/ui-smoke.sh",
+          "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+          "writerLane": "V30-P00-C05-PROVISIONAL-CI-CONTROLLER"
+        },
+        "classification": "S10_SHARED_RECONCILIATION_REQUIRED",
+        "new": {
+          "blobOID": "c4158e56defddba60b221145ca26d6bbcc4a66e9",
+          "sha256": "fb1c4d34d654119fb726d0edc3939e8592be1ceedd2b84f1aa02739f7f23c604",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "a1d29aeb3e4a10dcd518d0627af2b351a904481c",
+          "sha256": "6304a318ee046b6b19f4fddc43bb143f9b21e8150b9d332e449b87a0182d4cdb",
+          "state": "PRESENT"
+        },
+        "path": "Scripts/ui-smoke.sh"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "24d671286ba5dab7052a09386e5cf029154d2abb",
+          "sha256": "2678461b82dd758027508d0cc50c7ab5803a253128b29b5957f57786751a452a",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "Scripts/v30/validate_v30_provisional_ci_contract.py"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "d9b34aa1278dcee37ef80b2739c101fac0de1d66",
+          "sha256": "d09867a951978256db19b59ce4066b510ce4598e60e8dc1b322a1d4435a81ab4",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "32f50c9c276be2ac9a4b097cfce85c037601e142",
+          "sha256": "59d88b05d413e4c9490eb4ce9fb06c73339619133d56b63d0fa34af7552b3194",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "10c47deb4342f44f3082311aef22e87b5a3b8013",
+          "sha256": "41f86db231bc5115b0d4ddc90572a450d16562c027bbbbafa0b24a35d3e8111a",
+          "state": "PRESENT"
+        },
+        "path": "docs/design/v30/execution/V30_CI_SELECTION.json"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "2db27a5009a515188cb39998883a6ff61dfb45ff",
+          "sha256": "51f69b877596b1047d9094c2fa1ee99ea1e44781d80fb112a031ddd02f15cd83",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "13a11ee41ac81a5b4a48874306b4cfa828d00c7b",
+          "sha256": "9f41fe192b01e96d310cd69170eb30480f91fc758a371665fe73409229f8d451",
+          "state": "PRESENT"
+        },
+        "path": "docs/design/v30/execution/V30_CURRENT_TASK.md"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "c5512c06b6f6f5c41a1efa3f7c4740f6d9b5cdd6",
+          "sha256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json"
+      }
+    ],
+    "compatibility": "UNASSESSED_PRE_S10",
+    "evidenceDisposition": "UNASSESSED_PRE_S10",
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "8414a4a4a2835b32e06d059cbf713ffbf03fdd03",
+      "tree": "fca72009b36fd36ff2bba49716b5e6c57f116647"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "s10SharedPaths": [
+    ".github/workflows/ios-ci.yml",
+    "Scripts/ui-smoke.sh"
+  ],
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false"
+}
+```
+
+This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
