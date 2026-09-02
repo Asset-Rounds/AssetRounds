@@ -979,3 +979,288 @@ This entry does not self-record its containing transition commit. Phase 10 was n
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+
+## Card 7 of 55 — Research manifest and initial-language confirmation
+
+```json
+{
+  "blockers": [],
+  "candidate": {
+    "base": "bd231bd0daf11ac5f7842c2eab2164c8f0dc8e28",
+    "baseTree": "0f9353ec92fab121aa3b33740996e6305d5b8a71",
+    "changedPaths": [
+      "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift",
+      "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
+      "docs/design/v30/research/V30InitialLanguageCohortV1.json",
+      "docs/design/v30/research/V30ResearchManifestV1.json"
+    ],
+    "head": "d52cbd38e19b51bcd8c83f6d5fca768ace817d90",
+    "tree": "84da9fd23f74d859e51b53e031fff4ad2d79693b"
+  },
+  "checkpoint": {
+    "head": "7f84f474d7288321274a4a812a1eff1424c5fb29",
+    "ledgerDigest": "c70bc5fa232386fbbe25970547cfce2876cedb5f476f4b5ecdd196d9590eadbb",
+    "sequence": 16
+  },
+  "evidence": {
+    "commands": [
+      {
+        "command": "python -B C:/Users/palat/AppData/Local/Temp/v30-p01-c01-validate.py",
+        "result": "PASS_AT_EXACT_IMPLEMENTATION_HEAD"
+      },
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS_WINDOWS_STATIC_NO_NATIVE_CREDIT"
+      },
+      {
+        "command": "external validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS_23_PAYLOADS_55_CARDS_107_EDGES"
+      },
+      {
+        "command": "git diff HEAD^ HEAD --check",
+        "result": "PASS"
+      }
+    ],
+    "independentReview": {
+      "agent": "blueprint_review",
+      "result": "PASS_NO_CARD7_BLOCKER",
+      "scope": "Three JSON sources/bindings, exact cohort/market, nine listing captures and plausible Swift source. Capture timestamps/prose spacing subsequently normalized; digests reverified."
+    },
+    "keywordAudit": {
+      "agent": "package_audit",
+      "formulaValidation": "NOT_PERFORMED",
+      "result": "PASS_11_HASHES_1757_ROWS_572_MEASURED_1185_IDEAS_85_COMPETITORS"
+    },
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Pinned six-locale cohort confirmed; source dates/universes/limits, raw ordered nine listings, measured/idea distinction, US-only geography and unknown support capacity preserved.",
+    "remainingAcceptance": [
+      "Mandatory post-reconciliation native qualification",
+      "Professional/native linguistic and support-capacity receipts",
+      "Listing/vendor discrepancy remains unresolved; no runtime inference"
+    ],
+    "static": {
+      "cardID": "V30-P01-C01",
+      "documents": 3,
+      "files": [
+        {
+          "path": "docs/design/v30/research/V30ResearchManifestV1.json",
+          "sha256": "81a1e4d2d22d54ec866bbe639643a98e012b8e7c8254408a11474062611d5551"
+        },
+        {
+          "path": "docs/design/v30/research/V30InitialLanguageCohortV1.json",
+          "sha256": "61411c4e7d3d99040225dbe16fa0c9f89fde128b692d5bff5bc90054c30271f7"
+        },
+        {
+          "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
+          "sha256": "a890efcee9fcefbf858d854ed7d2d5ffcfb37b59d63ec5ac4ad22a874431378c"
+        },
+        {
+          "path": "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift",
+          "sha256": "d59063d3633efe9a1c9e64453ea40f31e47886a47d25bbcd159f48ebad491961"
+        }
+      ],
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "nativeTestMethods": 5,
+      "negativeVectorsRejected": [
+        "extra locale",
+        "foreign storefront",
+        "false runtime credit",
+        "suppressed vendor discrepancy",
+        "idea promoted to measured",
+        "unknown staffing as zero",
+        "lost Chinese script identity",
+        "missing capture provenance"
+      ],
+      "result": "PASS"
+    },
+    "validatorSHA256": "a7010027d038f97f558a115b3f24d171b1325b5b67da27c99df726c04409f579"
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT; no runner/Xcode/Simulator/xcresult/screenshots on static governance card",
+  "nextUnstartedCard": "V30-P01-C02",
+  "operationalProvenance": [
+    "Windows command-length limit prevented initial builder process creation; no product files changed; same builder ran from task-specific temporary file.",
+    "Static negative probe correctly rejected empty capture timestamp with ValueError; harness broadened expected rejection exceptions, then all8 negative probes passed.",
+    "Initial commit stopped before commit-tree because new Swift file had blank line at EOF; trimmed only trailing blank line, exact-path restaging and diff check passed.",
+    "Five Swift test methods authored, not six as misstated in progress commentary; none executed on Windows."
+  ],
+  "reconciliation": "Replay or reimplement this exact card delta after valid accepted S; preserve all provenance and rerun invalidated evidence. No wholesale merge or automatic promotion.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "correctionOf": "",
+        "evidence": {
+          "commands": [
+            {
+              "command": "python -B C:/Users/palat/AppData/Local/Temp/v30-p01-c01-validate.py",
+              "result": "PASS_AT_EXACT_IMPLEMENTATION_HEAD"
+            },
+            {
+              "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+              "result": "PASS_WINDOWS_STATIC_NO_NATIVE_CREDIT"
+            },
+            {
+              "command": "external validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+              "result": "PASS_23_PAYLOADS_55_CARDS_107_EDGES"
+            },
+            {
+              "command": "git diff HEAD^ HEAD --check",
+              "result": "PASS"
+            }
+          ],
+          "independentReview": {
+            "agent": "blueprint_review",
+            "result": "PASS_NO_CARD7_BLOCKER",
+            "scope": "Three JSON sources/bindings, exact cohort/market, nine listing captures and plausible Swift source. Capture timestamps/prose spacing subsequently normalized; digests reverified."
+          },
+          "keywordAudit": {
+            "agent": "package_audit",
+            "formulaValidation": "NOT_PERFORMED",
+            "result": "PASS_11_HASHES_1757_ROWS_572_MEASURED_1185_IDEAS_85_COMPETITORS"
+          },
+          "outcome": "Pinned six-locale cohort confirmed; source dates/universes/limits, raw ordered nine listings, measured/idea distinction, US-only geography and unknown support capacity preserved.",
+          "remainingAcceptance": [
+            "Mandatory post-reconciliation native qualification",
+            "Professional/native linguistic and support-capacity receipts",
+            "Listing/vendor discrepancy remains unresolved; no runtime inference"
+          ],
+          "static": {
+            "cardID": "V30-P01-C01",
+            "documents": 3,
+            "files": [
+              {
+                "path": "docs/design/v30/research/V30ResearchManifestV1.json",
+                "sha256": "81a1e4d2d22d54ec866bbe639643a98e012b8e7c8254408a11474062611d5551"
+              },
+              {
+                "path": "docs/design/v30/research/V30InitialLanguageCohortV1.json",
+                "sha256": "61411c4e7d3d99040225dbe16fa0c9f89fde128b692d5bff5bc90054c30271f7"
+              },
+              {
+                "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
+                "sha256": "a890efcee9fcefbf858d854ed7d2d5ffcfb37b59d63ec5ac4ad22a874431378c"
+              },
+              {
+                "path": "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift",
+                "sha256": "d59063d3633efe9a1c9e64453ea40f31e47886a47d25bbcd159f48ebad491961"
+              }
+            ],
+            "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+            "nativeTestMethods": 5,
+            "negativeVectorsRejected": [
+              "extra locale",
+              "foreign storefront",
+              "false runtime credit",
+              "suppressed vendor discrepancy",
+              "idea promoted to measured",
+              "unknown staffing as zero",
+              "lost Chinese script identity",
+              "missing capture provenance"
+            ],
+            "result": "PASS"
+          },
+          "validatorSHA256": "a7010027d038f97f558a115b3f24d171b1325b5b67da27c99df726c04409f579"
+        },
+        "head": "d52cbd38e19b51bcd8c83f6d5fca768ace817d90",
+        "parent": "bd231bd0daf11ac5f7842c2eab2164c8f0dc8e28",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "tree": "84da9fd23f74d859e51b53e031fff4ad2d79693b"
+      }
+    ],
+    "changedPaths": [
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "0dae4280c1c412637197e638b18cec80fdca0b04",
+          "sha256": "d59063d3633efe9a1c9e64453ea40f31e47886a47d25bbcd159f48ebad491961",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "8338e9bbaa3d1a94ec401474f212a3ee601ab8af",
+          "sha256": "a890efcee9fcefbf858d854ed7d2d5ffcfb37b59d63ec5ac4ad22a874431378c",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "3fda458062b333510ee97186100a606526dafdd5",
+          "sha256": "61411c4e7d3d99040225dbe16fa0c9f89fde128b692d5bff5bc90054c30271f7",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/research/V30InitialLanguageCohortV1.json"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "c57b1e488adaa97d85d7fa253ce4a09dd651ec50",
+          "sha256": "81a1e4d2d22d54ec866bbe639643a98e012b8e7c8254408a11474062611d5551",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/research/V30ResearchManifestV1.json"
+      }
+    ],
+    "compatibility": "UNASSESSED_PRE_S10",
+    "evidenceDisposition": "UNASSESSED_PRE_S10",
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "d52cbd38e19b51bcd8c83f6d5fca768ace817d90",
+      "tree": "84da9fd23f74d859e51b53e031fff4ad2d79693b"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "s10SharedPaths": [],
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false"
+}
+```
+
+This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.

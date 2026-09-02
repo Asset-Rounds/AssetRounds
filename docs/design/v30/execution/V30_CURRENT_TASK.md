@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 7 of 55 — Research manifest and initial-language confirmation
+Card 8 of 55 — Customer-needs and scope-disposition register
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Refresh official ACS/BLS/NIOSH/OSHA/Apple sources, competitor iOS declarations, vendor gaps, reviews, keyword evidence, support capacity, and U.S. geography. Confirm en, es, zh-Hans, zh-Hant, vi, and ko; a different cohort is `AMENDMENT_REQUIRED`.",
+    "required": "Convert review/research themes into PRESERVE_IN_V30, VERIFY_EXISTING_BEHAVIOR, FUTURE_CARD, or REJECT_SCOPE. Bind the verified keyword package without authorizing new backends or modules.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "859913472ee0c35087a93ea98b690f4df5dc286d",
-    "tree": "a144beb446cabd1c646e3f47a92eb0dc4fd9deb7"
+    "head": "d52cbd38e19b51bcd8c83f6d5fca768ace817d90",
+    "tree": "84da9fd23f74d859e51b53e031fff4ad2d79693b"
   },
-  "cardID": "V30-P01-C01",
+  "cardID": "V30-P01-C02",
   "class": "FOUNDATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,7 +33,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P00-C06"
+    "V30-P01-C01"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -74,48 +74,40 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/research/V30ResearchManifestV1.json",
-        "purpose": "Pinned source/research manifest and six-locale confirmation.",
+        "path": "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json",
+        "purpose": "Bounded customer-need disposition register.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/research/V30InitialLanguageCohortV1.json",
-        "purpose": "U.S. initial-language cohort decision record.",
+        "path": "docs/design/v30/research/V30KeywordEvidenceBindingV1.json",
+        "purpose": "Verified keyword-package binding and non-authorizing disposition.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
-        "purpose": "Competitor declaration/review evidence normalization.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXPECTED_ABSENT_NEW_PATH",
-        "expectedBBlobOID": null,
-        "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift",
-        "purpose": "Cohort and source-manifest validation.",
+        "path": "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift",
+        "purpose": "Scope-disposition invariants.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P01-C01",
+    "cardID": "V30-P01-C02",
     "class": "FOUNDATION",
     "directPrerequisites": [
-      "V30-P00-C06"
+      "V30-P01-C01"
     ],
-    "ordinal": 7,
+    "ordinal": 8,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Research manifest and initial-language confirmation"
+    "title": "Customer-needs and scope-disposition register"
   },
   "fenceSource": {
-    "cardID": "V30-P01-C01",
+    "cardID": "V30-P01-C02",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -126,38 +118,39 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P01-C02",
+  "next": "V30-P01-C03",
   "observedCoordination": {
-    "head": "2d8f2932b5069477af4a4e754178dea7384a8a2e",
-    "ledgerDigest": "dce8b4c0f51f59e595959b70cb4f4325c41562d9621ce4dd477a2e745f07bddb",
-    "sequence": 14
+    "head": "7f84f474d7288321274a4a812a1eff1424c5fb29",
+    "ledgerDigest": "c70bc5fa232386fbbe25970547cfce2876cedb5f476f4b5ecdd196d9590eadbb",
+    "sequence": 16
   },
-  "ordinal": 7,
-  "outcome": "Refresh official ACS/BLS/NIOSH/OSHA/Apple sources, competitor iOS declarations, vendor gaps, reviews, keyword evidence, support capacity, and U.S. geography. Confirm en, es, zh-Hans, zh-Hant, vi, and ko; a different cohort is `AMENDMENT_REQUIRED`.",
-  "payloadDigest": "d455b661227fbeede1b5bea54d85131db8cc2c869d0fdce089a5dbede2acea49",
+  "ordinal": 8,
+  "outcome": "Convert review/research themes into PRESERVE_IN_V30, VERIFY_EXISTING_BEHAVIOR, FUTURE_CARD, or REJECT_SCOPE. Bind the verified keyword package without authorizing new backends or modules.",
+  "payloadDigest": "523e76af8a2415ad21982c68e4285449f02f2ed8113ce65cd46eec7a9a5453e4",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P00-C06": {
+    "V30-P01-C01": {
       "candidate": {
-        "base": "c2f7225afe01714e553c18ce1d77fd9c454c6a3b",
-        "baseTree": "550702294744a423640f6cc93df628df067ebf66",
+        "base": "bd231bd0daf11ac5f7842c2eab2164c8f0dc8e28",
+        "baseTree": "0f9353ec92fab121aa3b33740996e6305d5b8a71",
         "changedPaths": [
-          "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json",
-          "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json",
-          "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json"
+          "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift",
+          "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
+          "docs/design/v30/research/V30InitialLanguageCohortV1.json",
+          "docs/design/v30/research/V30ResearchManifestV1.json"
         ],
-        "head": "859913472ee0c35087a93ea98b690f4df5dc286d",
-        "tree": "a144beb446cabd1c646e3f47a92eb0dc4fd9deb7"
+        "head": "d52cbd38e19b51bcd8c83f6d5fca768ace817d90",
+        "tree": "84da9fd23f74d859e51b53e031fff4ad2d79693b"
       },
-      "sequence": 14
+      "sequence": 16
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; Card5 hosted route is pinned but no native dispatch is selected.",
-  "sourceEndLine": 981,
-  "sourceStartLine": 981,
-  "title": "Research manifest and initial-language confirmation"
+  "sourceEndLine": 982,
+  "sourceStartLine": 982,
+  "title": "Customer-needs and scope-disposition register"
 }
 ```

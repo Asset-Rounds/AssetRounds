@@ -1,8 +1,8 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
   "branchRef": "refs/heads/phase/v30-globalization",
-  "cardID": "V30-P01-C01",
-  "cardTitle": "Research manifest and initial-language confirmation",
+  "cardID": "V30-P01-C02",
+  "cardTitle": "Customer-needs and scope-disposition register",
   "developmentRouteSHA256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690",
   "hostedDispatchAllowed": false,
   "hostedDispatchUnlockCard": "V30-P00-C05",
@@ -14,7 +14,7 @@
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "4389d3ec97c1c008337dc41cc64870d5bc5937281f9b9e6f34367f52fd9c3522",
+  "payloadDigest": "2b200bd14955a1b8b8b27e0b02c55969eebcfb5111ea2a0e7f48e65b78fb2772",
   "preS10FinalCredit": false,
   "reason": "Windows-static provisional card; Card5 hosted route is pinned but no native dispatch is selected.",
   "schemaVersion": "V30BootstrapPayloadV1",
