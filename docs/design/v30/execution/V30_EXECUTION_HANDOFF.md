@@ -721,3 +721,261 @@ This entry does not self-record its containing transition commit. Phase 10 was n
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+
+## Card 6 of 55 — Provisional execution admission
+
+```json
+{
+  "blockers": [],
+  "candidate": {
+    "base": "c2f7225afe01714e553c18ce1d77fd9c454c6a3b",
+    "baseTree": "550702294744a423640f6cc93df628df067ebf66",
+    "changedPaths": [
+      "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json",
+      "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json",
+      "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json"
+    ],
+    "head": "859913472ee0c35087a93ea98b690f4df5dc286d",
+    "tree": "a144beb446cabd1c646e3f47a92eb0dc4fd9deb7"
+  },
+  "checkpoint": {
+    "head": "2d8f2932b5069477af4a4e754178dea7384a8a2e",
+    "ledgerDigest": "dce8b4c0f51f59e595959b70cb4f4325c41562d9621ce4dd477a2e745f07bddb",
+    "sequence": 14
+  },
+  "evidence": {
+    "artifacts": [
+      {
+        "path": "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json",
+        "sha256": "ce8bdeb69845a8532094c4719efdaa373c35e32eeb474df0b9fa6c5e5f516260"
+      },
+      {
+        "path": "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json",
+        "sha256": "77bbc815ae13979523f7c1900c250b2ba07a60559fb776ea8ed65d90c155c2c7"
+      },
+      {
+        "path": "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json",
+        "sha256": "cb633a509c9bb435b9ab6635333db512bd9a82bd25501c0ffd8f8b343e7b4813"
+      }
+    ],
+    "checks": {
+      "completedPredecessors": [
+        "V30-P00-C01",
+        "V30-P00-C02",
+        "V30-P00-C03",
+        "V30-P00-C04",
+        "V30-P00-C05"
+      ],
+      "directCASParent": "PASS",
+      "graphEdges": 107,
+      "laterPreS10Skip": "REJECTED",
+      "malformedProjections": {
+        "changed next card": "REJECTED",
+        "final credit": "REJECTED",
+        "omitted locked card": "REJECTED",
+        "promoted post-S10 row": "REJECTED",
+        "reordered pre-S10 cohort": "REJECTED"
+      },
+      "nextBeforeCheckpoint": "REJECTED",
+      "oneSoleGenesis": "PASS",
+      "onlyNextAfterCheckpoint": "V30-P01-C01_POLICY_VECTOR_ONLY_NOT_AN_ACTUAL_SELECTION",
+      "p00InternalEdges": 9,
+      "postS10CardsRejected": 18,
+      "postS10WithAllPredecessors": "ALL_18_REJECTED",
+      "preS10Cards": 37,
+      "preservedDigestChain": "PASS_SEQUENCES_0_THROUGH_13",
+      "transitivePrerequisites": [
+        "V30-P00-C01",
+        "V30-P00-C02",
+        "V30-P00-C03",
+        "V30-P00-C04",
+        "V30-P00-C05"
+      ]
+    },
+    "commands": [
+      {
+        "command": "Pinned generate_v30_bootstrap_payloads.py payload_digest on projection, admission record, receipt and seq13 ledger",
+        "result": "ALL_FOUR_MATCH"
+      },
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS; V30-P00-C06 WINDOWS_STATIC"
+      }
+    ],
+    "independentAudit": "PASS: Terra admission CAS/hash links/genesis/activation/cohort/graph/credit review; initial digest discrepancy resolved as reviewer command escaping error",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "receipt": {
+      "path": "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json",
+      "sha256": "cb633a509c9bb435b9ab6635333db512bd9a82bd25501c0ffd8f8b343e7b4813"
+    },
+    "remainingTransition": "Only immediate V30-P01-C01 task/selector projection and separate selection CAS after this checkpoint"
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT; no runner/Xcode/Simulator/xcresult/screenshots on static governance card",
+  "nextUnstartedCard": "V30-P01-C01",
+  "operationalProvenance": [
+    {
+      "event": "INDEPENDENT_AUDIT_FALSE_POSITIVE",
+      "reason": "Reviewer hashed literal backslash-n rather than LF in a shell-embedded calculation",
+      "resolution": "Direct pinned bootstrap payload_digest and corrected independent chr(10) calculation match all four stored hashes. Reviewer withdrew blocker. No artifact changes were necessary."
+    }
+  ],
+  "reconciliation": "Replay or reimplement this exact card delta after valid accepted S; preserve all provenance and rerun invalidated evidence. No wholesale merge or automatic promotion.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "correctionOf": "",
+        "evidence": {
+          "artifacts": [
+            {
+              "path": "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json",
+              "sha256": "ce8bdeb69845a8532094c4719efdaa373c35e32eeb474df0b9fa6c5e5f516260"
+            },
+            {
+              "path": "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json",
+              "sha256": "77bbc815ae13979523f7c1900c250b2ba07a60559fb776ea8ed65d90c155c2c7"
+            },
+            {
+              "path": "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json",
+              "sha256": "cb633a509c9bb435b9ab6635333db512bd9a82bd25501c0ffd8f8b343e7b4813"
+            }
+          ],
+          "checks": {
+            "completedPredecessors": [
+              "V30-P00-C01",
+              "V30-P00-C02",
+              "V30-P00-C03",
+              "V30-P00-C04",
+              "V30-P00-C05"
+            ],
+            "directCASParent": "PASS",
+            "graphEdges": 107,
+            "laterPreS10Skip": "REJECTED",
+            "malformedProjections": {
+              "changed next card": "REJECTED",
+              "final credit": "REJECTED",
+              "omitted locked card": "REJECTED",
+              "promoted post-S10 row": "REJECTED",
+              "reordered pre-S10 cohort": "REJECTED"
+            },
+            "nextBeforeCheckpoint": "REJECTED",
+            "oneSoleGenesis": "PASS",
+            "onlyNextAfterCheckpoint": "V30-P01-C01_POLICY_VECTOR_ONLY_NOT_AN_ACTUAL_SELECTION",
+            "p00InternalEdges": 9,
+            "postS10CardsRejected": 18,
+            "postS10WithAllPredecessors": "ALL_18_REJECTED",
+            "preS10Cards": 37,
+            "preservedDigestChain": "PASS_SEQUENCES_0_THROUGH_13",
+            "transitivePrerequisites": [
+              "V30-P00-C01",
+              "V30-P00-C02",
+              "V30-P00-C03",
+              "V30-P00-C04",
+              "V30-P00-C05"
+            ]
+          },
+          "commands": [
+            {
+              "command": "Pinned generate_v30_bootstrap_payloads.py payload_digest on projection, admission record, receipt and seq13 ledger",
+              "result": "ALL_FOUR_MATCH"
+            },
+            {
+              "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+              "result": "PASS; V30-P00-C06 WINDOWS_STATIC"
+            }
+          ],
+          "independentAudit": "PASS: Terra admission CAS/hash links/genesis/activation/cohort/graph/credit review; initial digest discrepancy resolved as reviewer command escaping error",
+          "receipt": {
+            "path": "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json",
+            "sha256": "cb633a509c9bb435b9ab6635333db512bd9a82bd25501c0ffd8f8b343e7b4813"
+          },
+          "remainingTransition": "Only immediate V30-P01-C01 task/selector projection and separate selection CAS after this checkpoint"
+        },
+        "head": "859913472ee0c35087a93ea98b690f4df5dc286d",
+        "parent": "c2f7225afe01714e553c18ce1d77fd9c454c6a3b",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "tree": "a144beb446cabd1c646e3f47a92eb0dc4fd9deb7"
+      }
+    ],
+    "changedPaths": [
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "d9fe65d4960d14d5f41a9ccc82ca7efdd3bcca30",
+          "sha256": "ce8bdeb69845a8532094c4719efdaa373c35e32eeb474df0b9fa6c5e5f516260",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "e61f3cfa8fde7ce465f66ec2f3dd320a58c80085",
+          "sha256": "77bbc815ae13979523f7c1900c250b2ba07a60559fb776ea8ed65d90c155c2c7",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "4c9513d5e9ead309d3db784888c05a3b0e1f43a6",
+          "sha256": "cb633a509c9bb435b9ab6635333db512bd9a82bd25501c0ffd8f8b343e7b4813",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json"
+      }
+    ],
+    "compatibility": "UNASSESSED_PRE_S10",
+    "evidenceDisposition": "UNASSESSED_PRE_S10",
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "859913472ee0c35087a93ea98b690f4df5dc286d",
+      "tree": "a144beb446cabd1c646e3f47a92eb0dc4fd9deb7"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "s10SharedPaths": [],
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false"
+}
+```
+
+This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.

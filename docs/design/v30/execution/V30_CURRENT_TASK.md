@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 6 of 55 — Provisional execution admission
+Card 7 of 55 — Research manifest and initial-language confirmation
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Seal package activation and provisional genesis with a separate CAS, project only V30-P01-C01 into the V30 current-task lane, and prove the complete graph-enumerated post-S10 cohort remains unselectable. No card acceptance, `main`, Phase 10, release, or successor credit.",
+    "required": "Refresh official ACS/BLS/NIOSH/OSHA/Apple sources, competitor iOS declarations, vendor gaps, reviews, keyword evidence, support capacity, and U.S. geography. Confirm en, es, zh-Hans, zh-Hant, vi, and ko; a different cohort is `AMENDMENT_REQUIRED`.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,11 +19,11 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "8414a4a4a2835b32e06d059cbf713ffbf03fdd03",
-    "tree": "fca72009b36fd36ff2bba49716b5e6c57f116647"
+    "head": "859913472ee0c35087a93ea98b690f4df5dc286d",
+    "tree": "a144beb446cabd1c646e3f47a92eb0dc4fd9deb7"
   },
-  "cardID": "V30-P00-C06",
-  "class": "INTEGRATION",
+  "cardID": "V30-P01-C01",
+  "class": "FOUNDATION",
   "credit": {
     "canonicalAcceptance": false,
     "finalCredit": false,
@@ -33,8 +33,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P00-C04",
-    "V30-P00-C05"
+    "V30-P00-C06"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -75,41 +74,48 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json",
-        "purpose": "Separate provisional admission CAS record.",
+        "path": "docs/design/v30/research/V30ResearchManifestV1.json",
+        "purpose": "Pinned source/research manifest and six-locale confirmation.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json",
-        "purpose": "Admission receipt proving P05-P07 remain unselectable.",
+        "path": "docs/design/v30/research/V30InitialLanguageCohortV1.json",
+        "purpose": "U.S. initial-language cohort decision record.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json",
-        "purpose": "Closed pre-S10 selectability projection.",
+        "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
+        "purpose": "Competitor declaration/review evidence normalization.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift",
+        "purpose": "Cohort and source-manifest validation.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P00-C06",
-    "class": "INTEGRATION",
+    "cardID": "V30-P01-C01",
+    "class": "FOUNDATION",
     "directPrerequisites": [
-      "V30-P00-C04",
-      "V30-P00-C05"
+      "V30-P00-C06"
     ],
-    "ordinal": 6,
+    "ordinal": 7,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Provisional execution admission"
+    "title": "Research manifest and initial-language confirmation"
   },
   "fenceSource": {
-    "cardID": "V30-P00-C06",
+    "cardID": "V30-P01-C01",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -120,59 +126,38 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P01-C01",
+  "next": "V30-P01-C02",
   "observedCoordination": {
-    "head": "2684ad76d68792843e6ec050be1b14c7bc6709f2",
-    "ledgerDigest": "e5ed6246e4f665ce6257212d81a34e3a228b8647ee4ae17810e8524b890879bc",
-    "sequence": 11
+    "head": "2d8f2932b5069477af4a4e754178dea7384a8a2e",
+    "ledgerDigest": "dce8b4c0f51f59e595959b70cb4f4325c41562d9621ce4dd477a2e745f07bddb",
+    "sequence": 14
   },
-  "ordinal": 6,
-  "outcome": "Seal package activation and provisional genesis with a separate CAS, project only V30-P01-C01 into the V30 current-task lane, and prove the complete graph-enumerated post-S10 cohort remains unselectable. No card acceptance, `main`, Phase 10, release, or successor credit.",
-  "payloadDigest": "5dc3da91c44c1afcbb2346f0d8450b2784bbc7d2bf8caa73a67047b81ef405f7",
+  "ordinal": 7,
+  "outcome": "Refresh official ACS/BLS/NIOSH/OSHA/Apple sources, competitor iOS declarations, vendor gaps, reviews, keyword evidence, support capacity, and U.S. geography. Confirm en, es, zh-Hans, zh-Hant, vi, and ko; a different cohort is `AMENDMENT_REQUIRED`.",
+  "payloadDigest": "d455b661227fbeede1b5bea54d85131db8cc2c869d0fdce089a5dbede2acea49",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P00-C04": {
+    "V30-P00-C06": {
       "candidate": {
-        "base": "9b9ecabf0289455be4be44c4ca1f5de0b1b5bc7d",
-        "baseTree": "7be2bd9eb7ea634128f1bd103fc9b2296c43d728",
+        "base": "c2f7225afe01714e553c18ce1d77fd9c454c6a3b",
+        "baseTree": "550702294744a423640f6cc93df628df067ebf66",
         "changedPaths": [
-          "FieldEvidenceAppTests/V30_P00_C04CandidateReconciliationManifestTests.swift",
-          "Scripts/v30/validate_v30_provisional_candidate_manifest.py",
-          "docs/design/v30/contracts/V30ProvisionalCandidateReconciliationManifestV1.json",
-          "docs/design/v30/schemas/v30-provisional-candidate-reconciliation-manifest.schema.json"
+          "docs/design/v30/contracts/V30PreS10SelectabilityProjectionV1.json",
+          "docs/design/v30/execution/V30_PROVISIONAL_ADMISSION_CAS.json",
+          "docs/design/v30/execution/receipts/V30-P00-C06-admission-receipt.json"
         ],
-        "head": "97c7d08881c0a3479f73ca174a6460465ac335cf",
-        "tree": "3bda0a1b6e6ee483dd318863266ab2021d273c74"
+        "head": "859913472ee0c35087a93ea98b690f4df5dc286d",
+        "tree": "a144beb446cabd1c646e3f47a92eb0dc4fd9deb7"
       },
-      "sequence": 9
-    },
-    "V30-P00-C05": {
-      "candidate": {
-        "base": "d0fd402a293a3b8d0ad534c650aaf73f620321a9",
-        "baseTree": "db86f8b71c86d685bf8c9cb2124381701c053fea",
-        "changedPaths": [
-          ".github/workflows/ios-ci.yml",
-          "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift",
-          "Scripts/test-smoke.sh",
-          "Scripts/ui-smoke.sh",
-          "Scripts/v30/validate_v30_provisional_ci_contract.py",
-          "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json",
-          "docs/design/v30/execution/V30_CI_SELECTION.json",
-          "docs/design/v30/execution/V30_CURRENT_TASK.md",
-          "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json"
-        ],
-        "head": "8414a4a4a2835b32e06d059cbf713ffbf03fdd03",
-        "tree": "fca72009b36fd36ff2bba49716b5e6c57f116647"
-      },
-      "sequence": 11
+      "sequence": 14
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; Card5 hosted route is pinned but no native dispatch is selected.",
-  "sourceEndLine": 975,
-  "sourceStartLine": 975,
-  "title": "Provisional execution admission"
+  "sourceEndLine": 981,
+  "sourceStartLine": 981,
+  "title": "Research manifest and initial-language confirmation"
 }
 ```
