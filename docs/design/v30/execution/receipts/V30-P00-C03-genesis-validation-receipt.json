@@ -1,0 +1,60 @@
+{
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "base": {
+    "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
+    "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
+  },
+  "blockers": [],
+  "cardID": "V30-P00-C03",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": false,
+    "releaseCredit": false
+  },
+  "failures": [],
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "next": "V30-P00-C04_AFTER_PROVISIONAL_CHECKPOINT",
+  "observedTaskStart": "c7cc89bde7b7f232626a6e7c98f65feb9724813b",
+  "ordinal": 3,
+  "payloadDigest": "0f832315dc44d4a4994c12a6efce08f3caf0d962286b07e7b3e8587924a4ec7d",
+  "record": {
+    "path": "docs/design/v30/execution/V30_PROVISIONAL_COORDINATION_GENESIS.json",
+    "payloadDigest": "2b0ce7d2f2e1a604db810cee217191a6f448734a852eeb52680ec36e4ba74f89",
+    "sha256": "eb24d78c723fdc3a78ca3b8ba8969452f52657b715f9c7e00c71d8e06ecdab1d"
+  },
+  "result": "PASS",
+  "s10SharedPaths": [],
+  "staticChecks": {
+    "chainAndSchema": "PASS",
+    "differentInputSameRequest": "CONFLICT_HOLD_NO_WRITE",
+    "identicalRequestReplay": "ORIGINAL_RESULT_RETURNED_NO_WRITE",
+    "malformedSchemaCases": {
+      "ledgerID": "REJECTED",
+      "payloadDigest": "REJECTED",
+      "preS10FinalCredit": "REJECTED",
+      "sequence": "REJECTED",
+      "writerGeneration": "REJECTED"
+    },
+    "staleGitRef": {
+      "command": [
+        "git",
+        "update-ref",
+        "refs/heads/coord/v30-globalization-provisional",
+        "1a64f1a44cd254524f9f5a795ce61c6da9899be4",
+        "51ef2b3d970a25b4c83df8c8238609316e37034e"
+      ],
+      "diagnostic": "fatal: update_ref failed for ref 'refs/heads/coord/v30-globalization-provisional': cannot lock ref 'refs/heads/coord/v30-globalization-provisional': is at 1a64f1a44cd254524f9f5a795ce61c6da9899be4 but expected 51ef2b3d970a25b4c83df8c8238609316e37034e",
+      "exitCode": 128,
+      "result": "REJECTED_NO_STATE_CHANGE"
+    }
+  }
+}

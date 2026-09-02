@@ -1,0 +1,181 @@
+{
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "cardID": "V30-P00-C03",
+  "createsLedger": false,
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": false,
+    "releaseCredit": false
+  },
+  "history": [
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json"
+      ],
+      "head": "c1bd98dc9cba07969a23e5bbccf13bb5174592e4",
+      "ledgerDigest": "b8c1013dffdc36a8b0f746b1d754b41d1edfe90639c22b16292a02bb8404fe53",
+      "sequence": 0
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json",
+        "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json"
+      ],
+      "head": "deae5a35aa08b2a991c6e3739f83628d9a23640d",
+      "ledgerDigest": "612702693492eaefe266aab06eb93cf3ff9248f2e9274fdf2a692d18ecadbc0c",
+      "sequence": 1
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json",
+        "docs/design/v30/execution/receipts/V30_G3_CARD_001_SELECTION_RECEIPT.json"
+      ],
+      "head": "b9da6fae7dcc7f796d9af8f777d6a436d6ff7868",
+      "ledgerDigest": "a352a723a0c782ad42de5bf717f8a999551cf675b8093114a462273bc76eee6f",
+      "sequence": 2
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json"
+      ],
+      "head": "41705d370b736fef057d75f3363e0e060e899994",
+      "ledgerDigest": "9d146190198717807ece7f0b99dc5a52743a56a981862145e5b725d03023ef0d",
+      "sequence": 3
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json"
+      ],
+      "head": "dd026224d58ed44daf0bc98ed2d8596655edde51",
+      "ledgerDigest": "a314effb651127d260a3ad9b2efd99449affb14aa6cba56cbe1373165f99c0e6",
+      "sequence": 4
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json"
+      ],
+      "head": "84d7e8a207bb88f508ef3e533dd9f8e4d7713368",
+      "ledgerDigest": "5af093a1d41d221eb011ec63fd8b28d17e5d8756145bd06a417afcb307743fde",
+      "sequence": 5
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json"
+      ],
+      "head": "1a64f1a44cd254524f9f5a795ce61c6da9899be4",
+      "ledgerDigest": "565f06f99b311fad3f68a66ab7ffe2e0da7bd9aaf00b59daf8c23f5225c2fea6",
+      "sequence": 6
+    }
+  ],
+  "kind": "READ_ONLY_VALIDATION_OF_EXISTING_G3_GENESIS",
+  "payloadDigest": "2b0ce7d2f2e1a604db810cee217191a6f448734a852eeb52680ec36e4ba74f89",
+  "schemaSeal": {
+    "digestMechanism": "Existing bootstrap payload_digest: exclude only payloadDigest; sorted 2-space UTF8 JSON plus LF",
+    "exactKeys": [
+      "authorityID",
+      "bootstrapAllowedPaths",
+      "coordination",
+      "creditedCards",
+      "events",
+      "frozenV23CoordinationObservations",
+      "frozenV23Observations",
+      "installationRequestID",
+      "kind",
+      "ledgerID",
+      "nextMutation",
+      "packageBinding",
+      "payloadDigest",
+      "preS10FinalCredit",
+      "previousLedgerDigest",
+      "receiptMetadata",
+      "requestID",
+      "requestIDNamespace",
+      "requestResults",
+      "runtimeMutablePaths",
+      "schemaVersion",
+      "selectedCard",
+      "sequence",
+      "state",
+      "writerGeneration"
+    ],
+    "genesisSchemaPayloadDigest": "b8c1013dffdc36a8b0f746b1d754b41d1edfe90639c22b16292a02bb8404fe53",
+    "immutableKeys": [
+      "authorityID",
+      "bootstrapAllowedPaths",
+      "coordination",
+      "creditedCards",
+      "frozenV23CoordinationObservations",
+      "frozenV23Observations",
+      "installationRequestID",
+      "kind",
+      "ledgerID",
+      "nextMutation",
+      "packageBinding",
+      "preS10FinalCredit",
+      "receiptMetadata",
+      "requestID",
+      "requestIDNamespace",
+      "runtimeMutablePaths",
+      "schemaVersion",
+      "writerGeneration"
+    ],
+    "invariants": [
+      "One genesis direct child of frozen coordination head",
+      "Sequence advances once per append; digest binds predecessor",
+      "Earlier events and request results remain byte-equivalent as JSON values",
+      "Exact authority namespace, writer generation and frozen V23 observations",
+      "No credit, no canonical coordination succession"
+    ],
+    "mutableKeys": [
+      "events",
+      "payloadDigest",
+      "previousLedgerDigest",
+      "requestResults",
+      "selectedCard",
+      "sequence",
+      "state"
+    ],
+    "schemaVersion": "V30ProvisionalExecutionLedgerV1"
+  },
+  "source": {
+    "genesisHead": "c1bd98dc9cba07969a23e5bbccf13bb5174592e4",
+    "genesisRawSHA256": "832c2fc0fdfe64b4f4b4561c53b2754a2c10666f3e95baa5a2bbe81a7f12f78f",
+    "observedHead": "1a64f1a44cd254524f9f5a795ce61c6da9899be4",
+    "observedSequence": 6,
+    "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json",
+    "ref": "refs/heads/coord/v30-globalization-provisional",
+    "repository": "https://github.com/Asset-Rounds/AssetRounds-v23-coordination.git"
+  },
+  "testResults": {
+    "chainAndSchema": "PASS",
+    "differentInputSameRequest": "CONFLICT_HOLD_NO_WRITE",
+    "identicalRequestReplay": "ORIGINAL_RESULT_RETURNED_NO_WRITE",
+    "malformedSchemaCases": {
+      "ledgerID": "REJECTED",
+      "payloadDigest": "REJECTED",
+      "preS10FinalCredit": "REJECTED",
+      "sequence": "REJECTED",
+      "writerGeneration": "REJECTED"
+    },
+    "staleGitRef": {
+      "command": [
+        "git",
+        "update-ref",
+        "refs/heads/coord/v30-globalization-provisional",
+        "1a64f1a44cd254524f9f5a795ce61c6da9899be4",
+        "51ef2b3d970a25b4c83df8c8238609316e37034e"
+      ],
+      "diagnostic": "fatal: update_ref failed for ref 'refs/heads/coord/v30-globalization-provisional': cannot lock ref 'refs/heads/coord/v30-globalization-provisional': is at 1a64f1a44cd254524f9f5a795ce61c6da9899be4 but expected 51ef2b3d970a25b4c83df8c8238609316e37034e",
+      "exitCode": 128,
+      "result": "REJECTED_NO_STATE_CHANGE"
+    }
+  }
+}
