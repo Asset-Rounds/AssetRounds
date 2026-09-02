@@ -180,3 +180,122 @@ This entry does not self-record its containing transition commit. Phase 10 was n
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+
+## Card 4 of 55 — Provisional candidate and reconciliation-manifest contract
+
+```json
+{
+  "blockers": [],
+  "candidate": {
+    "base": "9b9ecabf0289455be4be44c4ca1f5de0b1b5bc7d",
+    "baseTree": "7be2bd9eb7ea634128f1bd103fc9b2296c43d728",
+    "changedPaths": [
+      "FieldEvidenceAppTests/V30_P00_C04CandidateReconciliationManifestTests.swift",
+      "Scripts/v30/validate_v30_provisional_candidate_manifest.py",
+      "docs/design/v30/contracts/V30ProvisionalCandidateReconciliationManifestV1.json",
+      "docs/design/v30/schemas/v30-provisional-candidate-reconciliation-manifest.schema.json"
+    ],
+    "head": "97c7d08881c0a3479f73ca174a6460465ac335cf",
+    "tree": "3bda0a1b6e6ee483dd318863266ab2021d273c74"
+  },
+  "checkpoint": {
+    "head": "40e549e9b624e9b52038c73ea18c0e268a13be76",
+    "ledgerDigest": "cc6f29c26b45310384efa175ee7a2d937f53f62be891c1af01d4c7f2e78d3d87",
+    "sequence": 9
+  },
+  "evidence": {
+    "artifacts": [
+      {
+        "path": "FieldEvidenceAppTests/V30_P00_C04CandidateReconciliationManifestTests.swift",
+        "sha256": "cb4d984a1905463a8e8ab7f33ff3897ff95f7e9b45f1540865e51377435b43dc"
+      },
+      {
+        "path": "Scripts/v30/validate_v30_provisional_candidate_manifest.py",
+        "sha256": "3ae1ffd49509a49245bde01758631fe3148c2a21759c26a56c511955a328734f"
+      },
+      {
+        "path": "docs/design/v30/contracts/V30ProvisionalCandidateReconciliationManifestV1.json",
+        "sha256": "464fbfd889d217fbda418d26698510c6ed72b967fd47bc16a6ebeed0a16a428d"
+      },
+      {
+        "path": "docs/design/v30/schemas/v30-provisional-candidate-reconciliation-manifest.schema.json",
+        "sha256": "ec89c398fae5c1b866986bc920d899f911481a0d5baff6ed02576dcb0c36d85d"
+      }
+    ],
+    "commands": [
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_candidate_manifest.py --self-test",
+        "result": {
+          "correctionChain": "PASS_WITH_ERASED_FAILURE_REJECTED",
+          "goldenReferenceCards": 3,
+          "intermediateUnfencedChange": "REJECTED_BY_FULL_VALIDATOR",
+          "nativeCredit": false,
+          "rejectedCases": [
+            "credit",
+            "fake accepted S",
+            "unknown field",
+            "wrong B",
+            "duplicate card",
+            "omitted predecessor",
+            "wrong parent",
+            "wrong tree",
+            "omitted path",
+            "duplicate path",
+            "wrong blob",
+            "wrong ownership",
+            "wrong evidence",
+            "premature compatibility",
+            "lost history",
+            "wrong historical tree",
+            "changed correction link",
+            "lost historical evidence",
+            "lost receipt binding",
+            "erased historical path",
+            "invented S evidence",
+            "invented replay",
+            "weakened replay"
+          ],
+          "result": "PASS"
+        }
+      },
+      {
+        "command": "external validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS; 55 cards,107 edges,24 exact installed files"
+      }
+    ],
+    "independentAudit": "PASS: Terra focused history/fence/tuple/evidence/specimen/schema/Swift review; no remaining correctness blocker",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "swiftTests": "AUTHORED_NOT_EXECUTED; synchronized test group includes source; hosted route not yet enabled"
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT; no runner/Xcode/Simulator/xcresult/screenshots on static governance card",
+  "nextUnstartedCard": "V30-P00-C05",
+  "operationalProvenance": [
+    {
+      "command": "python -B Scripts/v30/validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+      "event": "VALIDATION_COMMAND_FAILED",
+      "reason": "Immutable flat-package validator resolves source directory relative to its own file; installed invocation is not the external package source",
+      "resolution": "Ran the unchanged external validator at its authorized source path with --installed-root; PASS. No package or validator edits."
+    }
+  ],
+  "reconciliation": "Replay or reimplement this exact card delta after valid accepted S; preserve all provenance and rerun invalidated evidence. No wholesale merge or automatic promotion.",
+  "s10SharedPaths": [],
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false"
+}
+```
+
+This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.

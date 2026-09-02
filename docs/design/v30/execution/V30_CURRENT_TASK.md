@@ -1,14 +1,14 @@
 # V30 Current Task
 
-Card 4 of 55 — Provisional candidate and reconciliation-manifest contract
+Card 5 of 55 — Provisional CI and checkpoint contract
 
-Only the exact pre-issued fence below is writable. Embedded context is the active hydration; materialize its allowed context file after selection CAS. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
+Only the exact pre-issued fence below is writable. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
 ```json
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Define per-card base/candidate head/tree/diff/evidence/path-overlap manifests, exact B/P/S lineage mappings, compatibility classes, invalidation rules, and replay/reimplementation requirements for P05.",
+    "required": "Freeze the permitted Windows-static and hosted-macOS development routes, exact selectors/artifacts, retry/correction law, and explicit statement that every result is provisional branch evidence only. Adapt only the isolated V30 branch copies of `.github/workflows/ios-ci.yml`, `Scripts/test-smoke.sh`, and `Scripts/ui-smoke.sh` to the typed V30 selector, under their exact frozen-B fences and S10 tuples. Never modify the inherited selector, active Phase 10 checkout/ref/runs, or main. Unavailable optional hosted diagnostics remain NOT_EXECUTED with no native credit and do not block static provisional coding.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,11 +19,11 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "2be5f8f58010c5813283ec9e69c17183733d462a",
-    "tree": "1a4a1b6960adc634488b4aae0c1be0f030af63f4"
+    "head": "97c7d08881c0a3479f73ca174a6460465ac335cf",
+    "tree": "3bda0a1b6e6ee483dd318863266ab2021d273c74"
   },
-  "cardID": "V30-P00-C04",
-  "class": "FOUNDATION",
+  "cardID": "V30-P00-C05",
+  "class": "VERIFICATION",
   "credit": {
     "canonicalAcceptance": false,
     "finalCredit": false,
@@ -33,8 +33,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P00-C02",
-    "V30-P00-C03"
+    "V30-P00-C03",
+    "V30-P00-C04"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -72,52 +72,98 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "serializedSharedPath": true
       },
       {
-        "classification": "EXPECTED_ABSENT_NEW_PATH",
-        "expectedBBlobOID": null,
-        "expectedBSHA256": null,
-        "path": "docs/design/v30/contracts/V30ProvisionalCandidateReconciliationManifestV1.json",
-        "purpose": "B/P/S candidate and replay contract.",
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+        "expectedBSHA256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7",
+        "path": ".github/workflows/ios-ci.yml",
+        "purpose": "Change only the phase/v30-globalization branch copy to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned runner/toolchain/simulator/watchdogs/evidence/commands, route/ref isolation, and no main or Phase10 mutation.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "25376fea96a73214ed0abe72d5a547def0ed8f3a",
+        "expectedBSHA256": "0462448692b4b128e98a3ff4772b1c3dc14d7b5409be8743b9c39e435195c36b",
+        "path": "Scripts/test-smoke.sh",
+        "purpose": "Change only the phase/v30-globalization branch copy to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned test commands, watchdogs, evidence, route/ref isolation, and no main or Phase10 mutation.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "a1d29aeb3e4a10dcd518d0627af2b351a904481c",
+        "expectedBSHA256": "6304a318ee046b6b19f4fddc43bb143f9b21e8150b9d332e449b87a0182d4cdb",
+        "path": "Scripts/ui-smoke.sh",
+        "purpose": "Change only the phase/v30-globalization branch copy to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned UI commands, watchdogs, evidence, route/ref isolation, and no main or Phase10 mutation.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/schemas/v30-provisional-candidate-reconciliation-manifest.schema.json",
-        "purpose": "Schema for per-card candidate/reconciliation manifests.",
+        "path": "docs/design/v30/contracts/V30ProvisionalCIAndCheckpointContractV1.json",
+        "purpose": "Pinned provisional development-route and checkpoint contract.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "Scripts/v30/validate_v30_provisional_candidate_manifest.py",
-        "purpose": "Deterministic V30 candidate-manifest validator.",
+        "path": "docs/design/v30/execution/V30_PROVISIONAL_DEVELOPMENT_ROUTE_SELECTOR.json",
+        "purpose": "V30-only route selector; never active S10 CI configuration.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P00_C04CandidateReconciliationManifestTests.swift",
-        "purpose": "Contract tests for B/P/S candidate mappings.",
+        "path": "Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "purpose": "Deterministic provisional CI-contract validator.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "FieldEvidenceAppTests/V30_P00_C05ProvisionalCheckpointContractTests.swift",
+        "purpose": "Checkpoint contract unit evidence.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P00-C04",
-    "class": "FOUNDATION",
+    "cardID": "V30-P00-C05",
+    "class": "VERIFICATION",
     "directPrerequisites": [
-      "V30-P00-C02",
-      "V30-P00-C03"
+      "V30-P00-C03",
+      "V30-P00-C04"
     ],
-    "ordinal": 4,
-    "preAuthorizedOverlapTuples": [],
-    "s10SharedPaths": [],
+    "ordinal": 5,
+    "preAuthorizedOverlapTuples": [
+      {
+        "boundedPurpose": "change only the phase/v30-globalization branch copy of the existing iOS CI controller to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned runner/toolchain/simulator/watchdogs/evidence/commands, route/ref isolation, and no main or Phase10 mutation",
+        "cardID": "V30-P00-C05",
+        "expectedBBlobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+        "expectedBSHA256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7",
+        "path": ".github/workflows/ios-ci.yml",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P00-C05-PROVISIONAL-CI-CONTROLLER"
+      },
+      {
+        "boundedPurpose": "change only the phase/v30-globalization branch copy to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned UI commands, watchdogs, evidence, route/ref isolation, and no main or Phase10 mutation",
+        "cardID": "V30-P00-C05",
+        "expectedBBlobOID": "a1d29aeb3e4a10dcd518d0627af2b351a904481c",
+        "expectedBSHA256": "6304a318ee046b6b19f4fddc43bb143f9b21e8150b9d332e449b87a0182d4cdb",
+        "path": "Scripts/ui-smoke.sh",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P00-C05-PROVISIONAL-CI-CONTROLLER"
+      }
+    ],
+    "s10SharedPaths": [
+      ".github/workflows/ios-ci.yml",
+      "Scripts/ui-smoke.sh"
+    ],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Provisional candidate and reconciliation-manifest contract"
+    "title": "Provisional CI and checkpoint contract"
   },
   "fenceSource": {
-    "cardID": "V30-P00-C04",
+    "cardID": "V30-P00-C05",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -128,31 +174,18 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P00-C05",
+  "next": "V30-P00-C06",
   "observedCoordination": {
-    "head": "1b52a07b27bd527eae6ac1d624871f7f0db1a96b",
-    "ledgerDigest": "f06d4108c1c47d00ac912082a68eed82c7da863b241c0384acbfeafa0ede4d17",
-    "sequence": 7
+    "head": "40e549e9b624e9b52038c73ea18c0e268a13be76",
+    "ledgerDigest": "cc6f29c26b45310384efa175ee7a2d937f53f62be891c1af01d4c7f2e78d3d87",
+    "sequence": 9
   },
-  "ordinal": 4,
-  "outcome": "Define per-card base/candidate head/tree/diff/evidence/path-overlap manifests, exact B/P/S lineage mappings, compatibility classes, invalidation rules, and replay/reimplementation requirements for P05.",
-  "payloadDigest": "fd099be0058eb6dc18dc77344d56d4367d638b0c20f9474044800b81fac17fc6",
+  "ordinal": 5,
+  "outcome": "Freeze the permitted Windows-static and hosted-macOS development routes, exact selectors/artifacts, retry/correction law, and explicit statement that every result is provisional branch evidence only. Adapt only the isolated V30 branch copies of `.github/workflows/ios-ci.yml`, `Scripts/test-smoke.sh`, and `Scripts/ui-smoke.sh` to the typed V30 selector, under their exact frozen-B fences and S10 tuples. Never modify the inherited selector, active Phase 10 checkout/ref/runs, or main. Unavailable optional hosted diagnostics remain NOT_EXECUTED with no native credit and do not block static provisional coding.",
+  "payloadDigest": "8163b48dc391579346268072c1cb10f0c2fe97c1979fff1c105303985e65f7a4",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P00-C02": {
-      "candidate": {
-        "base": "1374269994a871236703d5e006fb86f34bb06b68",
-        "changedPaths": [
-          "docs/design/v30/execution/contexts/V30-P00-C02-attempt-1.json",
-          "docs/design/v30/execution/proofs/V30-P00-C02-reservation-and-fence-proof.json",
-          "docs/design/v30/execution/receipts/V30-P00-C02-fence-proof-receipt.json"
-        ],
-        "head": "e50deb9f62591b1a746cb61afebedcd2e0bb6068",
-        "tree": "fb124f2644b5da95914591dcf778fd9d1787188b"
-      },
-      "sequence": 5
-    },
     "V30-P00-C03": {
       "candidate": {
         "base": "c7cc89bde7b7f232626a6e7c98f65feb9724813b",
@@ -165,13 +198,28 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "tree": "1a4a1b6960adc634488b4aae0c1be0f030af63f4"
       },
       "sequence": 7
+    },
+    "V30-P00-C04": {
+      "candidate": {
+        "base": "9b9ecabf0289455be4be44c4ca1f5de0b1b5bc7d",
+        "baseTree": "7be2bd9eb7ea634128f1bd103fc9b2296c43d728",
+        "changedPaths": [
+          "FieldEvidenceAppTests/V30_P00_C04CandidateReconciliationManifestTests.swift",
+          "Scripts/v30/validate_v30_provisional_candidate_manifest.py",
+          "docs/design/v30/contracts/V30ProvisionalCandidateReconciliationManifestV1.json",
+          "docs/design/v30/schemas/v30-provisional-candidate-reconciliation-manifest.schema.json"
+        ],
+        "head": "97c7d08881c0a3479f73ca174a6460465ac335cf",
+        "tree": "3bda0a1b6e6ee483dd318863266ab2021d273c74"
+      },
+      "sequence": 9
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Static governance; hosted dispatch disabled until Card 5 pins the route",
-  "sourceEndLine": 973,
-  "sourceStartLine": 973,
-  "title": "Provisional candidate and reconciliation-manifest contract"
+  "sourceEndLine": 974,
+  "sourceStartLine": 974,
+  "title": "Provisional CI and checkpoint contract"
 }
 ```
