@@ -1,0 +1,62 @@
+{
+  "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+  "canonicalLedgerExternal": true,
+  "creditedCards": [],
+  "installationRequestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+  "kind": "PRODUCT_BRANCH_READ_ONLY_PROJECTION",
+  "packageBinding": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityFileSHA256": "cdf291f0444b26bc08f1bdaa98314f16d6925e0f247a5d9c33318d158ff89aa1",
+    "bootstrapRequestIDs": {
+      "activationReceipt": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-ACTIVATION",
+      "cardSelection": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-SELECT-CARD-001",
+      "coordinationGenesis": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-GENESIS",
+      "installation": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+      "productSelectionProjection": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-PROJECTIONS"
+    },
+    "installationRequestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+    "pathFenceFileSHA256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a",
+    "provisionalLedger": {
+      "activationReceiptPath": "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json",
+      "bootstrapAllowedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json",
+        "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json",
+        "docs/design/v30/execution/receipts/V30_G3_CARD_001_SELECTION_RECEIPT.json"
+      ],
+      "cardSelectionReceiptPath": "docs/design/v30/execution/receipts/V30_G3_CARD_001_SELECTION_RECEIPT.json",
+      "externalRef": "refs/heads/coord/v30-globalization-provisional",
+      "genesisExpectedLedger": "ABSENT",
+      "genesisExpectedOldRef": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+      "initialSequence": 0,
+      "initialWriterGeneration": 1,
+      "ledgerID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/PROVISIONAL-LEDGER",
+      "refCreationExpectedOld": "ABSENT",
+      "requestIDNamespace": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+      "runtimeMutablePaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json"
+      ]
+    }
+  },
+  "payloadDigest": "324c5db5992cfb35fe3ad2e2ea84f47417ca4e389573ddb945591cec8cc48827",
+  "preS10FinalCredit": false,
+  "productProjectionRequestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-PROJECTIONS",
+  "projectionTarget": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+  "schemaVersion": "V30ProvisionalLedgerProjectionV1",
+  "selectedCard": null,
+  "sourceGenesis": {
+    "coordination": {
+      "branch": "coord/v30-globalization-provisional",
+      "canonicalLedgerExternal": true,
+      "expectedAbsent": true,
+      "expectedLedgerDigest": "ABSENT",
+      "expectedRef": "ABSENT",
+      "externalRef": "refs/heads/coord/v30-globalization-provisional",
+      "genesisExpectedOldRef": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+      "worktree": "C:\\AssetRounds-v30-globalization-coordination"
+    },
+    "file": "V30_PROVISIONAL_LEDGER_GENESIS.json",
+    "payloadDigest": "b8c1013dffdc36a8b0f746b1d754b41d1edfe90639c22b16292a02bb8404fe53",
+    "sequence": 0
+  },
+  "writeDisposition": "READ_ONLY_PROJECTION; product branch never becomes the canonical coordination ledger."
+}
