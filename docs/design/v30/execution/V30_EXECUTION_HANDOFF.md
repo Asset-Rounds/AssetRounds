@@ -125,3 +125,58 @@ This entry does not self-record its containing transition commit. Phase 10 was n
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+
+## Card 3 of 55 — Namespaced provisional coordination genesis validation
+
+```json
+{
+  "blockers": [],
+  "candidate": {
+    "base": "c7cc89bde7b7f232626a6e7c98f65feb9724813b",
+    "changedPaths": [
+      "docs/design/v30/execution/V30_PROVISIONAL_COORDINATION_GENESIS.json",
+      "docs/design/v30/execution/contexts/V30-P00-C03-attempt-1.json",
+      "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json"
+    ],
+    "head": "2be5f8f58010c5813283ec9e69c17183733d462a",
+    "tree": "1a4a1b6960adc634488b4aae0c1be0f030af63f4"
+  },
+  "checkpoint": {
+    "head": "1b52a07b27bd527eae6ac1d624871f7f0db1a96b",
+    "ledgerDigest": "f06d4108c1c47d00ac912082a68eed82c7da863b241c0384acbfeafa0ede4d17",
+    "sequence": 7
+  },
+  "evidence": {
+    "boundedChecks": "Same-input replay, different-input rejection, five malformed ledger cases, real stale local Git CAS rejected without state change",
+    "independentAudit": "PASS: seven-commit direct lineage, one genesis, seq0..6, digest chain, preserved schema/event prefixes, no canonical changes",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "receipt": {
+      "path": "docs/design/v30/execution/receipts/V30-P00-C03-genesis-validation-receipt.json",
+      "sha256": "1334289d554277fa9c58db9943e9f90731fe6ff99db3af8f18220c15f08f3a76"
+    }
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT; no runner/Xcode/Simulator/xcresult/screenshots on static governance card",
+  "nextUnstartedCard": "V30-P00-C04",
+  "operationalProvenance": [],
+  "reconciliation": "Replay or reimplement card-scoped evidence against accepted S and rerun invalidated qualification; no final acceptance credit",
+  "s10SharedPaths": [],
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false"
+}
+```
+
+This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.

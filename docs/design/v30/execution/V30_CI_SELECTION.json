@@ -1,7 +1,7 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
-  "cardID": "V30-P00-C03",
-  "cardTitle": "Namespaced provisional coordination genesis validation",
+  "cardID": "V30-P00-C04",
+  "cardTitle": "Provisional candidate and reconciliation-manifest contract",
   "hostedDispatchAllowed": false,
   "hostedDispatchUnlockCard": "V30-P00-C05",
   "kind": "V30CISelectionV1",
@@ -12,7 +12,7 @@
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "c0fc04c133800222411a71631a1494be9b214f22df02714aed735066553b9f99",
+  "payloadDigest": "876b7b1e5f9f7b65e1eb2d682dfe5345bd623cc3db28f8773327096e2d61be25",
   "preS10FinalCredit": false,
   "reason": "Static governance; hosted dispatch disabled until Card 5 pins the route",
   "schemaVersion": "V30BootstrapPayloadV1",
