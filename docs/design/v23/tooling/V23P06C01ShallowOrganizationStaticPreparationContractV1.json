@@ -1,0 +1,114 @@
+{
+  "authority": {
+    "appBaseHead": "5b6f98b3bbaceee128c52a8815b5b5e3ee5eca9e",
+    "appBaseTree": "d6abeea2627cc312db39ca4d6476717f58040eca",
+    "attemptID": 1,
+    "cardID": "V23-P06-C01",
+    "coordinationHead": "60f94ce514ca1a49c09866b052d5cb68ad7c2c45",
+    "coordinationTree": "690e75edc3465008bd0feea20bc09b33631af534",
+    "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+    "executionSpecificationDigest": "cfb05e1963f79c983ec432a630ea1382091e672a09fbe05228f5df5fce1da2b2",
+    "existingPathCount": 0,
+    "fencePathCount": 9,
+    "finalHashesSealed": false,
+    "ledgerDigest": "0c187d220f572dc595711a406502ff601e73e3078110333f3fd5656add17e622",
+    "newPathCount": 9,
+    "ordinal": 137,
+    "ownerOverrideV5SHA256": "33ca39e0996baf62069f60d68b96181844160dfdcc97a2ba05e8ba045dfc46b5",
+    "ownerOverrideV5SemanticDigest": "57255dfd005eedb7971f1dffb42257d06d44f4dd929788b125be1abb6fdf1e38",
+    "pathFenceDigest": "3947043339df1ca82be0796ab09124177d73dceb665fae425376da24cdd0ba35",
+    "projectionDigest": "d19fa7f331b38dbd28f83bacd458e0142e47a9a1012792dc6a2b5f8926f34787",
+    "s10ReservationOverlapCount": 0,
+    "sequence": 595,
+    "staticPreparationAnchorDigest": "6deb25429aac46a6beb9feda5c367909f048f22b719573dcc66f88db0ab603d3",
+    "staticPrerequisiteDigest": "dfb9170f929f56dabbdd1f514d0f3763685c200ac6f6417790c2e50c3b3dc980",
+    "transitionDigest": "0de14f4105524a46b06e31c4edad322090b492aad61bccbebab2a5573bd7db6e"
+  },
+  "cardID": "V23-P06-C01",
+  "contract": "ShallowOrganizationStaticPreparationContractV1",
+  "corpusPath": "FieldEvidenceAppTests/Fixtures/V23/P06/ShallowOrganization/V23P06C01ShallowOrganizationStaticCorpusV1.json",
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "flags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "implementation": false,
+    "main": false,
+    "merge": false,
+    "native": false,
+    "phase": false,
+    "physical": false,
+    "publication": false,
+    "release": false,
+    "selector": false
+  },
+  "noAcceptanceCredit": true,
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "protocol": {
+    "cardID": "V23-P06-C01",
+    "disconfirmers": [
+      "second writer",
+      "second store",
+      "new kernel",
+      "backend",
+      "auth",
+      "billing",
+      "network",
+      "customer data",
+      "public product claim",
+      "loss of manual offline fallback"
+    ],
+    "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+    "expiry": {
+      "invalidateOn": [
+        "authority-change",
+        "register-change",
+        "graph-change",
+        "reservation-change",
+        "origin-main-change",
+        "predecessor-checkpoint-change",
+        "revocation"
+      ],
+      "maximumDays": 30,
+      "reconcileOnAcceptedS10_6": true
+    },
+    "flags": {
+      "acceptance": false,
+      "adoption": false,
+      "hosted": false,
+      "implementation": false,
+      "main": false,
+      "merge": false,
+      "native": false,
+      "phase": false,
+      "physical": false,
+      "publication": false,
+      "release": false,
+      "selector": false
+    },
+    "forbiddenResults": [
+      "VALIDATED_PASS",
+      "VALIDATED_FAIL",
+      "ACCEPTED",
+      "READY",
+      "RELEASED",
+      "PHASE_INTEGRATED"
+    ],
+    "hypothesis": "Existing local/shared contracts can represent shallow workspace organization and delegated package administration without a second writer, store, kernel, backend, auth, billing, network, or product behavior.",
+    "preconditions": {
+      "p00C03": "NOT_PREELIGIBLE_PRESERVED",
+      "p04C13": "PROVISIONAL_ONLY",
+      "realValidationStudy": false
+    },
+    "purpose": "Static repository-only feasibility preparation for shallow organization; not a validation study.",
+    "schema": "V23P06C01ShallowOrganizationStaticProtocolV1",
+    "scope": {
+      "customerData": false,
+      "externalActions": "NONE",
+      "organizationDepth": "SHALLOW",
+      "sourceClass": "SYNTHETIC_OR_REPOSITORY_ONLY"
+    }
+  },
+  "schema": "V23P06C01StaticPreparationToolingV1"
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P06-C01"
+    },
+    "disconfirmers": {
+      "minItems": 9,
+      "type": "array"
+    },
+    "disposition": {
+      "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
+    },
+    "expiry": {
+      "type": "object"
+    },
+    "flags": {
+      "type": "object"
+    },
+    "forbiddenResults": {
+      "minItems": 6,
+      "type": "array"
+    },
+    "hypothesis": {
+      "type": "string"
+    },
+    "preconditions": {
+      "type": "object"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "V23P06C01ShallowOrganizationStaticProtocolV1"
+    },
+    "scope": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "disposition",
+    "purpose",
+    "scope",
+    "hypothesis",
+    "disconfirmers",
+    "preconditions",
+    "expiry",
+    "flags",
+    "forbiddenResults"
+  ],
+  "title": "V23 P06 C01 static protocol",
+  "type": "object"
+}

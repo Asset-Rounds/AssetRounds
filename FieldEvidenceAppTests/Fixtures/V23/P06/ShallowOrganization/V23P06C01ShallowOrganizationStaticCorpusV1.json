@@ -1,0 +1,59 @@
+{
+  "cardID": "V23-P06-C01",
+  "cases": [
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "G01",
+      "input": "synthetic shallow organization",
+      "kind": "golden"
+    },
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "A01",
+      "input": "en-US and RTL terminology review",
+      "kind": "accessibility"
+    },
+    {
+      "expected": "REJECT_NO_STUDY",
+      "id": "H01_MALFORMED",
+      "input": "malformed shallow organization",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_NO_STUDY",
+      "id": "H01_DUPLICATE",
+      "input": "duplicate local identity",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_OUT_OF_SCOPE",
+      "id": "H01_ESCAPE",
+      "input": "backend or customer-data escape",
+      "kind": "hostile"
+    },
+    {
+      "expected": "NO_RUNTIME_CLAIM",
+      "id": "I01",
+      "input": "synthetic static-review interruption",
+      "kind": "interruption"
+    },
+    {
+      "expected": "RECONCILE_OR_DISCARD",
+      "id": "R01",
+      "input": "expired or revoked static protocol",
+      "kind": "recovery"
+    }
+  ],
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "forbiddenResults": [
+    "VALIDATED_PASS",
+    "VALIDATED_FAIL",
+    "ACCEPTED",
+    "READY",
+    "RELEASED",
+    "PHASE_INTEGRATED"
+  ],
+  "realTerminalValidationResult": false,
+  "schema": "V23P06C01ShallowOrganizationStaticCorpusV1",
+  "syntheticOnly": true
+}
