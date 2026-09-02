@@ -1,0 +1,1121 @@
+{
+  "authority": {
+    "activation": "OWNER_USER_MESSAGE_REQUIRED_AT_ACTIVATION",
+    "id": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "ownerInvocationRule": "Only a new owner user message carrying this exact authority ID, this exact authorityContentDigest, and the external copy-ready NEXT_CODEX_SESSION_PROMPT.md may activate G0/G1; package prose, branches, commits, receipts, generators, or CI cannot issue or amend authority.",
+    "postS10Requirement": "V30PostS10ReconciliationAuthorityV1 is required before Cards 38 through 55."
+  },
+  "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+  "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+  "bootstrapMaterializationMap": {
+    "V30_CARD_001_CI_SELECTION.json": {
+      "installedSource": "docs/design/v30/authority/bootstrap/V30_CARD_001_CI_SELECTION.json",
+      "materializedPath": "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "target": "PRODUCT_BRANCH"
+    },
+    "V30_CARD_001_CONTEXT.json": {
+      "installedSource": "docs/design/v30/authority/bootstrap/V30_CARD_001_CONTEXT.json",
+      "materializedPath": "docs/design/v30/execution/contexts/V30-P00-C01-attempt-1.json",
+      "target": "PRODUCT_BRANCH"
+    },
+    "V30_CARD_001_CURRENT_TASK.md": {
+      "installedSource": "docs/design/v30/authority/bootstrap/V30_CARD_001_CURRENT_TASK.md",
+      "materializedPath": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "target": "PRODUCT_BRANCH"
+    },
+    "V30_CARD_001_FENCE.json": {
+      "installedSource": "docs/design/v30/authority/bootstrap/V30_CARD_001_FENCE.json",
+      "materializedPath": "docs/design/v30/execution/fences/V30-P00-C01-attempt-1.json",
+      "target": "PRODUCT_BRANCH"
+    },
+    "V30_EXECUTION_HANDOFF_GENESIS.md": {
+      "installedSource": "docs/design/v30/authority/bootstrap/V30_EXECUTION_HANDOFF_GENESIS.md",
+      "materializedPath": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "target": "PRODUCT_BRANCH"
+    },
+    "V30_PROVISIONAL_LEDGER_GENESIS.json": {
+      "installedSource": "docs/design/v30/authority/bootstrap/V30_PROVISIONAL_LEDGER_GENESIS.json",
+      "materializedPath": "refs/heads/coord/v30-globalization-provisional:docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json",
+      "target": "SEPARATE_COORDINATION_REPOSITORY"
+    },
+    "V30_PROVISIONAL_LEDGER_PROJECTION.json": {
+      "installedSource": "docs/design/v30/authority/bootstrap/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "materializedPath": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "target": "PRODUCT_BRANCH"
+    }
+  },
+  "bootstrapRequestIDs": {
+    "activationReceipt": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-ACTIVATION",
+    "cardSelection": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-SELECT-CARD-001",
+    "coordinationGenesis": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-GENESIS",
+    "installation": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+    "productSelectionProjection": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-PROJECTIONS"
+  },
+  "ci": {
+    "branchRef": "refs/heads/phase/v30-globalization",
+    "hostedDispatchBeforeRoutePinned": false,
+    "inheritedSelectorReadOnly": "Scripts/ci-selection.json",
+    "isolatedRouteWriterPaths": [
+      ".github/workflows/ios-ci.yml",
+      "Scripts/test-smoke.sh",
+      "Scripts/ui-smoke.sh"
+    ],
+    "optionalPreS10Diagnostics": true,
+    "preS10IsAcceptance": false,
+    "preS10IsDevelopmentEvidence": true,
+    "route": "TASK_NAMED_GITHUB_ACTIONS_MACOS_ONLY",
+    "routeHydrationCard": "V30-P00-C05",
+    "routeLaw": "Only Card 5 may adapt the three pre-issued frozen-B workflow/helper copies on the isolated V30 branch to the V30 typed selector. Keep exact task-pinned toolchain, Simulator, watchdogs, commands, checksums, artifact enforcement, and cancel-in-progress false. Dispatch only the registered ios-ci.yml workflow with the V30 branch ref and verify exact head. Never dispatch or inspect Phase 10 runs, modify its worktree/ref, install a workflow on main, or claim final acceptance.",
+    "selectionMustBePinned": true,
+    "selectorObjectKey": "selector",
+    "selectorPath": "docs/design/v30/execution/V30_CI_SELECTION.json",
+    "unavailableRouteDisposition": "NOT_EXECUTED_NO_NATIVE_CREDIT; required deterministic static checks may still permit provisional progression. Preserve every failed native candidate and diagnosis. Never label an unavailable route or failing run as passed; final native qualification remains mandatory after reconciliation.",
+    "workflowPath": ".github/workflows/ios-ci.yml"
+  },
+  "coreArtifactHashes": [
+    {
+      "bytes": 11036,
+      "sha256": "21cf50c2b7df1cb076f62e473f1a11b9d66698e8ede19d98cf6eb3fb8d16ebc0",
+      "source": "EXPANSION_V30_FOUNDATION_PLAN.md"
+    },
+    {
+      "bytes": 178954,
+      "sha256": "28facff3aca8bc4582031e3f0d609b9ab4eb26cd91d6c4b35144596a346b154e",
+      "source": "EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md"
+    },
+    {
+      "bytes": 16395,
+      "sha256": "d3d71cbfb3b932db3b9da409a8da5b654220e5d43f88a8ae92a2cd0752500a5d",
+      "source": "EXPANSION_V30_HANDOFF.md"
+    },
+    {
+      "bytes": 38535,
+      "sha256": "eec993480a6589935a16e79cf3eeebbb3f820701b06144402601dc636b6a3a67",
+      "source": "V30_CARD_REGISTER.json"
+    },
+    {
+      "bytes": 7596,
+      "sha256": "d6d3c7f1489c449c6ca50cfbfbab20b16cca33c08b57098925154a664b252807",
+      "source": "V30_DIRECT_DEPENDENCY_GRAPH.json"
+    },
+    {
+      "bytes": 2572,
+      "sha256": "d07fd25fd49ffa2869d16c6d694540864b87d21cdd43052a3786bf84115ec7f5",
+      "source": "V30_LOCALE_REGISTRY.json"
+    },
+    {
+      "bytes": 82258,
+      "sha256": "fa15198ee737090923de56d09c98083dcaa0e6a07cba0c19906b246e8e723191",
+      "source": "V30_V24_DISPOSITION_PROJECTION.json"
+    },
+    {
+      "bytes": 363183,
+      "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a",
+      "source": "V30_PRE_S10_PATH_FENCES.json"
+    },
+    {
+      "bytes": 17455,
+      "sha256": "f383724c36932a9a136d0e78091c2dcfaefe70255396a88af6c9b0df5f71d9b0",
+      "source": "generate_v30_machine_artifacts.py"
+    },
+    {
+      "bytes": 103488,
+      "sha256": "939e26d6b912e71610aba5c2dab293a6893de9fedae8658cbaf5f41b48341fbe",
+      "source": "generate_v30_path_fences.py"
+    },
+    {
+      "bytes": 21226,
+      "sha256": "391646451633efe6ccb42119abdfd956d2a03e66c3acf4ef9e43e5a5602601b0",
+      "source": "generate_v30_authority.py"
+    },
+    {
+      "bytes": 19062,
+      "sha256": "4081c91148220f680606f7bf7748b7c12a09fc99453b497c7e882675df8d7c68",
+      "source": "generate_v30_bootstrap_payloads.py"
+    },
+    {
+      "bytes": 4357,
+      "sha256": "a810eb3f127bb1da3410e19a16363138305cc3cdd0f12d56d65c9d2b2d099292",
+      "source": "generate_v30_manifest.py"
+    },
+    {
+      "bytes": 98747,
+      "sha256": "40f50e89a9e163377b66d86b1cacc3929725b8e144835f9ecee771d2f4d7b6ce",
+      "source": "validate_v30_package.py"
+    }
+  ],
+  "creditPolicy": {
+    "canonicalAcceptance": false,
+    "mainMutationBeforeP07C01": false,
+    "postS10Credit": false,
+    "preS10FinalCredit": false,
+    "provisionalCIIsAcceptance": false,
+    "provisionalTranslationIsAccepted": false,
+    "releaseBeforeOwnerAction": false
+  },
+  "currentTask": {
+    "handoffPath": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+    "inheritedPaths": [
+      "docs/execution/CURRENT_TASK.md",
+      "docs/product/BUILD_PLAN_V4.md",
+      "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md"
+    ],
+    "inheritedPathsReadOnly": true,
+    "initialCardID": "V30-P00-C01",
+    "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+    "selectorPath": "docs/design/v30/execution/V30_CI_SELECTION.json"
+  },
+  "digestScheme": "V30CanonicalJSONSHA256LFV1",
+  "frozenCoordination": {
+    "branch": "main",
+    "head": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+    "ledgerDigest": "973090852e843e895125bea8da87c7e1689611c46d8219a70c1749be49398067",
+    "projectionDigest": "cf57849e8f7c245d38fd21a39da5938d10e13c9aca3976a71b7d3a3ee401f12d",
+    "readOnly": true,
+    "remoteURL": "https://github.com/Asset-Rounds/AssetRounds-v23-coordination.git",
+    "sequence": 626,
+    "tree": "060c83c3d1489fc011b1c921f6c85bec2b074478",
+    "worktree": "C:\\AssetRounds-v23-coordination"
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "installationRequestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+  "ordering": {
+    "cardRange": [
+      1,
+      55
+    ],
+    "postS10RequiresExternalAuthority": true,
+    "preS10ExecutableRange": [
+      1,
+      37
+    ],
+    "reorderCards": false,
+    "samePhaseAutopilot": true,
+    "samePhaseAutopilotLaw": "After a provisional checkpoint, only the immediate graph successor may be selected through a fresh CAS; no card may be skipped, reordered, or concurrently selected.",
+    "skipCards": false
+  },
+  "pathFenceAuthority": {
+    "cardCount": 37,
+    "proseOrCardCannotExpandOverlap": true,
+    "s10SharedReconciliationTuples": [
+      {
+        "boundedPurpose": "change only the phase/v30-globalization branch copy of the existing iOS CI controller to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned runner/toolchain/simulator/watchdogs/evidence/commands, route/ref isolation, and no main or Phase10 mutation",
+        "cardID": "V30-P00-C05",
+        "expectedBBlobOID": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+        "expectedBSHA256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7",
+        "path": ".github/workflows/ios-ci.yml",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P00-C05-PROVISIONAL-CI-CONTROLLER"
+      },
+      {
+        "boundedPurpose": "change only the phase/v30-globalization branch copy to consume docs/design/v30/execution/V30_CI_SELECTION.json typed selector; preserve pinned UI commands, watchdogs, evidence, route/ref isolation, and no main or Phase10 mutation",
+        "cardID": "V30-P00-C05",
+        "expectedBBlobOID": "a1d29aeb3e4a10dcd518d0627af2b351a904481c",
+        "expectedBSHA256": "6304a318ee046b6b19f4fddc43bb143f9b21e8150b9d332e449b87a0182d4cdb",
+        "path": "Scripts/ui-smoke.sh",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P00-C05-PROVISIONAL-CI-CONTROLLER"
+      },
+      {
+        "boundedPurpose": "wire only the V30 Language & Region Settings entry point in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 shell navigation and brand",
+        "cardID": "V30-P01-C06",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P01-C06-SETTINGS-RESOLUTION-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "replace only locale-sensitive date/number input or display formatting in FieldEvidenceApp/Features/Issues/RecordWorkView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P01-C07",
+        "expectedBBlobOID": "e830455b14706763c3f9be4a930cd27955ef0890",
+        "expectedBSHA256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6",
+        "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P01-C07-LOCALE-FORMAT-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "replace only locale-sensitive date/number input or display formatting in FieldEvidenceApp/Features/Issues/WorkCoordinator.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P01-C07",
+        "expectedBBlobOID": "c48fbb8f39643d24cef00d49a5ed90313780c1f5",
+        "expectedBSHA256": "8c7dd5d1412895266be2ad1c5bffe743c13db2b1c2074e2f35d5b0e6d947f310",
+        "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P01-C07-LOCALE-FORMAT-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/App/FieldEvidenceAppApp.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "50e6a7e11ff107d608318498fa578d852b5c6b06",
+        "expectedBSHA256": "7c33e08af4b67ffa60f4574192cca077548e9d1d5989f890be2a3a07c7fa8563",
+        "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/DesignSystem/WorklightComponents.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
+        "expectedBSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+        "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+        "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+        "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "535a86a3312f537f13c10b5db3f7bed3ac0f3945",
+        "expectedBSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
+        "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
+        "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
+        "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
+        "expectedBSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
+        "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/CheckRunner/PreflightView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
+        "expectedBSHA256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955",
+        "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "0797274e09f174e1caca359c3ce6b030c41054e6",
+        "expectedBSHA256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8",
+        "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Issues/IssueDetailView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "9007a09c8dbca262ddbaa680e8bc6d906c3166c5",
+        "expectedBSHA256": "217403ff65a8cde53dc0d1402d929720782232391d998eab48afc1fd72159c6c",
+        "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Issues/RecordWorkView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "e830455b14706763c3f9be4a930cd27955ef0890",
+        "expectedBSHA256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6",
+        "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "af1cea52cbd507b9a2c5ff4fcb823e8aa999b0ec",
+        "expectedBSHA256": "dd5d6dddb6e58fbc86e9cbbf7318a8ad6d3271bd93117b4c72ac52d058381fd8",
+        "path": "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Reports/ReportDetailView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+        "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+        "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Reports/ReportFailureView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "5378ee6c73d8d86cce2c7a316fa23509d4d3250e",
+        "expectedBSHA256": "e869176ccc9a768f1c351442c3e22d4a560bd7b39ab2ea209d85774c1079d26a",
+        "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Reports/ReportsRootView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+        "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+        "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Settings/BackupExportView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "0b4f6740f4a5ecbb801ce2dd5bdd7c77f30afe92",
+        "expectedBSHA256": "82f4862beabd981422629fad66065086571fc66d1f79d982df3deec683ade1a0",
+        "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "2f9e5a5b606e1170030b91d867374b55b6144d86",
+        "expectedBSHA256": "007303e9c3ac6125a0833ecd045b5d4338ccc7c49832cd03a9692dcdac7ccc34",
+        "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Settings/EraseAllView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "f6b551d503a0af293cff966a1cb5d725a20f773d",
+        "expectedBSHA256": "955f13980acd330d98aaa0ee13735bb6f6f2b3c45772fbe8e7ebf8b5c2269c1f",
+        "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Settings/FeedbackView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+        "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+        "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "424f869477fe107d1595763c951abef7193c9c6b",
+        "expectedBSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+        "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Signs/NewSignView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "9945d02fd9c0680ee79e986fd2a90c3deee6ebeb",
+        "expectedBSHA256": "ecf83578f59beef12e9aa03a0324acc7779f9847ff163d1ba5271c84a7f230af",
+        "path": "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Signs/SignDetailView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "8844b6684eaf9c44866d9b81057cab872d2c37cd",
+        "expectedBSHA256": "7f4ff80b1949f0d851358c732a6add07d9567f1e2f50f7701810fccf657e2b39",
+        "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Signs/SignsRootView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "112133d2df57c5f734267a079987277866e74a84",
+        "expectedBSHA256": "4b59bad89665bbf0b1b7c6189c09090f93e78d1b963152f344b9611490cf527f",
+        "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Subscription/PaywallView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "21d5da5da6c3db7aae50b6e8eaf352de2ae5302a",
+        "expectedBSHA256": "28c95fc0a9c84f29ef3e26f758f6c22eee92927ee5e9a40a650e62db1d9f11a7",
+        "path": "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+        "cardID": "V30-P02-C01",
+        "expectedBBlobOID": "78af1da11a91694d54dc4539c446685a7e12eb9d",
+        "expectedBSHA256": "7b25a78ebd2a216ef538bc22260f8b85d1ef2b8d239e94c5f0e93c03eee24a04",
+        "path": "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+      },
+      {
+        "boundedPurpose": "apply only semantic RTL/bidi direction, focus, or touch ordering in FieldEvidenceApp/DesignSystem/WorklightComponents.swift; preserve Phase10 visual tokens and brand composition",
+        "cardID": "V30-P02-C03",
+        "expectedBBlobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
+        "expectedBSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+        "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C03-RTL-SEMANTICS-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only semantic RTL/bidi direction, focus, or touch ordering in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 visual tokens and brand composition",
+        "cardID": "V30-P02-C03",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C03-RTL-SEMANTICS-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/DesignSystem/WorklightComponents.swift; preserve Phase10 visual tokens and branding",
+        "cardID": "V30-P02-C04",
+        "expectedBBlobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
+        "expectedBSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+        "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 visual tokens and branding",
+        "cardID": "V30-P02-C04",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift; preserve Phase10 visual tokens and branding",
+        "cardID": "V30-P02-C04",
+        "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+        "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+        "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift; preserve Phase10 visual tokens and branding",
+        "cardID": "V30-P02-C04",
+        "expectedBBlobOID": "535a86a3312f537f13c10b5db3f7bed3ac0f3945",
+        "expectedBSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
+        "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift; preserve Phase10 visual tokens and branding",
+        "cardID": "V30-P02-C04",
+        "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
+        "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
+        "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift; preserve Phase10 visual tokens and branding",
+        "cardID": "V30-P02-C04",
+        "expectedBBlobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
+        "expectedBSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
+        "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/CheckRunner/PreflightView.swift; preserve Phase10 visual tokens and branding",
+        "cardID": "V30-P02-C04",
+        "expectedBBlobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
+        "expectedBSHA256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955",
+        "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift; preserve Phase10 visual tokens and branding",
+        "cardID": "V30-P02-C04",
+        "expectedBBlobOID": "0797274e09f174e1caca359c3ce6b030c41054e6",
+        "expectedBSHA256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8",
+        "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "install or consume only test-only pseudo/RTL/long-text launch harness state in FieldEvidenceApp/App/FieldEvidenceAppApp.swift; preserve Phase10 startup, shell, and brand behavior",
+        "cardID": "V30-P02-C06",
+        "expectedBBlobOID": "50e6a7e11ff107d608318498fa578d852b5c6b06",
+        "expectedBSHA256": "7c33e08af4b67ffa60f4574192cca077548e9d1d5989f890be2a3a07c7fa8563",
+        "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C06-PSEUDO-HARNESS-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "install or consume only test-only pseudo/RTL/long-text launch harness state in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 startup, shell, and brand behavior",
+        "cardID": "V30-P02-C06",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C06-PSEUDO-HARNESS-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "wire only the V30 Globalization Settings route; preserve Phase10 shell navigation and brand composition",
+        "cardID": "V30-P02-C07",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C07-SETTINGS-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "render only existing recovery/sync-state truth with typed localized messages; preserve Phase10 visual styling",
+        "cardID": "V30-P03-C02",
+        "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+        "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+        "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C02-SYNC-STATE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "render only existing offline startup/recovery state with typed localized text; preserve Phase10 visual styling and shell behavior",
+        "cardID": "V30-P03-C02",
+        "expectedBBlobOID": "424f869477fe107d1595763c951abef7193c9c6b",
+        "expectedBSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+        "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C02-SYNC-STATE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only existing field label/required/error presentation in FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift; preserve Phase10 visual styling and canonical workflow semantics",
+        "cardID": "V30-P03-C03",
+        "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
+        "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
+        "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C03-FORM-SEMANTICS-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only existing field label/required/error presentation in FieldEvidenceApp/Features/CheckRunner/PreflightView.swift; preserve Phase10 visual styling and canonical workflow semantics",
+        "cardID": "V30-P03-C03",
+        "expectedBBlobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
+        "expectedBSHA256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955",
+        "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C03-FORM-SEMANTICS-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only existing field label/required/error presentation in FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift; preserve Phase10 visual styling and canonical workflow semantics",
+        "cardID": "V30-P03-C03",
+        "expectedBBlobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
+        "expectedBSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
+        "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C03-FORM-SEMANTICS-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only feedback/share action chrome in FeedbackView; preserve Phase10 settings styling and user-authored content",
+        "cardID": "V30-P03-C06",
+        "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+        "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+        "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only existing report share/print chrome in FieldEvidenceApp/Features/Reports/ReportDetailView.swift; preserve Phase10 styling and report content identity",
+        "cardID": "V30-P03-C06",
+        "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+        "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+        "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only existing report share/print chrome in FieldEvidenceApp/Features/Reports/ReportsRootView.swift; preserve Phase10 styling and report content identity",
+        "cardID": "V30-P03-C06",
+        "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+        "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+        "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+        "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+        "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "535a86a3312f537f13c10b5db3f7bed3ac0f3945",
+        "expectedBSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
+        "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Reports/ReportFailureView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "5378ee6c73d8d86cce2c7a316fa23509d4d3250e",
+        "expectedBSHA256": "e869176ccc9a768f1c351442c3e22d4a560bd7b39ab2ea209d85774c1079d26a",
+        "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "424f869477fe107d1595763c951abef7193c9c6b",
+        "expectedBSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+        "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Settings/EraseAllView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "f6b551d503a0af293cff966a1cb5d725a20f773d",
+        "expectedBSHA256": "955f13980acd330d98aaa0ee13735bb6f6f2b3c45772fbe8e7ebf8b5c2269c1f",
+        "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
+        "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
+        "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Settings/BackupExportView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "0b4f6740f4a5ecbb801ce2dd5bdd7c77f30afe92",
+        "expectedBSHA256": "82f4862beabd981422629fad66065086571fc66d1f79d982df3deec683ade1a0",
+        "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "2f9e5a5b606e1170030b91d867374b55b6144d86",
+        "expectedBSHA256": "007303e9c3ac6125a0833ecd045b5d4338ccc7c49832cd03a9692dcdac7ccc34",
+        "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Settings/FeedbackView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+        "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+        "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Reports/ReportDetailView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+        "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+        "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Reports/ReportsRootView.swift; preserve Phase10 visual styling and workflow behavior",
+        "cardID": "V30-P03-C09",
+        "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+        "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+        "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "add only V30 localization known-region/resource membership required for six locales; preserve Phase10-owned settings",
+        "cardID": "V30-P04-C07",
+        "expectedBBlobOID": "86a4ce64b389bfadb72eb80de63255bd59eb63e9",
+        "expectedBSHA256": "5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f",
+        "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P04-C07-SERIALIZED-INTEGRATOR"
+      }
+    ],
+    "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a",
+    "sourcePath": "V30_PRE_S10_PATH_FENCES.json"
+  },
+  "phase10Isolation": {
+    "forbiddenOperations": [
+      "read",
+      "enumerate",
+      "status",
+      "diff",
+      "log",
+      "build",
+      "test",
+      "fetch",
+      "poll",
+      "process",
+      "mutate"
+    ],
+    "forbiddenWorktree": "C:\\AssetRounds",
+    "mode": "NO_READ_NO_WRITE_NO_POLL",
+    "reservationArtifact": "C:\\AssetRounds-v23-expansion\\docs\\design\\v23\\foundation\\ActiveS10OwnershipReservationV1.json",
+    "reservationRawSHA256": "9f7c27431271728d167731d4af806c7449447dfbcc8bf46778102e2f9a89b576",
+    "reservedPathCount": 86,
+    "reservedPaths": [
+      ".github/workflows/ios-ci-worker.yml",
+      ".github/workflows/ios-ci.yml",
+      "AGENTS.md",
+      "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "FieldEvidenceApp/App/LaunchView.swift",
+      "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+      "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+      "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+      "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+      "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+      "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+      "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+      "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+      "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+      "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+      "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+      "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift",
+      "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsAccentTeal.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandCanvas.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsCheckpointGreen.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsDeepTeal.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsInk.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsSlate.colorset/Contents.json",
+      "FieldEvidenceAppTests/S10_1BrandInventoryTests.swift",
+      "FieldEvidenceAppTests/S10_2BrandComponentTests.swift",
+      "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+      "FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift",
+      "FieldEvidenceAppUITests/S10_2BrandComponentUITests.swift",
+      "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+      "Scripts/ci-selection.json",
+      "Scripts/s10-4-segment-assembler.sh",
+      "Scripts/s10-4-segment-plan.json",
+      "Scripts/s10-4-shards.json",
+      "Scripts/ui-smoke.sh",
+      "docs/design/s10/authority/asset-manifest.json",
+      "docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+      "docs/design/s10/s10-accessibility-common-tasks.json",
+      "docs/design/s10/s10-activation.json",
+      "docs/design/s10/s10-experience-validation.json",
+      "docs/design/s10/s10-screen-state-inventory.json",
+      "docs/design/s10/s10-stage-checkpoints.json",
+      "docs/design/s10/s10-store-readiness.json",
+      "docs/design/s10/s10-token-coverage.json",
+      "docs/design/s10/s10-visual-regression.json",
+      "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+      "docs/execution/CURRENT_TASK.md",
+      "docs/execution/HANDOFF.md",
+      "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+      "docs/product/BUILD_PLAN_V4.md"
+    ],
+    "reservedPathsDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+  },
+  "postS10Reconciliation": {
+    "branch": "phase/v30-globalization-reconciliation",
+    "replayCardRange": [
+      1,
+      37
+    ],
+    "requiredAuthoritySchema": "V30PostS10ReconciliationAuthorityV1",
+    "requiresExternalAuthority": true,
+    "selectableAfterTrigger": "V30-P05-C01_ONLY_AFTER_SEPARATE_POST_S10_AUTHORITY",
+    "sourceLineages": [
+      "B=frozen-v23",
+      "P=frozen-terminal-provisional-v30",
+      "S=accepted-post-phase10-v23-main"
+    ],
+    "trigger": "OWNER_REPORTS_PHASE_10_6_COMPLETE_READ_ONLY_EVIDENCE_VERIFICATION_ONLY",
+    "wholesaleProvisionalMerge": false,
+    "worktree": "C:\\AssetRounds-v30-globalization-reconciliation"
+  },
+  "provisionalExecution": {
+    "allowedGitOperations": [
+      "create-local-branch-from-frozen-v23",
+      "create-dedicated-worktree",
+      "direct-child-commit",
+      "exact-path-stage",
+      "non-force-push-only-phase-v30-globalization"
+    ],
+    "baseHead": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "baseTree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "branch": "phase/v30-globalization",
+    "cardSelectionLaw": "Only one card is mutable at a time; an unfenced or untupled reserved-path intersection is CONFLICT_HOLD.",
+    "eligibleOrdinalRange": [
+      1,
+      37
+    ],
+    "forbiddenGitOperations": [
+      "main-mutation",
+      "phase10-ref-mutation",
+      "v23-ref-mutation",
+      "force-push",
+      "merge-commit",
+      "wholesale-merge",
+      "history-rewrite"
+    ],
+    "initialCard": "V30-P00-C01",
+    "plannedPreS10OrdinalRange": [
+      1,
+      37
+    ],
+    "postS10LockedOrdinalRange": [
+      38,
+      55
+    ],
+    "terminalPreS10State": "PROVISIONAL_CHECKPOINTED",
+    "worktree": "C:\\AssetRounds-v30-globalization"
+  },
+  "provisionalLedger": {
+    "activationReceiptPath": "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json",
+    "allowedGitOperations": [
+      "create-coordination-branch-from-exact-frozen-coordination-head",
+      "create-dedicated-coordination-worktree",
+      "scoped-direct-child-coordination-commit",
+      "non-force-push-only-coord-v30-globalization-provisional"
+    ],
+    "baseHead": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+    "baseTree": "060c83c3d1489fc011b1c921f6c85bec2b074478",
+    "bootstrapAllowedPaths": [
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json",
+      "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json",
+      "docs/design/v30/execution/receipts/V30_G3_CARD_001_SELECTION_RECEIPT.json"
+    ],
+    "bootstrapRefLaw": "Create only the named coordination branch/worktree from the exact frozen coordination head with expected-absent ref creation. Commit genesis as its direct child using the frozen head as expected old Git ref and ABSENT as the expected ledger value. Later CAS operations bind the exact preceding coordination commit, sequence, and ledger digest. Never use ABSENT for a Git ref after that ref has been created.",
+    "canonicalCoordinationWrite": false,
+    "canonicalMainUntouched": true,
+    "cardSelectionReceiptPath": "docs/design/v30/execution/receipts/V30_G3_CARD_001_SELECTION_RECEIPT.json",
+    "casSequence": [
+      "G3_COORDINATION_GENESIS_EXPECTED_ABSENT",
+      "G3_ACTIVATION_RECEIPT_APPEND",
+      "G3_PRODUCT_SELECTION_PROJECTION_COMMIT_EXPECTED_OLD_PRODUCT_REF",
+      "G3_LATER_COORDINATION_CARD_1_SELECTION_BINDING_PRODUCT_PROJECTION_COMMIT"
+    ],
+    "compareAndSwap": true,
+    "eventLaw": "After bootstrap, append request-result and transition records inside the one runtimeMutablePaths ledger. Preserve earlier events and request IDs. A duplicate request ID with identical input returns its original result; different input or expected ref/sequence/digest mismatch has no effect. No new coordination file or writer tool is implicitly authorized.",
+    "expectedAtActivation": "ABSENT",
+    "expectedLedgerDigest": "ABSENT",
+    "expectedOldRef": "ABSENT",
+    "expectedProjectionDigest": "ABSENT",
+    "expectedSequence": "ABSENT",
+    "externalRef": "refs/heads/coord/v30-globalization-provisional",
+    "externalWorktree": "C:\\AssetRounds-v30-globalization-coordination",
+    "g3ProductMaterializationCount": 6,
+    "genesisExpectedLedger": "ABSENT",
+    "genesisExpectedOldRef": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+    "genesisImportsSequence": 626,
+    "initialSequence": 0,
+    "initialWriterGeneration": 1,
+    "ledgerID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/PROVISIONAL-LEDGER",
+    "locator": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json",
+    "namespace": "V30PreS10ProvisionalLedgerV1",
+    "provisionalCoordinationWrite": true,
+    "receiptLaw": "Bootstrap receipts are expected-absent append-only files in the separate coordination repository. Bind the authority/manifest digests, request ID, exact previous/new sequence and ledger digests, and observed product install or projection commit/tree/diff. Never self-record the future coordination commit containing a receipt. Card 1 may record a product-side validation mirror only in its exact fence; that mirror is not a second canonical ledger or activation.",
+    "refCreationExpectedOld": "ABSENT",
+    "remoteURL": "https://github.com/Asset-Rounds/AssetRounds-v23-coordination.git",
+    "requestIDNamespace": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "runtimeMutablePaths": [
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json"
+    ],
+    "singleWriter": true
+  },
+  "repository": {
+    "name": "AssetRounds",
+    "remoteURL": "https://github.com/Asset-Rounds/AssetRounds.git"
+  },
+  "schema": "V30PreS10ProvisionalImplementationAuthorityV1",
+  "schemaVersion": 1,
+  "sharedPathRule": {
+    "preS10FinalCreditForSharedPath": false,
+    "proseCannotExpandAuthority": true,
+    "tupleSchema": [
+      "cardID",
+      "path",
+      "expectedBBlobOID",
+      "expectedBSHA256",
+      "boundedPurpose",
+      "writerLane",
+      "reconciliationObligation"
+    ],
+    "unfencedOrUntupledDisposition": "CONFLICT_HOLD"
+  },
+  "sourceToInstallMap": [
+    {
+      "installPath": "docs/design/v30/EXPANSION_V30_FOUNDATION_PLAN.md",
+      "source": "EXPANSION_V30_FOUNDATION_PLAN.md"
+    },
+    {
+      "installPath": "docs/design/v30/EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+      "source": "EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md"
+    },
+    {
+      "installPath": "docs/design/v30/EXPANSION_V30_HANDOFF.md",
+      "source": "EXPANSION_V30_HANDOFF.md"
+    },
+    {
+      "installPath": "docs/design/v30/NEXT_CODEX_SESSION_PROMPT.md",
+      "source": "NEXT_CODEX_SESSION_PROMPT.md"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30PreS10ProvisionalImplementationAuthorityV1.json",
+      "source": "V30_PRE_S10_PROVISIONAL_IMPLEMENTATION_AUTHORITY.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30PackageManifestV1.json",
+      "source": "V30_PACKAGE_MANIFEST.json"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_machine_artifacts.py",
+      "source": "generate_v30_machine_artifacts.py"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_path_fences.py",
+      "source": "generate_v30_path_fences.py"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_authority.py",
+      "source": "generate_v30_authority.py"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_bootstrap_payloads.py",
+      "source": "generate_v30_bootstrap_payloads.py"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_manifest.py",
+      "source": "generate_v30_manifest.py"
+    },
+    {
+      "installPath": "Scripts/v30/validate_v30_package.py",
+      "source": "validate_v30_package.py"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30CardRegisterV1.json",
+      "source": "V30_CARD_REGISTER.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30DirectDependencyGraphV1.json",
+      "source": "V30_DIRECT_DEPENDENCY_GRAPH.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30LocaleRegistryV1.json",
+      "source": "V30_LOCALE_REGISTRY.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30V24DispositionProjectionV1.json",
+      "source": "V30_V24_DISPOSITION_PROJECTION.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
+      "source": "V30_PRE_S10_PATH_FENCES.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_CARD_001_CONTEXT.json",
+      "source": "V30_CARD_001_CONTEXT.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_CARD_001_FENCE.json",
+      "source": "V30_CARD_001_FENCE.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_CARD_001_CURRENT_TASK.md",
+      "source": "V30_CARD_001_CURRENT_TASK.md"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_CARD_001_CI_SELECTION.json",
+      "source": "V30_CARD_001_CI_SELECTION.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_EXECUTION_HANDOFF_GENESIS.md",
+      "source": "V30_EXECUTION_HANDOFF_GENESIS.md"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_PROVISIONAL_LEDGER_GENESIS.json",
+      "source": "V30_PROVISIONAL_LEDGER_GENESIS.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "source": "V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    }
+  ]
+}

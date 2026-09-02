@@ -1,0 +1,243 @@
+{
+  "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+  "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+  "cardCount": 55,
+  "digestScheme": "V30CanonicalJSONSHA256LFV1",
+  "edgeCount": 107,
+  "files": [
+    {
+      "bytes": 178954,
+      "path": "EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+      "sha256": "28facff3aca8bc4582031e3f0d609b9ab4eb26cd91d6c4b35144596a346b154e"
+    },
+    {
+      "bytes": 11036,
+      "path": "EXPANSION_V30_FOUNDATION_PLAN.md",
+      "sha256": "21cf50c2b7df1cb076f62e473f1a11b9d66698e8ede19d98cf6eb3fb8d16ebc0"
+    },
+    {
+      "bytes": 16395,
+      "path": "EXPANSION_V30_HANDOFF.md",
+      "sha256": "d3d71cbfb3b932db3b9da409a8da5b654220e5d43f88a8ae92a2cd0752500a5d"
+    },
+    {
+      "bytes": 8969,
+      "path": "NEXT_CODEX_SESSION_PROMPT.md",
+      "sha256": "c9e1c4d00f6e5e125e18b5df64d5d00048fc7f8a10485a627ddb6b26d5b8aa84"
+    },
+    {
+      "bytes": 4199,
+      "path": "V30_CARD_001_CI_SELECTION.json",
+      "sha256": "681204296d5751da99740640297b06a4ca1ad8da9fc032f9fa087979bfd44d82"
+    },
+    {
+      "bytes": 5103,
+      "path": "V30_CARD_001_CONTEXT.json",
+      "sha256": "fb760b13beeb6007d1ff31f69af3c321bdf1db7575e12e8ed057efffc86af808"
+    },
+    {
+      "bytes": 1802,
+      "path": "V30_CARD_001_CURRENT_TASK.md",
+      "sha256": "a04296849eda6a0ae00f98a0cd1d846a13b5110334c6e4ecb710794fd952bdf7"
+    },
+    {
+      "bytes": 10087,
+      "path": "V30_CARD_001_FENCE.json",
+      "sha256": "bc85eb23e0e846ccc622c635a609bfd70f535aced5774baac048708a757b32a8"
+    },
+    {
+      "bytes": 38535,
+      "path": "V30_CARD_REGISTER.json",
+      "sha256": "eec993480a6589935a16e79cf3eeebbb3f820701b06144402601dc636b6a3a67"
+    },
+    {
+      "bytes": 7596,
+      "path": "V30_DIRECT_DEPENDENCY_GRAPH.json",
+      "sha256": "d6d3c7f1489c449c6ca50cfbfbab20b16cca33c08b57098925154a664b252807"
+    },
+    {
+      "bytes": 771,
+      "path": "V30_EXECUTION_HANDOFF_GENESIS.md",
+      "sha256": "6f4f145dd03d5788b4362023fa99f1e884bb8da71273ecf443a79fd8dbef175d"
+    },
+    {
+      "bytes": 2572,
+      "path": "V30_LOCALE_REGISTRY.json",
+      "sha256": "d07fd25fd49ffa2869d16c6d694540864b87d21cdd43052a3786bf84115ec7f5"
+    },
+    {
+      "bytes": 363183,
+      "path": "V30_PRE_S10_PATH_FENCES.json",
+      "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
+    },
+    {
+      "bytes": 67003,
+      "path": "V30_PRE_S10_PROVISIONAL_IMPLEMENTATION_AUTHORITY.json",
+      "sha256": "cdf291f0444b26bc08f1bdaa98314f16d6925e0f247a5d9c33318d158ff89aa1"
+    },
+    {
+      "bytes": 4628,
+      "path": "V30_PROVISIONAL_LEDGER_GENESIS.json",
+      "sha256": "832c2fc0fdfe64b4f4b4561c53b2754a2c10666f3e95baa5a2bbe81a7f12f78f"
+    },
+    {
+      "bytes": 3220,
+      "path": "V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "sha256": "bdb043cef85fce0416b10ee28a334792dc88e429bb0b12587ad99610d74db7db"
+    },
+    {
+      "bytes": 82258,
+      "path": "V30_V24_DISPOSITION_PROJECTION.json",
+      "sha256": "fa15198ee737090923de56d09c98083dcaa0e6a07cba0c19906b246e8e723191"
+    },
+    {
+      "bytes": 21226,
+      "path": "generate_v30_authority.py",
+      "sha256": "391646451633efe6ccb42119abdfd956d2a03e66c3acf4ef9e43e5a5602601b0"
+    },
+    {
+      "bytes": 19062,
+      "path": "generate_v30_bootstrap_payloads.py",
+      "sha256": "4081c91148220f680606f7bf7748b7c12a09fc99453b497c7e882675df8d7c68"
+    },
+    {
+      "bytes": 17455,
+      "path": "generate_v30_machine_artifacts.py",
+      "sha256": "f383724c36932a9a136d0e78091c2dcfaefe70255396a88af6c9b0df5f71d9b0"
+    },
+    {
+      "bytes": 4357,
+      "path": "generate_v30_manifest.py",
+      "sha256": "a810eb3f127bb1da3410e19a16363138305cc3cdd0f12d56d65c9d2b2d099292"
+    },
+    {
+      "bytes": 103488,
+      "path": "generate_v30_path_fences.py",
+      "sha256": "939e26d6b912e71610aba5c2dab293a6893de9fedae8658cbaf5f41b48341fbe"
+    },
+    {
+      "bytes": 98747,
+      "path": "validate_v30_package.py",
+      "sha256": "40f50e89a9e163377b66d86b1cacc3929725b8e144835f9ecee771d2f4d7b6ce"
+    }
+  ],
+  "frozenCoordination": {
+    "head": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+    "sequence": 626,
+    "tree": "060c83c3d1489fc011b1c921f6c85bec2b074478"
+  },
+  "frozenV23": {
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+  },
+  "humanPackageDigest": "1cc329ee1fbb01eb16ebf8bdd92720e03618b43fc7d81d70e5afe538b7223572",
+  "initialLocaleCount": 6,
+  "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325",
+  "packageRevision": "R2",
+  "repository": {
+    "name": "AssetRounds",
+    "remoteURL": "https://github.com/Asset-Rounds/AssetRounds.git"
+  },
+  "schema": "V30PackageManifestV1",
+  "schemaVersion": 1,
+  "sourceToInstallMap": [
+    {
+      "installPath": "docs/design/v30/EXPANSION_V30_FOUNDATION_PLAN.md",
+      "source": "EXPANSION_V30_FOUNDATION_PLAN.md"
+    },
+    {
+      "installPath": "docs/design/v30/EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+      "source": "EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md"
+    },
+    {
+      "installPath": "docs/design/v30/EXPANSION_V30_HANDOFF.md",
+      "source": "EXPANSION_V30_HANDOFF.md"
+    },
+    {
+      "installPath": "docs/design/v30/NEXT_CODEX_SESSION_PROMPT.md",
+      "source": "NEXT_CODEX_SESSION_PROMPT.md"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30PreS10ProvisionalImplementationAuthorityV1.json",
+      "source": "V30_PRE_S10_PROVISIONAL_IMPLEMENTATION_AUTHORITY.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30PackageManifestV1.json",
+      "source": "V30_PACKAGE_MANIFEST.json"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_machine_artifacts.py",
+      "source": "generate_v30_machine_artifacts.py"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_path_fences.py",
+      "source": "generate_v30_path_fences.py"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_authority.py",
+      "source": "generate_v30_authority.py"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_bootstrap_payloads.py",
+      "source": "generate_v30_bootstrap_payloads.py"
+    },
+    {
+      "installPath": "Scripts/v30/generate_v30_manifest.py",
+      "source": "generate_v30_manifest.py"
+    },
+    {
+      "installPath": "Scripts/v30/validate_v30_package.py",
+      "source": "validate_v30_package.py"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30CardRegisterV1.json",
+      "source": "V30_CARD_REGISTER.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30DirectDependencyGraphV1.json",
+      "source": "V30_DIRECT_DEPENDENCY_GRAPH.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30LocaleRegistryV1.json",
+      "source": "V30_LOCALE_REGISTRY.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30V24DispositionProjectionV1.json",
+      "source": "V30_V24_DISPOSITION_PROJECTION.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
+      "source": "V30_PRE_S10_PATH_FENCES.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_CARD_001_CONTEXT.json",
+      "source": "V30_CARD_001_CONTEXT.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_CARD_001_FENCE.json",
+      "source": "V30_CARD_001_FENCE.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_CARD_001_CURRENT_TASK.md",
+      "source": "V30_CARD_001_CURRENT_TASK.md"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_CARD_001_CI_SELECTION.json",
+      "source": "V30_CARD_001_CI_SELECTION.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_EXECUTION_HANDOFF_GENESIS.md",
+      "source": "V30_EXECUTION_HANDOFF_GENESIS.md"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_PROVISIONAL_LEDGER_GENESIS.json",
+      "source": "V30_PROVISIONAL_LEDGER_GENESIS.json"
+    },
+    {
+      "installPath": "docs/design/v30/authority/bootstrap/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "source": "V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    }
+  ],
+  "structuralProjectionDigest": "cd83b2371f5ecbf22ba46323853e3014e5a6ae5ca299fad0b46bab8d83152851",
+  "v24DispositionCount": 97
+}

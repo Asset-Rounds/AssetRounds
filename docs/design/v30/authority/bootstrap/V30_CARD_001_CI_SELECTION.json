@@ -1,0 +1,81 @@
+{
+  "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+  "bootstrapRequestIDs": {
+    "activationReceipt": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-ACTIVATION",
+    "cardSelection": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-SELECT-CARD-001",
+    "coordinationGenesis": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-GENESIS",
+    "installation": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+    "productSelectionProjection": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-PROJECTIONS"
+  },
+  "cardID": "V30-P00-C01",
+  "cardTitle": "Provisional authority and isolated-lane validation",
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+  },
+  "frozenV23Coordination": {
+    "head": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+    "ledgerDigest": "973090852e843e895125bea8da87c7e1689611c46d8219a70c1749be49398067",
+    "projectionDigest": "cf57849e8f7c245d38fd21a39da5938d10e13c9aca3976a71b7d3a3ee401f12d",
+    "sequence": 626,
+    "tree": "060c83c3d1489fc011b1c921f6c85bec2b074478"
+  },
+  "hostedDispatchAllowed": false,
+  "hostedDispatchUnlockCard": "V30-P00-C05",
+  "installationRequestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+  "kind": "V30CISelectionV1",
+  "materializationTargets": {
+    "ciSelection": "docs/design/v30/execution/V30_CI_SELECTION.json",
+    "context": "docs/design/v30/execution/contexts/V30-P00-C01-attempt-1.json",
+    "currentTask": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+    "executionHandoff": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+    "fence": "docs/design/v30/execution/fences/V30-P00-C01-attempt-1.json",
+    "provisionalLedgerProjection": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+  },
+  "mode": "DISABLED_STATIC_PREFLIGHT",
+  "packageBinding": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityFileSHA256": "cdf291f0444b26bc08f1bdaa98314f16d6925e0f247a5d9c33318d158ff89aa1",
+    "bootstrapRequestIDs": {
+      "activationReceipt": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-ACTIVATION",
+      "cardSelection": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-SELECT-CARD-001",
+      "coordinationGenesis": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-GENESIS",
+      "installation": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+      "productSelectionProjection": "ASSETROUNDS-V30-PRE-S10-20260902-R2/G3-PROJECTIONS"
+    },
+    "installationRequestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/INSTALL",
+    "pathFenceFileSHA256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a",
+    "provisionalLedger": {
+      "activationReceiptPath": "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json",
+      "bootstrapAllowedPaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json",
+        "docs/design/v30/execution/receipts/V30_G3_ACTIVATION_RECEIPT.json",
+        "docs/design/v30/execution/receipts/V30_G3_CARD_001_SELECTION_RECEIPT.json"
+      ],
+      "cardSelectionReceiptPath": "docs/design/v30/execution/receipts/V30_G3_CARD_001_SELECTION_RECEIPT.json",
+      "externalRef": "refs/heads/coord/v30-globalization-provisional",
+      "genesisExpectedLedger": "ABSENT",
+      "genesisExpectedOldRef": "51ef2b3d970a25b4c83df8c8238609316e37034e",
+      "initialSequence": 0,
+      "initialWriterGeneration": 1,
+      "ledgerID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/PROVISIONAL-LEDGER",
+      "refCreationExpectedOld": "ABSENT",
+      "requestIDNamespace": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+      "runtimeMutablePaths": [
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER.json"
+      ]
+    }
+  },
+  "payloadDigest": "b2afe990191c60c1f95208c42b093942c32a096c6bf04f01610d7f167118a689",
+  "phase10Access": "FORBIDDEN_NO_READ_NO_WRITE_NO_POLL",
+  "preS10FinalCredit": false,
+  "provisionalExecution": {
+    "branch": "phase/v30-globalization",
+    "worktree": "C:\\AssetRounds-v30-globalization"
+  },
+  "reason": "Card 1 validates bootstrap authority only; no hosted route is pinned before Card 5.",
+  "schemaVersion": "V30BootstrapPayloadV1",
+  "selector": null,
+  "windowsStaticChecksAllowed": true
+}

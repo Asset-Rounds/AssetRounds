@@ -1,0 +1,888 @@
+{
+  "cardCount": 55,
+  "cards": [
+    {
+      "cardID": "V30-P00-C01",
+      "class": "FOUNDATION",
+      "directPrerequisites": [],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 1,
+      "outcome": "Validate the owner-supplied pre-existing `V30PreS10ProvisionalImplementationAuthorityV1`, immutable-four-file package/manifest/support-artifact hashes, exact frozen V23 base, repository identity, clean dedicated worktree/branch, Phase 10 no-read/no-poll rule, and zero-credit posture. The closed bootstrap exception permits only external-owner-authorized branch/support installation, G3 ledger/activation receipt/current-task/selector genesis, and this validation; no product work. Any mismatch is a read-only hold.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 970,
+      "sourceStartLine": 970,
+      "title": "Provisional authority and isolated-lane validation"
+    },
+    {
+      "cardID": "V30-P00-C02",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P00-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 2,
+      "outcome": "Bind V23 head/tree, V23 package and coordination sequence/digests, the ordered 86-path S10 reservation, and the path classification algorithm. An overlap is allowed only when pre-existing external authority supplies its exact tuple `{cardID,path,expectedBBlobHashOrABSENT,boundedPurpose,writerLane,reconciliationObligation}` and the path is card-owned `S10_SHARED_RECONCILIATION_REQUIRED`; it can never earn pre-S10 acceptance.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 971,
+      "sourceStartLine": 971,
+      "title": "Frozen V23/S10 reservation and provisional-fence proof"
+    },
+    {
+      "cardID": "V30-P00-C03",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P00-C01",
+        "V30-P00-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 3,
+      "outcome": "Validate, schema-seal, and exercise the sole G3-created expected-absent provisional-ledger genesis at the authority-pinned isolated coordination locator/ref, including distinct ID/writer generation/digest chain and immutable V23 observations. Never create a second genesis, mutate, or claim succession to the canonical V23 ledger.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 972,
+      "sourceStartLine": 972,
+      "title": "Namespaced provisional coordination genesis validation"
+    },
+    {
+      "cardID": "V30-P00-C04",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P00-C02",
+        "V30-P00-C03"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 4,
+      "outcome": "Define per-card base/candidate head/tree/diff/evidence/path-overlap manifests, exact B/P/S lineage mappings, compatibility classes, invalidation rules, and replay/reimplementation requirements for P05.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 973,
+      "sourceStartLine": 973,
+      "title": "Provisional candidate and reconciliation-manifest contract"
+    },
+    {
+      "cardID": "V30-P00-C05",
+      "class": "VERIFICATION",
+      "directPrerequisites": [
+        "V30-P00-C03",
+        "V30-P00-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 5,
+      "outcome": "Freeze the permitted Windows-static and hosted-macOS development routes, exact selectors/artifacts, retry/correction law, and explicit statement that every result is provisional branch evidence only. Adapt only the isolated V30 branch copies of `.github/workflows/ios-ci.yml`, `Scripts/test-smoke.sh`, and `Scripts/ui-smoke.sh` to the typed V30 selector, under their exact frozen-B fences and S10 tuples. Never modify the inherited selector, active Phase 10 checkout/ref/runs, or main. Unavailable optional hosted diagnostics remain NOT_EXECUTED with no native credit and do not block static provisional coding.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 974,
+      "sourceStartLine": 974,
+      "title": "Provisional CI and checkpoint contract"
+    },
+    {
+      "cardID": "V30-P00-C06",
+      "class": "INTEGRATION",
+      "directPrerequisites": [
+        "V30-P00-C04",
+        "V30-P00-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 6,
+      "outcome": "Seal package activation and provisional genesis with a separate CAS, project only V30-P01-C01 into the V30 current-task lane, and prove the complete graph-enumerated post-S10 cohort remains unselectable. No card acceptance, `main`, Phase 10, release, or successor credit.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 975,
+      "sourceStartLine": 975,
+      "title": "Provisional execution admission"
+    },
+    {
+      "cardID": "V30-P01-C01",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P00-C06"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 7,
+      "outcome": "Refresh official ACS/BLS/NIOSH/OSHA/Apple sources, competitor iOS declarations, vendor gaps, reviews, keyword evidence, support capacity, and U.S. geography. Confirm en, es, zh-Hans, zh-Hant, vi, and ko; a different cohort is `AMENDMENT_REQUIRED`.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 981,
+      "sourceStartLine": 981,
+      "title": "Research manifest and initial-language confirmation"
+    },
+    {
+      "cardID": "V30-P01-C02",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P01-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 8,
+      "outcome": "Convert review/research themes into PRESERVE_IN_V30, VERIFY_EXISTING_BEHAVIOR, FUTURE_CARD, or REJECT_SCOPE. Bind the verified keyword package without authorizing new backends or modules.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 982,
+      "sourceStartLine": 982,
+      "title": "Customer-needs and scope-disposition register"
+    },
+    {
+      "cardID": "V30-P01-C03",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P01-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 9,
+      "outcome": "Inventory UI, accessibility, permissions, onboarding, help, errors, recovery, destructive actions, notifications, reports, PDFs, CSV/JSON, templates, content packs, labels, share/email/print, commerce, metadata, tests, developer text, user-authored content, and machine data. Give every item an owner and disposition.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 983,
+      "sourceStartLine": 983,
+      "title": "Complete text-bearing surface inventory"
+    },
+    {
+      "cardID": "V30-P01-C04",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 10,
+      "outcome": "Version-forward existing V23 contracts for BCP 47 app language, formatting locale, IANA time zone, calendar, numbering, units, authored content, report language, storefront country, and jurisdiction. Prove the six axes are independent.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 984,
+      "sourceStartLine": 984,
+      "title": "Language, locale, content, report, storefront, and jurisdiction contracts"
+    },
+    {
+      "cardID": "V30-P01-C05",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 11,
+      "outcome": "Enforce and test that language/formatting changes cannot alter IDs, raw enum values, mutations, journals, evidence hashes, backup identity, authored evidence, product identity, or jurisdiction. Preserve old en-US-bearing identities.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 985,
+      "sourceStartLine": 985,
+      "title": "Canonical-data and historical-identity invariance"
+    },
+    {
+      "cardID": "V30-P01-C06",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C03",
+        "V30-P01-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 12,
+      "outcome": "Use Apple device/per-app resolution, no bundle swizzle, effective-language observation, safe app-Settings deep link, foreground/relaunch behavior, exact/base/English fallback, raw-key prevention, and privacy-preserving fallback diagnostics.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 986,
+      "sourceStartLine": 986,
+      "title": "System-first resolution, fallback, and effective-language evidence"
+    },
+    {
+      "cardID": "V30-P01-C07",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C04",
+        "V30-P01-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 13,
+      "outcome": "Implement and test dates, instants/local time, DST, calendars, numbers, currency, percent, units, week rules, paper, addresses, phones, parsing, ambiguous-input rejection, and canonical round trips with Foundation locale-aware APIs.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 987,
+      "sourceStartLine": 987,
+      "title": "Locale-aware formatting and input grammar"
+    },
+    {
+      "cardID": "V30-P01-C08",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C03",
+        "V30-P01-C04",
+        "V30-P01-C05",
+        "V30-P01-C06"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 14,
+      "outcome": "Implement the versioned catalog-release schema, validator, compatibility/supersession/rollback, zero-network loading, fallback evidence, and historical lookup. No locale release or reviewer receipt is final before P04-C07 and P05 reconciliation.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 988,
+      "sourceStartLine": 988,
+      "title": "Catalog release mechanism, provenance schema, compatibility, and offline integrity"
+    },
+    {
+      "cardID": "V30-P02-C01",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C03",
+        "V30-P01-C08"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 15,
+      "outcome": "Normalize required app-owned English text into semantic keys with comments, placeholders, plurals, variations, terminology, permission/accessibility/report coverage, and explicit literal dispositions.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 994,
+      "sourceStartLine": 994,
+      "title": "English catalog normalization"
+    },
+    {
+      "cardID": "V30-P02-C02",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 16,
+      "outcome": "Preserve grapheme clusters, combining marks, emoji, CJK, Korean, Arabic/bidi, filenames, contacts, notes, captions, labels, and imported text through persistence, events, snapshots, backup, restore, and erase.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 995,
+      "sourceStartLine": 995,
+      "title": "Unicode input, persistence, journal, and evidence safety"
+    },
+    {
+      "cardID": "V30-P02-C03",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C06",
+        "V30-P02-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 17,
+      "outcome": "Correct semantic mirroring, mixed identifiers/numbers, icon rules, navigation, lists, signatures, reports, focus order, invisible-control safety, and hostile Arabic/bidi fixtures without claiming Arabic shipping support.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 996,
+      "sourceStartLine": 996,
+      "title": "RTL and bidirectional semantics"
+    },
+    {
+      "cardID": "V30-P02-C04",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P02-C01",
+        "V30-P02-C03"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 18,
+      "outcome": "Prevent clipping/unreachable controls, localize accessibility, qualify font fallback/licensing, preserve touch targets/contrast/focus/errors, and pass long-text and accessibility sizes.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 997,
+      "sourceStartLine": 997,
+      "title": "Expansion, Dynamic Type, accessibility, and font policy"
+    },
+    {
+      "cardID": "V30-P02-C05",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C07",
+        "V30-P02-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 19,
+      "outcome": "Add versioned derived search normalization, CJK segmentation, Korean composition, diacritics, hostile Turkish/Arabic cases, stable tie-breakers, rebuild/recovery/erase/backup boundaries, and unmodified canonical identifiers.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 998,
+      "sourceStartLine": 998,
+      "title": "Locale-aware search, sorting, and normalization"
+    },
+    {
+      "cardID": "V30-P02-C06",
+      "class": "VERIFICATION",
+      "directPrerequisites": [
+        "V30-P02-C03",
+        "V30-P02-C04",
+        "V30-P02-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 20,
+      "outcome": "Activate deterministic expansion/RTL pseudolanguages, unresolved-key diagnostics, unexpected-fallback counters, screenshot fixtures, device/Dynamic Type matrix, and zero production analytics. Pre-S10 hosted results remain provisional.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 999,
+      "sourceStartLine": 999,
+      "title": "Pseudo, RTL, long-text, and screenshot harness"
+    },
+    {
+      "cardID": "V30-P02-C07",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C06",
+        "V30-P01-C07",
+        "V30-P02-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 21,
+      "outcome": "Add localized effective app-language/region display, iOS Settings handoff, truthful unsupported-language fallback, independent report-language selection, and clear language-versus-jurisdiction explanation.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1000,
+      "sourceStartLine": 1000,
+      "title": "Language & Region Settings and report-language controls"
+    },
+    {
+      "cardID": "V30-P03-C01",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C04",
+        "V30-P02-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 22,
+      "outcome": "Distinguish app UI, admin templates, instructions, inspector/customer evidence, derived translations, report chrome, and licensed jurisdiction content. Preserve source and invalidate derived translations after edit/redaction.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1006,
+      "sourceStartLine": 1006,
+      "title": "Authored-content and template-language model"
+    },
+    {
+      "cardID": "V30-P03-C02",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C08",
+        "V30-P02-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 23,
+      "outcome": "Cover existing pending/saved/syncing/synchronized/failed/conflicted/recovered states, queued Unicode attachments, offline startup, accessible recovery, and notification truth without creating a new sync engine.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1007,
+      "sourceStartLine": 1007,
+      "title": "Offline and sync-state localization integrity"
+    },
+    {
+      "cardID": "V30-P03-C03",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C07",
+        "V30-P02-C04",
+        "V30-P03-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 24,
+      "outcome": "Localize existing field labels, instructions, required/optional/error states, choice order, validation, units, numerals, and condition meaning without weakening or reordering canonical rules.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1008,
+      "sourceStartLine": 1008,
+      "title": "Forms, required-state, validation, and conditional semantics"
+    },
+    {
+      "cardID": "V30-P03-C04",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C07",
+        "V30-P02-C04",
+        "V30-P03-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 25,
+      "outcome": "Remove question-mark substitution, qualify and embed fonts, shape CJK/RTL, support Letter/A4, preserve photo/comment/status association, extraction, semantic order, provenance, and historical deterministic replay.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1009,
+      "sourceStartLine": 1009,
+      "title": "Unicode PDF and accessible-document renderer"
+    },
+    {
+      "cardID": "V30-P03-C05",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C05",
+        "V30-P03-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 26,
+      "outcome": "Preserve language-neutral machine keys/values, add explicit localized-human variants, locale manifests, formula safety, media references, unambiguous parsing, and exact canonical round trip.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1010,
+      "sourceStartLine": 1010,
+      "title": "Stable JSON, CSV, export, and import contracts"
+    },
+    {
+      "cardID": "V30-P03-C06",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P02-C04",
+        "V30-P03-C04"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 27,
+      "outcome": "Localize app-owned chrome, subject/body templates, print controls, labels, and share summaries while preserving authored content and explicit document language.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1011,
+      "sourceStartLine": 1011,
+      "title": "Share, email, print, and label surfaces"
+    },
+    {
+      "cardID": "V30-P03-C07",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C06",
+        "V30-P03-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 28,
+      "outcome": "Freeze per-locale capability and online/offline truth. A translated label never implies recognition, dictation, speech, or grammar support unavailable to the exact OS/device/build.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1012,
+      "sourceStartLine": 1012,
+      "title": "OCR, dictation, speech, and assisted-input capability truth"
+    },
+    {
+      "cardID": "V30-P03-C08",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C08",
+        "V30-P03-C04",
+        "V30-P03-C05"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 29,
+      "outcome": "Restore canonical/source content, catalog/font/renderer references, derived artifacts, search rebuild state, and explicit missing-resource limitations independent of current app language.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1013,
+      "sourceStartLine": 1013,
+      "title": "Backup, restore, and historical catalog replay"
+    },
+    {
+      "cardID": "V30-P03-C09",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P01-C06",
+        "V30-P02-C04",
+        "V30-P03-C02"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 30,
+      "outcome": "Close commonly missed surfaces with stable keys, contextual recovery, accessibility, notification/deep-link consistency, and no hidden English in critical states.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1014,
+      "sourceStartLine": 1014,
+      "title": "Onboarding, help, errors, permissions, notifications, support, and destructive actions"
+    },
+    {
+      "cardID": "V30-P04-C01",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P02-C06",
+        "V30-P03-C03",
+        "V30-P03-C04",
+        "V30-P03-C05",
+        "V30-P03-C06",
+        "V30-P03-C09"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 31,
+      "outcome": "Freeze concept IDs, field terminology, claim boundaries, screenshots, placeholders, translation-vendor minimization, roles, import/export, correction/supersession, and future vertical namespaces.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1022,
+      "sourceStartLine": 1022,
+      "title": "Termbase, do-not-translate list, and secure review workflow"
+    },
+    {
+      "cardID": "V30-P04-C02",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 32,
+      "outcome": "Complete the provisional es app/report/help/accessibility/permission/error/recovery/destructive/notification catalogs and metadata draft using U.S./Latin-American field terminology; validate es-US, es-MX, and es-419 behavior. No App Store mutation.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1023,
+      "sourceStartLine": 1023,
+      "title": "U.S. Spanish"
+    },
+    {
+      "cardID": "V30-P04-C03",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 33,
+      "outcome": "Complete provisional zh-Hans catalogs and fixtures; qualify CJK typography, input, segmentation, line breaking, report shaping/extraction, accessibility, and terminology.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1024,
+      "sourceStartLine": 1024,
+      "title": "Simplified Chinese"
+    },
+    {
+      "cardID": "V30-P04-C04",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 34,
+      "outcome": "Complete provisional zh-Hant catalogs and fixtures through independent script-appropriate translation/review; never mechanically convert zh-Hans and call it accepted.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1025,
+      "sourceStartLine": 1025,
+      "title": "Traditional Chinese"
+    },
+    {
+      "cardID": "V30-P04-C05",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 35,
+      "outcome": "Complete provisional vi catalogs and fixtures; qualify diacritics, wrapping, search, input, fonts, PDF extraction, and field terminology.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1026,
+      "sourceStartLine": 1026,
+      "title": "Vietnamese"
+    },
+    {
+      "cardID": "V30-P04-C06",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P04-C01"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 36,
+      "outcome": "Complete provisional ko catalogs and fixtures; qualify Hangul composition, search, line breaking, compact UI, fonts, reports, accessibility, and terminology.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1027,
+      "sourceStartLine": 1027,
+      "title": "Korean"
+    },
+    {
+      "cardID": "V30-P04-C07",
+      "class": "INTEGRATION",
+      "directPrerequisites": [
+        "V30-P02-C07",
+        "V30-P03-C08",
+        "V30-P04-C02",
+        "V30-P04-C03",
+        "V30-P04-C04",
+        "V30-P04-C05",
+        "V30-P04-C06"
+      ],
+      "executionEpoch": "PRE_S10_PROVISIONAL",
+      "ordinal": 37,
+      "outcome": "Integrate all six localizations once on the provisional branch, update known regions/shared metadata, create the complete provisional catalog-release set, bind candidate head/tree/capability matrix, regenerate deterministic fixtures, prove lane isolation, and freeze the branch for P05.",
+      "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1028,
+      "sourceStartLine": 1028,
+      "title": "Shared catalog, Xcode project, and provisional locale-release integration"
+    },
+    {
+      "cardID": "V30-P05-C01",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P04-C07"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "ordinal": 38,
+      "outcome": "After the owner trigger only, verify Phase 10.6 head/tree/refs, exact-head and exact-main CI, artifacts/checksums, handoff, known bugs, V23 package/coordination, current S10 reservation, frozen provisional branch/ledger, and explicit predecessor reconciliation authority.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1036,
+      "sourceStartLine": 1036,
+      "title": "Accepted Phase 10.6 and reconciliation preconditions"
+    },
+    {
+      "cardID": "V30-P05-C02",
+      "class": "INTEGRATION",
+      "directPrerequisites": [
+        "V30-P05-C01"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "ordinal": 39,
+      "outcome": "Create a clean reconciliation worktree/branch from exact accepted `S`; replay each card-scoped provisional delta in order or reimplement authorized conflicts. Preserve old/new SHA and tree mappings. Phase 10 owns true brand/UI conflicts. Never merge the planning or provisional branch wholesale.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1037,
+      "sourceStartLine": 1037,
+      "title": "Mandatory provisional-to-Phase10/V23 reconciliation replay"
+    },
+    {
+      "cardID": "V30-P05-C03",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P05-C02"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "ordinal": 40,
+      "outcome": "Recompute V23 Cards 135, 136, 141, and 146 without changing their truthful OWNER_ACTION, MONITOR, or DEFER state or inventing evidence.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1038,
+      "sourceStartLine": 1038,
+      "title": "V23 unfinished-card disposition bridge"
+    },
+    {
+      "cardID": "V30-P05-C04",
+      "class": "FOUNDATION",
+      "directPrerequisites": [
+        "V30-P05-C02",
+        "V30-P05-C03"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "ordinal": 41,
+      "outcome": "Recompute inventories, overlaps, ownership, and fences; classify every provisional result COMPATIBLE, CORRECTION_REQUIRED, SUPERSEDED, or OBSOLETE_WITH_RATIONALE. No provisional result is auto-promoted.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1039,
+      "sourceStartLine": 1039,
+      "title": "Reconciled candidate, fence, and provisional-evidence disposition"
+    },
+    {
+      "cardID": "V30-P05-C05",
+      "class": "VERIFICATION",
+      "directPrerequisites": [
+        "V30-P05-C04"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "ordinal": 42,
+      "outcome": "Run all invalidated unit/UI/accessibility/localization/privacy/persistence/report/brand evidence on the exact reconciled candidate through the post-S10 authorized hosted route. Provisional CI cannot substitute.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1040,
+      "sourceStartLine": 1040,
+      "title": "Reconciled exact-head hosted qualification"
+    },
+    {
+      "cardID": "V30-P05-C06",
+      "class": "INTEGRATION",
+      "directPrerequisites": [
+        "V30-P05-C05"
+      ],
+      "executionEpoch": "POST_S10_RECONCILIATION",
+      "ordinal": 43,
+      "outcome": "Seal reconciled head/tree, replay map, artifacts, checksums, canonical-ledger adoption CAS, and per-card post-S10 admission receipts; select only P06-C01. This grants reconciled per-card implementation admission only, not V30 final-candidate acceptance or main-integration credit. Do not fast-forward main.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1041,
+      "sourceStartLine": 1041,
+      "title": "Reconciliation close and P06 final-candidate admission"
+    },
+    {
+      "cardID": "V30-P06-C01",
+      "class": "VERIFICATION",
+      "directPrerequisites": [
+        "V30-P05-C06"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "ordinal": 44,
+      "outcome": "For en, es, zh-Hans, zh-Hant, vi, and ko, bind one exact locale-acceptance candidate tuple and prove complete required shipping keys, placeholders, plurals/variations, accessibility/help/report/error coverage, bundled offline resources, zero unresolved keys, zero unexpected fallback, and exact catalog digests.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1047,
+      "sourceStartLine": 1047,
+      "title": "Complete-locale machine audit"
+    },
+    {
+      "cardID": "V30-P06-C02",
+      "class": "OWNER_ACTION",
+      "directPrerequisites": [
+        "V30-P06-C01"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "ordinal": 45,
+      "outcome": "Review only P06-C01's exact tuple. Require a professional translator and independent reviewer per non-English localization plus bilingual field-workflow review. Emit ACCEPTED_NO_CORRECTION or CORRECTION_REQUIRED under the same-candidate reopen law.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1048,
+      "sourceStartLine": 1048,
+      "title": "Professional/native in-context linguistic acceptance"
+    },
+    {
+      "cardID": "V30-P06-C03",
+      "class": "VERIFICATION",
+      "directPrerequisites": [
+        "V30-P02-C06",
+        "V30-P06-C01",
+        "V30-P06-C02"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "ordinal": 46,
+      "outcome": "On the exact accepted linguistic tuple, run macOS UI shards for every locale, device size, Dynamic Type, light/dark/contrast, keyboard state, VoiceOver semantics, pseudo-RTL, screenshots, and complete artifacts.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1049,
+      "sourceStartLine": 1049,
+      "title": "Multi-locale hosted UI and accessibility qualification"
+    },
+    {
+      "cardID": "V30-P06-C04",
+      "class": "VERIFICATION",
+      "directPrerequisites": [
+        "V30-P03-C08",
+        "V30-P06-C01",
+        "V30-P06-C02"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "ordinal": 47,
+      "outcome": "On the exact accepted linguistic tuple, prove Unicode PDF/extraction, Letter/A4, export/import, backup/restore, offline launch/work/recovery, search, and identical canonical records/hashes/journals/jurisdiction across languages.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1050,
+      "sourceStartLine": 1050,
+      "title": "Reports, exports, offline, search, and canonical-invariance qualification"
+    },
+    {
+      "cardID": "V30-P06-C05",
+      "class": "IMPLEMENTATION",
+      "directPrerequisites": [
+        "V30-P06-C02",
+        "V30-P06-C03",
+        "V30-P06-C04"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "ordinal": 48,
+      "outcome": "Prepare accurate U.S. metadata/localizations, screenshots, support/privacy text, and claim-safe keyword evidence for the cohort; revalidate current Apple limits. No upload, submission, or foreign storefront activation.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1051,
+      "sourceStartLine": 1051,
+      "title": "U.S. App Store metadata and localized screenshot package"
+    },
+    {
+      "cardID": "V30-P06-C06",
+      "class": "OWNER_ACTION",
+      "directPrerequisites": [
+        "V30-P01-C04",
+        "V30-P06-C05"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "ordinal": 49,
+      "outcome": "Accept an evidence-backed United States row and fail-closed HOLD rows elsewhere for the exact P06-C05 tuple. Translation cannot broaden standards, qualifications, privacy, retention, export, support, or legal claims.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1052,
+      "sourceStartLine": 1052,
+      "title": "U.S. jurisdiction, privacy, legal, and support readiness"
+    },
+    {
+      "cardID": "V30-P06-C07",
+      "class": "VERIFICATION",
+      "directPrerequisites": [
+        "V30-P06-C02",
+        "V30-P06-C03",
+        "V30-P06-C04",
+        "V30-P06-C06"
+      ],
+      "executionEpoch": "FINAL_ACCEPTANCE",
+      "ordinal": 50,
+      "outcome": "Accept only one exact tuple. Every language, catalog, UI, accessibility, output, offline, canonical-data, claims, reviewer, reconciliation, and hosted-CI receipt must bind the same head, tree, catalog release, key-set digest, and termbase digest.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1053,
+      "sourceStartLine": 1053,
+      "title": "V30 exact-candidate acceptance"
+    },
+    {
+      "cardID": "V30-P07-C01",
+      "class": "INTEGRATION",
+      "directPrerequisites": [
+        "V30-P06-C07"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "ordinal": 51,
+      "outcome": "Append immutable handoff, non-force close the phase, verify phase ref, fast-forward main only under authority, run green exact-main UI-enabled CI, re-fetch, and bind artifacts/checksums. V30 product implementation completes here.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1059,
+      "sourceStartLine": 1059,
+      "title": "V30 phase close and exact-main qualification"
+    },
+    {
+      "cardID": "V30-P07-C02",
+      "class": "OWNER_ACTION",
+      "directPrerequisites": [
+        "V30-P07-C01"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "ordinal": 52,
+      "outcome": "Signing, TestFlight, App Store upload/submission, availability, and promotion only under separate owner authority. Not required to call V30 product implementation complete.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1060,
+      "sourceStartLine": 1060,
+      "title": "Initial release owner action"
+    },
+    {
+      "cardID": "V30-P07-C03",
+      "class": "VALIDATE_NEXT",
+      "directPrerequisites": [
+        "V30-P07-C01"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "ordinal": 53,
+      "outcome": "Re-score pt-BR, fil, ar, fr/fr-CA, ru, pl, hi, id, ja, tr, ht, and observed demand using customers, support, fallback diagnostics, geography, official data, competitor changes, review capacity, and storefront plans.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1061,
+      "sourceStartLine": 1061,
+      "title": "Next-language evidence refresh and re-entry register"
+    },
+    {
+      "cardID": "V30-P07-C04",
+      "class": "DEFER",
+      "directPrerequisites": [
+        "V30-P07-C01",
+        "V30-P07-C03"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "ordinal": 54,
+      "outcome": "Re-enter only with explicit country, legal, privacy, support, metadata, regional-pack, language, report, retention, and owner-availability authority.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1062,
+      "sourceStartLine": 1062,
+      "title": "Future country, storefront, and jurisdiction activation"
+    },
+    {
+      "cardID": "V30-P07-C05",
+      "class": "MONITOR",
+      "directPrerequisites": [
+        "V30-P07-C02"
+      ],
+      "executionEpoch": "POST_ACCEPTANCE",
+      "ordinal": 55,
+      "outcome": "Arm only for an exact released build, U.S. storefront, locale cohort, observation window, metrics, privacy rule, rollback threshold, and owner response path. Monitoring cannot fabricate implementation or release credit.",
+      "planningStatus": "POST_S10_NOT_SELECTABLE",
+      "preS10FinalCredit": false,
+      "sourceEndLine": 1063,
+      "sourceStartLine": 1063,
+      "title": "Post-release locale monitor"
+    }
+  ],
+  "edgeCount": 107,
+  "schema": "V30CardRegisterV1",
+  "source": {
+    "blueprintPath": "EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+    "blueprintSha256": "28facff3aca8bc4582031e3f0d609b9ab4eb26cd91d6c4b35144596a346b154e",
+    "section": "## 21. Closed 55-card graph"
+  }
+}

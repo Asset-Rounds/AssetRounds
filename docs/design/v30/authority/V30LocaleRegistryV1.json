@@ -1,0 +1,131 @@
+{
+  "completeBinaryLocalizationIDs": [
+    "en",
+    "es",
+    "zh-Hans",
+    "zh-Hant",
+    "vi",
+    "ko"
+  ],
+  "initialLocales": [
+    {
+      "formattingProfiles": [
+        "en-US",
+        "en-GB"
+      ],
+      "id": "en",
+      "language": "English",
+      "metadataLanguage": "English (US)",
+      "script": "Latin"
+    },
+    {
+      "formattingProfiles": [
+        "es-US",
+        "es-MX",
+        "es-419"
+      ],
+      "id": "es",
+      "language": "Spanish",
+      "metadataLanguage": "Spanish (Mexico)",
+      "script": "Latin"
+    },
+    {
+      "formattingProfiles": [
+        "zh-Hans-US",
+        "zh-Hans-CN"
+      ],
+      "id": "zh-Hans",
+      "language": "Chinese",
+      "metadataLanguage": "Chinese (Simplified)",
+      "script": "Simplified"
+    },
+    {
+      "formattingProfiles": [
+        "zh-Hant-US",
+        "zh-Hant-TW"
+      ],
+      "id": "zh-Hant",
+      "language": "Chinese",
+      "metadataLanguage": "Chinese (Traditional)",
+      "script": "Traditional"
+    },
+    {
+      "formattingProfiles": [
+        "vi-US",
+        "vi-VN"
+      ],
+      "id": "vi",
+      "language": "Vietnamese",
+      "metadataLanguage": "Vietnamese",
+      "script": "Latin"
+    },
+    {
+      "formattingProfiles": [
+        "ko-US",
+        "ko-KR"
+      ],
+      "id": "ko",
+      "language": "Korean",
+      "metadataLanguage": "Korean",
+      "script": "Hangul"
+    }
+  ],
+  "nextWaveLocaleIDs": [
+    "pt-BR",
+    "fil",
+    "ar",
+    "fr",
+    "fr-CA",
+    "ru",
+    "pl",
+    "hi",
+    "id",
+    "ja",
+    "tr",
+    "ht"
+  ],
+  "nextWaveOrder": [
+    "pt-BR",
+    "fil",
+    "ar",
+    "fr",
+    "fr-CA",
+    "ru",
+    "pl",
+    "hi",
+    "id",
+    "ja",
+    "tr",
+    "ht"
+  ],
+  "projectJurisdiction": "US",
+  "schema": "V30LocaleRegistryV1",
+  "selectionPolicy": {
+    "applePerAppLanguage": true,
+    "applePreferredLanguages": true,
+    "defaultLanguage": "en",
+    "fallbackChain": [
+      "exactLocale",
+      "baseLanguage",
+      "en"
+    ],
+    "inAppPicker": "SETTINGS_DISCOVERY_ONLY",
+    "languageDoesNotSelectJurisdiction": true,
+    "regionDoesNotSelectLanguage": true,
+    "systemFirst": true,
+    "unsupportedLanguageFallback": "en"
+  },
+  "source": {
+    "blueprintPath": "EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+    "blueprintSha256": "28facff3aca8bc4582031e3f0d609b9ab4eb26cd91d6c4b35144596a346b154e",
+    "sections": [
+      "9.2 Required initial cohort",
+      "9.6 LocaleMarketMatrixV1",
+      "10.1 System-first rule"
+    ]
+  },
+  "storefrontCountries": [
+    "US"
+  ],
+  "storefrontPolicy": "UNITED_STATES_ONLY"
+}

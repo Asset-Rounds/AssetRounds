@@ -1,0 +1,1615 @@
+{
+  "noCredit": true,
+  "recordCount": 97,
+  "records": [
+    {
+      "canonicalRequirement": "External planning artifact; no self-authorization; only an activated package may govern execution",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§2, 3.2, 26, 27; V30 preserves V24 as immutable provenance.",
+      "rawSourceText": "| 1 | Status L6–17 | External planning artifact; no self-authorization; only an activated package may govern execution | INCORPORATED_WITH_PROVENANCE | §§2, 3.2, 26, 27; V30 preserves V24 as immutable provenance. |",
+      "section": "Appendix A",
+      "sourceAnchor": "Status L6–17",
+      "sourceEndLine": 1771,
+      "sourceOrdinal": 1,
+      "sourceStartLine": 1771,
+      "targetText": "§§2, 3.2, 26, 27; V30 preserves V24 as immutable provenance.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Additive successor; never insert into or rewrite V23; preserve V23 history",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§4.3, V30-P05-C02, G8; retained through card-scoped replay.",
+      "rawSourceText": "| 2 | §1 L23–36 | Additive successor; never insert into or rewrite V23; preserve V23 history | INCORPORATED_WITH_PROVENANCE | §4.3, V30-P05-C02, G8; retained through card-scoped replay. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§1 L23–36",
+      "sourceEndLine": 1772,
+      "sourceOrdinal": 2,
+      "sourceStartLine": 1772,
+      "targetText": "§4.3, V30-P05-C02, G8; retained through card-scoped replay.",
+      "v30Targets": [
+        "V30-P05-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "Preserve commits/cards; reconcile S10; freeze base; separate language, locale, content, report, and jurisdiction",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§11.2, V30-P01-C04, V30-P05-C01, V30-P05-C02; strengthened to six axes.",
+      "rawSourceText": "| 3 | §1 L27–35 | Preserve commits/cards; reconcile S10; freeze base; separate language, locale, content, report, and jurisdiction | INCORPORATED_WITH_PROVENANCE | §11.2, V30-P01-C04, V30-P05-C01, V30-P05-C02; strengthened to six axes. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§1 L27–35",
+      "sourceEndLine": 1773,
+      "sourceOrdinal": 3,
+      "sourceStartLine": 1773,
+      "targetText": "§11.2, V30-P01-C04, V30-P05-C01, V30-P05-C02; strengthened to six axes.",
+      "v30Targets": [
+        "V30-P01-C04",
+        "V30-P05-C01",
+        "V30-P05-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "Expand launch-country matrix if market exceeds the U.S.",
+      "disposition": "DEFERRED_UNCHANGED",
+      "noCredit": true,
+      "rationale": "§§31–32 and §37.4; foreign-country activation remains owner-authorized future work.",
+      "rawSourceText": "| 4 | §1.1 L40 | Expand launch-country matrix if market exceeds the U.S. | DEFERRED_UNCHANGED | §§31–32 and §37.4; foreign-country activation remains owner-authorized future work. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§1.1 L40",
+      "sourceEndLine": 1774,
+      "sourceOrdinal": 4,
+      "sourceStartLine": 1774,
+      "targetText": "§§31–32 and §37.4; foreign-country activation remains owner-authorized future work.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "U.S./English-only initial shipping; future locales dormant",
+      "disposition": "REJECTED_WITH_RATIONALE",
+      "noCredit": true,
+      "rationale": "§9.2 and V30-P04-C02, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06; V30 uses six complete localizations but retains U.S.-only storefront scope.",
+      "rawSourceText": "| 5 | §1.1 L42–49 | U.S./English-only initial shipping; future locales dormant | REJECTED_WITH_RATIONALE | §9.2 and V30-P04-C02, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06; V30 uses six complete localizations but retains U.S.-only storefront scope. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§1.1 L42–49",
+      "sourceEndLine": 1775,
+      "sourceOrdinal": 5,
+      "sourceStartLine": 1775,
+      "targetText": "§9.2 and V30-P04-C02, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06; V30 uses six complete localizations but retains U.S.-only storefront scope.",
+      "v30Targets": [
+        "V30-P04-C02",
+        "V30-P04-C03",
+        "V30-P04-C04",
+        "V30-P04-C05",
+        "V30-P04-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "No credit, active-phase mutation, fabricated evidence, force/history rewrite, or automatic release/submission",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§2, 25, 26, 37.3; retained.",
+      "rawSourceText": "| 6 | §2 L53–62 | No credit, active-phase mutation, fabricated evidence, force/history rewrite, or automatic release/submission | INCORPORATED_WITH_PROVENANCE | §§2, 25, 26, 37.3; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§2 L53–62",
+      "sourceEndLine": 1776,
+      "sourceOrdinal": 6,
+      "sourceStartLine": 1776,
+      "targetText": "§§2, 25, 26, 37.3; retained.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Preserve V23 135/136/141/146 classes, prerequisites, static=false, and no automatic credit",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§4.2–4.3, V30-P05-C03, G6; retained.",
+      "rawSourceText": "| 7 | §3.2 L89–94 | Preserve V23 135/136/141/146 classes, prerequisites, static=false, and no automatic credit | INCORPORATED_WITH_PROVENANCE | §§4.2–4.3, V30-P05-C03, G6; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§3.2 L89–94",
+      "sourceEndLine": 1777,
+      "sourceOrdinal": 7,
+      "sourceStartLine": 1777,
+      "targetText": "§§4.2–4.3, V30-P05-C03, G6; retained.",
+      "v30Targets": [
+        "V30-P05-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "No pre-globalization release evidence; bind final owner release to successor candidate",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P05-C03, V30-P07-C02, §37.3; explicit post-globalization rebind/pending rule.",
+      "rawSourceText": "| 8 | §3.3 L98–106 | No pre-globalization release evidence; bind final owner release to successor candidate | INCORPORATED_WITH_PROVENANCE | V30-P05-C03, V30-P07-C02, §37.3; explicit post-globalization rebind/pending rule. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§3.3 L98–106",
+      "sourceEndLine": 1778,
+      "sourceOrdinal": 8,
+      "sourceStartLine": 1778,
+      "targetText": "V30-P05-C03, V30-P07-C02, §37.3; explicit post-globalization rebind/pending rule.",
+      "v30Targets": [
+        "V30-P05-C03",
+        "V30-P07-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "Evolve existing V23 localization/accessibility/report/search seams; no parallel framework",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§5, §11.1, §36; retained.",
+      "rawSourceText": "| 9 | §4.1 L114–121 | Evolve existing V23 localization/accessibility/report/search seams; no parallel framework | INCORPORATED_WITH_PROVENANCE | §5, §11.1, §36; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§4.1 L114–121",
+      "sourceEndLine": 1779,
+      "sourceOrdinal": 9,
+      "sourceStartLine": 1779,
+      "targetText": "§5, §11.1, §36; retained.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Version-forward English-only shipping policy without weakening historical behavior",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§11.3–11.4, V30-P01-C05, V30-P01-C08; retained.",
+      "rawSourceText": "| 10 | §4.2 L129–137 | Version-forward English-only shipping policy without weakening historical behavior | INCORPORATED_WITH_PROVENANCE | §§11.3–11.4, V30-P01-C05, V30-P01-C08; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§4.2 L129–137",
+      "sourceEndLine": 1780,
+      "sourceOrdinal": 10,
+      "sourceStartLine": 1780,
+      "targetText": "§§11.3–11.4, V30-P01-C05, V30-P01-C08; retained.",
+      "v30Targets": [
+        "V30-P01-C05",
+        "V30-P01-C08"
+      ]
+    },
+    {
+      "canonicalRequirement": "Classify every user-visible surface; do not blindly replace literals",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P01-C03, V30-P02-C01; inventory and dispositions expanded.",
+      "rawSourceText": "| 11 | §4.2 L131; §4.3 L141–149 | Classify every user-visible surface; do not blindly replace literals | INCORPORATED_WITH_PROVENANCE | V30-P01-C03, V30-P02-C01; inventory and dispositions expanded. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§4.2 L131; §4.3 L141–149",
+      "sourceEndLine": 1781,
+      "sourceOrdinal": 11,
+      "sourceStartLine": 1781,
+      "targetText": "V30-P01-C03, V30-P02-C01; inventory and dispositions expanded.",
+      "v30Targets": [
+        "V30-P01-C03",
+        "V30-P02-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "Activate localization/accessibility UI verification only on reconciled UI",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P02-C06, V30-P05-C05, V30-P06-C03; final evidence remains post-reconciliation.",
+      "rawSourceText": "| 12 | §4.2 L134 | Activate localization/accessibility UI verification only on reconciled UI | INCORPORATED_WITH_PROVENANCE | V30-P02-C06, V30-P05-C05, V30-P06-C03; final evidence remains post-reconciliation. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§4.2 L134",
+      "sourceEndLine": 1782,
+      "sourceOrdinal": 12,
+      "sourceStartLine": 1782,
+      "targetText": "V30-P02-C06, V30-P05-C05, V30-P06-C03; final evidence remains post-reconciliation.",
+      "v30Targets": [
+        "V30-P02-C06",
+        "V30-P05-C05",
+        "V30-P06-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Replace ASCII-loss PDF behavior with Unicode/font/paper policy",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§17.1, V30-P03-C04; retained.",
+      "rawSourceText": "| 13 | §4.2 L135 | Replace ASCII-loss PDF behavior with Unicode/font/paper policy | INCORPORATED_WITH_PROVENANCE | §17.1, V30-P03-C04; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§4.2 L135",
+      "sourceEndLine": 1783,
+      "sourceOrdinal": 13,
+      "sourceStartLine": 1783,
+      "targetText": "§17.1, V30-P03-C04; retained.",
+      "v30Targets": [
+        "V30-P03-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "UI translation must not imply OCR, dictation, or grammar support",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P03-C07, §25; retained.",
+      "rawSourceText": "| 14 | §4.2 L137 | UI translation must not imply OCR, dictation, or grammar support | INCORPORATED_WITH_PROVENANCE | V30-P03-C07, §25; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§4.2 L137",
+      "sourceEndLine": 1784,
+      "sourceOrdinal": 14,
+      "sourceStartLine": 1784,
+      "targetText": "V30-P03-C07, §25; retained.",
+      "v30Targets": [
+        "V30-P03-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Preserve source evidence; provenance-label translations; offline resources; Unicode; binary/exact-head proof; language is not jurisdiction",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§11, 14, 16–18, 23, 25; retained with tighter source-content rules.",
+      "rawSourceText": "| 15 | §5.3 L201–207 | Preserve source evidence; provenance-label translations; offline resources; Unicode; binary/exact-head proof; language is not jurisdiction | INCORPORATED_WITH_PROVENANCE | §§11, 14, 16–18, 23, 25; retained with tighter source-content rules. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§5.3 L201–207",
+      "sourceEndLine": 1785,
+      "sourceOrdinal": 15,
+      "sourceStartLine": 1785,
+      "targetText": "§§11, 14, 16–18, 23, 25; retained with tighter source-content rules.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "English fallback; exact/base/English/test diagnostic chain; no raw keys; zero fallback for a complete locale",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§10.3, V30-P01-C06, §23.0–23.1; bounded to `APP_OWNED_SHIPPING`.",
+      "rawSourceText": "| 16 | §6.1 L213–218 | English fallback; exact/base/English/test diagnostic chain; no raw keys; zero fallback for a complete locale | INCORPORATED_WITH_PROVENANCE | §10.3, V30-P01-C06, §23.0–23.1; bounded to `APP_OWNED_SHIPPING`. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§6.1 L213–218",
+      "sourceEndLine": 1786,
+      "sourceOrdinal": 16,
+      "sourceStartLine": 1786,
+      "targetText": "§10.3, V30-P01-C06, §23.0–23.1; bounded to `APP_OWNED_SHIPPING`.",
+      "v30Targets": [
+        "V30-P01-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "English foundation plus V24's named future-wave portfolio",
+      "disposition": "REJECTED_WITH_RATIONALE",
+      "noCredit": true,
+      "rationale": "§§9.2–9.4, V30-P04-C02, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06, V30-P07-C03; V30 changes the initial cohort and research order.",
+      "rawSourceText": "| 17 | §6.2 L224–229 | English foundation plus V24's named future-wave portfolio | REJECTED_WITH_RATIONALE | §§9.2–9.4, V30-P04-C02, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06, V30-P07-C03; V30 changes the initial cohort and research order. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§6.2 L224–229",
+      "sourceEndLine": 1787,
+      "sourceOrdinal": 17,
+      "sourceStartLine": 1787,
+      "targetText": "§§9.2–9.4, V30-P04-C02, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06, V30-P07-C03; V30 changes the initial cohort and research order.",
+      "v30Targets": [
+        "V30-P04-C02",
+        "V30-P04-C03",
+        "V30-P04-C04",
+        "V30-P04-C05",
+        "V30-P04-C06",
+        "V30-P07-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Variants only where copy differs; formatting independent",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§9.2–9.3, 11.2, 13; retained, while V24's exact future variants remain later scope.",
+      "rawSourceText": "| 18 | §6.3 L235–240 | Variants only where copy differs; formatting independent | INCORPORATED_WITH_PROVENANCE | §§9.2–9.3, 11.2, 13; retained, while V24's exact future variants remain later scope. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§6.3 L235–240",
+      "sourceEndLine": 1788,
+      "sourceOrdinal": 18,
+      "sourceStartLine": 1788,
+      "targetText": "§§9.2–9.3, 11.2, 13; retained, while V24's exact future variants remain later scope.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Apple system/per-app resolution; no bundle swizzle or hidden engine",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§10.1, V30-P01-C06; retained.",
+      "rawSourceText": "| 19 | §7.1 L246–253 | Apple system/per-app resolution; no bundle swizzle or hidden engine | INCORPORATED_WITH_PROVENANCE | §10.1, V30-P01-C06; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§7.1 L246–253",
+      "sourceEndLine": 1789,
+      "sourceOrdinal": 19,
+      "sourceStartLine": 1789,
+      "targetText": "§10.1, V30-P01-C06; retained.",
+      "v30Targets": [
+        "V30-P01-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Effective-language Settings disclosure, iOS Settings handoff, truthful fallback, no side effects, atomic foreground/restart behavior",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§10.2, V30-P01-C06, V30-P02-C07; retained and expanded.",
+      "rawSourceText": "| 20 | §7.2 L257–272 | Effective-language Settings disclosure, iOS Settings handoff, truthful fallback, no side effects, atomic foreground/restart behavior | INCORPORATED_WITH_PROVENANCE | §10.2, V30-P01-C06, V30-P02-C07; retained and expanded. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§7.2 L257–272",
+      "sourceEndLine": 1790,
+      "sourceOrdinal": 20,
+      "sourceStartLine": 1790,
+      "targetText": "§10.2, V30-P01-C06, V30-P02-C07; retained and expanded.",
+      "v30Targets": [
+        "V30-P01-C06",
+        "V30-P02-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Independent app language, formatting, zone, calendar, units, jurisdiction, content, and report axes",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§11.2, V30-P01-C04; retained and storefront added.",
+      "rawSourceText": "| 21 | §7.3 L276–285 | Independent app language, formatting, zone, calendar, units, jurisdiction, content, and report axes | INCORPORATED_WITH_PROVENANCE | §11.2, V30-P01-C04; retained and storefront added. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§7.3 L276–285",
+      "sourceEndLine": 1791,
+      "sourceOrdinal": 21,
+      "sourceStartLine": 1791,
+      "targetText": "§11.2, V30-P01-C04; retained and storefront added.",
+      "v30Targets": [
+        "V30-P01-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "IDs, raw enums, hashes, and schema keys remain language-neutral and stable",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§11.3, V30-P01-C05, §23.2; retained.",
+      "rawSourceText": "| 22 | §8.1 L291 | IDs, raw enums, hashes, and schema keys remain language-neutral and stable | INCORPORATED_WITH_PROVENANCE | §11.3, V30-P01-C05, §23.2; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§8.1 L291",
+      "sourceEndLine": 1792,
+      "sourceOrdinal": 22,
+      "sourceStartLine": 1792,
+      "targetText": "§11.3, V30-P01-C05, §23.2; retained.",
+      "v30Targets": [
+        "V30-P01-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "No translated canonical truth; typed canonical values; locale cannot alter identity; preserve source/historical evidence; stable semantic keys",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§11.3–11.4, §§16–17, V30-P01-C05, V30-P03-C01, V30-P03-C08; retained.",
+      "rawSourceText": "| 23 | §8.1 L292–297 | No translated canonical truth; typed canonical values; locale cannot alter identity; preserve source/historical evidence; stable semantic keys | INCORPORATED_WITH_PROVENANCE | §§11.3–11.4, §§16–17, V30-P01-C05, V30-P03-C01, V30-P03-C08; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§8.1 L292–297",
+      "sourceEndLine": 1793,
+      "sourceOrdinal": 23,
+      "sourceStartLine": 1793,
+      "targetText": "§§11.3–11.4, §§16–17, V30-P01-C05, V30-P03-C01, V30-P03-C08; retained.",
+      "v30Targets": [
+        "V30-P01-C05",
+        "V30-P03-C01",
+        "V30-P03-C08"
+      ]
+    },
+    {
+      "canonicalRequirement": "No grammatical concatenation; typed placeholders and plural/select",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§12.2, V30-P02-C01; retained.",
+      "rawSourceText": "| 24 | §8.1 L298 | No grammatical concatenation; typed placeholders and plural/select | INCORPORATED_WITH_PROVENANCE | §12.2, V30-P02-C01; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§8.1 L298",
+      "sourceEndLine": 1794,
+      "sourceOrdinal": 24,
+      "sourceStartLine": 1794,
+      "targetText": "§12.2, V30-P02-C01; retained.",
+      "v30Targets": [
+        "V30-P02-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "Language/device region never chooses jurisdiction; explicit versioned packs; never guess missing/expired rules",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§11.2, 16, 31, V30-P06-C06; retained.",
+      "rawSourceText": "| 25 | §8.2 L302–307 | Language/device region never chooses jurisdiction; explicit versioned packs; never guess missing/expired rules | INCORPORATED_WITH_PROVENANCE | §§11.2, 16, 31, V30-P06-C06; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§8.2 L302–307",
+      "sourceEndLine": 1795,
+      "sourceOrdinal": 25,
+      "sourceStartLine": 1795,
+      "targetText": "§§11.2, 16, 31, V30-P06-C06; retained.",
+      "v30Targets": [
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Shipping catalogs/report assets/capability manifests work offline; compatible signed optional updates; no unapproved network translation",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§12.3, §18, V30-P01-C08, V30-P03-C02; retained.",
+      "rawSourceText": "| 26 | §8.3 L311–315 | Shipping catalogs/report assets/capability manifests work offline; compatible signed optional updates; no unapproved network translation | INCORPORATED_WITH_PROVENANCE | §12.3, §18, V30-P01-C08, V30-P03-C02; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§8.3 L311–315",
+      "sourceEndLine": 1796,
+      "sourceOrdinal": 26,
+      "sourceStartLine": 1796,
+      "targetText": "§12.3, §18, V30-P01-C08, V30-P03-C02; retained.",
+      "v30Targets": [
+        "V30-P01-C08",
+        "V30-P03-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "Contract-bounded normalization; preserve evidence; spoof/injection protection; nondestructive mixed-script warnings; translated-report provenance",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§14–17, V30-P02-C02, V30-P02-C03, V30-P03-C04, V30-P03-C05; retained.",
+      "rawSourceText": "| 27 | §8.4 L318–322 | Contract-bounded normalization; preserve evidence; spoof/injection protection; nondestructive mixed-script warnings; translated-report provenance | INCORPORATED_WITH_PROVENANCE | §§14–17, V30-P02-C02, V30-P02-C03, V30-P03-C04, V30-P03-C05; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§8.4 L318–322",
+      "sourceEndLine": 1797,
+      "sourceOrdinal": 27,
+      "sourceStartLine": 1797,
+      "targetText": "§§14–17, V30-P02-C02, V30-P02-C03, V30-P03-C04, V30-P03-C05; retained.",
+      "v30Targets": [
+        "V30-P02-C02",
+        "V30-P02-C03",
+        "V30-P03-C04",
+        "V30-P03-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Map proposed models to existing architecture; version-forward only as needed; no duplicate abstraction",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§11.1, V30-P01-C04, V30-P01-C05, V30-P01-C08; retained.",
+      "rawSourceText": "| 28 | §9 L326–353 | Map proposed models to existing architecture; version-forward only as needed; no duplicate abstraction | INCORPORATED_WITH_PROVENANCE | §11.1, V30-P01-C04, V30-P01-C05, V30-P01-C08; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§9 L326–353",
+      "sourceEndLine": 1798,
+      "sourceOrdinal": 28,
+      "sourceStartLine": 1798,
+      "targetText": "§11.1, V30-P01-C04, V30-P01-C05, V30-P01-C08; retained.",
+      "v30Targets": [
+        "V30-P01-C04",
+        "V30-P01-C05",
+        "V30-P01-C08"
+      ]
+    },
+    {
+      "canonicalRequirement": "String Catalog source of truth; semantic keys/comments; plurals/full messages; typed placeholders; complete surface inventory; DNT treatment",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§12, V30-P01-C03, V30-P02-C01; retained and strengthened.",
+      "rawSourceText": "| 29 | §10.1 L359–366 | String Catalog source of truth; semantic keys/comments; plurals/full messages; typed placeholders; complete surface inventory; DNT treatment | INCORPORATED_WITH_PROVENANCE | §12, V30-P01-C03, V30-P02-C01; retained and strengthened. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§10.1 L359–366",
+      "sourceEndLine": 1799,
+      "sourceOrdinal": 29,
+      "sourceStartLine": 1799,
+      "targetText": "§12, V30-P01-C03, V30-P02-C01; retained and strengthened.",
+      "v30Targets": [
+        "V30-P01-C03",
+        "V30-P02-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "Shipping catalog provenance, review, lint, screenshot, accessibility, exceptions, and exact-head receipt",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§12.3, §19, V30-P01-C08, V30-P04-C01, V30-P06-C01, V30-P06-C02; retained.",
+      "rawSourceText": "| 30 | §10.2 L372–386 | Shipping catalog provenance, review, lint, screenshot, accessibility, exceptions, and exact-head receipt | INCORPORATED_WITH_PROVENANCE | §12.3, §19, V30-P01-C08, V30-P04-C01, V30-P06-C01, V30-P06-C02; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§10.2 L372–386",
+      "sourceEndLine": 1800,
+      "sourceOrdinal": 30,
+      "sourceStartLine": 1800,
+      "targetText": "§12.3, §19, V30-P01-C08, V30-P04-C01, V30-P06-C01, V30-P06-C02; retained.",
+      "v30Targets": [
+        "V30-P01-C08",
+        "V30-P04-C01",
+        "V30-P06-C01",
+        "V30-P06-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "Machine translation is nonshipping unless reviewed; derived translation source binding and atomic stale/superseded/erase lifecycle",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§16, 19.3, V30-P03-C01, §25; retained without authorizing a translation service.",
+      "rawSourceText": "| 31 | §10.2 L388–390 | Machine translation is nonshipping unless reviewed; derived translation source binding and atomic stale/superseded/erase lifecycle | INCORPORATED_WITH_PROVENANCE | §§16, 19.3, V30-P03-C01, §25; retained without authorizing a translation service. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§10.2 L388–390",
+      "sourceEndLine": 1801,
+      "sourceOrdinal": 31,
+      "sourceStartLine": 1801,
+      "targetText": "§§16, 19.3, V30-P03-C01, §25; retained without authorizing a translation service.",
+      "v30Targets": [
+        "V30-P03-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "English linguistic/consistency review and claim-safe terminology",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§12, §19.2, V30-P02-C01, V30-P04-C01; retained.",
+      "rawSourceText": "| 32 | §10.3 L394–402 | English linguistic/consistency review and claim-safe terminology | INCORPORATED_WITH_PROVENANCE | §12, §19.2, V30-P02-C01, V30-P04-C01; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§10.3 L394–402",
+      "sourceEndLine": 1802,
+      "sourceOrdinal": 32,
+      "sourceStartLine": 1802,
+      "targetText": "§12, §19.2, V30-P02-C01, V30-P04-C01; retained.",
+      "v30Targets": [
+        "V30-P02-C01",
+        "V30-P04-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "Locale formatting, zone/offset/DST, canonical values, unit/currency identity, Letter/A4, international address/phone, stable recurrence",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§13, V30-P01-C07; retained.",
+      "rawSourceText": "| 33 | §11 L406–427 | Locale formatting, zone/offset/DST, canonical values, unit/currency identity, Letter/A4, international address/phone, stable recurrence | INCORPORATED_WITH_PROVENANCE | §13, V30-P01-C07; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§11 L406–427",
+      "sourceEndLine": 1803,
+      "sourceOrdinal": 33,
+      "sourceStartLine": 1803,
+      "targetText": "§13, V30-P01-C07; retained.",
+      "v30Targets": [
+        "V30-P01-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Explicit locale-bound parsing, ambiguity confirmation, DST choice, audit representation, canonical conversion/round trip, no reinterpretation",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§13.1–13.4, V30-P01-C07; retained.",
+      "rawSourceText": "| 34 | §11.1 L431–440 | Explicit locale-bound parsing, ambiguity confirmation, DST choice, audit representation, canonical conversion/round trip, no reinterpretation | INCORPORATED_WITH_PROVENANCE | §§13.1–13.4, V30-P01-C07; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§11.1 L431–440",
+      "sourceEndLine": 1804,
+      "sourceOrdinal": 34,
+      "sourceStartLine": 1804,
+      "targetText": "§§13.1–13.4, V30-P01-C07; retained.",
+      "v30Targets": [
+        "V30-P01-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Semantic RTL layout, correct mirroring, mixed-direction tests, Dynamic Type, hit targets, VoiceOver order",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§14.2, 14.4, V30-P02-C03, V30-P02-C04; retained.",
+      "rawSourceText": "| 35 | §12.1 L446–452 | Semantic RTL layout, correct mirroring, mixed-direction tests, Dynamic Type, hit targets, VoiceOver order | INCORPORATED_WITH_PROVENANCE | §§14.2, 14.4, V30-P02-C03, V30-P02-C04; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§12.1 L446–452",
+      "sourceEndLine": 1805,
+      "sourceOrdinal": 35,
+      "sourceStartLine": 1805,
+      "targetText": "§§14.2, 14.4, V30-P02-C03, V30-P02-C04; retained.",
+      "v30Targets": [
+        "V30-P02-C03",
+        "V30-P02-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "Full named hostile Unicode fixture list, including future-language-specific samples",
+      "disposition": "DEFERRED_UNCHANGED",
+      "noCredit": true,
+      "rationale": "§§14.1–14.3, V30-P02-C02, V30-P02-C03, V30-P07-C03; core Arabic/CJK fixtures incorporated, other language-specific fixtures defer.",
+      "rawSourceText": "| 36 | §12.2 L458–474 | Full named hostile Unicode fixture list, including future-language-specific samples | DEFERRED_UNCHANGED | §§14.1–14.3, V30-P02-C02, V30-P02-C03, V30-P07-C03; core Arabic/CJK fixtures incorporated, other language-specific fixtures defer. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§12.2 L458–474",
+      "sourceEndLine": 1806,
+      "sourceOrdinal": 36,
+      "sourceStartLine": 1806,
+      "targetText": "§§14.1–14.3, V30-P02-C02, V30-P02-C03, V30-P07-C03; core Arabic/CJK fixtures incorporated, other language-specific fixtures defer.",
+      "v30Targets": [
+        "V30-P02-C02",
+        "V30-P02-C03",
+        "V30-P07-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Preserve source; versioned derived search; locale normalization; no English-only stemming; stable ties; atomic rebuild; derived-data boundaries",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§15, V30-P02-C05; retained.",
+      "rawSourceText": "| 37 | §12.3 L478–486 | Preserve source; versioned derived search; locale normalization; no English-only stemming; stable ties; atomic rebuild; derived-data boundaries | INCORPORATED_WITH_PROVENANCE | §15, V30-P02-C05; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§12.3 L478–486",
+      "sourceEndLine": 1807,
+      "sourceOrdinal": 37,
+      "sourceStartLine": 1807,
+      "targetText": "§15, V30-P02-C05; retained.",
+      "v30Targets": [
+        "V30-P02-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Complete-locale localized accessibility, control audits, non-color state, and native review",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§14.5, V30-P02-C04, V30-P06-C02, V30-P06-C03; retained.",
+      "rawSourceText": "| 38 | §12.4 L490–499 | Complete-locale localized accessibility, control audits, non-color state, and native review | INCORPORATED_WITH_PROVENANCE | §14.5, V30-P02-C04, V30-P06-C02, V30-P06-C03; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§12.4 L490–499",
+      "sourceEndLine": 1808,
+      "sourceOrdinal": 38,
+      "sourceStartLine": 1808,
+      "targetText": "§14.5, V30-P02-C04, V30-P06-C02, V30-P06-C03; retained.",
+      "v30Targets": [
+        "V30-P02-C04",
+        "V30-P06-C02",
+        "V30-P06-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Explicit report language plus locale/catalog/font/translation/fallback/source provenance; immutable historical replay",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§10.4, §§11.4, 17, V30-P02-C07, V30-P03-C04, V30-P03-C08; retained.",
+      "rawSourceText": "| 39 | §13.1 L505–521 | Explicit report language plus locale/catalog/font/translation/fallback/source provenance; immutable historical replay | INCORPORATED_WITH_PROVENANCE | §10.4, §§11.4, 17, V30-P02-C07, V30-P03-C04, V30-P03-C08; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§13.1 L505–521",
+      "sourceEndLine": 1809,
+      "sourceOrdinal": 39,
+      "sourceStartLine": 1809,
+      "targetText": "§10.4, §§11.4, 17, V30-P02-C07, V30-P03-C04, V30-P03-C08; retained.",
+      "v30Targets": [
+        "V30-P02-C07",
+        "V30-P03-C04",
+        "V30-P03-C08"
+      ]
+    },
+    {
+      "canonicalRequirement": "Unicode deterministic PDF, licensed fonts, bidi/CJK, Letter/A4, no clipping, semantics/extraction, provenance, and no unsupported conformance claim",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§17.1, V30-P03-C04, V30-P06-C04; retained.",
+      "rawSourceText": "| 40 | §13.2 L525–536 | Unicode deterministic PDF, licensed fonts, bidi/CJK, Letter/A4, no clipping, semantics/extraction, provenance, and no unsupported conformance claim | INCORPORATED_WITH_PROVENANCE | §17.1, V30-P03-C04, V30-P06-C04; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§13.2 L525–536",
+      "sourceEndLine": 1810,
+      "sourceOrdinal": 40,
+      "sourceStartLine": 1810,
+      "targetText": "§17.1, V30-P03-C04, V30-P06-C04; retained.",
+      "v30Targets": [
+        "V30-P03-C04",
+        "V30-P06-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "Stable machine JSON/CSV; manifest-backed human CSV; ID-based import; formula protection; explicit delimiters",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§17.2, V30-P03-C05; retained.",
+      "rawSourceText": "| 41 | §13.3 L540–545 | Stable machine JSON/CSV; manifest-backed human CSV; ID-based import; formula protection; explicit delimiters | INCORPORATED_WITH_PROVENANCE | §17.2, V30-P03-C05; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§13.3 L540–545",
+      "sourceEndLine": 1811,
+      "sourceOrdinal": 41,
+      "sourceStartLine": 1811,
+      "targetText": "§17.2, V30-P03-C05; retained.",
+      "v30Targets": [
+        "V30-P03-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Localize email/share/print/label/adapter surfaces while retaining machine IDs",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§18, V30-P03-C06, V30-P03-C09; retained.",
+      "rawSourceText": "| 42 | §13.4 L549–558 | Localize email/share/print/label/adapter surfaces while retaining machine IDs | INCORPORATED_WITH_PROVENANCE | §18, V30-P03-C06, V30-P03-C09; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§13.4 L549–558",
+      "sourceEndLine": 1812,
+      "sourceOrdinal": 42,
+      "sourceStartLine": 1812,
+      "targetText": "§18, V30-P03-C06, V30-P03-C09; retained.",
+      "v30Targets": [
+        "V30-P03-C06",
+        "V30-P03-C09"
+      ]
+    },
+    {
+      "canonicalRequirement": "Licensed, versioned, effective-dated, reviewed, traceable, offline, explicitly activated jurisdiction packs",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§16, §31, V30-P06-C06; retained.",
+      "rawSourceText": "| 43 | §14.1 L566–578 | Licensed, versioned, effective-dated, reviewed, traceable, offline, explicitly activated jurisdiction packs | INCORPORATED_WITH_PROVENANCE | §16, §31, V30-P06-C06; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§14.1 L566–578",
+      "sourceEndLine": 1813,
+      "sourceOrdinal": 43,
+      "sourceStartLine": 1813,
+      "targetText": "§16, §31, V30-P06-C06; retained.",
+      "v30Targets": [
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Country/storefront readiness fields and fail-closed HOLD cross-product",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§31–32, V30-P06-C06, §§37.2, 37.4; retained.",
+      "rawSourceText": "| 44 | §14.2 L582–598 | Country/storefront readiness fields and fail-closed HOLD cross-product | INCORPORATED_WITH_PROVENANCE | §§31–32, V30-P06-C06, §§37.2, 37.4; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§14.2 L582–598",
+      "sourceEndLine": 1814,
+      "sourceOrdinal": 44,
+      "sourceStartLine": 1814,
+      "targetText": "§§31–32, V30-P06-C06, §§37.2, 37.4; retained.",
+      "v30Targets": [
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Legal conclusions require owner/professional evidence",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P06-C06, §25; retained.",
+      "rawSourceText": "| 45 | §14.2 L602 | Legal conclusions require owner/professional evidence | INCORPORATED_WITH_PROVENANCE | V30-P06-C06, §25; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§14.2 L602",
+      "sourceEndLine": 1815,
+      "sourceOrdinal": 45,
+      "sourceStartLine": 1815,
+      "targetText": "V30-P06-C06, §25; retained.",
+      "v30Targets": [
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Binary/store metadata separation; localized metadata/screenshots/support/privacy/export/storefront evidence; reassess privacy/encryption changes",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§32, V30-P06-C05, V30-P06-C06; retained.",
+      "rawSourceText": "| 46 | §15 L606–619 | Binary/store metadata separation; localized metadata/screenshots/support/privacy/export/storefront evidence; reassess privacy/encryption changes | INCORPORATED_WITH_PROVENANCE | §32, V30-P06-C05, V30-P06-C06; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§15 L606–619",
+      "sourceEndLine": 1816,
+      "sourceOrdinal": 46,
+      "sourceStartLine": 1816,
+      "targetText": "§32, V30-P06-C05, V30-P06-C06; retained.",
+      "v30Targets": [
+        "V30-P06-C05",
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Proposed cards cannot execute until bootstrap freezes exact graph/fences/selectors/pins; no shorthand prerequisites",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§20–22 and G1–G4; retained with provisional and post-S10 gates.",
+      "rawSourceText": "| 47 | §16 L623–625 | Proposed cards cannot execute until bootstrap freezes exact graph/fences/selectors/pins; no shorthand prerequisites | INCORPORATED_WITH_PROVENANCE | §§20–22 and G1–G4; retained with provisional and post-S10 gates. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§16 L623–625",
+      "sourceEndLine": 1817,
+      "sourceOrdinal": 47,
+      "sourceStartLine": 1817,
+      "targetText": "§§20–22 and G1–G4; retained with provisional and post-S10 gates.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Closed class semantics and no-credit rules",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§20 and §25; retained.",
+      "rawSourceText": "| 48 | §16.1 L638–649 | Closed class semantics and no-credit rules | INCORPORATED_WITH_PROVENANCE | §20 and §25; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§16.1 L638–649",
+      "sourceEndLine": 1818,
+      "sourceOrdinal": 48,
+      "sourceStartLine": 1818,
+      "targetText": "§20 and §25; retained.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Explicit eligibility for S10, bootstrap, future locales, legal review, and monitor",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§21, §26, §37.4; retained under V30 IDs.",
+      "rawSourceText": "| 49 | §16.2 L720–725 | Explicit eligibility for S10, bootstrap, future locales, legal review, and monitor | INCORPORATED_WITH_PROVENANCE | §21, §26, §37.4; retained under V30 IDs. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§16.2 L720–725",
+      "sourceEndLine": 1819,
+      "sourceOrdinal": 49,
+      "sourceStartLine": 1819,
+      "targetText": "§21, §26, §37.4; retained under V30 IDs.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Exact V24/V23 monitor nonoverlap receipt and flags",
+      "disposition": "REJECTED_WITH_RATIONALE",
+      "noCredit": true,
+      "rationale": "V30-P05-C03, V30-P07-C05, §25; V30 removes V24 IDs, preserves V23 monitor truth, and uses a distinct V30 monitor.",
+      "rawSourceText": "| 50 | §16.2 L727 | Exact V24/V23 monitor nonoverlap receipt and flags | REJECTED_WITH_RATIONALE | V30-P05-C03, V30-P07-C05, §25; V30 removes V24 IDs, preserves V23 monitor truth, and uses a distinct V30 monitor. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§16.2 L727",
+      "sourceEndLine": 1820,
+      "sourceOrdinal": 50,
+      "sourceStartLine": 1820,
+      "targetText": "V30-P05-C03, V30-P07-C05, §25; V30 removes V24 IDs, preserves V23 monitor truth, and uses a distinct V30 monitor.",
+      "v30Targets": [
+        "V30-P05-C03",
+        "V30-P07-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Sequential activation; fenced parallelism; one shared-resource owner; audit lane; static/Windows evidence is never iOS/release credit",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§20, 22, 25, 29; retained.",
+      "rawSourceText": "| 51 | §17 L731–739 | Sequential activation; fenced parallelism; one shared-resource owner; audit lane; static/Windows evidence is never iOS/release credit | INCORPORATED_WITH_PROVENANCE | §§20, 22, 25, 29; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§17 L731–739",
+      "sourceEndLine": 1821,
+      "sourceOrdinal": 51,
+      "sourceStartLine": 1821,
+      "targetText": "§§20, 22, 25, 29; retained.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Complete-locale criteria for keys, placeholders, plurals, unresolved keys/fallback, pseudolocale exclusion, digest, and receipt",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§23.0–23.1, V30-P06-C01, V30-P06-C02; retained with a bounded shipping predicate.",
+      "rawSourceText": "| 52 | §18.1 L745–754 | Complete-locale criteria for keys, placeholders, plurals, unresolved keys/fallback, pseudolocale exclusion, digest, and receipt | INCORPORATED_WITH_PROVENANCE | §§23.0–23.1, V30-P06-C01, V30-P06-C02; retained with a bounded shipping predicate. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§18.1 L745–754",
+      "sourceEndLine": 1822,
+      "sourceOrdinal": 52,
+      "sourceStartLine": 1822,
+      "targetText": "§§23.0–23.1, V30-P06-C01, V30-P06-C02; retained with a bounded shipping predicate.",
+      "v30Targets": [
+        "V30-P06-C01",
+        "V30-P06-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "Cross-language equality of canonical records, IDs, backup, schemas, jurisdiction, authored evidence, and derived-translation invalidation",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§23.2, V30-P01-C05, V30-P03-C01, V30-P06-C04; retained.",
+      "rawSourceText": "| 53 | §18.2 L758–767 | Cross-language equality of canonical records, IDs, backup, schemas, jurisdiction, authored evidence, and derived-translation invalidation | INCORPORATED_WITH_PROVENANCE | §23.2, V30-P01-C05, V30-P03-C01, V30-P06-C04; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§18.2 L758–767",
+      "sourceEndLine": 1823,
+      "sourceOrdinal": 53,
+      "sourceStartLine": 1823,
+      "targetText": "§23.2, V30-P01-C05, V30-P03-C01, V30-P06-C04; retained.",
+      "v30Targets": [
+        "V30-P01-C05",
+        "V30-P03-C01",
+        "V30-P06-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "V24 formatting matrix including fr, de, pt, it, and nl locales",
+      "disposition": "DEFERRED_UNCHANGED",
+      "noCredit": true,
+      "rationale": "§23.3, V30-P01-C07, V30-P07-C03; formatting architecture stays, but exact future-locale rows defer because V30's cohort differs.",
+      "rawSourceText": "| 54 | §18.3 L771–784 | V24 formatting matrix including fr, de, pt, it, and nl locales | DEFERRED_UNCHANGED | §23.3, V30-P01-C07, V30-P07-C03; formatting architecture stays, but exact future-locale rows defer because V30's cohort differs. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§18.3 L771–784",
+      "sourceEndLine": 1824,
+      "sourceOrdinal": 54,
+      "sourceStartLine": 1824,
+      "targetText": "§23.3, V30-P01-C07, V30-P07-C03; formatting architecture stays, but exact future-locale rows defer because V30's cohort differs.",
+      "v30Targets": [
+        "V30-P01-C07",
+        "V30-P07-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Expansion/RTL/device/orientation/Dynamic Type/contrast/VoiceOver/no-clipping UI matrix",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§14.4–14.5, §23.4, V30-P06-C03; retained.",
+      "rawSourceText": "| 55 | §18.4 L788–796 | Expansion/RTL/device/orientation/Dynamic Type/contrast/VoiceOver/no-clipping UI matrix | INCORPORATED_WITH_PROVENANCE | §§14.4–14.5, §23.4, V30-P06-C03; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§18.4 L788–796",
+      "sourceEndLine": 1825,
+      "sourceOrdinal": 55,
+      "sourceStartLine": 1825,
+      "targetText": "§§14.4–14.5, §23.4, V30-P06-C03; retained.",
+      "v30Targets": [
+        "V30-P06-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Script/font/PDF/history/machine-export/CSV output matrix; fixtures are not shipping proof",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§23.5 and §25; retained.",
+      "rawSourceText": "| 56 | §18.5 L800–812 | Script/font/PDF/history/machine-export/CSV output matrix; fixtures are not shipping proof | INCORPORATED_WITH_PROVENANCE | §23.5 and §25; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§18.5 L800–812",
+      "sourceEndLine": 1826,
+      "sourceOrdinal": 56,
+      "sourceStartLine": 1826,
+      "targetText": "§23.5 and §25; retained.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Hosted macOS exact-head iOS evidence only; Windows cannot claim Xcode/Simulator results",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§23.6, V30-P06-C03, V30-P06-C04, V30-P06-C07; retained.",
+      "rawSourceText": "| 57 | §18.6 L816 | Hosted macOS exact-head iOS evidence only; Windows cannot claim Xcode/Simulator results | INCORPORATED_WITH_PROVENANCE | §23.6, V30-P06-C03, V30-P06-C04, V30-P06-C07; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§18.6 L816",
+      "sourceEndLine": 1827,
+      "sourceOrdinal": 57,
+      "sourceStartLine": 1827,
+      "targetText": "§23.6, V30-P06-C03, V30-P06-C04, V30-P06-C07; retained.",
+      "v30Targets": [
+        "V30-P06-C03",
+        "V30-P06-C04",
+        "V30-P06-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "No pre-trigger polling; freeze admissions; verify S10 evidence/reservation/overlap; classify provisional evidence without promotion",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "G5–G6, V30-P05-C01, V30-P05-C04; retained while pre-S10 work remains isolated.",
+      "rawSourceText": "| 58 | §19 G0/Trigger L824–842 | No pre-trigger polling; freeze admissions; verify S10 evidence/reservation/overlap; classify provisional evidence without promotion | INCORPORATED_WITH_PROVENANCE | G5–G6, V30-P05-C01, V30-P05-C04; retained while pre-S10 work remains isolated. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§19 G0/Trigger L824–842",
+      "sourceEndLine": 1828,
+      "sourceOrdinal": 58,
+      "sourceStartLine": 1828,
+      "targetText": "G5–G6, V30-P05-C01, V30-P05-C04; retained while pre-S10 work remains isolated.",
+      "v30Targets": [
+        "V30-P05-C01",
+        "V30-P05-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "Non-force reconciliation; preserve history; exact-main green CI; branch only from exact green main",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "G6–G9, V30-P05-C02, V30-P05-C03, V30-P05-C04, V30-P05-C05; retained.",
+      "rawSourceText": "| 59 | §19 G2–G4 L855–874 | Non-force reconciliation; preserve history; exact-main green CI; branch only from exact green main | INCORPORATED_WITH_PROVENANCE | G6–G9, V30-P05-C02, V30-P05-C03, V30-P05-C04, V30-P05-C05; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§19 G2–G4 L855–874",
+      "sourceEndLine": 1829,
+      "sourceOrdinal": 59,
+      "sourceStartLine": 1829,
+      "targetText": "G6–G9, V30-P05-C02, V30-P05-C03, V30-P05-C04, V30-P05-C05; retained.",
+      "v30Targets": [
+        "V30-P05-C02",
+        "V30-P05-C03",
+        "V30-P05-C04",
+        "V30-P05-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Bootstrap package, single writer/CAS, token, freeze on mismatch, and only the next card",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "G1–G4, V30-P00-C01, V30-P00-C02, V30-P00-C03, V30-P00-C04, V30-P00-C05, V30-P00-C06; retained and strengthened with external owner authority.",
+      "rawSourceText": "| 60 | §19 G5 L878–884 | Bootstrap package, single writer/CAS, token, freeze on mismatch, and only the next card | INCORPORATED_WITH_PROVENANCE | G1–G4, V30-P00-C01, V30-P00-C02, V30-P00-C03, V30-P00-C04, V30-P00-C05, V30-P00-C06; retained and strengthened with external owner authority. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§19 G5 L878–884",
+      "sourceEndLine": 1830,
+      "sourceOrdinal": 60,
+      "sourceStartLine": 1830,
+      "targetText": "G1–G4, V30-P00-C01, V30-P00-C02, V30-P00-C03, V30-P00-C04, V30-P00-C05, V30-P00-C06; retained and strengthened with external owner authority.",
+      "v30Targets": [
+        "V30-P00-C01",
+        "V30-P00-C02",
+        "V30-P00-C03",
+        "V30-P00-C04",
+        "V30-P00-C05",
+        "V30-P00-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "V24-specific four-file digest algorithm and receipt timing",
+      "disposition": "REJECTED_WITH_RATIONALE",
+      "noCredit": true,
+      "rationale": "§27.2; V30 requires accepted V23 digest reuse or a separately authorized versioned schema rather than adopting V24's custom algorithm.",
+      "rawSourceText": "| 61 | §19 integrity L888–896 | V24-specific four-file digest algorithm and receipt timing | REJECTED_WITH_RATIONALE | §27.2; V30 requires accepted V23 digest reuse or a separately authorized versioned schema rather than adopting V24's custom algorithm. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§19 integrity L888–896",
+      "sourceEndLine": 1831,
+      "sourceOrdinal": 61,
+      "sourceStartLine": 1831,
+      "targetText": "§27.2; V30 requires accepted V23 digest reuse or a separately authorized versioned schema rather than adopting V24's custom algorithm.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Worktree separation; existing single writer; local files are not presumed backed up",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§28; retained with V30 paths.",
+      "rawSourceText": "| 62 | §20 L900–908 | Worktree separation; existing single writer; local files are not presumed backed up | INCORPORATED_WITH_PROVENANCE | §28; retained with V30 paths. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§20 L900–908",
+      "sourceEndLine": 1832,
+      "sourceOrdinal": 62,
+      "sourceStartLine": 1832,
+      "targetText": "§28; retained with V30 paths.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "V24 owner defaults for language, translation, report, content, packs, and launch",
+      "disposition": "REJECTED_WITH_RATIONALE",
+      "noCredit": true,
+      "rationale": "§§9, 35, 37.4; decision categories remain, but V30 changes the cohort and defaults.",
+      "rawSourceText": "| 63 | §21 L916–924 | V24 owner defaults for language, translation, report, content, packs, and launch | REJECTED_WITH_RATIONALE | §§9, 35, 37.4; decision categories remain, but V30 changes the cohort and defaults. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§21 L916–924",
+      "sourceEndLine": 1833,
+      "sourceOrdinal": 63,
+      "sourceStartLine": 1833,
+      "targetText": "§§9, 35, 37.4; decision categories remain, but V30 changes the cohort and defaults.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Full preflight, non-force reconciliation, no fabricated evidence, authoritative macOS CI, exact cards/fences",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§§20, 25, 26, 36; retained.",
+      "rawSourceText": "| 64 | §22 L930–934 | Full preflight, non-force reconciliation, no fabricated evidence, authoritative macOS CI, exact cards/fences | INCORPORATED_WITH_PROVENANCE | §§20, 25, 26, 36; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§22 L930–934",
+      "sourceEndLine": 1834,
+      "sourceOrdinal": 64,
+      "sourceStartLine": 1834,
+      "targetText": "§§20, 25, 26, 36; retained.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "V24 U.S./English-only foundation completion definition",
+      "disposition": "REJECTED_WITH_RATIONALE",
+      "noCredit": true,
+      "rationale": "§37.2; V30 requires six complete localizations while keeping U.S.-only availability and foreign HOLD.",
+      "rawSourceText": "| 65 | §23.1 L940–955 | V24 U.S./English-only foundation completion definition | REJECTED_WITH_RATIONALE | §37.2; V30 requires six complete localizations while keeping U.S.-only availability and foreign HOLD. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§23.1 L940–955",
+      "sourceEndLine": 1835,
+      "sourceOrdinal": 65,
+      "sourceStartLine": 1835,
+      "targetText": "§37.2; V30 requires six complete localizations while keeping U.S.-only availability and foreign HOLD.",
+      "v30Targets": []
+    },
+    {
+      "canonicalRequirement": "Future locale requires re-entry, complete catalog/output CI, readiness, review, owner availability; monitor gives no credit",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "§37.4, V30-P07-C03, V30-P07-C04, V30-P07-C05; retained.",
+      "rawSourceText": "| 66 | §23.2 L959 | Future locale requires re-entry, complete catalog/output CI, readiness, review, owner availability; monitor gives no credit | INCORPORATED_WITH_PROVENANCE | §37.4, V30-P07-C03, V30-P07-C04, V30-P07-C05; retained. |",
+      "section": "Appendix A",
+      "sourceAnchor": "§23.2 L959",
+      "sourceEndLine": 1836,
+      "sourceOrdinal": 66,
+      "sourceStartLine": 1836,
+      "targetText": "§37.4, V30-P07-C03, V30-P07-C04, V30-P07-C05; retained.",
+      "v30Targets": [
+        "V30-P07-C03",
+        "V30-P07-C04",
+        "V30-P07-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Verify accepted S10/V23/coordination/refs/dirty/worktrees/digests/reservation",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P05-C01; same post-trigger evidence outcome.",
+      "rawSourceText": "| 67 | P00-C01 L655 | Verify accepted S10/V23/coordination/refs/dirty/worktrees/digests/reservation | INCORPORATED_WITH_PROVENANCE | V30-P05-C01; same post-trigger evidence outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P00-C01 L655",
+      "sourceEndLine": 1837,
+      "sourceOrdinal": 67,
+      "sourceStartLine": 1837,
+      "targetText": "V30-P05-C01; same post-trigger evidence outcome.",
+      "v30Targets": [
+        "V30-P05-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "Non-force V23 reconciliation; S10 wins recomputed shared conflicts; preserve nonoverlap/evidence",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P05-C02; same outcome plus provisional replay.",
+      "rawSourceText": "| 68 | P00-C02 L656 | Non-force V23 reconciliation; S10 wins recomputed shared conflicts; preserve nonoverlap/evidence | INCORPORATED_WITH_PROVENANCE | V30-P05-C02; same outcome plus provisional replay. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P00-C02 L656",
+      "sourceEndLine": 1838,
+      "sourceOrdinal": 68,
+      "sourceStartLine": 1838,
+      "targetText": "V30-P05-C02; same outcome plus provisional replay.",
+      "v30Targets": [
+        "V30-P05-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "Recompute V23 135/136/141/146 without reclassification or fabrication",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P05-C03; same outcome.",
+      "rawSourceText": "| 69 | P00-C03 L657 | Recompute V23 135/136/141/146 without reclassification or fabrication | INCORPORATED_WITH_PROVENANCE | V30-P05-C03; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P00-C03 L657",
+      "sourceEndLine": 1839,
+      "sourceOrdinal": 69,
+      "sourceStartLine": 1839,
+      "targetText": "V30-P05-C03; same outcome.",
+      "v30Targets": [
+        "V30-P05-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Exact reconciled V23 generators/verifiers plus hosted iOS; no Windows iOS claim",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P05-C04, V30-P05-C05; evidence disposition and hosted qualification are split.",
+      "rawSourceText": "| 70 | P00-C04 L658 | Exact reconciled V23 generators/verifiers plus hosted iOS; no Windows iOS claim | INCORPORATED_WITH_PROVENANCE | V30-P05-C04, V30-P05-C05; evidence disposition and hosted qualification are split. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P00-C04 L658",
+      "sourceEndLine": 1840,
+      "sourceOrdinal": 70,
+      "sourceStartLine": 1840,
+      "targetText": "V30-P05-C04, V30-P05-C05; evidence disposition and hosted qualification are split.",
+      "v30Targets": [
+        "V30-P05-C04",
+        "V30-P05-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Authority adoption, one-use admission, single writer, only next card",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P00-C01, V30-P00-C02, V30-P00-C03, V30-P00-C04, V30-P00-C05, V30-P00-C06, V30-P05-C06; provisional admission and canonical adoption are distinct CAS sequences.",
+      "rawSourceText": "| 71 | P00-C05 L659 | Authority adoption, one-use admission, single writer, only next card | INCORPORATED_WITH_PROVENANCE | V30-P00-C01, V30-P00-C02, V30-P00-C03, V30-P00-C04, V30-P00-C05, V30-P00-C06, V30-P05-C06; provisional admission and canonical adoption are distinct CAS sequences. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P00-C05 L659",
+      "sourceEndLine": 1841,
+      "sourceOrdinal": 71,
+      "sourceStartLine": 1841,
+      "targetText": "V30-P00-C01, V30-P00-C02, V30-P00-C03, V30-P00-C04, V30-P00-C05, V30-P00-C06, V30-P05-C06; provisional admission and canonical adoption are distinct CAS sequences.",
+      "v30Targets": [
+        "V30-P00-C01",
+        "V30-P00-C02",
+        "V30-P00-C03",
+        "V30-P00-C04",
+        "V30-P00-C05",
+        "V30-P00-C06",
+        "V30-P05-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Typed BCP-47/IANA/ISO/calendar/unit/jurisdiction model",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P01-C04; same outcome.",
+      "rawSourceText": "| 72 | P01-C01 L665 | Typed BCP-47/IANA/ISO/calendar/unit/jurisdiction model | INCORPORATED_WITH_PROVENANCE | V30-P01-C04; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P01-C01 L665",
+      "sourceEndLine": 1842,
+      "sourceOrdinal": 72,
+      "sourceStartLine": 1842,
+      "targetText": "V30-P01-C04; same outcome.",
+      "v30Targets": [
+        "V30-P01-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "Complete text classification, semantic English catalog/comments, no unexplained raw keys",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P01-C03, V30-P02-C01; split inventory from implementation.",
+      "rawSourceText": "| 73 | P01-C02 L666 | Complete text classification, semantic English catalog/comments, no unexplained raw keys | INCORPORATED_WITH_PROVENANCE | V30-P01-C03, V30-P02-C01; split inventory from implementation. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P01-C02 L666",
+      "sourceEndLine": 1843,
+      "sourceOrdinal": 73,
+      "sourceStartLine": 1843,
+      "targetText": "V30-P01-C03, V30-P02-C01; split inventory from implementation.",
+      "v30Targets": [
+        "V30-P01-C03",
+        "V30-P02-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "System language/fallback/Settings/no mixed state/no swizzle",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P01-C06, V30-P02-C07; split resolution from UI.",
+      "rawSourceText": "| 74 | P01-C03 L667 | System language/fallback/Settings/no mixed state/no swizzle | INCORPORATED_WITH_PROVENANCE | V30-P01-C06, V30-P02-C07; split resolution from UI. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P01-C03 L667",
+      "sourceEndLine": 1844,
+      "sourceOrdinal": 74,
+      "sourceStartLine": 1844,
+      "targetText": "V30-P01-C06, V30-P02-C07; split resolution from UI.",
+      "v30Targets": [
+        "V30-P01-C06",
+        "V30-P02-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Locale-aware formatting/input with canonical stability",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P01-C07; same outcome.",
+      "rawSourceText": "| 75 | P01-C04 L668 | Locale-aware formatting/input with canonical stability | INCORPORATED_WITH_PROVENANCE | V30-P01-C07; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P01-C04 L668",
+      "sourceEndLine": 1845,
+      "sourceOrdinal": 75,
+      "sourceStartLine": 1845,
+      "targetText": "V30-P01-C07; same outcome.",
+      "v30Targets": [
+        "V30-P01-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Bundled catalogs, digest, compatibility, no network dependency",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P01-C08, V30-P04-C07; machinery is separated from the first complete content release.",
+      "rawSourceText": "| 76 | P01-C05 L669 | Bundled catalogs, digest, compatibility, no network dependency | INCORPORATED_WITH_PROVENANCE | V30-P01-C08, V30-P04-C07; machinery is separated from the first complete content release. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P01-C05 L669",
+      "sourceEndLine": 1846,
+      "sourceOrdinal": 76,
+      "sourceStartLine": 1846,
+      "targetText": "V30-P01-C08, V30-P04-C07; machinery is separated from the first complete content release.",
+      "v30Targets": [
+        "V30-P01-C08",
+        "V30-P04-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Historical en-US evidence and durable-identity compatibility",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P01-C05, V30-P03-C08; split invariance from replay.",
+      "rawSourceText": "| 77 | P01-C06 L670 | Historical en-US evidence and durable-identity compatibility | INCORPORATED_WITH_PROVENANCE | V30-P01-C05, V30-P03-C08; split invariance from replay. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P01-C06 L670",
+      "sourceEndLine": 1847,
+      "sourceOrdinal": 77,
+      "sourceStartLine": 1847,
+      "targetText": "V30-P01-C05, V30-P03-C08; split invariance from replay.",
+      "v30Targets": [
+        "V30-P01-C05",
+        "V30-P03-C08"
+      ]
+    },
+    {
+      "canonicalRequirement": "International input/normalization/bidi safety/evidence fidelity",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P02-C02; same outcome.",
+      "rawSourceText": "| 78 | P02-C01 L676 | International input/normalization/bidi safety/evidence fidelity | INCORPORATED_WITH_PROVENANCE | V30-P02-C02; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P02-C01 L676",
+      "sourceEndLine": 1848,
+      "sourceOrdinal": 78,
+      "sourceStartLine": 1848,
+      "targetText": "V30-P02-C02; same outcome.",
+      "v30Targets": [
+        "V30-P02-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "RTL layout/direction/mixed text/navigation/report/focus",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P02-C03; same outcome.",
+      "rawSourceText": "| 79 | P02-C02 L677 | RTL layout/direction/mixed text/navigation/report/focus | INCORPORATED_WITH_PROVENANCE | V30-P02-C03; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P02-C02 L677",
+      "sourceEndLine": 1849,
+      "sourceOrdinal": 79,
+      "sourceStartLine": 1849,
+      "targetText": "V30-P02-C03; same outcome.",
+      "v30Targets": [
+        "V30-P02-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Expansion/Dynamic Type/accessibility/non-Latin typography/font policy",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P02-C04; same outcome.",
+      "rawSourceText": "| 80 | P02-C03 L678 | Expansion/Dynamic Type/accessibility/non-Latin typography/font policy | INCORPORATED_WITH_PROVENANCE | V30-P02-C04; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P02-C03 L678",
+      "sourceEndLine": 1850,
+      "sourceOrdinal": 80,
+      "sourceStartLine": 1850,
+      "targetText": "V30-P02-C04; same outcome.",
+      "v30Targets": [
+        "V30-P02-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "Derived locale search/sort/index lifecycle and canonical safety",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P02-C05; same outcome.",
+      "rawSourceText": "| 81 | P02-C04 L679 | Derived locale search/sort/index lifecycle and canonical safety | INCORPORATED_WITH_PROVENANCE | V30-P02-C05; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P02-C04 L679",
+      "sourceEndLine": 1851,
+      "sourceOrdinal": 81,
+      "sourceStartLine": 1851,
+      "targetText": "V30-P02-C05; same outcome.",
+      "v30Targets": [
+        "V30-P02-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Pseudo/RTL/long-text/screenshots/missing-key/fallback harness with no analytics",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P02-C06; same outcome.",
+      "rawSourceText": "| 82 | P02-C05 L680 | Pseudo/RTL/long-text/screenshots/missing-key/fallback harness with no analytics | INCORPORATED_WITH_PROVENANCE | V30-P02-C06; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P02-C05 L680",
+      "sourceEndLine": 1852,
+      "sourceOrdinal": 82,
+      "sourceStartLine": 1852,
+      "targetText": "V30-P02-C06; same outcome.",
+      "v30Targets": [
+        "V30-P02-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Authored-content language and derived-translation provenance/lifecycle",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P03-C01; same outcome.",
+      "rawSourceText": "| 83 | P03-C01 L686 | Authored-content language and derived-translation provenance/lifecycle | INCORPORATED_WITH_PROVENANCE | V30-P03-C01; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P03-C01 L686",
+      "sourceEndLine": 1853,
+      "sourceOrdinal": 83,
+      "sourceStartLine": 1853,
+      "targetText": "V30-P03-C01; same outcome.",
+      "v30Targets": [
+        "V30-P03-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "Unicode accessible PDF, qualified font, Letter/A4, exact historical provenance",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P03-C04; same outcome.",
+      "rawSourceText": "| 84 | P03-C02 L687 | Unicode accessible PDF, qualified font, Letter/A4, exact historical provenance | INCORPORATED_WITH_PROVENANCE | V30-P03-C04; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P03-C02 L687",
+      "sourceEndLine": 1854,
+      "sourceOrdinal": 84,
+      "sourceStartLine": 1854,
+      "targetText": "V30-P03-C04; same outcome.",
+      "v30Targets": [
+        "V30-P03-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "Stable JSON/CSV/import plus localized human views and canonical round trip",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P03-C05; same outcome.",
+      "rawSourceText": "| 85 | P03-C03 L688 | Stable JSON/CSV/import plus localized human views and canonical round trip | INCORPORATED_WITH_PROVENANCE | V30-P03-C05; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P03-C03 L688",
+      "sourceEndLine": 1855,
+      "sourceOrdinal": 85,
+      "sourceStartLine": 1855,
+      "targetText": "V30-P03-C05; same outcome.",
+      "v30Targets": [
+        "V30-P03-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Separate UI/template/guidance/evidence/report/regional content",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P03-C01, V30-P03-C06; split model from surfaces.",
+      "rawSourceText": "| 86 | P03-C04 L689 | Separate UI/template/guidance/evidence/report/regional content | INCORPORATED_WITH_PROVENANCE | V30-P03-C01, V30-P03-C06; split model from surfaces. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P03-C04 L689",
+      "sourceEndLine": 1856,
+      "sourceOrdinal": 86,
+      "sourceStartLine": 1856,
+      "targetText": "V30-P03-C01, V30-P03-C06; split model from surfaces.",
+      "v30Targets": [
+        "V30-P03-C01",
+        "V30-P03-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Per-locale OCR/dictation/voice/speech truth; no implied support",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P03-C07; same outcome.",
+      "rawSourceText": "| 87 | P03-C05 L690 | Per-locale OCR/dictation/voice/speech truth; no implied support | INCORPORATED_WITH_PROVENANCE | V30-P03-C07; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P03-C05 L690",
+      "sourceEndLine": 1857,
+      "sourceOrdinal": 87,
+      "sourceStartLine": 1857,
+      "targetText": "V30-P03-C07; same outcome.",
+      "v30Targets": [
+        "V30-P03-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Termbase/style/vendor/review/fallback/offline/correction process",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P04-C01; same outcome.",
+      "rawSourceText": "| 88 | P04-C01 L696 | Termbase/style/vendor/review/fallback/offline/correction process | INCORPORATED_WITH_PROVENANCE | V30-P04-C01; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P04-C01 L696",
+      "sourceEndLine": 1858,
+      "sourceOrdinal": 88,
+      "sourceStartLine": 1858,
+      "targetText": "V30-P04-C01; same outcome.",
+      "v30Targets": [
+        "V30-P04-C01"
+      ]
+    },
+    {
+      "canonicalRequirement": "Deferred es-MX/es-ES complete Spanish release",
+      "disposition": "REJECTED_WITH_RATIONALE",
+      "noCredit": true,
+      "rationale": "V30-P04-C02; V30 implements base es with es-US/es-MX/es-419 validation and does not promise es-ES.",
+      "rawSourceText": "| 89 | P04-C02 L697 | Deferred es-MX/es-ES complete Spanish release | REJECTED_WITH_RATIONALE | V30-P04-C02; V30 implements base es with es-US/es-MX/es-419 validation and does not promise es-ES. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P04-C02 L697",
+      "sourceEndLine": 1859,
+      "sourceOrdinal": 89,
+      "sourceStartLine": 1859,
+      "targetText": "V30-P04-C02; V30 implements base es with es-US/es-MX/es-419 validation and does not promise es-ES.",
+      "v30Targets": [
+        "V30-P04-C02"
+      ]
+    },
+    {
+      "canonicalRequirement": "Deferred fr/de/pt/it/nl complete releases",
+      "disposition": "DEFERRED_UNCHANGED",
+      "noCredit": true,
+      "rationale": "V30-P07-C03, §§9.3–9.4; retained as future research/re-entry, not initial cards.",
+      "rawSourceText": "| 90 | P04 locale-card block L698–702 | Deferred fr/de/pt/it/nl complete releases | DEFERRED_UNCHANGED | V30-P07-C03, §§9.3–9.4; retained as future research/re-entry, not initial cards. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P04 locale-card block L698–702",
+      "sourceEndLine": 1860,
+      "sourceOrdinal": 90,
+      "sourceStartLine": 1860,
+      "targetText": "V30-P07-C03, §§9.3–9.4; retained as future research/re-entry, not initial cards.",
+      "v30Targets": [
+        "V30-P07-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "Wave-2 validation for CJK/Turkish/Vietnamese/Russian/Arabic without shipping claim",
+      "disposition": "REJECTED_WITH_RATIONALE",
+      "noCredit": true,
+      "rationale": "V30-P02-C02, V30-P02-C03, V30-P02-C04, V30-P02-C05, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06, V30-P07-C03; CJK/Vietnamese/Korean become required, others remain readiness/next wave.",
+      "rawSourceText": "| 91 | P04-C08 L703 | Wave-2 validation for CJK/Turkish/Vietnamese/Russian/Arabic without shipping claim | REJECTED_WITH_RATIONALE | V30-P02-C02, V30-P02-C03, V30-P02-C04, V30-P02-C05, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06, V30-P07-C03; CJK/Vietnamese/Korean become required, others remain readiness/next wave. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P04-C08 L703",
+      "sourceEndLine": 1861,
+      "sourceOrdinal": 91,
+      "sourceStartLine": 1861,
+      "targetText": "V30-P02-C02, V30-P02-C03, V30-P02-C04, V30-P02-C05, V30-P04-C03, V30-P04-C04, V30-P04-C05, V30-P04-C06, V30-P07-C03; CJK/Vietnamese/Korean become required, others remain readiness/next wave.",
+      "v30Targets": [
+        "V30-P02-C02",
+        "V30-P02-C03",
+        "V30-P02-C04",
+        "V30-P02-C05",
+        "V30-P04-C03",
+        "V30-P04-C04",
+        "V30-P04-C05",
+        "V30-P04-C06",
+        "V30-P07-C03"
+      ]
+    },
+    {
+      "canonicalRequirement": "U.S./en row plus future HOLD; import/export/assisted-input truth; language is not jurisdiction",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P06-C06; same effect with a multilingual binary cohort.",
+      "rawSourceText": "| 92 | P05-C01 L709 | U.S./en row plus future HOLD; import/export/assisted-input truth; language is not jurisdiction | INCORPORATED_WITH_PROVENANCE | V30-P06-C06; same effect with a multilingual binary cohort. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P05-C01 L709",
+      "sourceEndLine": 1862,
+      "sourceOrdinal": 92,
+      "sourceStartLine": 1862,
+      "targetText": "V30-P06-C06; same effect with a multilingual binary cohort.",
+      "v30Targets": [
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "U.S. metadata/screenshots plus future metadata workflow separate from binary",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P06-C05; same outcome.",
+      "rawSourceText": "| 93 | P05-C02 L710 | U.S. metadata/screenshots plus future metadata workflow separate from binary | INCORPORATED_WITH_PROVENANCE | V30-P06-C05; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P05-C02 L710",
+      "sourceEndLine": 1863,
+      "sourceOrdinal": 93,
+      "sourceStartLine": 1863,
+      "targetText": "V30-P06-C05; same outcome.",
+      "v30Targets": [
+        "V30-P06-C05"
+      ]
+    },
+    {
+      "canonicalRequirement": "Qualified U.S. legal/privacy/retention/export decisions; no fabricated conclusion",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P06-C06; same outcome.",
+      "rawSourceText": "| 94 | P05-C03 L711 | Qualified U.S. legal/privacy/retention/export decisions; no fabricated conclusion | INCORPORATED_WITH_PROVENANCE | V30-P06-C06; same outcome. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P05-C03 L711",
+      "sourceEndLine": 1864,
+      "sourceOrdinal": 94,
+      "sourceStartLine": 1864,
+      "targetText": "V30-P06-C06; same outcome.",
+      "v30Targets": [
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "canonicalRequirement": "Exact-head hosted UI for formatting/reports/offline/accessibility/pseudo/RTL/fallback",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P06-C03, V30-P06-C04; split UI from output qualification.",
+      "rawSourceText": "| 95 | P05-C04 L712 | Exact-head hosted UI for formatting/reports/offline/accessibility/pseudo/RTL/fallback | INCORPORATED_WITH_PROVENANCE | V30-P06-C03, V30-P06-C04; split UI from output qualification. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P05-C04 L712",
+      "sourceEndLine": 1865,
+      "sourceOrdinal": 95,
+      "sourceStartLine": 1865,
+      "targetText": "V30-P06-C03, V30-P06-C04; split UI from output qualification.",
+      "v30Targets": [
+        "V30-P06-C03",
+        "V30-P06-C04"
+      ]
+    },
+    {
+      "canonicalRequirement": "U.S./English linguistic, accessibility, and physical-device foundation acceptance",
+      "disposition": "DEFERRED_UNCHANGED",
+      "noCredit": true,
+      "rationale": "V30-P06-C02, V30-P06-C03, V30-P06-C07; linguistic/accessibility/hosted acceptance is incorporated, while separate owner physical-device acceptance remains deferred until an authority provides a device and exact evidence contract.",
+      "rawSourceText": "| 96 | P05-C05 L713 | U.S./English linguistic, accessibility, and physical-device foundation acceptance | DEFERRED_UNCHANGED | V30-P06-C02, V30-P06-C03, V30-P06-C07; linguistic/accessibility/hosted acceptance is incorporated, while separate owner physical-device acceptance remains deferred until an authority provides a device and exact evidence contract. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P05-C05 L713",
+      "sourceEndLine": 1866,
+      "sourceOrdinal": 96,
+      "sourceStartLine": 1866,
+      "targetText": "V30-P06-C02, V30-P06-C03, V30-P06-C07; linguistic/accessibility/hosted acceptance is incorporated, while separate owner physical-device acceptance remains deferred until an authority provides a device and exact evidence contract.",
+      "v30Targets": [
+        "V30-P06-C02",
+        "V30-P06-C03",
+        "V30-P06-C07"
+      ]
+    },
+    {
+      "canonicalRequirement": "Locale/storefront monitor; owner availability/rollback; no V23 duplication or automatic promotion",
+      "disposition": "INCORPORATED_WITH_PROVENANCE",
+      "noCredit": true,
+      "rationale": "V30-P07-C05; monitor/no-credit behavior retained; V24's exact nonoverlap receipt is rejected separately in row 50.",
+      "rawSourceText": "| 97 | P05-C06 L714 | Locale/storefront monitor; owner availability/rollback; no V23 duplication or automatic promotion | INCORPORATED_WITH_PROVENANCE | V30-P07-C05; monitor/no-credit behavior retained; V24's exact nonoverlap receipt is rejected separately in row 50. |",
+      "section": "Appendix A",
+      "sourceAnchor": "P05-C06 L714",
+      "sourceEndLine": 1867,
+      "sourceOrdinal": 97,
+      "sourceStartLine": 1867,
+      "targetText": "V30-P07-C05; monitor/no-credit behavior retained; V24's exact nonoverlap receipt is rejected separately in row 50.",
+      "v30Targets": [
+        "V30-P07-C05"
+      ]
+    }
+  ],
+  "schema": "V30V24DispositionProjectionV1",
+  "source": {
+    "blueprintPath": "EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+    "blueprintSha256": "28facff3aca8bc4582031e3f0d609b9ab4eb26cd91d6c4b35144596a346b154e",
+    "section": "## Appendix A — V24 normative-requirement disposition matrix"
+  },
+  "v24SourcePath": "C:\\Users\\palat\\OneDrive\\Desktop\\ASSETROUNDS_V24_GLOBALIZATION_FOUNDATION_BLUEPRINT.md",
+  "v24SourceSha256": "370c378bbb3b567c465d217111e8de3342581916e260b234a32511e807c01d94"
+}
