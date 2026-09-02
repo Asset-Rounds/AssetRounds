@@ -5105,9 +5105,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             minimumWorkValidationKeyboardAccessorySource.startIndex
         for label in minimumWorkValidationPreTapSemanticLabels {
             let token = #"return "\#(label)""#
-            let searchRange =
-                minimumWorkValidationPreTapSemanticCursor
-                ..<minimumWorkValidationKeyboardAccessorySource.endIndex
+            let searchRange = minimumWorkValidationPreTapSemanticCursor..<minimumWorkValidationKeyboardAccessorySource.endIndex
             XCTAssertEqual(
                 minimumWorkValidationKeyboardAccessorySource.components(
                     separatedBy: token
