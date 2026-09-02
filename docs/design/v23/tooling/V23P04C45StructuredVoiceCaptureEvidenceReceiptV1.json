@@ -1,0 +1,144 @@
+{
+  "acceptanceCredit": false,
+  "authority": {
+    "allocationDigest": "48903c96743befdea2a67f0769a5ffe39eadff2d1d85cf5c1a29a42c0bce8114",
+    "appBaseHead": "3ca602516919e0cac714c8bcc955efb1750d71d2",
+    "appBaseTree": "dcb3ab0903dee0e6f3615aef69135867213bb6fc",
+    "cardID": "V23-P04-C45",
+    "contextDigest": "822a835e2a96f493cc9b9f2f179c4a1955b8978780c9e3f920e23a1afcf8aa39",
+    "coordinationHead": "da8c218d6fbced6c3b52b8eb3393b477e3ef039b",
+    "coordinationTree": "7d89015133a0a61cb9bf503537f5939aa9bd725b",
+    "fenceDigest": "c6692ecaa2cdaab228039682390dc3777e2e35182aba3d5afc8edbedc942dd3b",
+    "ledgerDigest": "4b82cb5b75fb8d6a0f8a66416acb8a6696233bbce3f5141fe6e672a18e9361a3",
+    "ordinal": 133,
+    "pathFence": [
+      "FieldEvidenceApp/Info.plist",
+      "FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift",
+      "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
+      "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+      "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/VoiceCapture/V23P04C45StructuredVoiceCaptureCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C45StructuredVoiceCaptureUITests.swift",
+      "Scripts/v23/p04_c45_contracts.py",
+      "Scripts/v23/generate_p04_c45_contracts.py",
+      "Scripts/v23/verify_p04_c45_contracts.py",
+      "Scripts/v23/structured-voice-capture.schema.json",
+      "docs/design/v23/tooling/V23P04C45StructuredVoiceCaptureContractV1.json",
+      "docs/design/v23/tooling/V23P04C45StructuredVoiceCaptureEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C45BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C45-tooling-manifest.json"
+    ],
+    "prerequisiteDigest": "fc5a6db5fa29bfe5d2311a7bb3a5166176bf85c5f02ccbd16080a5db402a3adf",
+    "projectionDigest": "f6316162513ee5e6e8eecec09b637c0b88f6dc09355bcb88e5ba93e1b6768ced",
+    "sequence": 580,
+    "transitionDigest": "2c10eb943ed74267e0f30acd12ddf80a4136e2c989ab699e727bad0c87525fc9"
+  },
+  "cardID": "V23-P04-C45",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "ordinal": 133,
+  "policy": {
+    "acceptedOrEditedC56ReviewOnlyMayReachExistingUniversalDraftCheckpointAuthority": true,
+    "automaticWrite": false,
+    "captureAudioTranscriptConfidenceSessionCallbackState": "NONPERSISTENT",
+    "cloudOrNetworkFallback": false,
+    "concreteOnDevicePushToTalkAdapter": true,
+    "continuousListening": false,
+    "contractOwners": [
+      "StructuredVoiceCaptureContextV1",
+      "VoiceScratchDispositionV1"
+    ],
+    "infoPlistSpeechRecognitionUsageDescriptionRequired": true,
+    "newMigration": false,
+    "newModel": false,
+    "newRoot": false,
+    "newSchema": false,
+    "newStore": false,
+    "newWriter": false,
+    "recordWorkViewAdoption": false,
+    "recordingArchive": false,
+    "rootOrNetworkOrTelemetry": false,
+    "wakeWord": false
+  },
+  "receipt": "StructuredVoiceCaptureEvidenceReceiptV1",
+  "scenarios": [
+    {
+      "evidenceID": "V23-P04-C45-G01",
+      "id": "G01"
+    },
+    {
+      "evidenceID": "V23-P04-C45-A01",
+      "id": "A01"
+    },
+    {
+      "evidenceID": "V23-P04-C45-H01",
+      "id": "H01"
+    },
+    {
+      "evidenceID": "V23-P04-C45-I01",
+      "id": "I01"
+    },
+    {
+      "evidenceID": "V23-P04-C45-R01",
+      "id": "R01"
+    }
+  ],
+  "schema": "V23P04C45StructuredVoiceCaptureToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Info.plist",
+      "sha256": "b9cfeba997aebc6503f63e3234d447643c3139101ac11c43cb3a84a938fdb40f",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift",
+      "sha256": "46e9d97e0d6540cca1cfb4bb9783193ab5144246b1247c58cfc5803494e5c148",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift",
+      "sha256": "775d44f62d257b8748136a7eacd6b95a2a382c784c2275052fbdd1bd212dbafa",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
+      "sha256": "03d56670fa477ce24e561bb32c59c67ca162bfcad5f0195aabc2f647c3f3b638",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+      "sha256": "372f7e93a319db04be167f890ed8347261549cb061642b7a63e37dc23d83da18",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
+      "sha256": "d217fbe0f59eaf7c9ddf56db38fa5a86370f6378c00123a8c800a9722f284e73",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/VoiceCapture/V23P04C45StructuredVoiceCaptureCorpusV1.json",
+      "sha256": "cd2760bec8473df331c8e6a5ef8209dd6d47b6ee940e536ad8707d87e17af1e3",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C45StructuredVoiceCaptureUITests.swift",
+      "sha256": "8f849bd7f438bfe7a70511ad88806b4698bb983a871c9a563d3f8453eeab2b78",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

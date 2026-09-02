@@ -5,7 +5,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Take photos or record short video evidence only when you choose a camera action. Media stays on this iPhone unless you explicitly export or share it.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Record short audio evidence only when you choose Record Audio. Recordings stay on this iPhone unless you explicitly export or share them.</string>
+	<string>Record short audio evidence or transcribe voice details only when you choose those actions. Audio evidence stays on this iPhone unless you explicitly export or share it; voice-detail audio is temporary and not archived.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Transcribe user-triggered voice details on this iPhone into reviewable structured-work suggestions. You can type instead; voice audio is not archived or sent to a cloud recognition service.</string>
 	<key>FieldEvidenceIncumbentFileAdapterStatus</key>
 	<string>DISABLED_NO_SELECTED_PROFILE</string>
 	<key>FieldEvidenceIncumbentFileAdapterDeclaresProviderType</key>
