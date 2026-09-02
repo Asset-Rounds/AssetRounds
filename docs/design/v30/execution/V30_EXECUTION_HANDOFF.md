@@ -1264,3 +1264,269 @@ This entry does not self-record its containing transition commit. Phase 10 was n
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+
+## Card 8 of 55 — Customer-needs and scope-disposition register
+
+```json
+{
+  "blockers": [],
+  "candidate": {
+    "base": "f12031577888e980f300a41787ce46c946ea13c9",
+    "baseTree": "ae8384a385b0c588928af500ce78a3dc508d74ac",
+    "changedPaths": [
+      "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift",
+      "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json",
+      "docs/design/v30/research/V30KeywordEvidenceBindingV1.json"
+    ],
+    "head": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+    "tree": "c783e1ea1c28466025978aebf428dd7c43a1a5b2"
+  },
+  "checkpoint": {
+    "head": "d7bdbc360bb676ec7180acd51dd0e20e81f8a4e5",
+    "ledgerDigest": "6c2d515cfa2d2e9b8a5786f19c17003bd547882a84ee97d368f0a5a0be8acace",
+    "sequence": 18
+  },
+  "evidence": {
+    "commands": [
+      {
+        "command": "python -B C:/Users/palat/AppData/Local/Temp/v30-p01-c02-validate.py",
+        "result": "PASS_AT_EXACT_IMPLEMENTATION_HEAD"
+      },
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS_WINDOWS_STATIC_NO_NATIVE_CREDIT"
+      },
+      {
+        "command": "git diff HEAD^ HEAD --check",
+        "result": "PASS"
+      }
+    ],
+    "independentAudits": [
+      {
+        "agent": "blueprint_review",
+        "result": "PASS_AFTER_FENCED_TEST_CORRECTIONS",
+        "scope": "23dispositions,16reviewrecords,closed enum,exactcohort/USscope,hashbindings,non-authorizingfuture references andSwiftassertions"
+      },
+      {
+        "agent": "package_audit",
+        "currentArtifactSHA256": "59349de5f636cc4f86b1de14719fd1bf624cd86753bcfa069faf0565e8123e5f",
+        "result": "PASS_8_SOURCE_ROWS_11_PAYLOADS",
+        "scope": "exactsourceJSONpointers,metrics/status/provenance,canonicalhashes,datasetcountry/language,25historicalclusters"
+      }
+    ],
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Eight core needs mapped to 23 bounded dispositions; dated16-review US sample and8sourcephrases retain evidence limits. No new backend,module,vertical,metadata publication or current V23 downgrade authority.",
+    "static": {
+      "cardID": "V30-P01-C02",
+      "coreNeeds": 8,
+      "dispositionRows": 23,
+      "files": [
+        {
+          "path": "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json",
+          "sha256": "c25a0e26548549500a0d6ae6d6b7038bf9856eccf1ab10a7678c146ae52f22a2"
+        },
+        {
+          "path": "docs/design/v30/research/V30KeywordEvidenceBindingV1.json",
+          "sha256": "59349de5f636cc4f86b1de14719fd1bf624cd86753bcfa069faf0565e8123e5f"
+        },
+        {
+          "path": "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift",
+          "sha256": "86f92964c65f537eb65b567d0105f79bfb25c6dbed0b852bd727794ee073c7c1"
+        }
+      ],
+      "historicalFutureExcludedClusters": 25,
+      "keywordPayloads": 11,
+      "keywordPhrases": 8,
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "nativeTestMethods": 4,
+      "negativeVectorsRejected": [
+        "unknown disposition",
+        "backend authority escalation",
+        "historical audit promoted to current",
+        "idea promoted to measured",
+        "false localized demand",
+        "review promoted to verified defect",
+        "unarmed monitor activated",
+        "foreign storefront activated",
+        "invented successor card",
+        "source metric altered"
+      ],
+      "observedHead": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+      "recentUSReviews": 16,
+      "result": "PASS",
+      "sourcePages": 6
+    },
+    "validatorSHA256": "b441b59cb0cc451b05a6d62249136bd2e9e86d2a41cc8c821327128bbd0fe93a"
+  },
+  "frozenV23": {
+    "branch": "phase/v23-expansion",
+    "cardCount": 146,
+    "edgeCount": 230,
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225",
+    "unfinishedCards": [
+      135,
+      136,
+      141,
+      146
+    ],
+    "worktree": "C:\\AssetRounds-v23-expansion"
+  },
+  "native": "NOT_EXECUTED_NO_NATIVE_CREDIT; no runner/Xcode/Simulator/xcresult/screenshots on static governance card",
+  "nextUnstartedCard": "V30-P01-C03",
+  "operationalProvenance": [
+    "Precommit extraction initially selected excluded instead of source enum exclude; correctedwithinCard8andretained25historicalrows.",
+    "Independentreview requested competitorhash andfrozencohort/V23stateSwiftassertions;bothaddedbeforecommit.",
+    "Independent keywordaudit initiallyprinted stale572ca61 rawhash fromearlierread; freshreadconfirmedcurrent59349de5 exact25clusters. No source-row evidence changed."
+  ],
+  "reconciliation": "Replay or reimplement this exact card delta after valid accepted S; preserve all provenance and rerun invalidated evidence. No wholesale merge or automatic promotion.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "correctionOf": "",
+        "evidence": {
+          "commands": [
+            {
+              "command": "python -B C:/Users/palat/AppData/Local/Temp/v30-p01-c02-validate.py",
+              "result": "PASS_AT_EXACT_IMPLEMENTATION_HEAD"
+            },
+            {
+              "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+              "result": "PASS_WINDOWS_STATIC_NO_NATIVE_CREDIT"
+            },
+            {
+              "command": "git diff HEAD^ HEAD --check",
+              "result": "PASS"
+            }
+          ],
+          "independentAudits": [
+            {
+              "agent": "blueprint_review",
+              "result": "PASS_AFTER_FENCED_TEST_CORRECTIONS",
+              "scope": "23dispositions,16reviewrecords,closed enum,exactcohort/USscope,hashbindings,non-authorizingfuture references andSwiftassertions"
+            },
+            {
+              "agent": "package_audit",
+              "currentArtifactSHA256": "59349de5f636cc4f86b1de14719fd1bf624cd86753bcfa069faf0565e8123e5f",
+              "result": "PASS_8_SOURCE_ROWS_11_PAYLOADS",
+              "scope": "exactsourceJSONpointers,metrics/status/provenance,canonicalhashes,datasetcountry/language,25historicalclusters"
+            }
+          ],
+          "outcome": "Eight core needs mapped to 23 bounded dispositions; dated16-review US sample and8sourcephrases retain evidence limits. No new backend,module,vertical,metadata publication or current V23 downgrade authority.",
+          "static": {
+            "cardID": "V30-P01-C02",
+            "coreNeeds": 8,
+            "dispositionRows": 23,
+            "files": [
+              {
+                "path": "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json",
+                "sha256": "c25a0e26548549500a0d6ae6d6b7038bf9856eccf1ab10a7678c146ae52f22a2"
+              },
+              {
+                "path": "docs/design/v30/research/V30KeywordEvidenceBindingV1.json",
+                "sha256": "59349de5f636cc4f86b1de14719fd1bf624cd86753bcfa069faf0565e8123e5f"
+              },
+              {
+                "path": "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift",
+                "sha256": "86f92964c65f537eb65b567d0105f79bfb25c6dbed0b852bd727794ee073c7c1"
+              }
+            ],
+            "historicalFutureExcludedClusters": 25,
+            "keywordPayloads": 11,
+            "keywordPhrases": 8,
+            "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+            "nativeTestMethods": 4,
+            "negativeVectorsRejected": [
+              "unknown disposition",
+              "backend authority escalation",
+              "historical audit promoted to current",
+              "idea promoted to measured",
+              "false localized demand",
+              "review promoted to verified defect",
+              "unarmed monitor activated",
+              "foreign storefront activated",
+              "invented successor card",
+              "source metric altered"
+            ],
+            "observedHead": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+            "recentUSReviews": 16,
+            "result": "PASS",
+            "sourcePages": 6
+          },
+          "validatorSHA256": "b441b59cb0cc451b05a6d62249136bd2e9e86d2a41cc8c821327128bbd0fe93a"
+        },
+        "head": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+        "parent": "f12031577888e980f300a41787ce46c946ea13c9",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "tree": "c783e1ea1c28466025978aebf428dd7c43a1a5b2"
+      }
+    ],
+    "changedPaths": [
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "cbf5d636579f836678bc01b1a879095f40e0433b",
+          "sha256": "86f92964c65f537eb65b567d0105f79bfb25c6dbed0b852bd727794ee073c7c1",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "b27b37b27dfcb70450453ff4f971c04c1b0502bc",
+          "sha256": "c25a0e26548549500a0d6ae6d6b7038bf9856eccf1ab10a7678c146ae52f22a2",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "4cda1ff13dfe8fae27085fa2d2db668d02ff5b81",
+          "sha256": "59349de5f636cc4f86b1de14719fd1bf624cd86753bcfa069faf0565e8123e5f",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "docs/design/v30/research/V30KeywordEvidenceBindingV1.json"
+      }
+    ],
+    "compatibility": "UNASSESSED_PRE_S10",
+    "evidenceDisposition": "UNASSESSED_PRE_S10",
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+      "tree": "c783e1ea1c28466025978aebf428dd7c43a1a5b2"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "s10SharedPaths": [],
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false"
+}
+```
+
+This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.

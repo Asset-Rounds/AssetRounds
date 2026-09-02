@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 8 of 55 — Customer-needs and scope-disposition register
+Card 9 of 55 — Complete text-bearing surface inventory
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Convert review/research themes into PRESERVE_IN_V30, VERIFY_EXISTING_BEHAVIOR, FUTURE_CARD, or REJECT_SCOPE. Bind the verified keyword package without authorizing new backends or modules.",
+    "required": "Inventory UI, accessibility, permissions, onboarding, help, errors, recovery, destructive actions, notifications, reports, PDFs, CSV/JSON, templates, content packs, labels, share/email/print, commerce, metadata, tests, developer text, user-authored content, and machine data. Give every item an owner and disposition.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "d52cbd38e19b51bcd8c83f6d5fca768ace817d90",
-    "tree": "84da9fd23f74d859e51b53e031fff4ad2d79693b"
+    "head": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+    "tree": "c783e1ea1c28466025978aebf428dd7c43a1a5b2"
   },
-  "cardID": "V30-P01-C02",
+  "cardID": "V30-P01-C03",
   "class": "FOUNDATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,7 +33,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P01-C01"
+    "V30-P01-C02"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -74,40 +74,48 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json",
-        "purpose": "Bounded customer-need disposition register.",
+        "path": "docs/design/v30/inventory/V30TextBearingSurfaceInventoryV1.json",
+        "purpose": "Exhaustive owned text-bearing surface inventory.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/research/V30KeywordEvidenceBindingV1.json",
-        "purpose": "Verified keyword-package binding and non-authorizing disposition.",
+        "path": "docs/design/v30/inventory/V30TextSurfaceDispositionSchemaV1.json",
+        "purpose": "Schema for owner/disposition records.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift",
-        "purpose": "Scope-disposition invariants.",
+        "path": "Scripts/v30/validate_v30_text_surface_inventory.py",
+        "purpose": "Inventory coverage and ownership validator.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "FieldEvidenceAppTests/V30_P01_C03TextSurfaceInventoryTests.swift",
+        "purpose": "Text-surface inventory evidence.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P01-C02",
+    "cardID": "V30-P01-C03",
     "class": "FOUNDATION",
     "directPrerequisites": [
-      "V30-P01-C01"
+      "V30-P01-C02"
     ],
-    "ordinal": 8,
+    "ordinal": 9,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Customer-needs and scope-disposition register"
+    "title": "Complete text-bearing surface inventory"
   },
   "fenceSource": {
-    "cardID": "V30-P01-C02",
+    "cardID": "V30-P01-C03",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -118,39 +126,38 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P01-C03",
+  "next": "V30-P01-C04",
   "observedCoordination": {
-    "head": "7f84f474d7288321274a4a812a1eff1424c5fb29",
-    "ledgerDigest": "c70bc5fa232386fbbe25970547cfce2876cedb5f476f4b5ecdd196d9590eadbb",
-    "sequence": 16
+    "head": "d7bdbc360bb676ec7180acd51dd0e20e81f8a4e5",
+    "ledgerDigest": "6c2d515cfa2d2e9b8a5786f19c17003bd547882a84ee97d368f0a5a0be8acace",
+    "sequence": 18
   },
-  "ordinal": 8,
-  "outcome": "Convert review/research themes into PRESERVE_IN_V30, VERIFY_EXISTING_BEHAVIOR, FUTURE_CARD, or REJECT_SCOPE. Bind the verified keyword package without authorizing new backends or modules.",
-  "payloadDigest": "523e76af8a2415ad21982c68e4285449f02f2ed8113ce65cd46eec7a9a5453e4",
+  "ordinal": 9,
+  "outcome": "Inventory UI, accessibility, permissions, onboarding, help, errors, recovery, destructive actions, notifications, reports, PDFs, CSV/JSON, templates, content packs, labels, share/email/print, commerce, metadata, tests, developer text, user-authored content, and machine data. Give every item an owner and disposition.",
+  "payloadDigest": "9bbd274dfb7c18e0ab9663d4963faa337434c3b4490a6a293f6d25a9d7d8192d",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P01-C01": {
+    "V30-P01-C02": {
       "candidate": {
-        "base": "bd231bd0daf11ac5f7842c2eab2164c8f0dc8e28",
-        "baseTree": "0f9353ec92fab121aa3b33740996e6305d5b8a71",
+        "base": "f12031577888e980f300a41787ce46c946ea13c9",
+        "baseTree": "ae8384a385b0c588928af500ce78a3dc508d74ac",
         "changedPaths": [
-          "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift",
-          "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
-          "docs/design/v30/research/V30InitialLanguageCohortV1.json",
-          "docs/design/v30/research/V30ResearchManifestV1.json"
+          "FieldEvidenceAppTests/V30_P01_C02ScopeDispositionTests.swift",
+          "docs/design/v30/research/V30CustomerNeedsScopeDispositionRegisterV1.json",
+          "docs/design/v30/research/V30KeywordEvidenceBindingV1.json"
         ],
-        "head": "d52cbd38e19b51bcd8c83f6d5fca768ace817d90",
-        "tree": "84da9fd23f74d859e51b53e031fff4ad2d79693b"
+        "head": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+        "tree": "c783e1ea1c28466025978aebf428dd7c43a1a5b2"
       },
-      "sequence": 16
+      "sequence": 18
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; Card5 hosted route is pinned but no native dispatch is selected.",
-  "sourceEndLine": 982,
-  "sourceStartLine": 982,
-  "title": "Customer-needs and scope-disposition register"
+  "sourceEndLine": 983,
+  "sourceStartLine": 983,
+  "title": "Complete text-bearing surface inventory"
 }
 ```
