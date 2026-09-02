@@ -1,0 +1,715 @@
+{
+  "acceptanceBoundary": "No implementation, native/runtime, linguistic, canonical, exact-main, phase-close, release or post-S10 successor credit.",
+  "allowedDispositions": [
+    "PRESERVE_IN_V30",
+    "VERIFY_EXISTING_BEHAVIOR",
+    "FUTURE_CARD",
+    "REJECT_SCOPE"
+  ],
+  "asOfUTC": "2026-09-02T19:16:16.607271+00:00",
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "blueprint": {
+    "path": "docs/design/v30/EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+    "sha256": "28facff3aca8bc4582031e3f0d609b9ab4eb26cd91d6c4b35144596a346b154e"
+  },
+  "cardID": "V30-P01-C02",
+  "competitorEvidence": {
+    "path": "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
+    "sha256": "a890efcee9fcefbf858d854ed7d2d5ffcfb37b59d63ec5ac4ad22a874431378c"
+  },
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "finalCredit": false,
+  "interpretationRules": [
+    "Every row has exactly one disposition; named cards are traceability, not selection authority.",
+    "Current reviews are customer reports with dates/territories and a bounded sample, not verified defects or prevalence.",
+    "A theme absent from the new sample may be preserved as a historical planning requirement without a fabricated refreshed signal.",
+    "Current V23 functionality is not inferred from or restricted by the older V4 keyword-fit snapshot.",
+    "Existing functionality must be preserved while explicitly excluded new mechanisms remain outside V30.",
+    "Later implementation and acceptance require the exact selected card and its fence."
+  ],
+  "keywordBinding": {
+    "path": "docs/design/v30/research/V30KeywordEvidenceBindingV1.json",
+    "sha256": "59349de5f636cc4f86b1de14719fd1bf624cd86753bcfa069faf0565e8123e5f"
+  },
+  "localeIDs": [
+    "en",
+    "es",
+    "zh-Hans",
+    "zh-Hant",
+    "vi",
+    "ko"
+  ],
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "newBackendAuthorized": false,
+  "newModuleAuthorized": false,
+  "payloadDigest": "7dd90e3e8290f84e1615087661f438377f9beab3c25c249e60bb4b0280892734",
+  "preservedV23States": [
+    {
+      "cardID": "V23-P05-C02",
+      "classification": "OWNER_ACTION",
+      "globalCard": 135,
+      "state": "NOT_STARTED",
+      "staticPreparation": false
+    },
+    {
+      "armed": false,
+      "cardID": "V23-P05-C03",
+      "classification": "MONITOR",
+      "globalCard": 136,
+      "state": "NOT_STARTED",
+      "staticPreparation": false
+    },
+    {
+      "cardID": "V23-P06-C05",
+      "classification": "DEFER",
+      "globalCard": 141,
+      "state": "DEFERRED",
+      "staticPreparation": false
+    },
+    {
+      "cardID": "V23-P06-C10",
+      "classification": "DEFER",
+      "globalCard": 146,
+      "state": "DEFERRED",
+      "staticPreparation": false
+    }
+  ],
+  "researchManifest": {
+    "path": "docs/design/v30/research/V30ResearchManifestV1.json",
+    "sha256": "81a1e4d2d22d54ec866bbe639643a98e012b8e7c8254408a11474062611d5551"
+  },
+  "reviewSample": {
+    "filterMethod": "First public Apple RSS JSON page per app/territory, sorted mostRecent; parse RFC3339 updated timestamps; inclusive window. Retain up to three relevant reviews per app. Counts describe only returned pages, never prevalence.",
+    "limitations": [
+      "Convenience sample of first pages, not exhaustive or statistically representative.",
+      "Reviewer experience is not a verified defect or current AssetRounds capability.",
+      "No current-window Spanish-language signal found in the optional Chile page; no inference of zero demand.",
+      "Historic planning themes remain separately identified where the current sample does not address them."
+    ],
+    "optionalSpanishSignal": {
+      "appID": "499999532",
+      "capturedAtUTC": "2026-09-02T19:10:26.616Z",
+      "httpResponseSHA256": "cabe22d5df4b6754193ee90813b40cdf2ad379b39f57dcedf243c5663b9d4cfe",
+      "inWindow": 0,
+      "pageEntries": 4,
+      "status": "NO_IN_WINDOW_REVIEW_ON_FIRST_PAGE",
+      "territory": "CL",
+      "url": "https://itunes.apple.com/cl/rss/customerreviews/id=499999532/sortBy=mostRecent/json"
+    },
+    "sourceType": "CUSTOMER_REPORTED",
+    "sources": [
+      {
+        "app": "SafetyCulture/Mitti",
+        "appID": "499999532",
+        "capturedAtUTC": "2026-09-02T19:10:25.428Z",
+        "httpResponseSHA256": "71835072dad891cd5fb724dd1655c1a5e10fa963ce1c14141b8c9520c8831b8f",
+        "inWindow": 21,
+        "pageEntries": 50,
+        "reviews": [
+          {
+            "date": "2026-07-08T08:06:54-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14278369303",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported poor support experience.",
+            "title": "Trash support"
+          },
+          {
+            "date": "2026-07-03T21:38:56-07:00",
+            "defectVerified": false,
+            "rating": 5,
+            "reviewID": "14260662920",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported use for unit and retail inspections.",
+            "title": "Amazing App for Property Management"
+          }
+        ],
+        "territory": "US",
+        "url": "https://itunes.apple.com/us/rss/customerreviews/id=499999532/sortBy=mostRecent/json"
+      },
+      {
+        "app": "MaintainX",
+        "appID": "1437854484",
+        "capturedAtUTC": "2026-09-02T19:10:25.683Z",
+        "httpResponseSHA256": "30cc94e303705767dc71b3f432075eda746e3e66e42248ca5286edfd094752e1",
+        "inWindow": 38,
+        "pageEntries": 50,
+        "reviews": [
+          {
+            "date": "2026-08-29T05:35:11-07:00",
+            "defectVerified": false,
+            "rating": 5,
+            "reviewID": "14485810009",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported organizational difficulty after company handoff alongside favorable overall view.",
+            "title": "Opinion"
+          },
+          {
+            "date": "2026-08-28T07:46:05-07:00",
+            "defectVerified": false,
+            "rating": 5,
+            "reviewID": "14482345153",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported appointment and vehicle-status tracking value.",
+            "title": "Operations manager"
+          }
+        ],
+        "territory": "US",
+        "url": "https://itunes.apple.com/us/rss/customerreviews/id=1437854484/sortBy=mostRecent/json"
+      },
+      {
+        "app": "UpKeep",
+        "appID": "921799415",
+        "capturedAtUTC": "2026-09-02T19:10:25.853Z",
+        "httpResponseSHA256": "9f3c90bc3e565ddfcd26f4f5ad7ecf537af6c92f06edeff1ac6427c97f931acb",
+        "inWindow": 9,
+        "pageEntries": 50,
+        "reviews": [
+          {
+            "date": "2026-08-21T01:52:47-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14454027822",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported dissatisfaction with AI and support.",
+            "title": "Trash"
+          },
+          {
+            "date": "2026-08-05T20:37:28-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14393441200",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported pC/mobile layout and workflow-streamlining concern after update.",
+            "title": "Terrible Update"
+          },
+          {
+            "date": "2026-05-14T09:56:08-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14064177872",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported stalls, reopening and time-punch submission trouble.",
+            "title": "Worst app ever"
+          }
+        ],
+        "territory": "US",
+        "url": "https://itunes.apple.com/us/rss/customerreviews/id=921799415/sortBy=mostRecent/json"
+      },
+      {
+        "app": "ArcGIS Field Maps",
+        "appID": "1515671684",
+        "capturedAtUTC": "2026-09-02T19:10:26.046Z",
+        "httpResponseSHA256": "b47f8cb5f3cf39ef25def651ea15c4bffbcea23dd649929fa6c12f4acd4438aa",
+        "inWindow": 41,
+        "pageEntries": 50,
+        "reviews": [
+          {
+            "date": "2026-08-30T13:29:48-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14491301568",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported organization/trial access barrier.",
+            "title": "I hate this greedy website"
+          },
+          {
+            "date": "2026-08-19T04:19:24-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14446411366",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported missing edit capability after prior use.",
+            "title": "No edit"
+          },
+          {
+            "date": "2026-08-14T05:35:02-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14426573110",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported crashes and poor-signal loading.",
+            "title": "App crashes"
+          }
+        ],
+        "territory": "US",
+        "url": "https://itunes.apple.com/us/rss/customerreviews/id=1515671684/sortBy=mostRecent/json"
+      },
+      {
+        "app": "ArcGIS Survey123",
+        "appID": "993015031",
+        "capturedAtUTC": "2026-09-02T19:10:26.264Z",
+        "httpResponseSHA256": "e2bebf9b6f1002b68c5e29b4e100b1109b35bef3b44573068c902c30278c5b0e",
+        "inWindow": 9,
+        "pageEntries": 50,
+        "reviews": [
+          {
+            "date": "2026-08-08T18:47:27-07:00",
+            "defectVerified": false,
+            "rating": 3,
+            "reviewID": "14404911284",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported unclear send error.",
+            "title": "not sending"
+          },
+          {
+            "date": "2026-08-03T12:18:58-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14383922924",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported crashes, scrolling friction, redundant fields and photo-upload constraint.",
+            "title": "Trash"
+          },
+          {
+            "date": "2026-06-15T15:33:43-07:00",
+            "defectVerified": false,
+            "rating": 1,
+            "reviewID": "14187330316",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported crash concern after iOS update.",
+            "title": "Not reliable in the field"
+          }
+        ],
+        "territory": "US",
+        "url": "https://itunes.apple.com/us/rss/customerreviews/id=993015031/sortBy=mostRecent/json"
+      },
+      {
+        "app": "Site Audit Pro",
+        "appID": "430234732",
+        "capturedAtUTC": "2026-09-02T19:10:26.446Z",
+        "httpResponseSHA256": "ada893fa52a1d7159acbab1223b89f73d409f17b83b626badfb67e2d28f41ad4",
+        "inWindow": 34,
+        "pageEntries": 50,
+        "reviews": [
+          {
+            "date": "2026-08-14T15:57:49-07:00",
+            "defectVerified": false,
+            "rating": 5,
+            "reviewID": "14428518691",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported ease, time saving and convenience.",
+            "title": "Easy"
+          },
+          {
+            "date": "2026-08-14T15:07:56-07:00",
+            "defectVerified": false,
+            "rating": 5,
+            "reviewID": "14428387970",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported property-photo use.",
+            "title": "Using for property photos"
+          },
+          {
+            "date": "2026-08-07T17:05:32-07:00",
+            "defectVerified": false,
+            "rating": 5,
+            "reviewID": "14400835797",
+            "sourceType": "CUSTOMER_REPORTED",
+            "theme": "Customer-reported value for proof capture.",
+            "title": "Good product"
+          }
+        ],
+        "territory": "US",
+        "url": "https://itunes.apple.com/us/rss/customerreviews/id=430234732/sortBy=mostRecent/json"
+      }
+    ],
+    "window": {
+      "end": "2026-09-02T23:59:59Z",
+      "start": "2025-09-02T00:00:00Z"
+    }
+  },
+  "rows": [
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [
+        "14428518691",
+        "14064177872",
+        "14393441200"
+      ],
+      "disposition": "PRESERVE_IN_V30",
+      "freshEvidenceCoverage": "CURRENT_SAMPLE_SUPPORTS_THEME",
+      "historicalEvidence": "Pinned blueprint section6, ranked user-need table and representative reported signals. Planning rank/strength are not measurements from this new sample.",
+      "id": "NEED-01",
+      "implementationAuthorizedByThisRecord": false,
+      "planningRank": 1,
+      "rationale": "Retain the sign workflow under long translated labels, Dynamic Type, RTL, VoiceOver and recoverable errors.",
+      "scopeBoundary": "No new navigation architecture or work-order product.",
+      "theme": "Fast, obvious mobile completion",
+      "verificationOrImplementationCards": [
+        "V30-P02-C03",
+        "V30-P02-C04",
+        "V30-P02-C06",
+        "V30-P03-C09"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [
+        "14426573110",
+        "14404911284"
+      ],
+      "disposition": "PRESERVE_IN_V30",
+      "freshEvidenceCoverage": "CURRENT_SAMPLE_SUPPORTS_THEME",
+      "historicalEvidence": "Pinned blueprint section6, ranked user-need table and representative reported signals. Planning rank/strength are not measurements from this new sample.",
+      "id": "NEED-02",
+      "implementationAuthorizedByThisRecord": false,
+      "planningRank": 2,
+      "rationale": "Preserve drafts, queues, Unicode evidence and truthful pending, saved, synchronized, failed, conflict and recovery distinctions.",
+      "scopeBoundary": "Localize existing state and recovery; no new sync engine or cloud backend.",
+      "theme": "Offline work and truthful saved/sync state",
+      "verificationOrImplementationCards": [
+        "V30-P02-C02",
+        "V30-P03-C02",
+        "V30-P03-C08"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [
+        "14383922924"
+      ],
+      "disposition": "PRESERVE_IN_V30",
+      "freshEvidenceCoverage": "CURRENT_SAMPLE_SUPPORTS_THEME",
+      "historicalEvidence": "Pinned blueprint section6, ranked user-need table and representative reported signals. Planning rank/strength are not measurements from this new sample.",
+      "id": "NEED-03",
+      "implementationAuthorizedByThisRecord": false,
+      "planningRank": 3,
+      "rationale": "Keep required/optional meaning, conditional rules, validation, units and dates coherent across locales.",
+      "scopeBoundary": "No new form builder or rules engine.",
+      "theme": "Job-specific forms and procedures",
+      "verificationOrImplementationCards": [
+        "V30-P01-C07",
+        "V30-P03-C03"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [
+        "14428387970",
+        "14400835797"
+      ],
+      "disposition": "PRESERVE_IN_V30",
+      "freshEvidenceCoverage": "CURRENT_SAMPLE_SUPPORTS_THEME",
+      "historicalEvidence": "Pinned blueprint section6, ranked user-need table and representative reported signals. Planning rank/strength are not measurements from this new sample.",
+      "id": "NEED-04",
+      "implementationAuthorizedByThisRecord": false,
+      "planningRank": 4,
+      "rationale": "Keep source content, photo/comment/status association, numbering, glyphs and provenance intact in reports and sharing.",
+      "scopeBoundary": "No e-signature service or media platform; translations do not overwrite authored evidence.",
+      "theme": "Photos, authored notes and reports as the operational record",
+      "verificationOrImplementationCards": [
+        "V30-P03-C01",
+        "V30-P03-C04",
+        "V30-P03-C06"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "VERIFY_EXISTING_BEHAVIOR",
+      "freshEvidenceCoverage": "HISTORICAL_PLANNING_THEME_ONLY",
+      "historicalEvidence": "Pinned blueprint section6, ranked user-need table and representative reported signals. Planning rank/strength are not measurements from this new sample.",
+      "id": "NEED-05",
+      "implementationAuthorizedByThisRecord": false,
+      "planningRank": 5,
+      "rationale": "Verify Unicode search, locale sorting, stable IDs, translated filters and unambiguous existing scan states.",
+      "scopeBoundary": "No ranking engine, inventory system or GIS product; refreshed sample does not independently establish demand for this theme.",
+      "theme": "Search, filters and scan context",
+      "verificationOrImplementationCards": [
+        "V30-P02-C05",
+        "V30-P03-C07"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [
+        "14393441200"
+      ],
+      "disposition": "VERIFY_EXISTING_BEHAVIOR",
+      "freshEvidenceCoverage": "CURRENT_SAMPLE_SUPPORTS_THEME",
+      "historicalEvidence": "Pinned blueprint section6, ranked user-need table and representative reported signals. Planning rank/strength are not measurements from this new sample.",
+      "id": "NEED-06",
+      "implementationAuthorizedByThisRecord": false,
+      "planningRank": 6,
+      "rationale": "Check existing mobile and document surfaces for localized workflow and report capability gaps.",
+      "scopeBoundary": "No new web client; competitor PC/mobile request does not authorize AssetRounds platform expansion.",
+      "theme": "Consistency across devices and exported outputs",
+      "verificationOrImplementationCards": [
+        "V30-P02-C06",
+        "V30-P03-C04",
+        "V30-P03-C05",
+        "V30-P06-C04"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [
+        "14482345153",
+        "14485810009"
+      ],
+      "disposition": "VERIFY_EXISTING_BEHAVIOR",
+      "freshEvidenceCoverage": "CURRENT_SAMPLE_SUPPORTS_THEME",
+      "historicalEvidence": "Pinned blueprint section6, ranked user-need table and representative reported signals. Planning rank/strength are not measurements from this new sample.",
+      "id": "NEED-07",
+      "implementationAuthorizedByThisRecord": false,
+      "planningRank": 7,
+      "rationale": "Verify existing status and notification surfaces, time-zone/calendar behavior and existing navigation handoff.",
+      "scopeBoundary": "No new scheduling, routing, team accounts, requester licensing or vehicle module.",
+      "theme": "Assignments, reminders, time and status",
+      "verificationOrImplementationCards": [
+        "V30-P01-C07",
+        "V30-P03-C09"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [
+        "14278369303",
+        "14454027822"
+      ],
+      "disposition": "PRESERVE_IN_V30",
+      "freshEvidenceCoverage": "CURRENT_SAMPLE_SUPPORTS_THEME",
+      "historicalEvidence": "Pinned blueprint section6, ranked user-need table and representative reported signals. Planning rank/strength are not measurements from this new sample.",
+      "id": "NEED-08",
+      "implementationAuthorizedByThisRecord": false,
+      "planningRank": 8,
+      "rationale": "Preserve semantic labels, focus, errors, contrast, touch targets and understandable help; keep support availability truthful.",
+      "scopeBoundary": "No implied staffing or enterprise services; professional/native support capacity remains unverified.",
+      "theme": "Accessibility, help and responsive support",
+      "verificationOrImplementationCards": [
+        "V30-P02-C04",
+        "V30-P03-C09",
+        "V30-P06-C02",
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "VERIFY_EXISTING_BEHAVIOR",
+      "freshEvidenceCoverage": "HISTORICAL_PLANNING_THEME_ONLY",
+      "historicalEvidence": "Pinned blueprint sections5-7 and product invariants.",
+      "id": "VERIFY-01",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Verify drafts, multi-photo associations, numbering, closed-item semantics and export provenance before treating the existing workflow as preserved.",
+      "scopeBoundary": "Verification of the existing capability under the named future card; no new service or product capability.",
+      "theme": "Comment drafts and photo/report association",
+      "verificationOrImplementationCards": [
+        "V30-P03-C02",
+        "V30-P03-C04",
+        "V30-P03-C05"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "VERIFY_EXISTING_BEHAVIOR",
+      "freshEvidenceCoverage": "HISTORICAL_PLANNING_THEME_ONLY",
+      "historicalEvidence": "Pinned blueprint sections5-7 and product invariants.",
+      "id": "VERIFY-02",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Verify exact OS/device/locale/connectivity capability. Translating the control does not establish recognition or offline support.",
+      "scopeBoundary": "Verification of the existing capability under the named future card; no new service or product capability.",
+      "theme": "Dictation and assisted-input truth",
+      "verificationOrImplementationCards": [
+        "V30-P03-C07"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "VERIFY_EXISTING_BEHAVIOR",
+      "freshEvidenceCoverage": "HISTORICAL_PLANNING_THEME_ONLY",
+      "historicalEvidence": "Pinned blueprint sections5-7 and product invariants.",
+      "id": "VERIFY-03",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Verify canonical identifiers, raw enums, hashes, journals, backups and authored text remain unchanged by language/formatting selection.",
+      "scopeBoundary": "Verification of the existing capability under the named future card; no new service or product capability.",
+      "theme": "No silent source or history mutation",
+      "verificationOrImplementationCards": [
+        "V30-P01-C05",
+        "V30-P02-C02",
+        "V30-P03-C08"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "REJECT_SCOPE",
+      "freshEvidenceCoverage": "SCOPE_RULE_NOT_DEMAND_MEASUREMENT",
+      "historicalEvidence": "Pinned blueprint section6 explicit exclusions and section7 claim gates.",
+      "id": "EXCLUDE-01",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Research interest and competitor behavior cannot expand the current V30 program.",
+      "scopeBoundary": "Do not create a sync engine, cloud backend, hosted storage or new account model from language/review research. Preserve existing functionality where present.",
+      "theme": "New cloud sync or backend",
+      "verificationOrImplementationCards": []
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "REJECT_SCOPE",
+      "freshEvidenceCoverage": "SCOPE_RULE_NOT_DEMAND_MEASUREMENT",
+      "historicalEvidence": "Pinned blueprint section6 explicit exclusions and section7 claim gates.",
+      "id": "EXCLUDE-02",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Research interest and competitor behavior cannot expand the current V30 program.",
+      "scopeBoundary": "No new routing, estimates, invoices, permits, requester licensing or work-order product.",
+      "theme": "New work-order, dispatch or commercial suite",
+      "verificationOrImplementationCards": []
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "REJECT_SCOPE",
+      "freshEvidenceCoverage": "SCOPE_RULE_NOT_DEMAND_MEASUREMENT",
+      "historicalEvidence": "Pinned blueprint section6 explicit exclusions and section7 claim gates.",
+      "id": "EXCLUDE-03",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Research interest and competitor behavior cannot expand the current V30 program.",
+      "scopeBoundary": "No new generalized rules engine, asset valuation registry, inventory module or GIS scope.",
+      "theme": "New form builder, inventory or GIS product",
+      "verificationOrImplementationCards": []
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "REJECT_SCOPE",
+      "freshEvidenceCoverage": "SCOPE_RULE_NOT_DEMAND_MEASUREMENT",
+      "historicalEvidence": "Pinned blueprint section6 explicit exclusions and section7 claim gates.",
+      "id": "EXCLUDE-04",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Research interest and competitor behavior cannot expand the current V30 program.",
+      "scopeBoundary": "No new web dashboard, App Clip, recipient portal or unrequested multi-platform client.",
+      "theme": "New web client or report portal",
+      "verificationOrImplementationCards": []
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "REJECT_SCOPE",
+      "freshEvidenceCoverage": "SCOPE_RULE_NOT_DEMAND_MEASUREMENT",
+      "historicalEvidence": "Pinned blueprint section6 explicit exclusions and section7 claim gates.",
+      "id": "EXCLUDE-05",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Research interest and competitor behavior cannot expand the current V30 program.",
+      "scopeBoundary": "No new signature service or media platform; preserve existing authored evidence.",
+      "theme": "New e-signature or media service",
+      "verificationOrImplementationCards": []
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "REJECT_SCOPE",
+      "freshEvidenceCoverage": "SCOPE_RULE_NOT_DEMAND_MEASUREMENT",
+      "historicalEvidence": "Pinned blueprint section6 explicit exclusions and section7 claim gates.",
+      "id": "EXCLUDE-06",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Research interest and competitor behavior cannot expand the current V30 program.",
+      "scopeBoundary": "No AI diagnosis, automatic pass/fail, photometric measurement, electrical/safety certification or compliance claim.",
+      "theme": "Automated diagnosis and certification claims",
+      "verificationOrImplementationCards": []
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "REJECT_SCOPE",
+      "freshEvidenceCoverage": "SCOPE_RULE_NOT_DEMAND_MEASUREMENT",
+      "historicalEvidence": "Pinned blueprint section6 explicit exclusions and section7 claim gates.",
+      "id": "EXCLUDE-07",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Research interest and competitor behavior cannot expand the current V30 program.",
+      "scopeBoundary": "No tamper-proof, legal-proof, repair-complete, delivered, opened or accepted claims inferred from localized labels.",
+      "theme": "False evidence, completion or delivery claims",
+      "verificationOrImplementationCards": []
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "REJECT_SCOPE",
+      "freshEvidenceCoverage": "SCOPE_RULE_NOT_DEMAND_MEASUREMENT",
+      "historicalEvidence": "Pinned blueprint section6 explicit exclusions and section7 claim gates.",
+      "id": "EXCLUDE-08",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Research interest and competitor behavior cannot expand the current V30 program.",
+      "scopeBoundary": "No new staffing or enterprise service commitment; support capacity and professional/native receipts remain unverified.",
+      "theme": "Support staffing as an implemented feature",
+      "verificationOrImplementationCards": []
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "FUTURE_CARD",
+      "freshEvidenceCoverage": "FUTURE_RESEARCH_NOT_PRODUCT_TRUTH",
+      "historicalEvidence": "Pinned blueprint sections7,9 and frozen future-card register.",
+      "id": "FUTURE-01",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Preserve English seeds now; research non-English practitioner demand and metadata independently after reconciliation.",
+      "requiredAuthority": "POST_S10_RECONCILIATION_AUTHORITY_REQUIRED",
+      "scopeBoundary": "Reference only; no current selection, implementation, commercial activation or future-card credit.",
+      "theme": "Native localized acquisition research",
+      "verificationOrImplementationCards": [
+        "V30-P06-C05"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "FUTURE_CARD",
+      "freshEvidenceCoverage": "FUTURE_RESEARCH_NOT_PRODUCT_TRUTH",
+      "historicalEvidence": "Pinned blueprint sections7,9 and frozen future-card register.",
+      "id": "FUTURE-02",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Collect real in-context review and support readiness receipts; provisional catalogs are not accepted language capability.",
+      "requiredAuthority": "POST_S10_RECONCILIATION_AUTHORITY_REQUIRED",
+      "scopeBoundary": "Reference only; no current selection, implementation, commercial activation or future-card credit.",
+      "theme": "Professional/native and support acceptance",
+      "verificationOrImplementationCards": [
+        "V30-P06-C02",
+        "V30-P06-C06"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "FUTURE_CARD",
+      "freshEvidenceCoverage": "FUTURE_RESEARCH_NOT_PRODUCT_TRUTH",
+      "historicalEvidence": "Pinned blueprint sections7,9 and frozen future-card register.",
+      "id": "FUTURE-03",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Use the frozen research order and explicit country re-entry gate; six initial locales remain U.S.-only.",
+      "requiredAuthority": "SEPARATE_POST_S10_AND_REENTRY_AUTHORITY_REQUIRED",
+      "scopeBoundary": "Reference only; no current selection, implementation, commercial activation or future-card credit.",
+      "theme": "Additional languages and foreign storefronts",
+      "verificationOrImplementationCards": [
+        "V30-P07-C03",
+        "V30-P07-C04"
+      ]
+    },
+    {
+      "currentProductBehaviorVerified": false,
+      "currentReviewIDs": [],
+      "disposition": "FUTURE_CARD",
+      "freshEvidenceCoverage": "FUTURE_RESEARCH_NOT_PRODUCT_TRUTH",
+      "historicalEvidence": "Pinned blueprint sections7,9 and frozen future-card register.",
+      "id": "FUTURE-04",
+      "implementationAuthorizedByThisRecord": false,
+      "rationale": "Retain the proposed research sequence without building lighting, playground, warehouse, irrigation or generic facility modules.",
+      "requiredAuthority": "SEPARATE_PROGRAM_AUTHORITY_NOT_ISSUED",
+      "scopeBoundary": "Reference only; no current selection, implementation, commercial activation or future-card credit.",
+      "theme": "New vertical portfolio",
+      "verificationOrImplementationCards": []
+    }
+  ],
+  "schema": "V30CustomerNeedsScopeDispositionRegisterV1",
+  "storefrontCountries": [
+    "US"
+  ]
+}

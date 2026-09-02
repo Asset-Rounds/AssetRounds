@@ -1,0 +1,1212 @@
+{
+  "acquisitionResearchRules": [
+    "Preserve original English phrase, provider, date, country scope, intent, metrics and idea/measured status.",
+    "Research practitioner terminology independently for every non-English locale; literal translation is not demand evidence.",
+    "Keep product name, subtitle, keyword field, screenshots, help, report terminology and canonical identifiers separate.",
+    "Exclude competitor trademarks, unshipped verticals and unsupported certification/jurisdiction claims.",
+    "Current Apple metadata constraints and linguistic receipts must be revalidated at V30-P06-C05.",
+    "No publication or available-now claim follows from this binding."
+  ],
+  "asOfUTC": "2026-09-02T19:16:16.606639+00:00",
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "cardID": "V30-P01-C02",
+  "claimSafeTerminologySeeds": [
+    "inspection",
+    "check",
+    "visible condition",
+    "photo evidence",
+    "PDF report",
+    "recorded work",
+    "recheck",
+    "night/after-dark"
+  ],
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "finalCredit": false,
+  "historicalBuildFit": {
+    "auditScope": {
+      "excluded": [
+        "SEMrush and DataForSEO calls",
+        "search-volume scoring",
+        "live App Store or website inspection",
+        "claims based on a production binary or physical-device run"
+      ],
+      "included": [
+        "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md",
+        "work/signglow_foundation/v4_codex_implementation_runbook.md",
+        "work/signglow_foundation/codex_ios_execution_contract_v4.md",
+        "work/signglow_foundation/v4_owner_setup_checklist.md",
+        "work/signglow_foundation/v4_handoff_templates",
+        "work/signglow_foundation/lumaroute_product_ux_spec_v3.md",
+        "work/signglow_foundation/lumaroute_discoverability_v3.md",
+        "work/signglow_foundation/lumaroute_vertical_architecture_v3.md",
+        "work/signglow_foundation/lumaroute_business_product_blueprint_v3.md",
+        "work/signglow_foundation/vertical_workflow_architecture.md",
+        "three V4 ZIP handoff packages under work/signglow_foundation"
+      ]
+    },
+    "changesCurrentAuthority": false,
+    "governingStatus": {
+      "forbidden_wording_now": [
+        "available now",
+        "shipping",
+        "works",
+        "proven",
+        "App Store ready",
+        "production tested"
+      ],
+      "implementation_evidence": "none in the audited V4 foundation package",
+      "nothing_is_shipped_yet": true,
+      "reason": "The source set is an approved V4 launch plan and execution handoff, not a completed implementation. The active-task template is unhydrated, the handoff log contains no completed-card evidence, S0 still has to create the Xcode project and scripts, and the runbook says a plan-only artifact is not completion.",
+      "required_wording_now": "planned, designed for, or in development",
+      "shipping_evidence": "none",
+      "source_refs": [
+        "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:1-19",
+        "work/signglow_foundation/v4_codex_implementation_runbook.md:1-18",
+        "work/signglow_foundation/v4_codex_implementation_runbook.md:244-285",
+        "work/signglow_foundation/v4_codex_implementation_runbook.md:727-729",
+        "work/signglow_foundation/v4_handoff_templates/CURRENT_TASK.md:1-17",
+        "work/signglow_foundation/v4_handoff_templates/HANDOFF.md:1-7",
+        "work/signglow_foundation/v4_handoff_templates/README.md:15-29"
+      ]
+    },
+    "interpretation": "This is the dated V4/V3 plan audit only. Its planned/not-shipped and future-sign labels do not establish current V23 implementation or override later accepted scope. They must not delete or downgrade existing V23 capabilities.",
+    "isCurrentV23ProductAudit": false,
+    "recordedFutureOrExcludedClusters": [
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "accounts_cloud_sync_multi_device",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "team_shared_history_assignments_review",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "guest_remote_photo_request",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "recipient_report_portal_links",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "scheduled_email_delivery",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "csv_export",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "crm_fsm_connectors_writeback",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "global_log_full_text_search",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "recurring_checks_work_plans_night_rounds",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "web_dashboard_and_app_clip",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-sign-capability",
+        "clusterID": "referral_and_recipient_introduction",
+        "researchDisposition": "separate_future_backlog"
+      },
+      {
+        "classification": "future-vertical",
+        "clusterID": "exterior_and_parking_lot_lighting",
+        "researchDisposition": "keep_in_separate_vertical_research_list"
+      },
+      {
+        "classification": "future-vertical",
+        "clusterID": "facility_assets_and_equipment_checks",
+        "researchDisposition": "keep_in_separate_vertical_research_list"
+      },
+      {
+        "classification": "future-vertical",
+        "clusterID": "generic_field_inspection_vertical_positioning",
+        "researchDisposition": "keep_separate_and_do_not_use_as_default_identity"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "electrical_code_safety_certification",
+        "researchDisposition": "exclude_from_targeting_and_add_to_claim_review"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "ai_diagnosis_automatic_pass_fail",
+        "researchDisposition": "exclude_from_targeting_and_add_to_claim_review"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "brightness_photometric_measurement",
+        "researchDisposition": "exclude_from_targeting_and_add_to_claim_review"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "timestamp_gps_tamper_legal_proof",
+        "researchDisposition": "exclude_from_targeting_and_add_to_claim_review"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "repair_completion_proof_of_service",
+        "researchDisposition": "exclude_as_claim_rewrite_to_recorded_work_terms"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "external_delivery_read_acceptance",
+        "researchDisposition": "exclude_as_claim_rewrite_to_share_sheet_opened"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "generic_suite_categories",
+        "researchDisposition": "exclude_from_launch_identity_and_metadata"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "dispatch_routing_estimates_invoices_permits",
+        "researchDisposition": "exclude_from_targeting"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "generic_inspect_anything_form_builder",
+        "researchDisposition": "exclude_from_targeting"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "asset_inventory_valuation_registry",
+        "researchDisposition": "exclude_or_always_qualify_to_sign_history"
+      },
+      {
+        "classification": "exclude",
+        "clusterID": "digital_signage_construction_home_vehicle",
+        "researchDisposition": "exclude_from_targeting"
+      }
+    ],
+    "sourcePayload": "current_build_keyword_fit.json",
+    "sourceSHA256": "0c5c4f8de40b2007afb65953fe26b72ac1d5e27502aebee9b49a4ba4fd3d5dd7"
+  },
+  "metadataPublicationAuthorized": false,
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "newBackendAuthorized": false,
+  "newModuleAuthorized": false,
+  "newVerticalAuthorized": false,
+  "nonEnglishKeywordAcceptance": false,
+  "packageIntegrity": {
+    "formulaValidation": "NOT_PERFORMED_HASH_INTEGRITY_ONLY",
+    "manifest": {
+      "bytes": 1521,
+      "filename": "PACKAGE_MANIFEST_SHA256.txt",
+      "sha256": "cba5a098ec1e87cc2fbd50598c2564f9671fb37c14b95dd75b747cabdaf08e80"
+    },
+    "payloads": [
+      {
+        "bytes": 69643,
+        "filename": "ASSETROUNDS_VERTICAL_EXPANSION_REPORT_2026-08-12.md",
+        "matchesBlueprint": true,
+        "sha256": "0db3f5110bc7a231b2a157f5e00d2efdee52ba00a108a85e68f2934e7315dfda"
+      },
+      {
+        "bytes": 37057,
+        "filename": "ASSETROUNDS_FUTURE_CODEX_VERTICAL_BRIEF_2026-08-12.md",
+        "matchesBlueprint": true,
+        "sha256": "0d852b757db715f8394461fe8f897bd94408cb707f7b4397a15993d7d3ecde69"
+      },
+      {
+        "bytes": 4177219,
+        "filename": "normalized_research_dataset.json",
+        "matchesBlueprint": true,
+        "sha256": "42f18e70a8c6d642e5190d8aba2ccf8a9ca9e6fccb84ed85211c938108c9e932"
+      },
+      {
+        "bytes": 216326,
+        "filename": "semrush_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "4ee890e47ea2c1093d7eacb620438783e1b3cadd913f249fdd15ef23406ed3cb"
+      },
+      {
+        "bytes": 884972,
+        "filename": "dataforseo_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "17f659eaaa26036502f37e54d3a49507b1490369e41dec1ef47c15c9188d70f7"
+      },
+      {
+        "bytes": 220768,
+        "filename": "dataforseo_blindspot_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "78ee056d18c8de78807a2a626e5c64156e1cb5f91a90e49d1d9d6685b53e2830"
+      },
+      {
+        "bytes": 86779,
+        "filename": "app_store_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "53853863171042eda31725835676bd82041a559bd73144db949d28d0f062051d"
+      },
+      {
+        "bytes": 115254,
+        "filename": "app_store_blindspot_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "fcaf429be85ef42b3eb198485b75c16a2c4b50449d034f91ce92788ee687b89a"
+      },
+      {
+        "bytes": 99138,
+        "filename": "market_vertical_evidence.json",
+        "matchesBlueprint": true,
+        "sha256": "7894c141d67be1ff58ca3fd45d8ad5e6c46378b49046d9735a4fc53e6be47743"
+      },
+      {
+        "bytes": 88636,
+        "filename": "current_build_keyword_fit.json",
+        "matchesBlueprint": true,
+        "sha256": "0c5c4f8de40b2007afb65953fe26b72ac1d5e27502aebee9b49a4ba4fd3d5dd7"
+      },
+      {
+        "bytes": 267111,
+        "filename": "ASSETROUNDS_KEYWORD_AND_VERTICAL_SCORECARD_2026-08-12.xlsx",
+        "matchesBlueprint": true,
+        "sha256": "3d2bb847268bd69da5c1841a8d24b779b2db7e8414658f5be7f885d29006f01d"
+      }
+    ],
+    "result": "PASS_11_PAYLOAD_HASHES_AND_FOLDER_WORKBOOK",
+    "reverifiedAtUTC": "2026-09-02T19:16:16.606076+00:00",
+    "workbook": {
+      "bytes": 267111,
+      "formulaValidation": "NOT_PERFORMED_HASH_INTEGRITY_ONLY",
+      "matchesZIPBytes": true,
+      "path": "C:\\Users\\palat\\OneDrive\\Desktop\\Asset Rounds Research\\ASSETROUNDS_KEYWORD_AND_VERTICAL_SCORECARD_2026-08-12.xlsx",
+      "sha256": "3d2bb847268bd69da5c1841a8d24b779b2db7e8414658f5be7f885d29006f01d"
+    },
+    "zip": {
+      "bytes": 719945,
+      "path": "C:\\Users\\palat\\OneDrive\\Desktop\\Asset Rounds Research\\ASSETROUNDS_VERTICAL_RESEARCH_HANDOFF_2026-08-12.zip",
+      "sha256": "c2593559ea72a161c3be940fdd982c6979b422b91665fe7197af868bde57e633"
+    }
+  },
+  "payloadDigest": "5aec632c389c7d1d02b4efe933411a346190ca4facca1fb047a5ca6bf9c3dddc",
+  "proposedVerticalSequence": {
+    "activationAuthorized": false,
+    "orderedLabels": [
+      "Current Sign",
+      "Exterior & Parking Lighting",
+      "Playground & Park Safety",
+      "Warehouse Rack Safety",
+      "Commercial Irrigation",
+      "Facility Rounds"
+    ],
+    "scope": "Research portfolio only; not activation or shipping order. The dataset profile order is a separate representation.",
+    "source": "Blueprint section7.2, workbook product-fit sequence",
+    "sourceType": "ANALYST_INFERENCE"
+  },
+  "representativePhrases": [
+    {
+      "country": "US",
+      "countryEvidence": "DATASET_SCOPE; individual rows may not record a country field",
+      "displayPhrase": "sign inspection",
+      "historicalClaimGates": [
+        "G1_IMPLEMENTED_AND_GREEN",
+        "G2_MATCHING_CLAIM_TEST",
+        "G3_TITLE_CLEARANCE",
+        "G4_PHYSICAL_IPHONE",
+        "G5_APP_STORE_SUBMISSION"
+      ],
+      "historicalCurrentBuild": {
+        "allowed_surfaces": [
+          "App Store title or subtitle research",
+          "App Store keyword research",
+          "default product page",
+          "core buyer web page"
+        ],
+        "claim_gates": [
+          "G1_IMPLEMENTED_AND_GREEN",
+          "G2_MATCHING_CLAIM_TEST",
+          "G3_TITLE_CLEARANCE",
+          "G4_PHYSICAL_IPHONE",
+          "G5_APP_STORE_SUBMISSION"
+        ],
+        "classification": "planned-current-metadata",
+        "cluster_id": "core_sign_inspection_identity",
+        "implementation_status": "planned_not_shipped",
+        "priority": "highest-fit",
+        "reason": "V4/V3 source-audited classification",
+        "research_disposition": "add_or_retain_as_seed",
+        "source_refs": [
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:1-17",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:35-49",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:53-70",
+          "work/signglow_foundation/v4_codex_implementation_runbook.md:20-31"
+        ],
+        "warnings": [
+          "Inspection means a human visible-condition record, not code, electrical, structural, safety, or professional certification.",
+          "Do not imply the app inspects every asset or replaces a complete sign-shop system."
+        ]
+      },
+      "historicalFit": "Direct match to the V4 buyer, asset, vertical, and guided visible-condition workflow.",
+      "historicalFitCanonicalSHA256": "61358d302ed116e87099ae91af2a3481ceed206380952a178052256b3dcb953d",
+      "historicalFitJSONPointer": "/clusters/0",
+      "historicalFitPayload": "current_build_keyword_fit.json",
+      "historicalWarnings": [
+        "Inspection means a human visible-condition record, not code, electrical, structural, safety, or professional certification.",
+        "Do not imply the app inspects every asset or replaces a complete sign-shop system."
+      ],
+      "implementationAuthorizedByThisRecord": false,
+      "intentInterpretation": "Use provider intent fields when supplied; missing intent remains unknown. Never infer localized search demand.",
+      "language": "en",
+      "languageEvidence": "DATASET_ENGLISH_SCOPE",
+      "localizedDemandMeasured": false,
+      "metrics": {
+        "dataforseo": {
+          "cluster": "Sign inspection & maintenance",
+          "cpc_usd": 3.02,
+          "high_top_of_page_bid_usd": null,
+          "keyword_difficulty": null,
+          "latest_month": "2026-06",
+          "latest_month_search_volume": 110,
+          "low_top_of_page_bid_usd": null,
+          "metrics_last_updated": "2026-07-11 02:53:33 +00:00",
+          "monthly_searches": {
+            "2025-07": 210,
+            "2025-08": 210,
+            "2025-09": 110,
+            "2025-10": 90,
+            "2025-11": 90,
+            "2025-12": 110,
+            "2026-01": 110,
+            "2026-02": 90,
+            "2026-03": 170,
+            "2026-04": 90,
+            "2026-05": 110,
+            "2026-06": 110
+          },
+          "paid_competition_index": 70,
+          "paid_competition_level": "HIGH",
+          "recent_3_month_vs_oldest_3_month_pct": -41.5,
+          "record_origin": "seed_google_ads_search_volume",
+          "search_intent": "informational",
+          "search_volume": 140,
+          "secondary_intents": [],
+          "seed_keyword": null
+        },
+        "dataforseo_blindspot": null,
+        "semrush": [
+          {
+            "cpc_usd": 0,
+            "intent_code": "1",
+            "keyword_difficulty": 13,
+            "noise_flags": [],
+            "paid_competition": 0.48,
+            "report": "phrase_these",
+            "result_count": 135,
+            "search_volume": 90,
+            "seed": "100-seed screen",
+            "trend_12m_csv": "0.50,1.00,0.35,0.78,0.78,0.50,0.50,0.64,0.50,0.50,0.78,0.50"
+          },
+          {
+            "cpc_usd": 0,
+            "intent_code": "1",
+            "keyword_difficulty": 13,
+            "noise_flags": [],
+            "paid_competition": 0.48,
+            "report": "phrase_fullsearch",
+            "result_count": 135,
+            "search_volume": 90,
+            "seed": "sign inspection",
+            "trend_12m_csv": "0.50,1.00,0.35,0.78,0.78,0.50,0.50,0.64,0.50,0.50,0.78,0.50"
+          }
+        ]
+      },
+      "phrase": "sign inspection",
+      "productTruth": false,
+      "provenance": [
+        {
+          "collection_date": "2026-08-12",
+          "report": "phrase_these",
+          "seed": "100-seed screen",
+          "source": "Semrush API",
+          "source_file": "semrush_evidence.json",
+          "url": "https://www.semrush.com/kb/5-api"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "report": "phrase_fullsearch",
+          "seed": "sign inspection",
+          "source": "Semrush API",
+          "source_file": "semrush_evidence.json",
+          "url": "https://www.semrush.com/kb/5-api"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "DataForSEO",
+          "source_file": "dataforseo_evidence.json",
+          "url": "https://docs.dataforseo.com/v3/dataforseo_labs/google/keyword_overview/live/"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "App Store public evidence",
+          "source_file": "app_store_evidence.json",
+          "url": "https://developer.apple.com/app-store/product-page/"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "Market vertical research",
+          "source_file": "market_vertical_evidence.json",
+          "url": "https://www.thinksai.com/products-onsite/"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "V4/V3 source audit",
+          "source_file": "current_build_keyword_fit.json",
+          "source_refs": [
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:1-17",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:35-49",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:53-70",
+            "work/signglow_foundation/v4_codex_implementation_runbook.md:20-31"
+          ],
+          "url": null
+        }
+      ],
+      "providerStates": [
+        "semrush_measured",
+        "dataforseo_measured_numeric",
+        "App Store public evidence_editorial_idea",
+        "market_editorial_idea",
+        "current_build_audited_idea"
+      ],
+      "researchDate": "2026-08-12",
+      "rowCountry": null,
+      "sourceJSONPointer": "/keyword_rows/1280",
+      "sourcePayload": "normalized_research_dataset.json",
+      "sourceRowCanonicalSHA256": "ebed648728c2993270b846b7a761af2e92c56a8fab4c82938bc16484d96f3f66",
+      "sourceType": "KEYWORD_MEASURED",
+      "statusKind": "measured"
+    },
+    {
+      "country": "US",
+      "countryEvidence": "DATASET_SCOPE; individual rows may not record a country field",
+      "displayPhrase": "sign survey app",
+      "historicalClaimGates": [
+        "G1_IMPLEMENTED_AND_GREEN",
+        "G2_MATCHING_CLAIM_TEST",
+        "G12_PUBLIC_WEB_RELEASE"
+      ],
+      "historicalCurrentBuild": {
+        "allowed_surfaces": [
+          "language-test page",
+          "web page after qualified-buyer comprehension gate",
+          "metadata only after the separate survey-language gate"
+        ],
+        "claim_gates": [
+          "G1_IMPLEMENTED_AND_GREEN",
+          "G2_MATCHING_CLAIM_TEST",
+          "G12_PUBLIC_WEB_RELEASE"
+        ],
+        "classification": "planned-current-web-content",
+        "cluster_id": "sign_survey_language_test",
+        "implementation_status": "planned_not_shipped",
+        "priority": "medium-fit-language-gated",
+        "reason": "V4/V3 source-audited classification",
+        "research_disposition": "retain_as_gated_seed",
+        "source_refs": [
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:47-49",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:72-80",
+          "work/signglow_foundation/lumaroute_discoverability_v3.md:78-98",
+          "work/signglow_foundation/lumaroute_discoverability_v3.md:433-454"
+        ],
+        "warnings": [
+          "Do not use survey publicly until qualified sign professionals distinguish the term from measurement, fabrication, permitting, property survey, and certification.",
+          "V4 does not measure dimensions or determine permits."
+        ]
+      },
+      "historicalFit": "Survey may match app-seeking sign-industry intent, but it can imply measurement, fabrication, permitting, property survey, or certification beyond V4.",
+      "historicalFitCanonicalSHA256": "6118686552f85150277f0836a05fb65bceb60cfc7beb3bbe910bae4cfd602930",
+      "historicalFitJSONPointer": "/clusters/16",
+      "historicalFitPayload": "current_build_keyword_fit.json",
+      "historicalWarnings": [
+        "Do not use survey publicly until qualified sign professionals distinguish the term from measurement, fabrication, permitting, property survey, and certification.",
+        "V4 does not measure dimensions or determine permits."
+      ],
+      "implementationAuthorizedByThisRecord": false,
+      "intentInterpretation": "Use provider intent fields when supplied; missing intent remains unknown. Never infer localized search demand.",
+      "language": "en",
+      "languageEvidence": "DATASET_ENGLISH_SCOPE",
+      "localizedDemandMeasured": false,
+      "metrics": {
+        "dataforseo": {
+          "cluster": "Sign inspection & maintenance",
+          "cpc_usd": 8.7,
+          "high_top_of_page_bid_usd": null,
+          "keyword_difficulty": null,
+          "latest_month": "2026-06",
+          "latest_month_search_volume": 10,
+          "low_top_of_page_bid_usd": null,
+          "metrics_last_updated": "2026-07-13 07:16:36 +00:00",
+          "monthly_searches": {
+            "2025-07": 10,
+            "2025-08": 10,
+            "2025-09": 10,
+            "2025-10": 10,
+            "2025-11": 10,
+            "2025-12": 10,
+            "2026-01": 10,
+            "2026-02": 10,
+            "2026-03": 10,
+            "2026-04": 10,
+            "2026-05": 10,
+            "2026-06": 10
+          },
+          "paid_competition_index": 34,
+          "paid_competition_level": "MEDIUM",
+          "recent_3_month_vs_oldest_3_month_pct": 0,
+          "record_origin": "seed_google_ads_search_volume",
+          "search_intent": "transactional",
+          "search_volume": 10,
+          "secondary_intents": [
+            "navigational"
+          ],
+          "seed_keyword": null
+        },
+        "dataforseo_blindspot": null,
+        "semrush": [
+          {
+            "cpc_usd": 4.98,
+            "intent_code": null,
+            "keyword_difficulty": 0,
+            "noise_flags": [],
+            "paid_competition": 0.5,
+            "report": "phrase_these",
+            "result_count": 0,
+            "search_volume": 20,
+            "seed": "100-seed screen",
+            "trend_12m_csv": "0.66,0.66,0.66,0.66,0.66,0.66,0.66,0.66,0.66,0.66,0.66,0.66"
+          }
+        ]
+      },
+      "phrase": "sign survey app",
+      "productTruth": false,
+      "provenance": [
+        {
+          "collection_date": "2026-08-12",
+          "report": "phrase_these",
+          "seed": "100-seed screen",
+          "source": "Semrush API",
+          "source_file": "semrush_evidence.json",
+          "url": "https://www.semrush.com/kb/5-api"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "DataForSEO",
+          "source_file": "dataforseo_evidence.json",
+          "url": "https://docs.dataforseo.com/v3/dataforseo_labs/google/keyword_overview/live/"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "Market vertical research",
+          "source_file": "market_vertical_evidence.json",
+          "url": "https://www.thinksai.com/products-onsite/"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "V4/V3 source audit",
+          "source_file": "current_build_keyword_fit.json",
+          "source_refs": [
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:47-49",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:72-80",
+            "work/signglow_foundation/lumaroute_discoverability_v3.md:78-98",
+            "work/signglow_foundation/lumaroute_discoverability_v3.md:433-454"
+          ],
+          "url": null
+        }
+      ],
+      "providerStates": [
+        "semrush_measured",
+        "dataforseo_measured_numeric",
+        "market_editorial_idea",
+        "current_build_audited_idea"
+      ],
+      "researchDate": "2026-08-12",
+      "rowCountry": null,
+      "sourceJSONPointer": "/keyword_rows/1389",
+      "sourcePayload": "normalized_research_dataset.json",
+      "sourceRowCanonicalSHA256": "e7676fde39c5d91362560f03f76999771f1d40777c3df0dbf08b01443935650a",
+      "sourceType": "KEYWORD_MEASURED",
+      "statusKind": "measured"
+    },
+    {
+      "country": "US",
+      "countryEvidence": "DATASET_SCOPE; individual rows may not record a country field",
+      "displayPhrase": "sign inspection app",
+      "historicalClaimGates": [
+        "G1_IMPLEMENTED_AND_GREEN",
+        "G2_MATCHING_CLAIM_TEST",
+        "G3_TITLE_CLEARANCE",
+        "G4_PHYSICAL_IPHONE",
+        "G5_APP_STORE_SUBMISSION"
+      ],
+      "historicalCurrentBuild": {
+        "allowed_surfaces": [
+          "App Store title or subtitle research",
+          "App Store keyword research",
+          "default product page",
+          "core buyer web page"
+        ],
+        "claim_gates": [
+          "G1_IMPLEMENTED_AND_GREEN",
+          "G2_MATCHING_CLAIM_TEST",
+          "G3_TITLE_CLEARANCE",
+          "G4_PHYSICAL_IPHONE",
+          "G5_APP_STORE_SUBMISSION"
+        ],
+        "classification": "planned-current-metadata",
+        "cluster_id": "core_sign_inspection_identity",
+        "implementation_status": "planned_not_shipped",
+        "priority": "highest-fit",
+        "reason": "V4/V3 source-audited classification",
+        "research_disposition": "add_or_retain_as_seed",
+        "source_refs": [
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:1-17",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:35-49",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:53-70",
+          "work/signglow_foundation/v4_codex_implementation_runbook.md:20-31"
+        ],
+        "warnings": [
+          "Inspection means a human visible-condition record, not code, electrical, structural, safety, or professional certification.",
+          "Do not imply the app inspects every asset or replaces a complete sign-shop system."
+        ]
+      },
+      "historicalFit": "Direct match to the V4 buyer, asset, vertical, and guided visible-condition workflow.",
+      "historicalFitCanonicalSHA256": "61358d302ed116e87099ae91af2a3481ceed206380952a178052256b3dcb953d",
+      "historicalFitJSONPointer": "/clusters/0",
+      "historicalFitPayload": "current_build_keyword_fit.json",
+      "historicalWarnings": [
+        "Inspection means a human visible-condition record, not code, electrical, structural, safety, or professional certification.",
+        "Do not imply the app inspects every asset or replaces a complete sign-shop system."
+      ],
+      "implementationAuthorizedByThisRecord": false,
+      "intentInterpretation": "Use provider intent fields when supplied; missing intent remains unknown. Never infer localized search demand.",
+      "language": "en",
+      "languageEvidence": "DATASET_ENGLISH_SCOPE",
+      "localizedDemandMeasured": false,
+      "metrics": {
+        "dataforseo": {
+          "cluster": "Sign inspection & maintenance",
+          "cpc_usd": null,
+          "high_top_of_page_bid_usd": null,
+          "keyword_difficulty": null,
+          "latest_month": null,
+          "latest_month_search_volume": null,
+          "low_top_of_page_bid_usd": null,
+          "metrics_last_updated": null,
+          "monthly_searches": null,
+          "paid_competition_index": null,
+          "paid_competition_level": null,
+          "recent_3_month_vs_oldest_3_month_pct": null,
+          "record_origin": "seed_google_ads_search_volume",
+          "search_intent": null,
+          "search_volume": null,
+          "secondary_intents": [],
+          "seed_keyword": null
+        },
+        "dataforseo_blindspot": null,
+        "semrush": []
+      },
+      "phrase": "sign inspection app",
+      "productTruth": false,
+      "provenance": [
+        {
+          "collection_date": "2026-08-12",
+          "source": "DataForSEO",
+          "source_file": "dataforseo_evidence.json",
+          "url": "https://docs.dataforseo.com/v3/dataforseo_labs/google/keyword_overview/live/"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "App Store public evidence",
+          "source_file": "app_store_evidence.json",
+          "url": "https://developer.apple.com/app-store/product-page/"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "Market vertical research",
+          "source_file": "market_vertical_evidence.json",
+          "url": "https://www.thinksai.com/products-onsite/"
+        },
+        {
+          "collection_date": "2026-08-12",
+          "source": "V4/V3 source audit",
+          "source_file": "current_build_keyword_fit.json",
+          "source_refs": [
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:1-17",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:35-49",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:53-70",
+            "work/signglow_foundation/v4_codex_implementation_runbook.md:20-31"
+          ],
+          "url": null
+        }
+      ],
+      "providerStates": [
+        "dataforseo_database_or_request_without_numeric_volume",
+        "App Store public evidence_editorial_idea",
+        "market_editorial_idea",
+        "current_build_audited_idea"
+      ],
+      "researchDate": "2026-08-12",
+      "rowCountry": null,
+      "sourceJSONPointer": "/keyword_rows/1283",
+      "sourcePayload": "normalized_research_dataset.json",
+      "sourceRowCanonicalSHA256": "17749cae6c992fe42b09ef6479fc14a518fb4a0ecfae2603114bf9419674e3f4",
+      "sourceType": "HYPOTHESIS",
+      "statusKind": "idea"
+    },
+    {
+      "country": "US",
+      "countryEvidence": "DATASET_SCOPE; individual rows may not record a country field",
+      "displayPhrase": "night sign inspection",
+      "historicalClaimGates": [
+        "G1_IMPLEMENTED_AND_GREEN",
+        "G2_MATCHING_CLAIM_TEST",
+        "G4_PHYSICAL_IPHONE",
+        "G5_APP_STORE_SUBMISSION"
+      ],
+      "historicalCurrentBuild": {
+        "allowed_surfaces": [
+          "App Store subtitle and keyword research",
+          "screenshots",
+          "core buyer web page"
+        ],
+        "claim_gates": [
+          "G1_IMPLEMENTED_AND_GREEN",
+          "G2_MATCHING_CLAIM_TEST",
+          "G4_PHYSICAL_IPHONE",
+          "G5_APP_STORE_SUBMISSION"
+        ],
+        "classification": "planned-current-metadata",
+        "cluster_id": "night_after_dark_identity",
+        "implementation_status": "planned_not_shipped",
+        "priority": "highest-fit",
+        "reason": "V4/V3 source-audited classification",
+        "research_disposition": "add_or_retain_as_seed",
+        "source_refs": [
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:23-30",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:37-49",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:98-119",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:413-424"
+        ],
+        "warnings": [
+          "After dark is a human acknowledgement, not astronomical darkness, sensor measurement, EXIF proof, or guaranteed timing.",
+          "The app does not prove safe access."
+        ]
+      },
+      "historicalFit": "After-dark illuminated-sign work is the primary use moment and the runner records a human acknowledgement before capture.",
+      "historicalFitCanonicalSHA256": "8899f6373fda4ba2d37dbf9deca7ad080b28636cd53204b289583275ca4b451d",
+      "historicalFitJSONPointer": "/clusters/1",
+      "historicalFitPayload": "current_build_keyword_fit.json",
+      "historicalWarnings": [
+        "After dark is a human acknowledgement, not astronomical darkness, sensor measurement, EXIF proof, or guaranteed timing.",
+        "The app does not prove safe access."
+      ],
+      "implementationAuthorizedByThisRecord": false,
+      "intentInterpretation": "Use provider intent fields when supplied; missing intent remains unknown. Never infer localized search demand.",
+      "language": "en",
+      "languageEvidence": "DATASET_ENGLISH_SCOPE",
+      "localizedDemandMeasured": false,
+      "metrics": {
+        "dataforseo": null,
+        "dataforseo_blindspot": null,
+        "semrush": []
+      },
+      "phrase": "night sign inspection",
+      "productTruth": false,
+      "provenance": [
+        {
+          "collection_date": "2026-08-12",
+          "source": "V4/V3 source audit",
+          "source_file": "current_build_keyword_fit.json",
+          "source_refs": [
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:23-30",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:37-49",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:98-119",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:413-424"
+          ],
+          "url": null
+        }
+      ],
+      "providerStates": [
+        "current_build_audited_idea"
+      ],
+      "researchDate": "2026-08-12",
+      "rowCountry": null,
+      "sourceJSONPointer": "/keyword_rows/1204",
+      "sourcePayload": "normalized_research_dataset.json",
+      "sourceRowCanonicalSHA256": "47dd059773f638fa1805ad61fa00886d66f87ef7bef17e06b82981d88cfe54fd",
+      "sourceType": "HYPOTHESIS",
+      "statusKind": "idea"
+    },
+    {
+      "country": "US",
+      "countryEvidence": "DATASET_SCOPE; individual rows may not record a country field",
+      "displayPhrase": "sign inspection report app",
+      "historicalClaimGates": [
+        "G1_IMPLEMENTED_AND_GREEN",
+        "G2_MATCHING_CLAIM_TEST",
+        "G7_PDF_AND_HISTORY_COMPLETE",
+        "G4_PHYSICAL_IPHONE",
+        "G5_APP_STORE_SUBMISSION"
+      ],
+      "historicalCurrentBuild": {
+        "allowed_surfaces": [
+          "App Store keyword research",
+          "photo-report product page",
+          "report screenshot"
+        ],
+        "claim_gates": [
+          "G1_IMPLEMENTED_AND_GREEN",
+          "G2_MATCHING_CLAIM_TEST",
+          "G7_PDF_AND_HISTORY_COMPLETE",
+          "G4_PHYSICAL_IPHONE",
+          "G5_APP_STORE_SUBMISSION"
+        ],
+        "classification": "planned-current-metadata",
+        "cluster_id": "photo_pdf_report",
+        "implementation_status": "planned_not_shipped",
+        "priority": "highest-fit",
+        "reason": "V4/V3 source-audited classification",
+        "research_disposition": "add_or_retain_as_seed",
+        "source_refs": [
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:59-70",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:154-159",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:334-399",
+          "work/signglow_foundation/v4_codex_implementation_runbook.md:259-263"
+        ],
+        "warnings": [
+          "Do not call the report certified, tamper-proof, legal proof, externally reviewed, delivered, received, opened, read, or accepted.",
+          "Share means the system share sheet opened."
+        ]
+      },
+      "historicalFit": "V4 plans a deterministic local PDF generated from immutable snapshots, with preview, Share, and Files export.",
+      "historicalFitCanonicalSHA256": "1647bd2d837fec60354780dd6ee557392eb2445a23490546a628800aa65f2016",
+      "historicalFitJSONPointer": "/clusters/2",
+      "historicalFitPayload": "current_build_keyword_fit.json",
+      "historicalWarnings": [
+        "Do not call the report certified, tamper-proof, legal proof, externally reviewed, delivered, received, opened, read, or accepted.",
+        "Share means the system share sheet opened."
+      ],
+      "implementationAuthorizedByThisRecord": false,
+      "intentInterpretation": "Use provider intent fields when supplied; missing intent remains unknown. Never infer localized search demand.",
+      "language": "en",
+      "languageEvidence": "DATASET_ENGLISH_SCOPE",
+      "localizedDemandMeasured": false,
+      "metrics": {
+        "dataforseo": null,
+        "dataforseo_blindspot": null,
+        "semrush": []
+      },
+      "phrase": "sign inspection report app",
+      "productTruth": false,
+      "provenance": [
+        {
+          "collection_date": "2026-08-12",
+          "source": "V4/V3 source audit",
+          "source_file": "current_build_keyword_fit.json",
+          "source_refs": [
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:59-70",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:154-159",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:334-399",
+            "work/signglow_foundation/v4_codex_implementation_runbook.md:259-263"
+          ],
+          "url": null
+        }
+      ],
+      "providerStates": [
+        "current_build_audited_idea"
+      ],
+      "researchDate": "2026-08-12",
+      "rowCountry": null,
+      "sourceJSONPointer": "/keyword_rows/1306",
+      "sourcePayload": "normalized_research_dataset.json",
+      "sourceRowCanonicalSHA256": "c6be353a486e035983af6c699edf373a7c594dfc4ee38a7c6e6839829a3e690b",
+      "sourceType": "HYPOTHESIS",
+      "statusKind": "idea"
+    },
+    {
+      "country": "US",
+      "countryEvidence": "DATASET_SCOPE; individual rows may not record a country field",
+      "displayPhrase": "sign maintenance log",
+      "historicalClaimGates": [
+        "G1_IMPLEMENTED_AND_GREEN",
+        "G2_MATCHING_CLAIM_TEST",
+        "G7_PDF_AND_HISTORY_COMPLETE",
+        "G4_PHYSICAL_IPHONE",
+        "G5_APP_STORE_SUBMISSION"
+      ],
+      "historicalCurrentBuild": {
+        "allowed_surfaces": [
+          "App Store keyword research",
+          "maintenance-history product page",
+          "history screenshot"
+        ],
+        "claim_gates": [
+          "G1_IMPLEMENTED_AND_GREEN",
+          "G2_MATCHING_CLAIM_TEST",
+          "G7_PDF_AND_HISTORY_COMPLETE",
+          "G4_PHYSICAL_IPHONE",
+          "G5_APP_STORE_SUBMISSION"
+        ],
+        "classification": "planned-current-metadata",
+        "cluster_id": "maintenance_history_issue_recheck",
+        "implementation_status": "planned_not_shipped",
+        "priority": "high-fit",
+        "reason": "V4/V3 source-audited classification",
+        "research_disposition": "add_or_retain_as_seed",
+        "source_refs": [
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:63-65",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:141-159",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:531-534"
+        ],
+        "warnings": [
+          "Say recorded work, not repair complete.",
+          "Work never resolves the issue; only a new-evidence recheck can record a resolution choice.",
+          "Issue tracking is sign-specific and not a full work-order or dispatch product."
+        ]
+      },
+      "historicalFit": "V4 preserves chronological sign-linked issue, recorded-work, recheck, correction, report, and comparison history.",
+      "historicalFitCanonicalSHA256": "1efe366316d19c00640f933e641697143e68fecc45a34a84acb29598c0d4b776",
+      "historicalFitJSONPointer": "/clusters/3",
+      "historicalFitPayload": "current_build_keyword_fit.json",
+      "historicalWarnings": [
+        "Say recorded work, not repair complete.",
+        "Work never resolves the issue; only a new-evidence recheck can record a resolution choice.",
+        "Issue tracking is sign-specific and not a full work-order or dispatch product."
+      ],
+      "implementationAuthorizedByThisRecord": false,
+      "intentInterpretation": "Use provider intent fields when supplied; missing intent remains unknown. Never infer localized search demand.",
+      "language": "en",
+      "languageEvidence": "DATASET_ENGLISH_SCOPE",
+      "localizedDemandMeasured": false,
+      "metrics": {
+        "dataforseo": null,
+        "dataforseo_blindspot": null,
+        "semrush": []
+      },
+      "phrase": "sign maintenance log",
+      "productTruth": false,
+      "provenance": [
+        {
+          "collection_date": "2026-08-12",
+          "source": "V4/V3 source audit",
+          "source_file": "current_build_keyword_fit.json",
+          "source_refs": [
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:63-65",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:141-159",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:531-534"
+          ],
+          "url": null
+        }
+      ],
+      "providerStates": [
+        "current_build_audited_idea"
+      ],
+      "researchDate": "2026-08-12",
+      "rowCountry": null,
+      "sourceJSONPointer": "/keyword_rows/1330",
+      "sourcePayload": "normalized_research_dataset.json",
+      "sourceRowCanonicalSHA256": "97a6c27bc0d63adba0dcf95838810e8588c2f55596eec4d71de04723d02a698f",
+      "sourceType": "HYPOTHESIS",
+      "statusKind": "idea"
+    },
+    {
+      "country": "US",
+      "countryEvidence": "DATASET_SCOPE; individual rows may not record a country field",
+      "displayPhrase": "sign photo documentation app",
+      "historicalClaimGates": [
+        "G1_IMPLEMENTED_AND_GREEN",
+        "G2_MATCHING_CLAIM_TEST",
+        "G7_PDF_AND_HISTORY_COMPLETE",
+        "G12_PUBLIC_WEB_RELEASE"
+      ],
+      "historicalCurrentBuild": {
+        "allowed_surfaces": [
+          "photo-documentation buyer page",
+          "qualified comparison page",
+          "photo-report custom product page after release"
+        ],
+        "claim_gates": [
+          "G1_IMPLEMENTED_AND_GREEN",
+          "G2_MATCHING_CLAIM_TEST",
+          "G7_PDF_AND_HISTORY_COMPLETE",
+          "G12_PUBLIC_WEB_RELEASE"
+        ],
+        "classification": "planned-current-web-content",
+        "cluster_id": "photo_documentation_for_sign_service",
+        "implementation_status": "planned_not_shipped",
+        "priority": "high-fit",
+        "reason": "V4/V3 source-audited classification",
+        "research_disposition": "add_or_retain_as_seed",
+        "source_refs": [
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:53-70",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:98-119",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:334-399",
+          "work/signglow_foundation/lumaroute_discoverability_v3.md:88-92",
+          "work/signglow_foundation/lumaroute_discoverability_v3.md:352-369"
+        ],
+        "warnings": [
+          "Do not imply automated photo quality, authenticity, measurement, GPS proof, timestamp overlay, or legal proof.",
+          "Qualify broad field-documentation language with sign service."
+        ]
+      },
+      "historicalFit": "Wide and close photos are required inputs tied to one sign, purpose, time context, outcome, and immutable report history.",
+      "historicalFitCanonicalSHA256": "6b74ab6118343934e9ec11117648e45c45f9c01ed467b7f3af1c2a9ede307c61",
+      "historicalFitJSONPointer": "/clusters/9",
+      "historicalFitPayload": "current_build_keyword_fit.json",
+      "historicalWarnings": [
+        "Do not imply automated photo quality, authenticity, measurement, GPS proof, timestamp overlay, or legal proof.",
+        "Qualify broad field-documentation language with sign service."
+      ],
+      "implementationAuthorizedByThisRecord": false,
+      "intentInterpretation": "Use provider intent fields when supplied; missing intent remains unknown. Never infer localized search demand.",
+      "language": "en",
+      "languageEvidence": "DATASET_ENGLISH_SCOPE",
+      "localizedDemandMeasured": false,
+      "metrics": {
+        "dataforseo": null,
+        "dataforseo_blindspot": null,
+        "semrush": []
+      },
+      "phrase": "sign photo documentation app",
+      "productTruth": false,
+      "provenance": [
+        {
+          "collection_date": "2026-08-12",
+          "source": "V4/V3 source audit",
+          "source_file": "current_build_keyword_fit.json",
+          "source_refs": [
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:53-70",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:98-119",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:334-399",
+            "work/signglow_foundation/lumaroute_discoverability_v3.md:88-92",
+            "work/signglow_foundation/lumaroute_discoverability_v3.md:352-369"
+          ],
+          "url": null
+        }
+      ],
+      "providerStates": [
+        "current_build_audited_idea"
+      ],
+      "researchDate": "2026-08-12",
+      "rowCountry": null,
+      "sourceJSONPointer": "/keyword_rows/1341",
+      "sourcePayload": "normalized_research_dataset.json",
+      "sourceRowCanonicalSHA256": "82f814a4129c6a78520523f6e5ca5da4afa02f5a0b002f1949dfc8df40081aa2",
+      "sourceType": "HYPOTHESIS",
+      "statusKind": "idea"
+    },
+    {
+      "country": "US",
+      "countryEvidence": "DATASET_SCOPE; individual rows may not record a country field",
+      "displayPhrase": "sign damage photo report",
+      "historicalClaimGates": [
+        "G1_IMPLEMENTED_AND_GREEN",
+        "G2_MATCHING_CLAIM_TEST",
+        "G12_PUBLIC_WEB_RELEASE"
+      ],
+      "historicalCurrentBuild": {
+        "allowed_surfaces": [
+          "expert-reviewed education",
+          "visible-condition documentation resource",
+          "issue-label explanation"
+        ],
+        "claim_gates": [
+          "G1_IMPLEMENTED_AND_GREEN",
+          "G2_MATCHING_CLAIM_TEST",
+          "G12_PUBLIC_WEB_RELEASE"
+        ],
+        "classification": "planned-current-web-content",
+        "cluster_id": "partial_outage_visible_condition_content",
+        "implementation_status": "planned_not_shipped",
+        "priority": "high-fit-education",
+        "reason": "V4/V3 source-audited classification",
+        "research_disposition": "add_as_resource_seed",
+        "source_refs": [
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:133-148",
+          "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:413-435",
+          "work/signglow_foundation/lumaroute_discoverability_v3.md:128-148",
+          "work/signglow_foundation/lumaroute_discoverability_v3.md:352-369"
+        ],
+        "warnings": [
+          "Describe visible appearance only; do not diagnose cause, recommend electrical work, certify safety, or claim a repair.",
+          "Service-seeker content must not pretend the software performs repair."
+        ]
+      },
+      "historicalFit": "The exact sign pack includes human-selected labels for dark sections, dim or uneven illumination, flicker, color mismatch, physical damage, and other visible conditions.",
+      "historicalFitCanonicalSHA256": "3eadd4fcebfe51b785b5513556b236c16ee4f068e2c1293b5d1ca7d28fa1a1e9",
+      "historicalFitJSONPointer": "/clusters/12",
+      "historicalFitPayload": "current_build_keyword_fit.json",
+      "historicalWarnings": [
+        "Describe visible appearance only; do not diagnose cause, recommend electrical work, certify safety, or claim a repair.",
+        "Service-seeker content must not pretend the software performs repair."
+      ],
+      "implementationAuthorizedByThisRecord": false,
+      "intentInterpretation": "Use provider intent fields when supplied; missing intent remains unknown. Never infer localized search demand.",
+      "language": "en",
+      "languageEvidence": "DATASET_ENGLISH_SCOPE",
+      "localizedDemandMeasured": false,
+      "metrics": {
+        "dataforseo": null,
+        "dataforseo_blindspot": null,
+        "semrush": []
+      },
+      "phrase": "sign damage photo report",
+      "productTruth": false,
+      "provenance": [
+        {
+          "collection_date": "2026-08-12",
+          "source": "V4/V3 source audit",
+          "source_file": "current_build_keyword_fit.json",
+          "source_refs": [
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:133-148",
+            "work/signglow_foundation/field_evidence_foundation_build_plan_v4.md:413-435",
+            "work/signglow_foundation/lumaroute_discoverability_v3.md:128-148",
+            "work/signglow_foundation/lumaroute_discoverability_v3.md:352-369"
+          ],
+          "url": null
+        }
+      ],
+      "providerStates": [
+        "current_build_audited_idea"
+      ],
+      "researchDate": "2026-08-12",
+      "rowCountry": null,
+      "sourceJSONPointer": "/keyword_rows/1278",
+      "sourcePayload": "normalized_research_dataset.json",
+      "sourceRowCanonicalSHA256": "58859c2487b2af5a1c4e22b5a94beacdf27ed03116a13bf514bd997b18505638",
+      "sourceType": "HYPOTHESIS",
+      "statusKind": "idea"
+    }
+  ],
+  "researchManifest": {
+    "path": "docs/design/v30/research/V30ResearchManifestV1.json",
+    "sha256": "81a1e4d2d22d54ec866bbe639643a98e012b8e7c8254408a11474062611d5551"
+  },
+  "schema": "V30KeywordEvidenceBindingV1",
+  "sourceDate": "2026-08-12",
+  "sourceLanguage": "English",
+  "sourceMarket": "United States"
+}
