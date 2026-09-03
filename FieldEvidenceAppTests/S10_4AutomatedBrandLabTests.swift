@@ -1323,10 +1323,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 157_795)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 158_519)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "ECFE10B9367D69259DE2C034DC2E202507FFE96997F67C30912879BCB381FF6D"
+            "FC5D551DBC9184303B7F915E65815F3DBB431EE669D2C11C7987C551EE32EEDE"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -25182,12 +25182,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(focusedDiagnosticUIExecutionSource.contains("TEST_RUNNER_CI_S10_4_DIAGNOSTIC"))
         XCTAssertFalse(
             workerSource.contains(
-                "CI_S10_4_DIAGNOSTIC_PROBE_ID=$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID"
+                "\"CI_S10_4_DIAGNOSTIC_PROBE_ID=$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID"
             )
         )
         XCTAssertFalse(
             workerSource.contains(
-                "CI_S10_4_DIAGNOSTIC_EXECUTION_LANE=$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE"
+                "\"CI_S10_4_DIAGNOSTIC_EXECUTION_LANE=$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE"
             )
         )
         XCTAssertTrue(
