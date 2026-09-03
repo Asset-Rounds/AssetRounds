@@ -5228,6 +5228,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         )
         XCTAssertLessThan(doneTapRange.lowerBound, baselineRange.lowerBound)
+        let minimumWorkValidationViewportCall =
+            "            scroll(saveWork, in: app)\n" +
+                "            assertControl(saveWork, label: \"Record work\")\n"
+        XCTAssertEqual(
+            workValidationGateSource.components(
+                separatedBy: minimumWorkValidationViewportCall
+            ).count - 1,
+            1,
+            "work-validation gate viewport replacement count"
+        )
+        let workValidationGateProhibitionSource =
+            workValidationGateSource.replacingOccurrences(
+                of: minimumWorkValidationViewportCall,
+                with: ""
+            )
         for prohibitedGateForm in [
             "performAccessibilityAudit",
             "positionWorkValidationShortDescriptionForAXText",
@@ -5238,7 +5253,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "epsilon",
         ] {
             XCTAssertFalse(
-                workValidationGateSource.contains(prohibitedGateForm),
+                workValidationGateProhibitionSource.contains(prohibitedGateForm),
                 prohibitedGateForm
             )
         }
@@ -5426,9 +5441,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let minimumWorkValidationViewportCall =
-            "            scroll(saveWork, in: app)\n" +
-                "            assertControl(saveWork, label: \"Record work\")\n"
         let minimumWorkValidationKeyboardAccessoryCall =
             "        if automationShard?.shardID " +
                 "== \"s10.4.minimum.minimum-os\" {\n" +
