@@ -24654,7 +24654,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(matrixSource.contains("warp"))
         XCTAssertEqual(
             dispatcherSource.components(separatedBy: "      s10_4_segment_id: none").count - 1,
-            9
+            11
         )
         let rejectSource = try boundedSource(
             dispatcherSource,
