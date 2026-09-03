@@ -11750,7 +11750,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_202)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "06B2A4E3288C3CF1D6BB41BB7462FA4A5E0A6866F6E6CDF7550170532E5E9"
+            "06B2A4E3288C3CF1D6BB41BB7462FA4A5E0A6864716F6E6CDF7550170532E5E9"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
