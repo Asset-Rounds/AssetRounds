@@ -50,6 +50,7 @@ on:
         description: Closed H394 focused diagnostic execution lane; ordinary execution uses none
         required: false
         default: none
+        type: string
     secrets:
       BITRISE_BUILD_CACHE_AUTH_TOKEN:
         description: Bitrise Build Cache token used only by the closed Bitrise development lane

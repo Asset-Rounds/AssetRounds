@@ -316,8 +316,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 353_374,
-            sha256: "EA55CFADE4880410ECCF754802C07E51BD2F244A2E6AFA4253AA7A9C97342E6F"
+            byteCount: 353_395,
+            sha256: "662D34567CBA78758FE68B204256F3CC418E60D43860BF348BF31C06D1B216BA"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -25072,10 +25072,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      s10_4_diagnostic_probe_id:",
             before: "\n\npermissions:"
         )
-        XCTAssertEqual(focusedDiagnosticWorkerInputSource.utf8.count, 543)
+        XCTAssertEqual(focusedDiagnosticWorkerInputSource.utf8.count, 564)
         XCTAssertEqual(
             Data(focusedDiagnosticWorkerInputSource.utf8).sha256,
-            "F816EC935BCB735BF2F75B76149D5ACED16C8688646393C8F811A257760FE5DC"
+            "FC0EC3CC9633F4DEF502F61E8D350B7408871552A83FA640AB7687DF214DF265"
         )
         for exact in [
             "s10_4_diagnostic_probe_id:",
