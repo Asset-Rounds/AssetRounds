@@ -11408,6 +11408,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let captureBaselineStart =
             "    @MainActor\n" +
                 "    private func captureBaseline("
+        let minimumPreflightPreAuditHelperStart =
+            "    @MainActor\n" +
+                "    private func captureMinimumPreflightPreAuditContext("
         let segmentedReplayHelperStart =
             "    @MainActor\n" +
                 "    private func replaySegmentPrefixIfNeeded("
@@ -11423,9 +11426,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "\n    private func isActive("
         guard let captureBaselineStartRange = uiSource.range(
             of: captureBaselineStart
+        ), let minimumPreflightPreAuditHelperStartRange = uiSource.range(
+            of: minimumPreflightPreAuditHelperStart,
+            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
         ), let preparationPredicateHelperStartRange = uiSource.range(
             of: preparationPredicateHelperStart,
-            range: captureBaselineStartRange.upperBound ..< uiSource.endIndex
+            range: minimumPreflightPreAuditHelperStartRange.upperBound ..< uiSource.endIndex
         ), let segmentedReplayHelperStartRange = uiSource.range(
             of: segmentedReplayHelperStart,
             range: preparationPredicateHelperStartRange.upperBound ..< uiSource.endIndex
@@ -11441,7 +11447,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let restoredCaptureBaselineEnd = uiSource.index(
-            preparationPredicateHelperStartRange.lowerBound,
+            minimumPreflightPreAuditHelperStartRange.lowerBound,
             offsetBy: -2
         )
         let restoredCaptureBaselineSource = String(
@@ -11450,16 +11456,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     restoredCaptureBaselineEnd
             ]
         )
+        let minimumPreflightPreAuditHelperEnd = uiSource.index(
+            preparationPredicateHelperStartRange.lowerBound,
+            offsetBy: -2
+        )
+        let minimumPreflightPreAuditHelperSource = String(
+            uiSource[
+                minimumPreflightPreAuditHelperStartRange.lowerBound ..<
+                    minimumPreflightPreAuditHelperEnd
+            ]
+        )
         let issueRecheckDuePositioningHelperSource = String(
             uiSource[
                 issueRecheckDuePositioningHelperStartRange.lowerBound ..<
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_071)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_290)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "A769FFC8EA01F8ED562B1D599CF92A1A759782E295F5F2731CCE7D837F2A6252"
+            "043BCC10457DC554D8778136DB3655B5F44348E098C47A37DE605CA3420D36B4"
+        )
+        XCTAssertEqual(minimumPreflightPreAuditHelperSource.utf8.count, 1_739)
+        XCTAssertEqual(
+            Data(minimumPreflightPreAuditHelperSource.utf8).sha256,
+            "A6F7F17886D5A3FB3087DB993F72F603613FD9B046977B3ED230E3733EBE89B1"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -11474,6 +11495,94 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 separatedBy: "        do {\n" + normalEligibleExceptionsBinding
             ).count - 1,
             1
+        )
+        let exactMinimumPreflightPreAuditCall =
+            "        if shard.shardID == \"s10.4.minimum.minimum-os\",\n" +
+                "           stateID == \"state.check-preflight.ready\",\n" +
+                "           automationSegment == .none {\n" +
+                "            captureMinimumPreflightPreAuditContext(in: app)\n" +
+                "        }\n"
+        XCTAssertEqual(
+            restoredCaptureBaselineSource.components(
+                separatedBy: exactMinimumPreflightPreAuditCall
+            ).count - 1,
+            1
+        )
+        let minimumPreflightPreAuditOrdering =
+            exactMinimumPreflightPreAuditCall + "        do {\n" +
+                normalEligibleExceptionsBinding
+        XCTAssertEqual(
+            restoredCaptureBaselineSource.components(
+                separatedBy: minimumPreflightPreAuditOrdering
+            ).count - 1,
+            1
+        )
+        let exactMinimumPreflightPreAuditPrefix =
+            "S10_4_MINIMUM_PREFLIGHT_PREAUDIT_DIAGNOSTIC_ONLY"
+        for exact in [
+            exactMinimumPreflightPreAuditPrefix,
+            "let treeByteLimit = 262_144",
+            "let treeBytes = Data(app.debugDescription.utf8)",
+            "let retainedTree = Data(treeBytes.prefix(treeByteLimit))",
+            "XCUIScreen.main.screenshot().pngRepresentation",
+            "let keyboard = app.keyboards.firstMatch",
+            "diagnosticOnly=true",
+            "finalAcceptanceEligible=false",
+            "treeOriginalBytes=\\(treeBytes.count)",
+            "treeRetainedBytes=\\(retainedTree.count)",
+            "treeTruncated=\\(treeBytes.count > retainedTree.count)",
+        ] {
+            XCTAssertTrue(minimumPreflightPreAuditHelperSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            minimumPreflightPreAuditHelperSource.components(
+                separatedBy: "XCTAttachment("
+            ).count - 1,
+            3
+        )
+        for attachmentName in [
+            "\\(prefix) screen",
+            "\\(prefix) accessibility-tree-utf8-prefix",
+            "\\(prefix) context",
+        ] {
+            XCTAssertEqual(
+                minimumPreflightPreAuditHelperSource.components(
+                    separatedBy: attachmentName
+                ).count - 1,
+                1,
+                attachmentName
+            )
+        }
+        for prohibited in [
+            "performAccessibilityAudit",
+            "printJSONLine(",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+            "S10.4 candidate",
+            ".tap(",
+            ".swipe",
+            "scroll(",
+            "waitForExistence",
+            "Thread.sleep",
+            "sleep(",
+            "XCTFail(",
+            "throw ",
+            "retry",
+            "tolerance",
+            "exception",
+        ] {
+            XCTAssertFalse(minimumPreflightPreAuditHelperSource.contains(prohibited), prohibited)
+        }
+        let k365ReconstructedUISource = uiSource
+            .replacingOccurrences(of: exactMinimumPreflightPreAuditCall, with: "")
+            .replacingOccurrences(
+                of: "\n\n" + minimumPreflightPreAuditHelperSource,
+                with: ""
+            )
+        XCTAssertEqual(k365ReconstructedUISource.utf8.count, 783_495)
+        XCTAssertEqual(
+            Data(k365ReconstructedUISource.utf8).sha256,
+            "15962A2D8473B6E6899BE293E5031C50F36F75987FED07954BFF6F2CC5071E88"
         )
 
         let issueRecheckDueRouteStart =
@@ -21866,10 +21975,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 783_495)
+        XCTAssertEqual(uiSource.utf8.count, 785_455)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "15962A2D8473B6E6899BE293E5031C50F36F75987FED07954BFF6F2CC5071E88"
+            "43797B4FBA07BB5A33337A3B581AF361B4F6CB3F0F976017316155F67709E462"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,

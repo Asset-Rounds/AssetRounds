@@ -10658,6 +10658,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             file: file,
             line: line
         )
+        if shard.shardID == "s10.4.minimum.minimum-os",
+           stateID == "state.check-preflight.ready",
+           automationSegment == .none {
+            captureMinimumPreflightPreAuditContext(in: app)
+        }
         do {
             let eligibleExceptions = Self.contrastAuditExceptionSignatures.filter {
                 $0.shardID == shard.shardID && $0.stateID == stateID
@@ -10797,6 +10802,49 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 line: line
             )
         }
+    }
+
+    @MainActor
+    private func captureMinimumPreflightPreAuditContext(in app: XCUIApplication) {
+        let prefix = "S10_4_MINIMUM_PREFLIGHT_PREAUDIT_DIAGNOSTIC_ONLY"
+        let png = XCTAttachment(
+            data: XCUIScreen.main.screenshot().pngRepresentation,
+            uniformTypeIdentifier: "public.png"
+        )
+        png.name = "\(prefix) screen"
+        png.lifetime = .keepAlways
+        add(png)
+
+        let treeByteLimit = 262_144
+        let treeBytes = Data(app.debugDescription.utf8)
+        let retainedTree = Data(treeBytes.prefix(treeByteLimit))
+        let tree = XCTAttachment(data: retainedTree, uniformTypeIdentifier: "public.data")
+        tree.name = "\(prefix) accessibility-tree-utf8-prefix"
+        tree.lifetime = .keepAlways
+        add(tree)
+
+        let appExists = app.exists
+        let appFrame = appExists ? String(describing: app.frame) : "not-present"
+        let keyboard = app.keyboards.firstMatch
+        let keyboardExists = keyboard.exists
+        let keyboardFrame = keyboardExists ? String(describing: keyboard.frame) : "not-present"
+        let context = XCTAttachment(string: """
+        diagnosticOnly=true
+        finalAcceptanceEligible=false
+        shard=s10.4.minimum.minimum-os
+        state=state.check-preflight.ready
+        treeByteLimit=\(treeByteLimit)
+        treeOriginalBytes=\(treeBytes.count)
+        treeRetainedBytes=\(retainedTree.count)
+        treeTruncated=\(treeBytes.count > retainedTree.count)
+        appExists=\(appExists)
+        appFrame=\(appFrame)
+        keyboardExists=\(keyboardExists)
+        keyboardFrame=\(keyboardFrame)
+        """)
+        context.name = "\(prefix) context"
+        context.lifetime = .keepAlways
+        add(context)
     }
 
     @MainActor
