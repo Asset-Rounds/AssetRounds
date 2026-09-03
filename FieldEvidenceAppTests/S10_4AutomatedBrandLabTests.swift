@@ -1517,10 +1517,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN",
             before: "\n      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_END"
         )
-        XCTAssertEqual(workerPilotFullEvidenceSource.utf8.count, 34_200)
+        XCTAssertEqual(workerPilotFullEvidenceSource.utf8.count, 34_199)
         XCTAssertEqual(
             Data(workerPilotFullEvidenceSource.utf8).sha256,
-            "E034F9305005EF0BB087534CF77B815D30B14993D84AD1D064614F894F85BF29"
+            "8BF0B244C931A8DFE53C24F23FA91D1E3B7F9F8A54D8CC3253FDC1D4C98472E3"
         )
         for exact in [
             "s10.4.current.*:iphone-17-ios-26.2-current:iOS\\ 26.2:23C54:iPhone\\ 17",
@@ -1552,7 +1552,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "9BBCA7151232E2CB668EA01E9C76256E4445C05B70B24F3DD6CDA37EF078688A"
         )
         for exact in [
-            "if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}",
+            "if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none' }}",
             "rm -f \\",
             "$shard_evidence_path/shard-receipt.json",
             "$shard_evidence_path/segment-receipt.json",
@@ -3587,10 +3587,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(preflightMinimumSource.utf8).sha256,
             "9DBF882BAC56E24A0558EC075B1037F171CDF4156FBFD2BDE8F8C61F30559000"
         )
-        XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 29_876)
+        XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 30_051)
         XCTAssertEqual(
             Data(currentProfilePreflightQuickPathSource.utf8).sha256,
-            "0F0B1CEB5A80D8DA541B032DE0716317B48739B7D599715AE091AFF00BC30FA7"
+            "C9EC924BAD52EE96F69BF14645B28F60FE95DFB09A9DB0AEA34624E120B7F4F5"
         )
         let minimumDoubleLengthPreflightDiagnosticCaller =
             #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#
@@ -4406,6 +4406,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let currentProfileRestorationBeforeCapture =
             currentProfileRestorationFailure +
                 "\n            }\n        }\n" +
+                "        if diagnosticProbe == .minimumPreflight {\n" +
+                "            try completeFocusedDiagnosticPreflight(in: app)\n" +
+                "            throw FocusedDiagnosticProbeStop.completed\n" +
+                "        }\n" +
                 preflightQuickPathCapture
         XCTAssertEqual(
             uiSource.components(
@@ -11743,10 +11747,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_071)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_202)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "A769FFC8EA01F8ED562B1D599CF92A1A759782E295F5F2731CCE7D837F2A6252"
+            "06B2A4E3288C3CF1D6BB41BB7462FA4A5E0A6866F6E6CDF7550170532E5E9"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -14583,7 +14587,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        storeKitSession?.disableDialogs = true"
         XCTAssertEqual(
             uiSource.components(separatedBy: initialStoreKitSetup).count - 1,
-            1
+            2
         )
         XCTAssertFalse(
             uiSource.contains("        let session = try SKTestSession(contentsOf: fixtureURL)")
@@ -14829,7 +14833,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "SKTestSession(contentsOf: fixtureURL)"
             ).count - 1,
-            1
+            2
         )
         XCTAssertFalse(uiSource.contains("freshSession"))
         XCTAssertFalse(uiSource.contains("storeKitSession = nil"))
@@ -22926,7 +22930,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from:
                 "    @MainActor\n" +
                 "    private func positionReportCorrectionCompletedForAXText(",
-            before: "\n    @MainActor\n    private func captureBaseline("
+            before: "\n    @MainActor\n    private func completeFocusedDiagnosticProbe("
         )
         let k147State56FirstTargetSource = try boundedSource(
             k134State56HelperSource,
@@ -24499,20 +24503,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_056)
+        XCTAssertEqual(captureSource.utf8.count, 8_187)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "8EACDB3319DD0672D4A9414B8A9F0E0ECD9FD1CA3E0F2AC6C2E68A2CE6367D16"
+            "801484C4301703C9C3ABA144151DB4AD4C6C57D4D22EA8F2088CF52DE648D72D"
         )
         let captureReplayGateSource = try boundedSource(
             captureSource,
             from: "    private func captureBaseline(\n",
             before: "        XCTAssertFalse(\n            migratedStateIDs.contains(stateID),"
         )
-        XCTAssertEqual(captureReplayGateSource.utf8.count, 613)
+        XCTAssertEqual(captureReplayGateSource.utf8.count, 744)
         XCTAssertEqual(
             Data(captureReplayGateSource.utf8).sha256,
-            "46E3A0F7CAEB9CE49D254A5C378269765DE8CE22EF30927666185AFC79EB4BF7"
+            "B5512EB50FE5E11FF7995822039407C232C400707B3F1F2B8ADE37EF3B41BFE4"
         )
         let replayCall = try XCTUnwrap(
             captureSource.range(of: "if replaySegmentPrefixIfNeeded(")
@@ -24729,10 +24733,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard let range = Range(match.range, in: uiSource) else { return nil }
             return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 454)
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 455)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "DDEF04B3721D5A1610610F916A4C96F0F038C494A297785D3B39B7BAA99492B9"
+            "2EE096AD4CB050722488B80D762168485C06E7105B671464E228A2FF0C06A43B"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
@@ -24967,7 +24971,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(matrixSource.contains("warp"))
         XCTAssertEqual(
             dispatcherSource.components(separatedBy: "      s10_4_segment_id: none").count - 1,
-            11
+            14
         )
         let rejectSource = try boundedSource(
             dispatcherSource,
@@ -25689,7 +25693,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(partialCleanupSource.contains("SHA256SUMS.txt"))
         XCTAssertTrue(
             workerSource.contains(
-                "name: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id)"
+                #"name: ${{ inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))))) }}"#
             )
         )
         let bitriseScanMarker = "      - name: Verify Bitrise evidence contains no cache credentials"
@@ -26347,10 +26351,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "        try completeVisibleIssueCheck(in: app)",
             "    private func completeVisibleIssueCheck(in app: XCUIApplication) throws {",
         ]
-        for lock in restoredVisibleIssueCallChainLocks {
+        for (lock, expectedCount) in zip(restoredVisibleIssueCallChainLocks, [2, 1]) {
             XCTAssertEqual(
                 uiSource.components(separatedBy: lock).count - 1,
-                1,
+                expectedCount,
                 lock
             )
         }
