@@ -229,8 +229,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 83_576,
-            sha256: "1825FC9FAEB1CBA466583764BF2CCE710F04F26CF231CAFFD942105EA9D38C76"
+            byteCount: 87_878,
+            sha256: "4C008C220F6A27426D3B39160571CA4B1A8DEB1D0287F89B15FFEA2D23B592EC"
         )
         let dispatcherSource = try text(dispatcherPath)
         let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
@@ -398,7 +398,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 8)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 9)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -447,6 +447,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - s10-4-minimum-diagnostic-pilot"
+            ).count - 1,
+            1
+        )
         XCTAssertFalse(executionLaneSource.contains("default: getmac-xcode-26.6-development-only"))
         XCTAssertFalse(executionLaneSource.contains("default: warp-xcode-26.5-development-only"))
         XCTAssertFalse(
@@ -465,6 +471,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         )
         XCTAssertFalse(executionLaneSource.contains("default: s10-4-hybrid-equivalence-pilot"))
+        XCTAssertFalse(executionLaneSource.contains("default: s10-4-minimum-diagnostic-pilot"))
         XCTAssertFalse(executionLaneSource.contains("type: string"))
 
         let dispatcherConcurrency =
@@ -735,7 +742,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 in: jobsSource,
                 range: NSRange(location: 0, length: jobsSource.utf16.count)
             ),
-            18
+            22
         )
 
         let githubLaneGate =
@@ -802,7 +809,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             dispatcherSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
             ).count - 1,
-            11
+            13
         )
         let pilotRejectSource = try boundedSource(
             dispatcherSource,
@@ -826,7 +833,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let pilotDispatcherSource = try boundedSource(
             dispatcherSource,
             from: "  s10-4-hybrid-payload-producer:",
-            before: "\n\n  github-segmented-shard:"
+            before: "\n\n  reject-invalid-s10-4-minimum-diagnostic-pilot-selection:"
         )
         XCTAssertEqual(pilotDispatcherSource.utf8.count, 26_465)
         XCTAssertEqual(
@@ -884,6 +891,78 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(pilotDispatcherSource.contains(exact), exact)
         }
         XCTAssertFalse(pilotDispatcherSource.contains("finalAcceptanceEligible: true"))
+        let minimumDiagnosticSource = try boundedSource(
+            dispatcherSource,
+            from: "  reject-invalid-s10-4-minimum-diagnostic-pilot-selection:",
+            before: "\n\n  github-segmented-shard:"
+        )
+        XCTAssertEqual(minimumDiagnosticSource.utf8.count, 4_257)
+        XCTAssertEqual(
+            Data(minimumDiagnosticSource.utf8).sha256,
+            "9469EEA6613BDAC10E29E3FCEC6B7E589AF2D867C8C37745A56A30A4A8809A43"
+        )
+        for exact in [
+            "inputs.execution_lane == 's10-4-minimum-diagnostic-pilot'",
+            "inputs.run_ui_smoke != true",
+            "inputs.s10_4_shard_id != 'none'",
+            "Require the fixed minimum diagnostic selection",
+            "s10-4-minimum-diagnostic-producer:",
+            "s10-4-minimum-diagnostic-consumer:",
+            "summarize-s10-4-minimum-diagnostic-pilot:",
+            "runner_label: bitrise-m4-pro",
+            "runner_label: macos-26",
+            "runner_provider: bitrise",
+            "runner_provider: github",
+            "s10_4_shard_id: s10.4.current.default-light",
+            "s10_4_shard_id: s10.4.minimum.minimum-os",
+            "s10_4_execution_role: payload-producer",
+            "s10_4_execution_role: payload-consumer",
+            "needs: s10-4-minimum-diagnostic-producer",
+            "ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}",
+            "diagnosticOnly: true",
+            "finalAcceptanceEligible: false",
+            "equivalenceEstablished: false",
+            "deliberatelyNonaccepting: true",
+            "evidenceInspectionRequired: true",
+            "if: ${{ always() }}",
+            "S10.4 minimum diagnostic is deliberately nonaccepting.",
+            "run: exit 1",
+            "exit 1",
+        ] {
+            XCTAssertTrue(minimumDiagnosticSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            minimumDiagnosticSource.components(
+                separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            minimumDiagnosticSource.components(
+                separatedBy: "      s10_4_pilot_mode: true"
+            ).count - 1,
+            2
+        )
+        XCTAssertEqual(
+            minimumDiagnosticSource.components(
+                separatedBy: "inputs.execution_lane == 's10-4-minimum-diagnostic-pilot'"
+            ).count - 1,
+            4
+        )
+        XCTAssertEqual(
+            minimumDiagnosticSource.components(separatedBy: "if: ${{ always() }}").count - 1,
+            2
+        )
+        for forbidden in [
+            "s10-4-hybrid-equivalence-pilot",
+            "s10.4.current.default-dark",
+            "finalAcceptanceEligible: true",
+            "equivalenceEstablished: true",
+            "FieldEvidenceAppTests/",
+            "FieldEvidenceAppUITests/",
+        ] {
+            XCTAssertFalse(minimumDiagnosticSource.contains(forbidden), forbidden)
+        }
         let pilotAssemblerSource = try boundedSource(
             dispatcherSource,
             from: "      - name: Verify pilot bindings and assemble nonaccepting report",
