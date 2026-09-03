@@ -40,6 +40,37 @@ if ! [[ "$selected_test_class" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || \
   exit 65
 fi
 
+diagnostic_probe_id="${CI_S10_4_DIAGNOSTIC_PROBE_ID:-none}"
+diagnostic_mode=false
+case "$diagnostic_probe_id" in
+  none)
+    test "${CI_S10_4_DIAGNOSTIC_EXECUTION_LANE:-none}" = "none"
+    ;;
+  minimum-new-sign | minimum-preflight)
+    diagnostic_mode=true
+    test "${CI_S10_4_DIAGNOSTIC_EXECUTION_LANE:?}" = \
+      "s10-4-focused-diagnostics-development-only"
+    test "${CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS:?}" = "600"
+    test "${CI_TASK_ID:?}" = "S10.4"
+    test "${CI_TIER:?}" = "F25"
+    test "${CI_RUN_UI_SMOKE:?}" = "true"
+    test "${CI_RUNNER_PROVIDER:?}" = "github"
+    test "${CI_S10_4_EXECUTION_ROLE:?}" = "payload-consumer"
+    test "${CI_S10_4_PILOT_MODE:?}" = "true"
+    test "${CI_S10_4_SHARD_ID:?}" = "s10.4.minimum.minimum-os"
+    test "${CI_S10_4_SEGMENT_ID:?}" = "none"
+    test "$selected_ui_selector" = \
+      "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests"
+    selected_ui_selector="FieldEvidenceAppUITests/S10_4DevelopmentProbeUITests"
+    selected_test_class="S10_4DevelopmentProbeUITests"
+    only_testing_args=("-only-testing:$selected_ui_selector")
+    ;;
+  *)
+    printf 'invalid S10.4 diagnostic probe ID: %s\n' "$diagnostic_probe_id" >&2
+    exit 65
+    ;;
+esac
+
 if [ "${CI_RUNNER_PROVIDER:-}" = "github" ] && \
    [ "${CI_TASK_ID:-}" = "S10.4" ] && \
    { [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.current.ax-text" ] || \
@@ -141,6 +172,12 @@ if [ "$pilot_consumer" = true ]; then
   test ! -e "$CI_ARTIFACT_DIR/build-smoke.log"
   test ! -e "$derived_data_path/Logs/Build"
   test ! -e "$derived_data_path/Build/Intermediates.noindex"
+fi
+
+if [ "$diagnostic_mode" = true ]; then
+  printf 'S10_4_DIAGNOSTIC_WORKER probeID=%s executionLane=%s timeoutSeconds=%s selectedSelector=%s\n' \
+    "$diagnostic_probe_id" "$CI_S10_4_DIAGNOSTIC_EXECUTION_LANE" \
+    "$CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS" "$selected_ui_selector"
 fi
 
 if [ "$xcodebuild_status" -ne 0 ]; then
@@ -374,6 +411,20 @@ xcrun xcresulttool export attachments \
 test -f "$attachment_manifest_path"
 test ! -L "$attachment_manifest_path"
 test -s "$attachment_manifest_path"
+
+if [ "$diagnostic_mode" = true ]; then
+  diagnostic_artifact_path="$CI_ARTIFACT_DIR/s10-4-diagnostics/$diagnostic_probe_id"
+  test ! -e "$diagnostic_artifact_path"
+  test ! -L "$diagnostic_artifact_path"
+  mkdir -p "$diagnostic_artifact_path"
+  cp -R "$attachment_export_path" "$diagnostic_artifact_path/ui-attachments"
+  test -f "$diagnostic_artifact_path/ui-attachments/manifest.json"
+  test ! -L "$diagnostic_artifact_path/ui-attachments/manifest.json"
+  test -s "$diagnostic_artifact_path/ui-attachments/manifest.json"
+  printf 'S10_4_DIAGNOSTIC_ARTIFACTS probeID=%s attachmentPath=%s\n' \
+    "$diagnostic_probe_id" "$diagnostic_artifact_path/ui-attachments"
+  exit 0
+fi
 
 if ! selected_attachment="$(
   jq -er \

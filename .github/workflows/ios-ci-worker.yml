@@ -41,6 +41,15 @@ on:
         required: false
         default: false
         type: boolean
+      s10_4_diagnostic_probe_id:
+        description: Closed H394 focused diagnostic probe ID; ordinary execution uses none
+        required: false
+        default: none
+        type: string
+      s10_4_diagnostic_execution_lane:
+        description: Closed H394 focused diagnostic execution lane; ordinary execution uses none
+        required: false
+        default: none
     secrets:
       BITRISE_BUILD_CACHE_AUTH_TOKEN:
         description: Bitrise Build Cache token used only by the closed Bitrise development lane
@@ -50,7 +59,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)) }}
+  group: ${{ inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id))) }}
   cancel-in-progress: false
 
 jobs:
@@ -98,6 +107,8 @@ jobs:
           DISPATCH_S10_4_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
           DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
           DISPATCH_S10_4_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
+          DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID: ${{ inputs.s10_4_diagnostic_probe_id }}
+          DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE: ${{ inputs.s10_4_diagnostic_execution_lane }}
         run: |
           set -euo pipefail
           case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in
@@ -114,6 +125,20 @@ jobs:
             *) exit 1 ;;
           esac
           case "$DISPATCH_S10_4_PILOT_MODE" in true | false) ;; *) exit 1 ;; esac
+          case "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" in
+            none | minimum-new-sign | minimum-preflight) ;;
+            *) exit 1 ;;
+          esac
+          case "$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" in
+            none | s10-4-focused-diagnostics-development-only) ;;
+            *) exit 1 ;;
+          esac
+          if test "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" = none; then
+            test "$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" = none
+          else
+            test "$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" = \
+              s10-4-focused-diagnostics-development-only
+          fi
           case "$DISPATCH_S10_4_EXECUTION_ROLE" in
             independent)
               test "$DISPATCH_S10_4_PILOT_MODE" = false
@@ -703,6 +728,20 @@ jobs:
             esac
           fi
 
+          if test "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" != none; then
+            test "$CI_TASK_ID" = "S10.4"
+            test "$CI_TIER" = "F25"
+            test "$CI_RUN_UI_SMOKE" = true
+            test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "github:macos-26"
+            test "$DISPATCH_S10_4_EXECUTION_ROLE" = payload-consumer
+            test "$DISPATCH_S10_4_PILOT_MODE" = true
+            test "$CI_S10_4_SHARD_ID" = "s10.4.minimum.minimum-os"
+            test "$CI_S10_4_DEVICE_PROFILE_ID" = "iphone-se-3-ios-18.0-minimum"
+            test "$CI_S10_4_SEGMENT_ID" = none
+            test "$GITHUB_REF" = "refs/heads/phase/s10-brand-refresh"
+            [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          fi
+
           printf '%s\n' \
             "CI_TASK_ID=$CI_TASK_ID" \
             "CI_TIER=$CI_TIER" \
@@ -718,7 +757,12 @@ jobs:
             "CI_S10_4_EXECUTION_ROLE=$DISPATCH_S10_4_EXECUTION_ROLE" \
             "CI_S10_4_PAYLOAD_ARTIFACT_NAME=$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME" \
             "CI_S10_4_PILOT_MODE=$DISPATCH_S10_4_PILOT_MODE" \
+            "WORKER_S10_4_DIAGNOSTIC_PROBE_ID=$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" \
+            "WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE=$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" \
             >> "$GITHUB_ENV"
+          if test "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" != none; then
+            printf 'WORKER_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS=600\n' >> "$GITHUB_ENV"
+          fi
           if test "$CI_TASK_ID" = "S10.4"; then
             printf '%s\n' \
               "SIMULATOR_RUNTIME=$SIMULATOR_RUNTIME" \
@@ -2259,6 +2303,37 @@ jobs:
           BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
+          if test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" != none; then
+            test "${WORKER_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS:?}" = "600"
+            test "$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE" = \
+              s10-4-focused-diagnostics-development-only
+            test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = github:macos-26
+            test "$CI_S10_4_SHARD_ID:$CI_S10_4_SEGMENT_ID" = \
+              s10.4.minimum.minimum-os:none
+            test "$GITHUB_REF" = refs/heads/phase/s10-brand-refresh
+            [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+            diagnostic_exit_path="$CI_ARTIFACT_DIR/s10-4-diagnostic-ui-stage-exit.txt"
+            test ! -e "$diagnostic_exit_path"
+            set +e
+            env \
+              "CI_S10_4_DIAGNOSTIC_PROBE_ID=$WORKER_S10_4_DIAGNOSTIC_PROBE_ID" \
+              "CI_S10_4_DIAGNOSTIC_EXECUTION_LANE=$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE" \
+              "CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS=$WORKER_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS" \
+              "CI_S10_4_EXECUTION_LANE=$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE" \
+              "CI_S10_4_RUNNER_PROVIDER=$CI_RUNNER_PROVIDER" \
+              "CI_S10_4_HEAD=$GITHUB_SHA" \
+              "CI_S10_4_REF=$GITHUB_REF" \
+              bash Scripts/run-with-timeout.sh "$WORKER_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS" \
+                bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
+            diagnostic_ui_pipeline_status=( "${PIPESTATUS[@]}" )
+            set -e
+            test "${#diagnostic_ui_pipeline_status[@]}" -eq 2
+            printf 'wrapper_exit=%s\ntee_exit=%s\n' \
+              "${diagnostic_ui_pipeline_status[0]}" \
+              "${diagnostic_ui_pipeline_status[1]}" > "$diagnostic_exit_path"
+            test "${diagnostic_ui_pipeline_status[1]}" -eq 0
+            exit "${diagnostic_ui_pipeline_status[0]}"
+          fi
           bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
 
@@ -2887,7 +2962,7 @@ jobs:
           test ! -e "$shard_evidence_path/shard-receipt.json"
 
       - name: Retain S10.4 shard evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.s10_4_pilot_mode == false || inputs.s10_4_execution_role == 'payload-consumer') && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.s10_4_diagnostic_probe_id == 'none' && (inputs.s10_4_pilot_mode == false || inputs.s10_4_execution_role == 'payload-consumer') && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' }}
         shell: bash
         env:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -4383,7 +4458,7 @@ jobs:
 
       # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN
       - name: Verify complete nonaccepting S10.4 pilot evidence
-        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}
+        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -5012,7 +5087,7 @@ jobs:
       # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_END
 
       - name: Remove ordinary S10.4 receipts after pilot evidence attempt
-        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}
+        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -5024,6 +5099,301 @@ jobs:
           test ! -e "$shard_evidence_path/shard-receipt.json"
           test ! -e "$shard_evidence_path/segment-receipt.json"
           test ! -e "$shard_evidence_path/segment-receipt.pending.json"
+
+      - name: Record closed H394 focused diagnostic raw evidence
+        if: ${{ always() && inputs.s10_4_diagnostic_probe_id != 'none' }}
+        shell: bash
+        env:
+          DIAGNOSTIC_PRIOR_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          test "$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE" = \
+            "s10-4-focused-diagnostics-development-only"
+          test "$WORKER_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS" = "600"
+          case "$WORKER_S10_4_DIAGNOSTIC_PROBE_ID" in
+            minimum-new-sign | minimum-preflight) ;;
+            *) exit 1 ;;
+          esac
+          test "$CI_S10_4_EXECUTION_ROLE" = payload-consumer
+          test "$CI_S10_4_PILOT_MODE" = true
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = github:macos-26
+          test "$CI_S10_4_SHARD_ID" = s10.4.minimum.minimum-os
+          test "$CI_S10_4_SEGMENT_ID" = none
+          test "$GITHUB_REF" = refs/heads/phase/s10-brand-refresh
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
+          test ! -e "$shard_evidence_path/shard-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.json"
+          test ! -e "$shard_evidence_path/segment-receipt.pending.json"
+          test ! -e "$CI_ARTIFACT_DIR/s10-4-pilot-full-evidence.json"
+          test ! -e "$CI_ARTIFACT_DIR/s10-4-pilot-receipt.json"
+
+          diagnostic_path="$CI_ARTIFACT_DIR/s10-4-diagnostics/$WORKER_S10_4_DIAGNOSTIC_PROBE_ID"
+          if test -e "$diagnostic_path" || test -L "$diagnostic_path"; then
+            test -d "$diagnostic_path"
+            test ! -L "$diagnostic_path"
+          else
+            mkdir -p "$diagnostic_path"
+          fi
+          ui_result_path="$CI_ARTIFACT_DIR/UISmoke.xcresult"
+          test_results_path="$diagnostic_path/ui-test-results.json"
+          ui_stage_exit_path="$CI_ARTIFACT_DIR/s10-4-diagnostic-ui-stage-exit.txt"
+          ui_wrapper_exit=missing
+          ui_tee_exit=missing
+          if test -f "$ui_stage_exit_path" && test ! -L "$ui_stage_exit_path"; then
+            ui_wrapper_exit="$(sed -n 's/^wrapper_exit=//p' "$ui_stage_exit_path")"
+            ui_tee_exit="$(sed -n 's/^tee_exit=//p' "$ui_stage_exit_path")"
+            case "$ui_wrapper_exit:$ui_tee_exit" in
+              *[!0-9:]*|:*) ui_wrapper_exit=invalid; ui_tee_exit=invalid ;;
+            esac
+          fi
+          diagnostic_attachments_path="$diagnostic_path/ui-attachments"
+          attachment_export_status=66
+          if test -d "$ui_result_path" && \
+             test -n "$(find "$ui_result_path" -mindepth 1 -print -quit)" && \
+             test ! -e "$diagnostic_attachments_path"; then
+            set +e
+            bash Scripts/run-with-timeout.sh 30 \
+              xcrun xcresulttool export attachments --path "$ui_result_path" \
+                --output-path "$diagnostic_attachments_path"
+            attachment_export_status=$?
+            set -e
+          elif test -d "$diagnostic_attachments_path" && \
+               test ! -L "$diagnostic_attachments_path"; then
+            attachment_export_status=0
+          fi
+          case "$attachment_export_status" in *[!0-9]* | "") exit 1 ;; esac
+          test_results_status=66
+          if test -d "$ui_result_path" && \
+             test -n "$(find "$ui_result_path" -mindepth 1 -print -quit)"; then
+            set +e
+            bash Scripts/run-with-timeout.sh 30 \
+              xcrun xcresulttool get test-results tests \
+                --path "$ui_result_path" --compact > "$test_results_path" 2>&1
+            test_results_status=$?
+            set -e
+          fi
+          case "$test_results_status" in *[!0-9]* | "") exit 1 ;; esac
+
+          executed_test_cases='[]'
+          test_results_parse_status=66
+          if test "$test_results_status" -eq 0; then
+            set +e
+            executed_test_cases="$(jq -c '
+              [.. | objects
+                | select(.nodeType? == "Test Case")
+                | {nodeIdentifier, result}]
+            ' "$test_results_path")"
+            test_results_parse_status=$?
+            set -e
+          fi
+          case "$test_results_parse_status" in *[!0-9]* | "") exit 1 ;; esac
+          if test "$test_results_parse_status" -ne 0; then
+            executed_test_cases='[]'
+          fi
+          executed_count="$(jq 'length' <<< "$executed_test_cases")"
+          case "$executed_count" in *[!0-9]* | "") exit 1 ;; esac
+          exact_test_completion=false
+          test_passed=false
+          if jq -e '
+            length == 1
+            and .[0].nodeIdentifier ==
+              "S10_4DevelopmentProbeUITests/testFocusedDiagnosticProbe()"
+            and (.[0].result == "Passed" or .[0].result == "Failed")
+          ' <<< "$executed_test_cases" > /dev/null; then
+            exact_test_completion=true
+            if jq -e '.[0].result == "Passed"' <<< "$executed_test_cases" > /dev/null; then
+              test_passed=true
+            fi
+          fi
+          ui_emitted_coverage_raw='[]'
+          ui_emitted_coverage_lines='[]'
+          coverage_parse_status=66
+          if test -s "$CI_ARTIFACT_DIR/ui-smoke.log"; then
+            ui_emitted_coverage_raw="$(sed -n 's/^S10_4_DIAGNOSTIC //p' \
+              "$CI_ARTIFACT_DIR/ui-smoke.log" | jq -Rsc \
+              'split("\n") | map(select(length > 0))')"
+            set +e
+            ui_emitted_coverage_lines="$(jq -c 'map(fromjson)' <<< "$ui_emitted_coverage_raw")"
+            coverage_parse_status=$?
+            set -e
+          fi
+          case "$coverage_parse_status" in *[!0-9]* | "") exit 1 ;; esac
+          if test "$coverage_parse_status" -ne 0; then
+            ui_emitted_coverage_lines='[]'
+          fi
+          canonical_state_ids="$(jq -c '[.routes[].states[].state_id]' \
+            docs/design/s10/s10-screen-state-inventory.json)"
+          coverage_contract_observed=false
+          if test "$coverage_parse_status" -eq 0 && jq -e \
+            --arg probeID "$WORKER_S10_4_DIAGNOSTIC_PROBE_ID" \
+            --argjson canonicalStateIDs "$canonical_state_ids" '
+              def exact_omitted_state_set($canonicalStateIDs):
+                type == "array"
+                and length == 67
+                and (unique | length == 67)
+                and (sort == ($canonicalStateIDs | sort));
+              type == "array"
+              and ($canonicalStateIDs | length == 67)
+              and ($canonicalStateIDs | unique | length == 67)
+              and all(.[];
+                .diagnosticOnly == true
+                and .finalAcceptanceEligible == false
+                and .equivalenceEstablished == false
+                and .feedsAcceptanceAssembler == false
+                and .probeID == $probeID
+                and (.event | type == "string" and length > 0)
+                and ((.omittedCaptureStateIDs? // $canonicalStateIDs)
+                     | exact_omitted_state_set($canonicalStateIDs)))
+              and (([.[] | select(
+                    .event == "probe-start" or .event == "observation-complete"
+                  ) | .omittedCaptureStateIDs]) as $declaredOmissions
+                   | ($declaredOmissions | length == 2)
+                   and all($declaredOmissions[];
+                     exact_omitted_state_set($canonicalStateIDs)))
+              and if $probeID == "minimum-new-sign" then
+                [.[] | .event] == ["probe-start", "observation-complete"]
+              else
+                [.[] | .event] == ["probe-start", "observation-complete", "strict-native-audit-start", "strict-native-audit-completed"]
+              end
+            ' <<< "$ui_emitted_coverage_lines" > /dev/null; then
+            coverage_contract_observed=true
+          fi
+
+          while IFS= read -r artifact_path; do
+            available=false
+            bytes=0
+            sha256=""
+            if test -f "$artifact_path" && test ! -L "$artifact_path"; then
+              available=true
+              bytes="$(stat -f '%z' "$artifact_path")"
+              sha256="$(shasum -a 256 "$artifact_path" | awk '{print toupper($1)}')"
+            elif test -d "$artifact_path" && test ! -L "$artifact_path" && \
+                 test -n "$(find "$artifact_path" -mindepth 1 -print -quit)"; then
+              available=true
+              bytes="$(find "$artifact_path" -type f -exec stat -f '%z' {} + \
+                | awk '{total += $1} END {print total + 0}')"
+              sha256="$(
+                find "$artifact_path" -type f -print | LC_ALL=C sort | while IFS= read -r file_path; do
+                  printf '%s  %s\n' "$(shasum -a 256 "$file_path" | awk '{print toupper($1)}')" \
+                    "${file_path#"$artifact_path/"}"
+                done | shasum -a 256 | awk '{print toupper($1)}'
+              )"
+            fi
+            jq -cS --arg path "$artifact_path" --argjson available "$available" \
+              --argjson bytes "$bytes" --arg sha256 "$sha256" \
+              '{path: $path, available: $available, bytes: $bytes, sha256: $sha256}'
+          done < <(
+            printf '%s\n' \
+              "$CI_ARTIFACT_DIR/ui-smoke.log" \
+              "$CI_ARTIFACT_DIR/test-smoke.log" \
+              "$ui_result_path" \
+              "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-unit.sha256" \
+              "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256" \
+              "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-before-ui.sha256" \
+              "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-ui.sha256" \
+              "$diagnostic_attachments_path" \
+              "$ui_stage_exit_path" \
+              "$test_results_path"
+          ) > "$diagnostic_path/artifact-observations.ndjson"
+          jq -s '.' "$diagnostic_path/artifact-observations.ndjson" \
+            > "$diagnostic_path/artifact-observations.json"
+          evidence_complete="$(
+            jq -e 'all(.[]; .available == true)' \
+              "$diagnostic_path/artifact-observations.json" >/dev/null \
+              && test "$attachment_export_status" -eq 0 \
+              && test "$test_results_status" -eq 0 \
+              && test "$test_results_parse_status" -eq 0 \
+              && printf true || printf false
+          )"
+          jq -n -cS \
+            --arg probeID "$WORKER_S10_4_DIAGNOSTIC_PROBE_ID" \
+            --arg laneID "$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE" \
+            --arg head "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg runID "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg priorJobStatus "$DIAGNOSTIC_PRIOR_JOB_STATUS" \
+            --arg uiWrapperExit "$ui_wrapper_exit" \
+            --arg uiTeeExit "$ui_tee_exit" \
+            --arg selector "FieldEvidenceAppUITests/S10_4DevelopmentProbeUITests/testFocusedDiagnosticProbe" \
+            --argjson probeTimeoutSeconds 600 \
+            --argjson attachmentExportExit "$attachment_export_status" \
+            --argjson testResultsExit "$test_results_status" \
+            --argjson testResultsParseExit "$test_results_parse_status" \
+            --argjson coverageParseExit "$coverage_parse_status" \
+            --argjson executedTestCases "$executed_test_cases" \
+            --argjson uiEmittedCoverageRaw "$ui_emitted_coverage_raw" \
+            --argjson uiEmittedCoverageLines "$ui_emitted_coverage_lines" \
+            --argjson exactTestCompletionObserved "$exact_test_completion" \
+            --argjson testPassed "$test_passed" \
+            --argjson coverageContractObserved "$coverage_contract_observed" \
+            --argjson rawEvidenceComplete "$evidence_complete" \
+            --slurpfile artifacts "$diagnostic_path/artifact-observations.json" '
+              {
+                schemaVersion: 1,
+                diagnosticOnly: true,
+                finalAcceptanceEligible: false,
+                equivalenceEstablished: false,
+                feedsAcceptanceAssembler: false,
+                acceptingReceiptEmitted: false,
+                laneID: $laneID,
+                probeID: $probeID,
+                probeTimeoutSeconds: $probeTimeoutSeconds,
+                provenance: {
+                  head: $head, ref: $ref, repository: $repository,
+                  runID: ($runID | tonumber), runAttempt: ($runAttempt | tonumber),
+                  runnerProvider: "github", runnerLabel: "macos-26",
+                  shardID: "s10.4.minimum.minimum-os",
+                  deviceProfileID: "iphone-se-3-ios-18.0-minimum"
+                },
+                rawExitDisposition: {
+                  jobStatus: $priorJobStatus,
+                  uiWrapperExit: $uiWrapperExit,
+                  uiTeeExit: $uiTeeExit,
+                  testResultsExit: $testResultsExit,
+                  testResultsParseExit: $testResultsParseExit,
+                  attachmentExportExit: $attachmentExportExit,
+                  coverageParseExit: $coverageParseExit
+                },
+                actualExecutedCoverage: {
+                  selectedSelector: $selector,
+                  exactTestCompletionObserved: $exactTestCompletionObserved,
+                  testPassed: $testPassed,
+                  observedTestCases: $executedTestCases,
+                  uiEmittedCoverageRaw: $uiEmittedCoverageRaw,
+                  uiEmittedCoverageLines: $uiEmittedCoverageLines
+                },
+                omittedCoverage: [
+                  "full-67-state-route", "candidate-matrix", "accessibility-rows",
+                  "contrast-rows", "shard-receipt", "segment-receipt",
+                  "equivalence-success", "acceptance-assembler"
+                ],
+                rawEvidenceComplete: $rawEvidenceComplete,
+                artifactObservations: $artifacts[0]
+              }
+            ' > "$diagnostic_path/diagnostic-raw-proof.json"
+          jq -e '
+            .schemaVersion == 1
+            and .diagnosticOnly == true
+            and .finalAcceptanceEligible == false
+            and .equivalenceEstablished == false
+            and .feedsAcceptanceAssembler == false
+            and .acceptingReceiptEmitted == false
+            and (.actualExecutedCoverage.observedTestCases | type == "array")
+            and (.omittedCoverage | type == "array" and length >= 8)
+            and (.artifactObservations | type == "array" and length == 10)
+          ' "$diagnostic_path/diagnostic-raw-proof.json" > /dev/null
+          test "$exact_test_completion" = true
+          test "$coverage_contract_observed" = true
+          test "$evidence_complete" = true
+          if test "$DIAGNOSTIC_PRIOR_JOB_STATUS" = success; then
+            test "$test_passed" = true
+            test "$ui_wrapper_exit" = 0
+            test "$ui_tee_exit" = 0
+          fi
 
       - name: Begin evidence-finalization budget
         if: always()
@@ -5776,7 +6146,7 @@ jobs:
           printf 'safe_to_upload=true\n' >> "$GITHUB_OUTPUT"
 
       - name: Record S10.4 pilot consumer receipt
-        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}
+        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none' }}
         shell: bash
         env:
           PILOT_PRIOR_JOB_STATUS: ${{ job.status }}
@@ -6039,7 +6409,7 @@ jobs:
         if: ${{ always() && inputs.s10_4_execution_role != 'payload-producer' && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)))) }}
+          name: ${{ inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))))) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14

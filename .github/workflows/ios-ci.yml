@@ -19,6 +19,7 @@ on:
           - bitrise-build-hub-xcode-26.6-segmented-development-only
           - s10-4-hybrid-equivalence-pilot
           - s10-4-minimum-diagnostic-pilot
+          - s10-4-focused-diagnostics-development-only
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
@@ -716,6 +717,115 @@ jobs:
         shell: bash
         run: |
           printf '%s\n' 'S10.4 minimum diagnostic is deliberately nonaccepting.' >&2
+          exit 1
+
+  reject-invalid-s10-4-focused-diagnostics-selection:
+    name: Reject invalid S10.4 focused diagnostics selection
+    if: ${{ inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && (inputs.run_ui_smoke != true || inputs.s10_4_shard_id != 'none') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the closed development-only probe selection
+        shell: bash
+        run: exit 1
+
+  s10-4-focused-diagnostics-producer:
+    name: S10.4 focused diagnostics payload producer · Bitrise M4
+    if: ${{ inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: bitrise-m4-pro
+      runner_provider: bitrise
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.current.default-light
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-producer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+    secrets: inherit
+
+  s10-4-focused-new-sign-probe:
+    name: S10.4 New-sign query diagnostic · GitHub iOS 18.0
+    needs: s10-4-focused-diagnostics-producer
+    if: ${{ inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.minimum.minimum-os
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+      s10_4_diagnostic_probe_id: minimum-new-sign
+      s10_4_diagnostic_execution_lane: s10-4-focused-diagnostics-development-only
+
+  s10-4-focused-preflight-probe:
+    name: S10.4 preflight audit diagnostic · GitHub iOS 18.0
+    needs: s10-4-focused-diagnostics-producer
+    if: ${{ inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      run_ui_smoke: true
+      s10_4_shard_id: s10.4.minimum.minimum-os
+      s10_4_segment_id: none
+      s10_4_execution_role: payload-consumer
+      s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      s10_4_pilot_mode: true
+      s10_4_diagnostic_probe_id: minimum-preflight
+      s10_4_diagnostic_execution_lane: s10-4-focused-diagnostics-development-only
+
+  summarize-s10-4-focused-diagnostics:
+    name: Summarize deliberately nonaccepting S10.4 focused diagnostics
+    needs:
+      - s10-4-focused-diagnostics-producer
+      - s10-4-focused-new-sign-probe
+      - s10-4-focused-preflight-probe
+    if: ${{ always() && inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Record separate raw probe dispositions without claiming acceptance
+        shell: bash
+        env:
+          PRODUCER_RESULT: ${{ needs.s10-4-focused-diagnostics-producer.result }}
+          NEW_SIGN_RESULT: ${{ needs.s10-4-focused-new-sign-probe.result }}
+          PREFLIGHT_RESULT: ${{ needs.s10-4-focused-preflight-probe.result }}
+          EXPECTED_PAYLOAD_ARTIFACT: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          report_dir="$RUNNER_TEMP/FieldEvidenceFocusedDiagnostics"
+          mkdir -p "$report_dir"
+          jq -n --arg head "$GITHUB_SHA" --arg ref "$GITHUB_REF" \
+            --arg runID "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg producerResult "$PRODUCER_RESULT" \
+            --arg newSignResult "$NEW_SIGN_RESULT" --arg preflightResult "$PREFLIGHT_RESULT" \
+            --arg payloadArtifactName "$EXPECTED_PAYLOAD_ARTIFACT" \
+            '{schemaVersion: 1, diagnosticOnly: true, finalAcceptanceEligible: false,
+              equivalenceEstablished: false, feedsAcceptanceAssembler: false,
+              deliberatelyNonaccepting: true, evidenceInspectionRequired: true,
+              head: $head, ref: $ref, runID: $runID, attempt: $attempt,
+              producerResult: $producerResult, payloadArtifactName: $payloadArtifactName,
+              probes: [{probeID: "minimum-new-sign", result: $newSignResult},
+                       {probeID: "minimum-preflight", result: $preflightResult}]}' \
+            > "$report_dir/s10-4-focused-diagnostics-summary.json"
+          (cd "$report_dir" && sha256sum s10-4-focused-diagnostics-summary.json > SHA256SUMS.txt)
+
+      - name: Upload nonaccepting focused diagnostic summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-s10-4-focused-diagnostics-summary-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/FieldEvidenceFocusedDiagnostics
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Intentionally fail the nonaccepting focused diagnostic workflow
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          printf '%s\n' 'S10.4 focused diagnostics never count as acceptance or equivalence.' >&2
           exit 1
 
   github-segmented-shard:

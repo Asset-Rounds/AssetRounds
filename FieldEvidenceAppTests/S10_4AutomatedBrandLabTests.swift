@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 17_807,
-            sha256: "302F3EB391A5A4E98E3D4A2A63CB7A2E3592B231CB417FDA9549765952F46294"
+            byteCount: 19_984,
+            sha256: "CD73EE03143838CBDF6FCE9D922696533345C674746DAE0D95B2F05F586DAB66"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -112,16 +112,63 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: #"if [ "$xcodebuild_status" -ne 0 ]; then"#,
             before: "\n\ntest -d \"$result_bundle_path\""
         )
+        let focusedDiagnosticSelectionSource = try boundedSource(
+            uiSmokeSource,
+            from: "diagnostic_probe_id=\"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-none}\"",
+            before: "\n\nif [ \"${CI_RUNNER_PROVIDER:-}\" = \"github\" ]"
+        )
+        XCTAssertEqual(focusedDiagnosticSelectionSource.utf8.count, 1_210)
+        XCTAssertEqual(
+            Data(focusedDiagnosticSelectionSource.utf8).sha256,
+            "250D4DBC03AEF8A52B8A91D981A257A2F1C2A5FA594C6E8A2531D24D2D544C14"
+        )
+        for exact in [
+            "none)",
+            "minimum-new-sign | minimum-preflight)",
+            "s10-4-focused-diagnostics-development-only",
+            "CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS",
+            "S10_4DevelopmentProbeUITests",
+            "-only-testing:$selected_ui_selector",
+            "invalid S10.4 diagnostic probe ID",
+        ] {
+            XCTAssertTrue(focusedDiagnosticSelectionSource.contains(exact), exact)
+        }
+        for prohibited in [
+            "S10_4AutomatedBrandLabUITests\"\n    only_testing_args",
+            "minimum-new-sign | minimum-preflight |",
+            "finalAcceptanceEligible",
+            "test-without-building",
+        ] {
+            XCTAssertFalse(focusedDiagnosticSelectionSource.contains(prohibited), prohibited)
+        }
+        let focusedDiagnosticAttachmentSource = try boundedSource(
+            uiSmokeSource,
+            from: "if [ \"$diagnostic_mode\" = true ]; then\n  diagnostic_artifact_path=",
+            before: "\n\nif ! selected_attachment="
+        )
+        XCTAssertEqual(focusedDiagnosticAttachmentSource.utf8.count, 675)
+        XCTAssertEqual(
+            Data(focusedDiagnosticAttachmentSource.utf8).sha256,
+            "4FDD0B7ABD4E584FCF5FC391A02DEA1C5031A71D9D07C7C00BEFA5FCFD4CF90A"
+        )
+        for exact in [
+            "s10-4-diagnostics/$diagnostic_probe_id",
+            "ui-attachments/manifest.json",
+            "S10_4_DIAGNOSTIC_ARTIFACTS",
+            "exit 0",
+        ] {
+            XCTAssertTrue(focusedDiagnosticAttachmentSource.contains(exact), exact)
+        }
+        XCTAssertFalse(focusedDiagnosticAttachmentSource.contains("S10_4_CANDIDATE"))
         XCTAssertEqual(uiSmokeSource.components(separatedBy: simulatorAXDiagnosticSource).count - 1, 1)
         XCTAssertTrue(uiFailureDiagnosticSource.contains(simulatorAXDiagnosticSource))
         XCTAssertTrue(uiFailureDiagnosticSource.hasSuffix("  exit \"$xcodebuild_status\"\nfi"))
         for forbidden in ["simctl shutdown", "simctl boot", "simctl erase", "retry", "test-without-building", "xcodebuild_status="] {
             XCTAssertFalse(simulatorAXDiagnosticSource.contains(forbidden), forbidden)
         }
-        let uiSmokeOutsideAXDiagnostic = uiSmokeSource.replacingOccurrences(
-            of: simulatorAXDiagnosticSource,
-            with: ""
-        )
+        let uiSmokeOutsideAXDiagnostic = uiSmokeSource
+            .replacingOccurrences(of: simulatorAXDiagnosticSource, with: "")
+            .replacingOccurrences(of: focusedDiagnosticSelectionSource, with: "")
         let simulatorRefreshSource = try boundedSource(
             uiSmokeSource,
             from: #"if [ "${CI_RUNNER_PROVIDER:-}" = "github" ]"#,
@@ -255,8 +302,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 87_878,
-            sha256: "4C008C220F6A27426D3B39160571CA4B1A8DEB1D0287F89B15FFEA2D23B592EC"
+            byteCount: 93_607,
+            sha256: "A8A8C33F0A4663AB400729BED031651A4B6387A08A45DBC6B7122DD56C269757"
         )
         let dispatcherSource = try text(dispatcherPath)
         let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
@@ -269,8 +316,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 333_886,
-            sha256: "EA2433FE7555F2600D3998B0D8BA82F55C59DB11A28E3D49EE2C459879911DC7"
+            byteCount: 353_374,
+            sha256: "EA55CFADE4880410ECCF754802C07E51BD2F244A2E6AFA4253AA7A9C97342E6F"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -424,7 +471,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 9)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 10)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -479,6 +526,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        XCTAssertEqual(
+            executionLaneSource.components(
+                separatedBy: "          - s10-4-focused-diagnostics-development-only"
+            ).count - 1,
+            1
+        )
         XCTAssertFalse(executionLaneSource.contains("default: getmac-xcode-26.6-development-only"))
         XCTAssertFalse(executionLaneSource.contains("default: warp-xcode-26.5-development-only"))
         XCTAssertFalse(
@@ -498,6 +551,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertFalse(executionLaneSource.contains("default: s10-4-hybrid-equivalence-pilot"))
         XCTAssertFalse(executionLaneSource.contains("default: s10-4-minimum-diagnostic-pilot"))
+        XCTAssertFalse(
+            executionLaneSource.contains(
+                "default: s10-4-focused-diagnostics-development-only"
+            )
+        )
         XCTAssertFalse(executionLaneSource.contains("type: string"))
 
         let dispatcherConcurrency =
@@ -768,7 +826,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 in: jobsSource,
                 range: NSRange(location: 0, length: jobsSource.utf16.count)
             ),
-            22
+            27
         )
 
         let githubLaneGate =
@@ -835,7 +893,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             dispatcherSource.components(
                 separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
             ).count - 1,
-            13
+            16
         )
         let pilotRejectSource = try boundedSource(
             dispatcherSource,
@@ -920,7 +978,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let minimumDiagnosticSource = try boundedSource(
             dispatcherSource,
             from: "  reject-invalid-s10-4-minimum-diagnostic-pilot-selection:",
-            before: "\n\n  github-segmented-shard:"
+            before: "\n\n  reject-invalid-s10-4-focused-diagnostics-selection:"
         )
         XCTAssertEqual(minimumDiagnosticSource.utf8.count, 4_257)
         XCTAssertEqual(
@@ -988,6 +1046,100 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "FieldEvidenceAppUITests/",
         ] {
             XCTAssertFalse(minimumDiagnosticSource.contains(forbidden), forbidden)
+        }
+        let focusedDiagnosticSource = try boundedSource(
+            dispatcherSource,
+            from: "  reject-invalid-s10-4-focused-diagnostics-selection:",
+            before: "\n\n  github-segmented-shard:"
+        )
+        XCTAssertEqual(focusedDiagnosticSource.utf8.count, 5_672)
+        XCTAssertEqual(
+            Data(focusedDiagnosticSource.utf8).sha256,
+            "EAA3AEC8C622B834D7007E650CFA7C1D1D6EB11E4EE1AA238230FB76C0E80432"
+        )
+        let focusedDiagnosticInsertion = "\n\n" + focusedDiagnosticSource
+        XCTAssertEqual(
+            dispatcherSource.components(separatedBy: focusedDiagnosticInsertion).count - 1,
+            1
+        )
+        let dispatcherJobsWithoutFocusedDiagnostics = jobsSource.replacingOccurrences(
+            of: focusedDiagnosticInsertion,
+            with: ""
+        )
+        XCTAssertEqual(dispatcherJobsWithoutFocusedDiagnostics.utf8.count, 85_688)
+        XCTAssertEqual(
+            Data(dispatcherJobsWithoutFocusedDiagnostics.utf8).sha256,
+            "E4E3FE0D03E56550A904B949FDADEB4E7C892613E3F0307CAE89D44D0AC03D6F"
+        )
+        XCTAssertEqual(
+            jobHeaderExpression.numberOfMatches(
+                in: dispatcherJobsWithoutFocusedDiagnostics,
+                range: NSRange(
+                    location: 0,
+                    length: dispatcherJobsWithoutFocusedDiagnostics.utf16.count
+                )
+            ),
+            22
+        )
+        for exact in [
+            "inputs.execution_lane == 's10-4-focused-diagnostics-development-only'",
+            "inputs.run_ui_smoke != true",
+            "inputs.s10_4_shard_id != 'none'",
+            "s10-4-focused-diagnostics-producer:",
+            "s10-4-focused-new-sign-probe:",
+            "s10-4-focused-preflight-probe:",
+            "summarize-s10-4-focused-diagnostics:",
+            "runner_label: bitrise-m4-pro",
+            "runner_provider: bitrise",
+            "runner_label: macos-26",
+            "runner_provider: github",
+            "s10_4_shard_id: s10.4.current.default-light",
+            "s10_4_shard_id: s10.4.minimum.minimum-os",
+            "s10_4_execution_role: payload-producer",
+            "s10_4_execution_role: payload-consumer",
+            "s10_4_diagnostic_probe_id: minimum-new-sign",
+            "s10_4_diagnostic_probe_id: minimum-preflight",
+            "s10_4_diagnostic_execution_lane: s10-4-focused-diagnostics-development-only",
+            "needs: s10-4-focused-diagnostics-producer",
+            "diagnosticOnly: true",
+            "finalAcceptanceEligible: false",
+            "equivalenceEstablished: false",
+            "feedsAcceptanceAssembler: false",
+            "deliberatelyNonaccepting: true",
+            "evidenceInspectionRequired: true",
+            "S10.4 focused diagnostics never count as acceptance or equivalence.",
+            "run: exit 1",
+            "exit 1",
+        ] {
+            XCTAssertTrue(focusedDiagnosticSource.contains(exact), exact)
+        }
+        for (exact, count) in [
+            ("    uses: ./.github/workflows/ios-ci-worker.yml", 3),
+            ("      s10_4_pilot_mode: true", 3),
+            ("inputs.execution_lane == 's10-4-focused-diagnostics-development-only'", 5),
+            ("s10_4_diagnostic_probe_id:", 2),
+            ("s10_4_diagnostic_execution_lane:", 2),
+            ("needs: s10-4-focused-diagnostics-producer", 2),
+            ("if: ${{ always() }}", 2),
+        ] {
+            XCTAssertEqual(
+                focusedDiagnosticSource.components(separatedBy: exact).count - 1,
+                count,
+                exact
+            )
+        }
+        for forbidden in [
+            "s10-4-hybrid-equivalence-pilot",
+            "s10-4-minimum-diagnostic-pilot",
+            "finalAcceptanceEligible: true",
+            "equivalenceEstablished: true",
+            "feedsAcceptanceAssembler: true",
+            "shard-receipt.json",
+            "candidate-exports.json",
+            "FieldEvidenceAppTests/",
+            "FieldEvidenceAppUITests/",
+        ] {
+            XCTAssertFalse(focusedDiagnosticSource.contains(forbidden), forbidden)
         }
         let pilotAssemblerSource = try boundedSource(
             dispatcherSource,
@@ -1171,10 +1323,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 154_030)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 157_795)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "060D30245D081540ACB959BC072A15B0A3770D7E60B4D32A8347C00AD49151B2"
+            "ECFE10B9367D69259DE2C034DC2E202507FFE96997F67C30912879BCB381FF6D"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -1365,10 +1517,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN",
             before: "\n      # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_END"
         )
-        XCTAssertEqual(workerPilotFullEvidenceSource.utf8.count, 34_153)
+        XCTAssertEqual(workerPilotFullEvidenceSource.utf8.count, 34_200)
         XCTAssertEqual(
             Data(workerPilotFullEvidenceSource.utf8).sha256,
-            "FCC3469ADE516A7023954B35F02CCFA7C428F27735A4AE55F84105F9E6281FB3"
+            "E034F9305005EF0BB087534CF77B815D30B14993D84AD1D064614F894F85BF29"
         )
         for exact in [
             "s10.4.current.*:iphone-17-ios-26.2-current:iOS\\ 26.2:23C54:iPhone\\ 17",
@@ -1392,12 +1544,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerPilotAlwaysCleanupSource = try boundedSource(
             workflowSource,
             from: "      - name: Remove ordinary S10.4 receipts after pilot evidence attempt",
-            before: "\n\n      - name: Begin evidence-finalization budget"
+            before: "\n\n      - name: Record closed H394 focused diagnostic raw evidence"
         )
-        XCTAssertEqual(workerPilotAlwaysCleanupSource.utf8.count, 685)
+        XCTAssertEqual(workerPilotAlwaysCleanupSource.utf8.count, 731)
         XCTAssertEqual(
             Data(workerPilotAlwaysCleanupSource.utf8).sha256,
-            "BEFC3301BF0FB7247DFCDAEB32D3AE932D43B73B89A70C50A1B8FA6FC6356BC0"
+            "9BBCA7151232E2CB668EA01E9C76256E4445C05B70B24F3DD6CDA37EF078688A"
         )
         for exact in [
             "if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}",
@@ -1414,10 +1566,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Record S10.4 pilot consumer receipt",
             before: "\n\n      - name: Remove isolated S10.4 pilot Simulator"
         )
-        XCTAssertEqual(workerPilotReceiptSource.utf8.count, 9_340)
+        XCTAssertEqual(workerPilotReceiptSource.utf8.count, 9_386)
         XCTAssertEqual(
             Data(workerPilotReceiptSource.utf8).sha256,
-            "33B167B47F14F0D56DF6F2406BA9A5F9A193ADF14053D25D87A312B3DD7094DE"
+            "C9B6D9B44420463EFAB03961BF80673A2BB8E79A85E65D5D948BD87BAD004063"
         )
         for exact in [
             "executionRole: \"payload-consumer\"",
@@ -2033,7 +2185,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         XCTAssertEqual(
             workflowSource.components(
-                separatedBy: #"  group: ${{ inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)) }}"#
+                separatedBy: #"  group: ${{ inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id))) }}"#
             ).count - 1,
             1
         )
@@ -2717,37 +2869,172 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "locale: \"ar-RTL-string\", layoutDirection: \"right_to_left\""
         XCTAssertEqual(uiSource.components(separatedBy: realRTLShard).count - 1, 1)
         XCTAssertEqual(uiSource.components(separatedBy: stringRTLShard).count - 1, 1)
-        let minimumKeyboardNonthrowingCall =
-            "        assertLightFirstSignValidationAndCreation(in: app)"
-        let minimumKeyboardNonthrowingSignature =
+        let minimumKeyboardThrowingCall =
+            "        try assertLightFirstSignValidationAndCreation(in: app)"
+        let minimumKeyboardThrowingSignature =
             "    private func assertLightFirstSignValidationAndCreation(\n" +
                 "        in app: XCUIApplication\n" +
-                "    ) {"
-        for nonthrowingMinimumKeyboardLock in [
-            minimumKeyboardNonthrowingCall,
-            minimumKeyboardNonthrowingSignature,
+                "    ) throws {"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: minimumKeyboardThrowingCall
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: minimumKeyboardThrowingSignature
+            ).count - 1,
+            1
+        )
+        for removedNonthrowingMinimumKeyboardLock in [
+            "        assertLightFirstSignValidationAndCreation(in: app)",
+            "    private func assertLightFirstSignValidationAndCreation(\n" +
+                "        in app: XCUIApplication\n" +
+                "    ) {",
         ] {
             XCTAssertEqual(
                 uiSource.components(
-                    separatedBy: nonthrowingMinimumKeyboardLock
-                ).count - 1,
-                1,
-                nonthrowingMinimumKeyboardLock
-            )
-        }
-        for removedThrowingMinimumKeyboardLock in [
-            "        try assertLightFirstSignValidationAndCreation(in: app)",
-            "    private func assertLightFirstSignValidationAndCreation(\n" +
-                "        in app: XCUIApplication\n" +
-                "    ) throws {",
-        ] {
-            XCTAssertEqual(
-                uiSource.components(
-                    separatedBy: removedThrowingMinimumKeyboardLock
+                    separatedBy: removedNonthrowingMinimumKeyboardLock
                 ).count - 1,
                 0,
-                removedThrowingMinimumKeyboardLock
+                removedNonthrowingMinimumKeyboardLock
             )
+        }
+        let focusedDiagnosticConfigurationSource = try boundedSource(
+            uiSource,
+            from: "    private enum DiagnosticProbe: String {",
+            before:
+                "\n\n    @MainActor\n" +
+                    "    private func assertLightFirstSignValidationAndCreation("
+        )
+        XCTAssertEqual(focusedDiagnosticConfigurationSource.utf8.count, 58_457)
+        XCTAssertEqual(
+            Data(focusedDiagnosticConfigurationSource.utf8).sha256,
+            "95504771BCDBED1086FAC07B204C99BF7F6101A2CCC3132BBDC528A0C7F69293"
+        )
+        for exact in [
+            "case minimumNewSign = \"minimum-new-sign\"",
+            "case minimumPreflight = \"minimum-preflight\"",
+            "CI_S10_4_DIAGNOSTIC_PROBE_ID",
+            "CI_S10_4_DIAGNOSTIC_EXECUTION_LANE",
+            "CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS",
+            "CI_S10_4_EXECUTION_LANE",
+            "CI_S10_4_RUNNER_PROVIDER",
+            "CI_S10_4_HEAD",
+            "CI_S10_4_REF",
+            "if !(self is S10_4DevelopmentProbeUITests)",
+            "Ordinary UI tests must reject diagnostic probe environment keys",
+            "Ordinary S10.4 automation must reject diagnostic probe environment keys",
+            "Focused S10.4 diagnostic provenance is not the closed GitHub minimum tuple",
+            "Focused diagnostics require the frozen minimum shard and no segment",
+            "refs/heads/phase/s10-brand-refresh",
+            "s10-4-focused-diagnostics-development-only",
+            "Focused diagnostic execution requires a configured probe",
+            "event\": \"probe-start\"",
+            "omittedCaptureStateIDs\": Self.segmentedRouteStateIDs",
+            "state.new-sign.editing",
+            "state.check-preflight.ready",
+            "Focused diagnostic route did not stop at its closed target",
+        ] {
+            XCTAssertTrue(focusedDiagnosticConfigurationSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            focusedDiagnosticConfigurationSource.components(
+                separatedBy: "guard DiagnosticProbe.environmentKeys.allSatisfy({ environment[$0] == nil })"
+            ).count - 1,
+            2
+        )
+        for forbidden in [
+            "s10.4.current.default-light\" && segment == .none",
+            "s10-4-hybrid-equivalence-pilot",
+            "finalAcceptanceEligible\": true",
+            "feedsAcceptanceAssembler\": true",
+            "equivalenceEstablished\": true",
+            "captureBaseline(\"state.new-sign.editing\"",
+            "captureBaseline(\"state.check-preflight.ready\"",
+        ] {
+            XCTAssertFalse(focusedDiagnosticConfigurationSource.contains(forbidden), forbidden)
+        }
+        let focusedDiagnosticCompletionSource = try boundedSource(
+            uiSource,
+            from:
+                "    @MainActor\n" +
+                    "    private func completeFocusedDiagnosticProbe(",
+            before: "\n\n    @MainActor\n    private func captureBaseline("
+        )
+        XCTAssertEqual(focusedDiagnosticCompletionSource.utf8.count, 3_375)
+        XCTAssertEqual(
+            Data(focusedDiagnosticCompletionSource.utf8).sha256,
+            "717141D876C6091FBE6CDCC5355E744384328096F569042E178755CD4184882A"
+        )
+        for exact in [
+            "let retainedTree = rawTree.prefix(262_144)",
+            "S10_4_DIAGNOSTIC screenshot",
+            "S10_4_DIAGNOSTIC tree",
+            "event\": \"observation-complete\"",
+            "event\": \"strict-native-audit-start\"",
+            "event\": \"strict-native-audit-completed\"",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "skippedPredecessorCaptureStateIDs",
+            "treeTruncated",
+            "finalAcceptanceEligible\": false",
+            "feedsAcceptanceAssembler\": false",
+            "equivalenceEstablished\": false",
+        ] {
+            XCTAssertTrue(focusedDiagnosticCompletionSource.contains(exact), exact)
+        }
+        for forbidden in [
+            "captureBaseline(", "attachCandidate(", "S10_MIGRATION_STATE",
+            "S10_4_AX_STATE", "S10_4_CONTRAST", "S10_4_CANDIDATE",
+            "finalAcceptanceEligible\": true",
+            "feedsAcceptanceAssembler\": true",
+            "equivalenceEstablished\": true",
+        ] {
+            XCTAssertFalse(focusedDiagnosticCompletionSource.contains(forbidden), forbidden)
+        }
+        let focusedPreflightExitSource = try boundedSource(
+            uiSource,
+            from: "        if diagnosticProbe == .minimumPreflight {",
+            before: "\n        captureBaseline(\"state.check-preflight.ready\", in: app)"
+        )
+        XCTAssertEqual(focusedPreflightExitSource.utf8.count, 174)
+        XCTAssertEqual(
+            Data(focusedPreflightExitSource.utf8).sha256,
+            "30D2D2CE4BF8756EFC4F1CE3DA732DAC32FD919A98EB924237D491F4596B1A61"
+        )
+        XCTAssertTrue(
+            focusedPreflightExitSource.contains(
+                "try completeFocusedDiagnosticPreflight(in: app)"
+            )
+        )
+        XCTAssertTrue(
+            focusedPreflightExitSource.contains(
+                "throw FocusedDiagnosticProbeStop.completed"
+            )
+        )
+        XCTAssertFalse(focusedPreflightExitSource.contains("captureBaseline("))
+        let focusedCaptureSuppressionSource = try boundedSource(
+            uiSource,
+            from: "        if diagnosticProbe != nil {",
+            before: "\n        if replaySegmentPrefixIfNeeded("
+        )
+        XCTAssertEqual(focusedCaptureSuppressionSource.utf8.count, 130)
+        XCTAssertEqual(
+            Data(focusedCaptureSuppressionSource.utf8).sha256,
+            "6EDBAD966E6FEF269AE6EBA97B2AA02A37ECCF0F8484CFEDAECCB9CEBC6417A0"
+        )
+        XCTAssertTrue(
+            focusedCaptureSuppressionSource.contains(
+                "diagnosticVisitedSetupCaptureStateIDs.append(stateID)"
+            )
+        )
+        XCTAssertTrue(focusedCaptureSuppressionSource.contains("return"))
+        for forbidden in [
+            "S10_MIGRATION_STATE", "S10_4_AX_STATE", "S10_4_CONTRAST",
+            "S10_4_CANDIDATE", "attachCandidate(", "performAccessibilityAudit",
+        ] {
+            XCTAssertFalse(focusedCaptureSuppressionSource.contains(forbidden), forbidden)
         }
         for throwingDiagnosticsCallChainLock in [
             "        try assertMonthlyPaywallAtXXXL(in: app)",
@@ -21866,10 +22153,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 783_495)
+        XCTAssertEqual(uiSource.utf8.count, 794_406)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "15962A2D8473B6E6899BE293E5031C50F36F75987FED07954BFF6F2CC5071E88"
+            "7377EEC369391F307558CDAD6BA9EF6B2C0099370E2F14CD5085C66B457F2F50"
         )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
@@ -24780,6 +25067,125 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertTrue(workerInputSource.contains("BITRISE_BUILD_CACHE_AUTH_TOKEN:"))
         XCTAssertTrue(workerInputSource.contains("required: false"))
+        let focusedDiagnosticWorkerInputSource = try boundedSource(
+            workerSource,
+            from: "      s10_4_diagnostic_probe_id:",
+            before: "\n\npermissions:"
+        )
+        XCTAssertEqual(focusedDiagnosticWorkerInputSource.utf8.count, 543)
+        XCTAssertEqual(
+            Data(focusedDiagnosticWorkerInputSource.utf8).sha256,
+            "F816EC935BCB735BF2F75B76149D5ACED16C8688646393C8F811A257760FE5DC"
+        )
+        for exact in [
+            "s10_4_diagnostic_probe_id:",
+            "s10_4_diagnostic_execution_lane:",
+            "ordinary execution uses none",
+            "default: none",
+            "required: false",
+            "type: string",
+        ] {
+            XCTAssertTrue(focusedDiagnosticWorkerInputSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            focusedDiagnosticWorkerInputSource.components(
+                separatedBy: "default: none"
+            ).count - 1,
+            2
+        )
+        let focusedDiagnosticWorkerValidationSource = try boundedSource(
+            workerSource,
+            from: "          if test \"$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID\" != none; then",
+            before: "            \"CI_TASK_ID=$CI_TASK_ID\""
+        )
+        XCTAssertEqual(focusedDiagnosticWorkerValidationSource.utf8.count, 742)
+        XCTAssertEqual(
+            Data(focusedDiagnosticWorkerValidationSource.utf8).sha256,
+            "B169FB9CC3E3007001FF9BF6824B479287EF48682E5490ABED4CDB4E1987C2D2"
+        )
+        for exact in [
+            "CI_TASK_ID\" = \"S10.4",
+            "CI_TIER\" = \"F25",
+            "github:macos-26",
+            "payload-consumer",
+            "s10.4.minimum.minimum-os",
+            "iphone-se-3-ios-18.0-minimum",
+            "refs/heads/phase/s10-brand-refresh",
+            "^[0-9a-f]{40}$",
+        ] {
+            XCTAssertTrue(focusedDiagnosticWorkerValidationSource.contains(exact), exact)
+        }
+        let focusedDiagnosticRawEvidenceSource = try boundedSource(
+            workerSource,
+            from: "      - name: Record closed H394 focused diagnostic raw evidence",
+            before: "\n\n      - name: Begin evidence-finalization budget"
+        )
+        XCTAssertEqual(focusedDiagnosticRawEvidenceSource.utf8.count, 14_789)
+        XCTAssertEqual(
+            Data(focusedDiagnosticRawEvidenceSource.utf8).sha256,
+            "8860236897FC570F5290108C30F467630D8B2EEE85676870256C67C92C30143D"
+        )
+        for exact in [
+            "diagnosticOnly: true",
+            "finalAcceptanceEligible: false",
+            "equivalenceEstablished: false",
+            "feedsAcceptanceAssembler: false",
+            "acceptingReceiptEmitted: false",
+            "uiWrapperExit",
+            "uiTeeExit",
+            "testResultsParseExit",
+            "S10_4DevelopmentProbeUITests/testFocusedDiagnosticProbe()",
+            "exact_omitted_state_set",
+            "rawEvidenceComplete",
+            "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
+        ] {
+            XCTAssertTrue(focusedDiagnosticRawEvidenceSource.contains(exact), exact)
+        }
+        for prohibited in [
+            "candidate-exports.json",
+            "receiptKind: \"s10.4-shard\"",
+            "finalAcceptanceEligible: true",
+            "equivalenceEstablished: true",
+            "feedsAcceptanceAssembler: true",
+        ] {
+            XCTAssertFalse(focusedDiagnosticRawEvidenceSource.contains(prohibited), prohibited)
+        }
+        let focusedDiagnosticUIExecutionSource = try boundedSource(
+            workerSource,
+            from: "      - name: Run task-authorized UI smoke",
+            before: "\n\n      - name: Verify pilot product tree after UI smoke"
+        )
+        XCTAssertEqual(focusedDiagnosticUIExecutionSource.utf8.count, 2_684)
+        XCTAssertEqual(
+            Data(focusedDiagnosticUIExecutionSource.utf8).sha256,
+            "CF98FF6756698D31FB095726475884C46C1F6A09D9BF16750CC51CDC0DB3230F"
+        )
+        for exact in [
+            "WORKER_S10_4_DIAGNOSTIC_PROBE_ID",
+            "CI_S10_4_DIAGNOSTIC_PROBE_ID=$WORKER_S10_4_DIAGNOSTIC_PROBE_ID",
+            "CI_S10_4_DIAGNOSTIC_EXECUTION_LANE=$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE",
+            "CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS=$WORKER_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS",
+            "CI_S10_4_EXECUTION_LANE=$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE",
+            "CI_S10_4_RUNNER_PROVIDER=$CI_RUNNER_PROVIDER",
+            "CI_S10_4_HEAD=$GITHUB_SHA",
+            "CI_S10_4_REF=$GITHUB_REF",
+            "PIPESTATUS",
+            "s10-4-diagnostic-ui-stage-exit.txt",
+            "test \"${#diagnostic_ui_pipeline_status[@]}\" -eq 2",
+        ] {
+            XCTAssertTrue(focusedDiagnosticUIExecutionSource.contains(exact), exact)
+        }
+        XCTAssertFalse(focusedDiagnosticUIExecutionSource.contains("TEST_RUNNER_CI_S10_4_DIAGNOSTIC"))
+        XCTAssertFalse(
+            workerSource.contains(
+                "CI_S10_4_DIAGNOSTIC_PROBE_ID=$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID"
+            )
+        )
+        XCTAssertFalse(
+            workerSource.contains(
+                "CI_S10_4_DIAGNOSTIC_EXECUTION_LANE=$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE"
+            )
+        )
         XCTAssertTrue(
             workerSource.contains(
                 "inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id))"
@@ -25975,7 +26381,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let exactTopRouteCallChain =
-            "        assertLightFirstSignValidationAndCreation(in: app)\n" +
+            "        try assertLightFirstSignValidationAndCreation(in: app)\n" +
                 "        try completeVisibleIssueCheck(in: app)\n" +
                 "        assertFirstReceiptAndReport(in: app)"
         let exactCaptureRouteCallChain =

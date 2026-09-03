@@ -71,6 +71,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
     }
 
+    private enum DiagnosticProbe: String {
+        case minimumNewSign = "minimum-new-sign"
+        case minimumPreflight = "minimum-preflight"
+
+        static let environmentKeys: Set<String> = [
+            "CI_S10_4_DIAGNOSTIC_PROBE_ID",
+            "CI_S10_4_DIAGNOSTIC_EXECUTION_LANE",
+            "CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS",
+            "CI_S10_4_EXECUTION_LANE",
+            "CI_S10_4_RUNNER_PROVIDER",
+            "CI_S10_4_HEAD",
+            "CI_S10_4_REF",
+        ]
+    }
+
+    private enum FocusedDiagnosticProbeStop: Error {
+        case completed
+    }
+
     private static let automationShards: [AutomationShard] = [
         AutomationShard(ordinal: 1, shardID: "s10.4.current.default-light", requirementID: "default_light", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "voiceover", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
         AutomationShard(ordinal: 2, shardID: "s10.4.current.default-dark", requirementID: "default_dark", deviceProfileID: "iphone-17-ios-26.2-current", accessibilityFeature: "dark_interface", appearance: "dark", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-release", layoutDirection: "left_to_right", differentiateWithoutColor: false, reduceMotion: false, reduceTransparency: false),
@@ -764,13 +783,59 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var segmentedRouteStateCursor = 0
     private var automatedSegmentFinished = false
     private var segment3ResumePrepared = false
+    private var diagnosticProbe: DiagnosticProbe?
+    private var diagnosticVisitedSetupCaptureStateIDs: [String] = []
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        if !(self is S10_4DevelopmentProbeUITests) {
+            let environment = ProcessInfo.processInfo.environment
+            guard DiagnosticProbe.environmentKeys.allSatisfy({ environment[$0] == nil }) else {
+                throw AutomationConfigurationError.invalid(
+                    "Ordinary UI tests must reject diagnostic probe environment keys"
+                )
+            }
+        }
     }
 
     func configureAutomatedBrandLabShardFromEnvironment() throws {
         let environment = ProcessInfo.processInfo.environment
+        guard DiagnosticProbe.environmentKeys.allSatisfy({ environment[$0] == nil }) else {
+            throw AutomationConfigurationError.invalid(
+                "Ordinary S10.4 automation must reject diagnostic probe environment keys"
+            )
+        }
+        try configureAutomatedBrandLabShard(
+            from: environment,
+            diagnosticProbe: nil
+        )
+    }
+
+    func configureFocusedDiagnosticProbeFromEnvironment() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let rawProbeID = environment["CI_S10_4_DIAGNOSTIC_PROBE_ID"],
+              let probe = DiagnosticProbe(rawValue: rawProbeID),
+              environment["CI_S10_4_EXECUTION_LANE"]
+                == "s10-4-focused-diagnostics-development-only",
+              environment["CI_S10_4_RUNNER_PROVIDER"] == "github",
+              environment["CI_S10_4_REF"]
+                == "refs/heads/phase/s10-brand-refresh",
+              let head = environment["CI_S10_4_HEAD"],
+              head.count == 40,
+              head.allSatisfy({
+                  ("0"..."9").contains($0) || ("a"..."f").contains($0)
+              }) else {
+            throw AutomationConfigurationError.invalid(
+                "Focused S10.4 diagnostic provenance is not the closed GitHub minimum tuple"
+            )
+        }
+        try configureAutomatedBrandLabShard(from: environment, diagnosticProbe: probe)
+    }
+
+    private func configureAutomatedBrandLabShard(
+        from environment: [String: String],
+        diagnosticProbe: DiagnosticProbe?
+    ) throws {
         guard environment["CI_TASK_ID"] == "S10.4" else {
             throw AutomationConfigurationError.invalid("CI_TASK_ID must equal S10.4")
         }
@@ -789,8 +854,26 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "Only the frozen AX-text shard may use a segmented route"
             )
         }
+        guard diagnosticProbe == nil
+                || (shard.shardID == "s10.4.minimum.minimum-os" && segment == .none) else {
+            throw AutomationConfigurationError.invalid(
+                "Focused diagnostics require the frozen minimum shard and no segment"
+            )
+        }
         var expectedEnvironment = shard.expectedEnvironment
         expectedEnvironment["CI_S10_4_SEGMENT_ID"] = segment.rawValue
+        if let diagnosticProbe {
+            expectedEnvironment["CI_S10_4_DIAGNOSTIC_PROBE_ID"] = diagnosticProbe.rawValue
+            expectedEnvironment["CI_S10_4_DIAGNOSTIC_EXECUTION_LANE"] =
+                "s10-4-focused-diagnostics-development-only"
+            expectedEnvironment["CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS"] = "600"
+            expectedEnvironment["CI_S10_4_EXECUTION_LANE"] =
+                "s10-4-focused-diagnostics-development-only"
+            expectedEnvironment["CI_S10_4_RUNNER_PROVIDER"] = "github"
+            expectedEnvironment["CI_S10_4_HEAD"] = environment["CI_S10_4_HEAD"] ?? ""
+            expectedEnvironment["CI_S10_4_REF"] =
+                "refs/heads/phase/s10-brand-refresh"
+        }
         let observed = Dictionary(uniqueKeysWithValues: environment
             .filter { $0.key.hasPrefix("CI_S10_4_") }
             .map { ($0.key, $0.value) })
@@ -819,6 +902,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         automationShard = shard
         automationSegment = segment
+        self.diagnosticProbe = diagnosticProbe
+        diagnosticVisitedSetupCaptureStateIDs.removeAll()
         migratedStateIDs.removeAll()
         automationAXTreeDigests.removeAll()
         automationContrastExceptions.removeAll()
@@ -881,7 +966,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 30))
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
 
-        assertLightFirstSignValidationAndCreation(in: app)
+        try assertLightFirstSignValidationAndCreation(in: app)
         try completeVisibleIssueCheck(in: app)
         assertFirstReceiptAndReport(in: app)
         try assertReportsIndex(in: app)
@@ -917,9 +1002,79 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
+    func runFocusedDiagnosticProbe() throws {
+        guard let diagnosticProbe else {
+            throw AutomationConfigurationError.invalid(
+                "Focused diagnostic execution requires a configured probe"
+            )
+        }
+        let plannedTarget: (stateID: String, setupTarget: String)
+        switch diagnosticProbe {
+        case .minimumNewSign:
+            plannedTarget = ("state.new-sign.editing", "s2.new-sign.site-label")
+        case .minimumPreflight:
+            plannedTarget = ("state.check-preflight.ready", "s3.preflight.time-zone")
+        }
+        printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
+            "diagnosticOnly": true,
+            "equivalenceEstablished": false,
+            "event": "probe-start",
+            "feedsAcceptanceAssembler": false,
+            "finalAcceptanceEligible": false,
+            "omittedCaptureStateIDs": Self.segmentedRouteStateIDs,
+            "plannedSetupTarget": plannedTarget.setupTarget,
+            "plannedTargetAnchorStateID": plannedTarget.stateID,
+            "probeID": diagnosticProbe.rawValue,
+        ])
+        let fixtureURL = try XCTUnwrap(Bundle(for: Self.self).url(
+            forResource: "FieldEvidence",
+            withExtension: "storekit"
+        ))
+        storeKitSession = try SKTestSession(contentsOf: fixtureURL)
+        storeKitSession?.resetToDefaultState()
+        storeKitSession?.clearTransactions()
+        storeKitSession?.disableDialogs = true
+
+        applyDeviceAppearance(fallbackIsDark: false)
+        let app = try configuredApplication(
+            appearance: "Light",
+            appearanceFlag: "--s1-ui-test-light-mode",
+            usesAccessibilityXXXL: false
+        )
+        app.launchArguments += [
+            "--s3-5-ui-test-low-storage-once",
+            "--s3-6-ui-test-camera-denied-once",
+        ]
+        app.launch()
+        XCTAssertTrue(element("s2.welcome.screen", in: app)
+            .waitForExistence(timeout: 30))
+
+        switch diagnosticProbe {
+        case .minimumNewSign:
+            try assertLightFirstSignValidationAndCreation(in: app)
+        case .minimumPreflight:
+            try assertLightFirstSignValidationAndCreation(in: app)
+            try completeVisibleIssueCheck(in: app)
+        }
+        throw AutomationConfigurationError.invalid(
+            "Focused diagnostic route did not stop at its closed target"
+        )
+    }
+
+    @MainActor
+    func runFocusedDiagnosticProbeFromEnvironment() throws {
+        try configureFocusedDiagnosticProbeFromEnvironment()
+        do {
+            try runFocusedDiagnosticProbe()
+        } catch FocusedDiagnosticProbeStop.completed {
+            return
+        }
+    }
+
+    @MainActor
     private func assertLightFirstSignValidationAndCreation(
         in app: XCUIApplication
-    ) {
+    ) throws {
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
         XCTAssertEqual(shell.value as? String, effectiveAppearanceName(fallback: "Light"))
@@ -1000,6 +1155,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
         assertLocalizedValue(sign, equals: "Monument Sign")
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
+        if diagnosticProbe == .minimumNewSign {
+            completeFocusedDiagnosticProbe(
+                targetStateID: "state.new-sign.editing",
+                setupTarget: "s2.new-sign.site-label",
+                observationPhase: "post-save-required-site-validation",
+                observedStateID: "state.new-sign.validation-error",
+                in: app
+            )
+            throw FocusedDiagnosticProbeStop.completed
+        }
         let validationDetailRoute = element("s2.sign-detail.screen", in: app)
         if shouldPrepareNormalEvidence(
             for: "state.new-sign.validation-error",
@@ -1714,7 +1879,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let preflight = element("s3.preflight.screen", in: app)
         XCTAssertTrue(preflight.waitForExistence(timeout: 20))
-        recordMetric("start_check_to_preflight", since: startCheckAt)
+        if diagnosticProbe == nil {
+            recordMetric("start_check_to_preflight", since: startCheckAt)
+        }
         assertUnidentifiedLocalizedLabel("Information: Ready for night check", in: app)
         let zone = element("s3.preflight.time-zone", in: app)
         if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
@@ -3375,6 +3542,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     return
                 }
             }
+        }
+        if diagnosticProbe == .minimumPreflight {
+            try completeFocusedDiagnosticPreflight(in: app)
+            throw FocusedDiagnosticProbeStop.completed
         }
         captureBaseline("state.check-preflight.ready", in: app)
 
@@ -10620,6 +10791,88 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
+    private func completeFocusedDiagnosticProbe(
+        targetStateID: String,
+        setupTarget: String,
+        observationPhase: String,
+        observedStateID: String,
+        in app: XCUIApplication
+    ) {
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "S10_4_DIAGNOSTIC screenshot \(targetStateID)"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let rawTree = Data(app.debugDescription.utf8)
+        let retainedTree = rawTree.prefix(262_144)
+        let tree = XCTAttachment(
+            data: Data(retainedTree),
+            uniformTypeIdentifier: "public.plain-text"
+        )
+        tree.name = "S10_4_DIAGNOSTIC tree \(targetStateID)"
+        tree.lifetime = .keepAlways
+        add(tree)
+        printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
+            "diagnosticOnly": true,
+            "equivalenceEstablished": false,
+            "event": "observation-complete",
+            "feedsAcceptanceAssembler": false,
+            "finalAcceptanceEligible": false,
+            "observedStateID": observedStateID,
+            "observationPhase": observationPhase,
+            "omittedCaptureStateIDs": Self.segmentedRouteStateIDs,
+            "probeID": diagnosticProbe?.rawValue ?? "",
+            "retainedTreeBytes": retainedTree.count,
+            "skippedPredecessorCaptureStateIDs":
+                diagnosticSkippedPredecessorCaptureStateIDs(
+                    excluding: targetStateID
+                ),
+            "setupTarget": setupTarget,
+            "targetAnchorStateID": targetStateID,
+            "originalTreeBytes": rawTree.count,
+            "treeTruncated": rawTree.count > retainedTree.count,
+            "visitedSetupCaptureStateIDs": diagnosticVisitedSetupCaptureStateIDs,
+        ])
+    }
+
+    @MainActor
+    private func completeFocusedDiagnosticPreflight(
+        in app: XCUIApplication
+    ) throws {
+        completeFocusedDiagnosticProbe(
+            targetStateID: "state.check-preflight.ready",
+            setupTarget: "s3.preflight.time-zone",
+            observationPhase: "pre-audit-target-ready",
+            observedStateID: "state.check-preflight.ready",
+            in: app
+        )
+        printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
+            "diagnosticOnly": true,
+            "equivalenceEstablished": false,
+            "event": "strict-native-audit-start",
+            "feedsAcceptanceAssembler": false,
+            "finalAcceptanceEligible": false,
+            "probeID": DiagnosticProbe.minimumPreflight.rawValue,
+            "targetAnchorStateID": "state.check-preflight.ready",
+        ])
+        try app.performAccessibilityAudit(for: .contrast)
+        printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
+            "diagnosticOnly": true,
+            "equivalenceEstablished": false,
+            "event": "strict-native-audit-completed",
+            "feedsAcceptanceAssembler": false,
+            "finalAcceptanceEligible": false,
+            "probeID": DiagnosticProbe.minimumPreflight.rawValue,
+            "targetAnchorStateID": "state.check-preflight.ready",
+        ])
+    }
+
+    private func diagnosticSkippedPredecessorCaptureStateIDs(
+        excluding targetStateID: String
+    ) -> [String] {
+        diagnosticVisitedSetupCaptureStateIDs.filter { $0 != targetStateID }
+    }
+
+    @MainActor
     private func captureBaseline(
         _ stateID: String,
         in app: XCUIApplication,
@@ -10634,6 +10887,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             file: file,
             line: line
         )
+        if diagnosticProbe != nil {
+            diagnosticVisitedSetupCaptureStateIDs.append(stateID)
+            return
+        }
         if replaySegmentPrefixIfNeeded(
             stateID,
             in: app,
@@ -16636,5 +16893,12 @@ final class S10_4AutomatedBrandLabUITests: S10BrandMigrationRouteUITestCase {
     func testAutomatedBrandLabShard() throws {
         try configureAutomatedBrandLabShardFromEnvironment()
         try runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()
+    }
+}
+
+final class S10_4DevelopmentProbeUITests: S10BrandMigrationRouteUITestCase {
+    @MainActor
+    func testFocusedDiagnosticProbe() throws {
+        try runFocusedDiagnosticProbeFromEnvironment()
     }
 }
