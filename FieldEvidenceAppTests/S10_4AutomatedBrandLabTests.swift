@@ -316,8 +316,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 353_395,
-            sha256: "662D34567CBA78758FE68B204256F3CC418E60D43860BF348BF31C06D1B216BA"
+            byteCount: 354_119,
+            sha256: "6DB024F9E18E0E80930AB14A8F2BB247083874274B9B8864028BA91982DD5607"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -25231,6 +25231,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(workerTaskSelectionSource.contains(exact), exact)
         }
+        XCTAssertTrue(
+            workerTaskSelectionSource.contains(
+                "if test \"$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID\" != none; then"
+            )
+        )
+        for exact in [
+            "TEST_RUNNER_CI_S10_4_DIAGNOSTIC_PROBE_ID=$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID",
+            "TEST_RUNNER_CI_S10_4_DIAGNOSTIC_EXECUTION_LANE=$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE",
+            "TEST_RUNNER_CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS=600",
+            "TEST_RUNNER_CI_S10_4_EXECUTION_LANE=$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE",
+            "TEST_RUNNER_CI_S10_4_RUNNER_PROVIDER=$CI_RUNNER_PROVIDER",
+            "TEST_RUNNER_CI_S10_4_HEAD=$GITHUB_SHA",
+            "TEST_RUNNER_CI_S10_4_REF=$GITHUB_REF",
+        ] {
+            XCTAssertTrue(workerTaskSelectionSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            workerTaskSelectionSource.components(
+                separatedBy: "TEST_RUNNER_CI_S10_4_DIAGNOSTIC_PROBE_ID="
+            ).count - 1,
+            1
+        )
         let bitriseProfileSelection = try boundedSource(
             workerTaskSelectionSource,
             from:

@@ -808,6 +808,17 @@ jobs:
               "TEST_RUNNER_CI_S10_4_REDUCE_MOTION=$CI_S10_4_REDUCE_MOTION" \
               "TEST_RUNNER_CI_S10_4_REDUCE_TRANSPARENCY=$CI_S10_4_REDUCE_TRANSPARENCY" \
               >> "$GITHUB_ENV"
+            if test "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" != none; then
+              printf '%s\n' \
+                "TEST_RUNNER_CI_S10_4_DIAGNOSTIC_PROBE_ID=$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" \
+                "TEST_RUNNER_CI_S10_4_DIAGNOSTIC_EXECUTION_LANE=$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" \
+                "TEST_RUNNER_CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS=600" \
+                "TEST_RUNNER_CI_S10_4_EXECUTION_LANE=$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" \
+                "TEST_RUNNER_CI_S10_4_RUNNER_PROVIDER=$CI_RUNNER_PROVIDER" \
+                "TEST_RUNNER_CI_S10_4_HEAD=$GITHUB_SHA" \
+                "TEST_RUNNER_CI_S10_4_REF=$GITHUB_REF" \
+                >> "$GITHUB_ENV"
+            fi
           fi
           cp Scripts/ci-selection.json "$CI_ARTIFACT_DIR/ci-selection.json"
           if test "$CI_TASK_ID" = "S10.4"; then
