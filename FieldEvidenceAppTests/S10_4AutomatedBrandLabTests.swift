@@ -93,10 +93,35 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 16_067,
-            sha256: "64FF8D9A3AD61DE8D3D6BF9AD8CA8B3341B57FF1B64F7D125DE90A344BB15133"
+            byteCount: 17_807,
+            sha256: "302F3EB391A5A4E98E3D4A2A63CB7A2E3592B231CB417FDA9549765952F46294"
         )
         let uiSmokeSource = try text(uiSmokePath)
+        let simulatorAXDiagnosticSource = try boundedSource(
+            uiSmokeSource,
+            from: "  # K365 failure-only minimum-OS Simulator accessibility context.",
+            before: "  run_diagnostic host_launchd_system_testmanagerd"
+        )
+        XCTAssertEqual(simulatorAXDiagnosticSource.utf8.count, 1_740)
+        XCTAssertEqual(
+            Data(simulatorAXDiagnosticSource.utf8).sha256,
+            "9375B986A3F9830F703F8254197509F205D0EB42BFE6715DB9E3937F94AF335E"
+        )
+        let uiFailureDiagnosticSource = try boundedSource(
+            uiSmokeSource,
+            from: #"if [ "$xcodebuild_status" -ne 0 ]; then"#,
+            before: "\n\ntest -d \"$result_bundle_path\""
+        )
+        XCTAssertEqual(uiSmokeSource.components(separatedBy: simulatorAXDiagnosticSource).count - 1, 1)
+        XCTAssertTrue(uiFailureDiagnosticSource.contains(simulatorAXDiagnosticSource))
+        XCTAssertTrue(uiFailureDiagnosticSource.hasSuffix("  exit \"$xcodebuild_status\"\nfi"))
+        for forbidden in ["simctl shutdown", "simctl boot", "simctl erase", "retry", "test-without-building", "xcodebuild_status="] {
+            XCTAssertFalse(simulatorAXDiagnosticSource.contains(forbidden), forbidden)
+        }
+        let uiSmokeOutsideAXDiagnostic = uiSmokeSource.replacingOccurrences(
+            of: simulatorAXDiagnosticSource,
+            with: ""
+        )
         let simulatorRefreshSource = try boundedSource(
             uiSmokeSource,
             from: #"if [ "${CI_RUNNER_PROVIDER:-}" = "github" ]"#,
@@ -135,7 +160,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             bypassedAccessibilityRefreshShards.sorted()
         )
         for shardID in bypassedAccessibilityRefreshShards {
-            XCTAssertFalse(uiSmokeSource.contains(shardID), shardID)
+            XCTAssertFalse(simulatorRefreshSource.contains(shardID), shardID)
+            XCTAssertFalse(uiSmokeOutsideAXDiagnostic.contains(shardID), shardID)
         }
         let orderedRefreshCommands = [
             #"test "${CI_SIMULATOR_BOOT_TIMEOUT_SECONDS:?}" = "900""#,

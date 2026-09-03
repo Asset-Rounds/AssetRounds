@@ -246,6 +246,41 @@ if [ "$xcodebuild_status" -ne 0 ]; then
     "$host_unified_log_retained_bytes" >> "$diagnostic_status_path"
   rm -f "$host_unified_log_raw"
 
+  # K365 failure-only minimum-OS Simulator accessibility context.
+  if [ "${CI_RUNNER_PROVIDER:-}" = "github" ] && \
+     [ "${CI_TASK_ID:-}" = "S10.4" ] && \
+     [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.minimum-os" ]; then
+    simulator_ax_log_raw="$(mktemp "${RUNNER_TEMP:?}/FieldEvidenceSimulatorAX.XXXXXX")"
+    simulator_ax_log_temp_status="$?"
+    printf 'simulator_ax_log_temp=%s\n' "$simulator_ax_log_temp_status" \
+      >> "$diagnostic_status_path"
+    if [ "$simulator_ax_log_temp_status" -eq 0 ]; then
+      run_diagnostic simulator_ax_unified_log \
+        Scripts/run-with-timeout.sh 30 \
+        xcrun simctl spawn "$CI_SIMULATOR_UDID" log show \
+          --last 10m \
+          --style compact \
+          --predicate \
+            '(process == "accessibilityd") OR (process == "SpringBoard") OR (process == "keyboardd") OR (subsystem CONTAINS[c] "accessibility")' \
+        > "$simulator_ax_log_raw" 2>&1
+      simulator_ax_log_original_bytes="$(
+        LC_ALL=C wc -c < "$simulator_ax_log_raw" | tr -d '[:space:]'
+      )"
+      /usr/bin/tail -c 1048576 "$simulator_ax_log_raw" \
+        > "$failure_diagnostic_path/simulator-accessibility-unified.log"
+      printf 'simulator_ax_log_bound=%s\n' "$?" >> "$diagnostic_status_path"
+      simulator_ax_log_retained_bytes="$(
+        LC_ALL=C wc -c < "$failure_diagnostic_path/simulator-accessibility-unified.log" \
+          | tr -d '[:space:]'
+      )"
+      printf 'simulator_ax_log_original_bytes=%s\nsimulator_ax_log_retained_bytes=%s\n' \
+        "$simulator_ax_log_original_bytes" "$simulator_ax_log_retained_bytes" \
+        >> "$diagnostic_status_path"
+      rm -f "$simulator_ax_log_raw"
+    fi
+  fi
+  # End K365 failure-only Simulator accessibility context.
+
   run_diagnostic host_launchd_system_testmanagerd \
     Scripts/run-with-timeout.sh 10 \
     /bin/launchctl print system/com.apple.testmanagerd \
