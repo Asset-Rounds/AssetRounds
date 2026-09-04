@@ -1363,3 +1363,11 @@ extension V9_ChangeJournalCheckpointReplayTests {
         XCTAssertTrue(lifecycle.tolerantDecode)
     }
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-journal-regression
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV30P01C05JournalReplayIdentityIsLocaleIndependent() {
+        XCTAssertTrue(V30P01C05ChangeJournalCanonicalIdentityBoundaryV1.validate())
+        XCTAssertTrue(V30P01C05MutationJournalCanonicalIdentityBoundaryV1.validate())
+        XCTAssertTrue(V30P01C05LocalChangeJournalCanonicalIdentityBoundaryV1.validate())
+    }
+}

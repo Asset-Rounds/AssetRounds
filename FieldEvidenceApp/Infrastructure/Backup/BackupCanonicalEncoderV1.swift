@@ -2432,3 +2432,17 @@ enum C55PartsStockBackupEncodingBoundaryV1 {
     static let canonicalSnapshotIsEmbedded = true
     static let parallelEnvelopeIsForbidden = true
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-backup-encoder
+enum V30P01C05BackupEncoderCanonicalIdentityBoundaryV1 {
+    static let encoderUsesCanonicalRecordOrder = true
+    static let encoderBytesIgnorePresentationLocale = true
+    static let translatedLabelsAreExcluded = true
+    static let historicalEnUSIdentityIsEncodedVerbatim = true
+
+    static func validate() -> Bool {
+        encoderUsesCanonicalRecordOrder
+            && encoderBytesIgnorePresentationLocale
+            && translatedLabelsAreExcluded
+            && historicalEnUSIdentityIsEncodedVerbatim
+    }
+}

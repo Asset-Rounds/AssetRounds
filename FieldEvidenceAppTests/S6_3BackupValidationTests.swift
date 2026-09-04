@@ -2440,3 +2440,12 @@ extension C45BackupValidationCompatibilityTests {
         )
     }
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-backup-regression
+private final class V30P01C05BackupCanonicalIdentityValidationTests: XCTestCase {
+    func testBackupCanonicalIdentityDoesNotDependOnPresentationLocale() {
+        XCTAssertTrue(V30P01C05BackupRecordsCanonicalIdentityBoundaryV1.validate())
+        XCTAssertTrue(V30P01C05BackupEncoderCanonicalIdentityBoundaryV1.validate())
+        XCTAssertTrue(V30P01C05BackupDecoderCanonicalIdentityBoundaryV1.validate())
+        XCTAssertTrue(V30P01C05BackupPackageCanonicalIdentityBoundaryV1.validate())
+    }
+}

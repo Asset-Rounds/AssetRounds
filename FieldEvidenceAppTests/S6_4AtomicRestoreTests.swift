@@ -1847,3 +1847,11 @@ extension C45AtomicRestoreCompatibilityTests {
         )
     }
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-restore-regression
+private final class V30P01C05BackupCanonicalIdentityRestoreTests: XCTestCase {
+    func testRestorePreservesCanonicalIdentityAndRebuildsOnlyPresentation() {
+        XCTAssertTrue(V30P01C05BackupRestoreCanonicalIdentityBoundaryV1.validate())
+        XCTAssertTrue(V30P01C05WorkspaceWriterCanonicalIdentityBoundaryV1.validate())
+        XCTAssertTrue(GlobalizationCanonicalIdentityBoundaryV1.rawEnumValuesLocalized == false)
+    }
+}

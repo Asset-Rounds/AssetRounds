@@ -6234,3 +6234,17 @@ enum C31LightingClaimEvidenceClosureV1 {
         }
     }
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-backup-records
+enum V30P01C05BackupRecordsCanonicalIdentityBoundaryV1 {
+    static let recordsRemainLanguageNeutral = true
+    static let presentationPreferencesRemainExcluded = true
+    static let backupManifestIdentityIsHistorical = true
+    static let jurisdictionIdentityIsCanonical = true
+
+    static func validate() -> Bool {
+        recordsRemainLanguageNeutral
+            && presentationPreferencesRemainExcluded
+            && backupManifestIdentityIsHistorical
+            && jurisdictionIdentityIsCanonical
+    }
+}

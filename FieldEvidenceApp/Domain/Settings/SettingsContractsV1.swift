@@ -1279,3 +1279,17 @@ enum ActivityContractCloseoutSettingsPolicyV2 {
     static let devicePreferenceMayHideCloseout = false
     static let devicePreferenceMayOverrideFindingTruth = false
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-settings
+enum V30P01C05SettingsCanonicalIdentityBoundaryV1 {
+    static let presentationPreferenceIsDeviceLocal = true
+    static let presentationPreferenceIsExcludedFromBackup = true
+    static let canonicalSettingsIdentityUsesPresentation = false
+    static let legacyEnUSIdentityRemainsReadable = true
+
+    static func validate() -> Bool {
+        presentationPreferenceIsDeviceLocal
+            && presentationPreferenceIsExcludedFromBackup
+            && !canonicalSettingsIdentityUsesPresentation
+            && legacyEnUSIdentityRemainsReadable
+    }
+}

@@ -1,0 +1,85 @@
+{
+  "schema": "V30CanonicalIdentityBaselineV1",
+  "cardID": "V30-P01-C05",
+  "provisional": {
+    "finalCredit": false,
+    "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "reconciliationRequired": true,
+    "phase10Forbidden": true
+  },
+  "schemaVersion": 1,
+  "baseline": {
+    "schemaVersion": 1,
+    "stableIDs": [
+      "asset:legacy-001",
+      "report:legacy-001",
+      "workspace:legacy-001"
+    ],
+    "rawEnumValues": [
+      "asset",
+      "site",
+      "us_customary"
+    ],
+    "mutationSHA256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "journalSHA256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "evidenceSHA256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "backupIdentitySHA256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "authoredEvidenceSHA256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "productIdentitySHA256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "jurisdictionIdentifier": "US-PA",
+    "historicalEnUSIdentities": [
+      "en-US:report:legacy",
+      "en-US:workspace:legacy"
+    ],
+    "snapshotSHA256": "0787b1241e5e5cc90d4ec06b9c3cc0dcea5783b216966b35f449d5bb6a4aa231"
+  },
+  "localized": {
+    "schemaVersion": 1,
+    "stableIDs": [
+      "asset:legacy-001",
+      "report:legacy-001",
+      "workspace:legacy-001"
+    ],
+    "rawEnumValues": [
+      "asset",
+      "site",
+      "us_customary"
+    ],
+    "mutationSHA256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "journalSHA256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "evidenceSHA256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "backupIdentitySHA256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "authoredEvidenceSHA256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "productIdentitySHA256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "jurisdictionIdentifier": "US-PA",
+    "historicalEnUSIdentities": [
+      "en-US:report:legacy",
+      "en-US:workspace:legacy"
+    ],
+    "snapshotSHA256": "0787b1241e5e5cc90d4ec06b9c3cc0dcea5783b216966b35f449d5bb6a4aa231"
+  },
+  "beforePresentation": {
+    "appLanguageTag": "en",
+    "formattingLocaleIdentifier": "en-US",
+    "ianaTimeZoneIdentifier": "America/New_York",
+    "calendar": "GREGORIAN",
+    "numberingSystem": "latn",
+    "units": "US_CUSTOMARY",
+    "authoredContentLanguage": "en-US",
+    "reportLanguage": "en|en|EXACT",
+    "storefrontCountry": "US",
+    "jurisdictionIdentifier": "US-PA"
+  },
+  "afterPresentation": {
+    "appLanguageTag": "es",
+    "formattingLocaleIdentifier": "es-ES",
+    "ianaTimeZoneIdentifier": "Europe/Madrid",
+    "calendar": "GREGORIAN",
+    "numberingSystem": "latn",
+    "units": "METRIC",
+    "authoredContentLanguage": "es",
+    "reportLanguage": "es|es|EXACT",
+    "storefrontCountry": "US",
+    "jurisdictionIdentifier": "US-PA"
+  }
+}

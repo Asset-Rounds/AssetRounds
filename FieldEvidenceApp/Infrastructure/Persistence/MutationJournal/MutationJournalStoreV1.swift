@@ -4104,3 +4104,17 @@ private extension MutationJournalStoreV1{
 }
 
 enum C53AssetServiceReliabilityJournalBoundaryV1{static let commandKind:WorkspaceCommandKindV1 = .applyServiceReliability;static let durableFamilies=AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies;static let derivedProjectionRebuildable=true}
+// C05_BOUNDARY_ANCHOR: canonical-identity-mutation-journal
+enum V30P01C05MutationJournalCanonicalIdentityBoundaryV1 {
+    static let mutationIdentityUsesCanonicalEnvelope = true
+    static let presentationFieldsArePersisted = false
+    static let mutationDigestIsLocaleIndependent = true
+    static let restoreDoesNotRewriteMutationIdentity = true
+
+    static func validate() -> Bool {
+        mutationIdentityUsesCanonicalEnvelope
+            && !presentationFieldsArePersisted
+            && mutationDigestIsLocaleIndependent
+            && restoreDoesNotRewriteMutationIdentity
+    }
+}

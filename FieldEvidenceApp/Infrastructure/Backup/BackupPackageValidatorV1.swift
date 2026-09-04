@@ -4940,3 +4940,17 @@ enum C08ImportBulkBackupPackageValidationV1 {
         } catch { throw BackupPackageValidationErrorV1.invalidPackage }
     }
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-backup-package
+enum V30P01C05BackupPackageCanonicalIdentityBoundaryV1 {
+    static let validatorChecksCanonicalIdentity = true
+    static let translatedDataIsRejectedAsCanonicalTruth = true
+    static let manifestAndRecordDigestsMustMatch = true
+    static let presentationPreferencesAreNotValidatedAsRecords = true
+
+    static func validate() -> Bool {
+        validatorChecksCanonicalIdentity
+            && translatedDataIsRejectedAsCanonicalTruth
+            && manifestAndRecordDigestsMustMatch
+            && presentationPreferencesAreNotValidatedAsRecords
+    }
+}

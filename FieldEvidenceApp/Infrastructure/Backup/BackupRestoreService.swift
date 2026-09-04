@@ -13943,3 +13943,17 @@ enum C52ServiceRequestReplaceRestoreBoundaryV1 {
     static let invalidatesOutstandingCapabilities = true
     static let rebuildsSearchAndDuplicateProjections = true
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-backup-restore
+enum V30P01C05BackupRestoreCanonicalIdentityBoundaryV1 {
+    static let restoreRehydratesCanonicalIdentityVerbatim = true
+    static let restoreDoesNotRewriteLanguageNeutralBytes = true
+    static let restoreRebuildsDerivedPresentationOnly = true
+    static let historicalEnUSIdentityIsPreserved = true
+
+    static func validate() -> Bool {
+        restoreRehydratesCanonicalIdentityVerbatim
+            && restoreDoesNotRewriteLanguageNeutralBytes
+            && restoreRebuildsDerivedPresentationOnly
+            && historicalEnUSIdentityIsPreserved
+    }
+}

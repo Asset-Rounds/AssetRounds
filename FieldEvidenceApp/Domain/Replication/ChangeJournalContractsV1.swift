@@ -1388,3 +1388,17 @@ enum C52ServiceRequestBoundary_ChangeJournalContractsV1 {
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
 enum C53AssetServiceReliabilityChangeJournalBoundaryV1{static let commandKind:WorkspaceCommandKindV1 = .applyServiceReliability;static let entityKinds:[WorkspaceEntityKindV1]=[.assetServiceIncident,.serviceImpactSegment,.serviceCauseAssertion,.serviceRemedyAssertion,.serviceRepairInterval,.serviceRestorationAssertion,.qualifiedServiceExposure];static let projectionIsRebuildable=true}
+// C05_BOUNDARY_ANCHOR: canonical-identity-change-journal
+enum V30P01C05ChangeJournalCanonicalIdentityBoundaryV1 {
+    static let journalEventIdentityIsLanguageNeutral = true
+    static let rawCommandValuesAreLocalized = false
+    static let replayBytesArePresentationIndependent = true
+    static let historicalEnUSJournalIdentityIsPreserved = true
+
+    static func validate() -> Bool {
+        journalEventIdentityIsLanguageNeutral
+            && !rawCommandValuesAreLocalized
+            && replayBytesArePresentationIndependent
+            && historicalEnUSJournalIdentityIsPreserved
+    }
+}

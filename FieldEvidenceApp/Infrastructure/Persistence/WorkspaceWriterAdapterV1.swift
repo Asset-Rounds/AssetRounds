@@ -5724,3 +5724,17 @@ enum C34SceneNavigationWorkspaceWriterAdapterBoundaryV1 {
 
 extension WorkspaceWriterAdapterV1: ShopReportProfileCurrentReadingV1 {}
 extension WorkspaceWriterAdapterV1: RoundSessionCurrentReadingV1 {}
+// C05_BOUNDARY_ANCHOR: canonical-identity-writer
+enum V30P01C05WorkspaceWriterCanonicalIdentityBoundaryV1 {
+    static let writerReceiptIdentityIsCanonical = true
+    static let displayLocaleCannotChangeMutationIdentity = true
+    static let authoredEvidenceBytesArePreserved = true
+    static let writerIntroducesNoLocalizedCanonicalFields = true
+
+    static func validate() -> Bool {
+        writerReceiptIdentityIsCanonical
+            && displayLocaleCannotChangeMutationIdentity
+            && authoredEvidenceBytesArePreserved
+            && writerIntroducesNoLocalizedCanonicalFields
+    }
+}

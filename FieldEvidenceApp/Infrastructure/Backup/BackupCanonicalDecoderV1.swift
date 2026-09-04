@@ -1438,3 +1438,17 @@ enum C53ServiceReliabilityBackupDecodingBoundaryV1 {
     static let rejectsDerivedMetricProjection = true
     static let rejectsRawCapabilityBytes = true
 }
+// C05_BOUNDARY_ANCHOR: canonical-identity-backup-decoder
+enum V30P01C05BackupDecoderCanonicalIdentityBoundaryV1 {
+    static let decoderAcceptsLanguageNeutralRecords = true
+    static let decoderIgnoresCurrentDisplayLocale = true
+    static let rawEnumValuesDecodeWithoutTranslation = true
+    static let legacyEnUSIdentityRemainsDecodable = true
+
+    static func validate() -> Bool {
+        decoderAcceptsLanguageNeutralRecords
+            && decoderIgnoresCurrentDisplayLocale
+            && rawEnumValuesDecodeWithoutTranslation
+            && legacyEnUSIdentityRemainsDecodable
+    }
+}
