@@ -10883,16 +10883,58 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             "probeID": DiagnosticProbe.minimumPreflight.rawValue,
             "targetAnchorStateID": "state.check-preflight.ready",
         ])
-        try app.performAccessibilityAudit(for: .contrast)
-        printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
-            "diagnosticOnly": true,
-            "equivalenceEstablished": false,
-            "event": "strict-native-audit-completed",
-            "feedsAcceptanceAssembler": false,
-            "finalAcceptanceEligible": false,
-            "probeID": DiagnosticProbe.minimumPreflight.rawValue,
-            "targetAnchorStateID": "state.check-preflight.ready",
-        ])
+        var observedIssueCount = 0
+        do {
+            try app.performAccessibilityAudit(for: .contrast) { issue in
+                observedIssueCount += 1
+                if observedIssueCount <= 3 {
+                    self.printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
+                        "diagnosticOnly": true,
+                        "equivalenceEstablished": false,
+                        "event": "strict-native-audit-issue-observed",
+                        "feedsAcceptanceAssembler": false,
+                        "finalAcceptanceEligible": false,
+                        "probeID": DiagnosticProbe.minimumPreflight.rawValue,
+                        "targetAnchorStateID": "state.check-preflight.ready",
+                        "issueOrdinal": observedIssueCount,
+                        "auditTypeRawValue": String(issue.auditType.rawValue),
+                        "compactDescription": issue.compactDescription,
+                        "detailedDescription": issue.detailedDescription,
+                        "elementIdentifier": issue.element?.identifier ?? "",
+                        "elementTypeDescription": issue.element.map {
+                            String(describing: $0.elementType)
+                        } ?? "",
+                    ])
+                }
+                return true
+            }
+            printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
+                "diagnosticOnly": true,
+                "equivalenceEstablished": false,
+                "event": "strict-native-audit-completed",
+                "feedsAcceptanceAssembler": false,
+                "finalAcceptanceEligible": false,
+                "probeID": DiagnosticProbe.minimumPreflight.rawValue,
+                "targetAnchorStateID": "state.check-preflight.ready",
+                "observedIssueCount": observedIssueCount,
+            ])
+        } catch {
+            printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
+                "diagnosticOnly": true,
+                "equivalenceEstablished": false,
+                "event": "strict-native-audit-error",
+                "feedsAcceptanceAssembler": false,
+                "finalAcceptanceEligible": false,
+                "probeID": DiagnosticProbe.minimumPreflight.rawValue,
+                "targetAnchorStateID": "state.check-preflight.ready",
+                "observedIssueCount": observedIssueCount,
+                "error": String(describing: error),
+            ])
+            throw error
+        }
+        throw AutomationConfigurationError.invalid(
+            "S10.4 preflight diagnostic completed nonaccepting"
+        )
     }
 
     private func diagnosticSkippedPredecessorCaptureStateIDs(

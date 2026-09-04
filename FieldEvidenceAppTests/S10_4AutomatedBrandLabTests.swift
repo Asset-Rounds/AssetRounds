@@ -2963,10 +2963,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    private func completeFocusedDiagnosticProbe(",
             before: "\n\n    @MainActor\n    private func captureBaseline("
         )
-        XCTAssertEqual(focusedDiagnosticCompletionSource.utf8.count, 3_375)
+        XCTAssertEqual(focusedDiagnosticCompletionSource.utf8.count, 5_506)
         XCTAssertEqual(
             Data(focusedDiagnosticCompletionSource.utf8).sha256,
-            "717141D876C6091FBE6CDCC5355E744384328096F569042E178755CD4184882A"
+            "38D0EEA48216E42A9F9A277AB797CDBD5D8CE3CC90ECDAD325C6A87CCF6F72D2"
         )
         for exact in [
             "let retainedTree = rawTree.prefix(262_144)",
@@ -2974,8 +2974,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "S10_4_DIAGNOSTIC tree",
             "event\": \"observation-complete\"",
             "event\": \"strict-native-audit-start\"",
+            "event\": \"strict-native-audit-issue-observed\"",
             "event\": \"strict-native-audit-completed\"",
+            "event\": \"strict-native-audit-error\"",
             "try app.performAccessibilityAudit(for: .contrast)",
+            "var observedIssueCount = 0",
+            "return true",
+            "observedIssueCount",
+            "S10.4 preflight diagnostic completed nonaccepting",
             "skippedPredecessorCaptureStateIDs",
             "treeTruncated",
             "finalAcceptanceEligible\": false",
