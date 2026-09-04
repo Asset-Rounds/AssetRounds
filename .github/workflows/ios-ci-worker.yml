@@ -5293,9 +5293,19 @@ jobs:
                 done | shasum -a 256 | awk '{print toupper($1)}'
               )"
             fi
-            jq -cS --arg path "$artifact_path" --argjson available "$available" \
-              --argjson bytes "$bytes" --arg sha256 "$sha256" \
-              '{path: $path, available: $available, bytes: $bytes, sha256: $sha256}'
+            case "$available" in
+              true | false) ;;
+              *) available=false ;;
+            esac
+            case "$bytes" in
+              "" | *[!0-9]*) available=false; bytes=0 ;;
+            esac
+            jq -cS --arg path "$artifact_path" --arg available "$available" \
+              --arg bytes "$bytes" --arg sha256 "$sha256" \
+              '{path: $path,
+                available: ($available == "true" and ($bytes | test("^[0-9]+$"))),
+                bytes: (if ($bytes | test("^[0-9]+$")) then ($bytes | tonumber) else 0 end),
+                sha256: $sha256}'
           done < <(
             printf '%s\n' \
               "$CI_ARTIFACT_DIR/ui-smoke.log" \

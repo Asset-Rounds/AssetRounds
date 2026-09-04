@@ -25171,10 +25171,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Record closed H394 focused diagnostic raw evidence",
             before: "\n\n      - name: Begin evidence-finalization budget"
         )
-        XCTAssertEqual(focusedDiagnosticRawEvidenceSource.utf8.count, 14_789)
+        XCTAssertEqual(focusedDiagnosticRawEvidenceSource.utf8.count, 15_155)
         XCTAssertEqual(
             Data(focusedDiagnosticRawEvidenceSource.utf8).sha256,
-            "8860236897FC570F5290108C30F467630D8B2EEE85676870256C67C92C30143D"
+            "35630E1A09BA55F9F820A11693F105EB1A90C7019ADA426AA7C26CD0FAE4B1A0"
         )
         for exact in [
             "diagnosticOnly: true",
@@ -25189,9 +25189,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "exact_omitted_state_set",
             "rawEvidenceComplete",
             "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
+            "case \"$available\" in",
+            "case \"$bytes\" in",
+            "--arg available \"$available\"",
+            "--arg bytes \"$bytes\"",
+            "then ($bytes | tonumber)",
         ] {
             XCTAssertTrue(focusedDiagnosticRawEvidenceSource.contains(exact), exact)
         }
+        XCTAssertFalse(
+            focusedDiagnosticRawEvidenceSource.contains(
+                "--argjson bytes \"$bytes\""
+            )
+        )
         for prohibited in [
             "candidate-exports.json",
             "receiptKind: \"s10.4-shard\"",
