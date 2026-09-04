@@ -8944,14 +8944,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(uiSource.contains(removed), removed)
         }
         let restoredMinimumKeyboardCaller =
-            #"        sign.tap()"# + "\n" +
-                "        XCTAssertTrue(\n" +
-                #"            wait(for: sign, predicate: "hasKeyboardFocus == true", timeout: 10)"# + "\n" +
+            "        let signHasKeyboardFocus = wait(\n" +
+                "            for: sign,\n" +
+                #"            predicate: "hasKeyboardFocus == true","# + "\n" +
+                "            timeout: 10\n" +
                 "        )\n" +
-                "        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))\n" +
-                #"        sign.typeText("Monument Sign")"# + "\n" +
-                "        dismissKeyboard(in: app)\n" +
-                #"        captureBaseline("state.new-sign.editing", in: app)"#
+                "        let keyboardIsVisible = app.keyboards.firstMatch.waitForExistence(timeout: 10)"
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: restoredMinimumKeyboardCaller
@@ -24770,7 +24768,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 455)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "2EE096AD4CB050722488B80D762168485C06E7105B671464E228A2FF0C06A43B"
+            "924B5E833631D334A77F4F56B71C81631D4CC84BBEC11DC438BD727E392D09E1"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
