@@ -16298,7 +16298,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     quickPathStaticTexts.element(boundBy: 0)
                 let quickPathSecondStaticText =
                     quickPathStaticTexts.element(boundBy: 1)
+                let quickPathDoneKey = keyboard.buttons["Done"]
                 let quickPathReturnKey = keyboard.buttons["Return"]
+                let quickPathDoneKeyExists = quickPathDoneKey.exists
+                let quickPathReturnKeyExists = quickPathReturnKey.exists
+                let quickPathCompletionKey = quickPathDoneKeyExists
+                    ? quickPathDoneKey
+                    : quickPathReturnKey
+                let quickPathCompletionKeyIdentifier = quickPathDoneKeyExists
+                    ? "Done"
+                    : "Return"
+                let quickPathCompletionKeyLabel = quickPathDoneKeyExists
+                    ? "done"
+                    : "return"
                 let fieldFocusPredicate = NSPredicate(
                     format: "hasKeyboardFocus == true"
                 )
@@ -16345,11 +16357,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       !quickPathSecondStaticText.label.trimmingCharacters(
                         in: .whitespacesAndNewlines
                       ).isEmpty,
-                      quickPathReturnKey.exists,
-                      quickPathReturnKey.elementType == .button,
-                      quickPathReturnKey.identifier == "Return",
-                      quickPathReturnKey.label.lowercased() == "return",
-                      !quickPathReturnKey.isHittable,
+                      quickPathDoneKeyExists != quickPathReturnKeyExists,
+                      quickPathCompletionKey.exists,
+                      quickPathCompletionKey.elementType == .button,
+                      quickPathCompletionKey.identifier
+                        == quickPathCompletionKeyIdentifier,
+                      quickPathCompletionKey.label.lowercased()
+                        == quickPathCompletionKeyLabel,
+                      !quickPathCompletionKey.isHittable,
                       fieldFocusPredicate.evaluate(with: field),
                       String(describing: field.value ?? "")
                         == expectedValue,
@@ -16368,7 +16383,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       frameIsValid(quickPathContinueButton.frame),
                       frameIsValid(quickPathFirstStaticText.frame),
                       frameIsValid(quickPathSecondStaticText.frame),
-                      frameIsValid(quickPathReturnKey.frame),
+                      frameIsValid(quickPathCompletionKey.frame),
                       expectedApplicationFrame.contains(
                           expectedRouteFrame
                       ),
@@ -16394,7 +16409,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           quickPathSecondStaticText.frame
                       ),
                       expectedKeyboardFrame.contains(
-                          quickPathReturnKey.frame
+                          quickPathCompletionKey.frame
                       ),
                       {
                           let buttonLabel = quickPathContinueButton.label
@@ -16427,7 +16442,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     return
                 }
 
-                let expectedReturnFrame = quickPathReturnKey.frame
+                let expectedCompletionFrame = quickPathCompletionKey.frame
                 quickPathContinueButton.tap()
                 guard quickPathIntroductionView.waitForNonExistence(
                     timeout: 10
@@ -16436,11 +16451,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       quickPathButtons.count == 0,
                       quickPathStaticTexts.count == 0,
                       keyboard.exists,
-                      quickPathReturnKey.exists,
-                      quickPathReturnKey.elementType == .button,
-                      quickPathReturnKey.identifier == "Return",
-                      quickPathReturnKey.label.lowercased() == "return",
-                      quickPathReturnKey.isHittable,
+                      quickPathCompletionKey.exists,
+                      quickPathCompletionKey.elementType == .button,
+                      quickPathCompletionKey.identifier
+                        == quickPathCompletionKeyIdentifier,
+                      quickPathCompletionKey.label.lowercased()
+                        == quickPathCompletionKeyLabel,
+                      quickPathCompletionKey.isHittable,
                       field.exists,
                       field.elementType == .textView,
                       !field.identifier.isEmpty,
@@ -16460,7 +16477,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       fieldScrollView.frame
                         == expectedFieldScrollViewFrame,
                       keyboard.frame == expectedKeyboardFrame,
-                      quickPathReturnKey.frame == expectedReturnFrame else {
+                      quickPathCompletionKey.frame == expectedCompletionFrame else {
                     XCTFail(
                         "The multiline TextView QuickPath tutorial did not dismiss with state preserved."
                     )

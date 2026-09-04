@@ -9248,10 +9248,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(multilineHelperSource.utf8.count, 18_190)
+        XCTAssertEqual(multilineHelperSource.utf8.count, 19_135)
         XCTAssertEqual(
             Data(multilineHelperSource.utf8).sha256,
-            "55D967B089A82DACDE24706137AE550D87EACFB80043B15C91EEBF0ED87825CB"
+            "6C349FC20465F3DF3D9FF0E896556A61817E87EA3918857BCFCD95AAA9C1F0F5"
         )
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
@@ -9330,7 +9330,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "quickPathIntroductionCount == 1",
             "quickPathButtonCount == 1",
             "quickPathStaticTextCount == 2",
+            #"let quickPathDoneKey = keyboard.buttons["Done"]"#,
             #"let quickPathReturnKey = keyboard.buttons["Return"]"#,
+            "let quickPathDoneKeyExists = quickPathDoneKey.exists",
+            "let quickPathReturnKeyExists = quickPathReturnKey.exists",
+            "let quickPathCompletionKey = quickPathDoneKeyExists",
+            "let quickPathCompletionKeyIdentifier = quickPathDoneKeyExists",
+            "let quickPathCompletionKeyLabel = quickPathDoneKeyExists",
             #"format: "hasKeyboardFocus == true""#,
             "let expectedApplicationFrame = app.frame",
             "let expectedRouteFrame = route.frame",
@@ -9351,17 +9357,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "quickPathSecondStaticText.elementType == .staticText",
             "quickPathSecondStaticText.identifier.isEmpty",
             "quickPathSecondStaticText.label.trimmingCharacters(",
-            "quickPathReturnKey.elementType == .button",
-            #"quickPathReturnKey.identifier == "Return""#,
-            #"quickPathReturnKey.label.lowercased() == "return""#,
-            "!quickPathReturnKey.isHittable",
+            "quickPathDoneKeyExists != quickPathReturnKeyExists",
+            "quickPathCompletionKey.exists",
+            "quickPathCompletionKey.elementType == .button",
+            "quickPathCompletionKey.identifier",
+            "== quickPathCompletionKeyIdentifier",
+            "quickPathCompletionKey.label.lowercased()",
+            "== quickPathCompletionKeyLabel",
+            "!quickPathCompletionKey.isHittable",
             "fieldFocusPredicate.evaluate(with: field)",
             "!expectedClearedValidationExists",
             "frameIsValid(quickPathIntroductionView.frame)",
             "frameIsValid(quickPathContinueButton.frame)",
             "frameIsValid(quickPathFirstStaticText.frame)",
             "frameIsValid(quickPathSecondStaticText.frame)",
-            "frameIsValid(quickPathReturnKey.frame)",
+            "frameIsValid(quickPathCompletionKey.frame)",
             "expectedApplicationFrame.contains(",
             "quickPathIntroductionView.frame.contains(",
             "expectedKeyboardFrame.contains(",
@@ -9383,13 +9393,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "!tutorialFrame.intersects(actionTitleFrame)",
             "!tutorialFrame.intersects(buttonFrame)",
             "The multiline TextView QuickPath tutorial is incomplete or state changed before dismissal.",
-            "let expectedReturnFrame = quickPathReturnKey.frame",
+            "let expectedCompletionFrame = quickPathCompletionKey.frame",
             "quickPathContinueButton.tap()",
             "quickPathIntroductionView.waitForNonExistence(",
             "quickPathIntroductionViews.count == 0",
             "quickPathButtons.count == 0",
             "quickPathStaticTexts.count == 0",
-            "quickPathReturnKey.isHittable",
+            "quickPathCompletionKey.isHittable",
             "field.elementType == .textView",
             "app.frame == expectedApplicationFrame",
             "route.frame == expectedRouteFrame",
@@ -9397,7 +9407,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "fieldScrollView.frame",
             "== expectedFieldScrollViewFrame",
             "keyboard.frame == expectedKeyboardFrame",
-            "quickPathReturnKey.frame == expectedReturnFrame",
+            "quickPathCompletionKey.frame == expectedCompletionFrame",
             "The multiline TextView QuickPath tutorial did not dismiss with state preserved.",
         ]
         for lock in multilineQuickPathLocks {
@@ -9415,7 +9425,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: "quickPathIntroductionView.exists"
               ),
               let quickPathFinalFrameValidityRange = multilineHelperSource.range(
-                of: "frameIsValid(quickPathReturnKey.frame)"
+            of: "frameIsValid(quickPathCompletionKey.frame)"
               ),
               let quickPathFirstGeometryRange = multilineHelperSource.range(
                 of: "expectedApplicationFrame.contains("
@@ -22168,10 +22178,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 802_141)
+        XCTAssertEqual(uiSource.utf8.count, 803_086)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "C6C4DAD28592AE1673D6AF9C39903A0B0B40812A9528BE84EBC6F5B919FDF9C7"
+            "924BD9AFF86300665486097174E3D99C85F89B8D4EF675943D7557A852AE389D"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
