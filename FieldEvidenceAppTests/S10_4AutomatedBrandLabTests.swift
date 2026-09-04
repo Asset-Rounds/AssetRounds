@@ -316,8 +316,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 354_119,
-            sha256: "6DB024F9E18E0E80930AB14A8F2BB247083874274B9B8864028BA91982DD5607"
+            byteCount: 354_485,
+            sha256: "BE11D5A29685ECCBB0DD57F8236A7640547D41D894BA8C27334A9CCBAC813805"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -25171,10 +25171,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "      - name: Record closed H394 focused diagnostic raw evidence",
             before: "\n\n      - name: Begin evidence-finalization budget"
         )
-        XCTAssertEqual(focusedDiagnosticRawEvidenceSource.utf8.count, 15_155)
+        XCTAssertEqual(focusedDiagnosticRawEvidenceSource.utf8.count, 15_158)
         XCTAssertEqual(
             Data(focusedDiagnosticRawEvidenceSource.utf8).sha256,
-            "35630E1A09BA55F9F820A11693F105EB1A90C7019ADA426AA7C26CD0FAE4B1A0"
+            "0E89B659CE445AAE0444584777570CF275805CADB53B9C9EDA2EA85851BE6276"
         )
         for exact in [
             "diagnosticOnly: true",
@@ -25191,6 +25191,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test ! -e \"$shard_evidence_path/shard-receipt.json\"",
             "case \"$available\" in",
             "case \"$bytes\" in",
+            "jq -n -cS --arg path",
             "--arg available \"$available\"",
             "--arg bytes \"$bytes\"",
             "then ($bytes | tonumber)",

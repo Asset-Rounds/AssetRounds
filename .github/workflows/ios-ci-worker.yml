@@ -5300,7 +5300,7 @@ jobs:
             case "$bytes" in
               "" | *[!0-9]*) available=false; bytes=0 ;;
             esac
-            jq -cS --arg path "$artifact_path" --arg available "$available" \
+            jq -n -cS --arg path "$artifact_path" --arg available "$available" \
               --arg bytes "$bytes" --arg sha256 "$sha256" \
               '{path: $path,
                 available: ($available == "true" and ($bytes | test("^[0-9]+$"))),
