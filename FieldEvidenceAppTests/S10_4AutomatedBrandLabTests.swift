@@ -8422,10 +8422,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let keyboardHelperSource = String(uiSource[keyboardHelperStartRange.lowerBound..<keyboardHelperEndRange.lowerBound])
-        XCTAssertEqual(keyboardHelperSource.utf8.count, 4_642)
+        XCTAssertEqual(keyboardHelperSource.utf8.count, 4_772)
         XCTAssertEqual(
             Data(keyboardHelperSource.utf8).sha256,
-            "66F70CC92E6E0EB967845B2407F6F018386B24C8CB97C59C6A6BAFDFF5C08A28"
+            "BEB5B18975816C4AD0D09AF716AE2E4E0E7CB06E332F1BAD0954BA012B2D6E23"
         )
 
         let keyboardSnapshotHelperStart =
@@ -8749,7 +8749,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let keyboardHelperLocks = [
             "let keyboard = app.keyboards.firstMatch",
             "guard keyboard.exists else { return }",
+            #"let doneKey = keyboard.buttons["Done"]"#,
             #"let returnKey = keyboard.buttons["Return"]"#,
+            "if doneKey.exists && doneKey.isHittable {",
+            "doneKey.tap()",
             "if returnKey.exists && returnKey.isHittable {",
             "returnKey.tap()",
             #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
@@ -8824,6 +8827,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             keyboardHelperSource.components(separatedBy: "returnKey.tap()").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            keyboardHelperSource.components(separatedBy: "doneKey.tap()").count - 1,
             1
         )
         XCTAssertEqual(
@@ -22161,20 +22168,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 801_974)
+        XCTAssertEqual(uiSource.utf8.count, 802_141)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "902A397682A56D0E5BD0568E171459D021FE57AE21B1EA6EE5B2B0F792C024D2"
+            "C6C4DAD28592AE1673D6AF9C39903A0B0B40812A9528BE84EBC6F5B919FDF9C7"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
             from: "        scroll(sign, in: app)\n        sign.tap()",
             before: "        sign.typeText(\"Monument Sign\")"
         )
-        XCTAssertEqual(focusedNewSignKeyboardSource.utf8.count, 5_308)
+        XCTAssertEqual(focusedNewSignKeyboardSource.utf8.count, 5_345)
         XCTAssertEqual(
             Data(focusedNewSignKeyboardSource.utf8).sha256,
-            "FEF451DD6E7ED6A30E8C145F9722E17D68BC07692C0A225DA08C8842BB1C98F9"
+            "22F1A789A4CC79791AF71E1D00C1922ABC29EA585A47A7F66282753FA766A7F1"
         )
         for exact in [
             "let signHasKeyboardFocus = wait(",
@@ -22193,6 +22200,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "\"keyboardObserved\": keyboardIsVisible",
             "completeFocusedDiagnosticProbe(",
             "observationPhase: \"pre-focus-native-audit\"",
+            "dismissKeyboard(in: app)",
             "observationPhase: \"post-tap-focus-observation\"",
             "throw FocusedDiagnosticProbeStop.completed",
             "XCTAssertTrue(signHasKeyboardFocus)",
@@ -22209,6 +22217,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(focusedNewSignKeyboardSource.contains(forbidden), forbidden)
         }
+        XCTAssertEqual(
+            focusedNewSignKeyboardSource.components(separatedBy: "dismissKeyboard(in: app)").count - 1,
+            1
+        )
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
             from: "    @MainActor\n    private func accessibilityTreeDigest(",

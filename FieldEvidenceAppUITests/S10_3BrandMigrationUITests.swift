@@ -1138,6 +1138,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         let keyboardIsVisible = app.keyboards.firstMatch.waitForExistence(timeout: 10)
         if diagnosticProbe == .minimumNewSign {
+            completeFocusedDiagnosticProbe(
+                targetStateID: "state.new-sign.editing",
+                setupTarget: "s2.new-sign.sign-label",
+                observationPhase: "pre-focus-native-audit",
+                observedStateID: "state.new-sign.editing",
+                in: app
+            )
+            dismissKeyboard(in: app)
             printJSONLine(prefix: "S10_4_DIAGNOSTIC_NATIVE_AUDIT", object: [
                 "diagnosticOnly": true,
                 "equivalenceEstablished": false,
@@ -1198,13 +1206,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ])
                 throw error
             }
-            completeFocusedDiagnosticProbe(
-                targetStateID: "state.new-sign.editing",
-                setupTarget: "s2.new-sign.sign-label",
-                observationPhase: "pre-focus-native-audit",
-                observedStateID: "state.new-sign.editing",
-                in: app
-            )
             throw FocusedDiagnosticProbeStop.completed
         }
         if diagnosticProbe == .minimumNewSign &&
@@ -16693,8 +16694,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private func dismissKeyboard(in app: XCUIApplication) {
         let keyboard = app.keyboards.firstMatch
         guard keyboard.exists else { return }
+        let doneKey = keyboard.buttons["Done"]
         let returnKey = keyboard.buttons["Return"]
-        if returnKey.exists && returnKey.isHittable {
+        if doneKey.exists && doneKey.isHittable {
+            doneKey.tap()
+        } else if returnKey.exists && returnKey.isHittable {
             returnKey.tap()
         } else if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
             && returnKey.exists {
