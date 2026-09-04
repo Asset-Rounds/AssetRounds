@@ -23,6 +23,9 @@ enum SettingValueKindV1: String, CaseIterable, Codable, Hashable, Sendable {
     /// C16 product-notice acknowledgement. It is a device-local display
     /// choice, excluded from backup, export, and canonical history.
     case workspaceExperienceNoticeAcknowledgement = "WORKSPACE_EXPERIENCE_NOTICE_ACKNOWLEDGEMENT"
+    /// V30 formatting/report presentation preference. App language remains
+    /// owned by Apple system/per-app settings and is not stored here.
+    case globalizationPresentation = "GLOBALIZATION_PRESENTATION"
 }
 
 enum SettingScopeV1: String, CaseIterable, Codable, Hashable, Sendable {
@@ -199,6 +202,12 @@ struct SettingDescriptorV1: Codable, Equatable, Sendable {
                     throw SettingsContractFailureV1.invalidValue
                 }
             }
+        case .globalizationPresentation:
+            let value = try CompatibilityCanonicalV1.decode(
+                GlobalizationPresentationPreferenceV1.self,
+                from: data
+            )
+            try value.validate()
         }
     }
 
@@ -668,6 +677,76 @@ struct RecentInputMemoryV1: Codable, Equatable, Sendable {
             }
             return $0.identity < $1.identity
         }
+    }
+}
+
+/// Device-local presentation choices for the independent V30 globalization
+/// axes. App language remains Apple system/per-app owned and is intentionally
+/// not persisted by this preference.
+struct GlobalizationPresentationPreferenceV1: Codable, Equatable, Sendable {
+    let formatting: FormattingLocaleProfileV1
+    let reportLanguage: ReportLanguageSelectionV1?
+
+    init(
+        formatting: FormattingLocaleProfileV1,
+        reportLanguage: ReportLanguageSelectionV1? = nil
+    ) {
+        self.formatting = formatting
+        self.reportLanguage = reportLanguage
+    }
+
+    func validate() throws {
+        _ = try FormattingLocaleProfileV1(
+            localeIdentifier: formatting.localeIdentifier,
+            ianaTimeZoneIdentifier: formatting.ianaTimeZoneIdentifier,
+            calendar: formatting.calendar,
+            numberingSystem: formatting.numberingSystem,
+            units: formatting.units
+        )
+        if let reportLanguage {
+            _ = try ReportLanguageSelectionV1(
+                requestedLanguage: try AppLanguageTagV1(reportLanguage.requestedLanguage.rawValue),
+                effectiveLanguage: try AppLanguageTagV1(reportLanguage.effectiveLanguage.rawValue),
+                fallback: reportLanguage.fallback
+            )
+        }
+    }
+}
+
+/// Descriptor and defaults for the single V30 device-local globalization
+/// preference. It is excluded from backup and canonical/workspace truth.
+enum GlobalizationDevicePreferenceV1 {
+    static let settingKey = "device.v30.globalization.presentation"
+    static let localizationKey = "settings.v30.globalization.presentation"
+    static let migrationVersion = 1
+    static let logicalDefault = GlobalizationPresentationPreferenceV1(
+        formatting: try! FormattingLocaleProfileV1(
+            localeIdentifier: "en-US",
+            ianaTimeZoneIdentifier: "America/New_York",
+            calendar: .gregorian,
+            numberingSystem: .latin,
+            units: .usCustomary
+        ),
+        reportLanguage: nil
+    )
+    static let legacyKeys: [String] = []
+
+    static func descriptor() throws -> SettingDescriptorV1 {
+        try SettingDescriptorV1(
+            key: settingKey,
+            valueKind: .globalizationPresentation,
+            scope: .deviceLocal,
+            storage: .soleDevicePreferencesAdapter,
+            defaultCanonicalValue: try CompatibilityCanonicalV1.encode(logicalDefault),
+            maximumCanonicalBytes: 2_048,
+            migrationVersion: migrationVersion,
+            backup: .excludedDeviceLocal,
+            reset: .restoreDefault,
+            erase: .restoreDefault,
+            privacy: .devicePreferenceNoCustomerData,
+            localizationKey: localizationKey,
+            changesHistoricOutput: false
+        )
     }
 }
 

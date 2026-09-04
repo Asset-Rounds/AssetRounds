@@ -202,6 +202,60 @@ struct LocalizationLocaleManifestV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C04 binds the existing V23 catalog seam to the V30 presentation-axis
+/// contract without changing the inherited English-only shipping manifest.
+/// The non-English entries are declared presentation capabilities only; their
+/// catalog completeness and release evidence remain future-card work.
+enum V30PresentationCatalogAvailabilityV1: String, Codable, Equatable, Sendable {
+    case inheritedEnglishCatalog = "INHERITED_ENGLISH_CATALOG"
+    case declaredPendingCatalogCompletion = "DECLARED_PENDING_CATALOG_COMPLETION"
+}
+
+struct V30AppLanguagePresentationCapabilityV1: Codable, Equatable, Sendable {
+    let language: AppLanguageTagV1
+    let catalogAvailability: V30PresentationCatalogAvailabilityV1
+}
+
+enum V30LocalizationAxisBridgeV1 {
+    static let declaredAppLanguages: [AppLanguageTagV1] = [
+        .english,
+        try! AppLanguageTagV1("es"),
+        try! AppLanguageTagV1("zh-Hans"),
+        try! AppLanguageTagV1("zh-Hant"),
+        try! AppLanguageTagV1("vi"),
+        try! AppLanguageTagV1("ko"),
+    ]
+    static let finalLocaleCatalogClaimed = false
+
+    static func presentationCapabilities() -> [V30AppLanguagePresentationCapabilityV1] {
+        declaredAppLanguages.map { language in
+            V30AppLanguagePresentationCapabilityV1(
+                language: language,
+                catalogAvailability: language == .english
+                    ? .inheritedEnglishCatalog
+                    : .declaredPendingCatalogCompletion
+            )
+        }
+    }
+
+    static func validate(
+        manifest: LocalizationLocaleManifestV1 = .shippingV1(),
+        registry: LocalizationKeyRegistryV1
+    ) throws {
+        try manifest.validate()
+        try registry.validate()
+        guard declaredAppLanguages.map(\.rawValue) == ["en", "es", "zh-Hans", "zh-Hant", "vi", "ko"],
+              manifest.sourceLanguage == AppLanguageTagV1.english.rawValue,
+              manifest.shippingRuntimeLanguages == ["en"],
+              manifest.completeCatalogLanguages == ["en"],
+              manifest.appStorePrimaryMetadataLocale == "en-US",
+              !finalLocaleCatalogClaimed,
+              presentationCapabilities().filter({ $0.catalogAvailability == .inheritedEnglishCatalog }).map(\.language) == [.english] else {
+            throw LocalizationContractFailureV1.invalidShippingLocale
+        }
+    }
+}
+
 struct LocalizationCatalogReleaseV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

@@ -72,6 +72,66 @@ final class V30P01C04GlobalizationAxisContractTests: XCTestCase {
         XCTAssertFalse(GlobalizationCanonicalIdentityBoundaryV1.rawEnumValuesLocalized)
     }
 
+    func testExistingReportDocumentAndBackupSeamsKeepPresentationDerived() throws {
+        let language = try AppLanguageTagV1("es")
+        let english = try AppLanguageTagV1("en")
+        let report = try ReportLanguageSelectionV1(
+            requestedLanguage: language,
+            effectiveLanguage: english,
+            fallback: .englishWithUserConfirmation
+        )
+        let formatting = try standardFormatting()
+
+        let reportMetadata = try ReportPresentationMetadataV1(
+            reportLanguage: report,
+            formatting: formatting
+        )
+        let documentProvenance = try AccessibleDocumentDisplayProvenanceV1(
+            reportLanguage: report,
+            formatting: formatting
+        )
+
+        XCTAssertFalse(reportMetadata.canonicalProjectionIdentityIncluded)
+        XCTAssertFalse(documentProvenance.semanticTreeIdentityIncluded)
+        XCTAssertTrue(documentProvenance.sourceContentPreserved)
+        XCTAssertTrue(V4BackupRecordsV1.v30GlobalizationBoundaryIsValid())
+        XCTAssertFalse(GlobalizationCanonicalIdentityBoundaryV1.backupIncludesAxisPreferences)
+        try reportMetadata.validate()
+        try documentProvenance.validate()
+    }
+
+    func testDeviceLocalPresentationPreferenceUsesTheExistingAdapter() throws {
+        let suiteName = "V30-P01-C04-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let adapter = PreferencesAdapterV1(defaults: defaults)
+        let initial = try adapter.readGlobalizationPresentationPreference()
+        XCTAssertEqual(initial, GlobalizationDevicePreferenceV1.logicalDefault)
+
+        let changed = try GlobalizationPresentationPreferenceV1(
+            formatting: FormattingLocaleProfileV1(
+                localeIdentifier: "es-US",
+                ianaTimeZoneIdentifier: "America/Chicago",
+                calendar: .gregorian,
+                numberingSystem: .latin,
+                units: .metric
+            ),
+            reportLanguage: ReportLanguageSelectionV1(
+                requestedLanguage: try AppLanguageTagV1("es"),
+                effectiveLanguage: try AppLanguageTagV1("es"),
+                fallback: .exact
+            )
+        )
+        try adapter.writeGlobalizationPresentationPreference(changed, operationID: UUID())
+        let reread = try adapter.readGlobalizationPresentationPreference()
+        XCTAssertEqual(reread, changed)
+        let descriptor = try GlobalizationDevicePreferenceV1.descriptor()
+        XCTAssertEqual(descriptor.scope, .deviceLocal)
+        XCTAssertEqual(descriptor.backup, .excludedDeviceLocal)
+    }
+
     func testFixtureNegativeCasesFailClosed() throws {
         let fixture = try loadFixture()
         let negatives = try XCTUnwrap(fixture["negativeCases"] as? [[String: Any]])

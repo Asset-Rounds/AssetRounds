@@ -2169,6 +2169,61 @@ struct FinalizedReportProfileBindingV1: Codable, Equatable, Sendable {
     }
 }
 
+/// C04 presentation facts travel beside the report profile. They describe
+/// report chrome and formatting only; the canonical projection remains
+/// language-neutral and is never re-hashed from these values.
+struct ReportPresentationMetadataV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let reportLanguage: ReportLanguageSelectionV1
+    let formatting: FormattingLocaleProfileV1
+    var canonicalProjectionIdentityIncluded: Bool { false }
+
+    init(
+        reportLanguage: ReportLanguageSelectionV1,
+        formatting: FormattingLocaleProfileV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.reportLanguage = reportLanguage
+        self.formatting = formatting
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              !canonicalProjectionIdentityIncluded else {
+            throw GlobalizationAxisFailureV1.canonicalIdentityContamination
+        }
+        _ = try ReportLanguageSelectionV1(
+            requestedLanguage: reportLanguage.requestedLanguage,
+            effectiveLanguage: reportLanguage.effectiveLanguage,
+            fallback: reportLanguage.fallback
+        )
+        _ = try FormattingLocaleProfileV1(
+            localeIdentifier: formatting.localeIdentifier,
+            ianaTimeZoneIdentifier: formatting.ianaTimeZoneIdentifier,
+            calendar: formatting.calendar,
+            numberingSystem: formatting.numberingSystem,
+            units: formatting.units
+        )
+    }
+}
+
+extension ReportLayoutProfileV1 {
+    /// Binds typed C04 facts to the existing profile without changing its
+    /// Codable shape or the canonical projection identity.
+    func v30PresentationMetadata(
+        reportLanguage: ReportLanguageSelectionV1,
+        formatting: FormattingLocaleProfileV1
+    ) throws -> ReportPresentationMetadataV1 {
+        try ReportPresentationMetadataV1(
+            reportLanguage: reportLanguage,
+            formatting: formatting
+        )
+    }
+}
+
 struct ReportPreviewProjectionV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int

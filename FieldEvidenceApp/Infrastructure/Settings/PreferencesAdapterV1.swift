@@ -775,6 +775,45 @@ extension PreferencesAdapterV1 {
     }
 }
 
+// MARK: - V30 globalization presentation preference
+
+extension PreferencesAdapterV1 {
+    func readGlobalizationPresentationPreference() throws
+        -> GlobalizationPresentationPreferenceV1 {
+        let descriptor = try GlobalizationDevicePreferenceV1.descriptor()
+        let value = try CompatibilityCanonicalV1.decode(
+            GlobalizationPresentationPreferenceV1.self,
+            from: readCanonicalValue(for: descriptor)
+        )
+        try value.validate()
+        return value
+    }
+
+    func writeGlobalizationPresentationPreference(
+        _ value: GlobalizationPresentationPreferenceV1,
+        operationID: UUID
+    ) throws {
+        try value.validate()
+        let descriptor = try GlobalizationDevicePreferenceV1.descriptor()
+        try writeCanonicalValue(
+            CompatibilityCanonicalV1.encode(value),
+            descriptor: descriptor,
+            operationID: operationID
+        )
+    }
+
+    func migrateGlobalizationPresentationPreference(operationID: UUID) throws
+        -> GlobalizationPresentationPreferenceV1 {
+        let descriptor = try GlobalizationDevicePreferenceV1.descriptor()
+        _ = try migrate(
+            descriptor: descriptor,
+            legacyKeys: GlobalizationDevicePreferenceV1.legacyKeys,
+            operationID: operationID
+        )
+        return try readGlobalizationPresentationPreference()
+    }
+}
+
 enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Settings_PreferencesAdapterV1_swift {
     static let integrationRole = "DEVICE_POLICY_NOT_CANONICAL_TRUTH"
     static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self

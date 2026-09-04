@@ -1,5 +1,29 @@
 import Foundation
 
+/// V30 presentation choices and report formatting are device-local/derived
+/// facts. They never become members of the canonical V4 records envelope and
+/// therefore cannot alter backup identity or source-data digests.
+enum V30BackupGlobalizationBoundaryV1 {
+    static let presentationPreferencesExcluded = true
+    static let presentationProvenanceDerivedOnly = true
+    static let canonicalRecordsLanguageNeutral = true
+    static let canonicalIdentityDependsOnPresentation = false
+
+    static func validate() -> Bool {
+        presentationPreferencesExcluded
+            && presentationProvenanceDerivedOnly
+            && canonicalRecordsLanguageNeutral
+            && !canonicalIdentityDependsOnPresentation
+            && !GlobalizationCanonicalIdentityBoundaryV1.backupIncludesAxisPreferences
+    }
+}
+
+extension V4BackupRecordsV1 {
+    static func v30GlobalizationBoundaryIsValid() -> Bool {
+        V30BackupGlobalizationBoundaryV1.validate()
+    }
+}
+
 enum C50IncumbentFileExchangeBackupBoundaryV1 {
     static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let recordsSchemaVersion = C49BackupEnrollmentV1.recordsSchemaVersion

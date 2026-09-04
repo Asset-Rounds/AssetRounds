@@ -266,6 +266,62 @@ struct AccessibleDocumentPublicationBindingV1: Codable, Equatable, Sendable {
     func validate()throws{try AccessibleDocumentValidationV1.digest(snapshotSHA256);try AccessibleDocumentValidationV1.id(manifestID);try AccessibleDocumentValidationV1.digest(manifestSHA256);try AccessibleDocumentValidationV1.text(localeIdentifier,maximumBytes:64);try AccessibleDocumentValidationV1.id(profileID);try AccessibleDocumentValidationV1.digest(profileSHA256);try AccessibleDocumentValidationV1.id(brandProfileID);try AccessibleDocumentValidationV1.digest(brandProfileSHA256);guard manifestVersion>0,profileRelease>0,brandProfileRelease>0 else{throw AccessibleDocumentFailureV1.invalidValue}}
 }
 
+/// Display and report provenance belongs beside the semantic tree. Keeping it
+/// out of the publication binding preserves the existing tree identity and
+/// authored-content boundaries while still carrying every C04 formatting fact.
+struct AccessibleDocumentDisplayProvenanceV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let reportLanguage: ReportLanguageSelectionV1
+    let formatting: FormattingLocaleProfileV1
+    var semanticTreeIdentityIncluded: Bool { false }
+    var sourceContentPreserved: Bool { true }
+
+    init(
+        reportLanguage: ReportLanguageSelectionV1,
+        formatting: FormattingLocaleProfileV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.reportLanguage = reportLanguage
+        self.formatting = formatting
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion,
+              !semanticTreeIdentityIncluded,
+              sourceContentPreserved else {
+            throw GlobalizationAxisFailureV1.canonicalIdentityContamination
+        }
+        _ = try ReportLanguageSelectionV1(
+            requestedLanguage: reportLanguage.requestedLanguage,
+            effectiveLanguage: reportLanguage.effectiveLanguage,
+            fallback: reportLanguage.fallback
+        )
+        _ = try FormattingLocaleProfileV1(
+            localeIdentifier: formatting.localeIdentifier,
+            ianaTimeZoneIdentifier: formatting.ianaTimeZoneIdentifier,
+            calendar: formatting.calendar,
+            numberingSystem: formatting.numberingSystem,
+            units: formatting.units
+        )
+    }
+}
+
+extension AccessibleDocumentPublicationBindingV1 {
+    /// Attaches derived display facts without changing publication/tree bytes.
+    func v30DisplayProvenance(
+        reportLanguage: ReportLanguageSelectionV1,
+        formatting: FormattingLocaleProfileV1
+    ) throws -> AccessibleDocumentDisplayProvenanceV1 {
+        try AccessibleDocumentDisplayProvenanceV1(
+            reportLanguage: reportLanguage,
+            formatting: formatting
+        )
+    }
+}
+
 struct AccessibleDocumentSemanticTreeV1: Codable, Equatable, Sendable {
     static let schemaVersion=1
     let schemaVersion:Int;let treeID:UUID;let workspaceID:WorkspaceID;let audience:ReportAudienceV1

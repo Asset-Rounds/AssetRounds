@@ -310,6 +310,34 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         XCTAssertFalse(date.isEmpty)
     }
 
+    func testV30P01C04PresentationAxisBridgePreservesInheritedCatalogTruth() throws {
+        let manifest = LocalizationLocaleManifestV1.shippingV1()
+        let registry = try BundledLocalizationCatalogV1.registry()
+        try V30LocalizationAxisBridgeV1.validate(manifest: manifest, registry: registry)
+
+        XCTAssertEqual(
+            V30LocalizationAxisBridgeV1.declaredAppLanguages.map(\.rawValue),
+            ["en", "es", "zh-Hans", "zh-Hant", "vi", "ko"]
+        )
+        XCTAssertEqual(manifest.sourceLanguage, "en")
+        XCTAssertEqual(manifest.shippingRuntimeLanguages, ["en"])
+        XCTAssertEqual(manifest.completeCatalogLanguages, ["en"])
+        XCTAssertEqual(manifest.appStorePrimaryMetadataLocale, "en-US")
+        XCTAssertFalse(V30LocalizationAxisBridgeV1.finalLocaleCatalogClaimed)
+        XCTAssertEqual(
+            V30LocalizationAxisBridgeV1.presentationCapabilities().map(\.catalogAvailability),
+            [.inheritedEnglishCatalog, .declaredPendingCatalogCompletion, .declaredPendingCatalogCompletion,
+             .declaredPendingCatalogCompletion, .declaredPendingCatalogCompletion, .declaredPendingCatalogCompletion]
+        )
+
+        XCTAssertFalse(GlobalizationCanonicalIdentityBoundaryV1.languageOrFormattingChangesCanonicalIdentity)
+        XCTAssertFalse(GlobalizationCanonicalIdentityBoundaryV1.backupIncludesAxisPreferences)
+        XCTAssertNoThrow(try GlobalizationCanonicalIdentityBoundaryV1.validateNoCanonicalIdentityMutation([]))
+        XCTAssertFalse(BundledLocalizationCatalogV1.formattedInteger(
+            1_234, regionSource: Locale(identifier: "es-US")
+        ).isEmpty)
+    }
+
     func testV9_22H01MissingDuplicateReassignedAndLocaleDriftInputsFailClosed() throws {
         let value = try corpus()
         let semanticIDs = value.semanticAccessibility.entries.map(\.id)
