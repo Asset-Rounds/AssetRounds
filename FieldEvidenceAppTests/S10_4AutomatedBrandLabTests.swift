@@ -8425,10 +8425,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             return
         }
         let keyboardHelperSource = String(uiSource[keyboardHelperStartRange.lowerBound..<keyboardHelperEndRange.lowerBound])
-        XCTAssertEqual(keyboardHelperSource.utf8.count, 4_772)
+        XCTAssertEqual(keyboardHelperSource.utf8.count, 5_156)
         XCTAssertEqual(
             Data(keyboardHelperSource.utf8).sha256,
-            "BEB5B18975816C4AD0D09AF716AE2E4E0E7CB06E332F1BAD0954BA012B2D6E23"
+            "CCE1EF61F483B5E43DD6A602E7906CB42C2DE3653CF30EEFECF02F6831FD956E"
         )
 
         let keyboardSnapshotHelperStart =
@@ -22181,10 +22181,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 803_470)
+        XCTAssertEqual(uiSource.utf8.count, 803_854)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "E96E5D0FEA95561D6E677B5CBA1CD452975B80FCC20D9FB83CC2ED9B66759DCF"
+            "6BE67CAC9BF0930DFA28A70F6B6FAFBA5D4A54770A9B3FC946D8FFBE8F3B4EF6"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

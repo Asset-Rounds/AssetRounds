@@ -16816,11 +16816,22 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         } else {
             app.swipeDown()
         }
-        guard wait(
+        var keyboardDismissed = wait(
             for: keyboard,
             predicate: "exists == false",
             timeout: 10
-        ), app.state == .runningForeground else {
+        )
+        if !keyboardDismissed,
+           automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+           keyboard.exists {
+            app.swipeDown()
+            keyboardDismissed = wait(
+                for: keyboard,
+                predicate: "exists == false",
+                timeout: 10
+            )
+        }
+        guard keyboardDismissed, app.state == .runningForeground else {
             XCTFail("The keyboard did not dismiss while the app remained foregrounded.")
             return
         }
