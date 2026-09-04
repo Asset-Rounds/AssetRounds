@@ -6544,7 +6544,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(preflightVisibleSource.utf8.count, 31_916)
         XCTAssertEqual(
             Data(preflightVisibleSource.utf8).sha256,
-            "13DD752179F951F14588DC12ED6819B9949856FA3066E5A443E71DB825D7146A"
+            "2EBE2D07690BAD4B95627A5DC547506D474764FA26D03730C2843EDAC651BEF7"
         )
         let minimumPreflightQuickPathWrapperStart =
             "                    let minimumPreflightQuickPathIntroductionViews ="
