@@ -22181,10 +22181,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 803_366)
+        XCTAssertEqual(uiSource.utf8.count, 803_470)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "0BF474182049853356EB093A7EA92B3CB5F82986A84BB7616ABD0A1B9AA2A29D"
+            "E96E5D0FEA95561D6E677B5CBA1CD452975B80FCC20D9FB83CC2ED9B66759DCF"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

@@ -15490,6 +15490,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 effectiveAppearanceFlag,
                 "--s3-2-ui-test-imported-fixtures",
                 "--s7-2-ui-test-paywall",
+                "--s3-5-ui-test-low-storage-once",
+                "--s3-6-ui-test-camera-denied-once",
                 "-UIPreferredContentSizeCategoryName", shard.contentSizeCategory,
                 "-UIAccessibilityDarkerSystemColorsEnabled",
                 shard.contrast == "increased" ? "YES" : "NO",
