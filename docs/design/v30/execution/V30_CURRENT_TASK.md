@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 10 of 55 — Language, locale, content, report, storefront, and jurisdiction contracts
+Card 11 of 55 — Canonical-data and historical-identity invariance
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Version-forward existing V23 contracts for BCP 47 app language, formatting locale, IANA time zone, calendar, numbering, units, authored content, report language, storefront country, and jurisdiction. Prove the six axes are independent.",
+    "required": "Enforce and test that language/formatting changes cannot alter IDs, raw enum values, mutations, journals, evidence hashes, backup identity, authored evidence, product identity, or jurisdiction. Preserve old en-US-bearing identities.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
-    "tree": "0d6e32f5f1aa589b7189b0e9e4dc80e1c822473c"
+    "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+    "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13"
   },
-  "cardID": "V30-P01-C04",
+  "cardID": "V30-P01-C05",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,7 +33,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P01-C01"
+    "V30-P01-C04"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -74,72 +74,72 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift",
-        "purpose": "Independent BCP-47, formatting, zone, calendar, content, report, storefront, and jurisdiction contracts.",
+        "path": "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift",
+        "purpose": "Language/locale invariance assertions for canonical identity.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift",
-        "purpose": "Axis resolution coordinator without a parallel framework.",
+        "path": "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift",
+        "purpose": "Audit coordinator for journals, evidence, backup, and jurisdiction invariance.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
-        "purpose": "Six-axis independence and canonical-value tests.",
+        "path": "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift",
+        "purpose": "Canonical-ID and historical identity regression tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json",
-        "purpose": "Deterministic axis-matrix fixture.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
+        "purpose": "Frozen en-US identity baseline fixture.",
         "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "8cd93ce082652e054201409787ba27fb82c63013",
-        "expectedBSHA256": "5d1982421bea62d1ec5339f5a279b6f1f552afa8d90f7dc16f01e389b575dc4f",
-        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
-        "purpose": "Version-forward the existing typed locale/catalog contract for the six independent globalization axes.",
-        "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
         "expectedBBlobOID": "f28f90aa7b8b19519412ed879788166d01309008",
         "expectedBSHA256": "8e9814f0a5164b72aea2ba7f7b710e2bd4b20f1b14a3f6ee9306047218a2505d",
         "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
-        "purpose": "Define device-local versus workspace-canonical globalization preference disposition in the existing settings contract.",
+        "purpose": "Prove language/formatting changes cannot change canonical settings identity.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "cbcdfe1281de6e98af13f1b12a0e32a6c7b9967b",
-        "expectedBSHA256": "b7ae0570ef54ba29ddb7c308b3f5236e03045297abddc18c3be99ad0b77d0e12",
-        "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
-        "purpose": "Persist only the allowed device-local globalization preference state through the existing adapter.",
+        "expectedBBlobOID": "f867ebe231a7f998ee89069ca4ce357999efae87",
+        "expectedBSHA256": "664647c16a9df7342a123b755f41fc041987a439bf5f55f8a70dafc142fd856b",
+        "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+        "purpose": "Preserve language-neutral journal event identity and raw values.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "19f52a71cb2ded5ac20912bb8634263e7ace1ed6",
-        "expectedBSHA256": "a0065b15ef7059867bb00377bd5b97cbcd2e9ac98c74ea0e154297410773f8bb",
-        "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
-        "purpose": "Add report language/formatting/provenance axes to the existing document contract.",
+        "expectedBBlobOID": "a54f89f2b61e470eaa66c2bee7142bdddf83c832",
+        "expectedBSHA256": "c320713b856bd0a2674ebcbbccc280712993932618ea05dbff321c06d0a19c64",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+        "purpose": "Enforce canonical mutation-journal identity across locale changes.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "783f2db48da3032b9ce3217bfaf45900ae1e4cc4",
-        "expectedBSHA256": "376a46bed52cccd33fe686f09f60f8f2948afb297f2dbc42305e0fa6e4a475fd",
-        "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
-        "purpose": "Preserve language-independent canonical report projection identity while adding display metadata.",
+        "expectedBBlobOID": "45d5e58ec81cfb61136c895c1756d643a47508ec",
+        "expectedBSHA256": "2445e1dcfaeedca8d3304999391dca01bf63cf3a7bc8a9aaeb9f492ef9713d0a",
+        "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+        "purpose": "Preserve replication journal bytes and replay identity across locale changes.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c428c9c4f9128188bb9126d08df2fdab39fe71f3",
+        "expectedBSHA256": "84cc28ffe7b87eee1459002852a04f8cca701af8726a94ca5bf032e0407759a1",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+        "purpose": "Keep canonical writer receipt/identity invariant under display locale changes.",
         "serializedSharedPath": true
       },
       {
@@ -147,31 +147,79 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "expectedBBlobOID": "8639bed99bec1503f63f556fb044f4ac493be506",
         "expectedBSHA256": "d66914b0fd97a95fa7af39ab1502911775a23b883d4be5233cdb4ee778183dba",
         "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
-        "purpose": "Bind backup identity/disposition to language-neutral canonical data.",
+        "purpose": "Keep backup identity language-neutral and historically stable.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "1134417b3f24bf056cef13cdb133ea61d34c43fc",
-        "expectedBSHA256": "7b1c9163359202e97558078c3a782a03faa543ce7c14198ab1893e2fd65da5df",
-        "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
-        "purpose": "Extend existing localization contract regression coverage.",
+        "expectedBBlobOID": "6dbfedde09fbd158b1f44a16e692f5e06e4be0ee",
+        "expectedBSHA256": "d7a2b194dff13e4b63976a288f7ac5aa7561a56df17fb86f717dff1ed18c514d",
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+        "purpose": "Keep canonical backup encoding independent of UI language and formatting locale.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "54e9abdae8e0daea7810e286cac6de8fc08e71ab",
+        "expectedBSHA256": "1c82f2bb1d449c0a21f65e3e2883c8cb16a06f6211c292aecf070c733c6341a0",
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+        "purpose": "Keep canonical backup decoding independent of current UI language.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "0bf7f754158823aaa93879f35bcb2993355fef2e",
+        "expectedBSHA256": "e65a95dd10cb1e1fde2673f80271bf5aea7257867f253fbc91c7d658b25378b5",
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+        "purpose": "Validate canonical backup identity without translated-data assumptions.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "791d3cebb57ddc4f8844cd0cc6cb5c96c929d4cb",
+        "expectedBSHA256": "bedeea43e25cceba20b2ed35832e4feba24e9e7db08bdc6bbea33631a029b82d",
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+        "purpose": "Restore canonical identity without rewriting language-neutral data.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c09d86700bb161118f54d96289e0c6167255fc8f",
+        "expectedBSHA256": "25a59f8401631f6cbe358b3391dc0617660c03b7d3706b8b65e32aee122581ed",
+        "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+        "purpose": "Regression-test journal/checkpoint identity invariance.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "71deca029b00137b1484f24cf9cffbf4a2e92c35",
+        "expectedBSHA256": "a49ce814c521231a87e5bafb83171ba4643c34389732ec794cbefc4dc2eaa813",
+        "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+        "purpose": "Regression-test backup validation identity invariance.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "fc13366c237192cc69bcea214813929be3544b4c",
+        "expectedBSHA256": "cf25c460046ee10aa8a2f044cef5e117c18ff418f3272038eea9c1c9ba606f69",
+        "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+        "purpose": "Regression-test atomic restore identity invariance.",
         "serializedSharedPath": true
       }
     ],
-    "cardID": "V30-P01-C04",
+    "cardID": "V30-P01-C05",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
-      "V30-P01-C01"
+      "V30-P01-C04"
     ],
-    "ordinal": 10,
+    "ordinal": 11,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Language, locale, content, report, storefront, and jurisdiction contracts"
+    "title": "Canonical-data and historical-identity invariance"
   },
   "fenceSource": {
-    "cardID": "V30-P01-C04",
+    "cardID": "V30-P01-C05",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -182,39 +230,46 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P01-C05",
+  "next": "V30-P01-C06",
   "observedCoordination": {
-    "head": "19de9a7180038ac444eea3251577fb0154a6a4da",
-    "ledgerDigest": "63a9715d615189ce459402523ec620a22aba31067198f62d5c9e46e3067f74d2",
-    "sequence": 20
+    "head": "a827ef11d6c8785c5031cde9f209884815a94e06",
+    "ledgerDigest": "b1bc2461e3be47bb310480f651f838e12f7c1d5ce08de1e7eaa1fb7bdf64a606",
+    "sequence": 22
   },
-  "ordinal": 10,
-  "outcome": "Version-forward existing V23 contracts for BCP 47 app language, formatting locale, IANA time zone, calendar, numbering, units, authored content, report language, storefront country, and jurisdiction. Prove the six axes are independent.",
-  "payloadDigest": "577204a19f4cc79446fc51e3c4bf8a4661ef27ac279c67faa2d085c1628273bb",
+  "ordinal": 11,
+  "outcome": "Enforce and test that language/formatting changes cannot alter IDs, raw enum values, mutations, journals, evidence hashes, backup identity, authored evidence, product identity, or jurisdiction. Preserve old en-US-bearing identities.",
+  "payloadDigest": "d4c1a2e7714f9f1b516f6b023237c02c07968844bf1c51394a73433536c4dcae",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P01-C01": {
+    "V30-P01-C04": {
       "candidate": {
-        "base": "bd231bd0daf11ac5f7842c2eab2164c8f0dc8e28",
-        "baseTree": "0f9353ec92fab121aa3b33740996e6305d5b8a71",
+        "base": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
+        "baseTree": "0d6e32f5f1aa589b7189b0e9e4dc80e1c822473c",
         "changedPaths": [
-          "FieldEvidenceAppTests/V30_P01_C01ResearchCohortTests.swift",
-          "docs/design/v30/research/V30CompetitorCapabilityEvidenceV1.json",
-          "docs/design/v30/research/V30InitialLanguageCohortV1.json",
-          "docs/design/v30/research/V30ResearchManifestV1.json"
+          "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+          "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift",
+          "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+          "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+          "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+          "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+          "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json",
+          "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
+          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
         ],
-        "head": "d52cbd38e19b51bcd8c83f6d5fca768ace817d90",
-        "tree": "84da9fd23f74d859e51b53e031fff4ad2d79693b"
+        "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+        "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13"
       },
-      "sequence": 16
+      "sequence": 22
     }
   },
   "revision": 1,
   "selector": null,
-  "selectorReason": "Windows-static provisional card; Card5 hosted route is pinned but no native dispatch is selected.",
-  "sourceEndLine": 984,
-  "sourceStartLine": 984,
-  "title": "Language, locale, content, report, storefront, and jurisdiction contracts"
+  "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
+  "sourceEndLine": 985,
+  "sourceStartLine": 985,
+  "title": "Canonical-data and historical-identity invariance"
 }
 ```
