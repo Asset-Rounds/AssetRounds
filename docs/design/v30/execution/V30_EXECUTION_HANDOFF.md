@@ -1530,3 +1530,141 @@ This entry does not self-record its containing transition commit. Phase 10 was n
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+## Card 9 of 55 — Complete text-bearing surface inventory
+
+```json
+{
+  "cardID": "V30-P01-C03",
+  "phase": "P01",
+  "class": "FOUNDATION",
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false",
+  "phaseMainBaseP": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+  "integratedCardBaseM": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+  "taskStartAuthorityA": {
+    "head": "2fbc17c98c1d4ee0e81d577f395e86240a2873f5",
+    "diffFromM": {
+      "paths": [
+        "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+      ],
+      "result": "PASS_AUTHORITY_ONLY"
+    }
+  },
+  "candidate": {
+    "base": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+    "baseTree": "c783e1ea1c28466025978aebf428dd7c43a1a5b2",
+    "directParent": "2fbc17c98c1d4ee0e81d577f395e86240a2873f5",
+    "head": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
+    "tree": "0d6e32f5f1aa589b7189b0e9e4dc80e1c822473c",
+    "changedPaths": [
+      "FieldEvidenceAppTests/V30_P01_C03TextSurfaceInventoryTests.swift",
+      "Scripts/v30/validate_v30_text_surface_inventory.py",
+      "docs/design/v30/inventory/V30TextBearingSurfaceInventoryV1.json",
+      "docs/design/v30/inventory/V30TextSurfaceDispositionSchemaV1.json"
+    ]
+  },
+  "productImplementation": {
+    "E": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
+    "remoteRef": "refs/heads/phase/v30-globalization",
+    "remoteHead": "e13882efbfce199ee97b70d9d9e73cc434ce9217"
+  },
+  "coordinationCheckpoint": {
+    "head": "19de9a7180038ac444eea3251577fb0154a6a4da",
+    "ref": "refs/heads/coord/v30-globalization-provisional",
+    "remoteHead": "19de9a7180038ac444eea3251577fb0154a6a4da",
+    "ledgerDigest": "63a9715d615189ce459402523ec620a22aba31067198f62d5c9e46e3067f74d2",
+    "sequence": 20,
+    "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P01-C03/CHECKPOINT/1",
+    "state": "PROVISIONAL_CHECKPOINTED"
+  },
+  "inventory": {
+    "sourceHead": "2fbc17c98c1d4ee0e81d577f395e86240a2873f5",
+    "sourceTree": "2b8bb37b64b7cc6426794a3ec7149c382cc5f29f",
+    "files": 2348,
+    "items": 137363,
+    "uniqueItemIDs": 137363,
+    "missingOwnerEvidenceDisposition": 0,
+    "status": "DRAFT_REQUIRES_SEMANTIC_REVIEW",
+    "unresolvedOwnershipCount": 2511,
+    "finalCredit": false,
+    "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "schemaRules": 3,
+    "illuminatedPlaybook": {
+      "ruleID": "ILLUMINATED_PLAYBOOK_CLOSED_RETURN_FLOW_V1",
+      "parent": "function-return:316931",
+      "function": "english",
+      "line": 6353,
+      "variantCount": 47,
+      "appOwnedLocalizable": 45,
+      "legalAuthorityRequired": 2
+    },
+    "callbackTuple": {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "sourceSHA256": "93dfd727a19e8e44d0529a41f630a71dee579ce1a54bdb80c35f0031ca976d97",
+      "parent": "ordered.key",
+      "line": 2605,
+      "elementIndices": [0, 1],
+      "classification": "MACHINE_IDENTIFIER",
+      "disposition": "PRESERVE_MACHINE_VALUE"
+    }
+  },
+  "changedPathEvidence": [
+    {
+      "path": "FieldEvidenceAppTests/V30_P01_C03TextSurfaceInventoryTests.swift",
+      "blobOID": "1c0da63e9c752348c9bc3b92717daa8764b26c30",
+      "sha256": "49f89fe04f98eecef9e943ff5b65b0ca66284bf2a64002390614cc843e7e96d6",
+      "bytes": 55037
+    },
+    {
+      "path": "Scripts/v30/validate_v30_text_surface_inventory.py",
+      "blobOID": "395f077239f203df4f7d7ceff2bd9fe5260c8ed5",
+      "sha256": "cc58024bc6b6f0754d1c0ecdc916428e06465a756b8f6972931d6611ead90081",
+      "bytes": 1145509
+    },
+    {
+      "path": "docs/design/v30/inventory/V30TextBearingSurfaceInventoryV1.json",
+      "blobOID": "18dd636fdc9dc54d2cbed8a80cc52373d195e937",
+      "sha256": "f3982dc1064e1651ce9773451cb5977cf840d46fc9207396f6422d17c8ea8081",
+      "bytes": 80787387
+    },
+    {
+      "path": "docs/design/v30/inventory/V30TextSurfaceDispositionSchemaV1.json",
+      "blobOID": "5f439d389bdbf00b858146c4dc50a6e896f278a1",
+      "sha256": "af14939233351cbe077dd13bfcd29212f6642aebe74fea472deead00d450a77b",
+      "bytes": 52364
+    }
+  ],
+  "evidence": {
+    "commands": [
+      {"command": "python -B Scripts/v30/validate_v30_text_surface_inventory.py --self-test", "result": "PASS"},
+      {"command": "python -B Scripts/v30/validate_v30_text_surface_inventory.py --validate-draft", "result": "DRAFT_INTEGRITY_PASS_NOT_ACCEPTED"},
+      {"command": "python -B C:/Users/palat/OneDrive/Desktop/AssetRounds V30 Globalization/validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization", "result": "PASS; 55 cards; 107 edges; packageDigest=0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"},
+      {"command": "python -B Scripts/v30/validate_v30_text_surface_inventory.py", "result": "EXPECTED_EXIT_1; 2511 ownership records remain unresolved"},
+      {"command": "git diff HEAD^ HEAD --check", "result": "PASS"},
+      {"command": "frozen-tree batch audit", "result": "PASS; 2348/2348 files and 137363 unique IDs match the pinned source head"}
+    ],
+    "independentAudits": [
+      {"agent": "card9_inventory_audit", "result": "PASS", "scope": "frozen tree, item identity, owner/disposition completeness, illuminated flow, callback tuple"},
+      {"agent": "card9_schema_review", "result": "PASS", "scope": "scanner/schema/parser, negative fixtures, source hashes, provisional semantics"}
+    ],
+    "knownBugs": "docs/execution/KNOWN_BUGS.md read; template only; no qualifying defect",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "runner": "Windows static route; no Xcode, Simulator, UDID, xcresult, or screenshot credit",
+    "selector": {"tier": null, "input": null, "branchRef": "refs/heads/phase/v30-globalization", "expectedHead": "e13882efbfce199ee97b70d9d9e73cc434ce9217", "runID": null, "url": null}
+  },
+  "defects": [],
+  "remainingAcceptance": [
+    "2511 semantic ownership records remain explicitly unresolved for later owner review",
+    "mandatory post-reconciliation hosted/native qualification remains pending",
+    "no final, phase-close, main-integration, release, or successor credit"
+  ],
+  "reconciliation": "Replay or reimplement this exact Card 9 delta after valid accepted S; preserve all provenance and rerun invalidated evidence. No wholesale merge or automatic promotion.",
+  "s10SharedPaths": [],
+  "nextUnstartedCard": "V30-P01-C04",
+  "transition": "NOT_PERFORMED; the hydrated task does not enable same-phase autopilot, so V30-P01-C03 remains selected for the next authorized hydration"
+}
+```
+
+This entry does not self-record a future transition commit. Phase 10 was not accessed or polled.
