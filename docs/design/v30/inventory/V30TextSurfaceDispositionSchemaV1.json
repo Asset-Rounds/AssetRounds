@@ -1,0 +1,1826 @@
+{
+  "acceptanceRules": [
+    "Every frozen tracked blob has a coverage route and exact blob/hash binding.",
+    "Every semantic text value has an owner and resolved classification/disposition. A carrier boundary may instead reference the exact closed, independently classified producer set in sourceBoundCarrierRules; this adds no ownership class or translation exemption.",
+    "SEMANTIC_REVIEW_REQUIRED is draft-only and never passes acceptance.",
+    "User/admin evidence and machine identity are never localized in place.",
+    "PRESERVE_VERBATIM for report chrome requires explicit frozen-snapshot provenance and canonical-source preservation; newly generated chrome remains localizable.",
+    "Native, runtime, linguistic, canonical and release credit remain false."
+  ],
+  "allowedClassDispositions": {
+    "ACCESSIBILITY_TEXT": [
+      "LOCALIZE_STABLE_KEY",
+      "SEPARATE_AUTHORITY_REQUIRED"
+    ],
+    "ADMIN_AUTHORED_TEMPLATE": [
+      "PRESERVE_VERBATIM",
+      "SEPARATE_AUTHORITY_REQUIRED"
+    ],
+    "APP_OWNED_USER_FACING_COPY": [
+      "LOCALIZE_STABLE_KEY",
+      "SEPARATE_AUTHORITY_REQUIRED"
+    ],
+    "DEVELOPER_DEBUG_TEXT": [
+      "DEVELOPER_ONLY",
+      "TEST_ONLY"
+    ],
+    "LEGAL_LICENSED_JURISDICTION": [
+      "SEPARATE_AUTHORITY_REQUIRED"
+    ],
+    "MACHINE_IDENTIFIER": [
+      "PRESERVE_MACHINE_VALUE"
+    ],
+    "OBSOLETE_UNREACHABLE": [
+      "OBSOLETE_UNREACHABLE"
+    ],
+    "REPORT_EXPORT_CHROME": [
+      "LOCALIZE_STABLE_KEY",
+      "SEPARATE_AUTHORITY_REQUIRED",
+      "PRESERVE_VERBATIM"
+    ],
+    "SYSTEM_PROVIDED_DISPLAY": [
+      "PRESERVE_SYSTEM_DISPLAY"
+    ],
+    "USER_AUTHORED_EVIDENCE": [
+      "PRESERVE_VERBATIM"
+    ]
+  },
+  "cardID": "V30-P01-C03",
+  "classificationVocabulary": [
+    "APP_OWNED_USER_FACING_COPY",
+    "ACCESSIBILITY_TEXT",
+    "REPORT_EXPORT_CHROME",
+    "USER_AUTHORED_EVIDENCE",
+    "ADMIN_AUTHORED_TEMPLATE",
+    "MACHINE_IDENTIFIER",
+    "LEGAL_LICENSED_JURISDICTION",
+    "DEVELOPER_DEBUG_TEXT",
+    "OBSOLETE_UNREACHABLE",
+    "SYSTEM_PROVIDED_DISPLAY"
+  ],
+  "dispositionVocabulary": [
+    "LOCALIZE_STABLE_KEY",
+    "PRESERVE_VERBATIM",
+    "PRESERVE_MACHINE_VALUE",
+    "PRESERVE_SYSTEM_DISPLAY",
+    "SEPARATE_AUTHORITY_REQUIRED",
+    "DEVELOPER_ONLY",
+    "TEST_ONLY",
+    "OBSOLETE_UNREACHABLE",
+    "SEMANTIC_REVIEW_REQUIRED",
+    "SOURCE_BOUND_VARIANTS_RESOLVED"
+  ],
+  "finalCredit": false,
+  "jsonSchema": {
+    "$defs": {
+      "sourceFile": {
+        "properties": {
+          "blobOID": {
+            "pattern": "^[a-f0-9]{40}$",
+            "type": "string"
+          },
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "coverageRoute": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/$defs/textItem"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "100644",
+              "100755"
+            ]
+          },
+          "owner": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "blobOID",
+          "sha256",
+          "bytes",
+          "mode",
+          "owner",
+          "coverageRoute",
+          "items"
+        ],
+        "type": "object"
+      },
+      "textItem": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": null
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "SEMANTIC_REVIEW_REQUIRED",
+                    "SOURCE_BOUND_VARIANTS_RESOLVED"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "APP_OWNED_USER_FACING_COPY"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "LOCALIZE_STABLE_KEY",
+                    "SEPARATE_AUTHORITY_REQUIRED"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "ACCESSIBILITY_TEXT"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "LOCALIZE_STABLE_KEY",
+                    "SEPARATE_AUTHORITY_REQUIRED"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "REPORT_EXPORT_CHROME"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "LOCALIZE_STABLE_KEY",
+                    "SEPARATE_AUTHORITY_REQUIRED",
+                    "PRESERVE_VERBATIM"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "USER_AUTHORED_EVIDENCE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "PRESERVE_VERBATIM"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "ADMIN_AUTHORED_TEMPLATE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "PRESERVE_VERBATIM",
+                    "SEPARATE_AUTHORITY_REQUIRED"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "MACHINE_IDENTIFIER"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "PRESERVE_MACHINE_VALUE"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "LEGAL_LICENSED_JURISDICTION"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "SEPARATE_AUTHORITY_REQUIRED"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "DEVELOPER_DEBUG_TEXT"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "DEVELOPER_ONLY",
+                    "TEST_ONLY"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "OBSOLETE_UNREACHABLE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "OBSOLETE_UNREACHABLE"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "SYSTEM_PROVIDED_DISPLAY"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "disposition": {
+                  "enum": [
+                    "PRESERVE_SYSTEM_DISPLAY"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "disposition": {
+                  "const": "SOURCE_BOUND_VARIANTS_RESOLVED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "classification": {
+                  "type": "null"
+                },
+                "kind": {
+                  "enum": [
+                    "FUNCTION_TEXT_PARAMETER_DECLARATION",
+                    "FUNCTION_TEXT_RETURN_DECLARATION",
+                    "TEXT_PRESENTATION_CALL"
+                  ]
+                },
+                "sourceBoundRuleID": {
+                  "enum": [
+                    "RECIPIENT_PRIVATE_STATE_ROW_FLOW_V1",
+                    "CUSTOMER_LEARNING_PRIVATE_TEXT_VALIDATOR_FLOW_V1",
+                    "ILLUMINATED_PLAYBOOK_CLOSED_RETURN_FLOW_V1"
+                  ]
+                },
+                "sourceBoundVariants": {
+                  "items": {
+                    "pattern": "^[a-f0-9]{24}$",
+                    "type": "string"
+                  },
+                  "minItems": 2,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "variantSetSHA256": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sourceBoundRuleID",
+                "sourceBoundVariants",
+                "variantSetSHA256"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "TEXT_HELPER_VALUE_ARGUMENT"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "consumerArgumentIndex": {
+                  "const": 1
+                },
+                "consumerArgumentLabel": {
+                  "const": "value"
+                },
+                "parentPresentationID": {
+                  "pattern": "^[a-f0-9]{24}$",
+                  "type": "string"
+                },
+                "producerItemIDs": {
+                  "items": {
+                    "pattern": "^[a-f0-9]{24}$",
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "parentPresentationID",
+                "consumerArgumentIndex",
+                "consumerArgumentLabel",
+                "producerItemIDs"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "FUNCTION_TEXT_PARAMETER_DECLARATION",
+                    "FUNCTION_TEXT_RETURN_DECLARATION"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "column": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "functionSymbol": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "line": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "ownershipBoundary": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "functionSymbol",
+                "ownershipBoundary",
+                "line",
+                "column"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "TYPEALIAS_CLOSURE_TEXT_PARAMETER_DECLARATION"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "column": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "line": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "ownershipBoundary": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "parameterIndex": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "typealiasSymbol": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "typealiasSymbol",
+                "parameterIndex",
+                "ownershipBoundary",
+                "line",
+                "column"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "TYPEALIAS_TUPLE_TEXT_ELEMENT_DECLARATION"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "column": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "elementIndex": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "elementLabel": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "line": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "ownershipBoundary": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "typealiasSymbol": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "typealiasSymbol",
+                "elementIndex",
+                "ownershipBoundary",
+                "line",
+                "column"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "INLINE_CLOSURE_TEXT_PARAMETER_DECLARATION",
+                    "INLINE_CLOSURE_TEXT_RETURN_DECLARATION",
+                    "INLINE_CLOSURE_TUPLE_TEXT_ELEMENT_DECLARATION"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "oneOf": [
+                {
+                  "not": {
+                    "required": [
+                      "parentStorageSymbol"
+                    ]
+                  },
+                  "properties": {
+                    "closureParentKind": {
+                      "const": "FUNCTION_PARAMETER"
+                    },
+                    "parentCallableKind": {
+                      "enum": [
+                        "FUNCTION",
+                        "INITIALIZER",
+                        "SUBSCRIPT",
+                        "OPERATOR"
+                      ]
+                    },
+                    "parentExternalLabel": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "parentFunctionSymbol": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "parentParameterIndex": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "parentParameterSymbol": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "parentFunctionSymbol",
+                    "parentCallableKind",
+                    "parentParameterIndex",
+                    "parentParameterSymbol",
+                    "parentExternalLabel"
+                  ]
+                },
+                {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "parentFunctionSymbol"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parentCallableKind"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parentParameterIndex"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parentParameterSymbol"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "parentExternalLabel"
+                        ]
+                      }
+                    ]
+                  },
+                  "properties": {
+                    "closureParentKind": {
+                      "const": "STORAGE_DECLARATION"
+                    },
+                    "parentStorageSymbol": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "parentStorageSymbol"
+                  ]
+                }
+              ],
+              "properties": {
+                "column": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "line": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "ownershipBoundary": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "closureParentKind",
+                "ownershipBoundary",
+                "line",
+                "column"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "INLINE_CLOSURE_TEXT_PARAMETER_DECLARATION",
+                    "INLINE_CLOSURE_TEXT_RETURN_DECLARATION"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "elementIndex"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "elementLabel"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "INLINE_CLOSURE_TUPLE_TEXT_ELEMENT_DECLARATION"
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "closureParameterIndex"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "closureParameterSymbol"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "closureParameterExternalLabel"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "functionSymbol"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "callableKind"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "typealiasSymbol"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "parameterIndex"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "symbol"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "externalLabel"
+                    ]
+                  }
+                ]
+              },
+              "properties": {
+                "elementIndex": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "elementLabel": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "elementIndex"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "FUNCTION_TUPLE_TEXT_ELEMENT_DECLARATION"
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "parameterIndex"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "symbol"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "externalLabel"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "typealiasSymbol"
+                    ]
+                  }
+                ]
+              },
+              "properties": {
+                "callableKind": {
+                  "enum": [
+                    "FUNCTION",
+                    "SUBSCRIPT",
+                    "OPERATOR"
+                  ]
+                },
+                "column": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "elementIndex": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "elementLabel": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "functionSymbol": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "line": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "ownershipBoundary": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "functionSymbol",
+                "callableKind",
+                "elementIndex",
+                "ownershipBoundary",
+                "line",
+                "column"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "INLINE_CLOSURE_TEXT_PARAMETER_DECLARATION"
+                }
+              }
+            },
+            "then": {
+              "allOf": [
+                {
+                  "if": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "closureParameterSymbol"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "closureParameterExternalLabel"
+                        ]
+                      }
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "closureParameterExternalLabel": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "closureParameterSymbol": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "closureParameterSymbol",
+                      "closureParameterExternalLabel"
+                    ]
+                  }
+                }
+              ],
+              "properties": {
+                "closureParameterIndex": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "closureParameterIndex"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "INLINE_CLOSURE_TEXT_RETURN_DECLARATION"
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "closureParameterIndex"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "closureParameterSymbol"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "closureParameterExternalLabel"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "FUNCTION_TEXT_PARAMETER_DECLARATION"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "externalLabel": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "parameterIndex": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "symbol": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "symbol",
+                "externalLabel",
+                "parameterIndex"
+              ]
+            }
+          },
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "required": [
+                    "callableKind"
+                  ]
+                },
+                {
+                  "properties": {
+                    "functionSymbol": {
+                      "enum": [
+                        "init",
+                        "subscript"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "functionSymbol"
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "oneOf": [
+                {
+                  "properties": {
+                    "callableKind": {
+                      "const": "FUNCTION"
+                    },
+                    "functionSymbol": {
+                      "not": {
+                        "enum": [
+                          "init",
+                          "subscript"
+                        ]
+                      },
+                      "pattern": "^(?:`[^`\\r\\n]+`|[^\\W\\d]\\w*)$"
+                    },
+                    "kind": {
+                      "const": "FUNCTION_TUPLE_TEXT_ELEMENT_DECLARATION"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "callableKind": {
+                      "const": "INITIALIZER"
+                    },
+                    "functionSymbol": {
+                      "const": "init"
+                    },
+                    "kind": {
+                      "const": "FUNCTION_TEXT_PARAMETER_DECLARATION"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "callableKind": {
+                      "const": "SUBSCRIPT"
+                    },
+                    "functionSymbol": {
+                      "const": "subscript"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "callableKind": {
+                      "const": "OPERATOR"
+                    },
+                    "functionSymbol": {
+                      "pattern": "^(?:[/=+\\-!*%<>&|^~?\\u00a1-\\u00a7\\u00a9\\u00ab\\u00ac\\u00ae\\u00b0-\\u00b1\\u00b6\\u00bb\\u00bf\\u00d7\\u00f7\\u2016-\\u2017\\u2020-\\u2027\\u2030-\\u203e\\u2041-\\u2053\\u2055-\\u205e\\u2190-\\u23ff\\u2500-\\u2775\\u2794-\\u2bff\\u2e00-\\u2e7f\\u3001-\\u3003\\u3008-\\u3020\\u3030][/=+\\-!*%<>&|^~?\\u00a1-\\u00a7\\u00a9\\u00ab\\u00ac\\u00ae\\u00b0-\\u00b1\\u00b6\\u00bb\\u00bf\\u00d7\\u00f7\\u2016-\\u2017\\u2020-\\u2027\\u2030-\\u203e\\u2041-\\u2053\\u2055-\\u205e\\u2190-\\u23ff\\u2500-\\u2775\\u2794-\\u2bff\\u2e00-\\u2e7f\\u3001-\\u3003\\u3008-\\u3020\\u3030\\u0300-\\u036f\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe00-\\ufe0f\\ufe20-\\ufe2f󠄀-󠇯]*|\\.[./=+\\-!*%<>&|^~?\\u00a1-\\u00a7\\u00a9\\u00ab\\u00ac\\u00ae\\u00b0-\\u00b1\\u00b6\\u00bb\\u00bf\\u00d7\\u00f7\\u2016-\\u2017\\u2020-\\u2027\\u2030-\\u203e\\u2041-\\u2053\\u2055-\\u205e\\u2190-\\u23ff\\u2500-\\u2775\\u2794-\\u2bff\\u2e00-\\u2e7f\\u3001-\\u3003\\u3008-\\u3020\\u3030\\u0300-\\u036f\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe00-\\ufe0f\\ufe20-\\ufe2f󠄀-󠇯]+)$"
+                    }
+                  }
+                }
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "FUNCTION_TEXT_PARAMETER_DECLARATION",
+                    "FUNCTION_TEXT_RETURN_DECLARATION",
+                    "FUNCTION_TUPLE_TEXT_ELEMENT_DECLARATION"
+                  ]
+                }
+              },
+              "required": [
+                "callableKind",
+                "functionSymbol",
+                "kind"
+              ]
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "textTypeShape"
+              ]
+            },
+            "then": {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "FUNCTION_TEXT_PARAMETER_DECLARATION",
+                    "FUNCTION_TEXT_RETURN_DECLARATION"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "TEXT_INPUT_BINDING"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "consumerArgumentIndex": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "consumerArgumentLabel": {
+                  "const": "text"
+                },
+                "parentPresentationID": {
+                  "pattern": "^[a-f0-9]{24}$",
+                  "type": "string"
+                },
+                "symbol": {
+                  "enum": [
+                    "TextField",
+                    "SecureField",
+                    "TextEditor"
+                  ]
+                }
+              },
+              "required": [
+                "parentPresentationID",
+                "consumerArgumentIndex",
+                "consumerArgumentLabel",
+                "symbol"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "classification": {
+                  "const": "REPORT_EXPORT_CHROME"
+                },
+                "disposition": {
+                  "const": "PRESERVE_VERBATIM"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "preserveCanonicalSource": {
+                  "const": true
+                },
+                "provenanceRole": {
+                  "const": "FROZEN_REPORT_SNAPSHOT"
+                }
+              },
+              "required": [
+                "preserveCanonicalSource",
+                "provenanceRole"
+              ]
+            }
+          }
+        ],
+        "properties": {
+          "classification": {
+            "enum": [
+              "APP_OWNED_USER_FACING_COPY",
+              "ACCESSIBILITY_TEXT",
+              "REPORT_EXPORT_CHROME",
+              "USER_AUTHORED_EVIDENCE",
+              "ADMIN_AUTHORED_TEMPLATE",
+              "MACHINE_IDENTIFIER",
+              "LEGAL_LICENSED_JURISDICTION",
+              "DEVELOPER_DEBUG_TEXT",
+              "OBSOLETE_UNREACHABLE",
+              "SYSTEM_PROVIDED_DISPLAY",
+              null
+            ]
+          },
+          "disposition": {
+            "enum": [
+              "LOCALIZE_STABLE_KEY",
+              "PRESERVE_VERBATIM",
+              "PRESERVE_MACHINE_VALUE",
+              "PRESERVE_SYSTEM_DISPLAY",
+              "SEPARATE_AUTHORITY_REQUIRED",
+              "DEVELOPER_ONLY",
+              "TEST_ONLY",
+              "OBSOLETE_UNREACHABLE",
+              "SEMANTIC_REVIEW_REQUIRED",
+              "SOURCE_BOUND_VARIANTS_RESOLVED"
+            ]
+          },
+          "id": {
+            "pattern": "^[a-f0-9]{24}$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "SWIFT_STRING",
+              "SWIFT_ESCAPED_INTERPOLATION_TOKEN",
+              "SWIFT_REGEX",
+              "SWIFT_COMMENT",
+              "DYNAMIC_TEXT_DECLARATION",
+              "FUNCTION_TEXT_PARAMETER_DECLARATION",
+              "FUNCTION_TEXT_RETURN_DECLARATION",
+              "TYPEALIAS_CLOSURE_TEXT_PARAMETER_DECLARATION",
+              "TYPEALIAS_TUPLE_TEXT_ELEMENT_DECLARATION",
+              "FUNCTION_TUPLE_TEXT_ELEMENT_DECLARATION",
+              "INLINE_CLOSURE_TEXT_PARAMETER_DECLARATION",
+              "INLINE_CLOSURE_TEXT_RETURN_DECLARATION",
+              "INLINE_CLOSURE_TUPLE_TEXT_ELEMENT_DECLARATION",
+              "TEXT_HELPER_VALUE_ARGUMENT",
+              "TEXT_PRESENTATION_CALL",
+              "STRING_INTERPOLATION_VALUE",
+              "TEXT_INPUT_BINDING",
+              "JSON_KEY",
+              "PLIST_KEY",
+              "JSON_STRING",
+              "PLIST_STRING",
+              "METADATA_DOCUMENT_LINE",
+              "PROJECT_CONFIGURATION",
+              "DEVELOPER_DOCUMENT"
+            ]
+          },
+          "locator": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "owner": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownershipEvidence": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "preview": {
+            "maxLength": 180,
+            "type": "string"
+          },
+          "recordRole": {
+            "enum": [
+              "CONFIGURATION_LINE",
+              "DEVELOPER_COMMENT",
+              "DEVELOPER_DOCUMENT",
+              "DOCUMENT_LINE",
+              "DYNAMIC_INTERPOLATION_VALUE",
+              "EDITABLE_TEXT_VALUE_BINDING",
+              "PARSER_GRAMMAR",
+              "RESOURCE_STRING_VALUE",
+              "SCHEMA_KEY",
+              "SOURCE_LITERAL",
+              "TEXT_PRESENTATION_SINK",
+              "TEXT_VALUE_ARGUMENT",
+              "TEXT_VALUE_PRODUCER_DECLARATION"
+            ]
+          },
+          "sourceTextSHA256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "textTypeShape": {
+            "enum": [
+              "DICTIONARY",
+              "COLLECTION"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "locator",
+          "kind",
+          "recordRole",
+          "sourceTextSHA256",
+          "preview",
+          "owner",
+          "classification",
+          "disposition",
+          "ownershipEvidence"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "cardID": {
+        "const": "V30-P01-C03"
+      },
+      "dispositionSchemaPayloadDigest": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "files": {
+        "items": {
+          "$ref": "#/$defs/sourceFile"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "finalCredit": {
+        "const": false
+      },
+      "nativeEvidence": {
+        "const": "NOT_EXECUTED_NO_NATIVE_CREDIT"
+      },
+      "payloadDigest": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "schema": {
+        "const": "V30TextBearingSurfaceInventoryV1"
+      },
+      "sourceHead": {
+        "const": "2fbc17c98c1d4ee0e81d577f395e86240a2873f5"
+      },
+      "sourceTree": {
+        "pattern": "^[a-f0-9]{40}$",
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "DRAFT_REQUIRES_SEMANTIC_REVIEW",
+          "READY_FOR_STATIC_VALIDATION"
+        ]
+      },
+      "unresolvedOwnershipCount": {
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "schema",
+      "cardID",
+      "sourceHead",
+      "sourceTree",
+      "files",
+      "status",
+      "payloadDigest",
+      "dispositionSchemaPayloadDigest",
+      "finalCredit",
+      "nativeEvidence",
+      "unresolvedOwnershipCount"
+    ],
+    "title": "V30 source-bound text inventory (draft or structurally ready)",
+    "type": "object"
+  },
+  "payloadDigest": "672cab8eca9726fb2ecf785a735eb74efc014327d28fdfc4f1bb2285f9aacea6",
+  "recordRolesByKind": {
+    "DEVELOPER_DOCUMENT": "DEVELOPER_DOCUMENT",
+    "DYNAMIC_TEXT_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION",
+    "FUNCTION_TEXT_PARAMETER_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION",
+    "FUNCTION_TEXT_RETURN_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION",
+    "FUNCTION_TUPLE_TEXT_ELEMENT_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION",
+    "INLINE_CLOSURE_TEXT_PARAMETER_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION",
+    "INLINE_CLOSURE_TEXT_RETURN_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION",
+    "INLINE_CLOSURE_TUPLE_TEXT_ELEMENT_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION",
+    "JSON_KEY": "SCHEMA_KEY",
+    "JSON_STRING": "RESOURCE_STRING_VALUE",
+    "METADATA_DOCUMENT_LINE": "DOCUMENT_LINE",
+    "PLIST_KEY": "SCHEMA_KEY",
+    "PLIST_STRING": "RESOURCE_STRING_VALUE",
+    "PROJECT_CONFIGURATION": "CONFIGURATION_LINE",
+    "STRING_INTERPOLATION_VALUE": "DYNAMIC_INTERPOLATION_VALUE",
+    "SWIFT_COMMENT": "DEVELOPER_COMMENT",
+    "SWIFT_ESCAPED_INTERPOLATION_TOKEN": "SOURCE_LITERAL",
+    "SWIFT_REGEX": "PARSER_GRAMMAR",
+    "SWIFT_STRING": "SOURCE_LITERAL",
+    "TEXT_HELPER_VALUE_ARGUMENT": "TEXT_VALUE_ARGUMENT",
+    "TEXT_INPUT_BINDING": "EDITABLE_TEXT_VALUE_BINDING",
+    "TEXT_PRESENTATION_CALL": "TEXT_PRESENTATION_SINK",
+    "TYPEALIAS_CLOSURE_TEXT_PARAMETER_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION",
+    "TYPEALIAS_TUPLE_TEXT_ELEMENT_DECLARATION": "TEXT_VALUE_PRODUCER_DECLARATION"
+  },
+  "requiredFileFields": [
+    "path",
+    "blobOID",
+    "sha256",
+    "bytes",
+    "mode",
+    "owner",
+    "coverageRoute",
+    "items"
+  ],
+  "requiredItemFields": [
+    "id",
+    "locator",
+    "kind",
+    "recordRole",
+    "sourceTextSHA256",
+    "preview",
+    "owner",
+    "classification",
+    "disposition",
+    "ownershipEvidence"
+  ],
+  "schema": "V30TextSurfaceDispositionSchemaV1",
+  "sourceBoundCarrierRules": [
+    {
+      "callSpans": [
+        [
+          5692,
+          5755
+        ],
+        [
+          5768,
+          5836
+        ],
+        [
+          5849,
+          5941
+        ],
+        [
+          5954,
+          6052
+        ]
+      ],
+      "displayProducerFacts": {
+        "chars:5912:5924": [
+          "SWIFT_STRING",
+          "cd071be6d79a0158096ed36548c87781ea97ff80f5a63c77a101770f8836c5f4"
+        ],
+        "chars:5927:5940": [
+          "SWIFT_STRING",
+          "b4c2f503b19443c67f4946d457acdcc668e3ae9b689c6bd8b6e535636cbf82f1"
+        ],
+        "chars:6023:6035": [
+          "SWIFT_STRING",
+          "cd071be6d79a0158096ed36548c87781ea97ff80f5a63c77a101770f8836c5f4"
+        ],
+        "chars:6038:6051": [
+          "SWIFT_STRING",
+          "b4c2f503b19443c67f4946d457acdcc668e3ae9b689c6bd8b6e535636cbf82f1"
+        ],
+        "function-return:15834": [
+          "FUNCTION_TEXT_RETURN_DECLARATION",
+          "b2ef230e7f4f315a28cdcc863028da31f7110f3209feb76e76fed0f37b3d8580"
+        ]
+      },
+      "evidence": "The frozen private stateRow has exactly four callers at130-133. The value parameter293 flows unchanged to Text(value)297. Call130 combines its local Request label with a canonical requestPublicID.rawValue; call131 uses the separately reviewed lifecycleText return; calls132-133 choose only the separately inventoried Replayable/Unavailable literals. No open caller or inferred origin is admitted.",
+      "parents": {
+        "call:15527:15538": [
+          "TEXT_PRESENTATION_CALL",
+          "41dcf23873066bdd63baf09e3a16344859ca6cb317da2a1b0fbdd9bc8fbc9f5d",
+          [
+            "helper-value:5719:5754",
+            "helper-value:5795:5835",
+            "helper-value:5877:5940",
+            "helper-value:5989:6051"
+          ]
+        ],
+        "call:5692:5755": [
+          "TEXT_PRESENTATION_CALL",
+          "ff6f7ae5c241a1ddccac783b2bb7df555f89ca92dd0dbba789b21ffa2e407e6e",
+          [
+            "chars:5701:5710",
+            "helper-value:5719:5754"
+          ]
+        ],
+        "function-parameter:15332": [
+          "FUNCTION_TEXT_PARAMETER_DECLARATION",
+          "b2ef230e7f4f315a28cdcc863028da31f7110f3209feb76e76fed0f37b3d8580",
+          [
+            "helper-value:5719:5754",
+            "helper-value:5795:5835",
+            "helper-value:5877:5940",
+            "helper-value:5989:6051"
+          ]
+        ]
+      },
+      "path": "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
+      "producers": {
+        "chars:5701:5710": [
+          "SWIFT_STRING",
+          "f9939f2c12bf64be5f65862ad0206118b6a98eaf9dd8a7c25498571662455346",
+          "APP_OWNED_USER_FACING_COPY",
+          []
+        ],
+        "helper-value:5719:5754": [
+          "TEXT_HELPER_VALUE_ARGUMENT",
+          "9252fb912514ce67861c067fa7b1057b3b9e55fb04071374395f74ee83f933b5",
+          "MACHINE_IDENTIFIER",
+          []
+        ],
+        "helper-value:5795:5835": [
+          "TEXT_HELPER_VALUE_ARGUMENT",
+          "a91a8bec066309dbffe8998056b2ba61b62da5bd1c7e5c9b75c047edf2dd5b84",
+          "APP_OWNED_USER_FACING_COPY",
+          [
+            "function-return:15834"
+          ]
+        ],
+        "helper-value:5877:5940": [
+          "TEXT_HELPER_VALUE_ARGUMENT",
+          "6556725f71a47dc2495412c0aa8aa02138be5dbf0b25515063cfcd520bc1ac5a",
+          "APP_OWNED_USER_FACING_COPY",
+          [
+            "chars:5912:5924",
+            "chars:5927:5940"
+          ]
+        ],
+        "helper-value:5989:6051": [
+          "TEXT_HELPER_VALUE_ARGUMENT",
+          "1396bf0ee269c01ef2b19c10c85e6dafb7474045575f45211d555da461cca171",
+          "APP_OWNED_USER_FACING_COPY",
+          [
+            "chars:6023:6035",
+            "chars:6038:6051"
+          ]
+        ]
+      },
+      "ruleID": "RECIPIENT_PRIVATE_STATE_ROW_FLOW_V1",
+      "sourceSHA256": "590e4210beb49052f753b6cdc4fa11d31339bbd317ad78fd139cca88d9657d16"
+    },
+    {
+      "calls": [
+        [
+          19967,
+          20009,
+          19424,
+          "ownerReadableName",
+          "authored"
+        ],
+        [
+          27750,
+          27766,
+          25301,
+          "provenance",
+          "authored"
+        ],
+        [
+          27808,
+          27825,
+          25430,
+          "eligibility",
+          "authored"
+        ],
+        [
+          34673,
+          34690,
+          32972,
+          "ownerPrompt",
+          "authored"
+        ],
+        [
+          43304,
+          43333,
+          39778,
+          "noncausalInterpretation",
+          "authored"
+        ],
+        [
+          62381,
+          62419,
+          61784,
+          "processorName",
+          "authored"
+        ],
+        [
+          62565,
+          62588,
+          61848,
+          "processingPurpose",
+          "activation"
+        ],
+        [
+          65474,
+          65498,
+          63357,
+          "lawfulConsentBasis",
+          "legal"
+        ],
+        [
+          65540,
+          65556,
+          63392,
+          "population",
+          "activation"
+        ],
+        [
+          65598,
+          65621,
+          63490,
+          "aggregationPolicy",
+          "activation"
+        ],
+        [
+          65663,
+          65684,
+          63524,
+          "retentionPolicy",
+          "legal"
+        ],
+        [
+          65726,
+          65748,
+          63556,
+          "withdrawalPolicy",
+          "legal"
+        ],
+        [
+          65790,
+          65819,
+          63589,
+          "deleteExportErasePolicy",
+          "legal"
+        ],
+        [
+          65861,
+          65887,
+          63776,
+          "offlineFailurePolicy",
+          "activation"
+        ],
+        [
+          65929,
+          65955,
+          63853,
+          "experimentGuardrails",
+          "activation"
+        ],
+        [
+          65997,
+          66027,
+          63890,
+          "killSwitchAndRemovalPath",
+          "activation"
+        ]
+      ],
+      "evidence": "The frozen private CustomerLearningValidationV1.text has exactly 16 direct callers and no escaping function reference. Each passes its stored contract property unchanged. The validator only checks nonempty text, byte length, trimming equality and absence of controls; it returns no text and performs no translation or mutation. Each input retains its separately reviewed authored-definition or governance-policy ownership. This closed source binding grants neither translation nor activation authority.",
+      "parent": "function-parameter:3218",
+      "path": "FieldEvidenceApp/Domain/CustomerLearning/CustomerLearningContractsV1.swift",
+      "policies": {
+        "activation": [
+          "ADMIN_AUTHORED_TEMPLATE",
+          "SEPARATE_AUTHORITY_REQUIRED",
+          "CUSTOMER_LEARNING_OWNER_ACTIVATION_DEFINITION"
+        ],
+        "authored": [
+          "ADMIN_AUTHORED_TEMPLATE",
+          "PRESERVE_VERBATIM",
+          "CUSTOMER_LEARNING_AUTHORED_DEFINITIONS"
+        ],
+        "legal": [
+          "LEGAL_LICENSED_JURISDICTION",
+          "SEPARATE_AUTHORITY_REQUIRED",
+          "CUSTOMER_LEARNING_GOVERNANCE_PROSE"
+        ]
+      },
+      "ruleID": "CUSTOMER_LEARNING_PRIVATE_TEXT_VALIDATOR_FLOW_V1",
+      "sourceSHA256": "6b65786eb07b9f7d3722232568fcaa4a65a3bb45c3ebd6c5bfe869058c7d17fa"
+    },
+    {
+      "branches": [
+        [
+          "heading",
+          "chars:316991:317018"
+        ],
+        [
+          "playbooksHeading",
+          "chars:317058:317087"
+        ],
+        [
+          "selectedPlaybook",
+          "chars:317127:317146"
+        ],
+        [
+          "generalVisibleCondition",
+          "chars:317193:317220"
+        ],
+        [
+          "darkSection",
+          "chars:317255:317269"
+        ],
+        [
+          "dimOrUneven",
+          "chars:317304:317332"
+        ],
+        [
+          "flickerOrIntermittent",
+          "chars:317377:317408"
+        ],
+        [
+          "colorMismatch",
+          "chars:317445:317469"
+        ],
+        [
+          "physicalDamage",
+          "chars:317507:317532"
+        ],
+        [
+          "otherVisibleCondition",
+          "chars:317577:317602"
+        ],
+        [
+          "preflightHeading",
+          "chars:317642:317658"
+        ],
+        [
+          "afterDark",
+          "chars:317691:317787"
+        ],
+        [
+          "safeAuthorizedPosition",
+          "chars:317833:317907"
+        ],
+        [
+          "captureHeading",
+          "chars:317945:317963"
+        ],
+        [
+          "wideCapture",
+          "chars:317998:318009"
+        ],
+        [
+          "closeCapture",
+          "chars:318045:318057"
+        ],
+        [
+          "workCapture",
+          "chars:318092:318113"
+        ],
+        [
+          "captureRequired",
+          "chars:318152:318162"
+        ],
+        [
+          "captureComplete",
+          "chars:318201:318211"
+        ],
+        [
+          "captureMissing",
+          "chars:318249:318258"
+        ],
+        [
+          "factsHeading",
+          "chars:318294:318319"
+        ],
+        [
+          "checkedTime",
+          "chars:318354:318368"
+        ],
+        [
+          "stageLabel",
+          "chars:318402:318409"
+        ],
+        [
+          "stageCheck",
+          "chars:318443:318450"
+        ],
+        [
+          "stageRecheck",
+          "chars:318486:318495"
+        ],
+        [
+          "outcomeLabel",
+          "chars:318531:318540"
+        ],
+        [
+          "outcomeNoVisibleIssue",
+          "chars:318585:318603"
+        ],
+        [
+          "outcomeVisibleIssue",
+          "chars:318646:318661"
+        ],
+        [
+          "outcomeCouldNotVerify",
+          "chars:318706:318724"
+        ],
+        [
+          "selectedCondition",
+          "chars:318765:318793"
+        ],
+        [
+          "couldNotVerifyReason",
+          "chars:318837:318862"
+        ],
+        [
+          "visibleConditionsOnly",
+          "chars:318907:318956"
+        ],
+        [
+          "reportTrace",
+          "chars:318991:319039"
+        ],
+        [
+          "poseHeading",
+          "chars:319074:319101"
+        ],
+        [
+          "poseUnavailable",
+          "chars:319140:319195"
+        ],
+        [
+          "poseReviewed",
+          "chars:319231:319292"
+        ],
+        [
+          "poseReviewRequired",
+          "chars:319334:319414"
+        ],
+        [
+          "retakeDisclosure",
+          "chars:319454:319543"
+        ],
+        [
+          "disclaimer",
+          "chars:319577:319720"
+        ],
+        [
+          "offlineReady",
+          "chars:319756:319782"
+        ],
+        [
+          "blocked",
+          "chars:319813:319834"
+        ],
+        [
+          "permissionDenied",
+          "chars:319874:319914"
+        ],
+        [
+          "protectedDataUnavailable",
+          "chars:319962:320021"
+        ],
+        [
+          "lowStorage",
+          "chars:320055:320095"
+        ],
+        [
+          "cancelled",
+          "chars:320128:320190"
+        ],
+        [
+          "recoveryRequired",
+          "chars:320230:320287"
+        ],
+        [
+          "recovered",
+          "chars:320320:320380"
+        ]
+      ],
+      "evidence": "The frozen IlluminatedSignPlaybookLocalizationPolicyV1.english switches exhaustively on its closed typed key and returns exactly these 47 literals without supplied text or a fallback. Forty-five UI messages retain app-copy disposition; safeAuthorizedPosition and disclaimer retain their separate legal/professional review authority. The return carrier links to the complete set without inheriting one class or granting translation permission across that boundary.",
+      "owner": "DOMAIN_CONTRACT_OWNER",
+      "parent": "function-return:316931",
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+      "producerRecordSetSHA256": "2c3845195b185766d26dfd356d2a9008e0514c0ed5e8f50c999dbfad4f8ac6b8",
+      "ruleID": "ILLUMINATED_PLAYBOOK_CLOSED_RETURN_FLOW_V1",
+      "sourceSHA256": "5d1982421bea62d1ec5339f5a279b6f1f552afa8d90f7dc16f01e389b575dc4f"
+    }
+  ],
+  "sourceRules": {
+    "Developer": "Whole-document hash and developer-only owner/disposition.",
+    "JSON": "Every object key and string leaf; arrays retain their index.",
+    "Metadata": "Every nonempty line of Release/docs-product text; structured values are separately inventoried.",
+    "Plist": "Every string key/value; permissions separated from machine schema.",
+    "Swift": "Nested comments, normal/raw/multiline strings, interpolation, String storage declarations, direct and dictionary text parameters/returns of named functions, subscripts and ASCII/Unicode operators, direct and dictionary text initializer parameters, display sinks and separate editable text bindings. No inferred type or native AST claim."
+  }
+}
