@@ -2908,10 +2908,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "\n\n    @MainActor\n" +
                     "    private func assertLightFirstSignValidationAndCreation("
         )
-        XCTAssertEqual(focusedDiagnosticConfigurationSource.utf8.count, 58_457)
+        XCTAssertEqual(focusedDiagnosticConfigurationSource.utf8.count, 58_620)
         XCTAssertEqual(
             Data(focusedDiagnosticConfigurationSource.utf8).sha256,
-            "95504771BCDBED1086FAC07B204C99BF7F6101A2CCC3132BBDC528A0C7F69293"
+            "1B29F76156EB8C53498134F34B8870CAB82C6B8BDEDAB8154ECDD23E25F9B0AD"
         )
         for exact in [
             "case minimumNewSign = \"minimum-new-sign\"",
