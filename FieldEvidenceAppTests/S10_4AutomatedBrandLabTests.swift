@@ -8933,7 +8933,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "dismissKeyboard(in: app)").count - 1,
-            6
+            7
         )
         let removedMinimumKeyboardDiagnosticForms = [
             "runMinimumKeyboardGeometryDiagnostic",
@@ -22161,10 +22161,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 801_605)
+        XCTAssertEqual(uiSource.utf8.count, 801_974)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "D0D459C0A7830AE38A578BEFE124D1705FC82BF57AE0CF713A20EC8018EEAF97"
+            "902A397682A56D0E5BD0568E171459D021FE57AE21B1EA6EE5B2B0F792C024D2"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
