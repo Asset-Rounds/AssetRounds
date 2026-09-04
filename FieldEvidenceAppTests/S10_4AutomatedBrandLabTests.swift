@@ -8940,7 +8940,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             uiSource.components(separatedBy: "dismissKeyboard(in: app)").count - 1,
-            7
+            8
         )
         let removedMinimumKeyboardDiagnosticForms = [
             "runMinimumKeyboardGeometryDiagnostic",
@@ -24792,10 +24792,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard let range = Range(match.range, in: uiSource) else { return nil }
             return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
         }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 455)
+        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 456)
         XCTAssertEqual(
             Data(routeActionLedger.utf8).sha256,
-            "924B5E833631D334A77F4F56B71C81631D4CC84BBEC11DC438BD727E392D09E1"
+            "45837DB779129940F33C2A3917124640155C29374633BA28B892D73AF63F62FB"
         )
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
