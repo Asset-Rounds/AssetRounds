@@ -1668,3 +1668,593 @@ This entry does not self-record its containing transition commit. Phase 10 was n
 ```
 
 This entry does not self-record a future transition commit. Phase 10 was not accessed or polled.
+
+## Card 10 of 55 — Language, locale, content, report, storefront, and jurisdiction contracts
+
+```json
+{
+  "cardID": "V30-P01-C04",
+  "phase": "P01",
+  "class": "IMPLEMENTATION",
+  "state": "PROVISIONAL_CHECKPOINTED; finalCredit=false",
+  "phaseMainBaseP": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+  "integratedCardBaseM": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
+  "taskStartAuthorityA": {
+    "head": "02cf3d7015b3c84c598fde1eb674378a80a3a57c",
+    "diffFromM": {
+      "paths": [
+        "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+      ],
+      "result": "PASS_AUTHORITY_ONLY"
+    }
+  },
+  "candidate": {
+    "base": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
+    "baseTree": "0d6e32f5f1aa589b7189b0e9e4dc80e1c822473c",
+    "directParent": "aeee2860e2cca484d873b954408b2372a52088f9",
+    "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+    "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13",
+    "changedPaths": [
+      "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+      "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift",
+      "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+      "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+      "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+      "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+      "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+      "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json",
+      "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
+      "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+    ]
+  },
+  "implementationSequence": [
+    {
+      "sequence": "I",
+      "head": "aeee2860e2cca484d873b954408b2372a52088f9",
+      "parent": "02cf3d7015b3c84c598fde1eb674378a80a3a57c",
+      "tree": "efd59a00db2b1a32845a8be7667a8438531210d1",
+      "changedPaths": [
+        "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift",
+        "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift",
+        "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json",
+        "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift"
+      ]
+    },
+    {
+      "sequence": "I2",
+      "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+      "parent": "aeee2860e2cca484d873b954408b2372a52088f9",
+      "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13",
+      "changedPaths": [
+        "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+        "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+        "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+        "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+        "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+        "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
+        "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+      ],
+      "reason": "C04 fence-purpose integration hooks"
+    }
+  ],
+  "productImplementation": {
+    "E": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+    "remoteRef": "refs/heads/phase/v30-globalization",
+    "remoteHead": "a96e445a572ef4a83b39f10899cc78df52ff9a23"
+  },
+  "coordinationCheckpoint": {
+    "head": "a827ef11d6c8785c5031cde9f209884815a94e06",
+    "ref": "refs/heads/coord/v30-globalization-provisional",
+    "remoteHead": "a827ef11d6c8785c5031cde9f209884815a94e06",
+    "ledgerDigest": "b1bc2461e3be47bb310480f651f838e12f7c1d5ce08de1e7eaa1fb7bdf64a606",
+    "sequence": 22,
+    "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P01-C04/CHECKPOINT/1",
+    "state": "PROVISIONAL_CHECKPOINTED"
+  },
+  "changedPathEvidence": [
+    {
+      "path": "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift",
+      "blobOID": "980fb29c843291fcfee879052024af57166c31f7",
+      "sha256": "9d0b377668a82bcc6adca14582d7363ca2461fc8f3be563221089c4a6f0d8262",
+      "bytes": 4177
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+      "blobOID": "73de6b62ad1e840a9aee43346b1d2f6fb8ce0dfd",
+      "sha256": "67d821e03d20d246a6f3a6ceb50124dec44574cd9ddd92f25901e7c187aaa282",
+      "bytes": 349483
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift",
+      "blobOID": "5273205feacd2d877adb21f540119ad0cb77f423",
+      "sha256": "4f335b60105471a441be283f91cae7c1fa1f3cfe2c65aa38019f07f9ba8f28c7",
+      "bytes": 8221
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+      "blobOID": "10f42425b1c54238559d6e0c2578359ed29c4c07",
+      "sha256": "089a4d30a327bdfc451faebe4ab6f4bb152327ab1c14c38a99d99fc10ce7531b",
+      "bytes": 363062
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+      "blobOID": "eb9dc8985f154fd8e4c98719b083c50b846916ac",
+      "sha256": "08264fbada08208ab76db1ae921df472ed187ff1a1b906c277562ebbbcc2a8c8",
+      "bytes": 55826
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+      "blobOID": "a35a5374a339929e025318f301b516bdcd55b144",
+      "sha256": "a7c335dc46435eaf4397fe094d97f3553c7cca0dc1b6b3f7b20865f2731c681a",
+      "bytes": 309874
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+      "blobOID": "b3df3fcbe19be0c8c75b227f01da54ed694ff0aa",
+      "sha256": "53f5825566182355b5a7493926eda44269986e3e35bed1826f8b1b180731b1e3",
+      "bytes": 52098
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+      "blobOID": "47d632dc5ae668d647c680f183f83187f166fd23",
+      "sha256": "825d6afe0591a0cc07a0ec35d08b989dfbfb97130287dd2862247eb1f8b7f50e",
+      "bytes": 34199
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json",
+      "blobOID": "9243eb0b1080517de06f4547139e2fe8ce117eb0",
+      "sha256": "95271b450647ed2a6da4f97296c0f8274a5c2e7d8266eb05a9b123e719c85887",
+      "bytes": 2664
+    },
+    {
+      "path": "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
+      "blobOID": "f049c5fb0f9b6fbd521da290c2c2575cf2e32c84",
+      "sha256": "2f0d0ca5144470bc8431ab2ccfe5c693664e1a8068dfaa2f232ac7da6231650b",
+      "bytes": 12050
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "blobOID": "f6c7ebaf61522f335e4510b5d0067e7d71471386",
+      "sha256": "b68701929aebeead840a132d842ef475e9fd80fa3b99871bd7de5c87fced573d",
+      "bytes": 113522
+    }
+  ],
+  "evidence": {
+    "commands": [
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS; cardID=C04; mode=WINDOWS_STATIC; nativeCredit=false; finalCredit=false"
+      },
+      {
+        "command": "python -B C:/Users/palat/OneDrive/Desktop/AssetRounds V30 Globalization/validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS; cards=55; edges=107; manifestFileCount=23; packageDigest=0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+      },
+      {
+        "command": "git diff --check",
+        "result": "PASS"
+      },
+      {
+        "command": "C04 static fixture and axis independence audit",
+        "result": "PASS; four positive and four negative vectors; six axes remain independent; canonical identity and backup boundaries preserved"
+      }
+    ],
+    "independentAudits": [
+      {
+        "agent": "card9_schema_review",
+        "result": "PASS",
+        "scope": "typed six-axis contracts, BCP 47/locale/time-zone/calendar/numbering/units validation, additive localization/report/accessibility/backup seams, negative vectors"
+      },
+      {
+        "agent": "card9_inventory_audit",
+        "result": "PASS",
+        "scope": "device-local settings descriptor and existing preferences adapter seam, scope/backup/reset invariants, no new store or registry mutation"
+      }
+    ],
+    "knownBugs": "docs/execution/KNOWN_BUGS.md read; template only; no qualifying defect",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "runner": "Windows static route; no Xcode, Simulator, UDID, xcresult, or screenshot credit",
+    "selector": {
+      "tier": null,
+      "input": null,
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+      "runID": null,
+      "url": null
+    }
+  },
+  "defects": [],
+  "remainingAcceptance": [
+    "mandatory post-reconciliation hosted/native qualification remains pending",
+    "no final, phase-close, main-integration, release, or successor credit",
+    "locale catalog completion and review for non-English declared tags remains pending"
+  ],
+  "reconciliation": "Replay or reimplement this exact Card 10 delta after valid accepted S; preserve all provenance and rerun invalidated evidence. No wholesale merge or automatic promotion.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "correctionOf": "",
+        "evidence": {
+          "commands": [
+            {
+              "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+              "result": "PASS; cardID=C04; mode=WINDOWS_STATIC; nativeCredit=false; finalCredit=false"
+            },
+            {
+              "command": "python -B C:/Users/palat/OneDrive/Desktop/AssetRounds V30 Globalization/validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+              "result": "PASS; cards=55; edges=107; manifestFileCount=23; packageDigest=0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+            },
+            {
+              "command": "git diff --check",
+              "result": "PASS"
+            },
+            {
+              "command": "C04 static fixture and axis independence audit",
+              "result": "PASS; four positive and four negative vectors; six axes remain independent; canonical identity and backup boundaries preserved"
+            }
+          ],
+          "independentAudits": [
+            {
+              "agent": "card9_schema_review",
+              "result": "PASS",
+              "scope": "typed six-axis contracts, BCP 47/locale/time-zone/calendar/numbering/units validation, additive localization/report/accessibility/backup seams, negative vectors"
+            },
+            {
+              "agent": "card9_inventory_audit",
+              "result": "PASS",
+              "scope": "device-local settings descriptor and existing preferences adapter seam, scope/backup/reset invariants, no new store or registry mutation"
+            }
+          ],
+          "knownBugs": "docs/execution/KNOWN_BUGS.md read; template only; no qualifying defect",
+          "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+          "outcome": "Define independent language, formatting locale, authored content, report language, storefront country, and jurisdiction axes with additive V23 seam bindings while preserving legacy catalog truth, canonical identity, and backup boundaries.",
+          "static": {
+            "artifacts": [
+              {
+                "bytes": 4177,
+                "path": "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift",
+                "sha256": "9d0b377668a82bcc6adca14582d7363ca2461fc8f3be563221089c4a6f0d8262"
+              },
+              {
+                "bytes": 8221,
+                "path": "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift",
+                "sha256": "4f335b60105471a441be283f91cae7c1fa1f3cfe2c65aa38019f07f9ba8f28c7"
+              },
+              {
+                "bytes": 2664,
+                "path": "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json",
+                "sha256": "95271b450647ed2a6da4f97296c0f8274a5c2e7d8266eb05a9b123e719c85887"
+              },
+              {
+                "bytes": 12050,
+                "path": "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
+                "sha256": "2f0d0ca5144470bc8431ab2ccfe5c693664e1a8068dfaa2f232ac7da6231650b"
+              }
+            ],
+            "cardID": "V30-P01-C04",
+            "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+            "result": "PASS_STATIC_PROVISIONAL_INTEGRITY",
+            "selector": {
+              "branchRef": "refs/heads/phase/v30-globalization",
+              "expectedHead": "aeee2860e2cca484d873b954408b2372a52088f9",
+              "input": null,
+              "runID": null,
+              "tier": null,
+              "url": null
+            }
+          },
+          "workflow": {
+            "branchRef": "refs/heads/phase/v30-globalization",
+            "expectedHead": "aeee2860e2cca484d873b954408b2372a52088f9",
+            "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+            "runID": null,
+            "selectorInput": null,
+            "selectorTier": null,
+            "url": null
+          }
+        },
+        "head": "aeee2860e2cca484d873b954408b2372a52088f9",
+        "parent": "02cf3d7015b3c84c598fde1eb674378a80a3a57c",
+        "state": "PROVISIONAL_IMPLEMENTED",
+        "tree": "efd59a00db2b1a32845a8be7667a8438531210d1"
+      },
+      {
+        "correctionOf": "aeee2860e2cca484d873b954408b2372a52088f9",
+        "evidence": {
+          "commands": [
+            {
+              "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+              "result": "PASS; cardID=C04; mode=WINDOWS_STATIC; nativeCredit=false; finalCredit=false"
+            },
+            {
+              "command": "python -B C:/Users/palat/OneDrive/Desktop/AssetRounds V30 Globalization/validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+              "result": "PASS; cards=55; edges=107; manifestFileCount=23; packageDigest=0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+            },
+            {
+              "command": "git diff --check",
+              "result": "PASS"
+            },
+            {
+              "command": "C04 static fixture and axis independence audit",
+              "result": "PASS; four positive and four negative vectors; six axes remain independent; canonical identity and backup boundaries preserved"
+            }
+          ],
+          "independentAudits": [
+            {
+              "agent": "card9_schema_review",
+              "result": "PASS",
+              "scope": "typed six-axis contracts, BCP 47/locale/time-zone/calendar/numbering/units validation, additive localization/report/accessibility/backup seams, negative vectors"
+            },
+            {
+              "agent": "card9_inventory_audit",
+              "result": "PASS",
+              "scope": "device-local settings descriptor and existing preferences adapter seam, scope/backup/reset invariants, no new store or registry mutation"
+            }
+          ],
+          "knownBugs": "docs/execution/KNOWN_BUGS.md read; template only; no qualifying defect",
+          "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+          "outcome": "Define independent language, formatting locale, authored content, report language, storefront country, and jurisdiction axes with additive V23 seam bindings while preserving legacy catalog truth, canonical identity, and backup boundaries.",
+          "static": {
+            "artifacts": [
+              {
+                "bytes": 349483,
+                "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+                "sha256": "67d821e03d20d246a6f3a6ceb50124dec44574cd9ddd92f25901e7c187aaa282"
+              },
+              {
+                "bytes": 363062,
+                "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+                "sha256": "089a4d30a327bdfc451faebe4ab6f4bb152327ab1c14c38a99d99fc10ce7531b"
+              },
+              {
+                "bytes": 55826,
+                "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+                "sha256": "08264fbada08208ab76db1ae921df472ed187ff1a1b906c277562ebbbcc2a8c8"
+              },
+              {
+                "bytes": 309874,
+                "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+                "sha256": "a7c335dc46435eaf4397fe094d97f3553c7cca0dc1b6b3f7b20865f2731c681a"
+              },
+              {
+                "bytes": 52098,
+                "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+                "sha256": "53f5825566182355b5a7493926eda44269986e3e35bed1826f8b1b180731b1e3"
+              },
+              {
+                "bytes": 34199,
+                "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+                "sha256": "825d6afe0591a0cc07a0ec35d08b989dfbfb97130287dd2862247eb1f8b7f50e"
+              },
+              {
+                "bytes": 12050,
+                "path": "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
+                "sha256": "2f0d0ca5144470bc8431ab2ccfe5c693664e1a8068dfaa2f232ac7da6231650b"
+              },
+              {
+                "bytes": 113522,
+                "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+                "sha256": "b68701929aebeead840a132d842ef475e9fd80fa3b99871bd7de5c87fced573d"
+              }
+            ],
+            "cardID": "V30-P01-C04",
+            "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+            "result": "PASS_STATIC_PROVISIONAL_CORRECTION_INTEGRITY",
+            "selector": {
+              "branchRef": "refs/heads/phase/v30-globalization",
+              "expectedHead": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+              "input": null,
+              "runID": null,
+              "tier": null,
+              "url": null
+            }
+          },
+          "workflow": {
+            "branchRef": "refs/heads/phase/v30-globalization",
+            "expectedHead": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+            "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+            "runID": null,
+            "selectorInput": null,
+            "selectorTier": null,
+            "url": null
+          }
+        },
+        "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+        "parent": "aeee2860e2cca484d873b954408b2372a52088f9",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13"
+      }
+    ],
+    "changedPaths": [
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "980fb29c843291fcfee879052024af57166c31f7",
+          "sha256": "9d0b377668a82bcc6adca14582d7363ca2461fc8f3be563221089c4a6f0d8262",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "73de6b62ad1e840a9aee43346b1d2f6fb8ce0dfd",
+          "sha256": "67d821e03d20d246a6f3a6ceb50124dec44574cd9ddd92f25901e7c187aaa282",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "8639bed99bec1503f63f556fb044f4ac493be506",
+          "sha256": "d66914b0fd97a95fa7af39ab1502911775a23b883d4be5233cdb4ee778183dba",
+          "state": "PRESENT"
+        },
+        "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "5273205feacd2d877adb21f540119ad0cb77f423",
+          "sha256": "4f335b60105471a441be283f91cae7c1fa1f3cfe2c65aa38019f07f9ba8f28c7",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "10f42425b1c54238559d6e0c2578359ed29c4c07",
+          "sha256": "089a4d30a327bdfc451faebe4ab6f4bb152327ab1c14c38a99d99fc10ce7531b",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "8cd93ce082652e054201409787ba27fb82c63013",
+          "sha256": "5d1982421bea62d1ec5339f5a279b6f1f552afa8d90f7dc16f01e389b575dc4f",
+          "state": "PRESENT"
+        },
+        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "eb9dc8985f154fd8e4c98719b083c50b846916ac",
+          "sha256": "08264fbada08208ab76db1ae921df472ed187ff1a1b906c277562ebbbcc2a8c8",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "19f52a71cb2ded5ac20912bb8634263e7ace1ed6",
+          "sha256": "a0065b15ef7059867bb00377bd5b97cbcd2e9ac98c74ea0e154297410773f8bb",
+          "state": "PRESENT"
+        },
+        "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "a35a5374a339929e025318f301b516bdcd55b144",
+          "sha256": "a7c335dc46435eaf4397fe094d97f3553c7cca0dc1b6b3f7b20865f2731c681a",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "783f2db48da3032b9ce3217bfaf45900ae1e4cc4",
+          "sha256": "376a46bed52cccd33fe686f09f60f8f2948afb297f2dbc42305e0fa6e4a475fd",
+          "state": "PRESENT"
+        },
+        "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "b3df3fcbe19be0c8c75b227f01da54ed694ff0aa",
+          "sha256": "53f5825566182355b5a7493926eda44269986e3e35bed1826f8b1b180731b1e3",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "f28f90aa7b8b19519412ed879788166d01309008",
+          "sha256": "8e9814f0a5164b72aea2ba7f7b710e2bd4b20f1b14a3f6ee9306047218a2505d",
+          "state": "PRESENT"
+        },
+        "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "47d632dc5ae668d647c680f183f83187f166fd23",
+          "sha256": "825d6afe0591a0cc07a0ec35d08b989dfbfb97130287dd2862247eb1f8b7f50e",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "cbcdfe1281de6e98af13f1b12a0e32a6c7b9967b",
+          "sha256": "b7ae0570ef54ba29ddb7c308b3f5236e03045297abddc18c3be99ad0b77d0e12",
+          "state": "PRESENT"
+        },
+        "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "9243eb0b1080517de06f4547139e2fe8ce117eb0",
+          "sha256": "95271b450647ed2a6da4f97296c0f8274a5c2e7d8266eb05a9b123e719c85887",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "f049c5fb0f9b6fbd521da290c2c2575cf2e32c84",
+          "sha256": "2f0d0ca5144470bc8431ab2ccfe5c693664e1a8068dfaa2f232ac7da6231650b",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "",
+          "sha256": "",
+          "state": "ABSENT"
+        },
+        "path": "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift"
+      },
+      {
+        "authorityTuple": null,
+        "classification": "V30_PROVISIONAL_OWNED",
+        "new": {
+          "blobOID": "f6c7ebaf61522f335e4510b5d0067e7d71471386",
+          "sha256": "b68701929aebeead840a132d842ef475e9fd80fa3b99871bd7de5c87fced573d",
+          "state": "PRESENT"
+        },
+        "old": {
+          "blobOID": "1134417b3f24bf056cef13cdb133ea61d34c43fc",
+          "sha256": "7b1c9163359202e97558078c3a782a03faa543ce7c14198ab1893e2fd65da5df",
+          "state": "PRESENT"
+        },
+        "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+      }
+    ],
+    "compatibility": "UNASSESSED_PRE_S10",
+    "evidenceDisposition": "UNASSESSED_PRE_S10",
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+      "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "s10SharedPaths": [],
+  "nextUnstartedCard": "V30-P01-C05",
+  "transition": "NOT_PERFORMED; current card remains complete provisionally; next selection requires later coordination CAS"
+}
+```
+
+This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
