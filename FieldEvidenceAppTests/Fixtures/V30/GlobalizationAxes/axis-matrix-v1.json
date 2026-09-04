@@ -1,0 +1,57 @@
+{
+  "schema": "V30GlobalizationAxisMatrixV1",
+  "cardID": "V30-P01-C04",
+  "provisional": {
+    "finalCredit": false,
+    "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "storefrontCountry": "US"
+  },
+  "cases": [
+    {
+      "id": "english-us-baseline",
+      "preferredAppLanguageTags": ["en-US"],
+      "expectedAppLanguage": "en",
+      "expectedFallback": "BASE_DECLARED_LANGUAGE",
+      "formatting": { "locale": "en-US", "timeZone": "America/New_York", "calendar": "GREGORIAN", "numbering": "latn", "units": "US_CUSTOMARY" },
+      "authoredContentLanguage": "en",
+      "report": { "requested": "en", "effective": "en", "fallback": "EXACT" },
+      "projectJurisdiction": "US-PA"
+    },
+    {
+      "id": "spanish-ui-us-formatting",
+      "preferredAppLanguageTags": ["es-MX", "en"],
+      "expectedAppLanguage": "es",
+      "expectedFallback": "BASE_DECLARED_LANGUAGE",
+      "formatting": { "locale": "en-US", "timeZone": "America/Los_Angeles", "calendar": "GREGORIAN", "numbering": "latn", "units": "US_CUSTOMARY" },
+      "authoredContentLanguage": "vi",
+      "report": { "requested": "en", "effective": "en", "fallback": "EXACT" },
+      "projectJurisdiction": "US"
+    },
+    {
+      "id": "traditional-chinese-japanese-presentation",
+      "preferredAppLanguageTags": ["zh-Hant-TW"],
+      "expectedAppLanguage": "zh-Hant",
+      "expectedFallback": "BASE_DECLARED_LANGUAGE",
+      "formatting": { "locale": "ja-JP", "timeZone": "Asia/Tokyo", "calendar": "JAPANESE", "numbering": "hanidec", "units": "METRIC" },
+      "authoredContentLanguage": "unknown",
+      "report": { "requested": "zh-Hant", "effective": "zh-Hant", "fallback": "EXACT" },
+      "projectJurisdiction": "US"
+    },
+    {
+      "id": "unsupported-language-english-fallback",
+      "preferredAppLanguageTags": ["fr-CA"],
+      "expectedAppLanguage": "en",
+      "expectedFallback": "ENGLISH_NO_SUPPORTED_MATCH",
+      "formatting": { "locale": "es-US", "timeZone": "America/Chicago", "calendar": "BUDDHIST", "numbering": "latn", "units": "METRIC" },
+      "authoredContentLanguage": "es",
+      "report": { "requested": "es", "effective": "en", "fallback": "ENGLISH_WITH_USER_CONFIRMATION" },
+      "projectJurisdiction": "US"
+    }
+  ],
+  "negativeCases": [
+    { "id": "malformed-bcp47", "kind": "MALFORMED_APP_LANGUAGE", "preferredAppLanguageTags": ["es_US"] },
+    { "id": "unknown-time-zone", "kind": "MALFORMED_TIME_ZONE", "timeZone": "Mars/Olympus" },
+    { "id": "report-language-inference", "kind": "REPORT_LANGUAGE_INFERENCE" },
+    { "id": "canonical-identity-contamination", "kind": "CANONICAL_CONTAMINATION", "changedCanonicalFields": ["workspaceID"] }
+  ]
+}
