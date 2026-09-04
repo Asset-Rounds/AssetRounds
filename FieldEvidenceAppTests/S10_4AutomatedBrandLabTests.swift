@@ -8838,17 +8838,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertEqual(
             keyboardHelperSource.components(separatedBy: "app.swipeDown()").count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             keyboardHelperSource.components(
                 separatedBy: #"predicate: "exists == false""#
             ).count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             keyboardHelperSource.components(separatedBy: "timeout: 10").count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             keyboardHelperSource.components(
@@ -8925,7 +8925,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             keyboardHelperSource.components(
                 separatedBy: commonKeyboardPostcondition
             ).count - 1,
-            1
+            0
         )
         for prohibitedKeyboardHelperForm in [
             "711",
