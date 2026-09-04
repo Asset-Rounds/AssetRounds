@@ -11,52 +11,54 @@
   "baseline": {
     "schemaVersion": 1,
     "stableIDs": [
-      "asset:legacy-001",
-      "report:legacy-001",
-      "workspace:legacy-001"
+      "asset:11111111-1111-4111-8111-111111111111",
+      "report:33333333-3333-4333-8333-333333333333",
+      "site:22222222-2222-4222-8222-222222222222"
     ],
     "rawEnumValues": [
+      "US_CUSTOMARY",
+      "apply_asset_label",
       "asset",
-      "site",
-      "us_customary"
+      "site"
     ],
-    "mutationSHA256": "1111111111111111111111111111111111111111111111111111111111111111",
-    "journalSHA256": "2222222222222222222222222222222222222222222222222222222222222222",
-    "evidenceSHA256": "3333333333333333333333333333333333333333333333333333333333333333",
-    "backupIdentitySHA256": "4444444444444444444444444444444444444444444444444444444444444444",
-    "authoredEvidenceSHA256": "5555555555555555555555555555555555555555555555555555555555555555",
-    "productIdentitySHA256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "mutationSHA256": "eaccafff9ad258b0515c13013e71131b95339a7829130ea5601a094e8e9a3885",
+    "journalSHA256": "a97497c76302f4c38c459a41348ccc5d6022f812171ff84f682097e52e1e6da9",
+    "evidenceSHA256": "42f8a1621dfdb1dbb98745760df875ccc7037875822c0a4dc444790bad9b4adc",
+    "backupIdentitySHA256": "ccdf675ce57b4fa215569f88767e281841add2b6e8365fb5fce3181e1f13d615",
+    "authoredEvidenceSHA256": "9b45405aa0a15fdbee9e3e572ae073d35f276bc6e9479991f7fba93e6dadc2a5",
+    "productIdentitySHA256": "17a228dd5b6eaa1b41f2e7d601482cb17aa44cb3dd25226e36c72ec15c0ce76c",
     "jurisdictionIdentifier": "US-PA",
     "historicalEnUSIdentities": [
-      "en-US:report:legacy",
-      "en-US:workspace:legacy"
+      "en-US:report:33333333-3333-4333-8333-333333333333",
+      "en-US:site:22222222-2222-4222-8222-222222222222"
     ],
-    "snapshotSHA256": "0787b1241e5e5cc90d4ec06b9c3cc0dcea5783b216966b35f449d5bb6a4aa231"
+    "snapshotSHA256": "527b3f074e0fee7683791715bf58adb670b40d9085cc693aa0491168b483563b"
   },
   "localized": {
     "schemaVersion": 1,
     "stableIDs": [
-      "asset:legacy-001",
-      "report:legacy-001",
-      "workspace:legacy-001"
+      "asset:11111111-1111-4111-8111-111111111111",
+      "report:33333333-3333-4333-8333-333333333333",
+      "site:22222222-2222-4222-8222-222222222222"
     ],
     "rawEnumValues": [
+      "US_CUSTOMARY",
+      "apply_asset_label",
       "asset",
-      "site",
-      "us_customary"
+      "site"
     ],
-    "mutationSHA256": "1111111111111111111111111111111111111111111111111111111111111111",
-    "journalSHA256": "2222222222222222222222222222222222222222222222222222222222222222",
-    "evidenceSHA256": "3333333333333333333333333333333333333333333333333333333333333333",
-    "backupIdentitySHA256": "4444444444444444444444444444444444444444444444444444444444444444",
-    "authoredEvidenceSHA256": "5555555555555555555555555555555555555555555555555555555555555555",
-    "productIdentitySHA256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "mutationSHA256": "eaccafff9ad258b0515c13013e71131b95339a7829130ea5601a094e8e9a3885",
+    "journalSHA256": "a97497c76302f4c38c459a41348ccc5d6022f812171ff84f682097e52e1e6da9",
+    "evidenceSHA256": "42f8a1621dfdb1dbb98745760df875ccc7037875822c0a4dc444790bad9b4adc",
+    "backupIdentitySHA256": "ccdf675ce57b4fa215569f88767e281841add2b6e8365fb5fce3181e1f13d615",
+    "authoredEvidenceSHA256": "9b45405aa0a15fdbee9e3e572ae073d35f276bc6e9479991f7fba93e6dadc2a5",
+    "productIdentitySHA256": "17a228dd5b6eaa1b41f2e7d601482cb17aa44cb3dd25226e36c72ec15c0ce76c",
     "jurisdictionIdentifier": "US-PA",
     "historicalEnUSIdentities": [
-      "en-US:report:legacy",
-      "en-US:workspace:legacy"
+      "en-US:report:33333333-3333-4333-8333-333333333333",
+      "en-US:site:22222222-2222-4222-8222-222222222222"
     ],
-    "snapshotSHA256": "0787b1241e5e5cc90d4ec06b9c3cc0dcea5783b216966b35f449d5bb6a4aa231"
+    "snapshotSHA256": "527b3f074e0fee7683791715bf58adb670b40d9085cc693aa0491168b483563b"
   },
   "beforePresentation": {
     "appLanguageTag": "en",

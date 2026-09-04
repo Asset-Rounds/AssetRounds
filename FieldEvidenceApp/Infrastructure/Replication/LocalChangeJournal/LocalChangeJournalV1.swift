@@ -513,6 +513,10 @@ final class LocalChangeJournalV1 {
 
     func replayResult(_ batch: ChangeBatchV1) throws -> ReplayResultV1 {
         try batch.validate(limits: limits)
+        try V30P01C05LocalChangeJournalCanonicalIdentityBoundaryV1.validateCanonicalBatch(
+            batch,
+            limits: limits
+        )
         guard batch.workspaceID == identity.workspaceID else { throw ChangeJournalFailureV1.wrongWorkspace }
         let checkpoint = try resolvedCheckpoint(batch.checkpointID)
         guard batch.beforeCursor.consumerReplicaID == identity.replicaID,

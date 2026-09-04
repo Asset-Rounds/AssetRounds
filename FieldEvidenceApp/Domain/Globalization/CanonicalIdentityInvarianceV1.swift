@@ -148,7 +148,15 @@ struct CanonicalIdentitySnapshotV1: Codable, Equatable, Sendable {
     private static func digest(_ material: Material) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        return SHA256.hash(data: try encoder.encode(material))
+        return sha256(try encoder.encode(material))
+    }
+
+    /// Uses the same lower-case hexadecimal representation as every durable
+    /// V23 mutation, journal, and backup digest. Keeping this helper beside
+    /// the C05 audit makes the executable boundary checks independent of a
+    /// presentation locale or formatter.
+    static func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data)
             .map { String(format: "%02x", $0) }
             .joined()
     }
@@ -162,7 +170,9 @@ struct CanonicalIdentitySnapshotV1: Codable, Equatable, Sendable {
     }
 
     private static func isSHA256(_ value: String) -> Bool {
-        value.count == 64 && value.allSatisfy { $0.isHexDigit }
+        value.count == 64
+            && value == value.lowercased()
+            && value.allSatisfy { $0.isHexDigit }
     }
 }
 
@@ -312,5 +322,177 @@ enum CanonicalIdentityInvarianceV1 {
             throw CanonicalIdentityInvarianceFailureV1.seamBoundaryViolation
         }
         try GlobalizationCanonicalIdentityBoundaryV1.validateNoCanonicalIdentityMutation([])
+    }
+}
+
+// MARK: - Executable C05 canonical boundaries
+
+extension GlobalizationDevicePreferenceV1 {
+    /// The preference is validated as device-local presentation data and is
+    /// never admitted as a canonical/workspace identity input.
+    static func validateC05CanonicalIdentityBoundary(
+        _ value: GlobalizationPresentationPreferenceV1
+    ) throws {
+        try value.validate()
+        let descriptor = try descriptor()
+        guard descriptor.scope == .deviceLocal,
+              descriptor.backup == .excludedDeviceLocal,
+              !descriptor.changesHistoricOutput,
+              try CompatibilityCanonicalV1.encode(value).count
+                <= descriptor.maximumCanonicalBytes else {
+            throw CanonicalIdentityInvarianceFailureV1.seamBoundaryViolation
+        }
+    }
+}
+
+extension CanonicalIdentityInvarianceV1 {
+    /// Checks an encoded canonical payload against its declared digest at the
+    /// same boundary where a backup or journal writer would publish bytes.
+    static func validateCanonicalBytes(
+        _ data: Data,
+        declaredSHA256: String
+    ) throws {
+        guard declaredSHA256.count == 64,
+              declaredSHA256 == declaredSHA256.lowercased(),
+              declaredSHA256.allSatisfy({ $0.isHexDigit }),
+              sha256(data) == declaredSHA256 else {
+            throw CanonicalIdentityInvarianceFailureV1.invalidDigest
+        }
+    }
+}
+
+extension V30P01C05BackupEncoderCanonicalIdentityBoundaryV1 {
+    static func validateEncodedBytes(
+        _ data: Data,
+        declaredSHA256: String
+    ) throws {
+        try CanonicalIdentityInvarianceV1.validateCanonicalBytes(
+            data,
+            declaredSHA256: declaredSHA256
+        )
+    }
+}
+
+extension V30P01C05BackupDecoderCanonicalIdentityBoundaryV1 {
+    static func validateCanonicalRoundTrip(
+        source: Data,
+        canonical: Data
+    ) throws {
+        guard source == canonical else {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
+        }
+        _ = CanonicalIdentityInvarianceV1.sha256(canonical)
+    }
+}
+
+extension V30P01C05MutationJournalCanonicalIdentityBoundaryV1 {
+    static func validateCanonicalCommit(_ envelope: MutationEnvelopeV1) throws {
+        do {
+            try envelope.validate()
+            let data = try envelope.canonicalData()
+            guard try MutationEnvelopeV1.decodeCanonical(from: data) == envelope else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        } catch let failure as WorkspaceMutationFailureV1 {
+            throw failure
+        } catch {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    static func validateCanonicalReceipt(_ receipt: MutationReceiptV1) throws {
+        do {
+            try receipt.validate()
+            let data = try receipt.canonicalData()
+            guard try MutationReceiptV1.decodeCanonical(from: data) == receipt else {
+                throw WorkspaceMutationFailureV1.invalidReceipt
+            }
+        } catch let failure as WorkspaceMutationFailureV1 {
+            throw failure
+        } catch {
+            throw WorkspaceMutationFailureV1.invalidReceipt
+        }
+    }
+}
+
+extension V30P01C05LocalChangeJournalCanonicalIdentityBoundaryV1 {
+    static func validateCanonicalBatch(
+        _ batch: ChangeBatchV1,
+        limits: ChangeJournalLimitsV1
+    ) throws {
+        do {
+            try batch.validate(limits: limits)
+            let data = try batch.canonicalData(limits: limits)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            let decoded = try decoder.decode(ChangeBatchV1.self, from: data)
+            guard decoded == batch else {
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+        } catch let failure as ChangeJournalFailureV1 {
+            throw failure
+        } catch {
+            throw ChangeJournalFailureV1.tamperedBatch
+        }
+    }
+}
+
+extension V30P01C05WorkspaceWriterCanonicalIdentityBoundaryV1 {
+    static func validateCanonicalCommand(_ command: WorkspaceCommandV1) throws {
+        do {
+            let data = try WorkspaceMutationCanonicalV1.data(command)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            let decoded = try decoder.decode(WorkspaceCommandV1.self, from: data)
+            guard decoded == command else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        } catch let failure as WorkspaceMutationFailureV1 {
+            throw failure
+        } catch {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+}
+
+extension V30P01C05BackupPackageCanonicalIdentityBoundaryV1 {
+    static func validateCanonicalPackage(
+        _ package: ValidatedV4BackupPackageV1
+    ) throws {
+        do {
+            let encoded = try BackupCanonicalEncoderV1().encodeRecords(package.records)
+            try validateEncodedBytes(
+                encoded.data,
+                declaredSHA256: encoded.sha256
+            )
+            let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded.data)
+            guard decoded == package.records else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+        } catch let failure as BackupPackageValidationErrorV1 {
+            throw failure
+        } catch {
+            throw BackupPackageValidationErrorV1.invalidPackage
+        }
+    }
+}
+
+extension V30P01C05BackupRestoreCanonicalIdentityBoundaryV1 {
+    static func validateCanonicalRecords(_ records: V4BackupRecordsV1) throws {
+        do {
+            let encoded = try BackupCanonicalEncoderV1().encodeRecords(records)
+            try CanonicalIdentityInvarianceV1.validateCanonicalBytes(
+                encoded.data,
+                declaredSHA256: encoded.sha256
+            )
+            let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded.data)
+            guard decoded == records else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } catch let failure as BackupRestoreServiceError {
+            throw failure
+        } catch {
+            throw BackupRestoreServiceError.invalidPackage
+        }
     }
 }

@@ -361,6 +361,7 @@ final class MutationJournalStoreV1 {
         semanticReversal: SemanticReversalReceiptV1? = nil,
         semanticReversalExecution: SemanticReversalExecutionV1? = nil
     ) throws -> MutationReceiptV1 {
+        try V30P01C05MutationJournalCanonicalIdentityBoundaryV1.validateCanonicalCommit(envelope)
         guard envelope.workspaceID == identity.workspaceID,
               envelope.replicaID == identity.replicaID,
               envelope.generationID == generationID else {
@@ -815,6 +816,7 @@ final class MutationJournalStoreV1 {
             reversesMutationID: semanticReversalExecution?.targetMutationID ?? semanticReversal?.reversesMutationID,
             committedAt: committedAt
         )
+        try V30P01C05MutationJournalCanonicalIdentityBoundaryV1.validateCanonicalReceipt(receipt)
         let generatedSemanticReversal: SemanticReversalReceiptV1?
         if let execution = semanticReversalExecution {
             generatedSemanticReversal = try SemanticReversalReceiptV1(

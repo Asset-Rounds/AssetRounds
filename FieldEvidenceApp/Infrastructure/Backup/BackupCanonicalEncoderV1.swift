@@ -60,7 +60,12 @@ struct BackupCanonicalEncoderV1: Sendable {
         guard Self.valid(records) else {
             throw BackupCanonicalEncodingErrorV1.invalidRecords
         }
-        return try encoded(.object(Self.recordFields(records)))
+        let result = try encoded(.object(Self.recordFields(records)))
+        try V30P01C05BackupEncoderCanonicalIdentityBoundaryV1.validateEncodedBytes(
+            result.data,
+            declaredSHA256: result.sha256
+        )
+        return result
     }
 
     /// Canonical business-state projection used by replication checkpoints and
@@ -72,7 +77,12 @@ struct BackupCanonicalEncoderV1: Sendable {
         guard Self.validSemantic(records) else {
             throw BackupCanonicalEncodingErrorV1.invalidRecords
         }
-        return try encoded(.object(Self.recordFields(records)))
+        let result = try encoded(.object(Self.recordFields(records)))
+        try V30P01C05BackupEncoderCanonicalIdentityBoundaryV1.validateEncodedBytes(
+            result.data,
+            declaredSHA256: result.sha256
+        )
+        return result
     }
 
     /// C13 package restore reuses the shipping encoder's one canonical field

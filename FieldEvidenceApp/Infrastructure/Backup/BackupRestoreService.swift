@@ -852,6 +852,9 @@ final class BackupRestoreService {
             mode: mode
         )
         try C32AssistanceBackupRestorePolicyV1.validate(validatedPackage.records, mode: mode)
+        try V30P01C05BackupRestoreCanonicalIdentityBoundaryV1.validateCanonicalRecords(
+            validatedPackage.records
+        )
         let portableExchangeSnapshot: PortableExchangeBackupSnapshotV2
         do {
             portableExchangeSnapshot = try C48PortableExchangeBackupPackageValidationV2.snapshot(

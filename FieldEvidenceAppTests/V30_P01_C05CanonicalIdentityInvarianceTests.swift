@@ -12,6 +12,30 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         XCTAssertTrue(comparison.canonicalIdentityUnchanged)
         XCTAssertTrue(comparison.historicalEnUSIdentityPreserved)
         XCTAssertTrue(comparison.changedCanonicalFields.isEmpty)
+
+        let expectedStableIDs = try [
+            WorkspaceEntityIdentityV1(
+                kind: .asset,
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+            ),
+            WorkspaceEntityIdentityV1(
+                kind: .report,
+                id: UUID(uuidString: "33333333-3333-4333-8333-333333333333")!
+            ),
+            WorkspaceEntityIdentityV1(
+                kind: .site,
+                id: UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
+            )
+        ].map(\.stableKey).sorted()
+        XCTAssertEqual(fixture.baseline.stableIDs, expectedStableIDs)
+        XCTAssertEqual(
+            fixture.baseline.rawEnumValues,
+            ["US_CUSTOMARY", "apply_asset_label", "asset", "site"]
+        )
+
+        try GlobalizationDevicePreferenceV1.validateC05CanonicalIdentityBoundary(
+            GlobalizationDevicePreferenceV1.logicalDefault
+        )
     }
 
     func testDeclaredJournalBackupSettingsAndRestoreSeamsAreFailClosed() throws {
@@ -26,6 +50,21 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         XCTAssertTrue(V30P01C05BackupPackageCanonicalIdentityBoundaryV1.validate())
         XCTAssertTrue(V30P01C05BackupRestoreCanonicalIdentityBoundaryV1.validate())
         XCTAssertNoThrow(try CanonicalIdentityInvarianceV1.validateDeclaredSeams())
+
+        let bytes = Data("c05-canonical-bytes".utf8)
+        let digest = CanonicalIdentityInvarianceV1.sha256(bytes)
+        XCTAssertNoThrow(
+            try CanonicalIdentityInvarianceV1.validateCanonicalBytes(
+                bytes,
+                declaredSHA256: digest
+            )
+        )
+        XCTAssertThrowsError(
+            try CanonicalIdentityInvarianceV1.validateCanonicalBytes(
+                bytes,
+                declaredSHA256: digest.uppercased()
+            )
+        )
     }
 
     func testCanonicalMutationFailsClosed() throws {
@@ -125,6 +164,16 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appendingPathComponent("Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json")
+        let raw = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        XCTAssertEqual(raw["schema"] as? String, "V30CanonicalIdentityBaselineV1")
+        XCTAssertEqual(raw["cardID"] as? String, "V30-P01-C05")
+        let provisional = try XCTUnwrap(raw["provisional"] as? [String: Any])
+        XCTAssertEqual(provisional["finalCredit"] as? Bool, false)
+        XCTAssertEqual(provisional["nativeEvidence"] as? String, "NOT_EXECUTED_NO_NATIVE_CREDIT")
+        XCTAssertEqual(provisional["reconciliationRequired"] as? Bool, true)
+        XCTAssertEqual(provisional["phase10Forbidden"] as? Bool, true)
         let fixture = try JSONDecoder().decode(
             CanonicalIdentityBaselineFixtureV1.self,
             from: Data(contentsOf: url)

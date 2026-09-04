@@ -260,9 +260,10 @@ struct BackupCanonicalDecoderV1: Sendable {
             try Self.validatePracticeWorkspaceProvenance(value)
             try Self.validateLightingDayInventory(value)
             let canonical = try BackupCanonicalEncoderV1().encodeRecords(value).data
-            guard canonical == data else {
-                throw BackupCanonicalDecodingErrorV1.invalidRecords
-            }
+            try V30P01C05BackupDecoderCanonicalIdentityBoundaryV1.validateCanonicalRoundTrip(
+                source: data,
+                canonical: canonical
+            )
             return value
         } catch {
             throw BackupCanonicalDecodingErrorV1.invalidRecords

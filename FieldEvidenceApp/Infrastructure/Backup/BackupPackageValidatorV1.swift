@@ -552,10 +552,12 @@ struct BackupPackageValidatorV1: Sendable {
     ) throws -> ValidatedV4BackupPackageV1 {
         try C34SceneNavigationPackageValidationBoundaryV1.validate()
         do {
-            return try validatePackage(
+            let package = try validatePackage(
                 stagedPackageURL: stagedPackageURL,
                 cancellation: cancellation
             )
+            try V30P01C05BackupPackageCanonicalIdentityBoundaryV1.validateCanonicalPackage(package)
+            return package
         } catch let failure as StreamingArchiveFailureV1
             where failure == .cancelled {
             throw failure
