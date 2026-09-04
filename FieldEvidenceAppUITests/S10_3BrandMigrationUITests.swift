@@ -983,6 +983,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             appearanceFlag: "--s1-ui-test-dark-mode",
             usesAccessibilityXXXL: true
         )
+        app.launchArguments.removeAll {
+            $0 == "--s3-5-ui-test-low-storage-once"
+                || $0 == "--s3-6-ui-test-camera-denied-once"
+        }
         app.launch()
 
         try completeWorkAndResolvedRecheckAtXXXL(in: app)
