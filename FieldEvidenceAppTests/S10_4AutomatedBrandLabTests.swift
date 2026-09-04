@@ -2963,10 +2963,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    private func completeFocusedDiagnosticProbe(",
             before: "\n\n    @MainActor\n    private func captureBaseline("
         )
-        XCTAssertEqual(focusedDiagnosticCompletionSource.utf8.count, 5_506)
+        XCTAssertEqual(focusedDiagnosticCompletionSource.utf8.count, 5_875)
         XCTAssertEqual(
             Data(focusedDiagnosticCompletionSource.utf8).sha256,
-            "38D0EEA48216E42A9F9A277AB797CDBD5D8CE3CC90ECDAD325C6A87CCF6F72D2"
+            "E56643EAA04FE339F880E0FA85E245E27980F58443EC856371167CC26DC277DB"
         )
         for exact in [
             "let retainedTree = rawTree.prefix(262_144)",

@@ -10944,6 +10944,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             observedStateID: "state.check-preflight.ready",
             in: app
         )
+        // Keep the captured preflight evidence keyboard-visible, but run the
+        // native audit against the app surface after the iOS 18 keyboard is
+        // dismissed. The system keyboard/QuickPath window is not app-owned
+        // content and can make XCTest's strict audit time out before it emits
+        // any app issue.
+        dismissKeyboard(in: app)
         printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
             "diagnosticOnly": true,
             "equivalenceEstablished": false,
