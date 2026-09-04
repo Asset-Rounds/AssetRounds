@@ -22161,29 +22161,38 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 797_884)
+        XCTAssertEqual(uiSource.utf8.count, 801_605)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "092D05F3F9FB3C11ED3B9FA6429439DD752571720BBFE3EF267377D5CB59FAFD"
+            "D0D459C0A7830AE38A578BEFE124D1705FC82BF57AE0CF713A20EC8018EEAF97"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
             from: "        scroll(sign, in: app)\n        sign.tap()",
             before: "        sign.typeText(\"Monument Sign\")"
         )
-        XCTAssertEqual(focusedNewSignKeyboardSource.utf8.count, 1_587)
+        XCTAssertEqual(focusedNewSignKeyboardSource.utf8.count, 5_308)
         XCTAssertEqual(
             Data(focusedNewSignKeyboardSource.utf8).sha256,
-            "A646CA9AE947E702168A64A162AE8220D5CCA2A6D61FFD3977E8A270AE2B80AD"
+            "FEF451DD6E7ED6A30E8C145F9722E17D68BC07692C0A225DA08C8842BB1C98F9"
         )
         for exact in [
             "let signHasKeyboardFocus = wait(",
             "let keyboardIsVisible = app.keyboards.firstMatch.waitForExistence(timeout: 10)",
+            "S10_4_DIAGNOSTIC_NATIVE_AUDIT",
+            "\"event\": \"new-sign-native-audit-start\"",
+            "\"event\": \"new-sign-native-audit-issue-observed\"",
+            "\"event\": \"new-sign-native-audit-completed\"",
+            "\"event\": \"new-sign-native-audit-error\"",
+            "try app.performAccessibilityAudit(for: .contrast)",
+            "var observedIssueCount = 0",
+            "return true",
             "if diagnosticProbe == .minimumNewSign &&",
             "\"event\": \"new-sign-focus-observation\"",
             "\"focusObserved\": signHasKeyboardFocus",
             "\"keyboardObserved\": keyboardIsVisible",
             "completeFocusedDiagnosticProbe(",
+            "observationPhase: \"pre-focus-native-audit\"",
             "observationPhase: \"post-tap-focus-observation\"",
             "throw FocusedDiagnosticProbeStop.completed",
             "XCTAssertTrue(signHasKeyboardFocus)",

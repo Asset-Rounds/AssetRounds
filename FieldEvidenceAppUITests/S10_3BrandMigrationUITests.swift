@@ -1137,6 +1137,76 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             timeout: 10
         )
         let keyboardIsVisible = app.keyboards.firstMatch.waitForExistence(timeout: 10)
+        if diagnosticProbe == .minimumNewSign {
+            printJSONLine(prefix: "S10_4_DIAGNOSTIC_NATIVE_AUDIT", object: [
+                "diagnosticOnly": true,
+                "equivalenceEstablished": false,
+                "event": "new-sign-native-audit-start",
+                "feedsAcceptanceAssembler": false,
+                "finalAcceptanceEligible": false,
+                "probeID": DiagnosticProbe.minimumNewSign.rawValue,
+                "targetAnchorStateID": "state.new-sign.editing",
+                "focusObserved": signHasKeyboardFocus,
+                "keyboardObserved": keyboardIsVisible,
+            ])
+            var observedIssueCount = 0
+            do {
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    observedIssueCount += 1
+                    if observedIssueCount <= 3 {
+                        self.printJSONLine(prefix: "S10_4_DIAGNOSTIC_NATIVE_AUDIT", object: [
+                            "diagnosticOnly": true,
+                            "equivalenceEstablished": false,
+                            "event": "new-sign-native-audit-issue-observed",
+                            "feedsAcceptanceAssembler": false,
+                            "finalAcceptanceEligible": false,
+                            "probeID": DiagnosticProbe.minimumNewSign.rawValue,
+                            "targetAnchorStateID": "state.new-sign.editing",
+                            "issueOrdinal": observedIssueCount,
+                            "auditTypeRawValue": String(issue.auditType.rawValue),
+                            "compactDescription": issue.compactDescription,
+                            "detailedDescription": issue.detailedDescription,
+                            "elementIdentifier": issue.element?.identifier ?? "",
+                            "elementTypeDescription": issue.element.map {
+                                String(describing: $0.elementType)
+                            } ?? "",
+                        ])
+                    }
+                    return true
+                }
+                printJSONLine(prefix: "S10_4_DIAGNOSTIC_NATIVE_AUDIT", object: [
+                    "diagnosticOnly": true,
+                    "equivalenceEstablished": false,
+                    "event": "new-sign-native-audit-completed",
+                    "feedsAcceptanceAssembler": false,
+                    "finalAcceptanceEligible": false,
+                    "probeID": DiagnosticProbe.minimumNewSign.rawValue,
+                    "targetAnchorStateID": "state.new-sign.editing",
+                    "observedIssueCount": observedIssueCount,
+                ])
+            } catch {
+                printJSONLine(prefix: "S10_4_DIAGNOSTIC_NATIVE_AUDIT", object: [
+                    "diagnosticOnly": true,
+                    "equivalenceEstablished": false,
+                    "event": "new-sign-native-audit-error",
+                    "feedsAcceptanceAssembler": false,
+                    "finalAcceptanceEligible": false,
+                    "probeID": DiagnosticProbe.minimumNewSign.rawValue,
+                    "targetAnchorStateID": "state.new-sign.editing",
+                    "observedIssueCount": observedIssueCount,
+                    "error": String(describing: error),
+                ])
+                throw error
+            }
+            completeFocusedDiagnosticProbe(
+                targetStateID: "state.new-sign.editing",
+                setupTarget: "s2.new-sign.sign-label",
+                observationPhase: "pre-focus-native-audit",
+                observedStateID: "state.new-sign.editing",
+                in: app
+            )
+            throw FocusedDiagnosticProbeStop.completed
+        }
         if diagnosticProbe == .minimumNewSign &&
             (!signHasKeyboardFocus || !keyboardIsVisible) {
             printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
