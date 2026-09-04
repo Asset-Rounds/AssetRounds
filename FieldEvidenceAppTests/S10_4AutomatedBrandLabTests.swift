@@ -22157,11 +22157,45 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 794_406)
+        XCTAssertEqual(uiSource.utf8.count, 795_753)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "7377EEC369391F307558CDAD6BA9EF6B2C0099370E2F14CD5085C66B457F2F50"
+            "B8EBF63BDBC40D0C4C0CBA893769E4C08FA8063415E9B7588BED5601A2B322A5"
         )
+        let focusedNewSignKeyboardSource = try boundedSource(
+            uiSource,
+            from: "        scroll(sign, in: app)\n        sign.tap()",
+            before: "        sign.typeText(\"Monument Sign\")"
+        )
+        XCTAssertEqual(focusedNewSignKeyboardSource.utf8.count, 1_587)
+        XCTAssertEqual(
+            Data(focusedNewSignKeyboardSource.utf8).sha256,
+            "A646CA9AE947E702168A64A162AE8220D5CCA2A6D61FFD3977E8A270AE2B80AD"
+        )
+        for exact in [
+            "let signHasKeyboardFocus = wait(",
+            "let keyboardIsVisible = app.keyboards.firstMatch.waitForExistence(timeout: 10)",
+            "if diagnosticProbe == .minimumNewSign &&",
+            "\"event\": \"new-sign-focus-observation\"",
+            "\"focusObserved\": signHasKeyboardFocus",
+            "\"keyboardObserved\": keyboardIsVisible",
+            "completeFocusedDiagnosticProbe(",
+            "observationPhase: \"post-tap-focus-observation\"",
+            "throw FocusedDiagnosticProbeStop.completed",
+            "XCTAssertTrue(signHasKeyboardFocus)",
+            "XCTAssertTrue(keyboardIsVisible)",
+        ] {
+            XCTAssertTrue(focusedNewSignKeyboardSource.contains(exact), exact)
+        }
+        for forbidden in [
+            "sign.typeText(\"Monument Sign\")",
+            "captureBaseline(\"state.new-sign.editing\"",
+            "finalAcceptanceEligible: true",
+            "feedsAcceptanceAssembler: true",
+            "equivalenceEstablished: true",
+        ] {
+            XCTAssertFalse(focusedNewSignKeyboardSource.contains(forbidden), forbidden)
+        }
         let accessibilityTreeDigestSource = try boundedSource(
             uiSource,
             from: "    @MainActor\n    private func accessibilityTreeDigest(",

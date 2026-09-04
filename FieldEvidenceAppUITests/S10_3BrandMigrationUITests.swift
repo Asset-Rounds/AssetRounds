@@ -1131,10 +1131,39 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         scroll(sign, in: app)
         sign.tap()
-        XCTAssertTrue(
-            wait(for: sign, predicate: "hasKeyboardFocus == true", timeout: 10)
+        let signHasKeyboardFocus = wait(
+            for: sign,
+            predicate: "hasKeyboardFocus == true",
+            timeout: 10
         )
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
+        let keyboardIsVisible = app.keyboards.firstMatch.waitForExistence(timeout: 10)
+        if diagnosticProbe == .minimumNewSign &&
+            (!signHasKeyboardFocus || !keyboardIsVisible) {
+            printJSONLine(prefix: "S10_4_DIAGNOSTIC", object: [
+                "diagnosticOnly": true,
+                "event": "new-sign-focus-observation",
+                "focusObserved": signHasKeyboardFocus,
+                "keyboardObserved": keyboardIsVisible,
+                "elementExists": sign.exists,
+                "elementHittable": sign.isHittable,
+                "observedStateID": "state.new-sign.editing",
+                "targetAnchorStateID": "state.new-sign.editing",
+                "probeID": DiagnosticProbe.minimumNewSign.rawValue,
+                "feedsAcceptanceAssembler": false,
+                "finalAcceptanceEligible": false,
+                "equivalenceEstablished": false,
+            ])
+            completeFocusedDiagnosticProbe(
+                targetStateID: "state.new-sign.editing",
+                setupTarget: "s2.new-sign.sign-label",
+                observationPhase: "post-tap-focus-observation",
+                observedStateID: "state.new-sign.editing",
+                in: app
+            )
+            throw FocusedDiagnosticProbeStop.completed
+        }
+        XCTAssertTrue(signHasKeyboardFocus)
+        XCTAssertTrue(keyboardIsVisible)
         sign.typeText("Monument Sign")
         dismissKeyboard(in: app)
         captureBaseline("state.new-sign.editing", in: app)
