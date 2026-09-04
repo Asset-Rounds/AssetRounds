@@ -316,8 +316,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 354_485,
-            sha256: "BE11D5A29685ECCBB0DD57F8236A7640547D41D894BA8C27334A9CCBAC813805"
+            byteCount: 354_488,
+            sha256: "16A8E9E34E638347796C28D11C86DB2C6F651A383EACE443EA04C80F107B15CE"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
