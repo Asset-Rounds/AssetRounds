@@ -3588,10 +3588,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 67_332)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 67_612)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "9DBF882BAC56E24A0558EC075B1037F171CDF4156FBFD2BDE8F8C61F30559000"
+            "5FA9EF18FB26AF3CC79A498F0D37C6D104987B71E676007E37859036A6DF1FEB"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 30_051)
         XCTAssertEqual(
@@ -6541,10 +6541,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightVisibleStartRange.lowerBound..<preflightMinimumSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightVisibleSource.utf8.count, 31_636)
+        XCTAssertEqual(preflightVisibleSource.utf8.count, 31_916)
         XCTAssertEqual(
             Data(preflightVisibleSource.utf8).sha256,
-            "73A33CE6CA824BEFA18D23483C974A34DEDAB7AA9C6220C63682C9ECBB271BE6"
+            "13DD752179F951F14588DC12ED6819B9949856FA3066E5A443E71DB825D7146A"
         )
         let minimumPreflightQuickPathWrapperStart =
             "                    let minimumPreflightQuickPathIntroductionViews ="
@@ -6579,10 +6579,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(minimumPreflightQuickPathWrapperSource.utf8).sha256,
             "B99E943C870A4FA3B6E042AC727F480ED4E84FF8B4527A7214A9E58778A91292"
         )
-        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 16_535)
+        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 16_815)
         XCTAssertEqual(
             Data(minimumPreflightQuickPathCommonTailSource.utf8).sha256,
-            "EBFA660004093BCD143377DFF6F46FC35C2C7F5491FE314190194D2A6EC5A962"
+            "AF8CFD306023C9217E01A477CE617E2D76FEB47B0EF89DCEFADDD413093530D8"
         )
         let minimumDoubleLengthPositioningGate =
             "                    if automationShard?.shardID\n" +
@@ -7501,7 +7501,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let normalizedPreflightRestoredDoneLock = [
             "restoredDoneKey.elementType == .button,",
             #"restoredDoneKey.identifier == "Done","#,
-            #"restoredDoneKey.label == "done","#,
+            "!restoredDoneKey.label",
+            ".trimmingCharacters(",
+            "in: .whitespacesAndNewlines",
+            ").isEmpty,",
             "restoredDoneKey.frame == expectedDoneFrame,",
             "restoredDoneKey.isHittable,",
         ].joined(separator: "\n")
@@ -22178,10 +22181,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 803_086)
+        XCTAssertEqual(uiSource.utf8.count, 803_366)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "924BD9AFF86300665486097174E3D99C85F89B8D4EF675943D7557A852AE389D"
+            "0BF474182049853356EB093A7EA92B3CB5F82986A84BB7616ABD0A1B9AA2A29D"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

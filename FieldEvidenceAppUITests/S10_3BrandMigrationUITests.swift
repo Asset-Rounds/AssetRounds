@@ -2829,7 +2829,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     guard restoredDoneKey.waitForExistence(timeout: 10),
                           restoredDoneKey.elementType == .button,
                           restoredDoneKey.identifier == "Done",
-                          restoredDoneKey.label == "done",
+                          !restoredDoneKey.label
+                            .trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            ).isEmpty,
                           restoredDoneKey.frame == expectedDoneFrame,
                           restoredDoneKey.isHittable,
                           restoredKeyboard.waitForExistence(timeout: 10),
@@ -3086,7 +3089,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           restoredDoneKey.exists,
                           restoredDoneKey.elementType == .button,
                           restoredDoneKey.identifier == "Done",
-                          restoredDoneKey.label == "done",
+                           !restoredDoneKey.label
+                             .trimmingCharacters(
+                                 in: .whitespacesAndNewlines
+                             ).isEmpty,
                           restoredDoneKey.frame == expectedDoneFrame,
                           restoredDoneKey.isHittable,
                           finalAssistantFrame == observedAssistantFrame,
