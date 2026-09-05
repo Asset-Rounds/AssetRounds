@@ -2442,6 +2442,58 @@ extension C45BackupValidationCompatibilityTests {
 }
 // C05_BOUNDARY_ANCHOR: canonical-identity-backup-regression
 private final class V30P01C05BackupCanonicalIdentityValidationTests: XCTestCase {
+    func testPersistedPresentationChangePreservesCanonicalBackupRecords() throws {
+        let suiteName = "V30-P01-C05-backup-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let initial = try preferences.readGlobalizationPresentationPreference()
+        let site = V4BackupSiteDTO(
+            id: UUID(uuidString: "22222222-2222-4222-8222-222222222222")!,
+            schemaVersion: 1,
+            label: "Original authored site — Café",
+            address: "123 Main Street",
+            timeZoneID: "America/New_York",
+            createdAt: Date(timeIntervalSince1970: 1_788_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_788_000_000)
+        )
+        let records = V4BackupRecordsV1(
+            assets: [], evidenceFiles: [], issues: [], packets: [],
+            recordsSchemaVersion: 1, reports: [], sites: [site], workflowRecords: []
+        )
+        let encoder = BackupCanonicalEncoderV1()
+        let before = try encoder.encodeRecords(records)
+        let changed = try GlobalizationPresentationPreferenceV1(
+            formatting: FormattingLocaleProfileV1(
+                localeIdentifier: "es-US",
+                ianaTimeZoneIdentifier: "America/Chicago",
+                calendar: .gregorian,
+                numberingSystem: .latin,
+                units: .metric
+            ),
+            reportLanguage: ReportLanguageSelectionV1(
+                requestedLanguage: AppLanguageTagV1("es"),
+                effectiveLanguage: AppLanguageTagV1("es"),
+                fallback: .exact
+            )
+        )
+        try preferences.writeGlobalizationPresentationPreference(changed, operationID: UUID())
+        XCTAssertEqual(try preferences.readGlobalizationPresentationPreference(), changed)
+        XCTAssertNotEqual(initial, changed)
+        let after = try encoder.encodeRecords(records)
+        XCTAssertEqual(before.data, after.data)
+        XCTAssertEqual(before.sha256, after.sha256)
+        let restored = try BackupCanonicalDecoderV1().decodeRecords(after.data)
+        XCTAssertEqual(restored, records)
+        try V30P01C05BackupRestoreCanonicalIdentityBoundaryV1.validateCanonicalRecords(restored)
+
+        var corrupted = after.data
+        corrupted.append(0)
+        XCTAssertThrowsError(try V30P01C05BackupEncoderCanonicalIdentityBoundaryV1.validateEncodedBytes(
+            corrupted, declaredSHA256: before.sha256
+        ))
+    }
+
     func testBackupCanonicalIdentityDoesNotDependOnPresentationLocale() {
         XCTAssertTrue(V30P01C05BackupRecordsCanonicalIdentityBoundaryV1.validate())
         XCTAssertTrue(V30P01C05BackupEncoderCanonicalIdentityBoundaryV1.validate())
