@@ -2280,3 +2280,435 @@ No correction was applied. Owner request line 57 explicitly makes a missing requ
 Owner replied `I authorize.` to the explicit request to add `FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift`, update corresponding authority records, and apply the documented fix with regression tests. CURRENT_TASK now records an exact supplemental ownerAuthorizedAmendments entry, preimage blob/hash, previous task digest, and effective scope. Original issued package/fence bytes remain historical provenance. This resolves the permission hold for the specified correction only.
 
 Correction `0619fa6` applies the conditional workspace equality while preserving all other reversal validation. Regression commit `0a262d6` covers typed local-user/imported-history envelopes with absent reversal metadata and a foreign-workspace reversal rejection, using canonical plan/basis/replay digests. Existing durable journal regression remains. Static route validation, exact amendment preimage/task digest/effective-path checks, and diff hygiene pass. Native compile/tests remain NOT_EXECUTED_NO_NATIVE_CREDIT; this entry does not declare C05 accepted or authorize transition. The original candidate-manifest validator still reads the immutable issued fence; future checkpoint tooling must explicitly account for the owner amendment rather than pretend original-fence acceptance.
+
+
+## Card 11 provisional handoff — 2026-09-05
+
+```json
+{
+  "A": "d47fbac96281e386458da67b8ff54eda12b1f9b9",
+  "E": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+  "K": null,
+  "M": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+  "P": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+  "candidate": {
+    "base": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+    "baseTree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13",
+    "changedPaths": [
+      "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+      "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift",
+      "FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift",
+      "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+      "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+      "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+      "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
+      "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+      "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+      "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift",
+      "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    ],
+    "head": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+    "tree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7"
+  },
+  "cardID": "V30-P01-C05",
+  "coordination": {
+    "head": "621495eae5f016958b825a29d583c939dfa63e2c",
+    "ledgerDigest": "28f0bc7450d17df31ea0b7f1c8a9e7a6052d2f348dd7ff10bd921be4f87b7d9d",
+    "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P01-C05/CHECKPOINT/1",
+    "sequence": 24
+  },
+  "defects": [
+    "Inherited mutation-envelope nil reversal guard corrected under owner authorization; native confirmation pending."
+  ],
+  "evidence": {
+    "commands": [
+      {
+        "command": "installed package validator --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS; 55 cards; 107 edges; immutable package digest unchanged"
+      },
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS WINDOWS_STATIC; nativeCredit=false; finalCredit=false"
+      },
+      {
+        "command": "git diff --check; exact amended scope/preimage/task digest audit",
+        "result": "PASS"
+      }
+    ],
+    "independentAudits": [
+      {
+        "agent": "card9_test_binding_review",
+        "head": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+        "result": "PASS_STATIC_REVIEW",
+        "scope": "Actual data contracts, authored/evidence/product bindings and ordinary/reversal envelope regressions; no native execution"
+      }
+    ],
+    "knownBugs": "Read template; inherited envelope defect corrected under explicit owner authorization; native confirmation pending.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Enforce and test that language/formatting changes cannot alter IDs, raw enum values, mutations, journals, evidence hashes, backup identity, authored evidence, product identity, or jurisdiction. Preserve old en-US-bearing identities.",
+    "static": {
+      "artifacts": [
+        {
+          "bytes": 627,
+          "path": "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift",
+          "sha256": "beb44d9addc23239db98e545f7a1ea96927b0545caed1772919e7796a7fe3e3f"
+        },
+        {
+          "bytes": 350053,
+          "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+          "sha256": "c617f4947448000bcb0d6ed41a105b71bd00353aed039cbe40a4dd5b69de0342"
+        },
+        {
+          "bytes": 19905,
+          "path": "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift",
+          "sha256": "cb0fd3a140ecb402b46d0621e3f60042d879085a2113eb3df1c1cf5c3da0e9a9"
+        },
+        {
+          "bytes": 7872,
+          "path": "FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift",
+          "sha256": "c1aca815c38fdbeb08c41bce2f41e5c1e134435e6c6cec75402499d393f44922"
+        },
+        {
+          "bytes": 122820,
+          "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+          "sha256": "995be91272de0033bd5f2afab529bde5df08ce9340b790e808a90255aa58de3e"
+        },
+        {
+          "bytes": 52701,
+          "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+          "sha256": "4795e3aefc308975f9c1818f2f873e33e2218317f9d030698a0d8ec59e60faf9"
+        },
+        {
+          "bytes": 88834,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+          "sha256": "cc2b8e138abde569667eb243fe6e475b13579ecd6a700ef4e8ebe9c76fef9fe5"
+        },
+        {
+          "bytes": 133829,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+          "sha256": "79fb103d9d76d7c6614c81f076efa72954260cd2d3a7e9c79608050eec9f2a76"
+        },
+        {
+          "bytes": 288705,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+          "sha256": "b0517d04938d149d6137c9cee7a76b8b3de07de254cf9fdd63decddfd878bad0"
+        },
+        {
+          "bytes": 768210,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+          "sha256": "2d1fb95155022dd42e0c744c30093d3ab6d0e9df8808ada378d43c7fc536d29d"
+        },
+        {
+          "bytes": 337695,
+          "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+          "sha256": "6e58e04374b80face53a8ee3c4316bad509dd3b3e667f6e303efa65a63dfdc8c"
+        },
+        {
+          "bytes": 417092,
+          "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+          "sha256": "5a1617b484b29afc37852f83e29db6a900cf21f1d7230da8acde8ff4212407b5"
+        },
+        {
+          "bytes": 97871,
+          "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+          "sha256": "e5b7a059d4718d0f774dda52a45162adb1c4cd81a757c5438b7a8ae27372d22e"
+        },
+        {
+          "bytes": 3576,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
+          "sha256": "0c4ff1d4ac1994342b919accbf85403a00fd9e4cf3c33cd2dfe86346d67e1995"
+        },
+        {
+          "bytes": 115838,
+          "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+          "sha256": "883afe48e549020dead22d5a324098725db8c56febb5b4117710e6a213d0a21a"
+        },
+        {
+          "bytes": 88393,
+          "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+          "sha256": "fc3ed77e57d252717b85b6a568c4b9903b949c39e408bcafb1bb21e76cc6074f"
+        },
+        {
+          "bytes": 27232,
+          "path": "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift",
+          "sha256": "7e92070fb22296d7b0a0a1f89a90e6eff53066f21bbf125a7a67f2dc72676fdd"
+        },
+        {
+          "bytes": 69220,
+          "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+          "sha256": "d6f78cfbff3d989d0605ad71f8cddba5a66d49f97f59466d12d24df87b92260c"
+        },
+        {
+          "bytes": 1100,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "bf8ca005823088724e727a88fdd6c7bda1365c939726754c3b291c58af41cd85"
+        },
+        {
+          "bytes": 14426,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "96004525a26237a340230efd8b8430241ec6bdfad584a029e3639d10e8d8ce89"
+        },
+        {
+          "bytes": 99192,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "7861874b31705d725f82e5d741901b5340a82ec5792ca9047feb275c83447d5b"
+        },
+        {
+          "bytes": 695,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "7a9bc8ac165c1906f4a1f084fe14394f595690c098032c491fd38e0865d62578"
+        }
+      ],
+      "result": "PASS_STATIC_PROVISIONAL_INTEGRITY"
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "history": [
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "f4a5e9153730ed97d9223039d3ef01f8de9d9393",
+      "parent": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "chore(v30): record V30-P01-C04 handoff",
+      "tree": "8d77a2549e5bf3bef73760ad12a2ae1029b5bac1"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+      ],
+      "head": "d47fbac96281e386458da67b8ff54eda12b1f9b9",
+      "parent": "f4a5e9153730ed97d9223039d3ef01f8de9d9393",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "chore(v30): hydrate V30-P01-C05",
+      "tree": "6b0ceaa3bd878650b2585a9cd54e197a0107376d"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift",
+        "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+        "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift",
+        "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+        "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+        "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+        "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+        "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+        "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
+        "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+        "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift",
+        "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift"
+      ],
+      "head": "2a943d42e9fa1ebe53200d4ab73fe3c95547539b",
+      "parent": "d47fbac96281e386458da67b8ff54eda12b1f9b9",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "feat(v30): add C05 canonical identity invariance",
+      "tree": "93188d6dd56064a59e8f2833e63515cd5434ccf9"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+        "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+        "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+        "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+        "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
+        "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift"
+      ],
+      "head": "1049dbcc520313a76c4c062b0c6324ed88283fb7",
+      "parent": "2a943d42e9fa1ebe53200d4ab73fe3c95547539b",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "fix(v30): bind C05 canonical identity checks",
+      "tree": "aa2ec8acc9c7698ff04842548fe976e2997c76db"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift"
+      ],
+      "head": "dde48bd43cdd0895e573c4756a5df5f652e4a4b6",
+      "parent": "1049dbcc520313a76c4c062b0c6324ed88283fb7",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "fix(v30): resolve canonical boundary helper references",
+      "tree": "1f5e76472491b4de6736d7761ae99629deb63aa8"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/S6_3BackupValidationTests.swift"
+      ],
+      "head": "4d0a46ea03ff5164947ad2b761db64203e6a6360",
+      "parent": "dde48bd43cdd0895e573c4756a5df5f652e4a4b6",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "test(v30): bind backup invariance to persisted presentation changes",
+      "tree": "717de1405c9f5a9bc3ea006e7d7cb4afc4ebfb86"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift"
+      ],
+      "head": "371859d2b3e16e6626c62a0a0ad5aead290f797b",
+      "parent": "4d0a46ea03ff5164947ad2b761db64203e6a6360",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "test(v30): preserve canonical commands across preference changes",
+      "tree": "61c512785434add2c6c289d0b3ff1ccf34b89ad3"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift"
+      ],
+      "head": "fd049f39bb5b191df67b997ba7ee0ba06f272325",
+      "parent": "371859d2b3e16e6626c62a0a0ad5aead290f797b",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "test(v30): exercise durable journal replay after locale changes",
+      "tree": "2644badf907c8fbd246cfcb79d3174934f2acd7e"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
+        "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift"
+      ],
+      "head": "2c08fb8e483b522427cad2270620433725103050",
+      "parent": "fd049f39bb5b191df67b997ba7ee0ba06f272325",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "test(v30): preserve frozen en-US report identity after preference changes",
+      "tree": "9d595ab0c26e4357fc1ebc3f9caa9de267312466"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "929b2980dafbf9bf984d66d1a163331a97bdbf64",
+      "parent": "2c08fb8e483b522427cad2270620433725103050",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "docs(v30): record C05 interim journal validation finding",
+      "tree": "1280313c878b45ed54cea84da09bcfcab2760e8c"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "06c7e7f49eae20a2d273ce15e98cc2f881fb8510",
+      "parent": "929b2980dafbf9bf984d66d1a163331a97bdbf64",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "docs(v30): record confirmed C05 scope blocker and proposed fix",
+      "tree": "8abe35c7d3fcd660f8ab05bbf1d1c1615fea5872"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift",
+        "docs/design/v30/execution/V30_CURRENT_TASK.md"
+      ],
+      "head": "0619fa6afab5d5128134f7b53896d027ff97517c",
+      "parent": "06c7e7f49eae20a2d273ce15e98cc2f881fb8510",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "fix(v30): allow ordinary mutations without reversal metadata",
+      "tree": "f9b0740ca9c0379d278f4bd27f3eb41ad5c27036"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift"
+      ],
+      "head": "0a262d66cdd0394ea370d3f564b3176d66527e42",
+      "parent": "0619fa6afab5d5128134f7b53896d027ff97517c",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "test(v30): cover ordinary and foreign-workspace reversal envelopes",
+      "tree": "0de565c000bfebedaeaea51acff3dbd25949eb2f"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "fa07092a48fdc441dd65a576a8a26effb381bed3",
+      "parent": "0a262d66cdd0394ea370d3f564b3176d66527e42",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "docs(v30): record authorized mutation correction and regression evidence",
+      "tree": "0902057e0109e43c10025bc5a3299d4953e6ff01"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift"
+      ],
+      "head": "38381d62fe019453100fa0de83376cb439889824",
+      "parent": "fa07092a48fdc441dd65a576a8a26effb381bed3",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "test(v30): pair reversal workspace rejection with valid roundtrip",
+      "tree": "072d2df1717d743598182755768c26c94601a543"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift"
+      ],
+      "head": "9ac4ad6fb4186094cbf2247a59f4c5a1f824c645",
+      "parent": "38381d62fe019453100fa0de83376cb439889824",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "test(v30): reject independent changes to protected identity fields",
+      "tree": "d24514b36bd071596244371bbb24bbeaa1ddff50"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
+        "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift"
+      ],
+      "head": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+      "parent": "9ac4ad6fb4186094cbf2247a59f4c5a1f824c645",
+      "state": "PROVISIONAL_CHECKPOINTED",
+      "subject": "test(v30): bind evidence authored content and product identity invariance",
+      "tree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7"
+    }
+  ],
+  "nextUnstartedCard": "V30-P01-C06",
+  "ownerAuthorizedAmendments": [
+    {
+      "additionalAllowedPaths": [
+        {
+          "expectedBeforeBlobOID": "1c761a2e21bdfafa5ff0106e23e7e6d709606374",
+          "expectedBeforeSHA256": "b35061737e03ec0e73dfe484966addb43021e9d8f53ecbac277a14fb37a9160c",
+          "path": "FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift",
+          "purpose": "Require target receipt workspace equality only when semantic reversal execution metadata exists; retain source-kind, causation, digest and reversal checks."
+        }
+      ],
+      "authorityHead": "06c7e7f49eae20a2d273ce15e98cc2f881fb8510",
+      "authorizationContext": "Owner explicitly approved adding MutationEnvelopeV1.swift to Card 11 scope, updating corresponding authority records, and applying the documented fix with regression tests.",
+      "date": "2026-09-05",
+      "ownerReply": "I authorize.",
+      "priorTaskPayloadDigest": "d4c1a2e7714f9f1b516f6b023237c02c07968844bf1c51394a73433536c4dcae",
+      "scopeRule": "Effective C05 scope is the original pinned fence plus this exact owner-authorized additional path. Original package/fence remains immutable provenance. No native, integration, release or next-card credit granted."
+    }
+  ],
+  "preS10FinalCredit": false,
+  "remainingAcceptance": [
+    "Native compilation and tests not executed; no native credit.",
+    "Post-Phase10 reconciliation/replay and final acceptance remain mandatory.",
+    "Original immutable manifest validator does not incorporate supplemental owner amendment; reconciliation must retain and validate the amendment explicitly."
+  ],
+  "status": "PROVISIONAL_CHECKPOINTED_NOT_FINAL",
+  "transition": "NOT_YET_PERFORMED"
+}
+```
