@@ -3,15 +3,15 @@
   "canonicalLedgerExternal": true,
   "creditedCards": [],
   "kind": "PRODUCT_BRANCH_READ_ONLY_PROJECTION",
+  "payloadDigest": "470e21e9cb35d21c79ab987cd35583b3928b46294576c6cb7a6ab2fc4512e351",
   "preS10FinalCredit": false,
   "schemaVersion": "V30ProvisionalLedgerProjectionV1",
-  "selectedCard": "V30-P01-C05",
+  "selectedCard": "V30-P01-C06",
   "source": {
-    "head": "7d57e62e1c7362dc63888323d26ec1d30cb858f6",
-    "ledgerDigest": "751f6bb351180281a3db4e438f0d82869238ee45a33c2d4c6a4c691588630415",
-    "sequence": 23
+    "head": "a63b3649436880667700a903546c15a96df75ba4",
+    "ledgerDigest": "9cd4fc125185d1278957f739243876ba1794fc05aa5061fb39a5a94423c313c1",
+    "sequence": 25
   },
   "state": "PROVISIONAL_IMPLEMENTING",
-  "writeDisposition": "READ_ONLY_OBSERVED_SELECTION; next checkpoint requires later coordination CAS",
-  "payloadDigest": "16b79a1042fa8d42977a76bb4d159563a10832e36c012e56faeb1b1e89b05bb5"
+  "writeDisposition": "READ_ONLY_OBSERVED_SELECTION; next checkpoint requires later coordination CAS"
 }

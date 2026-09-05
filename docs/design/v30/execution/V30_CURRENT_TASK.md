@@ -1,14 +1,14 @@
 # V30 Current Task
 
-Card 11 of 55 — Canonical-data and historical-identity invariance
+Card 12 of 55 — System-first resolution, fallback, and effective-language evidence
 
-The exact pre-issued fence plus the explicit ownerAuthorizedAmendments below defines the writable scope. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
+Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
 ```json
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Enforce and test that language/formatting changes cannot alter IDs, raw enum values, mutations, journals, evidence hashes, backup identity, authored evidence, product identity, or jurisdiction. Preserve old en-US-bearing identities.",
+    "required": "Use Apple device/per-app resolution, no bundle swizzle, effective-language observation, safe app-Settings deep link, foreground/relaunch behavior, exact/base/English fallback, raw-key prevention, and privacy-preserving fallback diagnostics.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ The exact pre-issued fence plus the explicit ownerAuthorizedAmendments below def
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
-    "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13"
+    "head": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+    "tree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7"
   },
-  "cardID": "V30-P01-C05",
+  "cardID": "V30-P01-C06",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,6 +33,7 @@ The exact pre-issued fence plus the explicit ownerAuthorizedAmendments below def
     "releaseCredit": false
   },
   "directPrerequisites": [
+    "V30-P01-C03",
     "V30-P01-C04"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
@@ -74,152 +75,117 @@ The exact pre-issued fence plus the explicit ownerAuthorizedAmendments below def
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift",
-        "purpose": "Language/locale invariance assertions for canonical identity.",
+        "path": "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
+        "purpose": "System-first effective-language and fallback contracts.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift",
-        "purpose": "Audit coordinator for journals, evidence, backup, and jurisdiction invariance.",
+        "path": "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+        "purpose": "Apple locale/per-app resolution adapter without bundle swizzling.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift",
-        "purpose": "Canonical-ID and historical identity regression tests.",
+        "path": "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift",
+        "purpose": "Safe Settings handoff and foreground/relaunch coordinator.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
-        "purpose": "Frozen en-US identity baseline fixture.",
+        "path": "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift",
+        "purpose": "Exact/base/English fallback and raw-key prevention tests.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json",
+        "purpose": "Deterministic system-language resolution fixtures.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "f28f90aa7b8b19519412ed879788166d01309008",
-        "expectedBSHA256": "8e9814f0a5164b72aea2ba7f7b710e2bd4b20f1b14a3f6ee9306047218a2505d",
-        "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
-        "purpose": "Prove language/formatting changes cannot change canonical settings identity.",
+        "expectedBBlobOID": "8cd93ce082652e054201409787ba27fb82c63013",
+        "expectedBSHA256": "5d1982421bea62d1ec5339f5a279b6f1f552afa8d90f7dc16f01e389b575dc4f",
+        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "purpose": "Expand the existing shipping locale/fallback contract beyond its en-only baseline.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "f867ebe231a7f998ee89069ca4ce357999efae87",
-        "expectedBSHA256": "664647c16a9df7342a123b755f41fc041987a439bf5f55f8a70dafc142fd856b",
-        "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
-        "purpose": "Preserve language-neutral journal event identity and raw values.",
+        "expectedBBlobOID": "66b140364dbe91ac14a57aa49a9ace8cb9a51140",
+        "expectedBSHA256": "c52cfb7a59f8a016c0a5b4dfb9e2b55a09ec73a94411eb3f09e1039c05ca5788",
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "purpose": "Replace the existing runtimeLanguage=en resolution seam with Apple system/per-app effective-language resolution.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "a54f89f2b61e470eaa66c2bee7142bdddf83c832",
-        "expectedBSHA256": "c320713b856bd0a2674ebcbbccc280712993932618ea05dbff321c06d0a19c64",
-        "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
-        "purpose": "Enforce canonical mutation-journal identity across locale changes.",
+        "expectedBBlobOID": "cbcdfe1281de6e98af13f1b12a0e32a6c7b9967b",
+        "expectedBSHA256": "b7ae0570ef54ba29ddb7c308b3f5236e03045297abddc18c3be99ad0b77d0e12",
+        "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+        "purpose": "Persist only privacy-preserving device-local fallback diagnostics through the existing adapter.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "45d5e58ec81cfb61136c895c1756d643a47508ec",
-        "expectedBSHA256": "2445e1dcfaeedca8d3304999391dca01bf63cf3a7bc8a9aaeb9f492ef9713d0a",
-        "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
-        "purpose": "Preserve replication journal bytes and replay identity across locale changes.",
+        "expectedBBlobOID": "b311e66b05b19078c9823b59c91c1f9c81964d49",
+        "expectedBSHA256": "ddb2bb5579ec9c091f268f09a3552b00318165e44e31f87940931acb8029e2f6",
+        "path": "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+        "purpose": "Expose the existing typed settings capability port for safe system-Settings handoff.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c428c9c4f9128188bb9126d08df2fdab39fe71f3",
-        "expectedBSHA256": "84cc28ffe7b87eee1459002852a04f8cca701af8726a94ca5bf032e0407759a1",
-        "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
-        "purpose": "Keep canonical writer receipt/identity invariant under display locale changes.",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "purpose": "Wire only the V30 Language & Region Settings entry point; preserve Phase10-owned shell navigation and brand.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "8639bed99bec1503f63f556fb044f4ac493be506",
-        "expectedBSHA256": "d66914b0fd97a95fa7af39ab1502911775a23b883d4be5233cdb4ee778183dba",
-        "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
-        "purpose": "Keep backup identity language-neutral and historically stable.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "6dbfedde09fbd158b1f44a16e692f5e06e4be0ee",
-        "expectedBSHA256": "d7a2b194dff13e4b63976a288f7ac5aa7561a56df17fb86f717dff1ed18c514d",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
-        "purpose": "Keep canonical backup encoding independent of UI language and formatting locale.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "54e9abdae8e0daea7810e286cac6de8fc08e71ab",
-        "expectedBSHA256": "1c82f2bb1d449c0a21f65e3e2883c8cb16a06f6211c292aecf070c733c6341a0",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
-        "purpose": "Keep canonical backup decoding independent of current UI language.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0bf7f754158823aaa93879f35bcb2993355fef2e",
-        "expectedBSHA256": "e65a95dd10cb1e1fde2673f80271bf5aea7257867f253fbc91c7d658b25378b5",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
-        "purpose": "Validate canonical backup identity without translated-data assumptions.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "791d3cebb57ddc4f8844cd0cc6cb5c96c929d4cb",
-        "expectedBSHA256": "bedeea43e25cceba20b2ed35832e4feba24e9e7db08bdc6bbea33631a029b82d",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
-        "purpose": "Restore canonical identity without rewriting language-neutral data.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c09d86700bb161118f54d96289e0c6167255fc8f",
-        "expectedBSHA256": "25a59f8401631f6cbe358b3391dc0617660c03b7d3706b8b65e32aee122581ed",
-        "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
-        "purpose": "Regression-test journal/checkpoint identity invariance.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "71deca029b00137b1484f24cf9cffbf4a2e92c35",
-        "expectedBSHA256": "a49ce814c521231a87e5bafb83171ba4643c34389732ec794cbefc4dc2eaa813",
-        "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
-        "purpose": "Regression-test backup validation identity invariance.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "fc13366c237192cc69bcea214813929be3544b4c",
-        "expectedBSHA256": "cf25c460046ee10aa8a2f044cef5e117c18ff418f3272038eea9c1c9ba606f69",
-        "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
-        "purpose": "Regression-test atomic restore identity invariance.",
+        "expectedBBlobOID": "1134417b3f24bf056cef13cdb133ea61d34c43fc",
+        "expectedBSHA256": "7b1c9163359202e97558078c3a782a03faa543ce7c14198ab1893e2fd65da5df",
+        "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+        "purpose": "Extend effective-language, fallback, and raw-key regression coverage.",
         "serializedSharedPath": true
       }
     ],
-    "cardID": "V30-P01-C05",
+    "cardID": "V30-P01-C06",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
+      "V30-P01-C03",
       "V30-P01-C04"
     ],
-    "ordinal": 11,
-    "preAuthorizedOverlapTuples": [],
-    "s10SharedPaths": [],
+    "ordinal": 12,
+    "preAuthorizedOverlapTuples": [
+      {
+        "boundedPurpose": "wire only the V30 Language & Region Settings entry point in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 shell navigation and brand",
+        "cardID": "V30-P01-C06",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P01-C06-SETTINGS-RESOLUTION-INTEGRATOR"
+      }
+    ],
+    "s10SharedPaths": [
+      "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+    ],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Canonical-data and historical-identity invariance"
+    "title": "System-first resolution, fallback, and effective-language evidence"
   },
   "fenceSource": {
-    "cardID": "V30-P01-C05",
+    "cardID": "V30-P01-C06",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -230,36 +196,33 @@ The exact pre-issued fence plus the explicit ownerAuthorizedAmendments below def
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P01-C06",
+  "next": "V30-P01-C07",
   "observedCoordination": {
-    "head": "a827ef11d6c8785c5031cde9f209884815a94e06",
-    "ledgerDigest": "b1bc2461e3be47bb310480f651f838e12f7c1d5ce08de1e7eaa1fb7bdf64a606",
-    "sequence": 22
+    "head": "621495eae5f016958b825a29d583c939dfa63e2c",
+    "ledgerDigest": "28f0bc7450d17df31ea0b7f1c8a9e7a6052d2f348dd7ff10bd921be4f87b7d9d",
+    "sequence": 24
   },
-  "ordinal": 11,
-  "outcome": "Enforce and test that language/formatting changes cannot alter IDs, raw enum values, mutations, journals, evidence hashes, backup identity, authored evidence, product identity, or jurisdiction. Preserve old en-US-bearing identities.",
-  "ownerAuthorizedAmendments": [
-    {
-      "additionalAllowedPaths": [
-        {
-          "expectedBeforeBlobOID": "1c761a2e21bdfafa5ff0106e23e7e6d709606374",
-          "expectedBeforeSHA256": "b35061737e03ec0e73dfe484966addb43021e9d8f53ecbac277a14fb37a9160c",
-          "path": "FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift",
-          "purpose": "Require target receipt workspace equality only when semantic reversal execution metadata exists; retain source-kind, causation, digest and reversal checks."
-        }
-      ],
-      "authorityHead": "06c7e7f49eae20a2d273ce15e98cc2f881fb8510",
-      "authorizationContext": "Owner explicitly approved adding MutationEnvelopeV1.swift to Card 11 scope, updating corresponding authority records, and applying the documented fix with regression tests.",
-      "date": "2026-09-05",
-      "ownerReply": "I authorize.",
-      "priorTaskPayloadDigest": "d4c1a2e7714f9f1b516f6b023237c02c07968844bf1c51394a73433536c4dcae",
-      "scopeRule": "Effective C05 scope is the original pinned fence plus this exact owner-authorized additional path. Original package/fence remains immutable provenance. No native, integration, release or next-card credit granted."
-    }
-  ],
-  "payloadDigest": "63cd863530bb2410536b5941deac081c2dc406f2c5373482cc1b53f9e439f572",
+  "ordinal": 12,
+  "outcome": "Use Apple device/per-app resolution, no bundle swizzle, effective-language observation, safe app-Settings deep link, foreground/relaunch behavior, exact/base/English fallback, raw-key prevention, and privacy-preserving fallback diagnostics.",
+  "payloadDigest": "6a5f5d054d4e084c328f982ffc4be579d5d41a88ac498fc76116c4a20b6ca544",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
+    "V30-P01-C03": {
+      "candidate": {
+        "base": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+        "baseTree": "c783e1ea1c28466025978aebf428dd7c43a1a5b2",
+        "changedPaths": [
+          "FieldEvidenceAppTests/V30_P01_C03TextSurfaceInventoryTests.swift",
+          "Scripts/v30/validate_v30_text_surface_inventory.py",
+          "docs/design/v30/inventory/V30TextBearingSurfaceInventoryV1.json",
+          "docs/design/v30/inventory/V30TextSurfaceDispositionSchemaV1.json"
+        ],
+        "head": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
+        "tree": "0d6e32f5f1aa589b7189b0e9e4dc80e1c822473c"
+      },
+      "sequence": 20
+    },
     "V30-P01-C04": {
       "candidate": {
         "base": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
@@ -286,8 +249,8 @@ The exact pre-issued fence plus the explicit ownerAuthorizedAmendments below def
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 985,
-  "sourceStartLine": 985,
-  "title": "Canonical-data and historical-identity invariance"
+  "sourceEndLine": 986,
+  "sourceStartLine": 986,
+  "title": "System-first resolution, fallback, and effective-language evidence"
 }
 ```
