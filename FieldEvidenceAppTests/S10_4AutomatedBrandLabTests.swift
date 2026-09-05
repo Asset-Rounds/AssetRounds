@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 21_264,
-            sha256: "42B26887C7D0FE872421ACA31D3F3E7E80E8F4C0575DCA5A2B51A46E1D04AAB6"
+            byteCount: 24_297,
+            sha256: "46FD5DB228A85955A4930410AA5C007118711C435144F11004980511EEB8FBFC"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -186,9 +186,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for forbidden in ["simctl shutdown", "simctl boot", "simctl erase", "retry", "test-without-building", "xcodebuild_status="] {
             XCTAssertFalse(simulatorAXDiagnosticSource.contains(forbidden), forbidden)
         }
+        let simulatorAppLifecycleSource = try boundedSource(
+            uiSmokeSource,
+            from: "  # K404 failure-only bounded/accented/RTL app lifecycle context.",
+            before: "  if [ -d \"$result_bundle_path\" ] &&"
+        )
+        XCTAssertEqual(uiSmokeSource.components(separatedBy: simulatorAppLifecycleSource).count - 1, 1)
+        XCTAssertTrue(uiFailureDiagnosticSource.contains(simulatorAppLifecycleSource))
+        for exact in [
+            #"[ "${CI_RUNNER_PROVIDER:-}" = "github" ]"#,
+            #"[ "${CI_TASK_ID:-}" = "S10.4" ]"#,
+            "s10.4.minimum.bounded",
+            "s10.4.minimum.accented",
+            "s10.4.minimum.rtl",
+            "Scripts/run-with-timeout.sh 30",
+            "--last 10m",
+            #"mktemp "${RUNNER_TEMP:?}/FieldEvidenceSimulatorLifecycle.XXXXXX""#,
+            #"(process == "FieldEvidenceApp")"#,
+            #"eventMessage CONTAINS "com.palatis3.fieldrecord""#,
+            #"> "$simulator_lifecycle_raw" 2>&1"#,
+            #"/usr/bin/head -c "$simulator_lifecycle_bytes_at_snapshot" "$simulator_lifecycle_raw""#,
+            "/usr/bin/tail -c 1048576",
+            "simulator_lifecycle_incomplete=true",
+            "simulator_lifecycle_truncated=true",
+            "bounded_snapshot_not_completion_proof",
+            #"diagnostic_report_app_patterns=(-o -iname 'FieldEvidenceApp*')"#,
+            #"rm -f "$simulator_lifecycle_raw""#,
+        ] {
+            XCTAssertTrue(simulatorAppLifecycleSource.contains(exact), exact)
+        }
+        for forbidden in [
+            "simctl shutdown", "simctl boot", "simctl erase", "simctl launch",
+            "simctl terminate", "log stream", "performAccessibilityAudit",
+            "xcodebuild_status=", "exit 0", "S10_4_CANDIDATE",
+        ] {
+            XCTAssertFalse(simulatorAppLifecycleSource.contains(forbidden), forbidden)
+        }
+        XCTAssertFalse(simulatorAppLifecycleSource.contains(
+            #"> "$failure_diagnostic_path/simulator-app-lifecycle.log" 2>&1"#
+        ))
         let uiSmokeOutsideAXDiagnostic = uiSmokeSource
             .replacingOccurrences(of: simulatorAXDiagnosticSource, with: "")
             .replacingOccurrences(of: focusedDiagnosticSelectionSource, with: "")
+            .replacingOccurrences(of: simulatorAppLifecycleSource, with: "")
         let simulatorRefreshSource = try boundedSource(
             uiSmokeSource,
             from: #"if [ "${CI_RUNNER_PROVIDER:-}" = "github" ]"#,
@@ -205,7 +245,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 1,
                 shardID
             )
-            XCTAssertEqual(uiSmokeSource.components(separatedBy: shardID).count - 1, 1, shardID)
+            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: simulatorAppLifecycleSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
         }
         let bypassedAccessibilityRefreshShards = [
             "s10.4.current.default-dark",

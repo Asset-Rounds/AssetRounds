@@ -233,6 +233,59 @@ if [ "$xcodebuild_status" -ne 0 ]; then
     return 0
   }
 
+  # K404 failure-only bounded/accented/RTL app lifecycle context.
+  diagnostic_report_app_patterns=()
+  if [ "${CI_RUNNER_PROVIDER:-}" = "github" ] && \
+     [ "${CI_TASK_ID:-}" = "S10.4" ] && \
+     { [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.bounded" ] || \
+       [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.accented" ] || \
+       [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.rtl" ]; }; then
+    diagnostic_report_app_patterns=(-o -iname 'FieldEvidenceApp*')
+    simulator_lifecycle_raw="$(mktemp "${RUNNER_TEMP:?}/FieldEvidenceSimulatorLifecycle.XXXXXX")"
+    simulator_lifecycle_temp_status="$?"
+    printf 'simulator_lifecycle_temp=%s\n' "$simulator_lifecycle_temp_status" \
+      >> "$diagnostic_status_path"
+    if [ "$simulator_lifecycle_temp_status" -eq 0 ]; then
+      run_diagnostic simulator_lifecycle_log \
+        Scripts/run-with-timeout.sh 30 \
+        xcrun simctl spawn "$CI_SIMULATOR_UDID" log show \
+          --last 10m \
+          --style compact \
+          --predicate \
+            '(process == "FieldEvidenceApp") OR (process == "testmanagerd") OR (((process == "runningboardd") OR (process == "SpringBoard")) AND ((eventMessage CONTAINS "FieldEvidenceApp") OR (eventMessage CONTAINS "com.palatis3.fieldrecord")))' \
+        > "$simulator_lifecycle_raw" 2>&1
+      simulator_lifecycle_incomplete=false
+      if [ "$diagnostic_status" -ne 0 ]; then
+        simulator_lifecycle_incomplete=true
+      fi
+      simulator_lifecycle_bytes_at_snapshot="$(
+        LC_ALL=C wc -c < "$simulator_lifecycle_raw" | tr -d '[:space:]'
+      )"
+      # Read no more than the measured snapshot even if a timed-out child survives.
+      /usr/bin/head -c "$simulator_lifecycle_bytes_at_snapshot" "$simulator_lifecycle_raw" \
+        | /usr/bin/tail -c 1048576 \
+        > "$failure_diagnostic_path/simulator-app-lifecycle.log"
+      simulator_lifecycle_snapshot_status="$?"
+      if [ "$simulator_lifecycle_snapshot_status" -ne 0 ]; then
+        simulator_lifecycle_incomplete=true
+      fi
+      simulator_lifecycle_retained_bytes="$(
+        LC_ALL=C wc -c < "$failure_diagnostic_path/simulator-app-lifecycle.log" \
+          | tr -d '[:space:]'
+      )"
+      simulator_lifecycle_truncated=false
+      if [ "$simulator_lifecycle_bytes_at_snapshot" -gt 1048576 ]; then
+        simulator_lifecycle_truncated=true
+      fi
+      printf 'simulator_lifecycle_snapshot=%s\nsimulator_lifecycle_bytes_at_snapshot=%s\nsimulator_lifecycle_retained_bytes=%s\nsimulator_lifecycle_truncated=%s\nsimulator_lifecycle_incomplete=%s\nsimulator_lifecycle_capture=bounded_snapshot_not_completion_proof\n' \
+        "$simulator_lifecycle_snapshot_status" "$simulator_lifecycle_bytes_at_snapshot" \
+        "$simulator_lifecycle_retained_bytes" "$simulator_lifecycle_truncated" \
+        "$simulator_lifecycle_incomplete" >> "$diagnostic_status_path"
+      rm -f "$simulator_lifecycle_raw"
+    fi
+  fi
+  # End K404 failure-only app lifecycle context.
+
   if [ -d "$result_bundle_path" ] && \
      [ -n "$(find "$result_bundle_path" -mindepth 1 -print -quit)" ]; then
     run_diagnostic xcresult_test_results \
@@ -406,6 +459,7 @@ if [ "$xcodebuild_status" -ne 0 ]; then
           -iname '*testmanagerd*' -o \
           -iname '*xctest*' -o \
           -iname '*CoreSimulator*' \
+          ${diagnostic_report_app_patterns[@]+"${diagnostic_report_app_patterns[@]}"} \
         \) \
         -print 2>/dev/null \
         | LC_ALL=C sort
