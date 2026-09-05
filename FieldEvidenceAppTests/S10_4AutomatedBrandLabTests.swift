@@ -4506,10 +4506,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (preflightNavigationBinding, count) in [
             ("let preflightNavigationBars = app.navigationBars", 1),
             ("let preflightNavigationBar = preflightNavigationBars.firstMatch", 1),
-            ("preflightNavigationBars.count == 1", 6),
-            ("preflightNavigationBar.exists", 6),
-            ("preflightNavigationBar.frame", 4),
-            ("let navigationFrame = preflightNavigationBar.frame", 2),
+            ("preflightNavigationBars.count == 1", 7),
+            ("preflightNavigationBar.exists", 7),
+            ("preflightNavigationBar.frame", 6),
+            ("let navigationFrame = preflightNavigationBar.frame", 3),
             ("let finalNavigationFrame =\n" +
                 "                        preflightNavigationBar.frame", 1),
         ] {
@@ -6579,10 +6579,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(minimumPreflightQuickPathWrapperSource.utf8).sha256,
             "B99E943C870A4FA3B6E042AC727F480ED4E84FF8B4527A7214A9E58778A91292"
         )
-        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 16_815)
+        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 33_916)
         XCTAssertEqual(
             Data(minimumPreflightQuickPathCommonTailSource.utf8).sha256,
-            "AF8CFD306023C9217E01A477CE617E2D76FEB47B0EF89DCEFADDD413093530D8"
+            "0FA4E49518B5E59038931729410AF9A766D6264265532CA0BA391019C837EDE0"
         )
         let minimumDoubleLengthPositioningGate =
             "                    if automationShard?.shardID\n" +
@@ -7646,16 +7646,48 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                         guard afterDarkMovement * dragDistance > 0,\n" +
                 "                               safePositionMovement * dragDistance > 0 else {",
         ]
+        let sharedPreflightVisiblePositioningLockPrefixes = [
+            "let verticalInset: CGFloat = 16",
+            "let receiverInset: CGFloat = 24",
+            "let minimumGestureDistance: CGFloat = 44",
+            "for _ in 0..<4",
+            "let liveApplicationFrame = app.frame",
+            "let scrollFrame = preflightScrollView.frame",
+            "let liveScrollFrame = scrollFrame.intersection(",
+            "let navigationFrame = preflightNavigationBar.frame",
+            "let assistantFrame = inputAssistantView.frame",
+            "let safeTop = max(",
+            "let safeBottom = min(",
+            "let receiverTop = max(",
+            "let receiverBottom = min(",
+            "let receiverCapacity = receiverBottom - receiverTop",
+            "let recognizedMinimum = max(",
+            "let recognizedMaximum = min(",
+            "dragDistance = recognizedMaximum",
+            "dragDistance = recognizedMinimum",
+            "maximumShift < -receiverCapacity",
+            "dragDistance = -receiverCapacity",
+            "minimumShift > receiverCapacity",
+            "dragDistance = receiverCapacity",
+            "let dragDirection: CGFloat = dragDistance > 0",
+            "let scrollOrigin = preflightScrollView.coordinate(",
+            "let dragStartOffsetY = dragDistance > 0",
+            "dragStart.press(",
+        ]
         for lock in preflightVisiblePositioningLocks {
             let normalizedLock = lock
                 .components(separatedBy: "\n")
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .joined(separator: "\n")
+            let expectedCount = sharedPreflightVisiblePositioningLockPrefixes
+                .contains { normalizedLock.hasPrefix($0) }
+                ? 2
+                : 1
             XCTAssertEqual(
                 normalizedPreflightVisibleSource.components(
                     separatedBy: normalizedLock
                 ).count - 1,
-                1,
+                expectedCount,
                 lock
             )
         }
@@ -7677,8 +7709,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "interactiveSwitches.count == 1,",
             "interactiveSwitchFrame.minY >= safeTop,",
             "interactiveSwitchFrame.maxY <= safeBottom,",
-            "guard positionVisiblePreflightControl(\n" +
-                "afterDark,",
             "positionVisiblePreflightControl(\n" +
                 "safePosition,",
             "The serial visible preflight keyboard-safe geometry is invalid.",
@@ -7820,11 +7850,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             preflightMinimumSource.components(separatedBy: "XCTFail(").count - 1,
-            41
+            40
         )
         XCTAssertEqual(
             preflightMinimumSource.components(separatedBy: "                    return\n").count - 1,
-            41
+            31
         )
         XCTAssertFalse(
             preflightMinimumSource.contains(
@@ -7842,7 +7872,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let currentProfileQuickPathPrecededByMinimumFinalGuard =
-            preflightFinalFailure + "\n                }\n            }\n        }\n" +
+            preflightFinalFailure + "\n                    }\n                }\n            }\n        }\n" +
                 #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"# +
                 "\n            try diagnoseMinimumDoubleLengthPreflightNativeContrast(in: app)\n" +
                 "        }\n" +
