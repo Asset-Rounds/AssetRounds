@@ -276,4 +276,3 @@ struct RecurringRoundStartReceiptV1: Codable, Equatable, Sendable {
         }
     }
 }
-        try desiredReminderEntries.forEach { try ScheduleLimitsV1.token($0.notificationID); try $0.occurrenceID.validate(); try ScheduleLimitsV1.instant($0.fireAtUTC); try ScheduleLimitsV1.token($0.localizationKey) }

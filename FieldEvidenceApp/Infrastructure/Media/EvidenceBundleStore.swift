@@ -1443,8 +1443,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             throw EvidenceBundleStoreError.unsafePath
         }
         guard let result = try withOptionalDirectoryDescriptor(
-            relativeComponents: parentComponents + [bundleDirectoryName]
-        ) { descriptor in
+            relativeComponents: parentComponents + [bundleDirectoryName],
+            { descriptor in
             var result: Set<UUID> = []
             for name in try directoryNames(descriptor) {
                 guard let id = UUID(uuidString: name),
@@ -1464,7 +1464,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                 }
             }
             return result
-        } else {
+        }) else {
             return []
         }
         return result

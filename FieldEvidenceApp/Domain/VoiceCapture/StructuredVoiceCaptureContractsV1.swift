@@ -281,7 +281,7 @@ struct StructuredVoiceCapturedTranscriptV1: Codable, Equatable, Sendable {
         try confidenceSpans.forEach { try $0.sourceSpan.validate(in: transcript) }
         guard !sourceSpans.isEmpty,
               sourceSpans == sourceSpans.sorted(by: Self.isOrdered),
-              confidenceSpans == confidenceSpans.sorted { Self.isOrdered($0.sourceSpan, $1.sourceSpan) } else {
+              confidenceSpans == confidenceSpans.sorted(by: { Self.isOrdered($0.sourceSpan, $1.sourceSpan) }) else {
             throw VoiceCaptureFailureV1.invalidValue
         }
         for index in sourceSpans.indices.dropFirst() {

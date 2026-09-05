@@ -907,24 +907,24 @@ struct StoreMigrationJournalV1: Codable, Equatable, Sendable {
               !previous.targetWritePossible || targetWritePossible,
               !previous.pointerPublicationAttempted
                 || pointerPublicationAttempted,
-              previous.targetManifestDigest.map {
+              previous.targetManifestDigest.map({
                 $0 == targetManifestDigest
-              } ?? true,
-              previous.targetSemanticDigest.map {
+              }) ?? true,
+              previous.targetSemanticDigest.map({
                 $0 == targetSemanticDigest
-              } ?? true,
-              previous.desiredPointerDigest.map {
+              }) ?? true,
+              previous.desiredPointerDigest.map({
                 $0 == desiredPointerDigest
-              } ?? true,
-              previous.publicationProcessID.map {
+              }) ?? true,
+              previous.publicationProcessID.map({
                 $0 == publicationProcessID
-              } ?? true,
-              previous.firstValidationProcessID.map {
+              }) ?? true,
+              previous.firstValidationProcessID.map({
                 $0 == firstValidationProcessID
-              } ?? true,
-              previous.secondValidationProcessID.map {
+              }) ?? true,
+              previous.secondValidationProcessID.map({
                 $0 == secondValidationProcessID
-              } ?? true else {
+              }) ?? true else {
             throw StoreMigrationFailure.invalidPhaseTransition
         }
     }

@@ -2595,9 +2595,9 @@ struct ReportWorkPacketProjectionV1: Codable, Equatable, Sendable {
               itemIDs == itemIDs.sorted(),
               Set(itemIDs).count == itemIDs.count,
               itemIDs.allSatisfy(SnapshotProjectionValidationV1.validID),
-              itemStateLabels.allSatisfy {
+              itemStateLabels.allSatisfy({
                   CompletedWorkPacketItemStateV1(rawValue: $0) != nil
-              },
+              }),
               preservedResultCount >= 0,
               collisionCount >= 0,
               historyEventCount >= 0,

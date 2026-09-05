@@ -843,12 +843,12 @@ final class LocalChangeJournalV1 {
         })
         let suppliedContentIDs = Set(supplement.contentEntries.map { $0.reference.contentID })
         guard expectedContentIDs.isSubset(of: suppliedContentIDs),
-              supplement.contentEntries.allSatisfy({
-                  $0.reference.workspaceID == identity.workspaceID.rawValue.uuidString.lowercased()
+              supplement.contentEntries.allSatisfy({ contentEntry in
+                  contentEntry.reference.workspaceID == identity.workspaceID.rawValue.uuidString.lowercased()
                     && basis.memberInventory.contains(where: { entry in
-                        entry.path == $0.archiveRelativePath
-                            && entry.byteCount == Int($0.reference.byteLength)
-                            && entry.sha256 == $0.reference.digests.digest(for: .sha256)?.hexadecimalValue
+                        entry.path == contentEntry.archiveRelativePath
+                            && entry.byteCount == Int(contentEntry.reference.byteLength)
+                            && entry.sha256 == contentEntry.reference.digests.digest(for: .sha256)?.hexadecimalValue
                     })
               }) else {
             throw ChangeJournalFailureV1.missingContent
@@ -1810,9 +1810,9 @@ enum OperationalContactLocalChangeJournalPolicyV1 {
                   change.receipt.postImages == (try mutation.mutationPostImages),
                   Set(change.entityChanges.map(\.identity)) == Set(identities),
                   change.entityChanges.map(\.postImage) == change.receipt.postImages,
-                  try change.receipt.postImages.allSatisfy {
+                  try change.receipt.postImages.allSatisfy({
                     durableKinds.contains(try $0.identity.kind)
-                  },
+                  }),
                   receipt.mutationID == mutation.mutationID else {
                 throw ChangeJournalFailureV1.tamperedBatch
             }

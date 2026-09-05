@@ -1495,11 +1495,11 @@ struct BulkSessionV1: Codable, Equatable, Hashable, Sendable {
         guard schemaVersion == Self.schemaVersion,
               chunkReceipts == chunkReceipts.sorted(),
               Set(chunkIndices).count == chunkIndices.count,
-              chunkReceipts.allSatisfy {
+              chunkReceipts.allSatisfy({
                   $0.workspaceID == workspaceID && $0.bulkPlanID == bulkPlanID
                       && $0.bulkPlanSHA256 == bulkPlanSHA256
                       && $0.expectedWorkspaceRevisionSHA256 == expectedWorkspaceRevisionSHA256
-              },
+              }),
               sessionTruthIsExact,
               sessionSHA256 == (try ImportBulkCanonicalCodecV1.sha256(digestBasis)) else {
             throw ImportBulkFailureV1.digestMismatch

@@ -1652,9 +1652,9 @@ struct MeasurementIntegritySearchRecordV1: Codable, Equatable, Sendable {
               boundedFieldValues.keys.contains(.captureIdentifier),
               boundedFieldValues.keys.contains(.packageReleaseIdentifier),
               boundedFieldValues.keys.contains(.canonicalUnitIdentifier),
-              boundedFieldValues.values.allSatisfy {
+              boundedFieldValues.values.allSatisfy({
                   SearchContractValidationV1.validID($0)
-              },
+              }),
               !MeasurementIntegrityLocalizationPolicyV1.containsProhibitedClaim(
                   in: Array(boundedFieldValues.values)
               ),
@@ -1787,9 +1787,9 @@ struct PrivacyTransformSearchRecordV1: Codable, Equatable, Sendable {
               sourceRevision > 0,
               thumbnailEligible,
               Set(boundedFieldValues.keys) == required,
-              boundedFieldValues.values.allSatisfy {
+              boundedFieldValues.values.allSatisfy({
                   SearchContractValidationV1.validID($0)
-              },
+              }),
               !PrivacyTransformLocalizationPolicyV1.containsProhibitedClaim(
                   in: Array(boundedFieldValues.values)
               ),

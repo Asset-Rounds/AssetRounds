@@ -350,9 +350,9 @@ struct PrivacyPolicyStatusSnapshotV1: Equatable, Sendable {
     func validate() throws {
         guard RecoveryCenterValidationV1.isSHA256(expectedReleaseSHA256),
               observedReleaseSHA256.map(RecoveryCenterValidationV1.isSHA256) ?? true,
-              bundledSummaryLocalizationKey.map {
+              bundledSummaryLocalizationKey.map({
                   RecoveryCenterValidationV1.validToken($0, maximumBytes: 160)
-              } ?? true else {
+              }) ?? true else {
             throw RecoveryCenterContractFailureV1.invalidValue
         }
         switch status {

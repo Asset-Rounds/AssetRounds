@@ -1107,7 +1107,7 @@ private extension DraftAttachmentStagingAdapterV1 {
             throw DraftAttachmentStagingFailureV1.staleStage
         }
         let nextMutation = try MutationIDV1(rawValue: Self.deterministicUUID(
-            "stage-mutation\u{1f}\(prior.stageID.uuidString.lowercased())\u{1f}\(prior.revision + 1)\u{1f}\(state.rawValue)\u{1f}\(contentDigest?.hexadecimalValue ?? prior.contentDigest?.hexadecimalValue ?? \"\")"
+            "stage-mutation\u{1f}\(prior.stageID.uuidString.lowercased())\u{1f}\(prior.revision + 1)\u{1f}\(state.rawValue)\u{1f}\(contentDigest?.hexadecimalValue ?? prior.contentDigest?.hexadecimalValue ?? "")"
         ))
         return try AttachmentStagingItemV1(
             stageID: prior.stageID,

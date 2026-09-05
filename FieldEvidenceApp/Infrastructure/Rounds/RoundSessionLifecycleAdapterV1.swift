@@ -464,7 +464,7 @@ struct C07RoundSessionHandoffManifestV1: Codable, Equatable, Sendable {
 }
 
 enum C07RoundSessionLifecycleDimensionV1: String, CaseIterable, Codable, Equatable, Sendable {
-    case backup, replaceRestore, clone, fork, import, export, report, journalReplay
+    case backup, replaceRestore, clone, fork, `import`, export, report, journalReplay
     case searchRebuild, ordinaryDelete, workspaceErase, retention, compatibility
     case forwardFix, interruption, idempotentReceipt
 }

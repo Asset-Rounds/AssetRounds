@@ -3201,13 +3201,13 @@ private extension WholeSignDeletionService {
         }
         let remainingLocatorIDs = Set(rows.assetLocators.map(\.locatorID))
             .subtracting(deletedLocatorIDs)
-        guard rows.locatorBindingReceipts.filter {
+        guard rows.locatorBindingReceipts.filter({
             !deletedLocatorIDs.contains($0.afterLocatorID)
                 && !($0.replacementLocatorID.map(deletedLocatorIDs.contains) ?? false)
-        }.allSatisfy {
+        }).allSatisfy({
             remainingLocatorIDs.contains($0.afterLocatorID)
                 && ($0.replacementLocatorID.map(remainingLocatorIDs.contains) ?? true)
-        } else {
+        }) else {
             throw WholeSignDeletionServiceError.graphInvalid
         }
         rows.evidence.filter { evidenceIDs.contains($0.id) }.forEach { modelContext.delete($0) }

@@ -234,10 +234,10 @@ struct ShopProfileOpenEvidenceHandoffView: View {
                   handoff.detailReceipt.confirmation == confirmation,
                   handoff.detailReceipt.composedOutputSHA256 == confirmation.composedOutputSHA256,
                   handoff.packaging == profile.packaging,
-                  handoff.artifacts.contains {
+                  handoff.artifacts.contains({
                       $0.format == handoff.confirmedFormat
                           && $0.sha256 == confirmation.composedOutputSHA256
-                  },
+                  }),
                   !handoff.externalOpenClaimed,
                   !handoff.deliveryClaimed else { return nil }
             return handoff

@@ -91,3 +91,67 @@ Native diagnostic scope: `Scripts/ci-selection.json` selects only the 15 newly a
 Windows may perform source, schema, JSON, Python, and deterministic checks. Native iOS build/test claims require the hosted macOS route and an explicit review selector. Static preparation and source review never establish merge or release acceptance. Do not run historical generators in apply mode or repin expected values merely because this review has a different branch/head. Preserve failed and superseded evidence.
 
 Final review reports must distinguish: all-card inventory, selected deep code review, fixes made, tests actually executed, native checks pending, owner/deferred cards, and compatibility checks required when Phase 10 and V23 are combined. No claim of zero bugs or whole-program exhaustive review is permitted without supporting evidence.
+
+## Compiler-confirmed correction batch 2
+
+### Owner-requested safe turn boundary
+
+The owner requested ending this turn to select Astra Medium. All agents stopped at safe file boundaries; no hosted run is active. Base correction commit `074dba9eb40af6be12787e7ddfeb6751d4011832` is pushed. Its native diagnostic `33979981288` failed product-source parsing and skipped all tests. Partial batch 2 is saved as a nonaccepting checkpoint; resume it rather than restarting the audit or altering Phase 10.
+
+Saved batch-2 edits: root's WorkspaceWriterV1 guard parentheses and ShopProfileOpenEvidenceHandoffView guard parentheses; data-integrity lane's V4BackupContracts.swift only; measurement lane's 16 domain paths; infrastructure lane's 10 paths. `git diff --check` passes, but independent review and native verification remain pending. No half-applied patch was reported.
+
+Remaining work:
+
+1. Reuse `v23_data_integrity_audit`: finish BackupCanonicalEncoderV1.swift, BackupImportService.swift, BackupPackageValidatorV1.swift, BackupRestoreService.swift. Review its saved V4BackupContracts syntax corrections.
+2. Reuse `v23_runtime_integration_audit`: no batch-2 edits yet in its 10 paths (Domain/Mutation x2, InspectionKernel x3, Models x2, FunctionalRelationships, Activities, Drafts). Apply diagnosed declaration separators/guard parentheses, close WorkspaceMutationContractsV1 predecessorIdentity getter's missing brace, and add missing derivative guard else using the adjacent invalidPlan failure contract; preserve both predicates.
+3. Independently review `v23_measurement_regression` saved 16-domain-path corrections (including only the stray top-level duplicate reminder validation removal; active validation retained).
+4. Independently review `v23_native_infra_syntax` saved 10 infrastructure paths, especially named outer closure binding in LocalChangeJournal, restored missing guard in WorkspaceWriterAdapter, and remaining same-guard trailing closures in LocalSearchIndexStore after line 130. The latter may need additional parentheses before the next run.
+5. Finish checksum audit via `v23_merge_status_audit` if its final result has not yet arrived. Root must inspect complete build evidence, scope-check all changes, and only then commit a finished direct-child correction and dispatch a fresh exact-head native diagnostic. Do not rerun the failed run ID or repin old V23 receipts.
+
+The complete all-card inventory and initial fixes are preserved in PREMERGE_REVIEW and CARD_COVERAGE. Model instructions do not change the app-selected model; reuse available agent context with the owner's new primary selection.
+
+Native run `33979981288` on `074dba9eb40af6be12787e7ddfeb6751d4011832` failed Swift parsing before tests. Correct only diagnosed syntax (guard trailing-closure parentheses, declaration separators, balanced expressions, interpolation escapes, and required lexical spacing) at the reported sites in these exact paths, preserving predicates, ordering and data semantics. The complete checksummed build log is under `C:\AssetRounds-v23-review-evidence\33979981288\ios-ci-33979981288-1\build-smoke.log`. No project exclusions, test weakening, schema changes or historical receipt edits. After scoped corrections and independent checks, a fresh same-workflow diagnostic on the direct-child review head is authorized; never rerun the old failed run ID.
+
+- `FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift` (reported lines 1123).
+- `FieldEvidenceApp/Domain/Activities/ActivityContractFamiliesV2.swift` (reported lines 1966, 1967).
+- `FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift` (reported lines 2699, 2754, 2928, 2929, 2930, 3530, 3531, 3800, 3801, 3802, 3803, 4138, 4318, 4511, 4744, 4839, 5271, 5302, 5334, 5366, 5369, 5370, 5371, 5372, 5373, 5374, 5375, 5377, 5378, 5415).
+- `FieldEvidenceApp/Domain/Drafts/FieldDraftContractsV1.swift` (reported lines 256).
+- `FieldEvidenceApp/Domain/FunctionalRelationships/FunctionalRelationshipContractsV1.swift` (reported lines 508, 509).
+- `FieldEvidenceApp/Domain/ImportExport/ImportBulkContractsV1.swift` (reported lines 1498, 1499, 1500, 1501, 1502).
+- `FieldEvidenceApp/Domain/InspectionKernel/InspectionReviewContractsV1.swift` (reported lines 157, 159, 162, 165, 179, 180, 184, 197, 285).
+- `FieldEvidenceApp/Domain/InspectionKernel/MeasurementIntegrityContractsV1.swift` (reported lines 373, 374).
+- `FieldEvidenceApp/Domain/InspectionKernel/WorkPacketManifestContractsV1.swift` (reported lines 215).
+- `FieldEvidenceApp/Domain/Lighting/LightingContractsV1.swift` (reported lines 530).
+- `FieldEvidenceApp/Domain/Lighting/LightingDayInventoryContractsV1.swift` (reported lines 190, 350).
+- `FieldEvidenceApp/Domain/Models/ReviewAndCorrectiveActionPersistenceModelsV1.swift` (reported lines 4, 5, 6, 7, 8).
+- `FieldEvidenceApp/Domain/Models/WorkPacketManifestPersistenceModelsV1.swift` (reported lines 31, 32, 33, 34, 35).
+- `FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift` (reported lines 989, 992, 1174).
+- `FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift` (reported lines 1355, 1364, 1373, 1389, 1391, 1400, 1403, 1627, 1749).
+- `FieldEvidenceApp/Domain/OfflineReadiness/OfflineReadinessManifestContractsV1.swift` (reported lines 882).
+- `FieldEvidenceApp/Domain/Packs/ClientCapabilityContractsV1.swift` (reported lines 10, 11, 29, 60).
+- `FieldEvidenceApp/Domain/Packs/FieldReferencePackContractsV1.swift` (reported lines 30, 113).
+- `FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift` (reported lines 116, 142, 263, 298, 300, 370, 372).
+- `FieldEvidenceApp/Domain/Recovery/RecoveryCenterContractsV1.swift` (reported lines 353, 354, 355).
+- `FieldEvidenceApp/Domain/Replication/IntegrationEventContractsV1.swift` (reported lines 215, 216, 242, 243, 244, 245, 247, 248, 249, 250, 251, 252).
+- `FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift` (reported lines 381).
+- `FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift` (reported lines 2598, 2599, 2600).
+- `FieldEvidenceApp/Domain/Search/SearchContractsV1.swift` (reported lines 1655, 1656, 1657, 1790, 1791, 1792).
+- `FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift` (reported lines 284).
+- `FieldEvidenceApp/Domain/Workflow/RecurringRoundExperienceContractsV1.swift` (reported lines 279).
+- `FieldEvidenceApp/Domain/Workflow/ScheduleContractsV1.swift` (reported lines 312, 388).
+- `FieldEvidenceApp/Domain/WorkResources/WorkResourceContractsV1.swift` (reported lines 126).
+- `FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift` (reported lines 237, 238, 239, 240).
+- `FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift` (reported lines 782, 783, 785, 791, 1284, 1328, 1338, 1349, 1389, 1421, 1663).
+- `FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift` (reported lines 1661).
+- `FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift` (reported lines 155, 220, 243, 271, 2323, 2398, 2399, 3936, 3942, 4797, 4825, 4850, 4888, 4925).
+- `FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift` (reported lines 4034, 4880, 4881, 4882, 5180, 5181, 5182, 13454, 13521).
+- `FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift` (reported lines 83, 84).
+- `FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift` (reported lines 3204, 3205, 3206, 3207, 3210).
+- `FieldEvidenceApp/Infrastructure/Drafts/DraftAttachmentStagingAdapterV1.swift` (reported lines 1110).
+- `FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift` (reported lines 1447, 1467).
+- `FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift` (reported lines 2611, 3966).
+- `FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift` (reported lines 910, 911, 912).
+- `FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift` (reported lines 3206, 3715, 3972).
+- `FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift` (reported lines 849, 850, 851, 1813, 1814, 1815).
+- `FieldEvidenceApp/Infrastructure/Rounds/RoundSessionLifecycleAdapterV1.swift` (reported lines 467).
+- `FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift` (reported lines 128, 129, 130).

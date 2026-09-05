@@ -41,7 +41,9 @@ Exact causal paths and constraints are listed in [CURRENT_REVIEW.md](CURRENT_REV
 
 ## Native diagnostic
 
-Pending a frozen review implementation head. Use the unchanged existing iOS CI workflow, N8 / UI false, only the 15 new regression methods. A successful diagnostic would prove only its actual build/test results, not whole-program acceptance or Phase 10 parity. Preserve terminal failures and inspect complete evidence.
+Run [33979981288](https://github.com/Asset-Rounds/AssetRounds/actions/runs/33979981288) verified head `074dba9eb40af6be12787e7ddfeb6751d4011832` and passed toolchain/setup/simulator checks, then **failed Swift parsing during build-for-testing**. All 15 selected tests were skipped; no native pass is claimed. Build errors identify 43 source paths (648 repeated diagnostic lines, including cascades), primarily ambiguous guard closures, malformed compressed declarations and expressions. This is a product-source failure, not a runner failure.
+
+Downloaded evidence: `C:\AssetRounds-v23-review-evidence\33979981288\ios-ci-33979981288-1`; includes build log and `Build.xcresult`. Runner image `20260728.0273.1`, Xcode26.6/17F113, iPhone17/iOS26.2, UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`. Compiler correction batch 2 is partially saved at the owner's requested turn boundary. See CURRENT_REVIEW for exact resumed work; do not treat the checkpoint as a completed compiler fix or dispatch before the remaining lanes and independent review finish.
 
 ## What still blocks a safe final merge
 

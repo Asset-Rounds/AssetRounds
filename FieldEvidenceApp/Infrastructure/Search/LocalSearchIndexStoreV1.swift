@@ -125,9 +125,9 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                   records.count <= SearchContractLimitsV1.maximumProjectionRecords,
                   records == records.sorted(),
                   Set(records.map(\.projectionIdentity)).count == records.count,
-                  records.filter { $0.sourceKind == .party }.allSatisfy {
+                  records.filter({ $0.sourceKind == .party }).allSatisfy({
                       SearchAccountabilityPersistencePolicyV1.accepts(fieldID: $0.fieldID)
-                  },
+                  }),
                   records.filter {
                       $0.sourceKind == .asset
                           && SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
