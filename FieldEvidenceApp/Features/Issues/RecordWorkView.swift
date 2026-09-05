@@ -27,6 +27,7 @@ struct RecordWorkView: View {
     let usesImportedFixtureForUITest: Bool
     let onComplete: (WorkIssuePresentationValue) -> Void
 
+    @Environment(\.timeZone) private var timeZone
     @State private var performedDate = Date()
     @State private var description = ""
     @State private var note = ""
@@ -227,6 +228,13 @@ struct RecordWorkView: View {
             return
         }
 
+        guard let canonicalDay = try? LocaleFormattingServiceV1.canonicalGregorianDate(
+            containing: performedDate, timeZone: timeZone
+        ) else {
+            showsFailure = true
+            moveAccessibilityFocus(to: .failure)
+            return
+        }
         isSaving = true
         showsDescriptionValidation = false
         showsFailure = false
@@ -242,7 +250,7 @@ struct RecordWorkView: View {
             ]
         } ?? []
         let submission = WorkSaveSubmission(
-            performedLocalDate: Self.localDateFormatter.string(from: performedDate),
+            performedLocalDate: canonicalDay.canonicalString,
             description: normalizedDescription,
             note: normalizedNote.isEmpty ? nil : normalizedNote,
             photos: photos,
@@ -289,11 +297,4 @@ struct RecordWorkView: View {
         }
     }
 
-    private static let localDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
 }

@@ -1,0 +1,11 @@
+{
+  "schema": "V30LocaleFormattingGrammarCasesV1",
+  "cardID": "V30-P01-C07",
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "locales": ["en-US", "es-MX", "zh-Hans-CN", "zh-Hant-TW", "vi-VN", "ko-KR"],
+  "invalidCanonicalDates": ["2025-02-29", "2024-13-01", "0000-01-01", "2024-1-01", "2024-01-01 trailing"],
+  "ambiguousDates": ["03/04/2024", "04-03-2024", "03.04.2024"],
+  "invalidNumbers": ["1,23", "1.2 trailing", " 123", "123 ", "1e3"],
+  "authoredAddress": ["１２ Example Road", "Montréal, Québec", "H2X 1Y4"],
+  "authoredPhone": "+1 (514) 555-0123 ext. ９"
+}

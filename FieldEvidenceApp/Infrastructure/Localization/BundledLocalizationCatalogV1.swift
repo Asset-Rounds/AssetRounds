@@ -3466,7 +3466,7 @@ enum BundledLocalizationCatalogV1 {
     static func formattedInteger(_ value: Int, regionSource: Locale = .current) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.locale = englishPresentationLocale(regionSource)
+        formatter.locale = regionSource
         return formatter.string(from: NSNumber(value: value)) ?? String(value)
     }
 
@@ -3474,7 +3474,7 @@ enum BundledLocalizationCatalogV1 {
         _ measurement: Measurement<UnitLength>, regionSource: Locale = .current
     ) -> String {
         let formatter = MeasurementFormatter()
-        formatter.locale = englishPresentationLocale(regionSource)
+        formatter.locale = regionSource
         formatter.unitOptions = .naturalScale
         return formatter.string(from: measurement)
     }
@@ -3485,15 +3485,12 @@ enum BundledLocalizationCatalogV1 {
         regionSource: Locale = .current
     ) -> String {
         let formatter = DateFormatter()
-        formatter.locale = englishPresentationLocale(regionSource)
+        formatter.locale = regionSource
+        formatter.calendar = regionSource.calendar
         formatter.timeZone = timeZone
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: value)
-    }
-
-    private static func englishPresentationLocale(_ source: Locale) -> Locale {
-        Locale(identifier: "en-" + (source.region?.identifier ?? "US"))
     }
 
     private static func validateSourceCatalog(
