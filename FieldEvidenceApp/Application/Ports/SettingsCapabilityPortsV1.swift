@@ -1,5 +1,12 @@
 import Foundation
 
+/// Opens only the application's public iOS Settings destination. Callers
+/// cannot provide a URL, scheme, or a private language-settings route.
+@MainActor
+protocol GlobalizationSystemSettingsPortV1 {
+    func openAppSettings() async -> Bool
+}
+
 protocol SettingsRegistryPortV1: Sendable {
     func descriptor(for key: String) throws -> SettingDescriptorV1
 }

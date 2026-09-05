@@ -1,0 +1,74 @@
+{
+  "schema": "V30SystemLanguageResolutionCasesV1",
+  "cardID": "V30-P01-C06",
+  "provisional": {
+    "finalCredit": false,
+    "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT"
+  },
+  "cases": [
+    {
+      "id": "exact-spanish",
+      "preferences": ["es"],
+      "declaredResources": ["en", "es"],
+      "expectedLanguage": "es",
+      "expectedResource": "es",
+      "expectedProvenance": "EXACT_DECLARED_RESOURCE"
+    },
+    {
+      "id": "base-spanish",
+      "preferences": ["es-MX"],
+      "declaredResources": ["en", "es"],
+      "expectedLanguage": "es",
+      "expectedResource": "es",
+      "expectedProvenance": "BASE_LANGUAGE_RESOURCE"
+    },
+    {
+      "id": "unsupported-declared-language",
+      "preferences": ["fr-FR"],
+      "declaredResources": ["en", "fr"],
+      "expectedLanguage": "en",
+      "expectedResource": "en",
+      "expectedProvenance": "ENGLISH_FALLBACK"
+    },
+    {
+      "id": "english-only-spanish-device",
+      "preferences": ["es-ES"],
+      "declaredResources": ["en"],
+      "expectedLanguage": "en",
+      "expectedResource": "en",
+      "expectedProvenance": "ENGLISH_FALLBACK"
+    },
+    {
+      "id": "ordered-preferences",
+      "preferences": ["fr", "es"],
+      "declaredResources": ["en", "es"],
+      "expectedLanguage": "es",
+      "expectedResource": "es",
+      "expectedProvenance": "EXACT_DECLARED_RESOURCE"
+    },
+    {
+      "id": "chinese-script-exact",
+      "preferences": ["zh-Hant"],
+      "declaredResources": ["en", "zh-Hans", "zh-Hant"],
+      "expectedLanguage": "zh-Hant",
+      "expectedResource": "zh-Hant",
+      "expectedProvenance": "EXACT_DECLARED_RESOURCE"
+    },
+    {
+      "id": "chinese-script-not-interchangeable",
+      "preferences": ["zh-Hant"],
+      "declaredResources": ["en", "zh-Hans"],
+      "expectedLanguage": "en",
+      "expectedResource": "en",
+      "expectedProvenance": "ENGLISH_FALLBACK"
+    },
+    {
+      "id": "empty-and-base-resources",
+      "preferences": ["es"],
+      "declaredResources": ["", "Base"],
+      "expectedLanguage": "en",
+      "expectedResource": null,
+      "expectedProvenance": "ENGLISH_FALLBACK"
+    }
+  ]
+}

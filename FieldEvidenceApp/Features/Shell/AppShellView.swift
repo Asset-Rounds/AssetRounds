@@ -366,6 +366,9 @@ struct SettingsPlaceholderView: View {
     }
 
     @Environment(\.eraseAllAction) private var eraseAllAction
+    @Environment(\.scenePhase) private var globalizationScenePhase
+    @State private var effectiveLanguage = SystemLanguageResolverV1().resolve()
+    @State private var globalizationSettingsUnavailable = false
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
     @ObservedObject var lifecycleCoordinator: StoreKitLifecycleCoordinator
@@ -410,6 +413,41 @@ struct SettingsPlaceholderView: View {
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
+
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+                    Text("Language & Region")
+                        .font(.headline)
+                    Text(Locale.autoupdatingCurrent.localizedString(
+                        forLanguageCode: effectiveLanguage.effectiveLanguage.rawValue
+                    ) ?? effectiveLanguage.effectiveLanguage.rawValue)
+                    Text(Locale.autoupdatingCurrent.localizedString(
+                        forIdentifier: Locale.autoupdatingCurrent.identifier
+                    ) ?? Locale.autoupdatingCurrent.identifier)
+                    Text("App language and formatting region do not change your worksite jurisdiction.")
+                        .font(.footnote)
+                    Button("Open iOS Settings") {
+                        Task {
+                            globalizationSettingsUnavailable =
+                                !(await GlobalizationSettingsCoordinatorV1().openAppSettings())
+                        }
+                    }
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .accessibilityIdentifier("v30.language-region.open-settings")
+                    if globalizationSettingsUnavailable {
+                        Text("Settings could not be opened. Open this app’s settings from the iOS Settings app.")
+                            .font(.footnote)
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("v30.language-region.section")
+                .onAppear {
+                    effectiveLanguage = GlobalizationSettingsCoordinatorV1().refreshEffectiveLanguage()
+                }
+                .onChange(of: globalizationScenePhase) { _, phase in
+                    if phase == .active {
+                        effectiveLanguage = GlobalizationSettingsCoordinatorV1().refreshEffectiveLanguage()
+                    }
+                }
 
                 NavigationLink("Back up current data") {
                     BackupExportView(

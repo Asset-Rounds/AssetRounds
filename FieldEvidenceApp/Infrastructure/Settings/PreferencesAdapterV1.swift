@@ -778,6 +778,41 @@ extension PreferencesAdapterV1 {
 // MARK: - V30 globalization presentation preference
 
 extension PreferencesAdapterV1 {
+    private static let globalizationFallbackKey = storagePrefix + "device.v30.globalization.fallback-diagnostic"
+
+    /// Stores only the most recent fallback category, never language lists,
+    /// customer text, keys, timestamps, or workspace identifiers.
+    func recordGlobalizationFallback(_ value: EffectiveLanguageFallbackDiagnosticV1?) throws {
+        try withLock {
+            guard let value else {
+                defaults.removeObject(forKey: Self.globalizationFallbackKey)
+                return
+            }
+            guard value.usedEnglishFallback == (value.provenance == .englishFallback) else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            let bytes = try CompatibilityCanonicalV1.encode(value)
+            guard bytes.count <= 256 else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            defaults.set(bytes, forKey: Self.globalizationFallbackKey)
+        }
+    }
+
+    func readGlobalizationFallback() throws -> EffectiveLanguageFallbackDiagnosticV1? {
+        try withLock {
+            guard let bytes = defaults.data(forKey: Self.globalizationFallbackKey) else { return nil }
+            guard bytes.count <= 256 else { throw PreferencesAdapterFailureV1.invalidCanonicalValue }
+            let value = try CompatibilityCanonicalV1.decode(EffectiveLanguageFallbackDiagnosticV1.self, from: bytes)
+            guard value.usedEnglishFallback == (value.provenance == .englishFallback) else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+            return value
+        }
+    }
+}
+
+extension PreferencesAdapterV1 {
     func readGlobalizationPresentationPreference() throws
         -> GlobalizationPresentationPreferenceV1 {
         let descriptor = try GlobalizationDevicePreferenceV1.descriptor()

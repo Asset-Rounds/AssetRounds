@@ -777,7 +777,9 @@ enum LocalizationCatalogPublicationV1: Equatable, Sendable {
 enum BundledLocalizationCatalogV1 {
     typealias Interruption = @Sendable (LocalizationCatalogPublicationBoundaryV1) throws -> Void
 
-    static let runtimeLanguage = "en"
+    static var runtimeLanguage: String {
+        SystemLanguageResolverV1().resolve().effectiveLanguage.rawValue
+    }
     static let appStorePrimaryMetadataLocale = "en-US"
     static let runtimeDownloadsAllowed = false
     static func registry() throws -> LocalizationKeyRegistryV1 {
