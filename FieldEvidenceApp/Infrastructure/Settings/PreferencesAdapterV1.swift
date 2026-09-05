@@ -242,6 +242,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
             operationID: operationID,
             preserveAcknowledgements: true
         )
+        try recordGlobalizationFallback(nil)
     }
 
     func erase(descriptors: [SettingDescriptorV1], operationID: UUID) throws {
@@ -250,6 +251,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
             operationID: operationID,
             preserveAcknowledgements: false
         )
+        try recordGlobalizationFallback(nil)
     }
 
     // MARK: - C39 device-local rating eligibility ledger

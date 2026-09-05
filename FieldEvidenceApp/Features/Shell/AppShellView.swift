@@ -369,6 +369,7 @@ struct SettingsPlaceholderView: View {
     @Environment(\.scenePhase) private var globalizationScenePhase
     @State private var effectiveLanguage = SystemLanguageResolverV1().resolve()
     @State private var globalizationSettingsUnavailable = false
+    @State private var globalizationFallbackDiagnostic: EffectiveLanguageFallbackDiagnosticV1?
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
     @ObservedObject var lifecycleCoordinator: StoreKitLifecycleCoordinator
@@ -425,6 +426,20 @@ struct SettingsPlaceholderView: View {
                     ) ?? Locale.autoupdatingCurrent.identifier)
                     Text("App language and formatting region do not change your worksite jurisdiction.")
                         .font(.footnote)
+                    DisclosureGroup("Language support details") {
+                        if let diagnostic = globalizationFallbackDiagnostic {
+                            if diagnostic.usedEnglishFallback {
+                                Text("English is being used because no preferred language resource matched.")
+                            } else {
+                                Text("A matching base-language resource is being used.")
+                            }
+                        } else {
+                            Text("The language resource selected by iOS is being used.")
+                        }
+                        Text("This summary contains no personal data or device language list.")
+                            .font(.footnote)
+                    }
+                    .accessibilityIdentifier("v30.language-region.support-summary")
                     Button("Open iOS Settings") {
                         Task {
                             globalizationSettingsUnavailable =
@@ -442,10 +457,12 @@ struct SettingsPlaceholderView: View {
                 .accessibilityIdentifier("v30.language-region.section")
                 .onAppear {
                     effectiveLanguage = GlobalizationSettingsCoordinatorV1().refreshEffectiveLanguage()
+                    globalizationFallbackDiagnostic = try? PreferencesAdapterV1().readGlobalizationFallback()
                 }
                 .onChange(of: globalizationScenePhase) { _, phase in
                     if phase == .active {
                         effectiveLanguage = GlobalizationSettingsCoordinatorV1().refreshEffectiveLanguage()
+                        globalizationFallbackDiagnostic = try? PreferencesAdapterV1().readGlobalizationFallback()
                     }
                 }
 
