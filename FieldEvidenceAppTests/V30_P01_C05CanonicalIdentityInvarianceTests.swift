@@ -263,6 +263,36 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
             compensatingMutationIDs: [reversalRequest.mutationID]
         ).canonicalSHA256()
 
+        let sameWorkspaceReceipt = MutationReceiptIdentityV1(
+            workspaceID: fixture.identity.workspaceID,
+            replicaID: foreignReceipt.replicaID,
+            localSequence: foreignReceipt.localSequence
+        )
+        let sameWorkspaceBasis = try ReversalBasisV1(
+            targetMutationID: fixture.request.mutationID,
+            targetReceiptIdentity: sameWorkspaceReceipt,
+            plan: plan
+        )
+        let sameWorkspaceExecution = try SemanticReversalExecutionV1(
+            targetMutationID: fixture.request.mutationID,
+            targetReceiptIdentity: sameWorkspaceReceipt,
+            reversalBasisSHA256: sameWorkspaceBasis.canonicalSHA256(),
+            planDigest: plan.planDigest,
+            compensatingMutationIDs: [reversalRequest.mutationID]
+        )
+        let accepted = try MutationEnvelopeV1(
+            request: reversalRequest,
+            identity: fixture.identity,
+            sourceKind: .semanticReversal,
+            causationMutationID: fixture.request.mutationID,
+            correlationID: c05UUID("00000000-0000-4000-8000-000000000110"),
+            semanticReversalReplayIdentitySHA256: replayIdentity,
+            semanticReversalExecution: sameWorkspaceExecution
+        )
+        XCTAssertEqual(
+            try MutationEnvelopeV1.decodeCanonical(from: accepted.canonicalData()), accepted
+        )
+
         XCTAssertThrowsError(
             try MutationEnvelopeV1(
                 request: reversalRequest,
