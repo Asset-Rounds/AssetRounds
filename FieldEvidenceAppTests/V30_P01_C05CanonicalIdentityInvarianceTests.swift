@@ -196,6 +196,88 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         XCTAssertEqual(encodedAfter.sha256, encodedBefore.sha256)
     }
 
+    func testLocalUserAndImportedHistoryEnvelopesRoundTripWithoutReversalMetadata() throws {
+        let fixture = try makeMutationEnvelopeFixture()
+        let localUser = try MutationEnvelopeV1(
+            request: fixture.request,
+            identity: fixture.identity,
+            sourceKind: .localUser
+        )
+        let importedHistory = try MutationEnvelopeV1(
+            request: fixture.request,
+            identity: fixture.identity,
+            sourceKind: .importedHistory
+        )
+
+        for envelope in [localUser, importedHistory] {
+            XCTAssertNil(envelope.causationMutationID)
+            XCTAssertNil(envelope.semanticReversalExecution)
+            XCTAssertNil(envelope.semanticReversalReplayIdentitySHA256)
+            let bytes = try envelope.canonicalData()
+            XCTAssertEqual(try MutationEnvelopeV1.decodeCanonical(from: bytes), envelope)
+            XCTAssertEqual(try envelope.canonicalSHA256(), try WorkspaceMutationCanonicalV1.sha256(envelope))
+        }
+        XCTAssertNotEqual(try localUser.canonicalData(), try importedHistory.canonicalData())
+    }
+
+    func testSemanticReversalEnvelopeRejectsForeignTargetReceiptWorkspace() throws {
+        let fixture = try makeMutationEnvelopeFixture()
+        let reversalRequest = WorkspaceMutationRequestV1(
+            mutationID: try MutationIDV1(rawValue: c05UUID("00000000-0000-4000-8000-000000000107")),
+            expectedRevision: fixture.request.expectedRevision,
+            command: fixture.request.command
+        )
+        let foreignReceipt = MutationReceiptIdentityV1(
+            workspaceID: WorkspaceID(rawValue: c05UUID("00000000-0000-4000-8000-000000000108")),
+            replicaID: ReplicaID(rawValue: c05UUID("00000000-0000-4000-8000-000000000109")),
+            localSequence: 1
+        )
+        let plan = try SemanticReversalPlanV1(
+            mutationID: fixture.request.mutationID,
+            commandKind: fixture.request.command.kind,
+            expectedRevision: fixture.request.expectedRevision,
+            prospectiveTargets: fixture.targets,
+            requiredSemanticValues: [.init(key: "c05", value: "foreign-receipt-workspace")],
+            contentReferences: [],
+            dependencyGraph: [],
+            conflicts: [],
+            compensatingCommands: [reversalRequest.command]
+        )
+        let basis = try ReversalBasisV1(
+            targetMutationID: fixture.request.mutationID,
+            targetReceiptIdentity: foreignReceipt,
+            plan: plan
+        )
+        let execution = try SemanticReversalExecutionV1(
+            targetMutationID: fixture.request.mutationID,
+            targetReceiptIdentity: foreignReceipt,
+            reversalBasisSHA256: try basis.canonicalSHA256(),
+            planDigest: plan.planDigest,
+            compensatingMutationIDs: [reversalRequest.mutationID]
+        )
+        let replayIdentity = try SemanticReversalReplayIdentityV1(
+            request: reversalRequest,
+            identity: fixture.identity,
+            targetMutationID: fixture.request.mutationID,
+            planDigest: plan.planDigest,
+            compensatingMutationIDs: [reversalRequest.mutationID]
+        ).canonicalSHA256()
+
+        XCTAssertThrowsError(
+            try MutationEnvelopeV1(
+                request: reversalRequest,
+                identity: fixture.identity,
+                sourceKind: .semanticReversal,
+                causationMutationID: fixture.request.mutationID,
+                correlationID: c05UUID("00000000-0000-4000-8000-000000000110"),
+                semanticReversalReplayIdentitySHA256: replayIdentity,
+                semanticReversalExecution: execution
+            )
+        ) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+    }
+
     private func makePresentationAxisSets() throws -> (
         before: GlobalizationAxisSetV1,
         after: GlobalizationAxisSetV1
@@ -240,6 +322,53 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
             projectJurisdiction: jurisdiction
         )
         return (before, after)
+    }
+
+    private func makeMutationEnvelopeFixture() throws -> (
+        request: WorkspaceMutationRequestV1,
+        identity: WorkspaceReplicaIdentityV1,
+        targets: [WorkspaceEntityIdentityV1]
+    ) {
+        let workspaceID = WorkspaceID(rawValue: c05UUID("00000000-0000-4000-8000-000000000101"))
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: workspaceID,
+            replicaID: ReplicaID(rawValue: c05UUID("00000000-0000-4000-8000-000000000102"))
+        )
+        let siteID = c05UUID("00000000-0000-4000-8000-000000000103")
+        let assetID = c05UUID("00000000-0000-4000-8000-000000000104")
+        let targets = try [
+            WorkspaceEntityIdentityV1(kind: .site, id: siteID),
+            WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+        ]
+        let expectedRevision = try WorkspaceExpectedRevisionV1(
+            workspaceID: workspaceID,
+            generationID: c05UUID("00000000-0000-4000-8000-000000000105"),
+            writerInstanceID: c05UUID("00000000-0000-4000-8000-000000000106"),
+            workspaceRevision: 0,
+            entityRevisions: targets.map { .init(identity: $0, revision: 0) }
+        )
+        return (
+            WorkspaceMutationRequestV1(
+                mutationID: try MutationIDV1(rawValue: c05UUID("00000000-0000-4000-8000-000000000111")),
+                expectedRevision: expectedRevision,
+                command: .createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(id: siteID, label: "C05 site", address: nil, timeZoneID: "UTC"),
+                    assetID: assetID,
+                    assetLabel: "C05 asset",
+                    packID: "test.c05",
+                    packSchemaVersion: 1,
+                    packContentVersion: 1,
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+                ))
+            ),
+            identity,
+            targets
+        )
+    }
+
+    private func c05UUID(_ value: String) -> UUID {
+        UUID(uuidString: value)!
     }
 
     private func fixtureURL() -> URL {
