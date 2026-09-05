@@ -1365,6 +1365,40 @@ extension V9_ChangeJournalCheckpointReplayTests {
 }
 // C05_BOUNDARY_ANCHOR: canonical-identity-journal-regression
 extension V9_ChangeJournalCheckpointReplayTests {
+    func testV30P01C05StoredFormattingCannotRewriteCanonicalCommand() throws {
+        let suiteName = "V30-P01-C05-command-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let initial = try preferences.readGlobalizationPresentationPreference()
+        let command = WorkspaceCommandV1.updateSiteTimeZone(.init(
+            siteID: UUID(uuidString: "22222222-2222-4222-8222-222222222222")!,
+            timeZoneID: "America/New_York",
+            confirmedAt: Date(timeIntervalSince1970: 1_788_000_000)
+        ))
+        let before = try WorkspaceMutationCanonicalV1.data(command)
+        let beforeDigest = try WorkspaceMutationCanonicalV1.sha256(command)
+        let changed = try GlobalizationPresentationPreferenceV1(
+            formatting: FormattingLocaleProfileV1(
+                localeIdentifier: "es-ES",
+                ianaTimeZoneIdentifier: "Europe/Madrid",
+                calendar: .gregorian,
+                numberingSystem: .latin,
+                units: .metric
+            )
+        )
+        try preferences.writeGlobalizationPresentationPreference(changed, operationID: UUID())
+        XCTAssertEqual(try preferences.readGlobalizationPresentationPreference(), changed)
+        XCTAssertNotEqual(initial, changed)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(command), before)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.sha256(command), beforeDigest)
+        try V30P01C05WorkspaceWriterCanonicalIdentityBoundaryV1.validateCanonicalCommand(command)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        XCTAssertEqual(try decoder.decode(WorkspaceCommandV1.self, from: before), command)
+        XCTAssertEqual(command.kind.rawValue, "confirm_site_timezone")
+    }
+
     func testV30P01C05JournalReplayIdentityIsLocaleIndependent() {
         XCTAssertTrue(V30P01C05ChangeJournalCanonicalIdentityBoundaryV1.validate())
         XCTAssertTrue(V30P01C05MutationJournalCanonicalIdentityBoundaryV1.validate())
