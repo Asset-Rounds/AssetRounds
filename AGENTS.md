@@ -4,11 +4,20 @@
 
 - Reuse an existing subagent with relevant context before spawning a replacement. When reuse is not practical, create a fresh agent rather than forcing an unsuitable context.
 - Use `gpt-5.6-luna` at `max` reasoning for lightweight monitoring, inventory, extraction, deterministic hygiene checks, and other bounded support work.
-- Use `gpt-5.6-terra` at `medium`, `high`, `xhigh`, or `max` reasoning for substantive implementation, review, and CI support, choosing the lowest level that fits the task.
-- Use `gpt-5.6-sol` at `low` or `medium` reasoning for the most consequential implementation, integration, and CI decisions that benefit from stronger coding judgment.
+- Prefer `gpt-6-astra` at `low` or `medium` reasoning for difficult CI diagnosis, integration, and independent correctness review; choose the lowest effort that fits the evidence and risk. `gpt-5.6-sol` at `low` or `medium` is the alternate strong implementation/CI lane. Preserve a useful existing agent's context when its model remains available.
+- Use `gpt-5.6-terra` only when a task-specific routing instruction selects it; the owner's current strong-CI preference is Astra/Sol, with Luna for bounded support. Do not change the primary task's app-selected model or speed settings through repository files.
 - Give every delegated task a detailed, bounded brief: objective, exact owned paths or read-only scope, authority pins, required invariants and evidence, validation commands, explicit prohibitions, and the expected decision-ready report.
 - Parallelize independent work when it reduces elapsed time, while keeping shared-worktree ownership non-overlapping. Reserve at least one independent audit lane for consequential contracts or integration seams when capacity permits.
 - Prefer useful implementation and verification depth over redundant work. Do not consume tokens merely to consume a quota.
+
+## Active S10.4 operating context
+
+- While S10.4 is selected, begin with `docs/execution/S10_4_CI_OPERATING_BRIEF.md`, then verify the controlling sections and pins in `docs/execution/CURRENT_TASK.md`. The brief is a navigation aid, not a new acceptance authority. Historical entries remain immutable evidence, not instructions to reexecute consumed corrections.
+- Apply S10.4's explicit H394/H401 development exceptions before the generic single-correction rules below: diagnose independent failures in parallel, batch compatible reviewed corrections, and run supported deterministic source checks before hosted work. Keep final acceptance unchanged.
+- No new run for a known deterministic failure. Each development dispatch must state its unanswered question, exact head/profile/coverage and expected evidence. Once a candidate is ready, freeze its bytes and gather the complete same-head matrix instead of making opportunistic changes.
+- Distinguish static checks, hosted compilation, unit pass, UI progress, full shard evidence and formal acceptance in every status report. A job reaching cleanup or upload does not prove earlier steps passed. Report unsupported static checks and missing evidence explicitly.
+- Do not automatically repin assertions to observed values. Prove the intended source change, check overlapping locks, preserve semantic assertions, then obtain independent integration review. A static checker complements hosted tests; it never replaces them.
+- Interpret all historical MD instructions by their recorded card/head and supersession: old prospective commit/dispatch instructions are consumed, not pending commands; enduring product/acceptance invariants remain active unless explicitly amended. DECISIONS and completed HANDOFF entries are provenance. Do not rewrite pinned product documents merely to modernize model wording or discard prior evidence.
 
 ## CI capacity preference
 
