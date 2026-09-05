@@ -1,8 +1,8 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
   "branchRef": "refs/heads/phase/v30-globalization",
-  "cardID": "V30-P01-C06",
-  "cardTitle": "System-first resolution, fallback, and effective-language evidence",
+  "cardID": "V30-P01-C07",
+  "cardTitle": "Locale-aware formatting and input grammar",
   "developmentRouteSHA256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690",
   "hostedDispatchAllowed": false,
   "hostedDispatchUnlockCard": "V30-P00-C05",
@@ -14,7 +14,7 @@
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "4e0411639792084c2bca8eddfa27856719192f32db44f094c7b073d65c0d8727",
+  "payloadDigest": "90b118e1a7f2568000b6c78a774e99042b2b38ae6b10e934871b0ffb607df656",
   "preS10FinalCredit": false,
   "reason": "Windows-static provisional card; no native dispatch is selected.",
   "schemaVersion": "V30BootstrapPayloadV1",
