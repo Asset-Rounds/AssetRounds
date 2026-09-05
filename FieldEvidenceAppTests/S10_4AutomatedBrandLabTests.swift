@@ -14258,8 +14258,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            )\n" +
                 "        }\n" +
                 #"        captureBaseline("state.diagnostics.ready", in: app)"#
+        let diagnosticsControllerAndCaptureSource = diagnosticsPositioningSource
+            + diagnosticsPositioningEnd
         XCTAssertEqual(
-            uiSource.components(
+            diagnosticsControllerAndCaptureSource.components(
                 separatedBy: diagnosticsFinalGeometryAndCapture
             ).count - 1,
             1
