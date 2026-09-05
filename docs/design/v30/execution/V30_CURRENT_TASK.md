@@ -2,7 +2,7 @@
 
 Card 11 of 55 — Canonical-data and historical-identity invariance
 
-Only the exact pre-issued fence below is writable. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
+The exact pre-issued fence plus the explicit ownerAuthorizedAmendments below defines the writable scope. Embedded context is the active hydration; create a separate context file only if the exact fence names it. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
 ```json
 {
@@ -238,7 +238,25 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
   },
   "ordinal": 11,
   "outcome": "Enforce and test that language/formatting changes cannot alter IDs, raw enum values, mutations, journals, evidence hashes, backup identity, authored evidence, product identity, or jurisdiction. Preserve old en-US-bearing identities.",
-  "payloadDigest": "d4c1a2e7714f9f1b516f6b023237c02c07968844bf1c51394a73433536c4dcae",
+  "ownerAuthorizedAmendments": [
+    {
+      "additionalAllowedPaths": [
+        {
+          "expectedBeforeBlobOID": "1c761a2e21bdfafa5ff0106e23e7e6d709606374",
+          "expectedBeforeSHA256": "b35061737e03ec0e73dfe484966addb43021e9d8f53ecbac277a14fb37a9160c",
+          "path": "FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift",
+          "purpose": "Require target receipt workspace equality only when semantic reversal execution metadata exists; retain source-kind, causation, digest and reversal checks."
+        }
+      ],
+      "authorityHead": "06c7e7f49eae20a2d273ce15e98cc2f881fb8510",
+      "authorizationContext": "Owner explicitly approved adding MutationEnvelopeV1.swift to Card 11 scope, updating corresponding authority records, and applying the documented fix with regression tests.",
+      "date": "2026-09-05",
+      "ownerReply": "I authorize.",
+      "priorTaskPayloadDigest": "d4c1a2e7714f9f1b516f6b023237c02c07968844bf1c51394a73433536c4dcae",
+      "scopeRule": "Effective C05 scope is the original pinned fence plus this exact owner-authorized additional path. Original package/fence remains immutable provenance. No native, integration, release or next-card credit granted."
+    }
+  ],
+  "payloadDigest": "63cd863530bb2410536b5941deac081c2dc406f2c5373482cc1b53f9e439f572",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {

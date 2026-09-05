@@ -138,7 +138,9 @@ struct MutationEnvelopeV1: Codable, Equatable, Sendable {
               (sourceKind == .semanticReversal) == (causationMutationID != nil),
               (sourceKind == .semanticReversal) == (semanticReversalExecution != nil),
               semanticReversalExecution?.targetMutationID == causationMutationID,
-              semanticReversalExecution?.targetReceiptIdentity.workspaceID == workspaceID,
+              semanticReversalExecution.map {
+                  $0.targetReceiptIdentity.workspaceID == workspaceID
+              } ?? true,
               causationMutationID != mutationID,
               correlationID != Self.zero else {
             throw WorkspaceMutationFailureV1.invalidCommand
