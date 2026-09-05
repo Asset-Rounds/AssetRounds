@@ -1,6 +1,7 @@
 {
   "schema": "V30CanonicalIdentityBaselineV1",
   "cardID": "V30-P01-C05",
+  "digestProvenance": "COMPARISON_UNIT_SYNTHETIC_NOT_DOMAIN_DERIVED",
   "provisional": {
     "finalCredit": false,
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",

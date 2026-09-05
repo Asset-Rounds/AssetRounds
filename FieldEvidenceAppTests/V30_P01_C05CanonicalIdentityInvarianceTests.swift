@@ -189,6 +189,13 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         let fixtureBytes = try Data(contentsOf: historicalReportSnapshotURL())
         let snapshot = try ReportSnapshotEncoderV1().decode(fixtureBytes)
         let encodedBefore = try ReportSnapshotEncoderV1().encode(snapshot)
+        // This frozen report proves preservation of recorded evidence hashes;
+        // it does not claim to regenerate digests for the absent media bytes.
+        let evidenceSHA256s = snapshot.evidence.map(\.sha256).sorted()
+        let authoredContentBytes = try [
+            WorkspaceMutationCanonicalV1.data(snapshot.asset),
+            WorkspaceMutationCanonicalV1.data(snapshot.site)
+        ]
         let suiteName = "V30-P01-C05-historic-report-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -231,10 +238,67 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
                 "preflight.ack.en-US.v1:safe_authorized_position"
             ]
         )
+        XCTAssertEqual(
+            evidenceSHA256s,
+            [
+                String(repeating: "a", count: 64),
+                String(repeating: "c", count: 64)
+            ]
+        )
+        XCTAssertTrue(snapshot.acknowledgements.allSatisfy { !$0.copy.isEmpty })
+        XCTAssertEqual(snapshot.asset.label, "Monument Sign")
+        XCTAssertEqual(snapshot.site.label, "North Campus")
 
         let encodedAfter = try ReportSnapshotEncoderV1().encode(snapshot)
         XCTAssertEqual(encodedAfter.data, encodedBefore.data)
         XCTAssertEqual(encodedAfter.sha256, encodedBefore.sha256)
+        XCTAssertEqual(
+            try [
+                WorkspaceMutationCanonicalV1.data(snapshot.asset),
+                WorkspaceMutationCanonicalV1.data(snapshot.site)
+            ],
+            authoredContentBytes
+        )
+    }
+
+    func testPersistedPresentationChangePreservesAssetProductIdentityCanonicalBytes() throws {
+        // The C05 baseline fixture is a comparison-unit projection. This uses
+        // the actual product-identity contract and its canonical codec instead.
+        let productIdentity = try makeAssetProductIdentity()
+        let before = try AssetSemanticCanonicalCodecV1.encode(productIdentity)
+        let beforeIdentitySHA256 = productIdentity.identitySHA256
+        let billingContract = StoreKitProductContractV1(
+            productID: EntitlementReducerV1.productID,
+            kind: .autoRenewableSubscription,
+            periodValue: 1,
+            periodUnit: .month,
+            isFamilyShareable: false,
+            introductoryPeriodValue: 2,
+            introductoryPeriodUnit: .week,
+            introductoryPaymentMode: .freeTrial
+        )
+        let billingProductIDBefore = billingContract.productID
+        let suiteName = "V30-P01-C05-product-identity-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let initial = try preferences.readGlobalizationPresentationPreference()
+        let changed = try c05ChangedPresentationPreference()
+        try preferences.writeGlobalizationPresentationPreference(changed, operationID: UUID())
+        let reread = try preferences.readGlobalizationPresentationPreference()
+
+        XCTAssertNotEqual(initial, changed)
+        XCTAssertEqual(reread, changed)
+        XCTAssertEqual(try AssetSemanticCanonicalCodecV1.encode(productIdentity), before)
+        XCTAssertEqual(productIdentity.identitySHA256, beforeIdentitySHA256)
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode(AssetProductIdentityV1.self, from: before),
+            productIdentity
+        )
+
+        XCTAssertNoThrow(try StoreKitProductLoader.validate(billingContract))
+        XCTAssertEqual(billingContract.productID, billingProductIDBefore)
+        XCTAssertEqual(billingContract.productID, EntitlementReducerV1.productID)
     }
 
     func testLocalUserAndImportedHistoryEnvelopesRoundTripWithoutReversalMetadata() throws {
@@ -317,7 +381,7 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         let sameWorkspaceExecution = try SemanticReversalExecutionV1(
             targetMutationID: fixture.request.mutationID,
             targetReceiptIdentity: sameWorkspaceReceipt,
-            reversalBasisSHA256: sameWorkspaceBasis.canonicalSHA256(),
+            reversalBasisSHA256: try sameWorkspaceBasis.canonicalSHA256(),
             planDigest: plan.planDigest,
             compensatingMutationIDs: [reversalRequest.mutationID]
         )
@@ -442,6 +506,47 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         UUID(uuidString: value)!
     }
 
+    private func c05ChangedPresentationPreference() throws -> GlobalizationPresentationPreferenceV1 {
+        try GlobalizationPresentationPreferenceV1(
+            formatting: FormattingLocaleProfileV1(
+                localeIdentifier: "es-US",
+                ianaTimeZoneIdentifier: "America/Chicago",
+                calendar: .gregorian,
+                numberingSystem: .latin,
+                units: .metric
+            ),
+            reportLanguage: ReportLanguageSelectionV1(
+                requestedLanguage: AppLanguageTagV1("es"),
+                effectiveLanguage: AppLanguageTagV1("es"),
+                fallback: .exact
+            )
+        )
+    }
+
+    private func makeAssetProductIdentity() throws -> AssetProductIdentityV1 {
+        try AssetProductIdentityV1(
+            identityID: c05UUID("00000000-0000-4000-8000-000000000121"),
+            workspaceID: WorkspaceID(rawValue: c05UUID("00000000-0000-4000-8000-000000000122")),
+            assetID: c05UUID("00000000-0000-4000-8000-000000000123"),
+            identifiers: [
+                AssetProductIdentifierV1(
+                    kind: .manufacturer,
+                    value: "Acme Lighting",
+                    normalizedComparisonValue: "acme lighting",
+                    issuer: "Acme",
+                    provenance: .humanRecorded,
+                    reviewState: .reviewedAsRecorded,
+                    effectiveFrom: Date(timeIntervalSince1970: 1_800_000_000),
+                    effectiveUntil: nil
+                )
+            ],
+            predecessorIdentityID: nil,
+            revision: 1,
+            mutationID: try MutationIDV1(rawValue: c05UUID("00000000-0000-4000-8000-000000000124")),
+            recordedAt: Date(timeIntervalSince1970: 1_800_000_001)
+        )
+    }
+
     private func fixtureURL() -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -467,6 +572,10 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         )
         XCTAssertEqual(raw["schema"] as? String, "V30CanonicalIdentityBaselineV1")
         XCTAssertEqual(raw["cardID"] as? String, "V30-P01-C05")
+        XCTAssertEqual(
+            raw["digestProvenance"] as? String,
+            "COMPARISON_UNIT_SYNTHETIC_NOT_DOMAIN_DERIVED"
+        )
         let provisional = try XCTUnwrap(raw["provisional"] as? [String: Any])
         XCTAssertEqual(provisional["finalCredit"] as? Bool, false)
         XCTAssertEqual(provisional["nativeEvidence"] as? String, "NOT_EXECUTED_NO_NATIVE_CREDIT")
