@@ -779,16 +779,16 @@ private extension BackupCanonicalEncoderV1 {
                             <= SnapshotProjectionLimitsV1.maximumProjectionBytes
                 }
         })
-            && records.locationHierarchyEvents.allSatisfy {
+            && records.locationHierarchyEvents.allSatisfy({
                 !($0.secondaryCanonicalData?.isEmpty ?? true)
-            }
+            })
             && (records.assetCompositionEdges
                 + records.assetCompositionEvents
                 + records.assetPlacementEvents
                 + records.locationMigrationReceipts
-                + records.locationNodes).allSatisfy {
+                + records.locationNodes).allSatisfy({
                     $0.secondaryCanonicalData == nil
-                } else {
+                }) else {
             return false
         }
         do {
@@ -1281,7 +1281,7 @@ private extension BackupCanonicalEncoderV1 {
         if records.recordsSchemaVersion < OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion {
             return records.operationalContacts.isEmpty
         }
-        guard (OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion...
+        guard (OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion ...
             LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.operationalContacts.count <= 200_000 else { return false }
         let keys = records.operationalContacts.map {
@@ -1325,7 +1325,7 @@ private extension BackupCanonicalEncoderV1 {
         var fields:[String:CanonicalJSONValueV1]=[
             "canonicalData":.string(value.canonicalData.base64EncodedString()),"mutationID":CanonicalJSONV1.uuid(value.mutationID),"recordID":CanonicalJSONV1.uuid(value.recordID),"recordSHA256":.string(value.recordSHA256),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)
         ]
-        if let digest=value.acceptedSourceSHA256{fields["acceptedSourceSHA256"]=.string(digest)}
+        if let digest=value.acceptedSourceSHA256{fields["acceptedSourceSHA256"] = .string(digest)}
         return .object(fields)
     }
 
@@ -1335,7 +1335,7 @@ private extension BackupCanonicalEncoderV1 {
             "canonicalData":.string(value.canonicalData.base64EncodedString()),"eventID":CanonicalJSONV1.uuid(value.eventID),"eventSHA256":.string(value.eventSHA256),"mutationID":CanonicalJSONV1.uuid(value.mutationID),"requestRecordID":CanonicalJSONV1.uuid(value.requestRecordID),"requestRevision":.integer(requestRevision),"revision":.integer(revision),"workspaceID":CanonicalJSONV1.uuid(value.workspaceID)
         ]
         if let id=value.predecessorEventID{fields["predecessorEventID"]=CanonicalJSONV1.uuid(id)}
-        if let digest=value.predecessorEventSHA256{fields["predecessorEventSHA256"]=.string(digest)}
+        if let digest=value.predecessorEventSHA256{fields["predecessorEventSHA256"] = .string(digest)}
         return .object(fields)
     }
 
@@ -1346,7 +1346,7 @@ private extension BackupCanonicalEncoderV1 {
         ]
         if let id=value.reversesEventID{fields["reversesEventID"]=CanonicalJSONV1.uuid(id)}
         if let id=value.predecessorEventID{fields["predecessorEventID"]=CanonicalJSONV1.uuid(id)}
-        if let digest=value.predecessorEventSHA256{fields["predecessorEventSHA256"]=.string(digest)}
+        if let digest=value.predecessorEventSHA256{fields["predecessorEventSHA256"] = .string(digest)}
         return .object(fields)
     }
 
@@ -1386,7 +1386,7 @@ private extension BackupCanonicalEncoderV1 {
                 && records.qualifiedServiceExposures.isEmpty
                 && records.serviceReliabilityReceipts.isEmpty
         }
-        guard (C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion...
+        guard (C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion ...
                 ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
             .contains(records.recordsSchemaVersion) else {
             return false
@@ -1418,7 +1418,7 @@ private extension BackupCanonicalEncoderV1 {
         if records.recordsSchemaVersion < C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
             return records.activityContracts.isEmpty
         }
-        guard (C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion...
+        guard (C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion ...
                 LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.activityContracts.count <= 400_000 else { return false }
         let keys = records.activityContracts.map {
@@ -1660,7 +1660,7 @@ private extension BackupCanonicalEncoderV1 {
         if records.recordsSchemaVersion < C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
             return records.activityContracts.isEmpty
         }
-        guard (C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion...
+        guard (C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion ...
                 LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               records.activityContracts.count <= 400_000 else { return false }
         let keys = records.activityContracts.map {

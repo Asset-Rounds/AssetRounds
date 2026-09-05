@@ -128,59 +128,59 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                   records.filter({ $0.sourceKind == .party }).allSatisfy({
                       SearchAccountabilityPersistencePolicyV1.accepts(fieldID: $0.fieldID)
                   }),
-                  records.filter {
+                  records.filter({
                       $0.sourceKind == .asset
                           && SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
-                  }.allSatisfy {
+                  }).allSatisfy({
                       SearchAssetSemanticsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
-                  },
-                  records.filter {
+                  }),
+                  records.filter({
                       $0.sourceKind == .work
                           && SearchAuthorityCriterionPersistencePolicyV1.accepts(fieldID: $0.fieldID)
-                  }.allSatisfy {
+                  }).allSatisfy({
                       !AuthorityCriterionClaimVocabularyV1.containsProhibitedClaim(
                           in: $0.normalizedTokens + [$0.permittedSnippet].compactMap { $0 }
                       )
-                  },
-                  records.filter {
+                  }),
+                  records.filter({
                       $0.sourceKind == .asset
                           && SearchFunctionalRelationshipsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
-                  }.allSatisfy {
+                  }).allSatisfy({
                       SearchFunctionalRelationshipsPersistencePolicyV1.accepts(fieldID: $0.fieldID)
                           && !FunctionalRelationshipClaimVocabularyV1.containsProhibitedClaim(
                               in: $0.normalizedTokens + [$0.permittedSnippet].compactMap { $0 }
                           )
-                  },
-                  records.filter {
+                  }),
+                  records.filter({
                       $0.sourceKind == .report
                           && SearchEvidenceAssurancePersistencePolicyV1.accepts(fieldID: $0.fieldID)
-                  }.allSatisfy {
+                  }).allSatisfy({
                       SearchEvidenceAssurancePersistencePolicyV1.acceptsMetadata(
                           fieldID: $0.fieldID,
                           tokens: $0.normalizedTokens,
                           snippet: $0.permittedSnippet
                       )
-                  },
-                  records.filter {
+                  }),
+                  records.filter({
                       $0.sourceKind == .report
                           && SearchInspectionReviewPersistencePolicyV1.accepts(fieldID: $0.fieldID)
-                  }.allSatisfy {
+                  }).allSatisfy({
                       SearchInspectionReviewPersistencePolicyV1.acceptsMetadata(
                           fieldID: $0.fieldID,
                           tokens: $0.normalizedTokens,
                           snippet: $0.permittedSnippet
                       )
-                  },
-                  records.filter {
+                  }),
+                  records.filter({
                       $0.sourceKind == .work
                           && SearchWorkPacketPersistencePolicyV1.accepts(fieldID: $0.fieldID)
-                  }.allSatisfy {
+                  }).allSatisfy({
                       SearchWorkPacketPersistencePolicyV1.acceptsMetadata(
                           fieldID: $0.fieldID,
                           tokens: $0.normalizedTokens,
                           snippet: $0.permittedSnippet
                       )
-                  },
+                  }),
                   records.allSatisfy({
                       $0.workspaceID == source.workspaceID
                           && $0.sourceRevision <= source.commitRevision

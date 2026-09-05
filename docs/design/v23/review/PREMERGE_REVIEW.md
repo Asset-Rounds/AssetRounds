@@ -45,6 +45,10 @@ Run [33979981288](https://github.com/Asset-Rounds/AssetRounds/actions/runs/33979
 
 Downloaded evidence: `C:\AssetRounds-v23-review-evidence\33979981288\ios-ci-33979981288-1`; includes build log and `Build.xcresult`. Runner image `20260728.0273.1`, Xcode26.6/17F113, iPhone17/iOS26.2, UDID `9AA9ED9B-42D2-4F6E-B8B5-45AAB66D6404`. Compiler correction batch 2 is partially saved at the owner's requested turn boundary. See CURRENT_REVIEW for exact resumed work; do not treat the checkpoint as a completed compiler fix or dispatch before the remaining lanes and independent review finish.
 
+Independent evidence audit: all 22 SHA256SUMS members exist and match. The 648 error lines represent 324 normalized file/site/message diagnostics at 296 unique file:line:column sites; each normalized diagnostic occurs twice. These counts include parser cascades, not 324 independently proven behavioral bugs. There is no UnitTests.xcresult or executed-test evidence. The SDK recorded by the build is iOS Simulator 26.5, distinct from the selected iOS 26.2 runtime.
+
+Batch-2 source completion: resumed the saved checkpoint and finished all compiler-reported path corrections. Independent audits verified that existing predicates/data values/order remain intact; the restored derivative failure branch uses its adjacent `invalidPlan` contract, and the added getter brace closes the correct property. Static checks again pass (50 card-contract tests, 31 controller cases, diff hygiene). Native parsing/type-checking and execution of the 15 regressions remain unproven until the fresh diagnostic completes.
+
 ## What still blocks a safe final merge
 
 1. Reconcile against the accepted Phase 10 head when the owner declares that work ready. Preserve branding, original navigation and sole-writer ownership; do not blindly merge old app roots over the accepted app.

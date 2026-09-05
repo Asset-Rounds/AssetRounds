@@ -1658,7 +1658,7 @@ enum C49WorkResourceBackupImportPolicyV1 {
             }
             return
         }
-        guard (C49BackupEnrollmentV1.recordsSchemaVersion...
+        guard (C49BackupEnrollmentV1.recordsSchemaVersion ...
                 C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               persistentSchemaVersion == records.recordsSchemaVersion + 1 else {

@@ -152,7 +152,7 @@ enum C33TemporalEvidencePackageValidationV1 {
             guard records.temporalEvidence.isEmpty else { throw BackupPackageValidationErrorV1.invalidPackage }
             return
         }
-        guard (TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion...
+        guard (TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion ...
             LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
@@ -217,7 +217,7 @@ enum C45AssetLabelPackageValidationV1 {
             }
             return
         }
-        guard (AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion...
+        guard (AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion ...
                 LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
@@ -240,7 +240,7 @@ enum C46OperationalContactPackageValidationV1 {
             guard records.operationalContacts.isEmpty else { throw BackupPackageValidationErrorV1.invalidPackage }
             return
         }
-        guard (OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion...
+        guard (OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion ...
                 LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
@@ -268,7 +268,7 @@ enum C47ActivityContractPackageValidationV2 {
             guard records.activityContracts.isEmpty else { throw BackupPackageValidationErrorV1.invalidPackage }
             return
         }
-        guard (C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion...
+        guard (C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion ...
                 LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
               manifest.source.recordsSchemaVersion == records.recordsSchemaVersion,
@@ -2320,7 +2320,7 @@ private extension BackupPackageValidatorV1 {
             }
         }
         for checkpoint in checkpoints.values {
-            guard checkpoint.stageIDs.allSatisfy { stages[$0]?.draftID == checkpoint.draftID } else { throw invalid() }
+            guard checkpoint.stageIDs.allSatisfy({ stages[$0]?.draftID == checkpoint.draftID }) else { throw invalid() }
         }
         for stage in stages.values {
             guard checkpoints[stage.draftID]?.stageIDs.contains(stage.stageID) == true else { throw invalid() }
@@ -2395,7 +2395,7 @@ private extension BackupPackageValidatorV1 {
         for receipt in discardReceipts.values {
             guard checkpoints[receipt.draftID] != nil,
                   receipt.disposedStageIDs.allSatisfy { stages[$0]?.draftID == receipt.draftID },
-                  receipt.quarantinedReservationIDs.allSatisfy { reservations[$0]?.draftID == receipt.draftID }
+                  receipt.quarantinedReservationIDs.allSatisfy({ reservations[$0]?.draftID == receipt.draftID })
             else { throw invalid() }
         }
     }
@@ -3933,13 +3933,13 @@ enum C48PortableExchangeBackupPackageValidationV2 {
               Set(referencedPayloadKeys) == Set(payloadKeys),
               Set(capabilitySessionIDs).count == capabilitySessionIDs.count,
               Set(capabilitySessionIDs) == Set(activeSessionIDs),
-              snapshot.protectedCapabilityArtifacts.allSatisfy { capability in
+              snapshot.protectedCapabilityArtifacts.allSatisfy({ capability in
                   snapshot.sessions.contains(where: {
                       $0.sessionID == capability.sessionID
                           && $0.capabilityState == capability.state
                           && $0.protectedCapability?.sha256 == capability.sha256
                   })
-              } else {
+              }) else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
         return snapshot
@@ -4794,7 +4794,7 @@ enum C57MyDayBackupPackageValidationV1 {
             try C57MyDayBackupEnrollmentV1.validate(records)
             return
         }
-        guard (C57MyDayBackupEnrollmentV1.recordsSchemaVersion...
+        guard (C57MyDayBackupEnrollmentV1.recordsSchemaVersion ...
                 LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
@@ -4822,7 +4822,7 @@ enum C05EvidenceMetadataBackupPackageValidationV1 {
             try C05EvidenceMetadataBackupEnrollmentV1.validate(records)
             return
         }
-        guard (C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion...
+        guard (C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion ...
                 LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
@@ -4847,7 +4847,7 @@ enum C04ShopReportProfileBackupPackageValidationV1 {
             try C04ShopReportProfileBackupEnrollmentV1.validate(records)
             return
         }
-        guard (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion...
+        guard (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion ...
                 LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion
@@ -4885,7 +4885,7 @@ enum C05RoundSessionBackupPackageValidationV1 {
             try C05RoundSessionBackupEnrollmentV1.validate(records)
             return
         }
-        guard (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion...
+        guard (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion ...
                 LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,
@@ -4922,7 +4922,7 @@ enum C08ImportBulkBackupPackageValidationV1 {
             try C08ImportBulkBackupEnrollmentV1.validate(records)
             return
         }
-        guard (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion...
+        guard (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion ...
                 LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
                 .contains(records.recordsSchemaVersion),
               manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1,

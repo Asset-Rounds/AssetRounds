@@ -4031,7 +4031,7 @@ private extension BackupRestoreService {
         var interimByKey:[String:SurveySessionV1]=[:]
         for source in historicSessions.sorted(by:{$0.revision<$1.revision}){guard let definition=definitions[source.authority.definitionRelease.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let key="\(source.sessionID.uuidString)|\(source.revision)",priorKey="\(source.sessionID.uuidString)|\(source.revision>0 ? source.revision-1:0)",prior=interimByKey[priorKey];let value=try source.rebound(to:workspaceID,definition:definition,packageRelease:packageRelease(source),subject:subject(source.subject),startedBy:actor(source.startedBy),lastTransitionBy:actor(source.lastTransitionBy),predecessorSessionSHA256:prior?.sessionSHA256,latestPublication:nil);interimByKey[key]=value}
         var publicationByID:[UUID:SurveyPublicationSnapshotV1]=[:]
-        for source in sourcePublications.sorted(by:{$0.revision<$1.revision}){let key="\(source.sessionID.uuidString)|\(source.sessionRevision)",guard let session=interimByKey[key],let definition=definitions[source.authority.definitionRelease.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let captures=captureByID.values.filter{$0.sessionID==source.sessionID},receipts=try source.promotionReceiptsAtPublication.map{item->SubjectPromotionReceiptV1 in guard let value=receiptByID[item.receiptID]else{throw BackupRestoreServiceError.invalidPackage};return value};let value=try source.rebound(to:workspaceID,session:session,definition:definition,captures:Array(captures),promotionReceipts:receipts,publishedBy:actor(source.publishedBy));publicationByID[value.snapshotID]=value}
+        for source in sourcePublications.sorted(by:{$0.revision<$1.revision}){let key="\(source.sessionID.uuidString)|\(source.sessionRevision)";guard let session=interimByKey[key],let definition=definitions[source.authority.definitionRelease.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let captures=captureByID.values.filter{$0.sessionID==source.sessionID},receipts=try source.promotionReceiptsAtPublication.map{item->SubjectPromotionReceiptV1 in guard let value=receiptByID[item.receiptID]else{throw BackupRestoreServiceError.invalidPackage};return value};let value=try source.rebound(to:workspaceID,session:session,definition:definition,captures:Array(captures),promotionReceipts:receipts,publishedBy:actor(source.publishedBy));publicationByID[value.snapshotID]=value}
         var finalSessionByID:[UUID:SurveySessionV1]=[:]
         for source in sourceSessions.sorted(by:{$0.revision<$1.revision}){guard let definition=definitions[source.authority.definitionRelease.releaseID]else{throw BackupRestoreServiceError.invalidPackage};let priorKey="\(source.sessionID.uuidString)|\(source.revision>0 ? source.revision-1:0)",latest=source.latestPublication.flatMap{publicationByID[$0.snapshotID]?.reference};let value=try source.rebound(to:workspaceID,definition:definition,packageRelease:packageRelease(source),subject:subject(source.subject),startedBy:actor(source.startedBy),lastTransitionBy:actor(source.lastTransitionBy),predecessorSessionSHA256:interimByKey[priorKey]?.sessionSHA256,latestPublication:latest);finalSessionByID[value.sessionID]=value}
         for definition in definitions.values {
@@ -4877,9 +4877,9 @@ private extension BackupRestoreService {
                 if let data = record.semanticReversalData {
                     let semantic = try SemanticReversalReceiptV1.decodeCanonical(from: data)
                     guard semantic.reversalReceiptIdentity == receipt.identity,
-                          receipt.reversesMutationID.map {
+                          receipt.reversesMutationID.map({
                               $0 == semantic.reversesMutationID
-                          } ?? false,
+                          }) ?? false,
                           semantic.resultingRevision == receipt.resultingRevision else {
                         throw BackupRestoreServiceError.invalidPackage
                     }
@@ -5177,9 +5177,9 @@ private extension BackupRestoreService {
                           semantic.reversalBasisSHA256
                       ),
                       semantic.reversalReceiptIdentity == sourceReceipt.identity,
-                      sourceReceipt.reversesMutationID.map {
+                      sourceReceipt.reversesMutationID.map({
                           $0 == semantic.reversesMutationID
-                      } ?? false,
+                      }) ?? false,
                       semantic.reversalReceiptIdentity == targetReceipt.identity,
                       targetReceipt.reversesMutationID.map {
                           $0 == semantic.reversesMutationID
@@ -13451,7 +13451,7 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: partsStockSnapshot == nil ? (!serviceReliabilityIncidentRecords.isEmpty
+            recordsSchemaVersion: partsStockSnapshot == nil ? ((!serviceReliabilityIncidentRecords.isEmpty
                 || !serviceImpactSegmentRecords.isEmpty
                 || !serviceCauseAssertionRecords.isEmpty
                 || !serviceRemedyAssertionRecords.isEmpty

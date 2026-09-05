@@ -1963,7 +1963,7 @@ struct PunchReviewCloseoutV1: Codable, Equatable, Sendable {
         let hasItems=scope.contains{!$0.findingLinks.isEmpty}
         switch completion {
         case .completedNoPunchItemsRecordedInScope:
-            guard !hasItems,scope.allSatisfy{$0.disposition == .reviewedNoItemRecorded || $0.disposition == .notApplicable}
+            guard !hasItems,scope.allSatisfy({$0.disposition == .reviewedNoItemRecorded || $0.disposition == .notApplicable})
             else{throw ActivityContractFailureV2.unsupportedClaim}
         case .completedWithPunchItemsRecorded:
             guard hasItems,
