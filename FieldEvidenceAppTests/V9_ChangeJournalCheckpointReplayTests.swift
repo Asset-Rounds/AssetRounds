@@ -1365,6 +1365,66 @@ extension V9_ChangeJournalCheckpointReplayTests {
 }
 // C05_BOUNDARY_ANCHOR: canonical-identity-journal-regression
 extension V9_ChangeJournalCheckpointReplayTests {
+    func testV30P01C05PreferenceChangePreservesDurableReceiptAndReplay() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V30-C05-journal-\(UUID().uuidString)", isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let suiteName = "V30-C05-journal-preferences-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let siteID = UUID()
+        session.modelContext.insert(Site(
+            id: siteID, label: "Authored site — Café", address: "123 Main Street",
+            timeZoneID: "UTC", createdAt: Date(timeIntervalSince1970: 1_788_000_000)
+        ))
+        try session.modelContext.save()
+        let coordinator = StoreSessionCoordinator(session: session)
+        let writer = coordinator.workspaceWriter
+        let revision = try writer.currentRevision()
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: revision.workspaceID,
+            generationID: revision.generationID,
+            writerInstanceID: revision.writerInstanceID,
+            workspaceRevision: revision.revision,
+            entityRevisions: [WorkspaceEntityRevisionV1(
+                identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0
+            )]
+        )
+        let request = WorkspaceMutationRequestV1(
+            mutationID: MutationIDV1(rawValue: UUID()),
+            expectedRevision: expected,
+            command: .updateSiteTimeZone(.init(
+                siteID: siteID, timeZoneID: "America/New_York",
+                confirmedAt: Date(timeIntervalSince1970: 1_788_000_001)
+            ))
+        )
+        let committed = try writer.execute(request)
+        let journal = try MutationJournalStoreV1(
+            modelContext: session.modelContext, identity: session.workspaceIdentity,
+            generationID: session.generationID, allowStateBootstrap: false
+        )
+        let receipt = try XCTUnwrap(journal.receipt(mutationID: request.mutationID))
+        let receiptBytes = try receipt.canonicalData()
+        let journalBytes = try WorkspaceMutationCanonicalV1.data(journal.exportSnapshot())
+        let changed = try GlobalizationPresentationPreferenceV1(
+            formatting: FormattingLocaleProfileV1(
+                localeIdentifier: "es-ES", ianaTimeZoneIdentifier: "Europe/Madrid",
+                calendar: .gregorian, numberingSystem: .latin, units: .metric
+            )
+        )
+        try preferences.writeGlobalizationPresentationPreference(changed, operationID: UUID())
+        XCTAssertEqual(try preferences.readGlobalizationPresentationPreference(), changed)
+        XCTAssertEqual(try writer.execute(request), committed)
+        let replayedReceipt = try XCTUnwrap(journal.receipt(mutationID: request.mutationID))
+        XCTAssertEqual(try replayedReceipt.canonicalData(), receiptBytes)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(journal.exportSnapshot()), journalBytes)
+        XCTAssertEqual(try writer.currentRevision(), committed.after)
+    }
+
     func testV30P01C05StoredFormattingCannotRewriteCanonicalCommand() throws {
         let suiteName = "V30-P01-C05-command-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
