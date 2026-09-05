@@ -2258,3 +2258,11 @@ This entry does not self-record a future transition commit. Phase 10 was not acc
 ```
 
 This entry does not self-record its containing transition commit. Phase 10 was not accessed or polled.
+
+## C05 interim diagnostic — 2026-09-05 (not acceptance)
+
+Current card remains V30-P01-C05. Product test commit `fd049f3` adds a durable mutation receipt/journal replay regression across a persisted locale change. Earlier corrections `dde48bd`, `4d0a46e`, and `371859d` resolve helper references and add backup/command regressions. No provisional checkpoint or next-card transition is asserted here.
+
+Static source inspection found an inherited potential blocker at `FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift:141`: `semanticReversalExecution?.targetReceiptIdentity.workspaceID == workspaceID` is required even when `semanticReversalExecution` is nil for an ordinary local-user mutation. The same condition exists in frozen base `acbfb68355f903fe98638b6ef22e4814e7b48328`. With absent reversal metadata the left side is nil and cannot equal the required workspace identity. This is source evidence, not a claimed native test failure. The file is outside the C05 fence and was not changed; do not weaken the journal regression to conceal this finding. Native verification and an authorized resolution remain outstanding.
+
+`git diff --check` and `python -B Scripts/v30/validate_v30_provisional_ci_contract.py` passed; the latter validates WINDOWS_STATIC selection only. No Swift compilation, Simulator run, native test pass, final acceptance, main integration, or release credit is claimed. Historical-report test work remains under review. Phase 10 was not accessed or polled.
