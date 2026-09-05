@@ -2273,3 +2273,17 @@ extension V9_22LocalizationAccessibilityTests {
         XCTAssertEqual(target.draftResumeAnchor?.selectedStableID, "accessibility.selection")
     }
 }
+
+private final class V30P01C06BundledFallbackRegressionTests: XCTestCase {
+    func testTypedCatalogFallbackNeverDisplaysTheRequestedRawKey() {
+        let resourceBundle = Bundle(for: Self.self)
+        let keys: [BundledLocalizationKeyV1] = [
+            .commonDone, .feedbackSubject, .packageRequiredViews
+        ]
+        for key in keys {
+            let value = BundledLocalizationCatalogV1.localized(key, bundle: resourceBundle)
+            XCTAssertFalse(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            XCTAssertNotEqual(value, key.rawValue)
+        }
+    }
+}

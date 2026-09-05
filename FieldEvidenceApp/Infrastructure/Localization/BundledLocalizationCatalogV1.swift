@@ -2832,7 +2832,7 @@ enum BundledLocalizationCatalogV1 {
     }
 
     static func localized(_ key: BundledLocalizationKeyV1, bundle: Bundle = .main) -> String {
-        let locale = Locale(identifier: runtimeLanguage)
+        let locale = Locale(identifier: SystemLanguageResolverV1(bundle: bundle).resolve().effectiveLanguage.rawValue)
         if let fieldDraftKey = FieldDraftLocalizationKeyV1(rawValue: key.rawValue) {
             // C36 is English-only by policy.  Returning the typed default here
             // keeps this path compatible with the dynamic bundled-key switch
