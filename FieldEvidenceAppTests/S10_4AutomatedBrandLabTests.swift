@@ -4925,10 +4925,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
-        XCTAssertEqual(workValidationGateSource.utf8.count, 34_617)
+        XCTAssertEqual(workValidationGateSource.utf8.count, 34_868)
         XCTAssertEqual(
             Data(workValidationGateSource.utf8).sha256,
-            "9D63ED3DC0803525245C7AC7C262ADED76A7F58FAA90A0288D65CF6351C645E3"
+            "608D653BFADC6136524FCAC04AB93732844823268479C5990D2B050E380E7D18"
         )
         let workValidationMinimumQuickPathGate =
             "        if automationShard?.deviceProfileID\n" +
@@ -4943,10 +4943,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: workValidationMinimumQuickPathGate,
             before: k121WorkValidationBaseline
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 28_886)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 29_137)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "7A30037BAA748B37D69880787DA3E61A1C88696775CDC66A28AE39D35C70E098"
+            "A0D21241D14B19A441F470D69054B3C41C6908546A58AB3C652F70B2907F6B68"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -5676,9 +5676,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let preActionValidationIdentifierMatches =\n" +
                 "                    preActionValidationIdentifier " +
                 "== \"s5.1.work.validation\"",
-            "let preActionValidationLabelMatches =\n" +
+            "let expectedPreActionValidationLabel =\n" +
+                "                    automationShard?.shardID " +
+                "== \"s10.4.minimum.bounded\"\n" +
+                "                        ? \"[# Short description #]\"\n" +
+                "                        : \"Short description\"\n" +
+                "                let preActionValidationLabelMatches =\n" +
                 "                    preActionValidationLabel " +
-                "== \"Short description\"",
+                "== expectedPreActionValidationLabel",
             "workQuickPathButton.coordinate(\n" +
                 "                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)",
             "workQuickPathIntroductionView.waitForNonExistence(\n" +
@@ -5701,6 +5706,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: "expectedPreActionValidationLabel"
+            ).count - 1,
+            3
+        )
         let workValidationMinimumQuickPathCardinality =
             "                guard workQuickPathIntroductionCount == 1,\n" +
                 "                      workQuickPathButtonCount == 1,\n" +
@@ -5794,9 +5805,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "String(value.prefix(4096))",
             #""truncated": value.count > 4096"#,
             #""cachedFrames": cachedFrames"#,
+            #""expectedValidationLabel": expectedPreActionValidationLabel"#,
         ] {
             XCTAssertTrue(minimumQuickPathGuardObservation.contains(requiredGuardObservation))
         }
+        XCTAssertEqual(
+            minimumQuickPathGuardObservation.components(
+                separatedBy: #""expectedValidationLabel": expectedPreActionValidationLabel"#
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(
+            minimumQuickPathGuardObservation.contains(
+                #""expectedValidationLabel": "Short description""#
+            )
+        )
         for prohibitedGuardObservation in [
             ".tap(", ".coordinate(", ".exists", ".isHittable", ".isEnabled",
             ".elementType", ".identifier", ".label", ".frame", "app.state",
@@ -8166,10 +8189,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let h135InvariantSource = String(
             h135Source.dropLast(h135ReplayPreparationClose.utf8.count)
         )
-        XCTAssertEqual(h135InvariantSource.utf8.count, 5_583)
+        XCTAssertEqual(h135InvariantSource.utf8.count, 9_751)
         XCTAssertEqual(
             Data(h135InvariantSource.utf8).sha256,
-            "05BEA8D915AD13C6300F3087A60AEC45D2C21A99B33401B85CF845C93713A76E"
+            "62E834C5C9C61AFBE3F3E963E3A4012A40564BF8A45D63BF2805D49A4B9004B8"
         )
         let quickPathSemanticSnapshots = [
             "            let preActionSiteValue = site.value as? String",
@@ -8309,7 +8332,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                )",
             "                          returnKey.elementType == .button,\n" +
                 #"                          returnKey.identifier == "Return","# + "\n" +
-                #"                          returnKey.label.lowercased() == "return","# + "\n" +
+                "                          {\n" +
+                "                              let observedLabel = returnKey.label",
+            "                              return labelMatches\n" +
+                "                          }(),\n" +
                 "                          returnKey.frame == expectedReturnFrame,\n" +
                 "                          returnKey.isHittable,",
         ] {
@@ -8325,6 +8351,94 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 retainedVisibleQuickPathLock
             )
         }
+        let rtlReturnObservationSource = try boundedSource(
+            quickPathVisibleSource,
+            from: "                              let observedLabel = returnKey.label\n",
+            before: "                          returnKey.frame == expectedReturnFrame,\n"
+        )
+        XCTAssertEqual(rtlReturnObservationSource.utf8.count, 4_208)
+        XCTAssertEqual(
+            Data(rtlReturnObservationSource.utf8).sha256,
+            "35EFFB30BAEFB5F878697C42946D482F5E48CBECADBF0A64BD5CD5085123F793"
+        )
+        var rtlReturnObservationTail = rtlReturnObservationSource[
+            rtlReturnObservationSource.startIndex...
+        ]
+        for token in [
+            "let observedLabel = returnKey.label",
+            "let observedLowercasedLabel = observedLabel.lowercased()",
+            #"let labelMatches = observedLowercasedLabel == "return""#,
+            "if !labelMatches,",
+            #"shard.shardID == "s10.4.minimum.rtl-string""#,
+            "let boundedLabel = boundedDiagnosticUTF8(observedLabel)",
+            #""acceptanceEligible": false"#,
+            #""finalAcceptanceEligible": false"#,
+            "JSONSerialization.isValidJSONObject(observation)",
+            "options: [.sortedKeys]",
+            "let attachment = XCTAttachment(string: text)",
+            #"attachment.name = "S10_4_RTL_RETURN_LABEL_FAILURE_OBSERVATION""#,
+            "attachment.lifetime = .keepAlways",
+            "add(attachment)",
+            "return labelMatches",
+        ] {
+            let range = try XCTUnwrap(rtlReturnObservationTail.range(of: token), token)
+            rtlReturnObservationTail = rtlReturnObservationTail[range.upperBound...]
+        }
+        XCTAssertEqual(
+            rtlReturnObservationSource.components(separatedBy: "returnKey.label").count - 1,
+            1
+        )
+        XCTAssertEqual(
+            rtlReturnObservationSource.components(
+                separatedBy: "func boundedDiagnosticUTF8("
+            ).count - 1,
+            1
+        )
+        for prohibited in [
+            "returnKey.frame", "returnKey.isHittable", "returnKey.identifier",
+            "returnKey.elementType", "returnKey.exists", "waitFor", "app.",
+            ".tap(", ".swipe", "scroll(", "XCTFail(", "throw ", "Task",
+        ] {
+            XCTAssertFalse(rtlReturnObservationSource.contains(prohibited), prohibited)
+        }
+        // This reference mirror tests the locked algorithm, not production UI execution.
+        func referenceBoundedDiagnosticUTF8(
+            _ value: String
+        ) -> (value: String, original: Int, retained: Int, truncated: Bool) {
+            let original = value.utf8.count
+            var retainedValue = ""
+            var retained = 0
+            for scalar in value.unicodeScalars {
+                let width: Int
+                switch scalar.value {
+                case 0...0x7F: width = 1
+                case 0x80...0x7FF: width = 2
+                case 0x800...0xFFFF: width = 3
+                default: width = 4
+                }
+                guard retained + width <= 4_096 else { break }
+                retainedValue.unicodeScalars.append(scalar)
+                retained += width
+            }
+            return (retainedValue, original, retained, original > retained)
+        }
+        let combiningMarks = "e" + String(repeating: "\u{0301}", count: 4_096)
+        for (input, original, retained, truncated) in [
+            ("", 0, 0, false),
+            (String(repeating: "a", count: 4_095), 4_095, 4_095, false),
+            (String(repeating: "a", count: 4_096), 4_096, 4_096, false),
+            (String(repeating: "a", count: 4_097), 4_097, 4_096, true),
+            (String(repeating: "a", count: 4_095) + "é", 4_097, 4_095, true),
+            (String(repeating: "a", count: 4_093) + "\u{1F600}", 4_097, 4_093, true),
+            (combiningMarks, 8_193, 4_095, true),
+        ] {
+            let result = referenceBoundedDiagnosticUTF8(input)
+            XCTAssertEqual(result.original, original, "reference mirror; not production execution")
+            XCTAssertEqual(result.retained, retained, "reference mirror; not production execution")
+            XCTAssertEqual(result.value.utf8.count, retained, "reference mirror; not production execution")
+            XCTAssertEqual(result.truncated, truncated, "reference mirror; not production execution")
+        }
+
         for prohibitedQuickPathForm in [
             "711",
             "880",
@@ -11863,10 +11977,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 12_590)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 16_892)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "94F6A3EB7088567DE76CBE88FDEC85507FA3BAAA5BD17F22B8203170ECE33EEF"
+            "8A5AC120AEF4EC82FD05CA09EB46339EB4F2D0A40E36C2F1002B0609032F58AD"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -22306,10 +22420,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 826_859)
+        XCTAssertEqual(uiSource.utf8.count, 835_580)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "35C211C2BAE8592AE1060E24779C4694DC1C67309951343D594539C02211D6C8"
+            "96A5DDF014EB4D8A088BAB51B39FEDB36BA77F4F29D105945A64ABF78FF9E2CD"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -24721,39 +24835,165 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 12_575)
+        XCTAssertEqual(captureSource.utf8.count, 16_877)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "240FE40912E8C1FAC1066C4EA2F22921E362C88D637C9C34EC06F86235089F00"
+            "AADA4075186C6862B94B6C00B81DF66524700C0157E5751DA3F85E63A08BE9DA"
         )
+        let captureBoundedUTF8Source = try boundedSource(
+            captureSource,
+            from: "            func boundedDiagnosticUTF8(\n",
+            before: "            var didObserveUnhandledContrastIssue = false\n"
+        )
+        XCTAssertEqual(captureBoundedUTF8Source.utf8.count, 1_162)
+        XCTAssertEqual(
+            Data(captureBoundedUTF8Source.utf8).sha256,
+            "68E2C2943574BBD798707FE289F25A415AC944851030040C370D5BB560D2E783"
+        )
+        let unhandledContrastRecorderSource = try boundedSource(
+            captureSource,
+            from: "            var didObserveUnhandledContrastIssue = false\n",
+            before: "            var matchedExceptions: [ContrastAuditExceptionSignature] = []\n"
+        )
+        XCTAssertEqual(unhandledContrastRecorderSource.utf8.count, 5_574)
+        XCTAssertEqual(
+            Data(unhandledContrastRecorderSource.utf8).sha256,
+            "E22417BE6C6292786D3D4D23CE1BAAD460F8621017EA2EC1798E42FAF8253902"
+        )
+        for exact in [
+            "guard !didObserveUnhandledContrastIssue else { return }",
+            "didObserveUnhandledContrastIssue = true",
+            #""acceptanceEligible": false"#,
+            #""finalAcceptanceEligible": false"#,
+            #""elementObservationPerformed": false"#,
+            "self.printJSONLine(",
+            "guard observeElement else { return }",
+            "if let auditedElement = element()",
+            #""elementObservationPerformed"] = true"#,
+            "if frameIsFinite",
+        ] {
+            XCTAssertTrue(unhandledContrastRecorderSource.contains(exact), exact)
+        }
+        let flagSet = try XCTUnwrap(
+            unhandledContrastRecorderSource.range(of: "didObserveUnhandledContrastIssue = true")
+        )
+        let metadataRead = try XCTUnwrap(
+            unhandledContrastRecorderSource.range(of: "issue.compactDescription")
+        )
+        let metadataWrite = try XCTUnwrap(
+            unhandledContrastRecorderSource.range(of: "self.printJSONLine(")
+        )
+        let elementGate = try XCTUnwrap(
+            unhandledContrastRecorderSource.range(of: "guard observeElement else { return }")
+        )
+        let elementProvider = try XCTUnwrap(
+            unhandledContrastRecorderSource.range(of: "if let auditedElement = element()")
+        )
+        XCTAssertLessThan(flagSet.lowerBound, metadataRead.lowerBound)
+        XCTAssertLessThan(metadataWrite.lowerBound, elementGate.lowerBound)
+        XCTAssertLessThan(elementGate.lowerBound, elementProvider.lowerBound)
+        for prohibited in [
+            "app.navigationBars", "app.tabBars", "app.buttons", "app.scrollViews",
+            "app.keyboards", "app.descendants", "waitFor", ".tap(", ".swipe",
+            "screenshot", "debugDescription", "XCTAttachment", "return true",
+            "matchedExceptions.append",
+        ] {
+            XCTAssertFalse(unhandledContrastRecorderSource.contains(prohibited), prohibited)
+        }
+        let firstUnhandledGuardSource = try boundedSource(
+            captureSource,
+            from: "                    guard observedIssueCount <= stateIssueLimit,\n",
+            before: "                    let matchingExceptions = eligibleExceptions.filter { signature in\n"
+        )
+        XCTAssertEqual(firstUnhandledGuardSource.utf8.count, 673)
+        XCTAssertEqual(
+            Data(firstUnhandledGuardSource.utf8).sha256,
+            "5162FC8F34D1C33AE515350F81D2C6D7FADE56CA72F2DA53D01E780D91590DCF"
+        )
+        for exact in [
+            "guard observedIssueCount <= stateIssueLimit,",
+            "let auditedElement = issue.element else",
+            #"reason: "issue-limit-or-element-unavailable""#,
+            "matchingExceptionCount: nil",
+            "observeElement: false",
+            "element: { nil }",
+            "return false",
+        ] {
+            XCTAssertTrue(firstUnhandledGuardSource.contains(exact), exact)
+        }
+        XCTAssertEqual(firstUnhandledGuardSource.components(separatedBy: "issue.element").count - 1, 1)
+        let unmatchedSignatureGuardSource = try boundedSource(
+            captureSource,
+            from: "                    guard matchingExceptions.count == 1,\n",
+            before: "                    matchedExceptions.append(matchedException)\n"
+        )
+        XCTAssertEqual(unmatchedSignatureGuardSource.utf8.count, 876)
+        XCTAssertEqual(
+            Data(unmatchedSignatureGuardSource.utf8).sha256,
+            "A63B9AEAD47F8D2DFFCDBC43756E80F23F28DE9DBC7920572A9D2E8436652545"
+        )
+        for exact in [
+            #"reason: "signature-not-unique-or-already-matched""#,
+            "matchingExceptionCount: matchingExceptions.count",
+            "observeElement: true",
+            "element: { auditedElement }",
+            "return false",
+        ] {
+            XCTAssertTrue(unmatchedSignatureGuardSource.contains(exact), exact)
+        }
         let nativeContrastObservationSource = try boundedSource(
             captureSource,
             from: "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"",
             before: "            } else {\n                try app.performAccessibilityAudit(for: .contrast)\n            }"
         )
+        XCTAssertEqual(nativeContrastObservationSource.utf8.count, 956)
+        XCTAssertEqual(
+            Data(nativeContrastObservationSource.utf8).sha256,
+            "FE3AA3F9A32A0072B2AB828E75A56CA371C82EB00B713F842DEE50C1A5855169"
+        )
         for exact in [
             #"stateID == "state.work.validation-error""#,
             #"shard.shardID == "s10.4.minimum.rtl""#,
             #"stateID == "state.check-preflight.ready""#,
-            "observedIssueCount <= 3",
-            #""acceptanceEligible": false"#,
-            "S10_4_NATIVE_CONTRAST_FAILURE_OBSERVATION",
-            "if frameIsFinite",
-            "                    return false\n                }",
+            #"reason: "no-eligible-exception""#,
+            "matchingExceptionCount: nil",
+            "observeElement: true",
+            "element: { issue.element }",
+            "return false",
         ] {
             XCTAssertTrue(nativeContrastObservationSource.contains(exact), exact)
         }
-        for prohibited in [
-            "return true", "waitForExistence", "debugDescription", "screenshot",
-            "app.frame", ".tap(", ".swipe", "matchedExceptions.append",
-        ] {
-            XCTAssertFalse(nativeContrastObservationSource.contains(prohibited), prohibited)
-        }
-        let issueMetadataWrite = try XCTUnwrap(nativeContrastObservationSource.range(of: "self.printJSONLine("))
-        let issueElementRead = try XCTUnwrap(nativeContrastObservationSource.range(of: "if let auditedElement = issue.element"))
-        XCTAssertLessThan(issueMetadataWrite.lowerBound, issueElementRead.lowerBound)
-        XCTAssertEqual(nativeContrastObservationSource.components(separatedBy: "prefix(4_096)").count - 1, 4)
-        XCTAssertEqual(nativeContrastObservationSource.components(separatedBy: "performAccessibilityAudit(for: .contrast)").count - 1, 1)
+        XCTAssertFalse(nativeContrastObservationSource.contains("observedIssueCount <= 3"))
+        XCTAssertEqual(
+            captureSource.components(separatedBy: "observeFirstUnhandledContrastIssue(").count - 1,
+            4
+        )
+        XCTAssertEqual(
+            captureSource.components(
+                separatedBy: "try app.performAccessibilityAudit(for: .contrast)"
+            ).count - 1,
+            3
+        )
+        XCTAssertEqual(
+            captureSource.components(
+                separatedBy: "matchedExceptions.append(matchedException)\n" +
+                    "                    return true"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            captureSource.components(
+                separatedBy: "            } else {\n" +
+                    "                try app.performAccessibilityAudit(for: .contrast)\n" +
+                    "            }"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            uiSource.components(separatedBy: "func boundedDiagnosticUTF8(").count - 1,
+            2
+        )
+
         let captureReplayGateSource = try boundedSource(
             captureSource,
             from: "    private func captureBaseline(\n",

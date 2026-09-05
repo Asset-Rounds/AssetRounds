@@ -1467,7 +1467,66 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     guard returnKey.waitForExistence(timeout: 10),
                           returnKey.elementType == .button,
                           returnKey.identifier == "Return",
-                          returnKey.label.lowercased() == "return",
+                          {
+                              let observedLabel = returnKey.label
+                              let observedLowercasedLabel = observedLabel.lowercased()
+                              let labelMatches = observedLowercasedLabel == "return"
+                              if !labelMatches,
+                                 let shard = automationShard,
+                                 shard.shardID == "s10.4.minimum.rtl-string" {
+                                  func boundedDiagnosticUTF8(
+                                      _ value: String
+                                  ) -> (value: String, originalUTF8ByteCount: Int, retainedUTF8ByteCount: Int, truncated: Bool) {
+                                      let originalUTF8ByteCount = value.utf8.count
+                                      var retained = ""
+                                      var retainedUTF8ByteCount = 0
+                                      for scalar in value.unicodeScalars {
+                                          let scalarUTF8ByteCount: Int
+                                          switch scalar.value {
+                                          case 0...0x7F: scalarUTF8ByteCount = 1
+                                          case 0x80...0x7FF: scalarUTF8ByteCount = 2
+                                          case 0x800...0xFFFF: scalarUTF8ByteCount = 3
+                                          default: scalarUTF8ByteCount = 4
+                                          }
+                                          guard retainedUTF8ByteCount + scalarUTF8ByteCount <= 4_096 else { break }
+                                          retained.unicodeScalars.append(scalar)
+                                          retainedUTF8ByteCount += scalarUTF8ByteCount
+                                      }
+                                      return (
+                                          retained, originalUTF8ByteCount, retainedUTF8ByteCount,
+                                          originalUTF8ByteCount > retainedUTF8ByteCount
+                                      )
+                                  }
+                                  let boundedLabel = boundedDiagnosticUTF8(observedLabel)
+                                  let observation: [String: Any] = [
+                                      "schemaVersion": 1,
+                                      "acceptanceEligible": false,
+                                      "finalAcceptanceEligible": false,
+                                      "shardID": shard.shardID,
+                                      "requirementID": shard.requirementID,
+                                      "deviceProfileID": shard.deviceProfileID,
+                                      "predicateID": "new-sign.quickpath.return-label",
+                                      "expectedLowercasedLabel": "return",
+                                      "observedLabel": boundedLabel.value,
+                                      "observedLabelOriginalUTF8ByteCount": boundedLabel.originalUTF8ByteCount,
+                                      "observedLabelRetainedUTF8ByteCount": boundedLabel.retainedUTF8ByteCount,
+                                      "observedLabelTruncated": boundedLabel.truncated,
+                                      "labelMatches": labelMatches,
+                                  ]
+                                  if JSONSerialization.isValidJSONObject(observation),
+                                     let data = try? JSONSerialization.data(
+                                         withJSONObject: observation,
+                                         options: [.sortedKeys]
+                                     ),
+                                     let text = String(data: data, encoding: .utf8) {
+                                      let attachment = XCTAttachment(string: text)
+                                      attachment.name = "S10_4_RTL_RETURN_LABEL_FAILURE_OBSERVATION"
+                                      attachment.lifetime = .keepAlways
+                                      add(attachment)
+                                  }
+                              }
+                              return labelMatches
+                          }(),
                           returnKey.frame == expectedReturnFrame,
                           returnKey.isHittable,
                           restoredKeyboard.waitForExistence(timeout: 10),
@@ -5710,8 +5769,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     preActionDescriptionValue == ""
                 let preActionValidationIdentifierMatches =
                     preActionValidationIdentifier == "s5.1.work.validation"
+                let expectedPreActionValidationLabel =
+                    automationShard?.shardID == "s10.4.minimum.bounded"
+                        ? "[# Short description #]"
+                        : "Short description"
                 let preActionValidationLabelMatches =
-                    preActionValidationLabel == "Short description"
+                    preActionValidationLabel == expectedPreActionValidationLabel
                 guard preActionAppForeground,
                       preActionIntroductionExists,
                       preActionIntroductionTypeIsOther,
@@ -5851,7 +5914,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 "expectedDescriptionIdentifier": "s5.1.work.description",
                                 "expectedDescriptionValue": "",
                                 "expectedValidationIdentifier": "s5.1.work.validation",
-                                "expectedValidationLabel": "Short description",
+                                "expectedValidationLabel": expectedPreActionValidationLabel,
                                 "cachedFrames": cachedFrames,
                             ]
                         )
@@ -11496,6 +11559,121 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             }
 
+            func boundedDiagnosticUTF8(
+                _ value: String
+            ) -> (value: String, originalUTF8ByteCount: Int, retainedUTF8ByteCount: Int, truncated: Bool) {
+                let originalUTF8ByteCount = value.utf8.count
+                var retained = ""
+                var retainedUTF8ByteCount = 0
+                for scalar in value.unicodeScalars {
+                    let scalarUTF8ByteCount: Int
+                    switch scalar.value {
+                    case 0...0x7F: scalarUTF8ByteCount = 1
+                    case 0x80...0x7FF: scalarUTF8ByteCount = 2
+                    case 0x800...0xFFFF: scalarUTF8ByteCount = 3
+                    default: scalarUTF8ByteCount = 4
+                    }
+                    guard retainedUTF8ByteCount + scalarUTF8ByteCount <= 4_096 else { break }
+                    retained.unicodeScalars.append(scalar)
+                    retainedUTF8ByteCount += scalarUTF8ByteCount
+                }
+                return (
+                    retained, originalUTF8ByteCount, retainedUTF8ByteCount,
+                    originalUTF8ByteCount > retainedUTF8ByteCount
+                )
+            }
+            var didObserveUnhandledContrastIssue = false
+            func observeFirstUnhandledContrastIssue(
+                _ issue: XCUIAccessibilityAuditIssue,
+                ordinal: Int,
+                reason: String,
+                matchingExceptionCount: Int?,
+                matchedExceptionCount: Int,
+                observeElement: Bool,
+                element: () -> XCUIElement?
+            ) {
+                guard !didObserveUnhandledContrastIssue else { return }
+                didObserveUnhandledContrastIssue = true
+                let compactDescription = boundedDiagnosticUTF8(issue.compactDescription)
+                let detailedDescription = boundedDiagnosticUTF8(issue.detailedDescription)
+                var observation: [String: Any] = [
+                    "schemaVersion": 1,
+                    "acceptanceEligible": false,
+                    "finalAcceptanceEligible": false,
+                    "shardID": shard.shardID,
+                    "requirementID": shard.requirementID,
+                    "deviceProfileID": shard.deviceProfileID,
+                    "stateID": stateID,
+                    "issueOrdinal": ordinal,
+                    "reason": reason,
+                    "stateIssueLimit": stateIssueLimit,
+                    "eligibleExceptionCount": eligibleExceptions.count,
+                    "matchingExceptionCount": matchingExceptionCount.map { $0 as Any } ?? NSNull(),
+                    "matchedExceptionCount": matchedExceptionCount,
+                    "observationPhase": "issue-metadata",
+                    "auditTypeRawValue": String(issue.auditType.rawValue),
+                    "compactDescription": compactDescription.value,
+                    "compactDescriptionOriginalUTF8ByteCount": compactDescription.originalUTF8ByteCount,
+                    "compactDescriptionRetainedUTF8ByteCount": compactDescription.retainedUTF8ByteCount,
+                    "compactDescriptionTruncated": compactDescription.truncated,
+                    "detailedDescription": detailedDescription.value,
+                    "detailedDescriptionOriginalUTF8ByteCount": detailedDescription.originalUTF8ByteCount,
+                    "detailedDescriptionRetainedUTF8ByteCount": detailedDescription.retainedUTF8ByteCount,
+                    "detailedDescriptionTruncated": detailedDescription.truncated,
+                    "elementObservationPerformed": false,
+                    "elementAvailable": NSNull(),
+                    "elementIdentifier": NSNull(),
+                    "elementIdentifierOriginalUTF8ByteCount": NSNull(),
+                    "elementIdentifierRetainedUTF8ByteCount": NSNull(),
+                    "elementIdentifierTruncated": NSNull(),
+                    "elementLabel": NSNull(),
+                    "elementLabelOriginalUTF8ByteCount": NSNull(),
+                    "elementLabelRetainedUTF8ByteCount": NSNull(),
+                    "elementLabelTruncated": NSNull(),
+                    "elementTypeRawValue": NSNull(),
+                    "elementTypeDescription": NSNull(),
+                    "elementFrame": NSNull(),
+                    "elementFrameFinite": NSNull(),
+                ]
+                self.printJSONLine(
+                    prefix: "S10_4_NATIVE_CONTRAST_FAILURE_OBSERVATION",
+                    object: observation
+                )
+                guard observeElement else { return }
+                if let auditedElement = element() {
+                    let identifier = boundedDiagnosticUTF8(auditedElement.identifier)
+                    let label = boundedDiagnosticUTF8(auditedElement.label)
+                    let elementType = auditedElement.elementType
+                    let elementFrame = auditedElement.frame
+                    let frameIsFinite = elementFrame.origin.x.isFinite
+                        && elementFrame.origin.y.isFinite
+                        && elementFrame.size.width.isFinite
+                        && elementFrame.size.height.isFinite
+                    observation["elementAvailable"] = true
+                    observation["elementIdentifier"] = identifier.value
+                    observation["elementIdentifierOriginalUTF8ByteCount"] = identifier.originalUTF8ByteCount
+                    observation["elementIdentifierRetainedUTF8ByteCount"] = identifier.retainedUTF8ByteCount
+                    observation["elementIdentifierTruncated"] = identifier.truncated
+                    observation["elementLabel"] = label.value
+                    observation["elementLabelOriginalUTF8ByteCount"] = label.originalUTF8ByteCount
+                    observation["elementLabelRetainedUTF8ByteCount"] = label.retainedUTF8ByteCount
+                    observation["elementLabelTruncated"] = label.truncated
+                    observation["elementTypeRawValue"] = elementType.rawValue
+                    observation["elementTypeDescription"] = String(describing: elementType)
+                    observation["elementFrameFinite"] = frameIsFinite
+                    if frameIsFinite {
+                        observation["elementFrame"] = self.auditFrameObject(elementFrame)
+                    }
+                } else {
+                    observation["elementAvailable"] = false
+                }
+                observation["elementObservationPerformed"] = true
+                observation["observationPhase"] = "element-observation"
+                self.printJSONLine(
+                    prefix: "S10_4_NATIVE_CONTRAST_FAILURE_OBSERVATION",
+                    object: observation
+                )
+            }
             var matchedExceptions: [ContrastAuditExceptionSignature] = []
             if !eligibleExceptions.isEmpty {
                 var observedIssueCount = 0
@@ -11503,6 +11681,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     observedIssueCount += 1
                     guard observedIssueCount <= stateIssueLimit,
                           let auditedElement = issue.element else {
+                        observeFirstUnhandledContrastIssue(
+                            issue,
+                            ordinal: observedIssueCount,
+                            reason: "issue-limit-or-element-unavailable",
+                            matchingExceptionCount: nil,
+                            matchedExceptionCount: matchedExceptions.count,
+                            observeElement: false,
+                            element: { nil }
+                        )
                         return false
                     }
                     let matchingExceptions = eligibleExceptions.filter { signature in
@@ -11523,6 +11710,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           !matchedExceptions.contains(where: {
                               $0.issueID == matchedException.issueID
                           }) else {
+                        observeFirstUnhandledContrastIssue(
+                            issue,
+                            ordinal: observedIssueCount,
+                            reason: "signature-not-unique-or-already-matched",
+                            matchingExceptionCount: matchingExceptions.count,
+                            matchedExceptionCount: matchedExceptions.count,
+                            observeElement: true,
+                            element: { auditedElement }
+                        )
                         return false
                     }
                     matchedExceptions.append(matchedException)
@@ -11544,66 +11740,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 var observedIssueCount = 0
                 try app.performAccessibilityAudit(for: .contrast) { issue in
                     observedIssueCount += 1
-                    if observedIssueCount <= 3 {
-                        let compactDescription = issue.compactDescription
-                        let detailedDescription = issue.detailedDescription
-                        var observation: [String: Any] = [
-                            "schemaVersion": 1,
-                            "acceptanceEligible": false,
-                            "shardID": shard.shardID,
-                            "requirementID": shard.requirementID,
-                            "deviceProfileID": shard.deviceProfileID,
-                            "stateID": stateID,
-                            "issueOrdinal": observedIssueCount,
-                            "observationPhase": "issue-metadata",
-                            "auditTypeRawValue": String(issue.auditType.rawValue),
-                            "compactDescription": String(compactDescription.prefix(4_096)),
-                            "compactDescriptionTruncated": compactDescription.count > 4_096,
-                            "detailedDescription": String(detailedDescription.prefix(4_096)),
-                            "detailedDescriptionTruncated": detailedDescription.count > 4_096,
-                            "elementAvailable": NSNull(),
-                            "elementIdentifier": NSNull(),
-                            "elementIdentifierTruncated": NSNull(),
-                            "elementLabel": NSNull(),
-                            "elementLabelTruncated": NSNull(),
-                            "elementTypeRawValue": NSNull(),
-                            "elementTypeDescription": NSNull(),
-                            "elementFrame": NSNull(),
-                            "elementFrameFinite": NSNull(),
-                        ]
-                        self.printJSONLine(
-                            prefix: "S10_4_NATIVE_CONTRAST_FAILURE_OBSERVATION",
-                            object: observation
-                        )
-                        if let auditedElement = issue.element {
-                            let identifier = auditedElement.identifier
-                            let label = auditedElement.label
-                            let elementType = auditedElement.elementType
-                            let elementFrame = auditedElement.frame
-                            let frameIsFinite = elementFrame.origin.x.isFinite
-                                && elementFrame.origin.y.isFinite
-                                && elementFrame.size.width.isFinite
-                                && elementFrame.size.height.isFinite
-                            observation["elementAvailable"] = true
-                            observation["elementIdentifier"] = String(identifier.prefix(4_096))
-                            observation["elementIdentifierTruncated"] = identifier.count > 4_096
-                            observation["elementLabel"] = String(label.prefix(4_096))
-                            observation["elementLabelTruncated"] = label.count > 4_096
-                            observation["elementTypeRawValue"] = elementType.rawValue
-                            observation["elementTypeDescription"] = String(describing: elementType)
-                            observation["elementFrameFinite"] = frameIsFinite
-                            if frameIsFinite {
-                                observation["elementFrame"] = self.auditFrameObject(elementFrame)
-                            }
-                        } else {
-                            observation["elementAvailable"] = false
-                        }
-                        observation["observationPhase"] = "element-observation"
-                        self.printJSONLine(
-                            prefix: "S10_4_NATIVE_CONTRAST_FAILURE_OBSERVATION",
-                            object: observation
-                        )
-                    }
+                    observeFirstUnhandledContrastIssue(
+                        issue,
+                        ordinal: observedIssueCount,
+                        reason: "no-eligible-exception",
+                        matchingExceptionCount: nil,
+                        matchedExceptionCount: matchedExceptions.count,
+                        observeElement: true,
+                        element: { issue.element }
+                    )
                     return false
                 }
             } else {
