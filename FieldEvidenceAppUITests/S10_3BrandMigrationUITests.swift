@@ -4334,7 +4334,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             .waitForExistence(timeout: 10))
         captureBaseline("state.check-review.visible-issue", in: app)
 
-        let save = element("s3.review.save-report", in: app)
+        let save = app.buttons.matching(identifier: "s3.review.save-report").firstMatch
         scroll(save, in: app)
         assertControl(save, label: "Save and finish")
         save.tap()
@@ -7034,7 +7034,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(reviewOutcome.waitForExistence(timeout: 10))
         assertLocalizedLabelContains(reviewOutcome, "Resolved")
         captureBaseline("state.recheck-review.resolved", in: app)
-        let save = element("s3.review.save-report", in: app)
+        let save = app.buttons.matching(identifier: "s3.review.save-report").firstMatch
         scroll(save, in: app)
         assertControl(save, label: "Save and finish")
         save.tap()
@@ -7203,7 +7203,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         importPhoto.tap()
         XCTAssertTrue(element("s3.capture.preview", in: app)
             .waitForExistence(timeout: 20))
-        let usePhoto = element("s3.capture.use-photo", in: app)
+        let usePhoto = app.buttons.matching(identifier: "s3.capture.use-photo").firstMatch
         scroll(usePhoto, in: app)
         assertControl(usePhoto, label: "Use Photo")
         usePhoto.tap()
@@ -7219,7 +7219,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     private func saveCheckAndReturnToSign(in app: XCUIApplication) {
-        let save = element("s3.review.save-report", in: app)
+        let save = app.buttons.matching(identifier: "s3.review.save-report").firstMatch
         scroll(save, in: app)
         assertControl(save, label: "Save and finish")
         save.tap()
@@ -7874,7 +7874,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 captureBaseline("state.recheck-review.different-issue", in: app)
             }
         }
-        let save = element("s3.review.save-report", in: app)
+        let save = app.buttons.matching(identifier: "s3.review.save-report").firstMatch
         scroll(save, in: app)
         assertControl(save, label: "Save and finish")
         save.tap()
@@ -10028,7 +10028,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(preview.waitForExistence(timeout: 20))
         assertLocalizedLabel(preview, equals: "Imported photo preview")
         captureBaseline(stateID, in: app)
-        let usePhoto = element("s3.capture.use-photo", in: app)
+        let usePhoto = app.buttons.matching(identifier: "s3.capture.use-photo").firstMatch
         scroll(usePhoto, in: app)
         assertControl(usePhoto, label: "Use Photo")
         let durableAdvanceAt = Date()
@@ -16229,9 +16229,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTAssertEqual(value.label, expected, file: file, line: line)
             return
         }
-        XCTAssertFalse(value.identifier.isEmpty, "Pseudo checks require a stable identifier", file: file, line: line)
-        XCTAssertFalse(value.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
-        if value.label != expected {
+        let observedIdentifier = value.identifier
+        let observedLabel = value.label
+        XCTAssertFalse(observedIdentifier.isEmpty, "Pseudo checks require a stable identifier", file: file, line: line)
+        XCTAssertFalse(observedLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
+        if observedLabel != expected {
             pseudoLabelSentinelValidated = true
         }
     }
@@ -16248,9 +16250,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTAssertTrue(value.label.contains(expected), file: file, line: line)
             return
         }
-        XCTAssertFalse(value.identifier.isEmpty, "Pseudo checks require a stable identifier", file: file, line: line)
-        XCTAssertFalse(value.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
-        if !value.label.contains(expected) {
+        let observedIdentifier = value.identifier
+        let observedLabel = value.label
+        XCTAssertFalse(observedIdentifier.isEmpty, "Pseudo checks require a stable identifier", file: file, line: line)
+        XCTAssertFalse(observedLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, file: file, line: line)
+        if !observedLabel.contains(expected) {
             pseudoLabelSentinelValidated = true
         }
     }

@@ -22273,10 +22273,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 824_283)
+        XCTAssertEqual(uiSource.utf8.count, 824_637)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "0F062B8936AB5DD1C033BA2747132BED4B4BD5A670308FFA33B1A4CD24526F54"
+            "FF1FBC9891E8D471783B233933BCE3F858A5EAD49CAF9B44BBC874D07D7069D4"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -22408,10 +22408,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    @MainActor\n    private func assertLocalizedLabel(",
             before: "\n\n    @MainActor\n    private func assertLocalizedLabelContains("
         )
-        XCTAssertEqual(assertLocalizedLabelSource.utf8.count, 752)
+        XCTAssertEqual(assertLocalizedLabelSource.utf8.count, 848)
         XCTAssertEqual(
             Data(assertLocalizedLabelSource.utf8).sha256,
-            "5AAC1354D28E78A4DEEC78024130D9633EBAC50C2E2965DB7431843CB78F6AAF"
+            "56AF909D56EE7DC9DF6B6706A55D587D4E335062944ECE636800732BAD869B16"
         )
         XCTAssertEqual(
             assertLocalizedLabelSource.components(
@@ -22427,6 +22427,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        XCTAssertTrue(value.waitForExistence(timeout: 20), file: file, line: line)\n"
             )
         )
+        let assertLocalizedLabelContainsSource = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func assertLocalizedLabelContains(",
+            before: "\n\n    @MainActor\n    private func waitForLocalizedLabel("
+        )
+        XCTAssertEqual(assertLocalizedLabelContainsSource.utf8.count, 867)
+        XCTAssertEqual(
+            Data(assertLocalizedLabelContainsSource.utf8).sha256,
+            "1F0D097DE174DCEA4E880E170D3038BFAA1AE19E10B803DAB6C9125C0679A332"
+        )
+        for source in [assertLocalizedLabelSource, assertLocalizedLabelContainsSource] {
+            XCTAssertEqual(source.components(separatedBy: "let observedIdentifier = value.identifier").count - 1, 1)
+            XCTAssertEqual(source.components(separatedBy: "let observedLabel = value.label").count - 1, 1)
+            XCTAssertTrue(source.contains("XCTAssertFalse(observedIdentifier.isEmpty"))
+            XCTAssertTrue(source.contains("XCTAssertFalse(observedLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty"))
+            XCTAssertTrue(source.contains("pseudoLabelSentinelValidated = true"))
+            XCTAssertTrue(source.contains("guard usesPseudolanguage else"))
+            XCTAssertFalse(source.contains("XCTAssertFalse(value.label.trimmingCharacters"))
+            XCTAssertFalse(source.contains("XCTAssertFalse(value.identifier.isEmpty"))
+        }
+        XCTAssertTrue(assertLocalizedLabelSource.contains("if observedLabel != expected {"))
+        XCTAssertTrue(assertLocalizedLabelContainsSource.contains("if !observedLabel.contains(expected) {"))
+        XCTAssertEqual(uiSource.components(separatedBy: #"app.buttons.matching(identifier: "s3.review.save-report").firstMatch"#).count - 1, 4)
+        XCTAssertEqual(uiSource.components(separatedBy: #"app.buttons.matching(identifier: "s3.capture.use-photo").firstMatch"#).count - 1, 2)
+        XCTAssertFalse(uiSource.contains(#"element("s3.review.save-report", in: app)"#))
+        XCTAssertFalse(uiSource.contains(#"element("s3.capture.use-photo", in: app)"#))
         let segmentEnum = try boundedSource(
             uiSource,
             from: "    private enum AutomationSegment: String {",
