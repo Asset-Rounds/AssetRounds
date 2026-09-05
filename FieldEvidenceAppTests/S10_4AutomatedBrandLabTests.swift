@@ -17023,7 +17023,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.components(
                 separatedBy: "state.sign-detail.delete-confirmation"
             ).count - 1,
-            5
+            4
         )
         let doubleLengthGateStart =
             "        let runsMinimumDoubleLengthDeleteComposition ="
