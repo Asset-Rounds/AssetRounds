@@ -82,6 +82,15 @@ while harvesting useful results rather than changing its head after every transi
 
 ## Non-negotiable proof
 
+H403 adds an impact-based **development-only** qualification exception: independently reviewed
+diagnostic-only or allowlisted CI-harness-only changes may proceed to further minimum-runtime
+diagnostics after exact-head hosted compilation, all five required units and the affected targeted
+regressions, without a mandatory full current-runtime route. Record the impact assessment and
+executed/omitted coverage first. Shared behavior changes or uncertain impact require broader
+qualification. This does not promote diagnostics, bypass ordinary acceptance prerequisites,
+implement a missing probe, or transfer old-head results. Existing in-progress runs remain untouched.
+Read CURRENT_TASK H403 for the controlling limits; all final proof below is unchanged.
+
 All 14 shards on one exact head; 67 states per shard; 938 visual cells; 84 accessibility rows;
 six tasks; pinned environments/commands/watchdogs; strict native AX/contrast; independently
 checksummed screenshots/artifacts and receipts; genuine human visual approval. Old evidence
