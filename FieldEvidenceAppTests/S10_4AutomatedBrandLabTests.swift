@@ -7715,17 +7715,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
               let genericVisiblePositioningStartRange =
                 preflightVisibleSource.range(
                     of: "                    let verticalInset: CGFloat = 16",
-                    range:
-                        doubleLengthSerialStartRange.upperBound..<
-                            preflightVisibleSource.endIndex
+                    range: doubleLengthSerialStartRange.upperBound..<preflightVisibleSource.endIndex
                 )
         else {
             return XCTFail("The double-length serial positioning branch is missing.")
         }
         let doubleLengthSerialSource = String(
             preflightVisibleSource[
-                doubleLengthSerialStartRange.lowerBound..<
-                    genericVisiblePositioningStartRange.lowerBound
+                doubleLengthSerialStartRange.lowerBound..<genericVisiblePositioningStartRange.lowerBound
             ]
         )
         XCTAssertFalse(
