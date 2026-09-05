@@ -87,7 +87,7 @@ final class V30P01C06SystemLanguageResolutionTests: XCTestCase {
         XCTAssertEqual(try adapter.readGlobalizationFallback(), diagnostic)
 
         let storedData = try XCTUnwrap(
-            defaults.dictionaryRepresentation().values.compactMap { $0 as? Data }.first
+            defaults.persistentDomain(forName: suiteName)?.values.compactMap { $0 as? Data }.first
         )
         let storedObject = try XCTUnwrap(
             JSONSerialization.jsonObject(with: storedData) as? [String: Any]
@@ -103,7 +103,23 @@ final class V30P01C06SystemLanguageResolutionTests: XCTestCase {
 
         try adapter.recordGlobalizationFallback(nil)
         XCTAssertNil(try adapter.readGlobalizationFallback())
-        XCTAssertTrue(defaults.dictionaryRepresentation().values.compactMap { $0 as? Data }.isEmpty)
+        XCTAssertTrue((defaults.persistentDomain(forName: suiteName) ?? [:]).isEmpty)
+    }
+
+    func testSettingsResetAndEraseClearFallbackDiagnostics() throws {
+        let suiteName = "V30-P01-C06-reset-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let adapter = PreferencesAdapterV1(defaults: defaults)
+        let diagnostic = EffectiveLanguageFallbackDiagnosticV1(provenance: .englishFallback)
+
+        try adapter.recordGlobalizationFallback(diagnostic)
+        try adapter.reset(descriptors: [], operationID: UUID())
+        XCTAssertNil(try adapter.readGlobalizationFallback())
+
+        try adapter.recordGlobalizationFallback(diagnostic)
+        try adapter.erase(descriptors: [], operationID: UUID())
+        XCTAssertNil(try adapter.readGlobalizationFallback())
     }
 
     private func loadFixture() throws -> [String: Any] {
