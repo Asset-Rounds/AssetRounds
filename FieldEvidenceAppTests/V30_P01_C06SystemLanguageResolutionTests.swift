@@ -3,6 +3,28 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V30P01C06SystemLanguageResolutionTests: XCTestCase {
+    func testObservedEnglishResourceDoesNotHideFallbackEvidence() {
+        let result = SystemLanguageResolverV1().resolve(
+            observedLocalizationIdentifiers: ["en"],
+            preferredLanguageIdentifiers: ["es-MX"],
+            declaredLocalizationIdentifiers: ["en"]
+        )
+        XCTAssertEqual(result.effectiveLanguage, .english)
+        XCTAssertEqual(result.provenance, .englishFallback)
+        XCTAssertEqual(result.fallbackDiagnostic?.usedEnglishFallback, true)
+    }
+
+    func testSystemSelectedNonEnglishResourceIsNotLabeledEnglishFallback() {
+        let result = SystemLanguageResolverV1().resolve(
+            observedLocalizationIdentifiers: ["es"],
+            preferredLanguageIdentifiers: ["en"],
+            declaredLocalizationIdentifiers: ["en", "es"]
+        )
+        XCTAssertEqual(result.effectiveLanguage.rawValue, "es")
+        XCTAssertEqual(result.provenance, .systemSelectedResource)
+        XCTAssertNil(result.fallbackDiagnostic)
+    }
+
     func testInjectedSystemLanguageCasesRespectExactBaseAndEnglishFallback() throws {
         let fixture = try loadFixture()
         let cases = try XCTUnwrap(fixture["cases"] as? [[String: Any]])

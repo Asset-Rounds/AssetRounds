@@ -11,8 +11,32 @@ struct SystemLanguageResolverV1 {
 
     func resolve() -> EffectiveLanguageResolutionV1 {
         resolve(
-            preferredLanguageIdentifiers: bundle.preferredLocalizations + Locale.preferredLanguages,
+            observedLocalizationIdentifiers: bundle.preferredLocalizations,
+            preferredLanguageIdentifiers: Locale.preferredLanguages,
             declaredLocalizationIdentifiers: bundle.localizations
+        )
+    }
+
+    /// Keep iOS's effective resource observation separate from the preference
+    /// evidence: prepending that resource would hide every English fallback.
+    func resolve(
+        observedLocalizationIdentifiers: [String],
+        preferredLanguageIdentifiers: [String],
+        declaredLocalizationIdentifiers: [String]
+    ) -> EffectiveLanguageResolutionV1 {
+        let declared = Self.uniqueDeclaredResources(declaredLocalizationIdentifiers)
+        guard let observed = observedLocalizationIdentifiers.first,
+              declared.contains(observed), let language = Self.appLanguage(for: observed) else {
+            return resolve(preferredLanguageIdentifiers: preferredLanguageIdentifiers,
+                           declaredLocalizationIdentifiers: declared)
+        }
+        let inferred = Self.provenance(selectedResource: observed,
+                                       preferredLanguageIdentifiers: preferredLanguageIdentifiers)
+        return EffectiveLanguageResolutionV1(
+            effectiveLanguage: language,
+            resourceIdentifier: observed,
+            provenance: inferred == .englishFallback && language != .english
+                ? .systemSelectedResource : inferred
         )
     }
 

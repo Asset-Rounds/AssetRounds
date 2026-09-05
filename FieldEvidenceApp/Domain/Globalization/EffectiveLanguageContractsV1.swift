@@ -6,6 +6,7 @@ enum EffectiveLanguageResourceProvenanceV1: String, Codable, Equatable, Sendable
     case exactDeclaredResource = "EXACT_DECLARED_RESOURCE"
     case baseLanguageResource = "BASE_LANGUAGE_RESOURCE"
     case englishFallback = "ENGLISH_FALLBACK"
+    case systemSelectedResource = "SYSTEM_SELECTED_RESOURCE"
 }
 
 /// A privacy-safe locally inspectable fallback summary. It deliberately does
@@ -36,7 +37,7 @@ struct EffectiveLanguageResolutionV1: Codable, Equatable, Sendable {
         self.effectiveLanguage = effectiveLanguage
         self.resourceIdentifier = resourceIdentifier
         self.provenance = provenance
-        fallbackDiagnostic = provenance == .exactDeclaredResource
+        fallbackDiagnostic = provenance == .exactDeclaredResource || provenance == .systemSelectedResource
             ? nil
             : EffectiveLanguageFallbackDiagnosticV1(provenance: provenance)
     }
