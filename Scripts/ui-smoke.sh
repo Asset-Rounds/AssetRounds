@@ -326,11 +326,33 @@ if [ "$xcodebuild_status" -ne 0 ]; then
     Scripts/run-with-timeout.sh 10 \
     /bin/launchctl print "gui/$(id -u)/com.apple.testmanagerd" \
     > "$failure_diagnostic_path/launchd-gui-testmanagerd.txt" 2>&1
-  run_diagnostic simulator_launchd_testmanagerd \
-    Scripts/run-with-timeout.sh 15 \
-    xcrun simctl spawn "$CI_SIMULATOR_UDID" \
-      launchctl print system/com.apple.testmanagerd \
-    > "$failure_diagnostic_path/simulator-testmanagerd.txt" 2>&1
+  # K402: a timed-out simctl producer must not retain the final artifact sink.
+  simulator_testmanagerd_raw="$(mktemp "${RUNNER_TEMP:?}/FieldEvidenceSimulatorTestmanagerd.XXXXXX")"
+  simulator_testmanagerd_temp_status="$?"
+  printf 'simulator_testmanagerd_temp=%s\n' "$simulator_testmanagerd_temp_status" \
+    >> "$diagnostic_status_path"
+  if [ "$simulator_testmanagerd_temp_status" -eq 0 ]; then
+    run_diagnostic simulator_launchd_testmanagerd \
+      Scripts/run-with-timeout.sh 15 \
+      xcrun simctl spawn "$CI_SIMULATOR_UDID" \
+        launchctl print system/com.apple.testmanagerd \
+      > "$simulator_testmanagerd_raw" 2>&1
+    simulator_testmanagerd_bytes_at_snapshot="$(
+      LC_ALL=C wc -c < "$simulator_testmanagerd_raw" | tr -d '[:space:]'
+    )"
+    /usr/bin/head -c 1048576 "$simulator_testmanagerd_raw" \
+      > "$failure_diagnostic_path/simulator-testmanagerd.txt"
+    printf 'simulator_testmanagerd_snapshot=%s\n' "$?" >> "$diagnostic_status_path"
+    simulator_testmanagerd_retained_bytes="$(
+      LC_ALL=C wc -c < "$failure_diagnostic_path/simulator-testmanagerd.txt" \
+        | tr -d '[:space:]'
+    )"
+    printf 'simulator_testmanagerd_bytes_at_snapshot=%s\nsimulator_testmanagerd_retained_bytes=%s\nsimulator_testmanagerd_capture=bounded_snapshot_not_completion_proof\n' \
+      "$simulator_testmanagerd_bytes_at_snapshot" "$simulator_testmanagerd_retained_bytes" \
+      >> "$diagnostic_status_path"
+    rm -f "$simulator_testmanagerd_raw"
+  fi
+  # End K402 closed Simulator testmanagerd snapshot.
   run_diagnostic simulator_devices \
     Scripts/run-with-timeout.sh 15 \
     xcrun simctl list devices available -j \

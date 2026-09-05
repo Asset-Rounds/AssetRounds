@@ -11394,6 +11394,78 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         "S10.4 contrast exception exceeded its exact state issue limit"
                     )
                 }
+            } else if (
+                shard.shardID == "s10.4.minimum.minimum-os"
+                    && stateID == "state.work.validation-error"
+            ) || (
+                shard.shardID == "s10.4.minimum.rtl"
+                    && stateID == "state.check-preflight.ready"
+            ) {
+                var observedIssueCount = 0
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    observedIssueCount += 1
+                    if observedIssueCount <= 3 {
+                        let compactDescription = issue.compactDescription
+                        let detailedDescription = issue.detailedDescription
+                        var observation: [String: Any] = [
+                            "schemaVersion": 1,
+                            "acceptanceEligible": false,
+                            "shardID": shard.shardID,
+                            "requirementID": shard.requirementID,
+                            "deviceProfileID": shard.deviceProfileID,
+                            "stateID": stateID,
+                            "issueOrdinal": observedIssueCount,
+                            "observationPhase": "issue-metadata",
+                            "auditTypeRawValue": String(issue.auditType.rawValue),
+                            "compactDescription": String(compactDescription.prefix(4_096)),
+                            "compactDescriptionTruncated": compactDescription.count > 4_096,
+                            "detailedDescription": String(detailedDescription.prefix(4_096)),
+                            "detailedDescriptionTruncated": detailedDescription.count > 4_096,
+                            "elementAvailable": NSNull(),
+                            "elementIdentifier": NSNull(),
+                            "elementIdentifierTruncated": NSNull(),
+                            "elementLabel": NSNull(),
+                            "elementLabelTruncated": NSNull(),
+                            "elementTypeRawValue": NSNull(),
+                            "elementTypeDescription": NSNull(),
+                            "elementFrame": NSNull(),
+                            "elementFrameFinite": NSNull(),
+                        ]
+                        self.printJSONLine(
+                            prefix: "S10_4_NATIVE_CONTRAST_FAILURE_OBSERVATION",
+                            object: observation
+                        )
+                        if let auditedElement = issue.element {
+                            let identifier = auditedElement.identifier
+                            let label = auditedElement.label
+                            let elementType = auditedElement.elementType
+                            let elementFrame = auditedElement.frame
+                            let frameIsFinite = elementFrame.origin.x.isFinite
+                                && elementFrame.origin.y.isFinite
+                                && elementFrame.size.width.isFinite
+                                && elementFrame.size.height.isFinite
+                            observation["elementAvailable"] = true
+                            observation["elementIdentifier"] = String(identifier.prefix(4_096))
+                            observation["elementIdentifierTruncated"] = identifier.count > 4_096
+                            observation["elementLabel"] = String(label.prefix(4_096))
+                            observation["elementLabelTruncated"] = label.count > 4_096
+                            observation["elementTypeRawValue"] = elementType.rawValue
+                            observation["elementTypeDescription"] = String(describing: elementType)
+                            observation["elementFrameFinite"] = frameIsFinite
+                            if frameIsFinite {
+                                observation["elementFrame"] = self.auditFrameObject(elementFrame)
+                            }
+                        } else {
+                            observation["elementAvailable"] = false
+                        }
+                        observation["observationPhase"] = "element-observation"
+                        self.printJSONLine(
+                            prefix: "S10_4_NATIVE_CONTRAST_FAILURE_OBSERVATION",
+                            object: observation
+                        )
+                    }
+                    return false
+                }
             } else {
                 try app.performAccessibilityAudit(for: .contrast)
             }

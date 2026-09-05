@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 19_984,
-            sha256: "CD73EE03143838CBDF6FCE9D922696533345C674746DAE0D95B2F05F586DAB66"
+            byteCount: 21_264,
+            sha256: "42B26887C7D0FE872421ACA31D3F3E7E80E8F4C0575DCA5A2B51A46E1D04AAB6"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -163,6 +163,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(uiSmokeSource.components(separatedBy: simulatorAXDiagnosticSource).count - 1, 1)
         XCTAssertTrue(uiFailureDiagnosticSource.contains(simulatorAXDiagnosticSource))
         XCTAssertTrue(uiFailureDiagnosticSource.hasSuffix("  exit \"$xcodebuild_status\"\nfi"))
+        let simulatorTestmanagerdSnapshotSource = try boundedSource(
+            uiSmokeSource,
+            from: "  # K402: a timed-out simctl producer must not retain the final artifact sink.",
+            before: "  run_diagnostic simulator_devices"
+        )
+        XCTAssertTrue(uiFailureDiagnosticSource.contains(simulatorTestmanagerdSnapshotSource))
+        for exact in [
+            #"mktemp "${RUNNER_TEMP:?}/FieldEvidenceSimulatorTestmanagerd.XXXXXX""#,
+            "Scripts/run-with-timeout.sh 15",
+            #"> "$simulator_testmanagerd_raw" 2>&1"#,
+            #"/usr/bin/head -c 1048576 "$simulator_testmanagerd_raw""#,
+            #"> "$failure_diagnostic_path/simulator-testmanagerd.txt""#,
+            "bounded_snapshot_not_completion_proof",
+            #"rm -f "$simulator_testmanagerd_raw""#,
+        ] {
+            XCTAssertTrue(simulatorTestmanagerdSnapshotSource.contains(exact), exact)
+        }
+        XCTAssertFalse(simulatorTestmanagerdSnapshotSource.contains(
+            #"> "$failure_diagnostic_path/simulator-testmanagerd.txt" 2>&1"#
+        ))
         for forbidden in ["simctl shutdown", "simctl boot", "simctl erase", "retry", "test-without-building", "xcodebuild_status="] {
             XCTAssertFalse(simulatorAXDiagnosticSource.contains(forbidden), forbidden)
         }
@@ -22172,10 +22192,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 811_496)
+        XCTAssertEqual(uiSource.utf8.count, 815_884)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "EB12FD28AA1CD2B06145A4B9B3FC58FDF551BF7E78E06ADA1525715C4ECB9CEF"
+            "045C8F9719BD07C85EC1652586D01964F008FE7C546200AC568FE1324B019E69"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -24566,11 +24586,39 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 8_187)
+        XCTAssertEqual(captureSource.utf8.count, 12_575)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "801484C4301703C9C3ABA144151DB4AD4C6C57D4D22EA8F2088CF52DE648D72D"
+            "240FE40912E8C1FAC1066C4EA2F22921E362C88D637C9C34EC06F86235089F00"
         )
+        let nativeContrastObservationSource = try boundedSource(
+            captureSource,
+            from: "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"",
+            before: "            } else {\n                try app.performAccessibilityAudit(for: .contrast)\n            }"
+        )
+        for exact in [
+            #"stateID == "state.work.validation-error""#,
+            #"shard.shardID == "s10.4.minimum.rtl""#,
+            #"stateID == "state.check-preflight.ready""#,
+            "observedIssueCount <= 3",
+            #""acceptanceEligible": false"#,
+            "S10_4_NATIVE_CONTRAST_FAILURE_OBSERVATION",
+            "if frameIsFinite",
+            "                    return false\n                }",
+        ] {
+            XCTAssertTrue(nativeContrastObservationSource.contains(exact), exact)
+        }
+        for prohibited in [
+            "return true", "waitForExistence", "debugDescription", "screenshot",
+            "app.frame", ".tap(", ".swipe", "matchedExceptions.append",
+        ] {
+            XCTAssertFalse(nativeContrastObservationSource.contains(prohibited), prohibited)
+        }
+        let issueMetadataWrite = try XCTUnwrap(nativeContrastObservationSource.range(of: "self.printJSONLine("))
+        let issueElementRead = try XCTUnwrap(nativeContrastObservationSource.range(of: "if let auditedElement = issue.element"))
+        XCTAssertLessThan(issueMetadataWrite.lowerBound, issueElementRead.lowerBound)
+        XCTAssertEqual(nativeContrastObservationSource.components(separatedBy: "prefix(4_096)").count - 1, 4)
+        XCTAssertEqual(nativeContrastObservationSource.components(separatedBy: "performAccessibilityAudit(for: .contrast)").count - 1, 1)
         let captureReplayGateSource = try boundedSource(
             captureSource,
             from: "    private func captureBaseline(\n",
