@@ -2869,6 +2869,275 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         return
                     }
 
+                    if automationShard?.shardID
+                        == "s10.4.minimum.double-length" {
+                        let verticalInset: CGFloat = 16
+                        let receiverInset: CGFloat = 24
+                        let minimumGestureDistance: CGFloat = 44
+                        var serialPositioningDirection: CGFloat?
+                        let positionVisiblePreflightControl:
+                            (XCUIElement, String, String?) -> Bool = {
+                                control, expectedLabel, expectedValue in
+                                for _ in 0..<4 {
+                                    guard app.state == .runningForeground,
+                                          preflightScrollViews.count == 1,
+                                          preflightNavigationBars.count == 1,
+                                          inputAssistantViews.count == 1,
+                                          afterDarkToggles.count == 1,
+                                          safePositionToggles.count == 1,
+                                          preflightScrollView.exists,
+                                          preflightNavigationBar.exists,
+                                          inputAssistantView.exists,
+                                          control.exists,
+                                          control.elementType == .switch,
+                                          control.isEnabled,
+                                          control.label == expectedLabel,
+                                          (control.value as? String) == expectedValue,
+                                          restoredKeyboard.exists,
+                                          restoredDoneKey.exists else {
+                                        XCTFail("The serial visible preflight positioning route changed.")
+                                        return false
+                                    }
+                                    let interactiveSwitches = control.descendants(
+                                        matching: .switch
+                                    )
+                                    let interactiveSwitch =
+                                        interactiveSwitches.firstMatch
+                                    guard interactiveSwitches.count == 1,
+                                          interactiveSwitch.exists,
+                                          interactiveSwitch.elementType == .switch,
+                                          interactiveSwitch.isEnabled else {
+                                        XCTFail("The serial visible preflight interactive switch changed.")
+                                        return false
+                                    }
+                                    let liveApplicationFrame = app.frame
+                                    let scrollFrame = preflightScrollView.frame
+                                    let liveScrollFrame = scrollFrame.intersection(
+                                        liveApplicationFrame
+                                    )
+                                    let navigationFrame = preflightNavigationBar.frame
+                                    let assistantFrame = inputAssistantView.frame
+                                    let interactiveSwitchFrame =
+                                        interactiveSwitch.frame
+                                    let safeTop = max(
+                                        liveScrollFrame.minY,
+                                        navigationFrame.maxY
+                                    ) + verticalInset
+                                    let safeBottom = min(
+                                        liveScrollFrame.maxY,
+                                        assistantFrame.minY
+                                    ) - verticalInset
+                                    let receiverTop = max(
+                                        liveScrollFrame.minY,
+                                        navigationFrame.maxY
+                                    ) + receiverInset
+                                    let receiverBottom = min(
+                                        liveScrollFrame.maxY,
+                                        assistantFrame.minY
+                                    ) - receiverInset
+                                    let minimumShift =
+                                        safeTop - interactiveSwitchFrame.minY
+                                    let maximumShift =
+                                        safeBottom - interactiveSwitchFrame.maxY
+                                    let receiverCapacity = receiverBottom - receiverTop
+                                    guard !liveApplicationFrame.isNull,
+                                          !liveApplicationFrame.isEmpty,
+                                          !scrollFrame.isNull,
+                                          !scrollFrame.isEmpty,
+                                          !liveScrollFrame.isNull,
+                                          !liveScrollFrame.isEmpty,
+                                          !navigationFrame.isNull,
+                                          !navigationFrame.isEmpty,
+                                          !assistantFrame.isNull,
+                                          !assistantFrame.isEmpty,
+                                          !interactiveSwitchFrame.isNull,
+                                          !interactiveSwitchFrame.isEmpty,
+                                          assistantFrame == observedAssistantFrame,
+                                          restoredKeyboard.frame
+                                            == observedKeyboardFrame,
+                                          safeBottom > safeTop,
+                                          receiverCapacity
+                                            >= minimumGestureDistance,
+                                          interactiveSwitchFrame.height
+                                            <= safeBottom - safeTop,
+                                          minimumShift <= maximumShift else {
+                                        XCTFail("The serial visible preflight keyboard-safe geometry is invalid.")
+                                        return false
+                                    }
+                                    if interactiveSwitchFrame.minY >= safeTop,
+                                       interactiveSwitchFrame.maxY <= safeBottom,
+                                       interactiveSwitch.isHittable {
+                                        return true
+                                    }
+                                    let dragDistance: CGFloat
+                                    if maximumShift < 0 {
+                                        let recognizedMinimum = max(
+                                            minimumShift,
+                                            -receiverCapacity
+                                        )
+                                        let recognizedMaximum = min(
+                                            maximumShift,
+                                            -minimumGestureDistance
+                                        )
+                                        if recognizedMinimum <= recognizedMaximum {
+                                            dragDistance = recognizedMaximum
+                                        } else if maximumShift < -receiverCapacity {
+                                            dragDistance = -receiverCapacity
+                                        } else {
+                                            XCTFail("The serial visible preflight upward shift is not recognizable.")
+                                            return false
+                                        }
+                                    } else if minimumShift > 0 {
+                                        let recognizedMinimum = max(
+                                            minimumShift,
+                                            minimumGestureDistance
+                                        )
+                                        let recognizedMaximum = min(
+                                            maximumShift,
+                                            receiverCapacity
+                                        )
+                                        if recognizedMinimum <= recognizedMaximum {
+                                            dragDistance = recognizedMinimum
+                                        } else if minimumShift > receiverCapacity {
+                                            dragDistance = receiverCapacity
+                                        } else {
+                                            XCTFail("The serial visible preflight downward shift is not recognizable.")
+                                            return false
+                                        }
+                                    } else {
+                                        XCTFail("The serial visible preflight control is contained but not hittable.")
+                                        return false
+                                    }
+                                    let dragDirection: CGFloat = dragDistance > 0
+                                        ? 1
+                                        : -1
+                                    if let serialPositioningDirection {
+                                        guard dragDirection
+                                            == serialPositioningDirection else {
+                                            XCTFail("The serial visible preflight correction would reverse direction.")
+                                            return false
+                                        }
+                                    } else {
+                                        serialPositioningDirection = dragDirection
+                                    }
+                                    let scrollOrigin = preflightScrollView.coordinate(
+                                        withNormalizedOffset: CGVector(dx: 0, dy: 0)
+                                    )
+                                    let dragStartOffsetY = dragDistance > 0
+                                        ? receiverTop - scrollFrame.minY
+                                        : receiverBottom - scrollFrame.minY
+                                    let dragStart = scrollOrigin.withOffset(
+                                        CGVector(
+                                            dx: scrollFrame.width / 2,
+                                            dy: dragStartOffsetY
+                                        )
+                                    )
+                                    let dragEnd = dragStart.withOffset(
+                                        CGVector(dx: 0, dy: dragDistance)
+                                    )
+                                    let interactiveSwitchMinYBeforeDrag =
+                                        interactiveSwitchFrame.minY
+                                    dragStart.press(
+                                        forDuration: 0.2,
+                                        thenDragTo: dragEnd,
+                                        withVelocity: .slow,
+                                        thenHoldForDuration: 0.2
+                                    )
+                                    guard (interactiveSwitch.frame.minY
+                                        - interactiveSwitchMinYBeforeDrag)
+                                        * dragDistance > 0 else {
+                                        XCTFail("The serial visible preflight positioning gesture did not make signed progress.")
+                                        return false
+                                    }
+                                }
+                                XCTFail("The serial visible preflight control was not positioned within four attempts.")
+                                return false
+                            }
+                        let serialAfterDarkPositioned =
+                            positionVisiblePreflightControl(
+                            afterDark,
+                            preActionAfterDarkLabel,
+                            preActionAfterDarkValue
+                        )
+                        guard serialAfterDarkPositioned,
+                           afterDark.label == preActionAfterDarkLabel,
+                           (afterDark.value as? String) == preActionAfterDarkValue,
+                           afterDark.isEnabled,
+                           app.state == .runningForeground else {
+                            XCTFail("The serial visible preflight after-dark state was not preserved.")
+                            return
+                        }
+                        let serialSafePositionPositioned =
+                            positionVisiblePreflightControl(
+                            safePosition,
+                            preActionSafePositionLabel,
+                            preActionSafePositionValue
+                        )
+                        guard serialSafePositionPositioned,
+                           safePosition.label == preActionSafePositionLabel,
+                           (safePosition.value as? String)
+                            == preActionSafePositionValue,
+                           safePosition.isEnabled,
+                           app.state == .runningForeground,
+                           wait(
+                            for: zone,
+                            predicate: "hasKeyboardFocus == true",
+                            timeout: 10
+                           ), restoredKeyboard.frame == observedKeyboardFrame,
+                           inputAssistantView.frame == observedAssistantFrame else {
+                            XCTFail("The serial visible preflight state was not restored and positioned before capture.")
+                            return
+                        }
+                        let serialAfterDarkSwitches = afterDark.descendants(
+                            matching: .switch
+                        )
+                        let serialSafePositionSwitches =
+                            safePosition.descendants(matching: .switch)
+                        let serialAfterDarkSwitch = serialAfterDarkSwitches
+                            .firstMatch
+                        let serialSafePositionSwitch =
+                            serialSafePositionSwitches.firstMatch
+                        let serialApplicationFrame = app.frame
+                        let serialScrollFrame = preflightScrollView.frame
+                            .intersection(serialApplicationFrame)
+                        let serialNavigationFrame = preflightNavigationBar.frame
+                        let serialAssistantFrame = inputAssistantView.frame
+                        let serialSafeTop = max(
+                            serialScrollFrame.minY,
+                            serialNavigationFrame.maxY
+                        ) + verticalInset
+                        let serialSafeBottom = min(
+                            serialScrollFrame.maxY,
+                            serialAssistantFrame.minY
+                        ) - verticalInset
+                        guard serialAfterDarkSwitches.count == 1,
+                              serialSafePositionSwitches.count == 1,
+                              serialAfterDarkSwitch.exists,
+                              serialSafePositionSwitch.exists,
+                              serialAfterDarkSwitch.elementType == .switch,
+                              serialSafePositionSwitch.elementType == .switch,
+                              serialAfterDarkSwitch.isEnabled,
+                              serialSafePositionSwitch.isEnabled,
+                              serialSafePositionSwitch.isHittable,
+                              serialAfterDarkPositioned,
+                              serialSafePositionPositioned,
+                              serialSafePositionSwitch.frame.minY
+                                >= serialSafeTop,
+                              serialSafePositionSwitch.frame.maxY
+                                <= serialSafeBottom,
+                              !serialApplicationFrame.isNull,
+                              !serialApplicationFrame.isEmpty,
+                              !serialScrollFrame.isNull,
+                              !serialScrollFrame.isEmpty,
+                              !serialNavigationFrame.isNull,
+                              !serialNavigationFrame.isEmpty,
+                              !serialAssistantFrame.isNull,
+                              !serialAssistantFrame.isEmpty,
+                              serialSafeBottom > serialSafeTop else {
+                            XCTFail("The serial visible preflight safe-position state was not fully contained before capture.")
+                            return
+                        }
+                    } else {
                     let verticalInset: CGFloat = 16
                     let receiverInset: CGFloat = 24
                     let minimumGestureDistance: CGFloat = 44
@@ -3136,6 +3405,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                           safePosition.isHittable else {
                         XCTFail("The visible preflight state was not fully restored and positioned before capture.")
                         return
+                    }
                     }
                 }
             }

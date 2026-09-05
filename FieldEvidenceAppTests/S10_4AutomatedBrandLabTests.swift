@@ -3588,10 +3588,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 67_612)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 84_713)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "5FA9EF18FB26AF3CC79A498F0D37C6D104987B71E676007E37859036A6DF1FEB"
+            "F8D961834B5CD914D2EC7042149D62D54867B96283C8835F9475E19817754620"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 30_051)
         XCTAssertEqual(
@@ -6541,10 +6541,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightVisibleStartRange.lowerBound..<preflightMinimumSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightVisibleSource.utf8.count, 31_916)
+        XCTAssertEqual(preflightVisibleSource.utf8.count, 49_017)
         XCTAssertEqual(
             Data(preflightVisibleSource.utf8).sha256,
-            "2EBE2D07690BAD4B95627A5DC547506D474764FA26D03730C2843EDAC651BEF7"
+            "51858246A0FC27E8280D45BE00A2B978C894883D4051EEA1B273A78770F8887D"
         )
         let minimumPreflightQuickPathWrapperStart =
             "                    let minimumPreflightQuickPathIntroductionViews ="
@@ -7659,12 +7659,84 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+        let doubleLengthSerialPositioningLocks = [
+            "if automationShard?.shardID\n" +
+                #"== "s10.4.minimum.double-length" {"#,
+            "let positionVisiblePreflightControl:",
+            "let serialAfterDarkPositioned =\n" +
+                "positionVisiblePreflightControl(",
+            "guard serialAfterDarkPositioned,",
+            "let serialSafePositionPositioned =\n" +
+                "positionVisiblePreflightControl(",
+            "guard serialSafePositionPositioned,",
+            "interactiveSwitchFrame.height\n" +
+                "<= safeBottom - safeTop,",
+            "let interactiveSwitches = control.descendants(\n" +
+                "matching: .switch\n" +
+                ")",
+            "interactiveSwitches.count == 1,",
+            "interactiveSwitchFrame.minY >= safeTop,",
+            "interactiveSwitchFrame.maxY <= safeBottom,",
+            "guard positionVisiblePreflightControl(\n" +
+                "afterDark,",
+            "positionVisiblePreflightControl(\n" +
+                "safePosition,",
+            "The serial visible preflight keyboard-safe geometry is invalid.",
+            "The serial visible preflight positioning gesture did not make signed progress.",
+            "serialSafePositionSwitch.frame.maxY\n" +
+                "<= serialSafeBottom,",
+        ]
+        for lock in doubleLengthSerialPositioningLocks {
+            XCTAssertEqual(
+                normalizedPreflightVisibleSource.components(
+                    separatedBy: lock
+                ).count - 1,
+                1,
+                lock
+            )
+        }
+        for serialPositionProof in [
+            "serialAfterDarkPositioned,",
+            "serialSafePositionPositioned,",
+        ] {
+            XCTAssertEqual(
+                normalizedPreflightVisibleSource.components(
+                    separatedBy: serialPositionProof
+                ).count - 1,
+                2,
+                serialPositionProof
+            )
+        }
+        let doubleLengthSerialStart =
+            "if automationShard?.shardID\n" +
+                #"                        == "s10.4.minimum.double-length" {"#
+        guard let doubleLengthSerialStartRange =
+            preflightVisibleSource.range(of: doubleLengthSerialStart),
+              let genericVisiblePositioningStartRange =
+                preflightVisibleSource.range(
+                    of: "                    let verticalInset: CGFloat = 16",
+                    range:
+                        doubleLengthSerialStartRange.upperBound..<
+                            preflightVisibleSource.endIndex
+                )
+        else {
+            return XCTFail("The double-length serial positioning branch is missing.")
+        }
+        let doubleLengthSerialSource = String(
+            preflightVisibleSource[
+                doubleLengthSerialStartRange.lowerBound..<
+                    genericVisiblePositioningStartRange.lowerBound
+            ]
+        )
+        XCTAssertFalse(
+            doubleLengthSerialSource.contains("targetBottom - targetTop")
+        )
         for (queryCardinalityLock, count) in [
-            ("preflightScrollViews.count == 1", 2),
-            ("preflightNavigationBars.count == 1", 2),
-            ("inputAssistantViews.count == 1", 3),
-            ("afterDarkToggles.count == 1", 2),
-            ("safePositionToggles.count == 1", 2),
+            ("preflightScrollViews.count == 1", 3),
+            ("preflightNavigationBars.count == 1", 3),
+            ("inputAssistantViews.count == 1", 4),
+            ("afterDarkToggles.count == 1", 3),
+            ("safePositionToggles.count == 1", 3),
         ] {
             XCTAssertEqual(
                 preflightVisibleSource.components(
@@ -7676,7 +7748,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         for (preflightDirectionLock, count) in [
             ("preflightPositioningDirection", 4),
-            ("dragDirection", 3),
+            ("dragDirection", 6),
             ("maximumShift < -receiverCapacity", 1),
             ("dragDistance = -receiverCapacity", 1),
             ("minimumShift > receiverCapacity", 1),
@@ -7712,11 +7784,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         for (preflightActionLock, count) in [
             ("keyboard.coordinate(", 1),
-            ("preflightScrollView.coordinate(", 1),
-            ("dragStart.press(", 1),
-            ("forDuration: 0.2", 1),
-            ("withVelocity: .slow", 1),
-            ("thenHoldForDuration: 0.2", 1),
+            ("preflightScrollView.coordinate(", 2),
+            ("dragStart.press(", 2),
+            ("forDuration: 0.2", 2),
+            ("withVelocity: .slow", 2),
+            ("thenHoldForDuration: 0.2", 2),
         ] {
             XCTAssertEqual(
                 preflightVisibleSource.components(
@@ -7751,11 +7823,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             preflightMinimumSource.components(separatedBy: "XCTFail(").count - 1,
-            28
+            41
         )
         XCTAssertEqual(
             preflightMinimumSource.components(separatedBy: "                    return\n").count - 1,
-            28
+            41
         )
         XCTAssertFalse(
             preflightMinimumSource.contains(
@@ -22181,10 +22253,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 804_017)
+        XCTAssertEqual(uiSource.utf8.count, 821_118)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "98E5D008949177F1B7425AAF6FED76438378C1AAF26348A5663603AA5AFD0414"
+            "2CA8A7813AB152E3A06CABCDF700118052F4E083941A843844246ACD169FE409"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
