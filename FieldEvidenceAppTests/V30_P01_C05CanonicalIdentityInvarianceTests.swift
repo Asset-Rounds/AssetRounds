@@ -135,6 +135,47 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         }
     }
 
+    func testAuditRejectsEachProtectedCanonicalFieldIndependently() throws {
+        let fixture = try loadFixture()
+        let original = fixture.baseline
+        let fields = [
+            "stableIDs", "rawEnumValues", "mutationSHA256", "journalSHA256",
+            "evidenceSHA256", "backupIdentitySHA256", "authoredEvidenceSHA256",
+            "productIdentitySHA256", "jurisdictionIdentifier", "historicalEnUSIdentities"
+        ]
+        let replacementDigest = CanonicalIdentityInvarianceV1.sha256(Data("changed".utf8))
+        for field in fields {
+            func digest(_ name: String, _ value: String) -> String {
+                field == name ? replacementDigest : value
+            }
+            let changed = try CanonicalIdentitySnapshotV1(
+                stableIDs: field == "stableIDs" ? original.stableIDs + ["changed:id"] : original.stableIDs,
+                rawEnumValues: field == "rawEnumValues" ? original.rawEnumValues + ["CHANGED"] : original.rawEnumValues,
+                mutationSHA256: digest("mutationSHA256", original.mutationSHA256),
+                journalSHA256: digest("journalSHA256", original.journalSHA256),
+                evidenceSHA256: digest("evidenceSHA256", original.evidenceSHA256),
+                backupIdentitySHA256: digest("backupIdentitySHA256", original.backupIdentitySHA256),
+                authoredEvidenceSHA256: digest("authoredEvidenceSHA256", original.authoredEvidenceSHA256),
+                productIdentitySHA256: digest("productIdentitySHA256", original.productIdentitySHA256),
+                jurisdictionIdentifier: field == "jurisdictionIdentifier" ? "US-NY" : original.jurisdictionIdentifier,
+                historicalEnUSIdentities: field == "historicalEnUSIdentities"
+                    ? original.historicalEnUSIdentities + ["preflight.ack.en-US.v1:changed"]
+                    : original.historicalEnUSIdentities
+            )
+            XCTAssertThrowsError(try CanonicalIdentityInvarianceV1.audit(
+                baseline: original, localized: changed,
+                beforePresentation: fixture.beforePresentation,
+                afterPresentation: fixture.afterPresentation
+            )) { error in
+                XCTAssertEqual(
+                    error as? CanonicalIdentityInvarianceFailureV1,
+                    .canonicalIdentityChanged([field]),
+                    "Must reject a change to \(field)"
+                )
+            }
+        }
+    }
+
     func testC04AxisTypesProduceDifferentPresentationFingerprints() throws {
         let axes = try makePresentationAxisSets()
 
