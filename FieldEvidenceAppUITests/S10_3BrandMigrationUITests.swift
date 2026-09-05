@@ -9704,6 +9704,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var stagingCount = 0
         var stagedFinalDirection: CGFloat?
         var usesProvenAXTextZeroIssueComposition = false
+        // S10_4_DIAGNOSTICS_POSITIONING_TRACE_SETUP_BEGIN
+        var diagnosticsPositioningTrace: [String] = []
+        func attachDiagnosticsPositioningTrace(_ failure: String) {
+            let attachment = XCTAttachment(
+                string: (["failure=\(failure)"] + diagnosticsPositioningTrace)
+                    .joined(separator: "\n")
+            )
+            attachment.name = "S10_4_DIAGNOSTICS_POSITIONING_TRACE"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        // S10_4_DIAGNOSTICS_POSITIONING_TRACE_SETUP_END
         for _ in 0..<6 {
             let minimumShift = navigationBar.frame.maxY
                 + topClearance
@@ -9804,8 +9816,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("Diagnostics positioning interval has no signed correction.")
                 return
             }
+            // S10_4_DIAGNOSTICS_POSITIONING_TRACE_ITERATION_BEGIN
+            let diagnosticsPositioningTraceIndex = diagnosticsPositioningTrace.count
+            diagnosticsPositioningTrace.append(
+                "iteration=\(diagnosticsPositioningTraceIndex + 1) "
+                    + "minimumShift=\(minimumShift) maximumShift=\(maximumShift) "
+                    + "requiredFinalDirection=\(requiredFinalDirection) "
+                    + "stagedFinalDirection=\(String(describing: stagedFinalDirection)) "
+                    + "upwardUndertravel=\(upwardUndertravel) "
+                    + "downwardUndertravel=\(downwardUndertravel) "
+                    + "stagingCount=\(stagingCount)"
+            )
+            // S10_4_DIAGNOSTICS_POSITIONING_TRACE_ITERATION_END
             if let stagedFinalDirection,
                stagedFinalDirection != requiredFinalDirection {
+                // S10_4_DIAGNOSTICS_POSITIONING_TRACE_DIRECTION_FAILURE_BEGIN
+                attachDiagnosticsPositioningTrace("direction-change")
+                // S10_4_DIAGNOSTICS_POSITIONING_TRACE_DIRECTION_FAILURE_END
                 XCTFail("Diagnostics staged correction changed direction.")
                 return
             }
@@ -9920,6 +9947,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             } else {
                 downwardUndertravel = observedUndertravel
             }
+            // S10_4_DIAGNOSTICS_POSITIONING_TRACE_GESTURE_RESULT_BEGIN
+            diagnosticsPositioningTrace[diagnosticsPositioningTraceIndex] +=
+                " requestedDistance=\(dragDistance) actualDistance=\(actualDistance)"
+                    + " observedUndertravel=\(observedUndertravel)"
+                    + " isStaging=\(isStaging)"
+            // S10_4_DIAGNOSTICS_POSITIONING_TRACE_GESTURE_RESULT_END
         }
         let finalMinimumShift = navigationBar.frame.maxY
             + topClearance
@@ -9932,6 +9965,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         if !usesProvenAXTextZeroIssueComposition {
             guard finalMinimumShift <= 0, finalMaximumShift >= 0 else {
+                // S10_4_DIAGNOSTICS_POSITIONING_TRACE_EXHAUSTION_FAILURE_BEGIN
+                attachDiagnosticsPositioningTrace("exhaustion")
+                // S10_4_DIAGNOSTICS_POSITIONING_TRACE_EXHAUSTION_FAILURE_END
                 XCTFail("Diagnostics positioning exhausted its bounded strategy.")
                 return
             }

@@ -13671,7 +13671,38 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("Missing the diagnostics positioning source slice")
             return
         }
-        let diagnosticsPositioningSource = String(uiSource[diagnosticsPositioningStartRange.lowerBound..<diagnosticsPositioningEndRange.lowerBound])
+        let instrumentedDiagnosticsPositioningSource = String(uiSource[diagnosticsPositioningStartRange.lowerBound..<diagnosticsPositioningEndRange.lowerBound])
+        XCTAssertEqual(instrumentedDiagnosticsPositioningSource.utf8.count, 15_107)
+        XCTAssertEqual(
+            Data(instrumentedDiagnosticsPositioningSource.utf8).sha256,
+            "4A7366F530F5DA22BE94F7DCFC024A40CFD162B38C77E2119EDB2A068687BCA1"
+        )
+        var strippedDiagnosticsPositioningSource = instrumentedDiagnosticsPositioningSource
+        for (name, indentation, byteCount, digest) in [
+            ("SETUP", 8, 573, "0FB6357748023A116503C183162BFB64957C339078FA9DFE66921EC816987444"),
+            ("ITERATION", 12, 780, "EAB1DAEFD2A60876BD5BC40623B309E831C39B1B1885A2EABEBB9071C15469AC"),
+            ("DIRECTION_FAILURE", 16, 226, "C05D61877BDE7EDE06E8E2B1D7A5C2C0314073A8528CBD78F3E64D94CE4DAD16"),
+            ("GESTURE_RESULT", 12, 421, "4AE3A99BB4341BAC68AC51CE46F57ACE0AC2DA4F56C9E6A92755CC5B253772CD"),
+            ("EXHAUSTION_FAILURE", 16, 222, "C631EDE1F6F2FDFE400C38AFE84B3546EE335FFC8E6B9D09B76BD96246581577"),
+        ] {
+            let prefix = String(repeating: " ", count: indentation)
+                + "// S10_4_DIAGNOSTICS_POSITIONING_TRACE_" + name
+            let begin = prefix + "_BEGIN\n"
+            let end = prefix + "_END\n"
+            XCTAssertEqual(instrumentedDiagnosticsPositioningSource.components(separatedBy: begin).count - 1, 1)
+            XCTAssertEqual(instrumentedDiagnosticsPositioningSource.components(separatedBy: end).count - 1, 1)
+            let block = try boundedSource(instrumentedDiagnosticsPositioningSource, from: begin, before: end) + end
+            XCTAssertEqual(block.utf8.count, byteCount)
+            XCTAssertEqual(Data(block.utf8).sha256, digest)
+            strippedDiagnosticsPositioningSource = strippedDiagnosticsPositioningSource.replacingOccurrences(of: block, with: "")
+        }
+        let diagnosticsPositioningSource = strippedDiagnosticsPositioningSource
+        XCTAssertFalse(diagnosticsPositioningSource.contains("S10_4_DIAGNOSTICS_POSITIONING_TRACE_"))
+        XCTAssertEqual(instrumentedDiagnosticsPositioningSource.components(separatedBy: "diagnosticsPositioningTrace.append(").count - 1, 1)
+        XCTAssertEqual(instrumentedDiagnosticsPositioningSource.components(separatedBy: "attachDiagnosticsPositioningTrace(\"direction-change\")").count - 1, 1)
+        XCTAssertEqual(instrumentedDiagnosticsPositioningSource.components(separatedBy: "attachDiagnosticsPositioningTrace(\"exhaustion\")").count - 1, 1)
+        XCTAssertEqual(instrumentedDiagnosticsPositioningSource.components(separatedBy: "XCTAttachment(").count - 1, 1)
+        XCTAssertEqual(instrumentedDiagnosticsPositioningSource.components(separatedBy: "for _ in 0..<6 {").count - 1, 1)
         let diagnosticsRouteLocks = [
             #"app.scrollViews.containing("#,
             ".staticText,",
@@ -22273,10 +22304,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 824_637)
+        XCTAssertEqual(uiSource.utf8.count, 826_859)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "FF1FBC9891E8D471783B233933BCE3F858A5EAD49CAF9B44BBC874D07D7069D4"
+            "35C211C2BAE8592AE1060E24779C4694DC1C67309951343D594539C02211D6C8"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -22677,18 +22708,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let alternativeRecheckSource = try boundedSource(
             uiSource,
-            from:
-                "    @MainActor\n" +
-                    "    @discardableResult\n" +
-                    "    private func performAlternativeRecheck(",
-            before:
-                "\n    @MainActor\n" +
-                    "    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval("
+            from: "    @MainActor\n    @discardableResult\n    private func performAlternativeRecheck(",
+            before: "\n    @MainActor\n    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval("
         )
-        XCTAssertEqual(alternativeRecheckSource.utf8.count, 19_164)
+        XCTAssertEqual(alternativeRecheckSource.utf8.count, 19_191)
         XCTAssertEqual(
             Data(alternativeRecheckSource.utf8).sha256,
-            "4E3A52061082328296F30E2C8E4D07D36B4CFAAB2160FB8879D742CC105A2EA4"
+            "CDADD3E05F34E4CB903D2340A0533C619175093220C27D96D983528956DF930B"
         )
         for exact in [
             "emitsEvidence: Bool = true",
