@@ -13,6 +13,16 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         XCTAssertTrue(comparison.historicalEnUSIdentityPreserved)
         XCTAssertTrue(comparison.changedCanonicalFields.isEmpty)
 
+        let axes = try makePresentationAxisSets()
+        XCTAssertEqual(
+            fixture.beforePresentation,
+            GlobalizationPresentationFingerprintV1(axisSet: axes.before)
+        )
+        XCTAssertEqual(
+            fixture.afterPresentation,
+            GlobalizationPresentationFingerprintV1(axisSet: axes.after)
+        )
+
         let expectedStableIDs = try [
             WorkspaceEntityIdentityV1(
                 kind: .asset,
@@ -30,8 +40,23 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
         XCTAssertEqual(fixture.baseline.stableIDs, expectedStableIDs)
         XCTAssertEqual(
             fixture.baseline.rawEnumValues,
-            ["US_CUSTOMARY", "apply_asset_label", "asset", "site"]
+            [
+                "APPLIED", "EXACT", "GREGORIAN", "US", "US_CUSTOMARY",
+                "apply_asset_label", "asset", "latn", "site"
+            ]
         )
+        XCTAssertEqual(GlobalizationCalendarV1.gregorian.rawValue, "GREGORIAN")
+        XCTAssertEqual(GlobalizationNumberingSystemV1.latin.rawValue, "latn")
+        XCTAssertEqual(StorefrontCountryV1.unitedStates.rawValue, "US")
+        XCTAssertEqual(ReportLanguageFallbackV1.exact.rawValue, "EXACT")
+        XCTAssertEqual(ChangeReplayDispositionV1.applied.rawValue, "APPLIED")
+
+        let expectedHistorical = [
+            "preflight.ack.en-US.v1:after_dark",
+            "preflight.ack.en-US.v1:safe_authorized_position"
+        ]
+        XCTAssertEqual(fixture.baseline.historicalEnUSIdentities, expectedHistorical)
+        XCTAssertEqual(fixture.localized.historicalEnUSIdentities, expectedHistorical)
 
         try GlobalizationDevicePreferenceV1.validateC05CanonicalIdentityBoundary(
             GlobalizationDevicePreferenceV1.logicalDefault
@@ -111,39 +136,100 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
     }
 
     func testC04AxisTypesProduceDifferentPresentationFingerprints() throws {
+        let axes = try makePresentationAxisSets()
+
+        XCTAssertNotEqual(
+            GlobalizationPresentationFingerprintV1(axisSet: axes.before).displayKey,
+            GlobalizationPresentationFingerprintV1(axisSet: axes.after).displayKey
+        )
+    }
+
+    func testFrozenEnUSReportSnapshotCanonicalBytesSurvivePresentationChange() throws {
+        let fixtureBytes = try Data(contentsOf: historicalReportSnapshotURL())
+        let snapshot = try ReportSnapshotEncoderV1().decode(fixtureBytes)
+        let encodedBefore = try ReportSnapshotEncoderV1().encode(snapshot)
+        let suiteName = "V30-P01-C05-historic-report-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = PreferencesAdapterV1(defaults: defaults)
+        let initial = try preferences.readGlobalizationPresentationPreference()
+        let changed = try GlobalizationPresentationPreferenceV1(
+            formatting: FormattingLocaleProfileV1(
+                localeIdentifier: "es-US",
+                ianaTimeZoneIdentifier: "America/Chicago",
+                calendar: .gregorian,
+                numberingSystem: .latin,
+                units: .metric
+            ),
+            reportLanguage: ReportLanguageSelectionV1(
+                requestedLanguage: AppLanguageTagV1("es"),
+                effectiveLanguage: AppLanguageTagV1("es"),
+                fallback: .exact
+            )
+        )
+        try preferences.writeGlobalizationPresentationPreference(
+            changed,
+            operationID: UUID()
+        )
+        let reread = try preferences.readGlobalizationPresentationPreference()
+
+        XCTAssertNotEqual(initial, changed)
+        XCTAssertEqual(reread, changed)
+        XCTAssertEqual(encodedBefore.data, fixtureBytes)
+        XCTAssertEqual(
+            encodedBefore.sha256,
+            try String(
+                contentsOf: historicalReportSnapshotDigestURL(),
+                encoding: .utf8
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        XCTAssertEqual(
+            snapshot.acknowledgements.map { "\($0.version):\($0.key)" }.sorted(),
+            [
+                "preflight.ack.en-US.v1:after_dark",
+                "preflight.ack.en-US.v1:safe_authorized_position"
+            ]
+        )
+
+        let encodedAfter = try ReportSnapshotEncoderV1().encode(snapshot)
+        XCTAssertEqual(encodedAfter.data, encodedBefore.data)
+        XCTAssertEqual(encodedAfter.sha256, encodedBefore.sha256)
+    }
+
+    private func makePresentationAxisSets() throws -> (
+        before: GlobalizationAxisSetV1,
+        after: GlobalizationAxisSetV1
+    ) {
         let english = try AppLanguageTagV1("en")
         let spanish = try AppLanguageTagV1("es")
-        let report = try ReportLanguageSelectionV1(
-            requestedLanguage: english,
-            effectiveLanguage: english,
-            fallback: .exact
-        )
         let jurisdiction = try ProjectJurisdictionV1(countryCode: "US", subdivisionCode: "PA")
-        let us = try FormattingLocaleProfileV1(
-            localeIdentifier: "en-US",
-            ianaTimeZoneIdentifier: "America/New_York",
-            calendar: .gregorian,
-            numberingSystem: .latin,
-            units: .usCustomary
-        )
-        let metric = try FormattingLocaleProfileV1(
-            localeIdentifier: "es-ES",
-            ianaTimeZoneIdentifier: "Europe/Madrid",
-            calendar: .gregorian,
-            numberingSystem: .latin,
-            units: .metric
-        )
-        let baseline = GlobalizationAxisSetV1(
+        let before = GlobalizationAxisSetV1(
             appLanguage: english,
-            formatting: us,
+            formatting: try FormattingLocaleProfileV1(
+                localeIdentifier: "en-US",
+                ianaTimeZoneIdentifier: "America/New_York",
+                calendar: .gregorian,
+                numberingSystem: .latin,
+                units: .usCustomary
+            ),
             authoredContentLanguage: try .declared("en-US"),
-            reportLanguage: report,
+            reportLanguage: try ReportLanguageSelectionV1(
+                requestedLanguage: english,
+                effectiveLanguage: english,
+                fallback: .exact
+            ),
             storefrontCountry: .unitedStates,
             projectJurisdiction: jurisdiction
         )
-        let localized = GlobalizationAxisSetV1(
+        let after = GlobalizationAxisSetV1(
             appLanguage: spanish,
-            formatting: metric,
+            formatting: try FormattingLocaleProfileV1(
+                localeIdentifier: "es-ES",
+                ianaTimeZoneIdentifier: "Europe/Madrid",
+                calendar: .gregorian,
+                numberingSystem: .latin,
+                units: .metric
+            ),
             authoredContentLanguage: try .declared("es"),
             reportLanguage: try ReportLanguageSelectionV1(
                 requestedLanguage: spanish,
@@ -153,17 +239,29 @@ final class V30P01C05CanonicalIdentityInvarianceTests: XCTestCase {
             storefrontCountry: .unitedStates,
             projectJurisdiction: jurisdiction
         )
+        return (before, after)
+    }
 
-        XCTAssertNotEqual(
-            GlobalizationPresentationFingerprintV1(axisSet: baseline).displayKey,
-            GlobalizationPresentationFingerprintV1(axisSet: localized).displayKey
-        )
+    private func fixtureURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json")
+    }
+
+    private func historicalReportSnapshotURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/S3_3ReportSnapshotV1.json")
+    }
+
+    private func historicalReportSnapshotDigestURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/S3_3ReportSnapshotV1.sha256")
     }
 
     private func loadFixture() throws -> CanonicalIdentityBaselineFixtureV1 {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json")
+        let url = fixtureURL()
         let raw = try XCTUnwrap(
             try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         )

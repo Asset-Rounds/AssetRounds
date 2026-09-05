@@ -16,9 +16,14 @@
       "site:22222222-2222-4222-8222-222222222222"
     ],
     "rawEnumValues": [
+      "APPLIED",
+      "EXACT",
+      "GREGORIAN",
+      "US",
       "US_CUSTOMARY",
       "apply_asset_label",
       "asset",
+      "latn",
       "site"
     ],
     "mutationSHA256": "eaccafff9ad258b0515c13013e71131b95339a7829130ea5601a094e8e9a3885",
@@ -29,10 +34,10 @@
     "productIdentitySHA256": "17a228dd5b6eaa1b41f2e7d601482cb17aa44cb3dd25226e36c72ec15c0ce76c",
     "jurisdictionIdentifier": "US-PA",
     "historicalEnUSIdentities": [
-      "en-US:report:33333333-3333-4333-8333-333333333333",
-      "en-US:site:22222222-2222-4222-8222-222222222222"
+      "preflight.ack.en-US.v1:after_dark",
+      "preflight.ack.en-US.v1:safe_authorized_position"
     ],
-    "snapshotSHA256": "527b3f074e0fee7683791715bf58adb670b40d9085cc693aa0491168b483563b"
+    "snapshotSHA256": "65cd06240e54e3c89fe3d5597410c4b0be3138d0520d1af8d0028dff8d8b46a5"
   },
   "localized": {
     "schemaVersion": 1,
@@ -42,9 +47,14 @@
       "site:22222222-2222-4222-8222-222222222222"
     ],
     "rawEnumValues": [
+      "APPLIED",
+      "EXACT",
+      "GREGORIAN",
+      "US",
       "US_CUSTOMARY",
       "apply_asset_label",
       "asset",
+      "latn",
       "site"
     ],
     "mutationSHA256": "eaccafff9ad258b0515c13013e71131b95339a7829130ea5601a094e8e9a3885",
@@ -55,10 +65,10 @@
     "productIdentitySHA256": "17a228dd5b6eaa1b41f2e7d601482cb17aa44cb3dd25226e36c72ec15c0ce76c",
     "jurisdictionIdentifier": "US-PA",
     "historicalEnUSIdentities": [
-      "en-US:report:33333333-3333-4333-8333-333333333333",
-      "en-US:site:22222222-2222-4222-8222-222222222222"
+      "preflight.ack.en-US.v1:after_dark",
+      "preflight.ack.en-US.v1:safe_authorized_position"
     ],
-    "snapshotSHA256": "527b3f074e0fee7683791715bf58adb670b40d9085cc693aa0491168b483563b"
+    "snapshotSHA256": "65cd06240e54e3c89fe3d5597410c4b0be3138d0520d1af8d0028dff8d8b46a5"
   },
   "beforePresentation": {
     "appLanguageTag": "en",
