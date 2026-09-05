@@ -2712,3 +2712,265 @@ Correction `0619fa6` applies the conditional workspace equality while preserving
   "transition": "NOT_YET_PERFORMED"
 }
 ```
+
+
+## Card 12 provisional handoff — 2026-09-05
+
+```json
+{
+  "A": "a5349d320f4922e589dae86732e852f0d32311de",
+  "E": "3a28f593e755ac952071777b7e8440457950a010",
+  "K": null,
+  "M": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+  "P": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+  "candidate": {
+    "base": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+    "baseTree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7",
+    "changedPaths": [
+      "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+      "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
+      "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+      "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+      "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json",
+      "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift",
+      "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    ],
+    "head": "3a28f593e755ac952071777b7e8440457950a010",
+    "tree": "7f67173942a087f86770b10ed8bf99041425ee4f"
+  },
+  "cardID": "V30-P01-C06",
+  "coordination": {
+    "head": "1638c8ed38af81dade54ba745ab4f24610700469",
+    "ledgerDigest": "104cd56257212830e8e9395f5266af4d4cc7c81250f9845f91e722a491ddf32f",
+    "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P01-C06/CHECKPOINT/1",
+    "sequence": 26
+  },
+  "defects": [],
+  "evidence": {
+    "commands": [
+      {
+        "command": "installed V30 package validator --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS immutable package;55 cards;107 edges"
+      },
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS WINDOWS_STATIC nativeCredit=false finalCredit=false"
+      },
+      {
+        "command": "exact fence/shared tuple/frozen shell hash/authority-only transition audit; git diff --check",
+        "result": "PASS"
+      }
+    ],
+    "independentAudits": [
+      {
+        "agent": "card9_test_binding_review",
+        "head": "3a28f593e755ac952071777b7e8440457950a010",
+        "result": "PASS_STATIC_REVIEW",
+        "scope": "Settings support summary, reset/erase, supplied-bundle fallback and exact shared shell scope"
+      }
+    ],
+    "knownBugs": "Previously read KNOWN_BUGS template only; no new diagnosed blocker. Native confirmation pending.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Use Apple device/per-app resolution, no bundle swizzle, effective-language observation, safe app-Settings deep link, foreground/relaunch behavior, exact/base/English fallback, raw-key prevention, and privacy-preserving fallback diagnostics.",
+    "static": {
+      "artifacts": [
+        {
+          "bytes": 7928,
+          "path": "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+          "sha256": "91ff14e7642e796fdb337f5d5a87a98f3e44bd4922710601b9e4677f2eb62f71"
+        },
+        {
+          "bytes": 969,
+          "path": "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift",
+          "sha256": "ae8a57fc7d3f46668bdf710018ff57497e9e74d90dd9206aa1553e5d35f28ba0"
+        },
+        {
+          "bytes": 1909,
+          "path": "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
+          "sha256": "f9036601a9b23175147234c7e81cf5241af72dbaebc93a9e015634c6fbaf8158"
+        },
+        {
+          "bytes": 25885,
+          "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+          "sha256": "544118bd5507a74aafad373c78ac60acb5ffb7dbca96e059234ca5fb8bbf8dd5"
+        },
+        {
+          "bytes": 329633,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "sha256": "f43f6d31f2e67821f6e1728f23400d2c5b37f6a91d23ce3d23600dda4fc4930f"
+        },
+        {
+          "bytes": 6115,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+          "sha256": "094a93c2abcf469f2156e4f7731cfa2a10f6e539dd0be2ec287e7b19fa2489d2"
+        },
+        {
+          "bytes": 35967,
+          "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+          "sha256": "15ae65eb7bf49d7e6134a6c19e1f806e7513e25be82ce9ff80011625c6d2a944"
+        },
+        {
+          "bytes": 2136,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json",
+          "sha256": "452e9933fb7d77de4b617fc0d2ce15ff9cc66d0341d9b36bedeb09c880bf7033"
+        },
+        {
+          "bytes": 6716,
+          "path": "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift",
+          "sha256": "aba1a0d673556933af0b25ac27a395e8e4f1986e452d18e76b1b895e6ad5c7be"
+        },
+        {
+          "bytes": 114119,
+          "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+          "sha256": "f4d0de83d736acf9fd361faea4993bebb4a809819b68ff01b98234fb73f37cbc"
+        },
+        {
+          "bytes": 1117,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "6f88415a15e119e6565e406588f556a8f45317c39205eeddcd5008567323e674"
+        },
+        {
+          "bytes": 11932,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "7bb5459cf805c6c7a61246cf8206ffaabd6080317a3c8d68db562c65f7989382"
+        },
+        {
+          "bytes": 119955,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "eead1ed0601ae3554ca71d61f006e96c1e6bcca1b8cf07487a970237bf4929e8"
+        },
+        {
+          "bytes": 695,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "1a4db34c57d77cb35b25fb87cfd65b31c479bdbd38b25618f86ca8bae6929ad8"
+        }
+      ],
+      "result": "PASS_STATIC_PROVISIONAL_INTEGRITY"
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "3a28f593e755ac952071777b7e8440457950a010",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "history": [
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "06f5c4905ee6b25afc0e3a92de01b08815dc97ae",
+      "parent": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "docs(v30): hand off provisionally checkpointed C05",
+      "tree": "712c30184a7c68c915f29b6763f7fbfcc59e1c96"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+      ],
+      "head": "a5349d320f4922e589dae86732e852f0d32311de",
+      "parent": "06f5c4905ee6b25afc0e3a92de01b08815dc97ae",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "chore(v30): hydrate C06 system language resolution",
+      "tree": "b4ca507f43630087dc656424907790e99bdd307c"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+        "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift",
+        "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+        "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+        "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json",
+        "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift"
+      ],
+      "head": "e651c9cde26912fe9a5cef5314f58a6dced5de32",
+      "parent": "a5349d320f4922e589dae86732e852f0d32311de",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "feat(v30): add system language resolution and Settings handoff",
+      "tree": "cb303bc2f054c0895308e575d90f0671f71cce7a"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+        "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift"
+      ],
+      "head": "c574bf058100259d097c5484edd6cbc9fd638bc0",
+      "parent": "e651c9cde26912fe9a5cef5314f58a6dced5de32",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "fix(v30): preserve fallback evidence for observed system language",
+      "tree": "c11ddada2fbc3e7532afad603461362947c3cf58"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift"
+      ],
+      "head": "99fa79b164831acea8eaa69cca8f709f2784a83f",
+      "parent": "c574bf058100259d097c5484edd6cbc9fd638bc0",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "fix(v30): expose fallback support details and clear diagnostics on reset",
+      "tree": "0baddbb599fd73cd013f69fdb7f3902f76f012cd"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift"
+      ],
+      "head": "fa82fe3d235747f2cef1ebf005dd3f68142dabf9",
+      "parent": "99fa79b164831acea8eaa69cca8f709f2784a83f",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "test(v30): verify fallback cleanup in isolated settings domain",
+      "tree": "0a03f1a23107403af19a017170aacc4c0120c6d6"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+      ],
+      "head": "3a28f593e755ac952071777b7e8440457950a010",
+      "parent": "fa82fe3d235747f2cef1ebf005dd3f68142dabf9",
+      "state": "PROVISIONAL_CHECKPOINTED",
+      "subject": "test(v30): verify typed catalog fallback uses its resource bundle",
+      "tree": "7f67173942a087f86770b10ed8bf99041425ee4f"
+    }
+  ],
+  "nextUnstartedCard": "V30-P01-C07",
+  "preAuthorizedOverlapTuples": [
+    {
+      "boundedPurpose": "wire only the V30 Language & Region Settings entry point in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 shell navigation and brand",
+      "cardID": "V30-P01-C06",
+      "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+      "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P01-C06-SETTINGS-RESOLUTION-INTEGRATOR"
+    }
+  ],
+  "preS10FinalCredit": false,
+  "remainingAcceptance": [
+    "Native compilation/tests and visual Settings verification remain unexecuted.",
+    "Shared shell integration must be replayed/reimplemented after accepted S.",
+    "No final, native, main, release or automatic merge credit."
+  ],
+  "s10SharedPaths": [
+    "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+  ],
+  "status": "PROVISIONAL_CHECKPOINTED_NOT_FINAL",
+  "transition": "NOT_YET_PERFORMED"
+}
+```
