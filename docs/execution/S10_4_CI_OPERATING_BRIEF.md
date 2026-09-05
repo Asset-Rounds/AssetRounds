@@ -62,10 +62,17 @@ does not measure total minutes or all historical failures. Track stage timings f
 | Bitrise, up to 3 M4 workers | Cached current-runtime development and shared payload producer | Do not send iOS18 minimum shards to a known missing runtime |
 | Hybrid pilot | One sealed build, same-run test-without-building consumers | Nonaccepting; formal Bitrise exception needs complete exact-head equivalence and valid accepting receipts |
 | Cross-run diagnostic payload reuse/grouped probes | Authorized by H394 | Not implemented at this checkpoint; never describe authorization as capability |
+| Pre-provisioned macOS evaluation | H402 permits a bounded nonaccepting exact-iOS18 environment evaluation | Inventory and pin the actual route first; one concurrent canary, at most three initial attempts; no acceptance promotion, billing/settings/secrets changes or shared-data cleanup |
 
 Use all eight only when eight distinct useful jobs are dependency-ready. Idle capacity is better
 than knowingly doomed duplicates. Do not add more harness architecture unless it measurably
 shortens the current bottleneck and its verification cost is justified.
+
+H402 authorizes evaluating already-provided pre-provisioned macOS capacity; it does not claim
+that an exact iOS18 runner is available or that a new route is implemented. Verify the actual
+Xcode/runtime tuple, clean isolated test state and complete evidence, then compare measured
+timings/reliability. Canary evidence remains nonaccepting; formal use needs the applicable
+recorded same-head equivalence and acceptance-route requirements. Preserve ongoing jobs.
 
 H401 removes historical minimum-first serialization after static review and a complete fast
 current-runtime qualification: distinct full-route GitHub minimum profiles may run in parallel.
