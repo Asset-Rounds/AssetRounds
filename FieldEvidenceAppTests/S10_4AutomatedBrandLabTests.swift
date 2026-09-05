@@ -7776,10 +7776,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (preflightDirectionLock, count) in [
             ("preflightPositioningDirection", 4),
             ("dragDirection", 6),
-            ("maximumShift < -receiverCapacity", 1),
-            ("dragDistance = -receiverCapacity", 1),
-            ("minimumShift > receiverCapacity", 1),
-            ("dragDistance = receiverCapacity", 1),
+            ("maximumShift < -receiverCapacity", 2),
+            ("dragDistance = -receiverCapacity", 2),
+            ("minimumShift > receiverCapacity", 2),
+            ("dragDistance = receiverCapacity", 2),
         ] {
             XCTAssertEqual(
                 preflightVisibleSource.components(
