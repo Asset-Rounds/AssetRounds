@@ -2974,3 +2974,21 @@ Correction `0619fa6` applies the conditional workspace equality while preserving
   "transition": "NOT_YET_PERFORMED"
 }
 ```
+
+
+## C07 implementation progress — 2026-09-05 (not a checkpoint)
+
+Card V30-P01-C07 remains selected and PROVISIONAL_IMPLEMENTING. No ledger transition or dependency acceptance has occurred.
+
+- P: acbfb68355f903fe98638b6ef22e4814e7b48328.
+- M: 3a28f593e755ac952071777b7e8440457950a010.
+- Observed A: 65bbae68a067e7d49df974261706da3d7c0cf3b4. M..A changes only the four V30 execution documents; issued fence hash and both shared baseline tuples passed.
+- Unaccepted implementation candidate: 89a56a39791c3a4533a7c9649e2e4ca04ac14c4b; tree 7862faff739857a936139f8dcd9ca7739e6ee509. Pushed to phase/v30-globalization. E and K are not assigned.
+- Changed paths: FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift; FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift; FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift; FieldEvidenceApp/Features/Issues/RecordWorkView.swift; FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift; FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json.
+- Implemented Foundation formatting and strict roundtrip input, validated civil-date/wall-time/currency decoding, explicit DST fold choice and gap rejection, UTC civil-day presentation, units/week/paper presentation and opaque contact text preservation. Currency retains Foundation minimum precision while preserving additional authored precision; this is not payment settlement logic.
+- Existing catalog formatters now honor supplied locale. RecordWorkView extracts Gregorian storage day in the DatePicker environment time zone. Its shared-path change must be replayed/reimplemented after accepted S under the issued C07 tuple.
+- Added behavioral tests for six locales, DST gap/fold, skipped Apia day, alternate calendars, canonical day/time-zone boundary, strict grammar, currency, units/week/paper and contact preservation. Tests are authored, not executed.
+- Static evidence: installed package validator PASS (55 cards, 107 edges, unchanged package digest); provisional CI contract PASS WINDOWS_STATIC; six changed paths within issued fence; fixture JSON valid; staged diff check PASS. Terra static API review completed; its currency precision finding was corrected without introducing jurisdiction or settlement rules.
+- Native status: NOT_EXECUTED_NO_NATIVE_CREDIT. No workflow/run/artifacts/runner/Xcode/Simulator evidence exists for this candidate.
+- Remaining before any provisional checkpoint: complete explicit report-formatting/paper/provenance integration and recovery/delivery regression coverage while preserving frozen historical report bytes; review full C07 outcome and final scope/hash evidence. Native Foundation parsing and precision behavior remains unverified. Do not present this progress commit as complete Card 13.
+- KNOWN_BUGS read; no new accepted bug entry. No Phase10/main/release access or mutation. Next card V30-P01-C08 remains unstarted.
