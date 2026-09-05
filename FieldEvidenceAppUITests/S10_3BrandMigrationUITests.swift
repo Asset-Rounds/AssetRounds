@@ -5752,6 +5752,110 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       preActionValidationEnabled,
                       preActionValidationIdentifierMatches,
                       preActionValidationLabelMatches else {
+                    if let shard = automationShard,
+                       shard.shardID == "s10.4.minimum.bounded"
+                        || shard.shardID == "s10.4.minimum.accented" {
+                        // Failure-only evidence: all inputs below were cached before this guard.
+                        let failedGuardPredicates: [String: Bool] = [
+                            "preActionAppForeground": preActionAppForeground,
+                            "preActionIntroductionExists": preActionIntroductionExists,
+                            "preActionIntroductionTypeIsOther": preActionIntroductionTypeIsOther,
+                            "preActionIntroductionIdentifierMatches": preActionIntroductionIdentifierMatches,
+                            "preActionButtonExists": preActionButtonExists,
+                            "preActionButtonTypeIsButton": preActionButtonTypeIsButton,
+                            "preActionButtonIdentifierIsEmpty": preActionButtonIdentifierIsEmpty,
+                            "preActionButtonLabelIsNonempty": preActionButtonLabelIsNonempty,
+                            "preActionButtonEnabled": preActionButtonEnabled,
+                            "preActionButtonHittable": preActionButtonHittable,
+                            "preActionFirstTextExists": preActionFirstTextExists,
+                            "preActionFirstTextTypeIsStaticText": preActionFirstTextTypeIsStaticText,
+                            "preActionFirstTextIdentifierIsEmpty": preActionFirstTextIdentifierIsEmpty,
+                            "preActionFirstTextLabelIsNonempty": preActionFirstTextLabelIsNonempty,
+                            "preActionSecondTextExists": preActionSecondTextExists,
+                            "preActionSecondTextTypeIsStaticText": preActionSecondTextTypeIsStaticText,
+                            "preActionSecondTextIdentifierIsEmpty": preActionSecondTextIdentifierIsEmpty,
+                            "preActionSecondTextLabelIsNonempty": preActionSecondTextLabelIsNonempty,
+                            "preActionRoleIsExclusive": preActionRoleIsExclusive,
+                            "preActionTutorialLabelDiffersFromButton": preActionTutorialLabelDiffersFromButton,
+                            "preActionApplicationContainsIntroduction": preActionApplicationContainsIntroduction,
+                            "preActionApplicationContainsKeyboard": preActionApplicationContainsKeyboard,
+                            "preActionIntroductionContainsButton": preActionIntroductionContainsButton,
+                            "preActionIntroductionContainsFirstText": preActionIntroductionContainsFirstText,
+                            "preActionIntroductionContainsSecondText": preActionIntroductionContainsSecondText,
+                            "preActionIntroductionIntersectsKeyboard": preActionIntroductionIntersectsKeyboard,
+                            "preActionTutorialPrecedesAction": preActionTutorialPrecedesAction,
+                            "preActionTutorialAvoidsButton": preActionTutorialAvoidsButton,
+                            "preActionTutorialAvoidsActionTitle": preActionTutorialAvoidsActionTitle,
+                            "preActionWorkScreenExists": preActionWorkScreenExists,
+                            "preActionWorkScreenEnabled": preActionWorkScreenEnabled,
+                            "preActionDescriptionExists": preActionDescriptionExists,
+                            "preActionDescriptionEnabled": preActionDescriptionEnabled,
+                            "preActionDescriptionHittable": preActionDescriptionHittable,
+                            "preActionDescriptionIdentifierMatches": preActionDescriptionIdentifierMatches,
+                            "preActionDescriptionValueMatches": preActionDescriptionValueMatches,
+                            "preActionValidationExists": preActionValidationExists,
+                            "preActionValidationEnabled": preActionValidationEnabled,
+                            "preActionValidationIdentifierMatches": preActionValidationIdentifierMatches,
+                            "preActionValidationLabelMatches": preActionValidationLabelMatches,
+                        ]
+                        let cachedStrings: [String: String?] = [
+                            "preActionIntroductionIdentifier": preActionIntroductionIdentifier,
+                            "preActionButtonIdentifier": preActionButtonIdentifier,
+                            "preActionButtonLabel": preActionButtonLabel,
+                            "preActionFirstTextIdentifier": preActionFirstTextIdentifier,
+                            "preActionFirstTextLabel": preActionFirstTextLabel,
+                            "preActionSecondTextIdentifier": preActionSecondTextIdentifier,
+                            "preActionSecondTextLabel": preActionSecondTextLabel,
+                            "preActionDescriptionIdentifier": preActionDescriptionIdentifier,
+                            "preActionDescriptionLabel": preActionDescriptionLabel,
+                            "preActionDescriptionValue": preActionDescriptionValue,
+                            "preActionValidationIdentifier": preActionValidationIdentifier,
+                            "preActionValidationLabel": preActionValidationLabel,
+                            "preActionValidationValue": preActionValidationValue,
+                        ]
+                        var boundedCachedStrings: [String: Any] = [:]
+                        for (name, value) in cachedStrings {
+                            if let value {
+                                boundedCachedStrings[name] = [
+                                    "value": String(value.prefix(4096)),
+                                    "truncated": value.count > 4096,
+                                ]
+                            } else {
+                                boundedCachedStrings[name] = NSNull()
+                            }
+                        }
+                        // These frames already passed the finite/nonempty validation above.
+                        let cachedFrames: [String: [String: Double]] = [
+                            "applicationFrame": auditFrameObject(applicationFrame),
+                            "workQuickPathIntroductionFrame": auditFrameObject(workQuickPathIntroductionFrame),
+                            "workQuickPathButtonFrame": auditFrameObject(workQuickPathButtonFrame),
+                            "workQuickPathFirstStaticTextFrame": auditFrameObject(workQuickPathFirstStaticTextFrame),
+                            "workQuickPathSecondStaticTextFrame": auditFrameObject(workQuickPathSecondStaticTextFrame),
+                            "workKeyboardFrame": auditFrameObject(workKeyboardFrame),
+                            "workScreenFrame": auditFrameObject(workScreenFrame),
+                            "workDescriptionFrame": auditFrameObject(workDescriptionFrame),
+                            "workValidationFrame": auditFrameObject(workValidationFrame),
+                            "workQuickPathTutorialFrame": auditFrameObject(workQuickPathTutorialFrame),
+                            "workQuickPathActionTitleFrame": auditFrameObject(workQuickPathActionTitleFrame),
+                        ]
+                        printJSONLine(
+                            prefix: "S10_4_WORK_VALIDATION_QUICKPATH_GUARD_FAILURE",
+                            object: [
+                                "acceptanceEligible": false,
+                                "shardID": shard.shardID,
+                                "targetStateID": "state.work.validation-error",
+                                "predicates": failedGuardPredicates,
+                                "falsePredicates": failedGuardPredicates
+                                    .filter { !$0.value }.map { $0.key }.sorted(),
+                                "cachedStrings": boundedCachedStrings,
+                                "expectedDescriptionIdentifier": "s5.1.work.description",
+                                "expectedDescriptionValue": "",
+                                "expectedValidationIdentifier": "s5.1.work.validation",
+                                "expectedValidationLabel": "Short description",
+                                "cachedFrames": cachedFrames,
+                            ]
+                        )
+                    }
                     throw AutomationConfigurationError.invalid(
                         "S10.4 minimum work-validation QuickPath state changed before dismissal"
                     )

@@ -4853,11 +4853,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ]
         )
         let k121WorkValidationPositioningGate =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
-                "           shouldPrepareNormalEvidence(\n" +
-                #"               for: "state.work.validation-error","# + "\n" +
-                "               in: app\n" +
-                "           ) {"
+            "        if automationShard?.shardID == \"s10.4.current.ax-text\",\n           shouldPrepareNormalEvidence(\n               for: \"state.work.validation-error\",\n               in: app\n           ) {"
         let k121WorkValidationBaseline =
             #"        captureBaseline("state.work.validation-error", in: app)"#
         let workValidationGateRange = try XCTUnwrap(
@@ -4872,10 +4868,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workValidationPrefixSource = String(
             workValidationRouteSource[..<workValidationGateRange.lowerBound]
         )
-        let workValidationGateSource = String(
-            workValidationRouteSource[
-                workValidationGateRange.lowerBound..<workValidationBaselineRange.lowerBound
-            ]
+        let workValidationGateSource = try boundedSource(
+            uiSource,
+            from: k121WorkValidationPositioningGate,
+            before: k121WorkValidationBaseline
         )
         let workValidationTailSource = String(
             workValidationRouteSource[workValidationBaselineRange.lowerBound...]
@@ -4883,14 +4879,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (source, bytes, sha256) in [
             (workValidationPrefixSource, 490,
              "15FCAE2B6BB16C79921E6AA4B299FC00B64D44137CB1E0B73D6D8523EA5BD449"),
-            (workValidationGateSource, 26_218,
-             "449A540431724E5158993BFC7BEB5CE9C5292F9D17D088E3F98F84E51C2C24FD"),
             (workValidationTailSource, 100,
              "78916F4E8E45F55480C1109D672BD7C4C03F53EC47126FFEF602D3F5A2239D04"),
         ] {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
+        XCTAssertEqual(workValidationGateSource.utf8.count, 34_617)
+        XCTAssertEqual(
+            Data(workValidationGateSource.utf8).sha256,
+            "9D63ED3DC0803525245C7AC7C262ADED76A7F58FAA90A0288D65CF6351C645E3"
+        )
         let workValidationMinimumQuickPathGate =
             "        if automationShard?.deviceProfileID\n" +
                 "            == \"iphone-se-3-ios-18.0-minimum\" {"
@@ -4899,15 +4898,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: workValidationMinimumQuickPathGate
             )
         )
-        let workValidationMinimumQuickPathSource = String(
-            workValidationGateSource[
-                workValidationMinimumQuickPathGateRange.lowerBound...
-            ]
+        let workValidationMinimumQuickPathSource = try boundedSource(
+            uiSource,
+            from: workValidationMinimumQuickPathGate,
+            before: k121WorkValidationBaseline
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 20_487)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 28_886)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "FF4118320B84B748961A78EDA1DDA6AA72008D3F17845F6311E8201D48F40C6C"
+            "7A30037BAA748B37D69880787DA3E61A1C88696775CDC66A28AE39D35C70E098"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -5737,6 +5736,53 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let minimumQuickPathGuardObservation = try boundedSource(
+            workValidationMinimumQuickPathSource,
+            from: "                    if let shard = automationShard,\n" +
+                "                       shard.shardID == \"s10.4.minimum.bounded\"",
+            before: "                    throw AutomationConfigurationError.invalid(\n" +
+                "                        \"S10.4 minimum work-validation QuickPath state changed before dismissal\""
+        )
+        for requiredGuardObservation in [
+            #"shard.shardID == "s10.4.minimum.accented""#,
+            #"prefix: "S10_4_WORK_VALIDATION_QUICKPATH_GUARD_FAILURE""#,
+            #""acceptanceEligible": false"#,
+            #""targetStateID": "state.work.validation-error""#,
+            #""predicates": failedGuardPredicates"#,
+            #""falsePredicates": failedGuardPredicates"#,
+            ".filter { !$0.value }.map { $0.key }.sorted()",
+            "String(value.prefix(4096))",
+            #""truncated": value.count > 4096"#,
+            #""cachedFrames": cachedFrames"#,
+        ] {
+            XCTAssertTrue(minimumQuickPathGuardObservation.contains(requiredGuardObservation))
+        }
+        for prohibitedGuardObservation in [
+            ".tap(", ".coordinate(", ".exists", ".isHittable", ".isEnabled",
+            ".elementType", ".identifier", ".label", ".frame", "app.state",
+            "waitFor", "sleep(", "performAccessibilityAudit", "captureBaseline(",
+            "XCTAttachment", "throw ", "return ",
+        ] {
+            XCTAssertFalse(minimumQuickPathGuardObservation.contains(prohibitedGuardObservation))
+        }
+        let minimumQuickPathWithoutGuardObservation =
+            workValidationMinimumQuickPathSource.replacingOccurrences(
+                of: minimumQuickPathGuardObservation,
+                with: ""
+            )
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: minimumQuickPathGuardObservation
+            ).count - 1,
+            1
+        )
+        for consumedObserverForm in [
+            "S10_4_MINIMUM_WORK_VALIDATION_QUICKPATH_PRE_DISMISS_DIAGNOSTIC",
+            "S10.4 minimum work-validation QuickPath pre-dismiss diagnostic " +
+                "completed nonaccepting",
+        ] {
+            XCTAssertFalse(minimumQuickPathGuardObservation.contains(consumedObserverForm))
+        }
         for consumedMinimumQuickPathDiagnosticForm in [
             "S10_4_MINIMUM_WORK_VALIDATION_QUICKPATH_PRE_DISMISS_DIAGNOSTIC",
             #""acceptanceEligible": false"#,
@@ -5745,7 +5791,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "preActionDescriptionValue == \"Short description\"",
         ] {
             XCTAssertFalse(
-                workValidationMinimumQuickPathSource.contains(
+                minimumQuickPathWithoutGuardObservation.contains(
                     consumedMinimumQuickPathDiagnosticForm
                 ),
                 consumedMinimumQuickPathDiagnosticForm
@@ -11766,15 +11812,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("Missing the bounded captureBaseline or AX-text issue recheck-due positioning source")
             return
         }
-        let restoredCaptureBaselineEnd = uiSource.index(
-            preparationPredicateHelperStartRange.lowerBound,
-            offsetBy: -2
-        )
-        let restoredCaptureBaselineSource = String(
-            uiSource[
-                captureBaselineStartRange.lowerBound ..<
-                    restoredCaptureBaselineEnd
-            ]
+        let restoredCaptureBaselineSource = try boundedSource(
+            uiSource,
+            from: captureBaselineStart,
+            before: "\n\n" + preparationPredicateHelperStart
         )
         let issueRecheckDuePositioningHelperSource = String(
             uiSource[
@@ -11782,10 +11823,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 8_202)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 12_590)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "06B2A4E3288C3CF1D6BB41BB7462FA4A5E0A6864716F6E6CDF7550170532E5E9"
+            "94F6A3EB7088567DE76CBE88FDEC85507FA3BAAA5BD17F22B8203170ECE33EEF"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -22192,10 +22233,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 815_884)
+        XCTAssertEqual(uiSource.utf8.count, 824_283)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "045C8F9719BD07C85EC1652586D01964F008FE7C546200AC568FE1324B019E69"
+            "0F062B8936AB5DD1C033BA2747132BED4B4BD5A670308FFA33B1A4CD24526F54"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
