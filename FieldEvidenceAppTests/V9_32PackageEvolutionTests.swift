@@ -855,6 +855,74 @@ final class V9_32PackageEvolutionTests: XCTestCase {
         )
     }
 
+    func testBackupDecoderPreservesUniquePromotedRelease() throws {
+        let promoted = try promotionFixture().bundle.promotedRelease
+        let records = try backupDecoderRecords(promotedReleases: [promoted])
+        let bytes = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(bytes), records)
+    }
+
+    func testBackupDecoderRejectsAliasedPromotedReleasePayload() throws {
+        let promoted = try promotionFixture().bundle.promotedRelease
+        let records = try backupDecoderRecords(
+            promotedReleases: [promoted, promoted],
+            outerIDs: [promoted.releaseRecordID, id(899)]
+        )
+        let bytes = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(bytes)) { error in
+            XCTAssertEqual(error as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+        }
+    }
+
+    func testBackupDecoderRejectsDuplicateNestedReleaseWithDistinctRecordIdentities() throws {
+        let promoted = try promotionFixture().bundle.promotedRelease
+        let second = try PromotedPackageReleaseV1(
+            releaseRecordID: id(899),
+            workspaceID: promoted.workspaceID,
+            packageRelease: promoted.packageRelease,
+            mutationID: mutation(898),
+            promotedAt: promoted.promotedAt
+        )
+        // Both outer IDs match their valid inner records. Only the nested
+        // packageReleaseID collides, independently of outer identity binding.
+        let records = try backupDecoderRecords(promotedReleases: [promoted, second])
+        let bytes = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(bytes)) { error in
+            XCTAssertEqual(error as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+        }
+    }
+
+    private func backupDecoderRecords(
+        promotedReleases: [PromotedPackageReleaseV1],
+        outerIDs: [UUID]? = nil
+    ) throws -> V4BackupRecordsV1 {
+        let rows = try promotedReleases.enumerated().map { index, promoted in
+            V17BackupPackageEvolutionRecordV1(
+                kind: .promotedRelease,
+                id: outerIDs?[index] ?? promoted.releaseRecordID,
+                workspaceID: promoted.workspaceID.rawValue,
+                revision: promoted.revision,
+                canonicalData: try PackageEvolutionCanonicalCodecV1.encode(promoted)
+            )
+        }
+        return V4BackupRecordsV1(
+            packageEvolution: rows,
+            assets: [],
+            deletionLedger: .empty,
+            evidenceFiles: [],
+            issues: [],
+            mutationHistory: MutationHistorySnapshotV1(
+                workspaceRevision: 0, lastLocalSequence: 0,
+                receipts: [], quarantines: [], entityRevisions: []
+            ),
+            packets: [],
+            recordsSchemaVersion: 19,
+            reports: [],
+            sites: [],
+            workflowRecords: []
+        )
+    }
+
     private func assertCorpusHeader(_ corpus: Corpus) {
         XCTAssertEqual(corpus.schema, "V21P03C18PackageEvolutionCorpusV1")
         XCTAssertEqual(corpus.corpusID, corpus.schema)

@@ -18,7 +18,7 @@ enum C34RouteAdoptionBoundary_DraftRecoveryProjectionCoordinatorV1 {
     func projections(workspaceID:WorkspaceID)throws->[DraftRecoveryProjectionV1]{
         let candidates=try source.checkpoints(workspaceID:workspaceID).filter{$0.workspaceID==workspaceID}
         guard candidates.count<=8_192 else{throw FieldDraftFailureV1.limitExceeded}
-        try candidates.forEach{$0.validate()}
+        try candidates.forEach{try $0.validate()}
         var current:[UUID:FieldDraftCheckpointV1]=[:]
         for value in candidates{if let prior=current[value.draftID]{if value.draftRevision==prior.draftRevision&&value.checkpointSHA256 != prior.checkpointSHA256{throw FieldDraftFailureV1.conflictRequired};if value.draftRevision>prior.draftRevision{current[value.draftID]=value}}else{current[value.draftID]=value}}
         let checkpoints=current.values.filter{$0.state != .committed&&$0.state != .discarded}
@@ -27,7 +27,7 @@ enum C34RouteAdoptionBoundary_DraftRecoveryProjectionCoordinatorV1 {
             let targetRevision=try definition.map{try source.currentTargetRevision(workspaceID:workspaceID,scope:checkpoint.scope,targetCommandKind:$0.targetCommandKind) ?? 0}
             let targetStale=targetRevision.map{$0 != checkpoint.baseCanonicalRevision} ?? false
             let items=try source.stagingItems(workspaceID:workspaceID,draftID:checkpoint.draftID).filter{$0.workspaceID==workspaceID&&$0.draftID==checkpoint.draftID}
-            try items.forEach{$0.validate()}
+            try items.forEach{try $0.validate()}
             let ready=items.filter{$0.state == .readyLocal}.count
             let failed=items.filter{$0.state == .failedRetryable||$0.state == .failedFinal}.count
             let missing=checkpoint.stageIDs.filter{id in !items.contains(where:{$0.stageID==id})}.count

@@ -76,7 +76,7 @@ struct OfflineAssetLocatorResolverV1: Sendable {
     }
 
     private func outcome(_ state:AssetLocatorStateV1)->LocatorResolutionOutcomeV1{switch state{case .active:return .matched;case .retired:return .retired;case .revoked:return .revoked;case .replaced:return .replaced}}
-    private func result(_ input:LocatorResolutionInputV1,_ outcome:LocatorResolutionOutcomeV1,_ workspaceID:WorkspaceID,_ at:Date,_ locator:AssetLocatorV1?,_ candidates:[AssetLocatorV1])throws->LocatorResolutionV1{try .init(workspaceID:workspaceID,source:input.source,inputSHA256:input.inputSHA256,outcome:outcome,matchedLocator:try locator?.reference,matchedAssetID:locator?.assetID,replacementLocatorID:locator?.replacedByLocatorID,candidateLocators:try candidates.map{$0.reference},evaluatedAt:at)}
+    private func result(_ input:LocatorResolutionInputV1,_ outcome:LocatorResolutionOutcomeV1,_ workspaceID:WorkspaceID,_ at:Date,_ locator:AssetLocatorV1?,_ candidates:[AssetLocatorV1])throws->LocatorResolutionV1{try .init(workspaceID:workspaceID,source:input.source,inputSHA256:input.inputSHA256,outcome:outcome,matchedLocator:try locator?.reference,matchedAssetID:locator?.assetID,replacementLocatorID:locator?.replacedByLocatorID,candidateLocators:try candidates.map{try $0.reference},evaluatedAt:at)}
 }
 
 struct AssetLocatorCoordinatorV1: Sendable {

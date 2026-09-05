@@ -29,7 +29,7 @@ struct AccessibleDocumentRestoreTreeResolverV1:AccessibleDocumentSemanticTreeRes
 struct AccessibleDocumentLocalEvidenceResolverV1:AccessibleDocumentEvidenceResolvingV1{
     let operation:@Sendable([String])async throws->[OutputScopedContentReferenceV1]
     init(operation:@escaping @Sendable([String])async throws->[OutputScopedContentReferenceV1]){self.operation=operation}
-    func resolve(evidenceIDs:[String])async throws->[OutputScopedContentReferenceV1]{guard evidenceIDs==evidenceIDs.sorted(),Set(evidenceIDs).count==evidenceIDs.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let values=try await operation(evidenceIDs);try values.forEach{$0.validate()};guard values.map(\.outputReferenceID).sorted()==evidenceIDs else{throw AccessibleDocumentFailureV1.missingEvidence};return values.sorted()}
+    func resolve(evidenceIDs:[String])async throws->[OutputScopedContentReferenceV1]{guard evidenceIDs==evidenceIDs.sorted(),Set(evidenceIDs).count==evidenceIDs.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let values=try await operation(evidenceIDs);try values.forEach{try $0.validate()};guard values.map(\.outputReferenceID).sorted()==evidenceIDs else{throw AccessibleDocumentFailureV1.missingEvidence};return values.sorted()}
 }
 
 /// Sole-writer bridge. The transient tree is validated before the receipt-only

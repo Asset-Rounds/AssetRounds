@@ -403,6 +403,198 @@ private struct C19CorpusFixtureV1: Decodable {
 
 @MainActor
 final class V9_33MeasurementIntegrityTests: XCTestCase {
+    private func makeWriterRetryDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("C19-writer-retry-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func makeWriterRetryBundle(workspaceID: WorkspaceID) throws -> MeasurementIntegrityAtomicBundleV1 {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        // A first-revision manual capture needs no instrument/calibration rows or predecessors.
+        return try MeasurementIntegrityCoordinatorV1.prepare(
+            workspaceID: workspaceID, mutationID: fixture.mutationID,
+            captures: [try fixture.manualCapture.rebound(to: workspaceID)]
+        )
+    }
+
+    private func measurementWriterSnapshot(_ context: ModelContext) throws -> [[Data]] {
+        let receipts = try context.fetch(FetchDescriptor<MutationReceiptRow>())
+        let values: [[Data]] = [
+            try context.fetch(FetchDescriptor<InstrumentReferenceRow>()).map {
+                try MeasurementIntegrityCanonicalCodecV1.encode($0.value())
+            },
+            try context.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>()).map {
+                try MeasurementIntegrityCanonicalCodecV1.encode($0.value())
+            },
+            try context.fetch(FetchDescriptor<MeasurementCaptureRow>()).map {
+                try MeasurementIntegrityCanonicalCodecV1.encode($0.value())
+            },
+            try context.fetch(FetchDescriptor<MeasurementSeriesRow>()).map {
+                try MeasurementIntegrityCanonicalCodecV1.encode($0.value())
+            },
+            try context.fetch(FetchDescriptor<MeasurementQualityAssessmentRow>()).map {
+                try MeasurementIntegrityCanonicalCodecV1.encode($0.value())
+            },
+            receipts.map(\.receiptData),
+            receipts.map(\.envelopeData)
+        ]
+        return values.map { $0.sorted { $0.lexicographicallyPrecedes($1) } }
+    }
+
+    func testMeasurementWriterExactRetryReturnsOriginalReceiptWithoutDuplicateEffects() async throws {
+        let directory = try makeWriterRetryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = try StoreGenerationFactory(applicationSupportURL: directory).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let writer = coordinator.workspaceWriter
+        let bundle = try makeWriterRetryBundle(workspaceID: session.workspaceID)
+        let before = try writer.currentRevision()
+        let first = try await writer.commitMeasurementIntegrity(bundle)
+        let committed = try writer.currentRevision()
+        let snapshot = try measurementWriterSnapshot(session.modelContext)
+        XCTAssertEqual(committed.revision, before.revision + 1)
+        XCTAssertEqual(snapshot.map(\.count), [0, 0, 1, 0, 0, 1, 1])
+        XCTAssertEqual(first.journalReceiptSHA256, try MutationReceiptV1.decodeCanonical(
+            from: XCTUnwrap(snapshot[5].first)
+        ).canonicalSHA256())
+
+        let retry = try await writer.commitMeasurementIntegrity(bundle)
+
+        XCTAssertEqual(retry, first)
+        XCTAssertEqual(try writer.currentRevision(), committed)
+        XCTAssertEqual(try measurementWriterSnapshot(session.modelContext), snapshot)
+    }
+
+    func testMeasurementWriterExactRetryAfterReopeningUsesPersistedReceipt() async throws {
+        let directory = try makeWriterRetryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bundle: MeasurementIntegrityAtomicBundleV1
+        let first: MeasurementIntegrityWriteReceiptV1
+        let committed: WorkspaceRevisionV1
+        let snapshot: [[Data]]
+        do {
+            let session = try StoreGenerationFactory(applicationSupportURL: directory).openOrBootstrapCurrent()
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            bundle = try makeWriterRetryBundle(workspaceID: session.workspaceID)
+            first = try await coordinator.workspaceWriter.commitMeasurementIntegrity(bundle)
+            committed = try coordinator.workspaceWriter.currentRevision()
+            snapshot = try measurementWriterSnapshot(session.modelContext)
+            coordinator.workspaceWriter.invalidate()
+        }
+
+        let reopened = try StoreGenerationFactory(applicationSupportURL: directory).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: reopened)
+        let writer = coordinator.workspaceWriter
+        let recovered = try writer.currentRevision()
+        XCTAssertNotEqual(recovered.writerInstanceID, committed.writerInstanceID)
+        XCTAssertEqual(recovered.workspaceID, committed.workspaceID)
+        XCTAssertEqual(recovered.generationID, committed.generationID)
+        XCTAssertEqual(recovered.revision, committed.revision)
+        XCTAssertEqual(recovered.entityRevisions, committed.entityRevisions)
+        XCTAssertEqual(try measurementWriterSnapshot(reopened.modelContext), snapshot)
+
+        let retry = try await writer.commitMeasurementIntegrity(bundle)
+
+        XCTAssertEqual(retry, first)
+        XCTAssertEqual(try writer.currentRevision(), recovered)
+        XCTAssertEqual(try measurementWriterSnapshot(reopened.modelContext), snapshot)
+    }
+
+    func testMeasurementWriterDivergentMutationReuseRejectsWithoutChangingState() async throws {
+        let directory = try makeWriterRetryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = try StoreGenerationFactory(applicationSupportURL: directory).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let writer = coordinator.workspaceWriter
+        let bundle = try makeWriterRetryBundle(workspaceID: session.workspaceID)
+        _ = try await writer.commitMeasurementIntegrity(bundle)
+        let committed = try writer.currentRevision()
+        let snapshot = try measurementWriterSnapshot(session.modelContext)
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let divergent = try MeasurementIntegrityCoordinatorV1.prepare(
+            workspaceID: bundle.workspaceID, mutationID: bundle.mutationID,
+            instruments: [try fixture.instrument.rebound(to: bundle.workspaceID)],
+            captures: bundle.captures
+        )
+        XCTAssertNotEqual(divergent.bundleSHA256, bundle.bundleSHA256)
+        do {
+            _ = try await writer.commitMeasurementIntegrity(divergent)
+            XCTFail("A durable receipt must not authorize different content under the same mutation ID")
+        } catch {
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .invalidReceipt)
+        }
+        XCTAssertEqual(try writer.currentRevision(), committed)
+        XCTAssertEqual(try measurementWriterSnapshot(session.modelContext), snapshot)
+    }
+
+    func testMeasurementWriterInvalidationRejectsEvenAnExactDurableRetry() async throws {
+        let directory = try makeWriterRetryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = try StoreGenerationFactory(applicationSupportURL: directory).openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let writer = coordinator.workspaceWriter
+        let bundle = try makeWriterRetryBundle(workspaceID: session.workspaceID)
+        _ = try await writer.commitMeasurementIntegrity(bundle)
+        let snapshot = try measurementWriterSnapshot(session.modelContext)
+        writer.invalidate()
+
+        do {
+            _ = try await writer.commitMeasurementIntegrity(bundle)
+            XCTFail("An invalidated writer must reject even a previously committed bundle")
+        } catch {
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        XCTAssertEqual(try measurementWriterSnapshot(session.modelContext), snapshot)
+    }
+
+    func testMeasurementWriterReleasedLeaseRejectsEvenAnExactDurableRetry() async throws {
+        let directory = try makeWriterRetryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let factory = StoreGenerationFactory(applicationSupportURL: directory)
+        let session = try factory.openOrBootstrapCurrent()
+        let epoch = try XCTUnwrap(session.generationEpoch)
+        let registry = try factory.makeGenerationLeaseRegistry()
+        let lease = try registry.acquireHandle(epoch: epoch, role: .writer)
+        defer { try? lease.close() }
+        let fence = try factory.makeWriterFence(
+            expectedGenerationEpoch: epoch, writerLeaseToken: lease.token, registry: registry
+        )
+        let journal = try MutationJournalStoreV1(
+            modelContext: session.modelContext, identity: session.workspaceIdentity,
+            generationID: session.generationID, allowStateBootstrap: false,
+            staleWriterFence: fence
+        )
+        let writer = try WorkspaceWriterV1(
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            initialRevision: WorkspaceRevisionV1(
+                workspaceID: session.workspaceID, generationID: session.generationID,
+                revision: 0, entityRevisions: []
+            ),
+            clock: SystemApplicationClock(), idSource: SystemApplicationIDSource(),
+            fileAuthority: SystemApplicationFileAuthorityV1(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+            journalStore: journal
+        )
+        let bundle = try makeWriterRetryBundle(workspaceID: session.workspaceID)
+        _ = try await writer.commitMeasurementIntegrity(bundle)
+        let snapshot = try measurementWriterSnapshot(session.modelContext)
+        // Keep the writer active while revoking its durable authority to access this generation.
+        try lease.close()
+        XCTAssertThrowsError(try writer.currentRevision()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .wrongGeneration)
+        }
+
+        do {
+            _ = try await writer.commitMeasurementIntegrity(bundle)
+            XCTFail("A durable retry must still validate the writer lease")
+        } catch {
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .wrongGeneration)
+        }
+        XCTAssertEqual(try measurementWriterSnapshot(session.modelContext), snapshot)
+    }
+
     private func loadCorpus() throws -> C19CorpusFixtureV1 {
         let bundled = Bundle(for: Self.self).url(
             forResource: "V21P03C19MeasurementIntegrityCorpusV1", withExtension: "json"

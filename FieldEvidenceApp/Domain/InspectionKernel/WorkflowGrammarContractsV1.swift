@@ -29,7 +29,7 @@ enum InspectionKernelFailureV1: Error, Equatable, Sendable {
 }
 
 enum C26SurveyRepeatGrammarV1 {
-    static func validate(_ coordinates:[SurveyRepeatCoordinateV1],against release:SurveyDefinitionReleaseV1)throws{try release.validate();try coordinates.forEach{$0.validate()};let groupIDs=Set(release.sections.flatMap(\.facts).filter{$0.kind == .repeatableGroup}.map(\.factID));guard coordinates.allSatisfy({groupIDs.contains($0.groupFactID)}),coordinates==coordinates.sorted(),Set(coordinates).count==coordinates.count else{throw SurveySessionFailureV1.invalidValue}}
+    static func validate(_ coordinates:[SurveyRepeatCoordinateV1],against release:SurveyDefinitionReleaseV1)throws{try release.validate();try coordinates.forEach{try $0.validate()};let groupIDs=Set(release.sections.flatMap(\.facts).filter{$0.kind == .repeatableGroup}.map(\.factID));guard coordinates.allSatisfy({groupIDs.contains($0.groupFactID)}),coordinates==coordinates.sorted(),Set(coordinates).count==coordinates.count else{throw SurveySessionFailureV1.invalidValue}}
 }
 
 enum SurveyWorkflowGrammarBoundaryV1 {

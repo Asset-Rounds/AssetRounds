@@ -1395,7 +1395,7 @@ struct InspectionReviewMutationReceiptV1:Codable,Equatable,Sendable{
         try mutation.validate();try mutationReceipt.validate()
         let affected=try mutation.affectedIdentities
         let images=try mutation.postImage.mutationPostImages
-        let concurrency=try images.map{$0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
+        let concurrency=try images.map{try $0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
         let expectedRevisions=mutationReceipt.expectedRevision.entityRevisions
         let resultingRevisions=mutationReceipt.resultingRevision.entityRevisions
         guard Set(expectedRevisions.map(\.identity)).count==expectedRevisions.count,
@@ -1412,8 +1412,8 @@ struct InspectionReviewMutationReceiptV1:Codable,Equatable,Sendable{
     }
     func validate()throws{
         try mutationReceipt.validate()
-        let imageAffected=try mutationReceipt.postImages.map{$0.identity}
-        let imageConcurrency=try mutationReceipt.postImages.map{$0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
+        let imageAffected=try mutationReceipt.postImages.map{try $0.identity}
+        let imageConcurrency=try mutationReceipt.postImages.map{try $0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
         guard MutationEnvelopeV1.isSHA256(mutationSHA256),imageAffected==affectedIdentities,
               affectedIdentities==affectedIdentities.sorted(by:{$0.stableKey<$1.stableKey}),Set(affectedIdentities).count==affectedIdentities.count,
               concurrencyIdentities==imageConcurrency,concurrencyIdentities==concurrencyIdentities.sorted(by:{$0.stableKey<$1.stableKey}),
@@ -1459,8 +1459,8 @@ struct PrivacyTransformMutationReceiptV1:Codable,Equatable,Sendable{
     init(mutation:PrivacyTransformMutationV1,mutationReceipt:MutationReceiptV1)throws{
         try mutation.validate();try mutationReceipt.validate()
         let images=try mutation.mutationPostImages
-        let affected=try images.map{$0.identity}.sorted{$0.stableKey<$1.stableKey}
-        let concurrency=try images.map{$0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
+        let affected=try images.map{try $0.identity}.sorted{$0.stableKey<$1.stableKey}
+        let concurrency=try images.map{try $0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
         let expected=Dictionary(uniqueKeysWithValues:mutationReceipt.expectedRevision.entityRevisions.map{($0.identity,$0.revision)})
         let resulting=Dictionary(uniqueKeysWithValues:mutationReceipt.resultingRevision.entityRevisions.map{($0.identity,$0.revision)})
         guard affected==(try mutation.affectedIdentities),concurrency==(try mutation.concurrencyIdentities),
@@ -1475,8 +1475,8 @@ struct PrivacyTransformMutationReceiptV1:Codable,Equatable,Sendable{
     }
     func validate()throws{
         try mutationReceipt.validate()
-        let imageAffected=try mutationReceipt.postImages.map{$0.identity}.sorted{$0.stableKey<$1.stableKey}
-        let imageConcurrency=try mutationReceipt.postImages.map{$0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
+        let imageAffected=try mutationReceipt.postImages.map{try $0.identity}.sorted{$0.stableKey<$1.stableKey}
+        let imageConcurrency=try mutationReceipt.postImages.map{try $0.concurrencyIdentity}.sorted{$0.stableKey<$1.stableKey}
         guard MutationEnvelopeV1.isSHA256(mutationSHA256),affectedIdentities==imageAffected,
               concurrencyIdentities==imageConcurrency,Set(affectedIdentities).count==affectedIdentities.count,
               Set(concurrencyIdentities).count==concurrencyIdentities.count else{throw WorkspaceMutationFailureV1.invalidReceipt}

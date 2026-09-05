@@ -1,1 +1,29 @@
-{"schemaVersion":1,"taskID":"S9.1","tier":"F25","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":900,"testTimeoutSeconds":1200,"uiTimeoutSeconds":1800,"totalBudgetSeconds":4500,"unitTestSelectors":["FieldEvidenceAppTests/S9_1ReleasePreflightTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S9_1FinalRCUITests"]}
+{
+  "schemaVersion": 1,
+  "taskID": "V23-REVIEW-20260905",
+  "tier": "N8",
+  "runUISmoke": false,
+  "setupArtifactTimeoutSeconds": 300,
+  "buildTimeoutSeconds": 600,
+  "testTimeoutSeconds": 900,
+  "uiTimeoutSeconds": 0,
+  "totalBudgetSeconds": 2400,
+  "unitTestSelectors": [
+    "FieldEvidenceAppTests/V9_32PackageEvolutionTests/testBackupDecoderPreservesUniquePromotedRelease",
+    "FieldEvidenceAppTests/V9_32PackageEvolutionTests/testBackupDecoderRejectsAliasedPromotedReleasePayload",
+    "FieldEvidenceAppTests/V9_32PackageEvolutionTests/testBackupDecoderRejectsDuplicateNestedReleaseWithDistinctRecordIdentities",
+    "FieldEvidenceAppTests/V9_33MeasurementIntegrityTests/testMeasurementWriterExactRetryReturnsOriginalReceiptWithoutDuplicateEffects",
+    "FieldEvidenceAppTests/V9_33MeasurementIntegrityTests/testMeasurementWriterExactRetryAfterReopeningUsesPersistedReceipt",
+    "FieldEvidenceAppTests/V9_33MeasurementIntegrityTests/testMeasurementWriterDivergentMutationReuseRejectsWithoutChangingState",
+    "FieldEvidenceAppTests/V9_33MeasurementIntegrityTests/testMeasurementWriterInvalidationRejectsEvenAnExactDurableRetry",
+    "FieldEvidenceAppTests/V9_33MeasurementIntegrityTests/testMeasurementWriterReleasedLeaseRejectsEvenAnExactDurableRetry",
+    "FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveExactRetryReturnsOriginalReceipt",
+    "FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveHistoricExactRetryAfterSuccessorReturnsOriginalReceipt",
+    "FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveDivergentMutationReuseRejectsWithoutChanges",
+    "FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveNewStaleMutationRejectsWithoutChanges",
+    "FieldEvidenceAppTests/V9_70RoundSessionStateTests/testRoundSessionMutationAcceptsFirstRevisionAndBoundSuccessor",
+    "FieldEvidenceAppTests/V9_70RoundSessionStateTests/testRoundSessionMutationRejectsMismatchedExpectedRevisionAndIdentity",
+    "FieldEvidenceAppTests/V9_70RoundSessionStateTests/testRoundSessionWriterReleasedLeaseRejectsExactDurableRetry"
+  ],
+  "uiTestSelectors": []
+}

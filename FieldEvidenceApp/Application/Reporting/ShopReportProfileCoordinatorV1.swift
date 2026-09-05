@@ -56,13 +56,18 @@ final class ShopReportProfileCoordinatorV1 {
         try mutation.validate()
         try mutation.profile.validate(sectionRegistry: sectionRegistry)
         guard mutation.workspaceID == workspaceID else { throw ShopReportProfileFailureV1.profileMismatch }
-        let prior = try current(profileID: mutation.profile.profileID)
-        if let prior {
-            try mutation.profile.validateSuccessor(of: prior, sectionRegistry: sectionRegistry)
-            guard mutation.expectedRevision == prior.revision else { throw ShopReportProfileFailureV1.staleRevision }
-        } else {
-            guard mutation.expectedRevision == 0, mutation.profile.revision == 1,
-                  mutation.profile.predecessor == nil else { throw ShopReportProfileFailureV1.staleRevision }
+        let history = try validatedHistory(profileID: mutation.profile.profileID)
+        // An exact immutable historical profile may be retried after its
+        // successor exists. The writer must still validate its durable receipt;
+        // matching history alone never authorizes a new effect.
+        if !history.contains(mutation.profile) {
+            if let prior = history.last {
+                try mutation.profile.validateSuccessor(of: prior, sectionRegistry: sectionRegistry)
+                guard mutation.expectedRevision == prior.revision else { throw ShopReportProfileFailureV1.staleRevision }
+            } else {
+                guard mutation.expectedRevision == 0, mutation.profile.revision == 1,
+                      mutation.profile.predecessor == nil else { throw ShopReportProfileFailureV1.staleRevision }
+            }
         }
         let receipt = try writer.commitShopReportProfile(mutation)
         guard receipt.profileFrontier == (try mutation.profile.reference) else {

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
@@ -145,6 +146,137 @@ final class V9_69ShopProfileOpenHandoffTests: XCTestCase {
         XCTAssertThrowsError(try successor.validateSuccessor(of: successor, sectionRegistry: fixture.registry))
     }
 
+    @MainActor
+    func testShopProfileSaveExactRetryReturnsOriginalReceipt() throws {
+        let harness = try makeSaveRetryHarness()
+        defer { try? FileManager.default.removeItem(at: harness.directory) }
+        let mutation = try profileMutation(harness.fixture.profile)
+        let first = try harness.coordinator.save(mutation)
+        let revision = try harness.sessions.workspaceWriter.currentRevision()
+        let snapshot = try saveRetrySnapshot(harness.session.modelContext)
+        XCTAssertEqual(snapshot.map(\.count), [1, 1, 1])
+
+        XCTAssertEqual(try harness.coordinator.save(mutation), first)
+        XCTAssertEqual(try harness.sessions.workspaceWriter.currentRevision(), revision)
+        XCTAssertEqual(try saveRetrySnapshot(harness.session.modelContext), snapshot)
+    }
+
+    @MainActor
+    func testShopProfileSaveHistoricExactRetryAfterSuccessorReturnsOriginalReceipt() throws {
+        let harness = try makeSaveRetryHarness()
+        defer { try? FileManager.default.removeItem(at: harness.directory) }
+        let original = try profileMutation(harness.fixture.profile)
+        let first = try harness.coordinator.save(original)
+        let successor = try retrySuccessor(harness.fixture, mutationID: id(91))
+        _ = try harness.coordinator.save(profileMutation(successor))
+        let revision = try harness.sessions.workspaceWriter.currentRevision()
+        let snapshot = try saveRetrySnapshot(harness.session.modelContext)
+        XCTAssertEqual(snapshot.map(\.count), [2, 2, 2])
+
+        XCTAssertEqual(try harness.coordinator.save(original), first)
+        XCTAssertEqual(try harness.coordinator.current(profileID: successor.profileID), successor)
+        XCTAssertEqual(try harness.sessions.workspaceWriter.currentRevision(), revision)
+        XCTAssertEqual(try saveRetrySnapshot(harness.session.modelContext), snapshot)
+    }
+
+    @MainActor
+    func testShopProfileSaveDivergentMutationReuseRejectsWithoutChanges() throws {
+        let harness = try makeSaveRetryHarness()
+        defer { try? FileManager.default.removeItem(at: harness.directory) }
+        _ = try harness.coordinator.save(profileMutation(harness.fixture.profile))
+        // Reusing a mutation ID for changed content fails both the coordinator
+        // successor rule and the writer's independent durable receipt check.
+        let divergent = try retrySuccessor(
+            harness.fixture, mutationID: harness.fixture.profile.mutationID.rawValue
+        )
+        let revision = try harness.sessions.workspaceWriter.currentRevision()
+        let snapshot = try saveRetrySnapshot(harness.session.modelContext)
+
+        XCTAssertThrowsError(try harness.coordinator.save(profileMutation(divergent)))
+        XCTAssertThrowsError(try harness.sessions.workspaceWriter.commitShopReportProfile(
+            profileMutation(divergent)
+        )) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .invalidReceipt)
+        }
+        XCTAssertEqual(try harness.sessions.workspaceWriter.currentRevision(), revision)
+        XCTAssertEqual(try saveRetrySnapshot(harness.session.modelContext), snapshot)
+    }
+
+    @MainActor
+    func testShopProfileSaveNewStaleMutationRejectsWithoutChanges() throws {
+        let harness = try makeSaveRetryHarness()
+        defer { try? FileManager.default.removeItem(at: harness.directory) }
+        _ = try harness.coordinator.save(profileMutation(harness.fixture.profile))
+        let successor = try retrySuccessor(harness.fixture, mutationID: id(91))
+        _ = try harness.coordinator.save(profileMutation(successor))
+        let stale = try retrySuccessor(harness.fixture, mutationID: id(92))
+        let revision = try harness.sessions.workspaceWriter.currentRevision()
+        let snapshot = try saveRetrySnapshot(harness.session.modelContext)
+
+        XCTAssertThrowsError(try harness.coordinator.save(profileMutation(stale)))
+        XCTAssertThrowsError(try harness.sessions.workspaceWriter.commitShopReportProfile(
+            profileMutation(stale)
+        )) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .staleWorkspaceRevision)
+        }
+        XCTAssertEqual(try harness.sessions.workspaceWriter.currentRevision(), revision)
+        XCTAssertEqual(try saveRetrySnapshot(harness.session.modelContext), snapshot)
+    }
+
+    @MainActor
+    private func makeSaveRetryHarness() throws -> (
+        directory: URL,
+        session: StoreGenerationSession,
+        sessions: StoreSessionCoordinator,
+        coordinator: ShopReportProfileCoordinatorV1,
+        fixture: Fixture
+    ) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("C04-save-retry-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let session = try StoreGenerationFactory(applicationSupportURL: directory).openOrBootstrapCurrent()
+        let sessions = try StoreSessionCoordinator(validatingSession: session)
+        let fixture = try makeFixture(workspaceOverride: session.workspaceID)
+        let coordinator = try ShopReportProfileCoordinatorV1(
+            workspaceID: session.workspaceID,
+            sectionRegistry: fixture.registry,
+            reader: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+            writer: sessions.workspaceWriter
+        )
+        return (directory, session, sessions, coordinator, fixture)
+    }
+
+    private func profileMutation(_ profile: ShopReportProfileV1) throws -> ShopReportProfileMutationV1 {
+        try ShopReportProfileMutationV1(
+            workspaceID: profile.workspaceID,
+            expectedRevision: profile.revision - 1,
+            mutationID: profile.mutationID,
+            profile: profile
+        )
+    }
+
+    private func retrySuccessor(_ fixture: Fixture, mutationID: UUID) throws -> ShopReportProfileV1 {
+        try makeProfile(
+            workspaceID: fixture.workspaceID, actor: fixture.actor, registry: fixture.registry,
+            profileID: fixture.profile.profileID, predecessor: fixture.profile, revision: 2,
+            mutationID: mutationID, activation: .on, packaging: .separateFiles,
+            audience: .customerSafe, recordedAt: Self.fixedDate.addingTimeInterval(1)
+        )
+    }
+
+    @MainActor
+    private func saveRetrySnapshot(_ context: ModelContext) throws -> [[Data]] {
+        let receipts = try context.fetch(FetchDescriptor<MutationReceiptRow>())
+        let values: [[Data]] = [
+            try context.fetch(FetchDescriptor<ShopReportProfileRowV1>()).map {
+                try ShopReportProfileCanonicalCodecV1.encode($0.value())
+            },
+            receipts.map(\.receiptData),
+            receipts.map(\.envelopeData)
+        ]
+        return values.map { $0.sorted { $0.lexicographicallyPrecedes($1) } }
+    }
+
     private struct Fixture {
         let workspaceID: WorkspaceID
         let actor: ActorSnapshotV1
@@ -162,9 +294,10 @@ final class V9_69ShopProfileOpenHandoffTests: XCTestCase {
 
     private func makeFixture(
         activation: ShopReportProfileActivationV1 = .off,
-        packaging: ShopOpenEvidencePackagingV1 = .combinedArchive
+        packaging: ShopOpenEvidencePackagingV1 = .combinedArchive,
+        workspaceOverride: WorkspaceID? = nil
     ) throws -> Fixture {
-        let workspaceID = WorkspaceID(rawValue: id(1))
+        let workspaceID = workspaceOverride ?? WorkspaceID(rawValue: id(1))
         let actorReference = try LocalActorReferenceV1(actorReferenceID: id(2), workspaceID: workspaceID, displayName: "C04 recorder")
         let actor = try ActorSnapshotV1(snapshotID: id(3), workspaceID: workspaceID, actor: actorReference, responsibility: .recordedBy, displayNameAtTime: actorReference.displayName, capturedAt: Self.fixedDate)
         let formats: [ReportProjectionFormatV1] = [.formulaSafeCSV, .openJSON, .pdf, .structuredText]

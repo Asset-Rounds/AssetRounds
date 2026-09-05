@@ -15,7 +15,7 @@ enum ReportHistoryFilter: Hashable, Sendable {
 enum ReportHistoryAccessibleDocumentPolicyV1{
     static let assessmentHistory="APPEND_ONLY_SUCCESSOR_CHAIN"
     static let priorOutputBytesRemainImmutable=true
-    static func validateChain(_ values:[AccessibleDocumentAssessmentReceiptV1])throws{guard !values.isEmpty,Set(values.map(\.receiptID)).count==values.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let ordered=values.sorted{$0.revision<$1.revision};try ordered.forEach{$0.validateIntrinsic()};guard ordered.first?.revision==1 else{throw AccessibleDocumentFailureV1.invalidSuccessor};for index in 1..<ordered.count{guard ordered[index-1].revision<UInt64.max,ordered[index].supersedesReceiptID==ordered[index-1].receiptID,ordered[index].revision==ordered[index-1].revision+1 else{throw AccessibleDocumentFailureV1.invalidSuccessor}}}
+    static func validateChain(_ values:[AccessibleDocumentAssessmentReceiptV1])throws{guard !values.isEmpty,Set(values.map(\.receiptID)).count==values.count else{throw AccessibleDocumentFailureV1.duplicateIdentity};let ordered=values.sorted{$0.revision<$1.revision};try ordered.forEach{try $0.validateIntrinsic()};guard ordered.first?.revision==1 else{throw AccessibleDocumentFailureV1.invalidSuccessor};for index in 1..<ordered.count{guard ordered[index-1].revision<UInt64.max,ordered[index].supersedesReceiptID==ordered[index-1].receiptID,ordered[index].revision==ordered[index-1].revision+1 else{throw AccessibleDocumentFailureV1.invalidSuccessor}}}
 }
 
 struct ReportHistoryFilterOption: Identifiable, Equatable, Sendable {

@@ -511,7 +511,7 @@ struct QualifiedServiceExposureV1:Codable,Equatable,Sendable,ServiceReliabilityC
         self.predecessor=predecessor;self.revision=revision;self.mutationID=mutationID
         eventSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
     func validate()throws{try [eventID,exposureID].forEach(ServiceReliabilityLimitsV1.id);try subject.validate();try interval.validate()
-        try declaredCoverageWindow.validate();try plannedNonserviceExclusions.forEach{$0.validate()};try observationBasis.validate()
+        try declaredCoverageWindow.validate();try plannedNonserviceExclusions.forEach{try $0.validate()};try observationBasis.validate()
         try timeBasis.validate();try recordedBy.validate();try predecessor?.validate();if let sourceNote{try ServiceReliabilityLimitsV1.text(sourceNote)}
         let exclusionsInside=plannedNonserviceExclusions.allSatisfy{$0.lowerBound>=interval.lowerBound&&$0.upperBound<=interval.upperBound}
         guard schemaVersion==Self.schemaVersion,subject.frozenScope.workspaceID==workspaceID,recordedBy.workspaceID==workspaceID,
@@ -640,10 +640,10 @@ struct ReliabilityMetricInputProjectionV1:Codable,Equatable,Sendable,ServiceReli
         self.intervalUnionPolicySHA256=intervalUnionPolicySHA256;self.sourceClosureSHA256=sourceClosureSHA256
         projectionSHA256=try ServiceReliabilityCanonicalCodecV1.sha256(basis);try validate()}
     func validate()throws{try subject.validate();try observationWindow.validate();try asOf.validate()
-        try exposure.forEach{$0.validate()};try downtime.forEach{$0.validate()};try operatingExposure.forEach{$0.validate()}
-        try maximalDowntimeComponents.forEach{$0.validate()};try qualifiedRepairIntervals.forEach{$0.validate()}
-        try qualifiedRestorationIntervals.forEach{$0.validate()};try qualifyingFailureStartEventIDs.forEach(ServiceReliabilityLimitsV1.id)
-        try includedSourceEventIDs.forEach(ServiceReliabilityLimitsV1.id);try excludedSources.forEach{$0.validate()}
+        try exposure.forEach{try $0.validate()};try downtime.forEach{try $0.validate()};try operatingExposure.forEach{try $0.validate()}
+        try maximalDowntimeComponents.forEach{try $0.validate()};try qualifiedRepairIntervals.forEach{try $0.validate()}
+        try qualifiedRestorationIntervals.forEach{try $0.validate()};try qualifyingFailureStartEventIDs.forEach(ServiceReliabilityLimitsV1.id)
+        try includedSourceEventIDs.forEach(ServiceReliabilityLimitsV1.id);try excludedSources.forEach{try $0.validate()}
         try [intervalUnionPolicySHA256,sourceClosureSHA256,projectionSHA256].forEach(ServiceReliabilityLimitsV1.digest)
         let canonicalExposure=try ServiceReliabilityIntervalAlgebraV1.union(exposure)
         let canonicalDowntime=try ServiceReliabilityIntervalAlgebraV1.union(downtime)
@@ -772,7 +772,7 @@ enum ServiceReliabilityProjectionEngineV1 {
               segments.allSatisfy({$0.workspaceID==workspaceID&&$0.subject==subject}),
               repairs.allSatisfy({$0.workspaceID==workspaceID&&$0.subject==subject}),
               restorations.allSatisfy({$0.workspaceID==workspaceID&&$0.subject==subject})else{throw ServiceReliabilityFailureV1.wrongWorkspace}
-        try exposures.forEach{$0.validate()};try segments.forEach{$0.validate()};try repairs.forEach{$0.validate()};try restorations.forEach{$0.validate()}
+        try exposures.forEach{try $0.validate()};try segments.forEach{try $0.validate()};try repairs.forEach{try $0.validate()};try restorations.forEach{try $0.validate()}
         let activeExposures=try activeExposureEvents(exposures),activeSegments=try activeSegmentEvents(segments)
         let activeRepairs=try activeRepairEvents(repairs),activeRestorations=try activeRestorationEvents(restorations)
         let exposureOrdered=activeExposures.sorted{$0.interval<$1.interval}

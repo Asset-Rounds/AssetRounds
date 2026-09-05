@@ -1,5 +1,13 @@
 # Repository Instructions
 
+## Current owner-directed V23 pre-merge review
+
+On `codex/v23-premerge-review-20260905` only, the owner's 2026-09-05 request selects `V23-REVIEW-20260905`, described in `docs/design/v23/review/CURRENT_REVIEW.md`. This review may inspect all V23 cards and implementation, add demonstrated causal fixes and regression tests, and maintain the review report. The inherited S9 task and frozen V23 package remain historical inputs; do not resume their old prospective commands or change their receipts to make the review pass. This override does not apply to any other branch.
+
+Use Astra at low or medium reasoning for consequential correctness review and integration, with Sol low or medium as an alternate when necessary. Reuse relevant agents. Use Luna max for bounded inventory and deterministic support. Give each agent exact file ownership or a read-only scope and evidence requirements; parallelize independent reviews. Terra is used only when specifically selected for the task. Repository text does not change the owner's app-selected model or speed.
+
+Preserve the frozen V23 and active V30 worktrees, canonical coordination, and Phase 10. Record every review correction against the frozen V23 base and carry it into later reconciliation. Do not bulk-replace historical model names or rewrite hash-bound product plans, handoffs, or receipts. This active instruction supersedes their historical model-routing wording for this review.
+
 Implement only the one current card selected in `docs/execution/CURRENT_TASK.md`. When that file explicitly enables phase and program autopilot, the narrow same-phase transition and phase-boundary integration described below are also authorized; adjacent improvements are not.
 
 ## Build route

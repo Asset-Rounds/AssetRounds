@@ -3402,7 +3402,7 @@ enum C18LightingNightSearchRebuildBoundaryV1{
     static let projectionIsDerivedAndDisposable=true
     static func records(workflows:[LightingNightWorkflowV1])throws->[C18LightingNightSearchRecordV1]{
         guard workflows.count<=SearchContractLimitsV1.maximumCanonicalRecords else{throw SearchContractFailureV1.limitExceeded}
-        try workflows.forEach{$0.validateIntrinsic()}
+        try workflows.forEach{try $0.validateIntrinsic()}
         let current=try Dictionary(grouping:workflows,by:\.workflowID).values.map{history->LightingNightWorkflowV1 in
             let ordered=history.sorted{$0.revision<$1.revision}
             guard ordered.first?.revision==1,Set(ordered.map(\.revision)).count==ordered.count else{throw SearchContractFailureV1.duplicateProjection}

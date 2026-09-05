@@ -208,7 +208,23 @@ private extension ShopOpenEvidencePackagingV1 { func matches(_ value:ReportPacka
 struct ShopReportProfileMutationV1: Codable, Equatable, Sendable {
     let workspaceID: WorkspaceID; let expectedRevision: UInt64; let mutationID: MutationIDV1
     let profile: ShopReportProfileV1
-    init(workspaceID: WorkspaceID, expectedRevision: UInt64, mutationID: MutationIDV1, profile: ShopReportProfileV1) throws { guard expectedRevision < .max else { throw ShopReportProfileFailureV1.staleRevision }; try profile.validateIntrinsic(); guard workspaceID == profile.workspaceID, mutationID == profile.mutationID, profile.revision == expectedRevision + 1, (expectedRevision == 0) == (profile.predecessor == nil), profile.predecessor?.revision == expectedRevision else { throw ShopReportProfileFailureV1.staleRevision }; self.workspaceID=workspaceID;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.profile=profile }
+    init(workspaceID: WorkspaceID, expectedRevision: UInt64, mutationID: MutationIDV1, profile: ShopReportProfileV1) throws {
+        guard expectedRevision < .max else { throw ShopReportProfileFailureV1.staleRevision }
+        try profile.validateIntrinsic()
+        // The initial revision has no predecessor; nil must represent revision
+        // zero here rather than being compared with Optional(0).
+        guard workspaceID == profile.workspaceID,
+              mutationID == profile.mutationID,
+              profile.revision == expectedRevision + 1,
+              (expectedRevision == 0) == (profile.predecessor == nil),
+              profile.predecessor.map({ $0.revision == expectedRevision }) ?? (expectedRevision == 0) else {
+            throw ShopReportProfileFailureV1.staleRevision
+        }
+        self.workspaceID = workspaceID
+        self.expectedRevision = expectedRevision
+        self.mutationID = mutationID
+        self.profile = profile
+    }
     var affectedIdentity: WorkspaceEntityIdentityV1 { get throws { try .init(kind: .shopReportProfile, id: profile.profileID) } }
     var concurrencyIdentity: WorkspaceEntityIdentityV1 { get throws { try .init(kind: .shopReportProfile, id: profile.profileID) } }
     func validate()throws{_ = try Self(workspaceID:workspaceID,expectedRevision:expectedRevision,mutationID:mutationID,profile:profile)}
@@ -267,7 +283,7 @@ struct ShopOpenEvidenceHashManifestV1: Codable, Equatable, Sendable {
          artifacts:[ShopOpenEvidenceArtifactV1],media:[OutputScopedContentReferenceV1],
          packaging:ShopOpenEvidencePackagingV1,accessibleAssessment:AccessibleDocumentAssessmentReceiptV1,
          accessibleOutput:AccessibleDocumentRenderOutputV1)throws {
-        try profile.validateIntrinsic();try finalizedBinding.validate();try detailReceipt.validate();try confirmation.validate();try media.forEach{$0.validate()};try accessibleAssessment.validateIntrinsic();try accessibleAssessment.validateOutput(accessibleOutput.bytes)
+        try profile.validateIntrinsic();try finalizedBinding.validate();try detailReceipt.validate();try confirmation.validate();try media.forEach{try $0.validate()};try accessibleAssessment.validateIntrinsic();try accessibleAssessment.validateOutput(accessibleOutput.bytes)
         let entries=try artifacts.map{try ShopOpenEvidenceHashManifestEntryV1(format:$0.format,sha256:$0.sha256,byteCount:$0.bytes.count)}.sorted{$0.format.rawValue<$1.format.rawValue}
         guard Set(entries.map(\.format)) == [.pdf,.openJSON,.structuredText,.formulaSafeCSV],
               Set(entries.map(\.sha256)).count==entries.count,media==media.sorted(),Set(media).count==media.count,
@@ -307,7 +323,7 @@ struct ShopOpenEvidenceHashManifestV1: Codable, Equatable, Sendable {
         manifestSHA256=try ShopReportProfileCanonicalCodecV1.sha256(basisWithoutDigest)
         try validate()
     }
-    func validate()throws{try profileFrontier.validate();try media.forEach{$0.validate()};guard schemaVersion==Self.schemaVersion,SnapshotProjectionValidationV1.validID(workspaceID),SnapshotProjectionValidationV1.validID(snapshotID),SnapshotProjectionValidationV1.validID(outputScopeID),SnapshotProjectionValidationV1.validText(localeIdentifier),SnapshotProjectionValidationV1.validID(rendererVersion),[sourceSnapshotSHA256,reportLayoutProfileSHA256,exportProfileSHA256,evidenceDetailProfileSHA256,sectionRegistrySHA256,finalizedBindingSHA256,detailReceiptSHA256,confirmationSHA256,accessibilityAssessmentSHA256,accessibleOutputSHA256,manifestSHA256].allSatisfy(KernelCanonicalHashV1.validSHA256),artifacts==artifacts.sorted{$0.format.rawValue<$1.format.rawValue},Set(artifacts.map(\.format)) == [.pdf,.openJSON,.structuredText,.formulaSafeCSV],Set(artifacts).count==artifacts.count,artifacts.allSatisfy{KernelCanonicalHashV1.validSHA256($0.sha256)&&$0.byteCount>0&&$0.byteCount<=ShopReportProfileLimitsV1.maximumArtifactBytes},media==media.sorted(),Set(media).count==media.count,manifestSHA256==(try ShopReportProfileCanonicalCodecV1.sha256(basisWithoutDigest))else{throw ShopReportProfileFailureV1.artifactMismatch}}
+    func validate()throws{try profileFrontier.validate();try media.forEach{try $0.validate()};guard schemaVersion==Self.schemaVersion,SnapshotProjectionValidationV1.validID(workspaceID),SnapshotProjectionValidationV1.validID(snapshotID),SnapshotProjectionValidationV1.validID(outputScopeID),SnapshotProjectionValidationV1.validText(localeIdentifier),SnapshotProjectionValidationV1.validID(rendererVersion),[sourceSnapshotSHA256,reportLayoutProfileSHA256,exportProfileSHA256,evidenceDetailProfileSHA256,sectionRegistrySHA256,finalizedBindingSHA256,detailReceiptSHA256,confirmationSHA256,accessibilityAssessmentSHA256,accessibleOutputSHA256,manifestSHA256].allSatisfy(KernelCanonicalHashV1.validSHA256),artifacts==artifacts.sorted{$0.format.rawValue<$1.format.rawValue},Set(artifacts.map(\.format)) == [.pdf,.openJSON,.structuredText,.formulaSafeCSV],Set(artifacts).count==artifacts.count,artifacts.allSatisfy{KernelCanonicalHashV1.validSHA256($0.sha256)&&$0.byteCount>0&&$0.byteCount<=ShopReportProfileLimitsV1.maximumArtifactBytes},media==media.sorted(),Set(media).count==media.count,manifestSHA256==(try ShopReportProfileCanonicalCodecV1.sha256(basisWithoutDigest))else{throw ShopReportProfileFailureV1.artifactMismatch}}
     func canonicalData()throws->Data{try validate();return try ShopReportProfileCanonicalCodecV1.encode(self)}
     private var basisWithoutDigest:Basis{.init(schemaVersion:schemaVersion,profileFrontier:profileFrontier,workspaceID:workspaceID,snapshotID:snapshotID,sourceSnapshotSHA256:sourceSnapshotSHA256,outputScopeID:outputScopeID,audience:audience,localeIdentifier:localeIdentifier,rendererVersion:rendererVersion,reportLayoutProfileSHA256:reportLayoutProfileSHA256,exportProfileSHA256:exportProfileSHA256,evidenceDetailProfileSHA256:evidenceDetailProfileSHA256,sectionRegistrySHA256:sectionRegistrySHA256,finalizedBindingSHA256:finalizedBindingSHA256,detailReceiptSHA256:detailReceiptSHA256,confirmationSHA256:confirmationSHA256,accessibilityAssessmentSHA256:accessibilityAssessmentSHA256,artifacts:artifacts,media:media,packaging:packaging,accessibleOutputSHA256:accessibleOutputSHA256)}
     private struct Basis:Codable{let schemaVersion:Int;let profileFrontier:ShopReportProfileReferenceV1;let workspaceID:String;let snapshotID:String;let sourceSnapshotSHA256:String;let outputScopeID:String;let audience:ReportAudienceV1;let localeIdentifier:String;let rendererVersion:String;let reportLayoutProfileSHA256:String;let exportProfileSHA256:String;let evidenceDetailProfileSHA256:String;let sectionRegistrySHA256:String;let finalizedBindingSHA256:String;let detailReceiptSHA256:String;let confirmationSHA256:String;let accessibilityAssessmentSHA256:String;let artifacts:[ShopOpenEvidenceHashManifestEntryV1];let media:[OutputScopedContentReferenceV1];let packaging:ShopOpenEvidencePackagingV1;let accessibleOutputSHA256:String}
@@ -327,7 +343,7 @@ struct ShopOpenEvidenceHandoffReceiptV1: Equatable, Sendable {
          artifacts: [ShopOpenEvidenceArtifactV1], media: [OutputScopedContentReferenceV1],
          packaging: ShopOpenEvidencePackagingV1, confirmedFormat: ReportProjectionFormatV1,
          accessibleAssessment:AccessibleDocumentAssessmentReceiptV1,accessibleOutput: AccessibleDocumentRenderOutputV1) throws {
-        try finalizedBinding.validate(); try detailReceipt.validate(); try confirmation.validate(); try media.forEach{$0.validate()};try accessibleAssessment.validateIntrinsic();try accessibleAssessment.validateOutput(accessibleOutput.bytes)
+        try finalizedBinding.validate(); try detailReceipt.validate(); try confirmation.validate(); try media.forEach{try $0.validate()};try accessibleAssessment.validateIntrinsic();try accessibleAssessment.validateOutput(accessibleOutput.bytes)
         let required:Set<ReportProjectionFormatV1>=[.pdf,.openJSON,.structuredText,.formulaSafeCSV,.manifest]
         let contentArtifacts=artifacts.filter{$0.format != .manifest}
         let expectedManifest=try ShopOpenEvidenceHashManifestV1(profile:profile,finalizedBinding:finalizedBinding,detailReceipt:detailReceipt,confirmation:confirmation,artifacts:contentArtifacts,media:media,packaging:packaging,accessibleAssessment:accessibleAssessment,accessibleOutput:accessibleOutput)

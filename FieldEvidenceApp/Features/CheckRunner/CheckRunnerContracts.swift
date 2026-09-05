@@ -81,7 +81,7 @@ struct CheckRunnerPreparation: Equatable, Sendable {
 
 struct CheckRunnerSurveySessionContextV1:Equatable,Sendable {
     let session:SurveySessionV1;let definition:SurveyDefinitionReleaseV1;let captures:[FactCaptureV1]
-    func validate()throws{try session.validate(definition:definition);try captures.forEach{$0.validate(session:session,definition:definition)};guard session.activityKind == .survey else{throw CheckRunnerCoordinatorError.workPacketUnavailable}}
+    func validate()throws{try session.validate(definition:definition);try captures.forEach{try $0.validate(session:session,definition:definition)};guard session.activityKind == .survey else{throw CheckRunnerCoordinatorError.workPacketUnavailable}}
 }
 
 struct BeginDraftSubmission: Equatable, Sendable {

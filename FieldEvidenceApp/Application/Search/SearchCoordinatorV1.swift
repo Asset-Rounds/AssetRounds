@@ -1143,7 +1143,7 @@ extension SearchCoordinatorV1 {
         records:[C18LightingNightSearchRecordV1],maximumResults:Int=100)throws->[C18LightingNightSearchRecordV1]{
         guard maximumResults>0,maximumResults<=SearchContractLimitsV1.maximumCanonicalRecords,
               records.allSatisfy({$0.workspaceID==workspaceID}) else{throw SearchContractFailureV1.scopeMismatch}
-        try records.forEach{$0.validate()};let tokens=normalizedTokens(query)
+        try records.forEach{try $0.validate()};let tokens=normalizedTokens(query)
         guard !tokens.isEmpty else{throw SearchContractFailureV1.invalidQuery}
         return Array(records.filter{r in tokens.allSatisfy{q in r.normalizedTokens.contains{$0==q||$0.hasPrefix(q)}}}.sorted().prefix(maximumResults))
     }

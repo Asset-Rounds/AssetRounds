@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -150,6 +151,131 @@ private enum C05RoundSessionTestSupport {
 }
 
 final class V9_70RoundSessionStateTests: XCTestCase {
+    func testRoundSessionMutationAcceptsFirstRevisionAndBoundSuccessor() throws {
+        let workspace = C05RoundSessionTestSupport.workspace()
+        let created = try C05RoundSessionTestSupport.session(
+            workspace: workspace, state: .draft, transition: .create,
+            items: C05RoundSessionTestSupport.items(1)
+        )
+        let initialMutation = try RoundSessionMutationV1(
+            workspaceID: workspace, expectedRevision: 0,
+            mutationID: created.mutationID, session: created
+        )
+        XCTAssertNil(initialMutation.session.predecessor)
+        XCTAssertNoThrow(try initialMutation.validate())
+
+        let successor = try C05RoundSessionTestSupport.successor(
+            created, state: .active, transition: .start
+        )
+        let successorMutation = try RoundSessionMutationV1(
+            workspaceID: workspace, expectedRevision: 1,
+            mutationID: successor.mutationID, session: successor
+        )
+        XCTAssertEqual(successorMutation.session.predecessor, try created.reference)
+        XCTAssertNoThrow(try successorMutation.validate())
+    }
+
+    func testRoundSessionMutationRejectsMismatchedExpectedRevisionAndIdentity() throws {
+        let workspace = C05RoundSessionTestSupport.workspace()
+        let created = try C05RoundSessionTestSupport.session(
+            workspace: workspace, state: .draft, transition: .create,
+            items: C05RoundSessionTestSupport.items(1)
+        )
+        let successor = try C05RoundSessionTestSupport.successor(
+            created, state: .active, transition: .start
+        )
+        for (session, expectedRevision) in [
+            (created, UInt64(1)), (created, UInt64.max),
+            (successor, UInt64(0)), (successor, UInt64(2))
+        ] {
+            XCTAssertThrowsError(try RoundSessionMutationV1(
+                workspaceID: workspace, expectedRevision: expectedRevision,
+                mutationID: session.mutationID, session: session
+            )) { error in
+                XCTAssertEqual(error as? RoundSessionFailureV1, .staleRevision)
+            }
+        }
+        XCTAssertThrowsError(try RoundSessionMutationV1(
+            workspaceID: C05RoundSessionTestSupport.workspace(2), expectedRevision: 0,
+            mutationID: created.mutationID, session: created
+        ))
+        XCTAssertThrowsError(try RoundSessionMutationV1(
+            workspaceID: workspace, expectedRevision: 0,
+            mutationID: C05RoundSessionTestSupport.mutation(99), session: created
+        ))
+    }
+
+    @MainActor
+    func testRoundSessionWriterReleasedLeaseRejectsExactDurableRetry() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("C05-released-lease-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let factory = StoreGenerationFactory(applicationSupportURL: directory)
+        let session = try factory.openOrBootstrapCurrent()
+        let epoch = try XCTUnwrap(session.generationEpoch)
+        let registry = try factory.makeGenerationLeaseRegistry()
+        let lease = try registry.acquireHandle(epoch: epoch, role: .writer)
+        defer { try? lease.close() }
+        let fence = try factory.makeWriterFence(
+            expectedGenerationEpoch: epoch, writerLeaseToken: lease.token, registry: registry
+        )
+        let journal = try MutationJournalStoreV1(
+            modelContext: session.modelContext, identity: session.workspaceIdentity,
+            generationID: session.generationID, allowStateBootstrap: false,
+            staleWriterFence: fence
+        )
+        let writer = try WorkspaceWriterV1(
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            initialRevision: WorkspaceRevisionV1(
+                workspaceID: session.workspaceID, generationID: session.generationID,
+                revision: 0, entityRevisions: []
+            ),
+            clock: SystemApplicationClock(), idSource: SystemApplicationIDSource(),
+            fileAuthority: SystemApplicationFileAuthorityV1(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+            journalStore: journal
+        )
+        let created = try C05RoundSessionTestSupport.session(
+            workspace: session.workspaceID, state: .draft, transition: .create,
+            items: C05RoundSessionTestSupport.items(1)
+        )
+        let mutation = try RoundSessionMutationV1(
+            workspaceID: session.workspaceID, expectedRevision: 0,
+            mutationID: created.mutationID, session: created
+        )
+        let receipt = try writer.commitRoundSession(mutation)
+        let revision = try writer.currentRevision()
+        let snapshot = try roundWriterSnapshot(session.modelContext)
+        XCTAssertEqual(snapshot.map(\.count), [1, 1, 1])
+        XCTAssertEqual(try writer.commitRoundSession(mutation), receipt)
+        XCTAssertEqual(try writer.currentRevision(), revision)
+        XCTAssertEqual(try roundWriterSnapshot(session.modelContext), snapshot)
+
+        // Keep the writer object active but revoke its durable generation lease.
+        try lease.close()
+        XCTAssertThrowsError(try writer.currentRevision()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .wrongGeneration)
+        }
+        XCTAssertThrowsError(try writer.commitRoundSession(mutation)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .wrongGeneration)
+        }
+        XCTAssertEqual(try roundWriterSnapshot(session.modelContext), snapshot)
+    }
+
+    @MainActor
+    private func roundWriterSnapshot(_ context: ModelContext) throws -> [[Data]] {
+        let receipts = try context.fetch(FetchDescriptor<MutationReceiptRow>())
+        let values: [[Data]] = [
+            try context.fetch(FetchDescriptor<RoundSessionRevisionRowV1>()).map {
+                try RoundSessionCanonicalCodecV1.encode($0.value())
+            },
+            receipts.map(\.receiptData),
+            receipts.map(\.envelopeData)
+        ]
+        return values.map { $0.sorted { $0.lexicographicallyPrecedes($1) } }
+    }
+
     func testV23P04C05G01FullLegalStateTransitionMatrixAndExactCounts() throws {
         let corpus = try loadCorpus()
         assertCorpus(corpus, selector: "G01", tier: "GOLDEN")

@@ -159,7 +159,7 @@ private struct AssetLabelContentPublicationMarkerV1: Codable, Equatable, Sendabl
         try plan.validate()
         try manifest.validate()
         try nativeTextEnvironment.validate(planSHA256: plan.planSHA256)
-        try publishedArtifacts.forEach { $0.validate() }
+        try publishedArtifacts.forEach { try $0.validate() }
         let workspace = plan.workspaceID.rawValue.uuidString.lowercased()
         guard schemaVersion == Self.schemaVersion,
               manifest.planSHA256 == plan.planSHA256,

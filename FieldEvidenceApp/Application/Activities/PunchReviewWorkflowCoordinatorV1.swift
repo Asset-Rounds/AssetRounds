@@ -35,8 +35,8 @@ struct PunchReviewWorkflowContextV1: Equatable, Sendable {
 
     func validate() throws {
         try envelope.validateForRead();try release.validate();try basis.validate()
-        try scopeDecisions.forEach{$0.validate()};try correctiveActionEvents.forEach{$0.validate()}
-        try sourceEnvelopes.forEach{$0.validateForRead()};try planCapability.validate()
+        try scopeDecisions.forEach{try $0.validate()};try correctiveActionEvents.forEach{try $0.validate()}
+        try sourceEnvelopes.forEach{try $0.validateForRead()};try planCapability.validate()
         try installationSnapshot?.validate()
         try closeoutIntent?.validate()
         guard envelope.kind == .punchReview,envelope.workspaceID == release.workspaceID,

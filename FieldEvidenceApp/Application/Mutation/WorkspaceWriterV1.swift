@@ -426,7 +426,70 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         try execute(command, mutationID: makeMutationID())
     }
 
-    func commitMeasurementIntegrity(_ bundle:MeasurementIntegrityAtomicBundleV1) async throws->MeasurementIntegrityWriteReceiptV1{let mutation=try MeasurementIntegrityMutationV1(bundle:bundle);let current=try currentRevision();let concurrency=try mutation.concurrencyIdentities;let byIdentity=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard try concurrency.allSatisfy({byIdentity[$0,default:0] == (try mutation.expectedRevision(for:$0))})else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:concurrency.map{WorkspaceEntityRevisionV1(identity:$0,revision:byIdentity[$0,default:0])});_ = try execute(WorkspaceMutationRequestV1(mutationID:bundle.mutationID,expectedRevision:expected,command:.applyMeasurementIntegrity(mutation)));guard let receipt=try journalStore?.receipt(mutationID:bundle.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try MeasurementIntegrityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return try MeasurementIntegrityWriteReceiptV1(workspaceID:bundle.workspaceID,mutationID:bundle.mutationID,bundleSHA256:bundle.bundleSHA256,journalReceiptSHA256:receipt.canonicalSHA256())}
+    func commitMeasurementIntegrity(
+        _ bundle: MeasurementIntegrityAtomicBundleV1
+    ) async throws -> MeasurementIntegrityWriteReceiptV1 {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard !isExecuting else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        let mutation = try MeasurementIntegrityMutationV1(bundle: bundle)
+        guard mutation.workspaceID == identity.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+
+        // Reading the current revision also validates the durable writer lease.
+        // Even a receipt-only retry must not bypass generation invalidation.
+        let current = try currentRevision()
+
+        // A committed command retains its original expected revisions. Replay
+        // must validate the durable command identity before comparing those
+        // revisions with the now-advanced live workspace.
+        if let receipt = try journalStore.receipt(mutationID: bundle.mutationID) {
+            _ = try MeasurementIntegrityMutationReceiptV1(
+                mutation: mutation, mutationReceipt: receipt
+            )
+            return try MeasurementIntegrityWriteReceiptV1(
+                workspaceID: bundle.workspaceID,
+                mutationID: bundle.mutationID,
+                bundleSHA256: bundle.bundleSHA256,
+                journalReceiptSHA256: receipt.canonicalSHA256()
+            )
+        }
+
+        let concurrency = try mutation.concurrencyIdentities
+        let byIdentity = Dictionary(uniqueKeysWithValues: current.entityRevisions.map {
+            ($0.identity, $0.revision)
+        })
+        guard try concurrency.allSatisfy({
+            byIdentity[$0, default: 0] == (try mutation.expectedRevision(for: $0))
+        }) else { throw WorkspaceMutationFailureV1.staleWorkspaceRevision }
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: current.workspaceID,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: concurrency.map {
+                WorkspaceEntityRevisionV1(identity: $0, revision: byIdentity[$0, default: 0])
+            }
+        )
+        _ = try execute(WorkspaceMutationRequestV1(
+            mutationID: bundle.mutationID,
+            expectedRevision: expected,
+            command: .applyMeasurementIntegrity(mutation)
+        ))
+        guard let receipt = try journalStore.receipt(mutationID: bundle.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        _ = try MeasurementIntegrityMutationReceiptV1(
+            mutation: mutation, mutationReceipt: receipt
+        )
+        return try MeasurementIntegrityWriteReceiptV1(
+            workspaceID: bundle.workspaceID,
+            mutationID: bundle.mutationID,
+            bundleSHA256: bundle.bundleSHA256,
+            journalReceiptSHA256: receipt.canonicalSHA256()
+        )
+    }
     func commitPrivacyTransform(_ mutation:PrivacyTransformMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision();let concurrency=try mutation.concurrencyIdentities;let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:try concurrency.map{WorkspaceEntityRevisionV1(identity:$0,revision:try mutation.expectedRevision(for:$0))});_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyPrivacyTransform(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try PrivacyTransformMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitEvidenceMetadata(
         _ mutation: EvidenceMetadataMutationV1
@@ -763,18 +826,62 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     }
     func commitClientCapability(_ mutation:ClientCapabilityMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyClientCapability(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try ClientCapabilityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     func commitFieldReference(_ mutation:FieldReferenceMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyFieldReference(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try FieldReferenceMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
-    func commitShopReportProfile(_ mutation:ShopReportProfileMutationV1)throws->ShopReportProfileMutationReceiptV1{try mutation.validate();guard mutation.workspaceID==identity.workspaceID else{throw WorkspaceMutationFailureV1.wrongWorkspace};let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity,known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyShopReportProfile(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try ShopReportProfileMutationReceiptV1(mutation:mutation,mutationReceipt:receipt)}
+    func commitShopReportProfile(
+        _ mutation: ShopReportProfileMutationV1
+    ) throws -> ShopReportProfileMutationReceiptV1 {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard !isExecuting else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        try mutation.validate()
+        guard mutation.workspaceID == identity.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        // Validate the current writer lease even when returning an old receipt.
+        let current = try currentRevision()
+        if let receipt = try journalStore.receipt(mutationID: mutation.mutationID) {
+            return try ShopReportProfileMutationReceiptV1(
+                mutation: mutation, mutationReceipt: receipt
+            )
+        }
+
+        // Only new commands compare their expected revision with live state.
+        let concurrency = try mutation.concurrencyIdentity
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map {
+            ($0.identity, $0.revision)
+        })
+        guard known[concurrency, default: 0] == mutation.expectedRevision else {
+            throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+        }
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: current.workspaceID,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: [.init(identity: concurrency, revision: mutation.expectedRevision)]
+        )
+        _ = try execute(.init(
+            mutationID: mutation.mutationID,
+            expectedRevision: expected,
+            command: .applyShopReportProfile(mutation)
+        ))
+        guard let receipt = try journalStore.receipt(mutationID: mutation.mutationID) else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return try ShopReportProfileMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+    }
     func commitRoundSession(_ mutation: RoundSessionMutationV1) throws -> RoundSessionMutationReceiptV1 {
         try mutation.validate(); guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard mutation.workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
         let command = WorkspaceCommandV1.applyRoundSession(mutation), digest = try WorkspaceMutationCanonicalV1.sha256(command)
+        // A durable receipt does not bypass the current generation's writer lease.
+        let current = try currentRevision()
         if let receipt = try journalStore.receipt(mutationID: mutation.mutationID) {
             guard receipt.identity.workspaceID == mutation.workspaceID, receipt.commandBodySHA256 == digest,
                   try adapter.persistedRoundSessionEffectMatches(mutation) else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
             return try .init(mutation: mutation, mutationReceipt: receipt)
         }
-        let current = try currentRevision(), target = try mutation.concurrencyIdentity
+        let target = try mutation.concurrencyIdentity
         let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
         guard known[target, default: 0] == mutation.expectedRevision else { throw WorkspaceMutationFailureV1.staleWorkspaceRevision }
         let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID, generationID: current.generationID, writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision, entityRevisions: [.init(identity: target, revision: mutation.expectedRevision)])

@@ -5324,7 +5324,7 @@ enum C18LightingReportProjectionSupportV1 {
         try value.validate()
         try LightingLimitsV1.id(value.workflowID);try LightingLimitsV1.revision(value.workflowRevision)
         try LightingLimitsV1.digest(value.workflowSHA256);try value.system.validate();try value.day.validate()
-        try value.claims.forEach{$0.validate()}
+        try value.claims.forEach{try $0.validate()}
         let open=Set(value.openIssueIDs),resolved=Set(value.resolvedForRecordedScopeIssueIDs),reopened=Set(value.reopenedIssueIDs)
         guard value.deltaCount>0,value.openIssueIDs==value.openIssueIDs.sorted(by:{$0.uuidString<$1.uuidString}),
               value.resolvedForRecordedScopeIssueIDs==value.resolvedForRecordedScopeIssueIDs.sorted(by:{$0.uuidString<$1.uuidString}),

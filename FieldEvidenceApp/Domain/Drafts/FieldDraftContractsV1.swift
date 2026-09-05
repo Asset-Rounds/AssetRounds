@@ -51,7 +51,7 @@ struct DraftPurposeDefinitionV1:Codable,Equatable,Hashable,Sendable{
 }
 struct DraftPurposeRegistryV1:Sendable{
     let definitions:[DraftPurposeV1:DraftPurposeDefinitionV1]
-    init(_ values:[DraftPurposeDefinitionV1])throws{try values.forEach{$0.validate()};let pairs=values.map{($0.purpose,$0)};guard values.count==DraftPurposeV1.allCases.count,Set(pairs.map(\.0)).count==values.count else{throw FieldDraftFailureV1.unknownPurpose};definitions=Dictionary(uniqueKeysWithValues:pairs)}
+    init(_ values:[DraftPurposeDefinitionV1])throws{try values.forEach{try $0.validate()};let pairs=values.map{($0.purpose,$0)};guard values.count==DraftPurposeV1.allCases.count,Set(pairs.map(\.0)).count==values.count else{throw FieldDraftFailureV1.unknownPurpose};definitions=Dictionary(uniqueKeysWithValues:pairs)}
     func require(_ purpose:DraftPurposeV1,codec:DraftPayloadCodecReleaseV1)throws->DraftPurposeDefinitionV1{guard let value=definitions[purpose]else{throw FieldDraftFailureV1.unknownPurpose};guard value.codec==codec else{throw FieldDraftFailureV1.unknownCodec};return value}
 }
 

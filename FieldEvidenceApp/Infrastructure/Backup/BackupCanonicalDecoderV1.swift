@@ -898,8 +898,18 @@ private extension BackupCanonicalDecoderV1 {
 
     static func validateClientCapabilities(_ records:V4BackupRecordsV1)throws{
         guard records.recordsSchemaVersion>=19 else{guard records.clientCapabilities.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords};return}
-        let releases=try records.packageEvolution.filter{$0.kind == .promotedRelease}.map{try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self,from:$0.canonicalData).packageRelease}
-        let releaseIndex=Dictionary(uniqueKeysWithValues:releases.map{($0.packageReleaseID,$0)});var keys=Set<String>()
+        var releaseIndex: [String: InspectionPackageReleaseV1] = [:]
+        for row in records.packageEvolution where row.kind == .promotedRelease {
+            let release = try PackageEvolutionCanonicalCodecV1.decode(
+                PromotedPackageReleaseV1.self, from: row.canonicalData
+            ).packageRelease
+            // Outer record IDs do not prove uniqueness of nested release IDs.
+            // Untrusted backup data must fail validation instead of trapping.
+            guard releaseIndex.updateValue(release, forKey: release.packageReleaseID) == nil else {
+                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            }
+        }
+        var keys=Set<String>()
         func accept(_ row:V20BackupClientCapabilityRecordV1,_ id:UUID,_ workspaceID:WorkspaceID,_ revision:UInt64)throws{guard row.id==id,row.workspaceID==workspaceID.rawValue,row.revision==revision,keys.insert("\(row.kind.rawValue)|\(row.id.uuidString)").inserted else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}
         let profiles=try Dictionary(uniqueKeysWithValues:records.clientCapabilities.filter{$0.kind == .profile}.map{row in let v=try ClientCapabilityProfileRow(ClientCapabilityCanonicalCodecV1.decode(ClientCapabilityProfileV1.self,from:row.canonicalData)).value();try accept(row,v.profileID,v.workspaceID,v.revision);return(v.profileID,v)})
         let policies=try Dictionary(uniqueKeysWithValues:records.clientCapabilities.filter{$0.kind == .policy}.map{row in let seed=try ClientCapabilityCanonicalCodecV1.decode(PackageLifecyclePolicyV1.self,from:row.canonicalData);guard let release=releaseIndex[seed.packageReleaseID]else{throw BackupCanonicalDecodingErrorV1.invalidRecords};let v=try PackageLifecyclePolicyRow(seed,release:release).value(release:release);try accept(row,v.policyID,v.workspaceID,v.revision);return(v.policyID,v)})
@@ -1391,9 +1401,9 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
               records.mutationHistory != nil else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }
-        let requestValues=try records.serviceRequests.map{$0.value()}
-        let dispositionValues=try records.serviceRequestDispositionEvents.map{$0.value()}
-        let linkValues=try records.serviceRequestWorkLinkEvents.map{$0.value()}
+        let requestValues=try records.serviceRequests.map{try $0.value()}
+        let dispositionValues=try records.serviceRequestDispositionEvents.map{try $0.value()}
+        let linkValues=try records.serviceRequestWorkLinkEvents.map{try $0.value()}
         let requestKeys=requestValues.map{"\($0.workspaceID.rawValue.uuidString)|\($0.recordID.uuidString)|\($0.revision)"}
         guard Set(requestKeys).count==requestKeys.count,
               Set(dispositionValues.map(\.eventID)).count==dispositionValues.count,
