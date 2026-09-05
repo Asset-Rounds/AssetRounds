@@ -266,6 +266,10 @@ struct CanonicalIdentityBaselineFixtureV1: Codable, Equatable, Sendable {
 }
 
 enum CanonicalIdentityInvarianceV1 {
+    static func sha256(_ data: Data) -> String {
+        CanonicalIdentitySnapshotV1.sha256(data)
+    }
+
     static func audit(_ fixture: CanonicalIdentityBaselineFixtureV1) throws -> CanonicalIdentityComparisonV1 {
         try audit(
             baseline: fixture.baseline,
@@ -461,7 +465,7 @@ extension V30P01C05BackupPackageCanonicalIdentityBoundaryV1 {
     ) throws {
         do {
             let encoded = try BackupCanonicalEncoderV1().encodeRecords(package.records)
-            try validateEncodedBytes(
+            try V30P01C05BackupEncoderCanonicalIdentityBoundaryV1.validateEncodedBytes(
                 encoded.data,
                 declaredSHA256: encoded.sha256
             )
