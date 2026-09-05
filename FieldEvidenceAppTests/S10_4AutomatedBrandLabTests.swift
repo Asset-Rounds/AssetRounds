@@ -3588,133 +3588,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 84_713)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 84_556)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "F8D961834B5CD914D2EC7042149D62D54867B96283C8835F9475E19817754620"
+            "D039541576E0BA969FFFE5D961334838FFBE5D12CEF545F6851E01E2318727C3"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 30_051)
         XCTAssertEqual(
             Data(currentProfilePreflightQuickPathSource.utf8).sha256,
             "C9EC924BAD52EE96F69BF14645B28F60FE95DFB09A9DB0AEA34624E120B7F4F5"
         )
-        let minimumDoubleLengthPreflightDiagnosticCaller =
-            #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#
-                + "\n"
-                + "            try diagnoseMinimumDoubleLengthPreflightNativeContrast(in: app)\n"
-                + "        }"
-        XCTAssertEqual(
-            preflightMinimumSource.components(
-                separatedBy: minimumDoubleLengthPreflightDiagnosticCaller
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: minimumDoubleLengthPreflightDiagnosticCaller
-            ).count - 1,
-            1
-        )
-        let minimumDoubleLengthPreflightDiagnosticSource = try boundedSource(
-            uiSource,
-            from:
-                "    @MainActor\n"
-                    + "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast(",
-            before:
-                "\n\n    private func publicAuditSignatureObject("
-        )
-        XCTAssertEqual(
-            minimumDoubleLengthPreflightDiagnosticSource.utf8.count,
-            9_463
-        )
-        XCTAssertEqual(
-            Data(minimumDoubleLengthPreflightDiagnosticSource.utf8).sha256,
-            "1CCDC611991AB30CBCC81D52235FAE9FB6AB6A26411B044246071294D05FD1A6"
-        )
-        let minimumDoubleLengthPreflightDiagnosticPrefix =
-            "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_NATIVE_CONTRAST_DIAGNOSTIC"
-        XCTAssertEqual(
-            minimumDoubleLengthPreflightDiagnosticSource.components(
-                separatedBy: minimumDoubleLengthPreflightDiagnosticPrefix
-            ).count - 1,
-            1
-        )
-        for exactCount in [
-            ("try app.performAccessibilityAudit(for: .contrast) { issue in", 1),
-            ("return true", 1),
-            ("XCTAttachment(", 3),
-            (".lifetime = .keepAlways", 3),
-            ("self.automationSegment.rawValue", 1),
-            ("self.segmentedRouteStateCursor", 1),
-            ("self.auditFrameObject(app.frame)", 1),
-            ("\"issues\": observedIssueObjects", 1),
-            ("\"observedIssueCount\": observedIssueObjects.count", 1),
-            ("\"auditedElementCount\": auditedElementCount", 1),
-            (
-                "S10.4 minimum double-length preflight native contrast diagnostic completed nonaccepting",
-                1
-            ),
+        for retiredMinimumDoubleLengthDiagnosticSymbol in [
+            #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#,
+            "diagnoseMinimumDoubleLengthPreflightNativeContrast",
+            "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_NATIVE_CONTRAST_DIAGNOSTIC",
+            "S10.4 minimum double-length preflight native contrast diagnostic",
         ] {
-            XCTAssertEqual(
-                minimumDoubleLengthPreflightDiagnosticSource.components(
-                    separatedBy: exactCount.0
-                ).count - 1,
-                exactCount.1,
-                exactCount.0
+            XCTAssertFalse(
+                uiSource.contains(retiredMinimumDoubleLengthDiagnosticSymbol),
+                retiredMinimumDoubleLengthDiagnosticSymbol
             )
-        }
-        var minimumDoubleLengthDiagnosticSearchStart =
-            minimumDoubleLengthPreflightDiagnosticSource.startIndex
-        for exact in [
-            #"shard.shardID == "s10.4.minimum.double-length""#,
-            #"shard.requirementID == "double_length""#,
-            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
-            "automationSegment == .none",
-            "segmentedRouteStateCursor == 0",
-            "migratedStateIDs == expectedMigratedStateIDs",
-            "try app.performAccessibilityAudit(for: .contrast) { issue in",
-            "observedIssueObjects.append(diagnosticIssue)",
-            "return true",
-            "let diagnosticContext: [String: Any] = [",
-            "\"stateOrdinal\": 9",
-            #""predecessorStateID": "state.sign-detail.delete-confirmation""#,
-            #""successorStateID": "state.capture.wide-ready""#,
-            "\"issues\": observedIssueObjects",
-            "printJSONLine(",
-            "let appAttachment = XCTAttachment(screenshot: app.screenshot())",
-            "let treeAttachment = XCTAttachment(string: app.debugDescription)",
-            "let contextAttachment = XCTAttachment(",
-            "throw AutomationConfigurationError.invalid("
-        ] {
-            let range = try XCTUnwrap(
-                minimumDoubleLengthPreflightDiagnosticSource.range(
-                    of: exact,
-                    range:
-                        minimumDoubleLengthDiagnosticSearchStart ..<
-                        minimumDoubleLengthPreflightDiagnosticSource.endIndex
-                ),
-                exact
-            )
-            minimumDoubleLengthDiagnosticSearchStart = range.upperBound
-        }
-        for prohibited in [
-            "ContrastAuditExceptionSignature(",
-            "eligibleExceptions",
-            "captureBaseline(",
-            "S10_4_AX_STATE",
-            "S10_4_CONTRAST",
-            "candidate attachment",
-            "issueAttachment",
-            "audited element",
-            "return false",
-            "tolerance",
-        ] {
-            XCTAssertEqual(
-                minimumDoubleLengthPreflightDiagnosticSource.components(
-                    separatedBy: prohibited
-                ).count - 1,
-                0,
-                prohibited
+            XCTAssertFalse(
+                preflightMinimumSource.contains(retiredMinimumDoubleLengthDiagnosticSymbol),
+                retiredMinimumDoubleLengthDiagnosticSymbol
             )
         }
 
@@ -5917,8 +5813,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource,
             from: minimumWorkValidationKeyboardAccessoryDefinition,
             before:
-                "\n\n    @MainActor\n" +
-                "    private func diagnoseMinimumDoubleLengthPreflightNativeContrast("
+                "\n\n    private func publicAuditSignatureObject("
         )
         let minimumWorkValidationKeyboardAccessoryLocks = [
             #"let stateID = "state.work.validation-error""#,
@@ -6541,10 +6436,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightVisibleStartRange.lowerBound..<preflightMinimumSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightVisibleSource.utf8.count, 49_017)
+        XCTAssertEqual(preflightVisibleSource.utf8.count, 48_860)
         XCTAssertEqual(
             Data(preflightVisibleSource.utf8).sha256,
-            "51858246A0FC27E8280D45BE00A2B978C894883D4051EEA1B273A78770F8887D"
+            "6E2938FD4B06AA1C4A3247F18B8F2CFD2734E53952755EF9F14928EE9E2A8D0A"
         )
         let minimumPreflightQuickPathWrapperStart =
             "                    let minimumPreflightQuickPathIntroductionViews ="
@@ -6579,10 +6474,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             Data(minimumPreflightQuickPathWrapperSource.utf8).sha256,
             "B99E943C870A4FA3B6E042AC727F480ED4E84FF8B4527A7214A9E58778A91292"
         )
-        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 33_916)
+        XCTAssertEqual(minimumPreflightQuickPathCommonTailSource.utf8.count, 33_759)
         XCTAssertEqual(
             Data(minimumPreflightQuickPathCommonTailSource.utf8).sha256,
-            "0FA4E49518B5E59038931729410AF9A766D6264265532CA0BA391019C837EDE0"
+            "091010CBB7414C1C1E68636875B15D0FB0A359595E1AA9011436748A175E701D"
         )
         let minimumDoubleLengthPositioningGate =
             "                    if automationShard?.shardID\n" +
@@ -7873,9 +7768,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let currentProfileQuickPathPrecededByMinimumFinalGuard =
             preflightFinalFailure + "\n                    }\n                }\n            }\n        }\n" +
-                #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"# +
-                "\n            try diagnoseMinimumDoubleLengthPreflightNativeContrast(in: app)\n" +
-                "        }\n" +
                 currentProfilePreflightQuickPathGate
         XCTAssertEqual(
             uiSource.components(
@@ -22280,10 +22172,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 821_118)
+        XCTAssertEqual(uiSource.utf8.count, 811_496)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "2CA8A7813AB152E3A06CABCDF700118052F4E083941A843844246ACD169FE409"
+            "EB12FD28AA1CD2B06145A4B9B3FC58FDF551BF7E78E06ADA1525715C4ECB9CEF"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
