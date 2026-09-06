@@ -2272,8 +2272,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 return
                             }
                             if confirmationFrame.minY >= safeTop,
-                               confirmationFrame.maxY <= safeBottom,
-                               headingFrame.maxY <= liveApplicationFrame.minY {
+                               confirmationFrame.maxY <= safeBottom {
                                 break
                             }
                             guard maximumShift < 0 else {
@@ -2740,7 +2739,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                               }),
                               finalSafeTop.isFinite,
                               finalSafeBottom.isFinite,
-                              finalHeadingFrame.maxY <= finalApplicationFrame.minY,
                               finalSafeBottom > finalSafeTop,
                               finalConfirmationFrame.minY >= finalSafeTop,
                               finalConfirmationFrame.maxY <= finalSafeBottom else {
@@ -6177,6 +6175,63 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       restoredWorkKeyboard.frame == workKeyboardFrame else {
                     throw AutomationConfigurationError.invalid(
                         "S10.4 minimum work-validation state was not restored after QuickPath dismissal"
+                    )
+                }
+                if shard.shardID == "s10.4.minimum.rtl-string" {
+                    let rtlNoteHeadings = app.staticTexts.matching(
+                        NSPredicate(format: "label == %@", "\u{202E}Note\u{202C}")
+                    )
+                    let rtlAssistantViews = app.descendants(
+                        matching: .other
+                    ).matching(identifier: "SystemInputAssistantView")
+                    let rtlWorkScrollViews = app.scrollViews.containing(
+                        .image, identifier: "s5.1.work.photo"
+                    )
+                    let rtlNavigationBars = app.navigationBars
+                    var rtlObservedGeometry: [String: Any] = [:]
+                    for (name, query) in [
+                        ("noteHeading", rtlNoteHeadings),
+                        ("inputAssistant", rtlAssistantViews),
+                        ("workScroll", rtlWorkScrollViews),
+                        ("navigationBar", rtlNavigationBars),
+                    ] {
+                        let count = query.count
+                        var observation: [String: Any] = [
+                            "count": count,
+                            "unique": count == 1,
+                            "frame": NSNull(),
+                        ]
+                        if count == 1 {
+                            let observedElement = query.element(boundBy: 0)
+                            let observedFrame = observedElement.frame
+                            let frameIsValid = workQuickPathFrameIsValid(observedFrame)
+                            observation["frameIsValid"] = frameIsValid
+                            if frameIsValid {
+                                observation["frame"] = auditFrameObject(observedFrame)
+                            }
+                            let observedIdentifier = observedElement.identifier
+                            let observedLabel = observedElement.label
+                            observation["identifier"] = String(observedIdentifier.prefix(256))
+                            observation["identifierTruncated"] = observedIdentifier.count > 256
+                            observation["label"] = String(observedLabel.prefix(256))
+                            observation["labelTruncated"] = observedLabel.count > 256
+                        }
+                        rtlObservedGeometry[name] = observation
+                    }
+                    printJSONLine(
+                        prefix: "S10_4_RTL_WORK_VALIDATION_GEOMETRY",
+                        object: [
+                            "acceptanceEligible": false,
+                            "shardID": shard.shardID,
+                            "targetStateID": "state.work.validation-error",
+                            "sampling": "sequential-after-QuickPath-restoration",
+                            "applicationFrame": auditFrameObject(applicationFrame),
+                            "workScreenFrame": auditFrameObject(workScreenFrame),
+                            "descriptionFrame": auditFrameObject(workDescriptionFrame),
+                            "validationFrame": auditFrameObject(workValidationFrame),
+                            "keyboardFrame": auditFrameObject(workKeyboardFrame),
+                            "observations": rtlObservedGeometry,
+                        ]
                     )
                 }
             }

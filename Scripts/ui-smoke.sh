@@ -120,7 +120,7 @@ fi
 ips_test_started_epoch=""
 if [ "${CI_RUNNER_PROVIDER:-}" = github ] && [ "${CI_TASK_ID:-}" = S10.4 ]; then
   case "${CI_S10_4_SHARD_ID:-}" in
-    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall)
+    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall|s10.4.minimum.rtl)
       ips_test_started_epoch="$(date +%s)" ;;
   esac
 fi
@@ -250,7 +250,8 @@ if [ "$xcodebuild_status" -ne 0 ]; then
      [ "${CI_S10_4_PILOT_MODE:-false}" = false ] &&
      { [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.minimum-os ] ||
        [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.accented ] ||
-       [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.tall ]; }; then
+       [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.tall ] ||
+       [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]; }; then
     ips_now="$(date +%s)"
     ips_origin="${CI_BUDGET_START_EPOCH:-}"
     ips_total="${CI_TOTAL_BUDGET_SECONDS:-}"
@@ -357,6 +358,28 @@ PY
           if [ "$ips_snapshot_bytes" -gt 1048576 ]; then printf 'ips_truncated=true\n' >> "$diagnostic_status_path"; fi
           if [ "$ips_query_status" -ne 0 ] || [ "$ips_snapshot_status" -ne 0 ] || [ "$ips_retained_bytes" -eq 0 ]; then
             printf 'ips_incomplete=true\n' >> "$diagnostic_status_path"
+          fi
+          ips_prefix_limit="$ips_snapshot_bytes"
+          if [ "$ips_prefix_limit" -gt 1048576 ]; then ips_prefix_limit=1048576; fi
+          /usr/bin/head -c "$ips_prefix_limit" "$ips_raw" \
+            > "$failure_diagnostic_path/simulator-incident-app-prefix.log"
+          ips_prefix_status="$?"
+          ips_prefix_bytes="$(LC_ALL=C wc -c < "$failure_diagnostic_path/simulator-incident-app-prefix.log" | tr -d '[:space:]')"
+          ips_tail_snapshot_start=0
+          if [ "$ips_snapshot_bytes" -gt 1048576 ]; then
+            ips_tail_snapshot_start="$(( ips_snapshot_bytes - 1048576 ))"
+          fi
+          ips_prefix_tail_overlap=0
+          if [ "$ips_prefix_bytes" -gt "$ips_tail_snapshot_start" ]; then
+            ips_prefix_tail_overlap="$(( ips_prefix_bytes - ips_tail_snapshot_start ))"
+          fi
+          printf 'ips_prefix_status=%s\nips_prefix_bytes=%s\nips_prefix_start_byte=0\nips_prefix_end_byte=%s\nips_tail_snapshot_start_byte=%s\nips_tail_snapshot_end_byte=%s\nips_prefix_tail_overlap_bytes=%s\nips_prefix_capture=bounded_snapshot_not_completion_proof\n' \
+            "$ips_prefix_status" "$ips_prefix_bytes" "$ips_prefix_bytes" \
+            "$ips_tail_snapshot_start" "$ips_snapshot_bytes" "$ips_prefix_tail_overlap" \
+            >> "$diagnostic_status_path"
+          if [ "$ips_query_status" -ne 0 ] || [ "$ips_prefix_status" -ne 0 ] || \
+             [ "$ips_prefix_bytes" -ne "$ips_prefix_limit" ] || [ "$ips_prefix_bytes" -eq 0 ]; then
+            printf 'ips_prefix_incomplete=true\n' >> "$diagnostic_status_path"
           fi
           rm -f "$ips_raw"
         else

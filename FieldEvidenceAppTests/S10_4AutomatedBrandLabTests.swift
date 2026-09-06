@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 31_763,
-            sha256: "FDAF5C96E3201ECAF4C4CCB78E20F4AF7D3D6DE759FB25D2A8EEF01590C0AC0D"
+            byteCount: 33_412,
+            sha256: "D5085BDAE09FD9D25B0ECD6D95216A712480FF60386FFBD096B1901B3E678254"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -240,10 +240,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "  # H408 optional incident-correlated app log; originals remain unchanged.\n",
             before: "  # K404 failure-only bounded/accented/RTL app lifecycle context.\n"
         )
-        XCTAssertEqual(incidentCollectorSource.utf8.count, 7_078)
-        XCTAssertEqual(Data(incidentCollectorSource.utf8).sha256, "90E2F55ECDB708966A0E96280F59E90E02DBCFA2CE779C954DD1D83D19E9EE8B")
-        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n  esac\nfi\n\n"
+        XCTAssertEqual(incidentCollectorSource.utf8.count, 8_709)
+        XCTAssertEqual(Data(incidentCollectorSource.utf8).sha256, "72569073F7116062ABBF9658372702670EDED3B2A91197318132B5F6ED77DDA1")
+        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n  esac\nfi\n\n"
         XCTAssertTrue(uiSmokeSource.contains(incidentStartSource))
+        // K417 exact incident admission and bounded same-snapshot prefix; no query change.
+        XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ]; }; then"))
+        XCTAssertTrue(incidentCollectorSource.contains("          ips_prefix_limit=\"$ips_snapshot_bytes\"\n          if [ \"$ips_prefix_limit\" -gt 1048576 ]; then ips_prefix_limit=1048576; fi\n          /usr/bin/head -c \"$ips_prefix_limit\" \"$ips_raw\" \\\n            > \"$failure_diagnostic_path/simulator-incident-app-prefix.log\"\n          ips_prefix_status=\"$?\"\n          ips_prefix_bytes=\"$(LC_ALL=C wc -c < \"$failure_diagnostic_path/simulator-incident-app-prefix.log\" | tr -d '[:space:]')\"\n          ips_tail_snapshot_start=0\n          if [ \"$ips_snapshot_bytes\" -gt 1048576 ]; then\n            ips_tail_snapshot_start=\"$(( ips_snapshot_bytes - 1048576 ))\"\n          fi\n          ips_prefix_tail_overlap=0\n          if [ \"$ips_prefix_bytes\" -gt \"$ips_tail_snapshot_start\" ]; then\n            ips_prefix_tail_overlap=\"$(( ips_prefix_bytes - ips_tail_snapshot_start ))\"\n          fi\n          printf 'ips_prefix_status=%s\\nips_prefix_bytes=%s\\nips_prefix_start_byte=0\\nips_prefix_end_byte=%s\\nips_tail_snapshot_start_byte=%s\\nips_tail_snapshot_end_byte=%s\\nips_prefix_tail_overlap_bytes=%s\\nips_prefix_capture=bounded_snapshot_not_completion_proof\\n' \\\n            \"$ips_prefix_status\" \"$ips_prefix_bytes\" \"$ips_prefix_bytes\" \\\n            \"$ips_tail_snapshot_start\" \"$ips_snapshot_bytes\" \"$ips_prefix_tail_overlap\" \\\n            >> \"$diagnostic_status_path\"\n          if [ \"$ips_query_status\" -ne 0 ] || [ \"$ips_prefix_status\" -ne 0 ] || \\\n             [ \"$ips_prefix_bytes\" -ne \"$ips_prefix_limit\" ] || [ \"$ips_prefix_bytes\" -eq 0 ]; then\n            printf 'ips_prefix_incomplete=true\\n' >> \"$diagnostic_status_path\"\n          fi\n"))
+        XCTAssertTrue(incidentCollectorSource.contains("--last 10m --style compact"))
+        XCTAssertTrue(incidentCollectorSource.contains("Scripts/run-with-timeout.sh 25"))
+        XCTAssertTrue(incidentCollectorSource.contains("/usr/bin/head -c \"$ips_snapshot_bytes\" \"$ips_raw\" | /usr/bin/tail -c 1048576"))
+        XCTAssertEqual(incidentCollectorSource.components(separatedBy: "log show").count - 1, 1)
+        XCTAssertEqual(incidentCollectorSource.components(separatedBy: "s10.4.minimum.rtl").count - 1, 1)
+        XCTAssertFalse(incidentCollectorSource.contains("s10.4.minimum.rtl-string"))
+        XCTAssertFalse(incidentCollectorSource.contains("--start"))
+        XCTAssertFalse(incidentCollectorSource.contains("--end"))
         for prohibited in ["log stream", "OS_ACTIVITY_MODE", "simctl terminate", "simctl launch", "performAccessibilityAudit", "exit 0"] {
             XCTAssertFalse(incidentCollectorSource.contains(prohibited), prohibited)
         }
@@ -269,7 +280,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 1,
                 shardID
             )
-            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: simulatorAppLifecycleSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
+            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: simulatorAppLifecycleSource, with: "").replacingOccurrences(of: incidentCollectorSource, with: "").replacingOccurrences(of: incidentStartSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
         }
         let bypassedAccessibilityRefreshShards = [
             "s10.4.current.default-dark",
@@ -3786,10 +3797,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 97_550)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 97_387)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "229D8FBFDDD621ACEA4256C3318AF70D029AE1760373145357A961138A2A9C19"
+            "B637AAE4F4212DB962B2D1243415C005E43487D81C7646AA7CC3B90CDB583FD0"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 30_051)
         XCTAssertEqual(
@@ -5063,10 +5074,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
-        XCTAssertEqual(workValidationGateSource.utf8.count, 35_425)
+        XCTAssertEqual(workValidationGateSource.utf8.count, 38_798)
         XCTAssertEqual(
             Data(workValidationGateSource.utf8).sha256,
-            "CABE2FA57D89F6D1C97E17D2F3F01239A1A52A0FAA7888E22A204E69E4BE6719"
+            "909DEE51AB7AE1AC8A4544DD7D4E752E1288948A75DB3F060B9D2CDF26B7CC79"
         )
         let workValidationMinimumQuickPathGate =
             "        if automationShard?.deviceProfileID\n" +
@@ -5081,10 +5092,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: workValidationMinimumQuickPathGate,
             before: k121WorkValidationBaseline
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 29_694)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 33_067)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "9B7DEC1AA9F422D3FCAAFF32BDFB6D231F72ABC287106E4FF9AB22444FBAA401"
+            "C2F2AAF1813D7D340DA73E5CA11A8B6B31449A678684B2D8170B63BF74F44B25"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -6941,10 +6952,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightOffAppSource.startIndex..<minimumDoubleLengthPositioningStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 43_384)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 43_221)
         XCTAssertEqual(
             Data(minimumDoubleLengthPositioningSource.utf8).sha256,
-            "55C72EF44423A65B0CC552A62EB82DA91D8873A7FB5F50334ABE2BD105A9BDB1"
+            "D536EA16ABA3E032EADA1C56C02D58710871DED8565A5EB47CA2174C612E0974"
         )
         XCTAssertEqual(
             preflightOffAppSource.components(
@@ -7068,7 +7079,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "confirmationFrame.height\n" +
                 "<= safeBottom - safeTop,\n" +
                 "minimumShift <= maximumShift else {",
-            "if confirmationFrame.minY >= safeTop,\nconfirmationFrame.maxY <= safeBottom,\nheadingFrame.maxY <= liveApplicationFrame.minY {\nbreak\n}",
+            "if confirmationFrame.minY >= safeTop,\nconfirmationFrame.maxY <= safeBottom {\nbreak\n}",
             "guard maximumShift < 0 else {",
             "let receiverCapacity = receiverBottom - receiverTop",
             "guard receiverCapacity >= minimumGestureDistance else {",
@@ -7378,7 +7389,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                        let headingLabel = \"Site time zone Site time zone\"\n                        let headingTexts = preflightScrollView.staticTexts.matching(\n                            NSPredicate(format: \"label == %@\", headingLabel)\n                        )\n                        let headingText = headingTexts.firstMatch\n                        var residualTargetContext: [String: Any]?\n").count - 1, 1)
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                                let jointMaximumShift = min(\n                                    maximumShift,\n                                    liveApplicationFrame.minY - headingFrame.maxY\n                                )\n                                var selectedResidualDistance: CGFloat?\n                                if let previousCommandedDragDistance,\n                                   let previousObservedMovement,\n                                   let previousConfirmationMinYAfterDrag,\n                                   let previousCommandMinusObservedResidual,\n                                   let predictedRecognizedMovement,\n                                   previousCommandedDragDistance.isFinite,\n                                   previousObservedMovement.isFinite,\n                                   previousCommandMinusObservedResidual.isFinite,\n                                   predictedRecognizedMovement.isFinite,\n                                   previousConfirmationMinYAfterDrag == confirmationFrame.minY,\n                                   previousCommandedDragDistance <= -minimumGestureDistance,\n                                   previousObservedMovement < 0,\n                                   previousCommandMinusObservedResidual < 0,\n                                   minimumShift <= jointMaximumShift {\n                                    if predictedRecognizedMovement >= minimumShift,\n                                       predictedRecognizedMovement <= jointMaximumShift {\n                                        selectedResidualDistance = recognizedResidualDistance\n                                    } else {\n                                        let minimumCommand = max(\n                                            -receiverCapacity,\n                                            minimumShift + previousCommandMinusObservedResidual\n                                        )\n                                        let maximumCommand = min(\n                                            -minimumGestureDistance,\n                                            jointMaximumShift + previousCommandMinusObservedResidual\n                                        )\n                                        if minimumCommand.isFinite,\n                                           maximumCommand.isFinite,\n                                           minimumCommand < maximumCommand {\n                                            let midpointCommand = minimumCommand\n                                                + (maximumCommand - minimumCommand) / 2\n                                            let predictedMidpointMovement = midpointCommand\n                                                - previousCommandMinusObservedResidual\n                                            if midpointCommand.isFinite,\n                                               predictedMidpointMovement.isFinite,\n                                               midpointCommand >= -receiverCapacity,\n                                               midpointCommand <= -minimumGestureDistance,\n                                               predictedMidpointMovement >= minimumShift,\n                                               predictedMidpointMovement <= jointMaximumShift {\n                                                selectedResidualDistance = midpointCommand\n                                            }\n                                        }\n                                    }\n                                }\n                                guard let selectedResidualDistance else {\n").count - 1, 1)
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                                }\n                                residualTargetContext = [\n                                    \"attemptOrdinal\": attemptIndex + 1,\n                                    \"headingFrame\": auditFrameObject(headingFrame),\n                                    \"confirmationFrame\": auditFrameObject(confirmationFrame),\n                                    \"minimumShift\": Double(minimumShift),\n                                    \"jointMaximumShift\": Double(jointMaximumShift),\n                                    \"previousCommand\": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),\n                                    \"previousMovement\": previousObservedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),\n                                    \"priorResidual\": previousCommandMinusObservedResidual.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),\n                                    \"selectedCommand\": Double(selectedResidualDistance),\n                                ]\n                                dragDistance = selectedResidualDistance").count - 1, 1)
-        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                              !finalHeadingFrame.isNull,\n                              !finalHeadingFrame.isEmpty,\n                              [finalApplicationFrame, finalScrollFrame,\n                               finalNavigationFrame, finalTabBarFrame,\n                               finalConfirmationFrame, finalHeadingFrame].allSatisfy({ frame in\n                                  auditFrameObject(frame).values.allSatisfy { $0.isFinite }\n                                      && frame.maxX.isFinite && frame.maxY.isFinite\n                              }),\n                              finalSafeTop.isFinite,\n                              finalSafeBottom.isFinite,\n                              finalHeadingFrame.maxY <= finalApplicationFrame.minY,\n").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                              !finalHeadingFrame.isNull,\n                              !finalHeadingFrame.isEmpty,\n                              [finalApplicationFrame, finalScrollFrame,\n                               finalNavigationFrame, finalTabBarFrame,\n                               finalConfirmationFrame, finalHeadingFrame].allSatisfy({ frame in\n                                  auditFrameObject(frame).values.allSatisfy { $0.isFinite }\n                                      && frame.maxX.isFinite && frame.maxY.isFinite\n                              }),\n                              finalSafeTop.isFinite,\n                              finalSafeBottom.isFinite,\n").count - 1, 1)
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "headingTexts.count == 1").count - 1, 3)
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "headingText.identifier.isEmpty").count - 1, 3)
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "headingText.elementType == .staticText").count - 1, 3)
@@ -7387,6 +7398,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "\"observationPhase\": \"failed-final-off-app-guard\"").count - 1, 1)
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "\"observationPhase\": \"after-final-off-app-guard\"").count - 1, 1)
         XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "\"observationPhase\": \"failed-non-upward-guard\"").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                            if confirmationFrame.minY >= safeTop,\n                               confirmationFrame.maxY <= safeBottom {\n                                break\n                            }").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                              finalConfirmationFrame.minY >= finalSafeTop,\n                              finalConfirmationFrame.maxY <= finalSafeBottom else {").count - 1, 1)
+        XCTAssertFalse(minimumDoubleLengthPositioningSource.contains("headingFrame.maxY <= liveApplicationFrame.minY"))
+        XCTAssertFalse(minimumDoubleLengthPositioningSource.contains("finalHeadingFrame.maxY <= finalApplicationFrame.minY"))
         let minimumDoubleLengthFinalGuardTail = #"""
                               finalConfirmationFrame.minY >= finalSafeTop,
                               finalConfirmationFrame.maxY <= finalSafeBottom else {
@@ -22793,10 +22808,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 850_050)
+        let rtlWorkGeometrySource = try boundedSource(
+            uiSource,
+            from: "                if shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
+            before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
+        )
+        XCTAssertEqual(rtlWorkGeometrySource.utf8.count, 3_373)
+        XCTAssertEqual(
+            Data(rtlWorkGeometrySource.utf8).sha256,
+            "02FC375FC78CF26902897A58211665432B5B6EA3FB3EE7B26EA747E84B8288D0"
+        )
+        XCTAssertEqual(uiSource.utf8.count, 853_260)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "2EA45E374E16550D6A901BDAFCCB95EC1B769F4656EC95951B96D14C1023B40C"
+            "771D5D4B80EC5EECEF18D31EC7BF557A4857CC1B463D2EA0B5D50FC236866995"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
