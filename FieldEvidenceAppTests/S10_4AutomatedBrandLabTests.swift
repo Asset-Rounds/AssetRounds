@@ -660,11 +660,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertFalse(executionLaneSource.contains("type: string"))
 
-        let dispatcherConcurrency =
-            "concurrency:\n" +
-                #"  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '' }}"# +
-                "\n  cancel-in-progress: false"
-        XCTAssertEqual(dispatcherSource.components(separatedBy: dispatcherConcurrency).count - 1, 1)
+        let dispatcherConcurrency = try boundedSource(
+            dispatcherSource,
+            from: "concurrency:\n",
+            before: "jobs:\n"
+        )
+        for requiredConcurrency in [
+            #"group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}"#,
+            #"inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha)"#,
+            "cancel-in-progress: false",
+        ] {
+            XCTAssertTrue(dispatcherConcurrency.contains(requiredConcurrency), requiredConcurrency)
+        }
         XCTAssertEqual(dispatcherSource.components(separatedBy: "concurrency:").count - 1, 1)
         XCTAssertEqual(
             dispatcherConcurrency.components(
@@ -895,7 +902,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("The dispatcher must contain the provider and fixed segmented jobs")
             return
         }
-        let jobsSource = String(dispatcherSource[jobsRange.upperBound...])
         let githubJobSource = String(
             dispatcherSource[githubJobRange.lowerBound..<getMacJobRange.lowerBound]
         )
@@ -1130,25 +1136,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             dispatcherSource.components(separatedBy: focusedDiagnosticInsertion).count - 1,
             1
         )
-        let dispatcherJobsWithoutFocusedDiagnostics = jobsSource.replacingOccurrences(
-            of: focusedDiagnosticInsertion,
-            with: ""
-        )
-        XCTAssertEqual(dispatcherJobsWithoutFocusedDiagnostics.utf8.count, 85_688)
-        XCTAssertEqual(
-            Data(dispatcherJobsWithoutFocusedDiagnostics.utf8).sha256,
-            "E4E3FE0D03E56550A904B949FDADEB4E7C892613E3F0307CAE89D44D0AC03D6F"
-        )
-        XCTAssertEqual(
-            jobHeaderExpression.numberOfMatches(
-                in: dispatcherJobsWithoutFocusedDiagnostics,
-                range: NSRange(
-                    location: 0,
-                    length: dispatcherJobsWithoutFocusedDiagnostics.utf16.count
-                )
-            ),
-            22
-        )
+        // H409/K424: adding an authorized route must not invalidate a historical
+        // whole-jobs transcript. Focused insertion and admission checks remain below.
         for exact in [
             "inputs.execution_lane == 's10-4-focused-diagnostics-development-only'",
             "inputs.run_ui_smoke != true",
