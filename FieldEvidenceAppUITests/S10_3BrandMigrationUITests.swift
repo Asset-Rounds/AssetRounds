@@ -6177,7 +6177,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         "S10.4 minimum work-validation state was not restored after QuickPath dismissal"
                     )
                 }
-                if shard.shardID == "s10.4.minimum.rtl-string" {
+                if let shard = automationShard,
+                   shard.shardID == "s10.4.minimum.rtl-string" {
                     let rtlNoteHeadings = app.staticTexts.matching(
                         NSPredicate(format: "label == %@", "\u{202E}Note\u{202C}")
                     )

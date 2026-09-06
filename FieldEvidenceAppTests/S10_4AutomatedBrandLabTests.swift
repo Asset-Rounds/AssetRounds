@@ -5074,10 +5074,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
-        XCTAssertEqual(workValidationGateSource.utf8.count, 38_798)
+        XCTAssertEqual(workValidationGateSource.utf8.count, 38_846)
         XCTAssertEqual(
             Data(workValidationGateSource.utf8).sha256,
-            "909DEE51AB7AE1AC8A4544DD7D4E752E1288948A75DB3F060B9D2CDF26B7CC79"
+            "E4B2A68F2EBA1A1D05EEFEAFBD1041C089EE1C75A4A8FE2B1635089B442FDD12"
         )
         let workValidationMinimumQuickPathGate =
             "        if automationShard?.deviceProfileID\n" +
@@ -5092,10 +5092,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: workValidationMinimumQuickPathGate,
             before: k121WorkValidationBaseline
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 33_067)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 33_115)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "C2F2AAF1813D7D340DA73E5CA11A8B6B31449A678684B2D8170B63BF74F44B25"
+            "96EC09228DA2511E5F545764849207C0495E63186C52DA056993D9DC3847024D"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -22810,18 +22810,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(uiSource.contains("\r"))
         let rtlWorkGeometrySource = try boundedSource(
             uiSource,
-            from: "                if shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
+            from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(rtlWorkGeometrySource.utf8.count, 3_373)
+        XCTAssertEqual(rtlWorkGeometrySource.utf8.count, 3_421)
         XCTAssertEqual(
             Data(rtlWorkGeometrySource.utf8).sha256,
-            "02FC375FC78CF26902897A58211665432B5B6EA3FB3EE7B26EA747E84B8288D0"
+            "B16DBC37A7AEC72D0F6387BA70B6B292554CC9AD8F8B0AFA9FFB9B727E96D2BE"
         )
-        XCTAssertEqual(uiSource.utf8.count, 853_260)
+        XCTAssertEqual(uiSource.utf8.count, 853_308)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "771D5D4B80EC5EECEF18D31EC7BF557A4857CC1B463D2EA0B5D50FC236866995"
+            "06B7D85D089ED1DA7FEEC16D498A7F6B3E1E326162C324BFF8128E035DA36922"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
