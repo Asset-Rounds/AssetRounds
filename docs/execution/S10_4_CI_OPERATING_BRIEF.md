@@ -98,6 +98,16 @@ stays preserved but never substitutes for current-head proof. No manual PASS is 
 
 ## Status vocabulary
 
+H404 adds a bounded, nonaccepting GitHub image-equivalence evaluation for exactly
+`20260728.0273.1` and `20260831.0337.3`. Read its full CURRENT_TASK protocol before
+dispatch: four attempts maximum, two concurrent, current default-light and minimum-OS
+only, complete same-head baseline/candidate pairs required. The existing route name
+contains "acceptance", but these evaluation runs and any emitted receipts MUST stay
+outside the final matrix. No formal image pin or validator changed. Missing baseline
+means equivalence remains unproven; useful diagnostics are preserved. H404's explicit
+authority-only qualification exception avoids repeating unchanged Bitrise routes for
+Markdown-only changes, while every canary still runs its own build/five units/full UI.
+
 Report these separately: static checks; compilation; five units; UI states reached; complete
 shard evidence; formal accepted count. A cleanup/upload step is not proof of earlier success.
 An intentional diagnostic failure may contain useful observations but is not a green shard.
