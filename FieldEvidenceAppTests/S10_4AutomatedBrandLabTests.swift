@@ -7958,6 +7958,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (workSavingHelperSemanticProof, count) in [
             ("return workSavingHelperTexts.count == expectedWorkHelperTextCount", 1),
             ("workSavingHelperTexts.count == 1", 1),
+            ("guard let helperSnapshot = try? workSavingHelper.snapshot() else { return false }", 1),
+            ("helperSnapshot.elementType == .staticText", 1),
+            ("helperSnapshot.identifier.isEmpty", 1),
+            ("helperSnapshot.label == observedWorkHelperLabel", 1),
+            (#"(helperSnapshot.value as? String) == """#, 1),
+            ("workEditingFrameIsValid(helperSnapshot.frame)", 1),
             ("workSavingHelper.elementType == .staticText", 1),
             ("workSavingHelper.identifier.isEmpty", 1),
             ("workSavingHelper.label == observedWorkHelperLabel", 1),
@@ -18152,10 +18158,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 888_551)
+        XCTAssertEqual(uiSource.utf8.count, 889_319)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "0EBFF798FEF76AB76305D236BA703E5CB2A073390E232D83F6CE786C92275A51"
+            "AD2A98D6A1B15CA9F0AD1680BD8F36AB881E375EA161BC157CADF184272A5838"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

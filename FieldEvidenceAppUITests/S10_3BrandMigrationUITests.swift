@@ -6959,6 +6959,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   workSavingHelper.exists else {
                 return false
             }
+            if self.diagnosticProbe == nil, self.automationSegment == .none,
+               let shard = self.automationShard,
+               shard.shardID == "s10.4.minimum.minimum-os", shard.ordinal == 8,
+               shard.requirementID == "minimum_os",
+               shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+                guard let helperSnapshot = try? workSavingHelper.snapshot() else { return false }
+                return helperSnapshot.elementType == .staticText
+                    && helperSnapshot.identifier.isEmpty
+                    && helperSnapshot.label == observedWorkHelperLabel
+                    && (helperSnapshot.value as? String) == ""
+                    && workEditingFrameIsValid(helperSnapshot.frame)
+            }
             return workSavingHelper.elementType == .staticText
                 && workSavingHelper.identifier.isEmpty
                 && workSavingHelper.label == observedWorkHelperLabel
