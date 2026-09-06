@@ -4925,10 +4925,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
-        XCTAssertEqual(workValidationGateSource.utf8.count, 34_868)
+        XCTAssertEqual(workValidationGateSource.utf8.count, 44_255)
         XCTAssertEqual(
             Data(workValidationGateSource.utf8).sha256,
-            "608D653BFADC6136524FCAC04AB93732844823268479C5990D2B050E380E7D18"
+            "6BA2F759D212A5C8BD24C0C3C90354352D47A73550D59F50174E031D2503CD74"
         )
         let workValidationMinimumQuickPathGate =
             "        if automationShard?.deviceProfileID\n" +
@@ -4943,10 +4943,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: workValidationMinimumQuickPathGate,
             before: k121WorkValidationBaseline
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 29_137)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 38_524)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "A0D21241D14B19A441F470D69054B3C41C6908546A58AB3C652F70B2907F6B68"
+            "D1C2150179D6A84046B594FA3D210847D5516988057C04FA828BE94C0AE442ED"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -5676,11 +5676,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let preActionValidationIdentifierMatches =\n" +
                 "                    preActionValidationIdentifier " +
                 "== \"s5.1.work.validation\"",
-            "let expectedPreActionValidationLabel =\n" +
-                "                    automationShard?.shardID " +
-                "== \"s10.4.minimum.bounded\"\n" +
-                "                        ? \"[# Short description #]\"\n" +
-                "                        : \"Short description\"\n" +
+            "let expectedPreActionValidationLabel = {\n" +
+                "                    switch automationShard?.shardID {\n" +
+                "                    case .some(\"s10.4.minimum.bounded\"):\n" +
+                "                        return \"[# Short description #]\"\n" +
+                "                    case .some(\"s10.4.minimum.accented\"):\n" +
+                "                        return \"S\\u{0308}h\\u{0303}o\\u{0325}r\\u{0300}t\\u{0303} d\\u{030A}e\\u{0308}s\\u{0327}c\\u{0325}r\\u{0300}i\\u{0325}p\\u{030A}t\\u{0303}i\\u{0325}o\\u{0325}n\\u{0303}\"\n" +
+                "                    default:\n" +
+                "                        return \"Short description\"\n" +
+                "                    }\n" +
+                "                }()\n" +
                 "                let preActionValidationLabelMatches =\n" +
                 "                    preActionValidationLabel " +
                 "== expectedPreActionValidationLabel",
@@ -5712,6 +5717,95 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             3
         )
+        let exactExpectedValidationLabelSwitch =
+            "                let expectedPreActionValidationLabel = {\n" +
+                "                    switch automationShard?.shardID {\n" +
+                "                    case .some(\"s10.4.minimum.bounded\"):\n" +
+                "                        return \"[# Short description #]\"\n" +
+                "                    case .some(\"s10.4.minimum.accented\"):\n" +
+                "                        return \"S\\u{0308}h\\u{0303}o\\u{0325}r\\u{0300}t\\u{0303} d\\u{030A}e\\u{0308}s\\u{0327}c\\u{0325}r\\u{0300}i\\u{0325}p\\u{030A}t\\u{0303}i\\u{0325}o\\u{0325}n\\u{0303}\"\n" +
+                "                    default:\n" +
+                "                        return \"Short description\"\n" +
+                "                    }\n" +
+                "                }()"
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: exactExpectedValidationLabelSwitch
+            ).count - 1,
+            1
+        )
+        let accentedExpectedValidationLabelArm =
+            "                    case .some(\"s10.4.minimum.accented\"):\n" +
+                "                        return \"S\\u{0308}h\\u{0303}o\\u{0325}r\\u{0300}t\\u{0303} d\\u{030A}e\\u{0308}s\\u{0327}c\\u{0325}r\\u{0300}i\\u{0325}p\\u{030A}t\\u{0303}i\\u{0325}o\\u{0325}n\\u{0303}\"\n"
+        let boundedExpectedValidationLabelValue =
+            "                        return \"[# Short description #]\""
+        let accentedExpectedValidationLabelValue =
+            "                        return \"S\\u{0308}h\\u{0303}o\\u{0325}r\\u{0300}t\\u{0303} d\\u{030A}e\\u{0308}s\\u{0327}c\\u{0325}r\\u{0300}i\\u{0325}p\\u{030A}t\\u{0303}i\\u{0325}o\\u{0325}n\\u{0303}\""
+        let removedAccentedExpectedLabelArm =
+            exactExpectedValidationLabelSwitch.replacingOccurrences(
+                of: accentedExpectedValidationLabelArm,
+                with: ""
+            )
+        let asciiAccentedExpectedLabelArm =
+            exactExpectedValidationLabelSwitch.replacingOccurrences(
+                of: accentedExpectedValidationLabelValue,
+                with: "                        return \"Short description\""
+            )
+        let swappedExpectedLabelProfiles =
+            exactExpectedValidationLabelSwitch
+                .replacingOccurrences(
+                    of: boundedExpectedValidationLabelValue,
+                    with: "__S10_4_BOUNDED_EXPECTATION__"
+                )
+                .replacingOccurrences(
+                    of: accentedExpectedValidationLabelValue,
+                    with: boundedExpectedValidationLabelValue
+                )
+                .replacingOccurrences(
+                    of: "__S10_4_BOUNDED_EXPECTATION__",
+                    with: accentedExpectedValidationLabelValue
+                )
+        for (label, mutation) in [
+            ("removed accented expected-label arm", removedAccentedExpectedLabelArm),
+            ("ASCII accented expected-label arm", asciiAccentedExpectedLabelArm),
+            ("bounded/accented expected-label cross-profile swap", swappedExpectedLabelProfiles),
+        ] {
+            XCTAssertNotEqual(mutation, exactExpectedValidationLabelSwitch, label)
+            XCTAssertFalse(workValidationMinimumQuickPathSource.contains(mutation), label)
+            let mutatedSource = workValidationMinimumQuickPathSource.replacingOccurrences(
+                of: exactExpectedValidationLabelSwitch,
+                with: mutation
+            )
+            XCTAssertEqual(
+                mutatedSource.components(
+                    separatedBy: exactExpectedValidationLabelSwitch
+                ).count - 1,
+                0,
+                label
+            )
+        }
+        // Value-level mirror of the source-locked accented constant, not UI execution.
+        let accentedExpectedValidationLabelMirror =
+            "S\u{0308}h\u{0303}o\u{0325}r\u{0300}t\u{0303} d\u{030A}e\u{0308}s\u{0327}c\u{0325}r\u{0300}i\u{0325}p\u{030A}t\u{0303}i\u{0325}o\u{0325}n\u{0303}"
+        let accentedMirrorScalars = Array(accentedExpectedValidationLabelMirror.unicodeScalars)
+        let accentedMirrorMarks = accentedMirrorScalars.filter {
+            $0.properties.generalCategory == .nonspacingMark
+        }
+        let accentedMirrorASCII = accentedMirrorScalars.filter {
+            $0.properties.generalCategory != .nonspacingMark
+        }
+        XCTAssertEqual(accentedMirrorScalars.count, 33, "value-level mirror")
+        XCTAssertEqual(accentedExpectedValidationLabelMirror.utf8.count, 49, "value-level mirror")
+        XCTAssertEqual(accentedMirrorMarks.count, 16, "value-level mirror")
+        XCTAssertTrue(
+            accentedMirrorMarks.allSatisfy {
+                $0.properties.generalCategory == .nonspacingMark
+            },
+            "value-level mirror"
+        )
+        XCTAssertEqual(accentedMirrorASCII.count, 17, "value-level mirror")
+        XCTAssertTrue(accentedMirrorASCII.allSatisfy { $0.value <= 0x7F }, "value-level mirror")
+        XCTAssertEqual(accentedMirrorASCII.map { String($0) }.joined(), "Short description")
         let workValidationMinimumQuickPathCardinality =
             "                guard workQuickPathIntroductionCount == 1,\n" +
                 "                      workQuickPathButtonCount == 1,\n" +
@@ -5828,8 +5922,208 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(minimumQuickPathGuardObservation.contains(prohibitedGuardObservation))
         }
-        let minimumQuickPathWithoutGuardObservation =
+        let minimumViewportObservationStart =
+            "            // One sequential observation pass; not an atomic viewport snapshot.\n"
+        let minimumViewportObservationEnd =
+            "        }\n" + workValidationBaseline
+        let minimumViewportObservationSource = try boundedSource(
+            workValidationRouteSource,
+            from: minimumViewportObservationStart,
+            before: minimumViewportObservationEnd
+        )
+        XCTAssertEqual(minimumViewportObservationSource.utf8.count, 9_028)
+        XCTAssertEqual(
+            Data(minimumViewportObservationSource.utf8).sha256,
+            "DD573CF191345E5BA7FA7F65ADC023787E1B8537D01625F8872F3136A52C4C56"
+        )
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: minimumViewportObservationSource
+            ).count - 1,
+            1
+        )
+        let minimumViewportRequiredLocks = [
+            "if minimumViewportContextMatches {\n                let minimumViewportAppFrame = app.frame",
+            "if matchCount == 1 {\n                        let observedElement = query.element(boundBy: 0)\n                        let observedIdentifier = observedElement.identifier\n                        let observedType = observedElement.elementType\n                        let observedFrame = observedElement.frame",
+            "                let minimumViewportQueries: [\n                    (String, XCUIElementQuery, String?, XCUIElement.ElementType)\n                ] = [\n                    (\"header\", app.descendants(matching: .any).matching(\n                        identifier: \"s5.1.work.header\"\n                    ), \"s5.1.work.header\", .staticText),\n                    (\"validation\", app.descendants(matching: .any).matching(\n                        identifier: \"s5.1.work.validation\"\n                    ), \"s5.1.work.validation\", .staticText),\n                    (\"save\", app.descendants(matching: .any).matching(\n                        identifier: \"s5.1.work.save\"\n                    ), \"s5.1.work.save\", .button),\n                    (\"navigation\", app.navigationBars.matching(\n                        identifier: observedRecordWorkTitle\n                    ), nil, .navigationBar),\n                    (\"tab\", app.tabBars, nil, .tabBar),\n                ]\n",
+            "            let minimumViewportExpectedPrefix = Array(\n                Self.segmentedRouteStateIDs.prefix(22)\n            )\n            let minimumViewportContextMatches =\n                automationShard?.ordinal == 8\n                    && automationShard?.requirementID == \"minimum_os\"\n                    && automationShard?.deviceProfileID\n                        == \"iphone-se-3-ios-18.0-minimum\"\n                    && automationSegment == .none\n                    && Self.segmentedRouteStateIDs.count == 67\n                    && Set(Self.segmentedRouteStateIDs).count == 67\n                    && Self.segmentedRouteStateIDs[22]\n                        == \"state.work.validation-error\"\n                    && segmentedRouteStateCursor == 0\n                    && migratedStateIDs == minimumViewportExpectedPrefix\n                    && automationAXTreeDigests.keys.sorted()\n                        == minimumViewportExpectedPrefix.sorted()\n                    && automationContrastExceptions.isEmpty\n                    && !automatedSegmentFinished\n",
+            "let originalBytes = value.utf8.count",
+            "for scalar in value.unicodeScalars {",
+            "if retainedBytes + scalarBytes > 4_096 { break }",
+            "retained.unicodeScalars.append(scalar)",
+            "\"truncated\": retainedBytes < originalBytes",
+            "values[name] = value.isFinite\n                        ? NSNumber(value: Double(value)) as Any : NSNull()",
+            "values[\"valid\"] = !frame.isNull && !frame.isEmpty\n                    && !frame.isInfinite && components.allSatisfy { $0.1.isFinite }",
+            "if minimumViewportContextMatches {",
+            "\"diagnosticOnly\": true",
+            "\"acceptanceEligible\": false",
+            "\"finalAcceptanceEligible\": false",
+            "\"equivalenceEstablished\": false",
+            "\"feedsAcceptanceAssembler\": false",
+            "\"sampling\": \"sequential-not-atomic\"",
+            "\"complete\": false",
+            "\"incompleteReasons\": [\"context-mismatch\"]",
+            "\"observedPredecessorIDs\": migratedStateIDs.prefix(22).map {",
+            "\"observedPredecessorIDsTruncated\": migratedStateIDs.count > 22",
+            "if minimumViewportAppFrameRecord[\"valid\"] as? Bool != true {",
+            "if let expectedIdentifier {",
+            "if observedIdentifier != expectedIdentifier {",
+            "if observedType != expectedType {",
+            "if frameRecord[\"valid\"] as? Bool != true {",
+            "role + (matchCount == 0 ? \"-absent\" : \"-ambiguous\")",
+            "minimumViewportObservation[\"complete\"] =\n                    minimumViewportIncompleteReasons.isEmpty",
+            "withJSONObject: minimumViewportObservation, options: [.sortedKeys]",
+            "minimumViewportAttachment.lifetime = .keepAlways",
+        ]
+        let minimumViewportOnceLocks = [
+            "app.frame",
+            "query.element(boundBy: 0)",
+            "observedElement.identifier",
+            "observedElement.elementType",
+            "observedElement.frame",
+            "let minimumViewportAppFrame = app.frame",
+            "let matchCount = query.count",
+            "query.count",
+            "app.navigationBars.matching(",
+            "app.tabBars",
+            "if matchCount == 1 {",
+            "let observedElement = query.element(boundBy: 0)",
+            "let observedIdentifier = observedElement.identifier",
+            "let observedType = observedElement.elementType",
+            "let observedFrame = observedElement.frame",
+            "for (role, query, expectedIdentifier, expectedType)",
+            "add(minimumViewportAttachment)",
+            "XCTAttachment(",
+            "JSONSerialization.data(",
+        ]
+        let minimumViewportProhibitedForms = [
+            ".frame =",
+            ".firstMatch",
+            ".allElements",
+            ".debugDescription",
+            ".label",
+            ".value",
+            ".exists",
+            ".isHittable",
+            ".isEnabled",
+            "waitFor",
+            "sleep(",
+            ".tap(",
+            ".swipe",
+            "scroll(",
+            ".coordinate(",
+            "captureBaseline(",
+            "performAccessibilityAudit",
+            "throw ",
+            "catch ",
+            "S10_4_SHARD_RECEIPT",
+            "S10_4_CANDIDATE",
+            "S10_4_TASK",
+            "S10_4_AX_STATE",
+            "S10_4_CONTRAST",
+        ]
+        // Source-contract predicate, not execution of the UI-local observation.
+        let minimumViewportSourceContract: (String) -> Bool = { source in
+            guard minimumViewportRequiredLocks.allSatisfy({ source.contains($0) }),
+                  minimumViewportOnceLocks.allSatisfy({
+                      source.components(separatedBy: $0).count - 1 == 1
+                  }),
+                  minimumViewportProhibitedForms.allSatisfy({ !source.contains($0) }),
+                  source.components(
+                      separatedBy: "app.descendants(matching: .any).matching("
+                  ).count - 1 == 3,
+                  let context = source.range(of: "if minimumViewportContextMatches {"),
+                  let appFrame = source.range(of: "let minimumViewportAppFrame = app.frame"),
+                  let count = source.range(of: "let matchCount = query.count"),
+                  let unique = source.range(of: "if matchCount == 1 {"),
+                  let binding = source.range(of: "let observedElement = query.element(boundBy: 0)"),
+                  let identifier = source.range(of: "let observedIdentifier = observedElement.identifier"),
+                  let type = source.range(of: "let observedType = observedElement.elementType"),
+                  let frame = source.range(of: "let observedFrame = observedElement.frame") else {
+                return false
+            }
+            return context.lowerBound < appFrame.lowerBound
+                && appFrame.lowerBound < count.lowerBound
+                && count.lowerBound < unique.lowerBound
+                && unique.lowerBound < binding.lowerBound
+                && binding.lowerBound < identifier.lowerBound
+                && identifier.lowerBound < type.lowerBound
+                && type.lowerBound < frame.lowerBound
+        }
+        XCTAssertTrue(minimumViewportSourceContract(minimumViewportObservationSource))
+        for (label, original, replacement) in [
+            ("removed context guard", "if minimumViewportContextMatches {", "if true {"),
+            ("broadened profile", "== \"iphone-se-3-ios-18.0-minimum\"", "!= \"unrelated-profile\""),
+            ("removed uniqueness guard", "if matchCount == 1 {", "if matchCount >= 1 {"),
+            ("arbitrary first match", "query.element(boundBy: 0)", "query.firstMatch"),
+            ("duplicate query count", "let matchCount = query.count", "let matchCount = query.count\n                    let duplicateCount = query.count"),
+            ("unconditional completeness", "minimumViewportIncompleteReasons.isEmpty", "true"),
+            ("nonfinite JSON number", "? NSNumber(value: Double(value)) as Any : NSNull()", "? NSNumber(value: Double(value)) as Any : NSNumber(value: Double(value))"),
+            ("acceptance metadata", "\"acceptanceEligible\": false", "\"acceptanceEligible\": true"),
+            ("added action", "add(minimumViewportAttachment)", "app.tap()\n                add(minimumViewportAttachment)"),
+            ("wrong content identity", "identifier: \"s5.1.work.header\"", "identifier: \"s5.1.work.description\""),
+            ("removed state boundary", "== \"state.work.validation-error\"", "== \"state.work.editing\""),
+        ] {
+            let mutatedObservation = minimumViewportObservationSource.replacingOccurrences(
+                of: original, with: replacement
+            )
+            XCTAssertNotEqual(mutatedObservation, minimumViewportObservationSource, label)
+            XCTAssertFalse(minimumViewportSourceContract(mutatedObservation), label)
+        }
+        let minimumViewportObservedBranch =
+            "        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n" +
+                "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n" +
+                minimumWorkValidationViewportCall +
+                minimumViewportObservationSource +
+                "        }\n"
+        let minimumViewportPlacement = minimumViewportObservedBranch + workValidationBaseline
+        let minimumViewportPlacementContract: (String) -> Bool = { source in
+            source.components(separatedBy: minimumViewportPlacement).count - 1 == 1
+                && source.components(separatedBy: minimumViewportObservationSource).count - 1 == 1
+                && source.components(separatedBy: workValidationBaseline).count - 1 == 1
+        }
+        XCTAssertTrue(minimumViewportPlacementContract(workValidationRouteSource))
+        for (label, replacement) in [
+            ("removed observation", ""),
+            ("duplicated observation", minimumViewportObservationSource + minimumViewportObservationSource),
+            ("audit inserted into observation", minimumViewportObservationSource + "            app.performAccessibilityAudit()\n"),
+        ] {
+            let mutatedRoute = workValidationRouteSource.replacingOccurrences(
+                of: minimumViewportObservationSource, with: replacement
+            )
+            XCTAssertNotEqual(mutatedRoute, workValidationRouteSource, label)
+            XCTAssertFalse(minimumViewportPlacementContract(mutatedRoute), label)
+        }
+        for (label, original, replacement) in [
+            ("broadened shard guard",
+             "        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n",
+             "        if automationShard?.shardID != nil {\n"),
+            ("removed ordinary capture", workValidationBaseline, ""),
+            ("duplicated ordinary capture", workValidationBaseline,
+             workValidationBaseline + "\n" + workValidationBaseline),
+        ] {
+            let mutatedRoute = workValidationRouteSource.replacingOccurrences(
+                of: original, with: replacement
+            )
+            XCTAssertNotEqual(mutatedRoute, workValidationRouteSource, label)
+            XCTAssertFalse(minimumViewportPlacementContract(mutatedRoute), label)
+        }
+        let minimumViewportMovedBeforeDismissal = workValidationRouteSource
+            .replacingOccurrences(of: minimumViewportObservationSource, with: "")
+            .replacingOccurrences(
+                of: "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n",
+                with: minimumViewportObservationSource +
+                    "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n"
+            )
+        XCTAssertNotEqual(minimumViewportMovedBeforeDismissal, workValidationRouteSource)
+        XCTAssertFalse(minimumViewportPlacementContract(minimumViewportMovedBeforeDismissal))
+        // Excise only this independently validated observation from legacy negative receivers.
+        let minimumQuickPathWithoutViewportObservation =
             workValidationMinimumQuickPathSource.replacingOccurrences(
+                of: minimumViewportObservationSource, with: ""
+            )
+        let minimumQuickPathWithoutGuardObservation =
+            minimumQuickPathWithoutViewportObservation.replacingOccurrences(
                 of: minimumQuickPathGuardObservation,
                 with: ""
             )
@@ -5875,7 +6169,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 minimumWorkValidationViewportCall +
                 "        }\n"
         XCTAssertEqual(
-            workValidationMinimumQuickPathSource.components(
+            minimumQuickPathWithoutViewportObservation.components(
                 separatedBy: minimumWorkValidationKeyboardAccessoryCall
             ).count - 1,
             1
@@ -5895,7 +6189,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let minimumWorkValidationQuickPathProhibitionSource =
-            workValidationMinimumQuickPathSource.replacingOccurrences(
+            minimumQuickPathWithoutViewportObservation.replacingOccurrences(
                 of: minimumWorkValidationViewportCall,
                 with: ""
             )
@@ -6402,7 +6696,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ),
               let minimumWorkValidationCallRange =
                 workValidationRouteSource.range(
-                    of: minimumWorkValidationKeyboardAccessoryCall
+                    of: minimumViewportObservedBranch
                 ),
               let minimumWorkValidationBaselineRange =
                 workValidationRouteSource.range(
@@ -22420,10 +22714,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 835_580)
+        XCTAssertEqual(uiSource.utf8.count, 844_967)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "96A5DDF014EB4D8A088BAB51B39FEDB36BA77F4F29D105945A64ABF78FF9E2CD"
+            "D6AE5BA1A398FA52D63DB7CB85A57634718239027F341D9F01DCF81683091AF9"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
