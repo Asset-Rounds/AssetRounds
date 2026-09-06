@@ -98,6 +98,15 @@ stays preserved but never substitutes for current-head proof. No manual PASS is 
 
 ## Status vocabulary
 
+H405 supersedes H404's old/new passing-pair prerequisite: qualify exact environment
+identity separately from reliability and app acceptance. Verify the exact newer image,
+compiler/SDK, both runtimes, isolation, commands and complete evidence; explicitly retain
+native AX/bootstrap/handshake reliability failures. After the independent assessment,
+use useful nonaccepting diagnostics/affected routes without an unavailable old-image
+counterpart. Formal adoption still needs a reviewed prospective exact-image update;
+no old result is promoted and all14 final-head shards remain mandatory. The H404 limits
+below describe its original bounded experiment, not H405's later development permission.
+
 H404 adds a bounded, nonaccepting GitHub image-equivalence evaluation for exactly
 `20260728.0273.1` and `20260831.0337.3`. Read its full CURRENT_TASK protocol before
 dispatch: four attempts maximum, two concurrent, current default-light and minimum-OS
