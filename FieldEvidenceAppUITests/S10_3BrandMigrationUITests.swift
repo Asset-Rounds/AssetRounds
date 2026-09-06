@@ -6375,7 +6375,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             scroll(saveWork, in: app)
             assertControl(saveWork, label: "Record work")
         }
-        if automationShard?.shardID == "s10.4.minimum.rtl-string" {
+        if automationShard?.shardID == "s10.4.minimum.rtl-string"
+            || (diagnosticProbe == nil && automationSegment == .none
+                && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+                && ((automationShard?.shardID == "s10.4.minimum.tall"
+                        && automationShard?.ordinal == 12 && automationShard?.requirementID == "tall")
+                    || (automationShard?.shardID == "s10.4.minimum.bounded"
+                        && automationShard?.ordinal == 14 && automationShard?.requirementID == "bounded"))) {
             try dismissRTLStringWorkValidationKeyboardAccessory(in: app)
         }
         captureBaseline("state.work.validation-error", in: app)
@@ -6416,6 +6422,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             minimumOSWorkHelperDuplicateExpected ? 2 : 1
         let rtlStringWorkHelperUsesOptionalNestedLabel =
             automationShard?.shardID == "s10.4.minimum.rtl-string"
+                || (diagnosticProbe == nil && automationSegment == .none
+                    && automationShard?.shardID == "s10.4.minimum.accented"
+                    && automationShard?.ordinal == 13
+                    && automationShard?.requirementID == "accented"
+                    && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
         let rtlStringWorkImportFixtureLabels: XCUIElementQuery? =
             rtlStringWorkHelperUsesOptionalNestedLabel
                 ? importPhoto.descendants(matching: .staticText).matching(
@@ -15665,9 +15676,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             Self.segmentedRouteStateIDs.prefix(22)
         )
         guard let shard = automationShard,
-              shard.ordinal == 11,
-              shard.shardID == "s10.4.minimum.rtl-string",
-              shard.requirementID == "rtl_string",
+              (shard.ordinal == 11 && shard.shardID == "s10.4.minimum.rtl-string"
+                && shard.requirementID == "rtl_string")
+                || (diagnosticProbe == nil
+                    && ((shard.ordinal == 12 && shard.shardID == "s10.4.minimum.tall"
+                            && shard.requirementID == "tall")
+                        || (shard.ordinal == 14 && shard.shardID == "s10.4.minimum.bounded"
+                            && shard.requirementID == "bounded"))),
               shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
               automationSegment == .none,
               Self.segmentedRouteStateIDs.count == 67,
@@ -15682,6 +15697,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             throw AutomationConfigurationError.invalid(
                 "S10.4 RTL-string work-validation keyboard accessory gate is invalid"
             )
+        }
+
+        let expectedDescriptionLabel: String
+        let expectedNoteLabel: String
+        let expectedDoneLabel: String
+        switch shard.requirementID {
+        case "tall":
+            let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
+            expectedDescriptionLabel = tallMarker + "Short " + tallMarker + " description" + tallMarker
+            expectedNoteLabel = tallMarker + "Note" + tallMarker
+            expectedDoneLabel = tallMarker + "Done" + tallMarker
+        case "bounded":
+            expectedDescriptionLabel = "[# Short description #]"
+            expectedNoteLabel = "[# Note #]"
+            expectedDoneLabel = "[# Done #]"
+        default:
+            expectedDescriptionLabel = "\u{202E}Short description\u{202C}"
+            expectedNoteLabel = "\u{202E}Note\u{202C}"
+            expectedDoneLabel = "\u{202E}Done\u{202C}"
         }
 
         let focusedPredicate = NSPredicate(
@@ -15700,7 +15734,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             identifier: "s5.1.work.validation"
         )
         let noteHeadings = app.staticTexts.matching(
-            NSPredicate(format: "label == %@", "\u{202E}Note\u{202C}")
+            NSPredicate(format: "label == %@", expectedNoteLabel)
         )
         let noteFields = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.note"
@@ -15807,17 +15841,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if !descriptionField.isEnabled { return "description-enabled" }
             if !descriptionField.isHittable { return "description-hittable" }
             if preDescriptionIdentifier != "s5.1.work.description" { return "description-identifier" }
-            if preDescriptionLabel != "\u{202E}Short description\u{202C}" { return "description-label" }
-            if preDescriptionPlaceholderValue != "\u{202E}Short description\u{202C}"
+            if preDescriptionLabel != expectedDescriptionLabel { return "description-label" }
+            if preDescriptionPlaceholderValue != expectedDescriptionLabel
                 || (descriptionField.value as? String) != preDescriptionPlaceholderValue {
                 return "description-placeholder-value"
             }
             if !validationLabel.exists { return "validation-exists" }
             if !validationLabel.isEnabled { return "validation-enabled" }
             if preValidationIdentifier != "s5.1.work.validation" { return "validation-identifier" }
-            if preValidationLabel != "\u{202E}Short description\u{202C}" { return "validation-label" }
+            if preValidationLabel != expectedDescriptionLabel { return "validation-label" }
             if !noteHeading.exists { return "note-heading-exists" }
-            if preNoteHeadingLabel != "\u{202E}Note\u{202C}" { return "note-heading-label" }
+            if preNoteHeadingLabel != expectedNoteLabel { return "note-heading-label" }
             if preNoteHeadingType != .staticText { return "note-heading-type" }
             if !noteField.exists { return "note-field-exists" }
             if preNoteFieldIdentifier != "s5.1.work.note" { return "note-field-identifier" }
@@ -15826,7 +15860,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if !doneButton.isEnabled { return "done-enabled" }
             if !doneButton.isHittable { return "done-hittable" }
             if doneButton.identifier != "s5.1.work.keyboard-done" { return "done-identifier" }
-            if doneButton.label != "\u{202E}Done\u{202C}" { return "done-label" }
+            if doneButton.label != expectedDoneLabel { return "done-label" }
             if doneButton.elementType != .button { return "done-type" }
             return nil
         }()
@@ -15858,7 +15892,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             identifier: "s5.1.work.validation"
         )
         let postNoteHeadings = app.staticTexts.matching(
-            NSPredicate(format: "label == %@", "\u{202E}Note\u{202C}")
+            NSPredicate(format: "label == %@", expectedNoteLabel)
         )
         let postNoteFields = app.descendants(matching: .any).matching(
             identifier: "s5.1.work.note"

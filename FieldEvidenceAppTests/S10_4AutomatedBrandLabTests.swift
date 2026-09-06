@@ -5199,7 +5199,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n" +
                 minimumWorkValidationViewportCall +
                 "        }\n"
-        let rtlWorkValidationAccessoryCall = "        if automationShard?.shardID == \"s10.4.minimum.rtl-string\" {\n            try dismissRTLStringWorkValidationKeyboardAccessory(in: app)\n        }\n"
+        let rtlWorkValidationAccessoryCall = try boundedSource(
+            uiSource,
+            from: "        if automationShard?.shardID == \"s10.4.minimum.rtl-string\"\n",
+            before: "        captureBaseline(\"state.work.validation-error\", in: app)"
+        )
         let minimumWorkValidationPlacement = minimumWorkValidationPreservedBranch + rtlWorkValidationAccessoryCall + workValidationBaseline
         let minimumWorkValidationPlacementContract: (String) -> Bool = { source in
             source.components(separatedBy: minimumWorkValidationPlacement).count - 1 == 1
@@ -7180,6 +7184,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let workEditingOptionalNestedAdmission = try boundedSource(
+            workEditingPositioningSource,
+            from: "        let rtlStringWorkHelperUsesOptionalNestedLabel =",
+            before: "        let rtlStringWorkImportFixtureLabels:"
+        )
+        XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"automationShard?.shardID == "s10.4.minimum.rtl-string""#))
+        XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"|| (diagnosticProbe == nil && automationSegment == .none"#))
+        XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"&& automationShard?.shardID == "s10.4.minimum.accented""#))
+        XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"&& automationShard?.ordinal == 13"#))
+        XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"&& automationShard?.requirementID == "accented""#))
+        XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"&& automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")"#))
         for workEditingHelperBinding in [
             "let workHelperTexts = app.staticTexts.matching(",
             #"automationShard?.shardID == "s10.4.minimum.rtl-string""#,
@@ -18058,8 +18073,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func dismissRTLStringWorkValidationKeyboardAccessory(",
             before: "    @MainActor\n    private func dismissMinimumWorkValidationKeyboardAccessory("
         )
-        let rtlWorkValidationAccessoryCall = "        if automationShard?.shardID == \"s10.4.minimum.rtl-string\" {\n            try dismissRTLStringWorkValidationKeyboardAccessory(in: app)\n        }\n"
+        let rtlWorkValidationAccessoryCall = try boundedSource(
+            uiSource,
+            from: "        if automationShard?.shardID == \"s10.4.minimum.rtl-string\"\n",
+            before: "        captureBaseline(\"state.work.validation-error\", in: app)"
+        )
         XCTAssertEqual(uiSource.components(separatedBy: rtlWorkValidationAccessoryCall).count - 1, 1)
+        XCTAssertEqual(rtlWorkValidationAccessoryCall.components(separatedBy: "try dismissRTLStringWorkValidationKeyboardAccessory(in: app)").count - 1, 1)
+        XCTAssertFalse(rtlWorkValidationAccessoryCall.contains(".tap("))
+        XCTAssertFalse(rtlWorkValidationAccessoryCall.contains("captureBaseline("))
+        XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"diagnosticProbe == nil && automationSegment == .none"#))
+        XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
+        XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.ordinal == 12 && automationShard?.requirementID == "tall""#))
+        XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.ordinal == 14 && automationShard?.requirementID == "bounded""#))
+
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"shard.ordinal == 12 && shard.shardID == "s10.4.minimum.tall""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"&& shard.requirementID == "tall""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"shard.ordinal == 14 && shard.shardID == "s10.4.minimum.bounded""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"&& shard.requirementID == "bounded""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"|| (diagnosticProbe == nil"#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDescriptionLabel = tallMarker + "Short " + tallMarker + " description" + tallMarker"#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedNoteLabel = tallMarker + "Note" + tallMarker"#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDoneLabel = tallMarker + "Done" + tallMarker"#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDescriptionLabel = "[# Short description #]""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedNoteLabel = "[# Note #]""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDoneLabel = "[# Done #]""#))
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "doneButton.tap()").count - 1, 1)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "waitForNonExistence(timeout: 10)").count - 1, 2)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "shard.ordinal == 11").count - 1, 1)
@@ -18070,7 +18108,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "postKeyboardCount == 0").count - 1, 1)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "postDoneButtonCount == 0").count - 1, 1)
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("let preDescriptionLabel = descriptionField.label\n        let preDescriptionPlaceholderValue = descriptionField.placeholderValue"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("            if preDescriptionPlaceholderValue != \"\\u{202E}Short description\\u{202C}\"\n                || (descriptionField.value as? String) != preDescriptionPlaceholderValue {\n                return \"description-placeholder-value\"\n            }"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("            if preDescriptionPlaceholderValue != expectedDescriptionLabel\n                || (descriptionField.value as? String) != preDescriptionPlaceholderValue {\n                return \"description-placeholder-value\"\n            }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("            if postDescriptionField.placeholderValue != preDescriptionPlaceholderValue\n                || (postDescriptionField.value as? String) != preDescriptionPlaceholderValue {\n                return \"post-description-placeholder-value\"\n            }"))
         let exactRTLDescriptionPlaceholder = "\u{202E}Short description\u{202C}"
         let matchesEmptyRTLDescription: (String?, String?) -> Bool = { placeholder, value in
@@ -18119,13 +18157,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !descriptionField.isEnabled { return \"description-enabled\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !descriptionField.isHittable { return \"description-hittable\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preDescriptionIdentifier != \"s5.1.work.description\" { return \"description-identifier\" }"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preDescriptionLabel != \"\\u{202E}Short description\\u{202C}\" { return \"description-label\" }"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preDescriptionLabel != expectedDescriptionLabel { return \"description-label\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !validationLabel.exists { return \"validation-exists\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !validationLabel.isEnabled { return \"validation-enabled\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preValidationIdentifier != \"s5.1.work.validation\" { return \"validation-identifier\" }"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preValidationLabel != \"\\u{202E}Short description\\u{202C}\" { return \"validation-label\" }"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preValidationLabel != expectedDescriptionLabel { return \"validation-label\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !noteHeading.exists { return \"note-heading-exists\" }"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preNoteHeadingLabel != \"\\u{202E}Note\\u{202C}\" { return \"note-heading-label\" }"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preNoteHeadingLabel != expectedNoteLabel { return \"note-heading-label\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preNoteHeadingType != .staticText { return \"note-heading-type\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !noteField.exists { return \"note-field-exists\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if preNoteFieldIdentifier != \"s5.1.work.note\" { return \"note-field-identifier\" }"))
@@ -18134,7 +18172,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !doneButton.isEnabled { return \"done-enabled\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !doneButton.isHittable { return \"done-hittable\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if doneButton.identifier != \"s5.1.work.keyboard-done\" { return \"done-identifier\" }"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if doneButton.label != \"\\u{202E}Done\\u{202C}\" { return \"done-label\" }"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if doneButton.label != expectedDoneLabel { return \"done-label\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if doneButton.elementType != .button { return \"done-type\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if app.state != .runningForeground { return \"post-app-foreground\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if segmentedRouteStateCursor != 0 { return \"post-route-cursor\" }"))
@@ -18158,10 +18196,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 889_319)
+        XCTAssertEqual(uiSource.utf8.count, 891_377)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "AD2A98D6A1B15CA9F0AD1680BD8F36AB881E375EA161BC157CADF184272A5838"
+            "ECED08539108B3A456250475438745B11414989EA076F44EBDF31991ECD2DD3F"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
