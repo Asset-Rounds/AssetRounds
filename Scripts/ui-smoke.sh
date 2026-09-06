@@ -298,6 +298,15 @@ if [ "$xcodebuild_status" -ne 0 ]; then
   fi
   # End K404 failure-only app lifecycle context.
 
+  # K428 supplies the app incident input required by H408 for ordinary minimum-OS and tall failures.
+  if [ "${CI_RUNNER_PROVIDER:-}" = "github" ] && \
+     [ "${CI_TASK_ID:-}" = "S10.4" ] && \
+     [ "${CI_S10_4_PILOT_MODE:-false}" = "false" ] && \
+     { [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.minimum-os" ] || \
+       [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.tall" ]; }; then
+    diagnostic_report_app_patterns=(-o -iname 'FieldEvidenceApp*')
+  fi
+
   if [ -d "$result_bundle_path" ] && \
      [ -n "$(find "$result_bundle_path" -mindepth 1 -print -quit)" ]; then
     run_diagnostic xcresult_test_results \

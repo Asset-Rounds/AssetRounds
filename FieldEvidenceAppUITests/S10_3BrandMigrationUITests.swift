@@ -2321,7 +2321,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 return
                             }
                             let dragDistance: CGFloat
-                            if maximumShift > -minimumGestureDistance {
+                            if maximumShift > -minimumGestureDistance
+                                || (previousObservedMovement != nil
+                                    && abs(maximumShift) <= receiverCapacity) {
                                 let recognizedResidualDistance =
                                     -minimumGestureDistance
                                 let previousCommandMinusObservedResidual =

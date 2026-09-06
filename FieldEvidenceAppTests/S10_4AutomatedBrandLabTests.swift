@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 33_612,
-            sha256: "7E09584F5CD6E128FA4BA162CB44377D001BF359BAEC4B8F4800E937B2AE49D3"
+            byteCount: 34_073,
+            sha256: "BCF79F28B6409FA4AEBBC5650A3BE7C5224A9A6450E6B9B0998A7A8EB6B05E19"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -220,6 +220,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(simulatorAppLifecycleSource.contains(
             #"> "$failure_diagnostic_path/simulator-app-lifecycle.log" 2>&1"#
         ))
+        let missingIncidentReportInputSource = try boundedSource(
+            uiSmokeSource,
+            from: "  # K428 supplies the app incident input required by H408 for ordinary minimum-OS and tall failures.\n",
+            before: "\n\n  if [ -d \"$result_bundle_path\" ] &&"
+        )
+        for required in [
+            #"[ "${CI_RUNNER_PROVIDER:-}" = "github" ]"#,
+            #"[ "${CI_TASK_ID:-}" = "S10.4" ]"#,
+            #"[ "${CI_S10_4_PILOT_MODE:-false}" = "false" ]"#,
+            #"[ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.minimum-os" ]"#,
+            #"[ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.tall" ]"#,
+            #"diagnostic_report_app_patterns=(-o -iname 'FieldEvidenceApp*')"#,
+        ] {
+            XCTAssertTrue(missingIncidentReportInputSource.contains(required), required)
+        }
+        XCTAssertEqual(
+            missingIncidentReportInputSource.components(
+                separatedBy: #"diagnostic_report_app_patterns=(-o -iname 'FieldEvidenceApp*')"#
+            ).count - 1,
+            1
+        )
+        for prohibited in [
+            "s10.4.minimum.bounded", "s10.4.minimum.accented", "s10.4.minimum.rtl",
+            "s10.4.minimum.rtl-string", "payload-consumer", "log show", "run-with-timeout",
+        ] {
+            XCTAssertFalse(missingIncidentReportInputSource.contains(prohibited), prohibited)
+        }
         let incidentCollectorSource = try boundedSource(
             uiSmokeSource,
             from: "  # H408 optional incident-correlated app log; originals remain unchanged.\n",
@@ -3389,6 +3416,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n                } else {"
         )
         for nativeViewportInvariant in [
+            "if maximumShift > -minimumGestureDistance",
+            "|| (previousObservedMovement != nil",
+            "&& abs(maximumShift) <= receiverCapacity) {",
             "let maximumShift = min(",
             "liveApplicationFrame.minY - headingFrame.maxY",
             "headingFrame.maxY <= liveApplicationFrame.minY",
@@ -18060,10 +18090,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 876_387)
+        XCTAssertEqual(uiSource.utf8.count, 876_533)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "AFF58D5ABF8B181AEE518E468DDA34CAD9359A6474E67C761A37737BBFEDD744"
+            "BBDBDC6864F9A70852F771349F60830D59A77132E5EC05187B6BA58DDE781893"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
