@@ -2769,11 +2769,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let uiSource = try text(sourceParts[0])
         let boundedPreflightPreparation = try boundedSource(
             uiSource,
-            from: "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\" {",
+            from: "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\" || shard.shardID == \"s10.4.minimum.accented\" {",
             before: "        captureBaseline(\"state.check-preflight.ready\", in: app)"
         )
         XCTAssertTrue(boundedPreflightPreparation.contains("guard diagnosticProbe == nil, automationSegment == .none,"))
-        XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 14, shard.requirementID == \"bounded\","))
+        XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 14 && shard.requirementID == \"bounded\""))
+        XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 13 && shard.requirementID == \"accented\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("boundedZone.typeText(\"\\n\")"))
         XCTAssertTrue(boundedPreflightPreparation.contains("guard boundedDone.exists, boundedDone.isEnabled else"))
         XCTAssertTrue(boundedPreflightPreparation.contains("hasKeyboardFocus == true"))
@@ -2792,6 +2793,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(boundedPreflightPreparation.contains("boundedZone.placeholderValue == boundedZonePlaceholder"))
         XCTAssertTrue(boundedPreflightPreparation.contains("boundedConfirmationValue == \"0\""))
         XCTAssertEqual(boundedPreflightPreparation.components(separatedBy: "boundedZone.typeText(\"\\n\")").count - 1, 1)
+        let preparationFailureSource = try boundedSource(uiSource, from: "        let siteHasKeyboardFocus =", before: "        XCTAssertTrue(siteHasKeyboardFocus)")
+        XCTAssertTrue(preparationFailureSource.contains("if !siteHasKeyboardFocus,"))
+        XCTAssertTrue(preparationFailureSource.contains("timeout: 10"))
+        XCTAssertTrue(preparationFailureSource.contains("shard.ordinal == 14"))
+        XCTAssertTrue(preparationFailureSource.contains("rawTree.prefix(262_144)"))
+        XCTAssertFalse(preparationFailureSource.contains(".tap()"))
+        let issueTabBarFailureSource = try boundedSource(uiSource, from: "        let issueTabBarCount = app.tabBars.count", before: "        XCTAssertEqual(issueTabBarCount, 1)")
+        XCTAssertTrue(issueTabBarFailureSource.contains("if issueTabBarCount != 1,"))
+        XCTAssertTrue(issueTabBarFailureSource.contains("shard.ordinal == 11"))
+        XCTAssertTrue(issueTabBarFailureSource.contains("rawTree.prefix(262_144)"))
+        XCTAssertFalse(issueTabBarFailureSource.contains(".tap()"))
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
         let recordWorkWithoutBaselineStart =
             "    @MainActor\n" +
@@ -3010,6 +3022,56 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertFalse(unidentifiedLabelSource.contains("app.descendants(matching: .any)"))
         XCTAssertFalse(unidentifiedLabelSource.contains("allElementsBoundByIndex"))
+        let importedPhotoSource = try boundedSource(
+            uiSource,
+            from: "   private func acceptImportedPhoto(\n",
+            before: "\n\n    @MainActor\n    private func recoverCameraDenialAndResume("
+        )
+        let lowStorageSource = try boundedSource(
+            importedPhotoSource,
+            from: "        if capturesLowStorageFailure {",
+            before: "\n\n        let preview ="
+        )
+        for exact in [
+            "automationShard?.shardID == \"s10.4.minimum.rtl\"",
+            "let lowStorageMessages = app.staticTexts.matching(",
+            "NSPredicate(format: \"label == %@\", lowStorageLabel)",
+            "lowStorageMessages.firstMatch.waitForExistence(timeout: 15)",
+            "assertUnidentifiedLocalizedLabel(",
+            "XCTAssertFalse(element(\"s3.capture.preview\", in: app).exists)",
+        ] {
+            XCTAssertEqual(lowStorageSource.components(separatedBy: exact).count - 1, 1, exact)
+        }
+        XCTAssertEqual(
+            lowStorageSource.components(
+                separatedBy: "Free space is too low. Free space, then try again."
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(lowStorageSource.contains("descendants(matching: .any)"))
+        let postSavingTransitionSource = try boundedSource(
+            uiSource,
+            from: "        captureBaseline(\"state.work.saving\", in: app)",
+            before: "\n        let dueStatus = element(\"s5.1.issue.status\", in: app)"
+        )
+        for exact in [
+            "automationShard?.shardID == \"s10.4.minimum.minimum-os\"",
+            "issueScreen = app.scrollViews.matching(",
+            "identifier: \"s5.1.issue.screen\"",
+            "issueScreen = element(\"s5.1.issue.screen\", in: app)",
+            "XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))",
+            "let issueTabBarCount = app.tabBars.count",
+            "XCTAssertEqual(issueTabBarCount, 1)",
+        ] {
+            XCTAssertEqual(
+                postSavingTransitionSource.components(separatedBy: exact).count - 1,
+                1,
+                exact
+            )
+        }
+        XCTAssertFalse(
+            postSavingTransitionSource.contains("descendants(matching: .any)")
+        )
         let realRTLShard =
             "locale: \"ar-RTL\", layoutDirection: \"right_to_left\""
         let stringRTLShard =
@@ -4150,7 +4212,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            try completeFocusedDiagnosticPreflight(in: app)\n" +
                 "            throw FocusedDiagnosticProbeStop.completed\n" +
                 "        }\n" +
-                "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\" {"
+                "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\" || shard.shardID == \"s10.4.minimum.accented\" {"
         XCTAssertEqual(
             uiSource.components(
                 separatedBy: currentProfileRestorationBeforeBoundedPreparation
@@ -4840,6 +4902,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        return \"S\\u{0308}h\\u{0303}o\\u{0325}r\\u{0300}t\\u{0303} d\\u{030A}e\\u{0308}s\\u{0327}c\\u{0325}r\\u{0300}i\\u{0325}p\\u{030A}t\\u{0303}i\\u{0325}o\\u{0325}n\\u{0303}\"\n" +
                 "                    case .some(\"s10.4.minimum.rtl-string\"):\n" +
                 "                        return \"\\u{202E}Short description\\u{202C}\"\n" +
+                "                    case .some(\"s10.4.minimum.tall\"):\n" +
+                "                        return \"\\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A}Short \\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A} description\\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A}\"\n" +
                 "                    default:\n" +
                 "                        return \"Short description\"\n" +
                 "                    }\n" +
@@ -4884,6 +4948,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        return \"S\\u{0308}h\\u{0303}o\\u{0325}r\\u{0300}t\\u{0303} d\\u{030A}e\\u{0308}s\\u{0327}c\\u{0325}r\\u{0300}i\\u{0325}p\\u{030A}t\\u{0303}i\\u{0325}o\\u{0325}n\\u{0303}\"\n" +
                 "                    case .some(\"s10.4.minimum.rtl-string\"):\n" +
                 "                        return \"\\u{202E}Short description\\u{202C}\"\n" +
+                "                    case .some(\"s10.4.minimum.tall\"):\n" +
+                "                        return \"\\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A}Short \\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A} description\\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A}\"\n" +
                 "                    default:\n" +
                 "                        return \"Short description\"\n" +
                 "                    }\n" +
@@ -4899,6 +4965,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                        return \"\\u{202E}Short description\\u{202C}\"\n"
         let rtlExpectedValidationLabelValue =
             "                        return \"\\u{202E}Short description\\u{202C}\""
+        let tallExpectedValidationLabelArm =
+            "                    case .some(\"s10.4.minimum.tall\"):\n" +
+                "                        return \"\\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A}Short \\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A} description\\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A}\"\n"
+        let tallExpectedValidationLabelValue =
+            "                        return \"\\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A}Short \\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A} description\\u{0921}\\u{094D}\\u{0921}\\u{0942}\\u{0E01}\\u{0E36}\\u{0E4A}\""
+        let exactTallLocalizationActivation =
+            "        case \"en-US-tall\":\n" +
+                "            arguments += [\"-NSTallLocalizedStrings\", \"YES\"]"
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: exactTallLocalizationActivation
+            ).count - 1,
+            1
+        )
+        let removedTallExpectedLabelArm = exactExpectedValidationLabelSwitch
+            .replacingOccurrences(of: tallExpectedValidationLabelArm, with: "")
+        let asciiTallExpectedLabelArm = exactExpectedValidationLabelSwitch
+            .replacingOccurrences(
+                of: tallExpectedValidationLabelValue,
+                with: "                        return \"Short description\""
+            )
         let removedRTLExpectedLabelArm = exactExpectedValidationLabelSwitch
             .replacingOccurrences(of: rtlExpectedValidationLabelArm, with: "")
         let asciiRTLExpectedLabelArm = exactExpectedValidationLabelSwitch
@@ -4960,6 +5047,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("wrong RTL-string opening scalar", wrongRTLOpeningScalar),
             ("wrong RTL-string closing scalar", wrongRTLClosingScalar),
             ("RTL-string/bounded expected-label cross-profile swap", swappedRTLBoundedExpectedLabelProfiles),
+            ("removed tall expected-label arm", removedTallExpectedLabelArm),
+            ("ASCII tall expected-label arm", asciiTallExpectedLabelArm),
             ("removed accented expected-label arm", removedAccentedExpectedLabelArm),
             ("ASCII accented expected-label arm", asciiAccentedExpectedLabelArm),
             ("bounded/accented expected-label cross-profile swap", swappedExpectedLabelProfiles),
@@ -7794,7 +7883,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workSavingPositioningStart =
             "        let preparesWorkSavingEvidence = shouldPrepareNormalEvidence("
         let workSavingPositioningEnd =
-            #"        let issueScreen = element("s5.1.issue.screen", in: app)"#
+            "        let issueScreen: XCUIElement"
         XCTAssertEqual(
             uiSource.components(separatedBy: workSavingPositioningStart).count - 1,
             1
@@ -7874,24 +7963,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let workSavingPrimaryNavigationWait =
-            #"        let issueScreen = element("s5.1.issue.screen", in: app)"# + "\n" +
-                "        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))\n" +
-                "        XCTAssertEqual(app.tabBars.count, 1)\n" +
-                #"        let dueStatus = element("s5.1.issue.status", in: app)"#
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: workSavingPrimaryNavigationWait
-            ).count - 1,
-            1
-        )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "issueScreen.waitForExistence(timeout: 85)"
-            ).count - 1,
-            1
-        )
-
         let workSavingAXTextImportFixtureIdentity =
             "        let workImportFixtureButtons: XCUIElementQuery? = workEditingAXTextEnabled\n" +
                 #"            ? app.buttons.matching(identifier: "s5.1.work.import-fixture")"# + "\n" +
@@ -9149,7 +9220,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let issueRecheckDueRouteStart =
-            #"        let issueScreen = element("s5.1.issue.screen", in: app)"#
+            "        let issueScreen: XCUIElement"
         let issueRecheckDueBaseline =
             #"        captureBaseline("state.issue.recheck-due", in: app)"#
         guard let issueRecheckDueRouteStartRange = uiSource.range(
@@ -9166,6 +9237,38 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 issueRecheckDueRouteStartRange.lowerBound ..<
                     issueRecheckDueBaselineRange.upperBound
             ]
+        )
+        let issueRecheckDueFailureObservationSource = try boundedSource(
+            issueRecheckDueRouteSource,
+            from: "        if issueTabBarCount != 1,",
+            before: "        XCTAssertEqual(issueTabBarCount, 1)"
+        )
+        let issueRecheckDueSuccessRouteSource =
+            issueRecheckDueRouteSource.replacingOccurrences(
+                of: issueRecheckDueFailureObservationSource,
+                with: ""
+            )
+        for exactFailureBound in [
+            "diagnosticProbe == nil, automationSegment == .none",
+            #"shard.shardID == "s10.4.minimum.rtl-string", shard.ordinal == 11"#,
+            #"shard.requirementID == "rtl_string""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "XCTAttachment(screenshot: app.screenshot())",
+            "XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier:",
+        ] {
+            XCTAssertEqual(
+                issueRecheckDueFailureObservationSource.components(
+                    separatedBy: exactFailureBound
+                ).count - 1,
+                1,
+                exactFailureBound
+            )
+        }
+        XCTAssertEqual(
+            issueRecheckDueRouteSource.components(
+                separatedBy: "XCTAssertEqual(issueTabBarCount, 1)"
+            ).count - 1,
+            1
         )
         let issueRecheckDuePositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -9997,7 +10100,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "return",
         ] {
             XCTAssertFalse(
-                issueRecheckDueRouteSource.contains(
+                issueRecheckDueSuccessRouteSource.contains(
                     prohibitedIssueRecheckDueRouteForm
                 ),
                 prohibitedIssueRecheckDueRouteForm
@@ -18078,10 +18181,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 881_478)
+        XCTAssertEqual(uiSource.utf8.count, 885_361)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "68D46D44EE0D6FB54548FB42C85F1622A0F376CD858BF4CA1F7CA2B4666D1B4F"
+            "8672BB2F6ADBA39AB4FE196646A3BF8AB4314C3364A7EF83F8FF724705BE32BC"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

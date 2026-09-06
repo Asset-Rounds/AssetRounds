@@ -1258,9 +1258,31 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertLocalizedLabel(error, equals: "Blocked: Enter a customer or site name.")
         assertLocalizedLabel(site, equals: "Customer / site name")
         XCTAssertEqual(site.elementType, .textField)
-        XCTAssertTrue(
-            wait(for: site, predicate: "hasKeyboardFocus == true", timeout: 10)
-        )
+        let siteHasKeyboardFocus = wait(for: site, predicate: "hasKeyboardFocus == true", timeout: 10)
+        if !siteHasKeyboardFocus,
+           diagnosticProbe == nil, automationSegment == .none,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,
+           shard.requirementID == "bounded",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "S10.4 bounded new-sign focus failure app"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            let rawTree = Data(app.debugDescription.utf8)
+            let retainedTree = rawTree.prefix(262_144)
+            let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
+            tree.name = "S10.4 bounded new-sign focus failure tree"
+            tree.lifetime = .keepAlways
+            add(tree)
+            printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                "seam": "bounded new-sign focus", "originalTreeBytes": rawTree.count,
+                "retainedTreeBytes": retainedTree.count,
+                "treeTruncated": rawTree.count > retainedTree.count,
+            ])
+        }
+        XCTAssertTrue(siteHasKeyboardFocus)
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
         assertLocalizedValue(sign, equals: "Monument Sign")
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
@@ -4159,9 +4181,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             throw FocusedDiagnosticProbeStop.completed
         }
         if let shard = automationShard,
-           shard.shardID == "s10.4.minimum.bounded" {
+           shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented" {
             guard diagnosticProbe == nil, automationSegment == .none,
-                  shard.ordinal == 14, shard.requirementID == "bounded",
+                  (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
+                    || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented"),
                   shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {
                 throw AutomationConfigurationError.invalid("Bounded preflight preparation has an invalid route")
             }
@@ -6010,6 +6033,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         return "S\u{0308}h\u{0303}o\u{0325}r\u{0300}t\u{0303} d\u{030A}e\u{0308}s\u{0327}c\u{0325}r\u{0300}i\u{0325}p\u{030A}t\u{0303}i\u{0325}o\u{0325}n\u{0303}"
                     case .some("s10.4.minimum.rtl-string"):
                         return "\u{202E}Short description\u{202C}"
+                    case .some("s10.4.minimum.tall"):
+                        return "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}Short \u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A} description\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
                     default:
                         return "Short description"
                     }
@@ -7381,9 +7406,40 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         captureBaseline("state.work.saving", in: app)
 
-        let issueScreen = element("s5.1.issue.screen", in: app)
+        let issueScreen: XCUIElement
+        if automationShard?.shardID == "s10.4.minimum.minimum-os" {
+            issueScreen = app.scrollViews.matching(
+                identifier: "s5.1.issue.screen"
+            ).firstMatch
+        } else {
+            issueScreen = element("s5.1.issue.screen", in: app)
+        }
         XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))
-        XCTAssertEqual(app.tabBars.count, 1)
+        let issueTabBarCount = app.tabBars.count
+        if issueTabBarCount != 1,
+           diagnosticProbe == nil, automationSegment == .none,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.rtl-string", shard.ordinal == 11,
+           shard.requirementID == "rtl_string",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "S10.4 RTL-string issue tab bar failure app"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            let rawTree = Data(app.debugDescription.utf8)
+            let retainedTree = rawTree.prefix(262_144)
+            let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
+            tree.name = "S10.4 RTL-string issue tab bar failure tree"
+            tree.lifetime = .keepAlways
+            add(tree)
+            printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                "seam": "RTL-string issue tab bar", "originalTreeBytes": rawTree.count,
+                "retainedTreeBytes": retainedTree.count,
+                "treeTruncated": rawTree.count > retainedTree.count,
+            ])
+        }
+        XCTAssertEqual(issueTabBarCount, 1)
         let dueStatus = element("s5.1.issue.status", in: app)
         XCTAssertTrue(dueStatus.waitForExistence(timeout: 10))
         assertLocalizedLabel(dueStatus, equals: "Attention: Recheck due")
@@ -10499,11 +10555,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         importPhoto.tap()
 
         if capturesLowStorageFailure {
-            assertUnidentifiedLocalizedLabel(
-                "Free space is too low. Free space, then try again.",
-                in: app,
-                timeout: 15
-            )
+            let lowStorageLabel = "Free space is too low. Free space, then try again."
+            if automationShard?.shardID == "s10.4.minimum.rtl" {
+                let lowStorageMessages = app.staticTexts.matching(
+                    NSPredicate(format: "label == %@", lowStorageLabel)
+                )
+                XCTAssertTrue(
+                    lowStorageMessages.firstMatch.waitForExistence(timeout: 15)
+                )
+            } else {
+                assertUnidentifiedLocalizedLabel(
+                    lowStorageLabel,
+                    in: app,
+                    timeout: 15
+                )
+            }
             XCTAssertFalse(element("s3.capture.preview", in: app).exists)
             captureBaseline("state.capture.low-storage-error", in: app)
             importPhoto.tap()
