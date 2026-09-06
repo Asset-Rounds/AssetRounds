@@ -6879,27 +6879,33 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             expectedWorkSavingTabBarCount = 1
         }
         let workNoteHeading = workNoteHeadings.firstMatch
+        let workSavingHelperTexts = minimumOSWorkHelperDuplicateExpected
+            ? workScrollView.staticTexts.matching(
+                NSPredicate(format: "label == %@", observedWorkHelperLabel)
+            )
+            : workHelperTexts
+        let workSavingHelper = workSavingHelperTexts.firstMatch
         let workImportFixtureButtons: XCUIElementQuery? = workEditingAXTextEnabled
             ? app.buttons.matching(identifier: "s5.1.work.import-fixture")
             : nil
         let workImportFixtureButton = workImportFixtureButtons?.firstMatch
         let workSavingHelperTextBindingsAreValid: () -> Bool = {
             guard minimumOSWorkHelperDuplicateExpected else {
-                return workHelperTexts.count == expectedWorkHelperTextCount
+                return workSavingHelperTexts.count == expectedWorkHelperTextCount
             }
-            guard workHelperTexts.count == 1,
-                  workHelper.exists else {
+            guard workSavingHelperTexts.count == 1,
+                  workSavingHelper.exists else {
                 return false
             }
-            return workHelper.elementType == .staticText
-                && workHelper.identifier.isEmpty
-                && workHelper.label == observedWorkHelperLabel
-                && (workHelper.value as? String) == ""
-                && workEditingFrameIsValid(workHelper.frame)
+            return workSavingHelper.elementType == .staticText
+                && workSavingHelper.identifier.isEmpty
+                && workSavingHelper.label == observedWorkHelperLabel
+                && (workSavingHelper.value as? String) == ""
+                && workEditingFrameIsValid(workSavingHelper.frame)
         }
         var savingInitialAXTextCompositionIsValid = !workEditingAXTextEnabled
         if workEditingAXTextEnabled {
-            let savingInitialHelperFrame = workHelper.frame
+            let savingInitialHelperFrame = workSavingHelper.frame
             let savingInitialPreviewFrame = workPreviewImage.frame
             let savingInitialSeparation =
                 savingInitialPreviewFrame.minY - savingInitialHelperFrame.maxY
@@ -6930,7 +6936,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               workNoteHeading.identifier.isEmpty,
               workNoteHeading.label == expectedWorkNoteHeadingLabel,
               workNoteHeading.elementType == .staticText,
-              workHelper.exists,
+              (minimumOSWorkHelperDuplicateExpected
+                || workSavingHelper.exists),
               workScrollView.exists,
               workNavigationBar.exists,
               workPreview.exists,
@@ -6953,7 +6960,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   (!workEditingAXTextEnabled
                     || workPreviewImages.count == 1),
                   workNoteHeading.exists,
-                  workHelper.exists,
+                  (minimumOSWorkHelperDuplicateExpected
+                    || workSavingHelper.exists),
                   workScrollView.exists,
                   workNavigationBar.exists,
                   workPreview.exists,
@@ -6974,7 +6982,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let applicationFrame = app.frame
             let navigationFrame = workNavigationBar.frame
             let noteFrame = workNoteHeading.frame
-            let helperFrame = workHelper.frame
+            let helperFrame = workSavingHelper.frame
             var buttonFrame = CGRect.null
             var photoFrame = CGRect.null
             if workEditingAXTextEnabled {
@@ -7050,7 +7058,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && helperFrame.minY >= safeTop
                     && helperFrame.maxY <= safeBottom
                     && workNoteHeading.isHittable
-                    && workHelper.isHittable
+                    && workSavingHelper.isHittable
             let savingAXTextCompositionIsComplete =
                 workEditingAXTextEnabled
                     && noteFrame.maxY <= safeTop
@@ -7192,7 +7200,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   (!workEditingAXTextEnabled
                     || workPreviewImages.count == 1),
                   workNoteHeading.exists,
-                  workHelper.exists,
+                  (minimumOSWorkHelperDuplicateExpected
+                    || workSavingHelper.exists),
                   (!workEditingAXTextEnabled || workPreview.exists),
                   (!workEditingAXTextEnabled
                     || workImportFixtureButton?.exists == true),
@@ -7208,7 +7217,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return
             }
             let observedNoteFrame = workNoteHeading.frame
-            let observedHelperFrame = workHelper.frame
+            let observedHelperFrame = workSavingHelper.frame
             let observedNoteShift = observedNoteFrame.minY - noteMinYBeforeDrag
             let observedHelperShift = observedHelperFrame.minY - helperMinYBeforeDrag
             let savingAXTextPrimaryFramesAreValid =
@@ -7257,7 +7266,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let savingFinalNavigationFrame = workNavigationBar.frame
         let savingFinalScrollRawFrame = workScrollView.frame
         let savingFinalNoteFrame = workNoteHeading.frame
-        let savingFinalHelperFrame = workHelper.frame
+        let savingFinalHelperFrame = workSavingHelper.frame
         var savingFinalButtonFrame = CGRect.null
         var savingFinalPhotoFrame = CGRect.null
         if workEditingAXTextEnabled {
@@ -7316,7 +7325,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && savingFinalHelperFrame.minY >= savingFinalSafeTop
                 && savingFinalHelperFrame.maxY <= savingFinalSafeBottom
                 && workNoteHeading.isHittable
-                && workHelper.isHittable
+                && workSavingHelper.isHittable
                 && workPreview.isHittable
         let workSavingAXTextAlternateCompositionAccepted =
             workEditingAXTextEnabled
@@ -7356,7 +7365,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               workNoteHeading.identifier.isEmpty,
               workNoteHeading.label == expectedWorkNoteHeadingLabel,
               workNoteHeading.elementType == .staticText,
-              workHelper.exists,
+              (minimumOSWorkHelperDuplicateExpected
+                || workSavingHelper.exists),
               workScrollView.exists,
               workNavigationBar.exists,
               workPreview.exists,

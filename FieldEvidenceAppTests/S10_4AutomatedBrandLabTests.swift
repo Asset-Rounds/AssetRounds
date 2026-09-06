@@ -7054,7 +7054,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             ("label: workHelperLabel", 1),
             ("let observedWorkHelperLabel = workPreview.label", 1),
-            (#"NSPredicate(format: "label == %@", observedWorkHelperLabel)"#, 2),
+            (#"NSPredicate(format: "label == %@", observedWorkHelperLabel)"#, 3),
             (#"NSPredicate(format: "label == %@", workHelperLabel)"#, 0),
         ] {
             XCTAssertEqual(
@@ -7902,27 +7902,50 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let workSavingMinimumOSHelperValidation =
-            "        let workSavingHelperTextBindingsAreValid: () -> Bool = {\n" +
-                "            guard minimumOSWorkHelperDuplicateExpected else {\n" +
-                "                return workHelperTexts.count == expectedWorkHelperTextCount\n" +
-                "            }\n" +
-                "            guard workHelperTexts.count == 1,\n" +
-                "                  workHelper.exists else {\n" +
-                "                return false\n" +
-                "            }\n" +
-                "            return workHelper.elementType == .staticText\n" +
-                "                && workHelper.identifier.isEmpty\n" +
-                "                && workHelper.label == observedWorkHelperLabel\n" +
-                #"                && (workHelper.value as? String) == """# + "\n" +
-                "                && workEditingFrameIsValid(workHelper.frame)\n" +
-                "        }"
+        let workSavingScopedHelperIdentity =
+            "        let workSavingHelperTexts = minimumOSWorkHelperDuplicateExpected\n" +
+                "            ? workScrollView.staticTexts.matching(\n" +
+                #"                NSPredicate(format: "label == %@", observedWorkHelperLabel)"# + "\n" +
+                "            )\n" +
+                "            : workHelperTexts\n" +
+                "        let workSavingHelper = workSavingHelperTexts.firstMatch"
         XCTAssertEqual(
             workSavingPositioningSource.components(
-                separatedBy: workSavingMinimumOSHelperValidation
+                separatedBy: workSavingScopedHelperIdentity
             ).count - 1,
             1
         )
+        for (workSavingHelperSemanticProof, count) in [
+            ("return workSavingHelperTexts.count == expectedWorkHelperTextCount", 1),
+            ("workSavingHelperTexts.count == 1", 1),
+            ("workSavingHelper.elementType == .staticText", 1),
+            ("workSavingHelper.identifier.isEmpty", 1),
+            ("workSavingHelper.label == observedWorkHelperLabel", 1),
+            (#"(workSavingHelper.value as? String) == """#, 1),
+            ("workEditingFrameIsValid(workSavingHelper.frame)", 1),
+            ("(minimumOSWorkHelperDuplicateExpected", 4),
+            ("|| workSavingHelper.exists),", 4),
+        ] {
+            XCTAssertEqual(
+                workSavingPositioningSource.components(
+                    separatedBy: workSavingHelperSemanticProof
+                ).count - 1,
+                count,
+                workSavingHelperSemanticProof
+            )
+        }
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: ": workHelperTexts"
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(
+            workSavingPositioningSource.contains(
+                "(!minimumOSWorkHelperDuplicateExpected"
+            )
+        )
+        XCTAssertFalse(workSavingPositioningSource.contains("workHelper."))
         let workSavingAXTextDisabledButtonProof =
             "                    && workImportFixtureButton?.elementType == .button\n" +
                 "                    && workImportFixtureButton?.identifier\n" +
@@ -8151,12 +8174,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("workTabBars.count == expectedWorkSavingTabBarCount", 4),
             ("workHelperTextBindingsAreValid()", 0),
             ("workSavingHelperTextBindingsAreValid()", 4),
-            ("workHelperTexts.count == 1", 1),
+            ("workSavingHelperTexts.count == 1", 1),
             ("workScrollViews.count == 1", 4),
             ("workNavigationBars.count == 1", 4),
             ("workNoteHeading.exists", 4),
             ("workTabBar.exists", 0),
-            ("workHelper.exists", 5),
+            ("workSavingHelper.exists", 5),
             ("workScrollView.exists", 3),
             ("workNavigationBar.exists", 3),
             ("workPreview.exists", 4),
@@ -18054,10 +18077,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 880_757)
+        XCTAssertEqual(uiSource.utf8.count, 881_413)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "F0676E3AA89EA8BAF1D3DC9453A6DE9D1E03D3B7B3D33C41D11F3534652354D3"
+            "AE8E625E4536E159E1927F698AADED9BCEACF3EFE5990440A1D8ADED644D7083"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
