@@ -3318,7 +3318,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ]
         )
         let preflightZoneMove =
-            #"        let zone = element("s3.preflight.time-zone", in: app)"#
+            "        let zone: XCUIElement"
         XCTAssertEqual(
             uiSource.components(separatedBy: preflightZoneMove).count - 1,
             1
@@ -3327,6 +3327,24 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             preflightQuickPathSource.components(separatedBy: preflightZoneMove).count - 1,
             1
         )
+        let minimumRTLTimeZoneQuerySource = try boundedSource(
+            preflightQuickPathSource,
+            from: "        let zone: XCUIElement",
+            before: "        if automationShard?.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\" {"
+        )
+        for typedTimeZoneInvariant in [
+            "automationShard?.shardID == \"s10.4.minimum.rtl\"",
+            "let timeZoneFields = app.textFields.matching(",
+            "identifier: \"s3.preflight.time-zone\"",
+            "guard timeZoneFields.count == 1 else {",
+            "zone = timeZoneFields.firstMatch",
+            "zone = element(\"s3.preflight.time-zone\", in: app)",
+        ] {
+            XCTAssertTrue(minimumRTLTimeZoneQuerySource.contains(typedTimeZoneInvariant))
+        }
+        XCTAssertFalse(minimumRTLTimeZoneQuerySource.contains(".tap("))
+        XCTAssertFalse(minimumRTLTimeZoneQuerySource.contains(".typeText("))
+
         let preflightMinimumGate =
             #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {"#
         let currentProfilePreflightQuickPathGate =
@@ -7824,14 +7842,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        workEditingAXTextEnabled =\n" +
                 #"            automationShard?.shardID == "s10.4.current.ax-text""# + "\n" +
                 "                && preparesWorkSavingEvidence\n" +
-                "        if preparesWorkSavingEvidence {\n" +
-                "        let workNoteHeadings = app.staticTexts.matching("
+                "        if preparesWorkSavingEvidence {"
         XCTAssertEqual(
             workSavingPositioningSource.components(
                 separatedBy: workSavingEvidenceBoundary
             ).count - 1,
             1
         )
+        for savingNoteLabelInvariant in [
+            "let expectedWorkNoteHeadingLabel = automationShard?.shardID",
+            "== \"s10.4.minimum.rtl-string\"",
+            #"? "\u{202E}Note\u{202C}""#,
+            #": "Note""#,
+            #"NSPredicate(format: "label == %@", expectedWorkNoteHeadingLabel)"#,
+        ] {
+            XCTAssertTrue(workSavingPositioningSource.contains(savingNoteLabelInvariant))
+        }
+        XCTAssertEqual(
+            workSavingPositioningSource.components(
+                separatedBy: "workNoteHeading.label == expectedWorkNoteHeadingLabel"
+            ).count - 1,
+            2
+        )
+
         let workSavingTabBarCountPolicy =
             "        let workTabBars = app.tabBars\n" +
                 "        let expectedWorkSavingTabBarCount: Int\n" +
@@ -18027,10 +18060,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 875_681)
+        XCTAssertEqual(uiSource.utf8.count, 876_387)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "2DE0FA8352193DB8E49FE785B8401097420E2BB943D0231B388EDFE52A1F42A0"
+            "AFF58D5ABF8B181AEE518E468DDA34CAD9359A6474E67C761A37737BBFEDD744"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

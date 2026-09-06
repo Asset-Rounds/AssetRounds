@@ -2051,7 +2051,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             recordMetric("start_check_to_preflight", since: startCheckAt)
         }
         assertUnidentifiedLocalizedLabel("Information: Ready for night check", in: app)
-        let zone = element("s3.preflight.time-zone", in: app)
+        let zone: XCUIElement
+        if automationShard?.shardID == "s10.4.minimum.rtl" {
+            let timeZoneFields = app.textFields.matching(
+                identifier: "s3.preflight.time-zone"
+            )
+            guard timeZoneFields.count == 1 else {
+                XCTFail("The minimum RTL preflight requires one time-zone text field.")
+                return
+            }
+            zone = timeZoneFields.firstMatch
+        } else {
+            zone = element("s3.preflight.time-zone", in: app)
+        }
         if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
             let returnKey = app.keyboards.buttons["Return"]
             if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {
@@ -6783,8 +6795,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             automationShard?.shardID == "s10.4.current.ax-text"
                 && preparesWorkSavingEvidence
         if preparesWorkSavingEvidence {
+        let expectedWorkNoteHeadingLabel = automationShard?.shardID
+            == "s10.4.minimum.rtl-string"
+                ? "\u{202E}Note\u{202C}"
+                : "Note"
         let workNoteHeadings = app.staticTexts.matching(
-            NSPredicate(format: "label == %@", "Note")
+            NSPredicate(format: "label == %@", expectedWorkNoteHeadingLabel)
         )
         let workTabBars = app.tabBars
         let expectedWorkSavingTabBarCount: Int
@@ -6843,7 +6859,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               workNavigationBars.count == 1,
               workNoteHeading.exists,
               workNoteHeading.identifier.isEmpty,
-              workNoteHeading.label == "Note",
+              workNoteHeading.label == expectedWorkNoteHeadingLabel,
               workNoteHeading.elementType == .staticText,
               workHelper.exists,
               workScrollView.exists,
@@ -7269,7 +7285,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 || workPreviewImages.count == 1),
               workNoteHeading.exists,
               workNoteHeading.identifier.isEmpty,
-              workNoteHeading.label == "Note",
+              workNoteHeading.label == expectedWorkNoteHeadingLabel,
               workNoteHeading.elementType == .staticText,
               workHelper.exists,
               workScrollView.exists,
