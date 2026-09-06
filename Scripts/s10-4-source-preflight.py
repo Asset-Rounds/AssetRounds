@@ -43,6 +43,7 @@ class SwiftSubset:
         self.scopes = {0: None}
         self.declarations = {}
         self.cache = {}
+        self.source_removal_depth = 0
         self.read_sources = {}
         self.scope_kinds = {0: 'root'}
         self.parameterized_functions = set()
@@ -317,6 +318,31 @@ class SwiftSubset:
                     raise ValueError("Missing source-range marker")
                 return Span(found, found + len(needle))
             raise Unsupported("Source method shape")
+        # Closed ASCII source removal only; no general Foundation replacement.
+        match = re.fullmatch(r"(.+)\.replacingOccurrences\((.*)\)", expression)
+        if match:
+            parts = self.split(match[2])
+            if (len(parts) != 2 or not parts[0].startswith("of:")
+                    or not parts[1].startswith("with:")):
+                raise Unsupported("Source removal requires exact of/with arguments")
+            needle_expression, replacement = parts[0][3:], parts[1][5:]
+            if (not re.fullmatch(r"(?:[A-Za-z_]\w*|@L\d+@)", needle_expression)
+                    or replacement not in self.literals
+                    or self.literals[replacement] != ""):
+                raise Unsupported("Source removal requires a resolved needle and literal empty replacement")
+            if self.source_removal_depth >= 8:
+                raise Unsupported("Source removal nesting exceeds eight")
+            self.source_removal_depth += 1
+            try:
+                receiver, needle = ev(match[1]), ev(needle_expression)
+                if (not isinstance(receiver, str) or not isinstance(needle, str)
+                        or not needle or not receiver.isascii() or not needle.isascii()):
+                    raise Unsupported("Source removal requires ASCII strings and nonempty needle")
+                if len(receiver) > 2097152 or len(needle) > 2097152:
+                    raise Unsupported("Source removal exceeds two-MiB string bound")
+                return receiver.replace(needle, "")
+            finally:
+                self.source_removal_depth -= 1
         if expression.endswith(".utf8.count"):
             return len(ev(expression[:-11]).encode("utf-8"))
         match = re.fullmatch(r"(.+)\.(count|sha256|lowerBound|upperBound|endIndex)", expression)
@@ -516,6 +542,34 @@ class Audit {
     skip = run(r'let source = "\(dynamic)"' + '\nXCTAssertTrue(source.contains("value"))')
     if len(skip) != 1 or skip[0]["status"] != "SKIPPED":
         raise ValueError("Self-test interpolation was not skipped")
+    removal_cases = [
+        ('let needle = "alpha"\nXCTAssertEqual(source.replacingOccurrences(of: needle, with: "").components(separatedBy: "beta").count - 1, 1)', "PASS"),
+        ('XCTAssertFalse(source.replacingOccurrences(of: "alpha", with: "").replacingOccurrences(of: "beta", with: "").contains("alpha"))', "PASS"),
+        ('XCTAssertTrue(source.replacingOccurrences(of: "missing", with: "").contains("alpha"))', "PASS"),
+        ('XCTAssertFalse(source.replacingOccurrences(of: "alpha", with: "").contains("beta"))', "FAIL"),
+        ('XCTAssertTrue(source.replacingOccurrences(of: "", with: "").contains("beta"))', "SKIPPED"),
+        ('XCTAssertTrue(source.replacingOccurrences(of: "alpha", with: "x").contains("beta"))', "SKIPPED"),
+        ('let empty = ""\nXCTAssertTrue(source.replacingOccurrences(of: "alpha", with: empty).contains("beta"))', "SKIPPED"),
+        ('XCTAssertTrue(source.replacingOccurrences(of: "alpha", with: "", options: option).contains("beta"))', "SKIPPED"),
+        ('XCTAssertTrue(source.replacingOccurrences(with: "", of: "alpha").contains("beta"))', "SKIPPED"),
+        ('XCTAssertTrue(source.replacingOccurrences(of: "é", with: "").contains("beta"))', "SKIPPED"),
+        ('let needle = 1\nXCTAssertTrue(source.replacingOccurrences(of: needle, with: "").contains("beta"))', "SKIPPED"),
+        ('var needle = "alpha"\nXCTAssertTrue(source.replacingOccurrences(of: needle, with: "").contains("beta"))', "SKIPPED"),
+        ('let needle = "alpha"\nfunc testA(needle: String) { XCTAssertTrue(source.replacingOccurrences(of: needle, with: "").contains("beta")) }', "SKIPPED"),
+    ]
+    for body, expected in removal_cases:
+        result = run('let source = "alphabetaalpha"\n' + body)
+        if len(result) != 1 or result[0]["status"] != expected:
+            raise ValueError(f"Self-test closed source removal: {result}")
+    for count, expected in [(8, "PASS"), (9, "SKIPPED")]:
+        chain = 'source' + '.replacingOccurrences(of: "alpha", with: "")' * count
+        result = run('let source = "alphabeta"\nXCTAssertTrue(' + chain + '.contains("beta"))')
+        if len(result) != 1 or result[0]["status"] != expected:
+            raise ValueError(f"Self-test source removal nesting: {result}")
+    for value, expected in [("éalpha", "SKIPPED"), ("a" * 2097152, "PASS"), ("a" * 2097153, "SKIPPED")]:
+        result = run('let source = ' + json.dumps(value, ensure_ascii=False) + '\nXCTAssertFalse(source.replacingOccurrences(of: "a", with: "").contains("a"))')
+        if len(result) != 1 or result[0]["status"] != expected:
+            raise ValueError(f"Self-test source removal bound/ASCII: {result}")
     hostile_shadows = [
         ('let source = "alpha"\nfunc testA() {\n var source = "beta"\n XCTAssertTrue(source.contains("alpha"))\n}', "SKIPPED"),
         ('let source = "alpha"\nfor lock in ["alpha"] {\n let lock = "beta"\n XCTAssertTrue(source.contains(lock))\n}', "FAIL"),

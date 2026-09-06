@@ -6154,9 +6154,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertNotEqual(mutatedRoute, workValidationRouteSource, label)
             XCTAssertFalse(minimumWorkValidationPlacementContract(mutatedRoute), label)
         }
+        let minimumQuickPathRTLGeometryObservation = try boundedSource(
+            workValidationMinimumQuickPathSource,
+            from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
+            before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
+        )
+        XCTAssertEqual(minimumQuickPathRTLGeometryObservation.utf8.count, 3_421)
+        XCTAssertEqual(
+            Data(minimumQuickPathRTLGeometryObservation.utf8).sha256,
+            "B16DBC37A7AEC72D0F6387BA70B6B292554CC9AD8F8B0AFA9FFB9B727E96D2BE"
+        )
+        XCTAssertEqual(
+            workValidationMinimumQuickPathSource.components(
+                separatedBy: minimumQuickPathRTLGeometryObservation
+            ).count - 1,
+            1
+        )
         let minimumQuickPathWithoutGuardObservation =
             workValidationMinimumQuickPathSource.replacingOccurrences(
                 of: minimumQuickPathGuardObservation,
+                with: ""
+            ).replacingOccurrences(
+                of: minimumQuickPathRTLGeometryObservation,
                 with: ""
             )
         XCTAssertEqual(
@@ -6186,6 +6205,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 consumedMinimumQuickPathDiagnosticForm
             )
         }
+        for hostileConsumedForm in [
+            "S10_4_MINIMUM_WORK_VALIDATION_QUICKPATH_PRE_DISMISS_DIAGNOSTIC",
+            #""acceptanceEligible": false"#,
+            "S10.4 minimum work-validation QuickPath pre-dismiss diagnostic " +
+                "completed nonaccepting",
+            "preActionDescriptionValue == \"Short description\"",
+        ] {
+            let hostileOutsideSanctionedObservations =
+                (workValidationMinimumQuickPathSource + hostileConsumedForm)
+                    .replacingOccurrences(of: minimumQuickPathGuardObservation, with: "")
+                    .replacingOccurrences(of: minimumQuickPathRTLGeometryObservation, with: "")
+            XCTAssertTrue(hostileOutsideSanctionedObservations.contains(hostileConsumedForm))
+        }
+        let wrongRTLGeometryObservation = minimumQuickPathRTLGeometryObservation
+            .replacingOccurrences(of: "s10.4.minimum.rtl-string", with: "s10.4.minimum.rtl")
+        XCTAssertNotEqual(wrongRTLGeometryObservation, minimumQuickPathRTLGeometryObservation)
+        let wrongRTLGeometryRemainder = workValidationMinimumQuickPathSource
+            .replacingOccurrences(of: minimumQuickPathRTLGeometryObservation, with: wrongRTLGeometryObservation)
+            .replacingOccurrences(of: minimumQuickPathGuardObservation, with: "")
+            .replacingOccurrences(of: minimumQuickPathRTLGeometryObservation, with: "")
+        XCTAssertTrue(wrongRTLGeometryRemainder.contains(#""acceptanceEligible": false"#))
         XCTAssertEqual(
             workValidationMinimumQuickPathSource.components(
                 separatedBy:
