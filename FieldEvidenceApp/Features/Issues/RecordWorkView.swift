@@ -347,7 +347,7 @@ struct RecordWorkView: View {
 private struct RecordWorkTabBarVisibility: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 18.0, *) {
             content.toolbar(.hidden, for: .tabBar)
         } else {
             content

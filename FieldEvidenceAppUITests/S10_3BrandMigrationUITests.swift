@@ -6018,173 +6018,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             try dismissMinimumWorkValidationKeyboardAccessory(in: app)
             scroll(saveWork, in: app)
             assertControl(saveWork, label: "Record work")
-            // One sequential observation pass; not an atomic viewport snapshot.
-            let minimumViewportString: (String) -> [String: Any] = { value in
-                let originalBytes = value.utf8.count
-                var retained = ""
-                var retainedBytes = 0
-                for scalar in value.unicodeScalars {
-                    let scalarBytes = String(scalar).utf8.count
-                    if retainedBytes + scalarBytes > 4_096 { break }
-                    retained.unicodeScalars.append(scalar)
-                    retainedBytes += scalarBytes
-                }
-                return [
-                    "text": retained,
-                    "originalUTF8Bytes": originalBytes,
-                    "retainedUTF8Bytes": retainedBytes,
-                    "truncated": retainedBytes < originalBytes,
-                ]
-            }
-            let minimumViewportFrame: (CGRect) -> [String: Any] = { frame in
-                let components: [(String, CGFloat)] = [
-                    ("x", frame.origin.x), ("y", frame.origin.y),
-                    ("width", frame.size.width), ("height", frame.size.height),
-                ]
-                var values: [String: Any] = [:]
-                for (name, value) in components {
-                    values[name] = value.isFinite
-                        ? NSNumber(value: Double(value)) as Any : NSNull()
-                    values[name + "Finite"] = value.isFinite
-                }
-                values["isNull"] = frame.isNull
-                values["isEmpty"] = frame.isEmpty
-                values["isInfinite"] = frame.isInfinite
-                values["allComponentsFinite"] = components.allSatisfy {
-                    $0.1.isFinite
-                }
-                values["valid"] = !frame.isNull && !frame.isEmpty
-                    && !frame.isInfinite && components.allSatisfy { $0.1.isFinite }
-                return values
-            }
-            let minimumViewportExpectedPrefix = Array(
-                Self.segmentedRouteStateIDs.prefix(22)
-            )
-            let minimumViewportContextMatches =
-                automationShard?.ordinal == 8
-                    && automationShard?.requirementID == "minimum_os"
-                    && automationShard?.deviceProfileID
-                        == "iphone-se-3-ios-18.0-minimum"
-                    && automationSegment == .none
-                    && Self.segmentedRouteStateIDs.count == 67
-                    && Set(Self.segmentedRouteStateIDs).count == 67
-                    && Self.segmentedRouteStateIDs[22]
-                        == "state.work.validation-error"
-                    && segmentedRouteStateCursor == 0
-                    && migratedStateIDs == minimumViewportExpectedPrefix
-                    && automationAXTreeDigests.keys.sorted()
-                        == minimumViewportExpectedPrefix.sorted()
-                    && automationContrastExceptions.isEmpty
-                    && !automatedSegmentFinished
-            var minimumViewportObservation: [String: Any] = [
-                "schemaVersion": 1,
-                "diagnosticOnly": true,
-                "acceptanceEligible": false,
-                "finalAcceptanceEligible": false,
-                "equivalenceEstablished": false,
-                "feedsAcceptanceAssembler": false,
-                "shardID": "s10.4.minimum.minimum-os",
-                "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
-                "stateID": "state.work.validation-error",
-                "phase": "after-existing-save-scroll-before-capture",
-                "sampling": "sequential-not-atomic",
-                "contextMatches": minimumViewportContextMatches,
-                "migratedStateCount": migratedStateIDs.count,
-                "expectedPredecessorIDs": minimumViewportExpectedPrefix.map {
-                    minimumViewportString($0)
-                },
-                "observedPredecessorIDs": migratedStateIDs.prefix(22).map {
-                    minimumViewportString($0)
-                },
-                "observedPredecessorIDsTruncated": migratedStateIDs.count > 22,
-                "expectedPredecessorCount": 22,
-                "expectedStateOrdinal": 23,
-                "complete": false,
-                "incompleteReasons": ["context-mismatch"],
-            ]
-            if minimumViewportContextMatches {
-                let minimumViewportAppFrame = app.frame
-                let minimumViewportAppFrameRecord = minimumViewportFrame(
-                    minimumViewportAppFrame
-                )
-                minimumViewportObservation["applicationFrame"] =
-                    minimumViewportAppFrameRecord
-                let minimumViewportQueries: [
-                    (String, XCUIElementQuery, String?, XCUIElement.ElementType)
-                ] = [
-                    ("header", app.descendants(matching: .any).matching(
-                        identifier: "s5.1.work.header"
-                    ), "s5.1.work.header", .staticText),
-                    ("validation", app.descendants(matching: .any).matching(
-                        identifier: "s5.1.work.validation"
-                    ), "s5.1.work.validation", .staticText),
-                    ("save", app.descendants(matching: .any).matching(
-                        identifier: "s5.1.work.save"
-                    ), "s5.1.work.save", .button),
-                    ("navigation", app.navigationBars.matching(
-                        identifier: observedRecordWorkTitle
-                    ), nil, .navigationBar),
-                    ("tab", app.tabBars, nil, .tabBar),
-                ]
-                var minimumViewportRows: [[String: Any]] = []
-                var minimumViewportIncompleteReasons: [String] = []
-                if minimumViewportAppFrameRecord["valid"] as? Bool != true {
-                    minimumViewportIncompleteReasons.append("application-frame-invalid")
-                }
-                for (role, query, expectedIdentifier, expectedType)
-                    in minimumViewportQueries {
-                    let matchCount = query.count
-                    var row: [String: Any] = ["role": role, "matchCount": matchCount]
-                    if matchCount == 1 {
-                        let observedElement = query.element(boundBy: 0)
-                        let observedIdentifier = observedElement.identifier
-                        let observedType = observedElement.elementType
-                        let observedFrame = observedElement.frame
-                        let frameRecord = minimumViewportFrame(observedFrame)
-                        row["identifier"] = minimumViewportString(observedIdentifier)
-                        row["elementTypeRawValue"] = observedType.rawValue
-                        row["expectedElementTypeRawValue"] = expectedType.rawValue
-                        row["typeMatches"] = observedType == expectedType
-                        row["frame"] = frameRecord
-                        if let expectedIdentifier {
-                            row["identifierMatches"] =
-                                observedIdentifier == expectedIdentifier
-                            if observedIdentifier != expectedIdentifier {
-                                minimumViewportIncompleteReasons.append(role + "-identifier-mismatch")
-                            }
-                        } else {
-                            row["identifierMatches"] = NSNull()
-                        }
-                        if observedType != expectedType {
-                            minimumViewportIncompleteReasons.append(role + "-type-mismatch")
-                        }
-                        if frameRecord["valid"] as? Bool != true {
-                            minimumViewportIncompleteReasons.append(role + "-frame-invalid")
-                        }
-                    } else {
-                        minimumViewportIncompleteReasons.append(
-                            role + (matchCount == 0 ? "-absent" : "-ambiguous")
-                        )
-                    }
-                    minimumViewportRows.append(row)
-                }
-                minimumViewportObservation["elements"] = minimumViewportRows
-                minimumViewportObservation["complete"] =
-                    minimumViewportIncompleteReasons.isEmpty
-                minimumViewportObservation["incompleteReasons"] =
-                    minimumViewportIncompleteReasons
-            }
-            if let minimumViewportData = try? JSONSerialization.data(
-                withJSONObject: minimumViewportObservation, options: [.sortedKeys]
-            ) {
-                let minimumViewportAttachment = XCTAttachment(
-                    data: minimumViewportData, uniformTypeIdentifier: "public.json"
-                )
-                minimumViewportAttachment.name =
-                    "S10_4_MINIMUM_WORK_VIEWPORT_OBSERVATION"
-                minimumViewportAttachment.lifetime = .keepAlways
-                add(minimumViewportAttachment)
-            }
         }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
@@ -6672,7 +6505,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         let workTabBars = app.tabBars
         let expectedWorkSavingTabBarCount: Int
-        if #available(iOS 26.0, *) {
+        if #available(iOS 18.0, *) {
             expectedWorkSavingTabBarCount = 0
         } else {
             expectedWorkSavingTabBarCount = 1
@@ -7171,6 +7004,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let issueScreen = element("s5.1.issue.screen", in: app)
         XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))
+        XCTAssertEqual(app.tabBars.count, 1)
         let dueStatus = element("s5.1.issue.status", in: app)
         XCTAssertTrue(dueStatus.waitForExistence(timeout: 10))
         assertLocalizedLabel(dueStatus, equals: "Attention: Recheck due")

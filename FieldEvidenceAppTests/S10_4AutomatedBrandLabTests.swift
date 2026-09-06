@@ -4925,10 +4925,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
-        XCTAssertEqual(workValidationGateSource.utf8.count, 44_255)
+        XCTAssertEqual(workValidationGateSource.utf8.count, 35_227)
         XCTAssertEqual(
             Data(workValidationGateSource.utf8).sha256,
-            "6BA2F759D212A5C8BD24C0C3C90354352D47A73550D59F50174E031D2503CD74"
+            "AEE450C4F1F517251CEEB761DD81823FDBE0261A3B402E8CFBF67596C811BB42"
         )
         let workValidationMinimumQuickPathGate =
             "        if automationShard?.deviceProfileID\n" +
@@ -4943,10 +4943,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: workValidationMinimumQuickPathGate,
             before: k121WorkValidationBaseline
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 38_524)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 29_496)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "D1C2150179D6A84046B594FA3D210847D5516988057C04FA828BE94C0AE442ED"
+            "340645FAECD9B0888840969564EB61250A88A60060B0E1E76D8E1F146A8AA6AD"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -5922,178 +5922,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(minimumQuickPathGuardObservation.contains(prohibitedGuardObservation))
         }
-        let minimumViewportObservationStart =
-            "            // One sequential observation pass; not an atomic viewport snapshot.\n"
-        let minimumViewportObservationEnd =
-            "        }\n" + workValidationBaseline
-        let minimumViewportObservationSource = try boundedSource(
-            workValidationRouteSource,
-            from: minimumViewportObservationStart,
-            before: minimumViewportObservationEnd
-        )
-        XCTAssertEqual(minimumViewportObservationSource.utf8.count, 9_028)
-        XCTAssertEqual(
-            Data(minimumViewportObservationSource.utf8).sha256,
-            "DD573CF191345E5BA7FA7F65ADC023787E1B8537D01625F8872F3136A52C4C56"
-        )
-        XCTAssertEqual(
-            workValidationMinimumQuickPathSource.components(
-                separatedBy: minimumViewportObservationSource
-            ).count - 1,
-            1
-        )
-        let minimumViewportRequiredLocks = [
-            "if minimumViewportContextMatches {\n                let minimumViewportAppFrame = app.frame",
-            "if matchCount == 1 {\n                        let observedElement = query.element(boundBy: 0)\n                        let observedIdentifier = observedElement.identifier\n                        let observedType = observedElement.elementType\n                        let observedFrame = observedElement.frame",
-            "                let minimumViewportQueries: [\n                    (String, XCUIElementQuery, String?, XCUIElement.ElementType)\n                ] = [\n                    (\"header\", app.descendants(matching: .any).matching(\n                        identifier: \"s5.1.work.header\"\n                    ), \"s5.1.work.header\", .staticText),\n                    (\"validation\", app.descendants(matching: .any).matching(\n                        identifier: \"s5.1.work.validation\"\n                    ), \"s5.1.work.validation\", .staticText),\n                    (\"save\", app.descendants(matching: .any).matching(\n                        identifier: \"s5.1.work.save\"\n                    ), \"s5.1.work.save\", .button),\n                    (\"navigation\", app.navigationBars.matching(\n                        identifier: observedRecordWorkTitle\n                    ), nil, .navigationBar),\n                    (\"tab\", app.tabBars, nil, .tabBar),\n                ]\n",
-            "            let minimumViewportExpectedPrefix = Array(\n                Self.segmentedRouteStateIDs.prefix(22)\n            )\n            let minimumViewportContextMatches =\n                automationShard?.ordinal == 8\n                    && automationShard?.requirementID == \"minimum_os\"\n                    && automationShard?.deviceProfileID\n                        == \"iphone-se-3-ios-18.0-minimum\"\n                    && automationSegment == .none\n                    && Self.segmentedRouteStateIDs.count == 67\n                    && Set(Self.segmentedRouteStateIDs).count == 67\n                    && Self.segmentedRouteStateIDs[22]\n                        == \"state.work.validation-error\"\n                    && segmentedRouteStateCursor == 0\n                    && migratedStateIDs == minimumViewportExpectedPrefix\n                    && automationAXTreeDigests.keys.sorted()\n                        == minimumViewportExpectedPrefix.sorted()\n                    && automationContrastExceptions.isEmpty\n                    && !automatedSegmentFinished\n",
-            "let originalBytes = value.utf8.count",
-            "for scalar in value.unicodeScalars {",
-            "if retainedBytes + scalarBytes > 4_096 { break }",
-            "retained.unicodeScalars.append(scalar)",
-            "\"truncated\": retainedBytes < originalBytes",
-            "values[name] = value.isFinite\n                        ? NSNumber(value: Double(value)) as Any : NSNull()",
-            "values[\"valid\"] = !frame.isNull && !frame.isEmpty\n                    && !frame.isInfinite && components.allSatisfy { $0.1.isFinite }",
-            "if minimumViewportContextMatches {",
-            "\"diagnosticOnly\": true",
-            "\"acceptanceEligible\": false",
-            "\"finalAcceptanceEligible\": false",
-            "\"equivalenceEstablished\": false",
-            "\"feedsAcceptanceAssembler\": false",
-            "\"sampling\": \"sequential-not-atomic\"",
-            "\"complete\": false",
-            "\"incompleteReasons\": [\"context-mismatch\"]",
-            "\"observedPredecessorIDs\": migratedStateIDs.prefix(22).map {",
-            "\"observedPredecessorIDsTruncated\": migratedStateIDs.count > 22",
-            "if minimumViewportAppFrameRecord[\"valid\"] as? Bool != true {",
-            "if let expectedIdentifier {",
-            "if observedIdentifier != expectedIdentifier {",
-            "if observedType != expectedType {",
-            "if frameRecord[\"valid\"] as? Bool != true {",
-            "role + (matchCount == 0 ? \"-absent\" : \"-ambiguous\")",
-            "minimumViewportObservation[\"complete\"] =\n                    minimumViewportIncompleteReasons.isEmpty",
-            "withJSONObject: minimumViewportObservation, options: [.sortedKeys]",
-            "minimumViewportAttachment.lifetime = .keepAlways",
-        ]
-        let minimumViewportOnceLocks = [
-            "app.frame",
-            "query.element(boundBy: 0)",
-            "observedElement.identifier",
-            "observedElement.elementType",
-            "observedElement.frame",
-            "let minimumViewportAppFrame = app.frame",
-            "let matchCount = query.count",
-            "query.count",
-            "app.navigationBars.matching(",
-            "app.tabBars",
-            "if matchCount == 1 {",
-            "let observedElement = query.element(boundBy: 0)",
-            "let observedIdentifier = observedElement.identifier",
-            "let observedType = observedElement.elementType",
-            "let observedFrame = observedElement.frame",
-            "for (role, query, expectedIdentifier, expectedType)",
-            "add(minimumViewportAttachment)",
-            "XCTAttachment(",
-            "JSONSerialization.data(",
-        ]
-        let minimumViewportProhibitedForms = [
-            ".frame =",
-            ".firstMatch",
-            ".allElements",
-            ".debugDescription",
-            ".label",
-            ".value",
-            ".exists",
-            ".isHittable",
-            ".isEnabled",
-            "waitFor",
-            "sleep(",
-            ".tap(",
-            ".swipe",
-            "scroll(",
-            ".coordinate(",
-            "captureBaseline(",
-            "performAccessibilityAudit",
-            "throw ",
-            "catch ",
-            "S10_4_SHARD_RECEIPT",
-            "S10_4_CANDIDATE",
-            "S10_4_TASK",
-            "S10_4_AX_STATE",
-            "S10_4_CONTRAST",
-        ]
-        // Source-contract predicate, not execution of the UI-local observation.
-        let minimumViewportSourceContract: (String) -> Bool = { source in
-            guard minimumViewportRequiredLocks.allSatisfy({ source.contains($0) }),
-                  minimumViewportOnceLocks.allSatisfy({
-                      source.components(separatedBy: $0).count - 1 == 1
-                  }),
-                  minimumViewportProhibitedForms.allSatisfy({ !source.contains($0) }),
-                  source.components(
-                      separatedBy: "app.descendants(matching: .any).matching("
-                  ).count - 1 == 3,
-                  let context = source.range(of: "if minimumViewportContextMatches {"),
-                  let appFrame = source.range(of: "let minimumViewportAppFrame = app.frame"),
-                  let count = source.range(of: "let matchCount = query.count"),
-                  let unique = source.range(of: "if matchCount == 1 {"),
-                  let binding = source.range(of: "let observedElement = query.element(boundBy: 0)"),
-                  let identifier = source.range(of: "let observedIdentifier = observedElement.identifier"),
-                  let type = source.range(of: "let observedType = observedElement.elementType"),
-                  let frame = source.range(of: "let observedFrame = observedElement.frame") else {
-                return false
-            }
-            return context.lowerBound < appFrame.lowerBound
-                && appFrame.lowerBound < count.lowerBound
-                && count.lowerBound < unique.lowerBound
-                && unique.lowerBound < binding.lowerBound
-                && binding.lowerBound < identifier.lowerBound
-                && identifier.lowerBound < type.lowerBound
-                && type.lowerBound < frame.lowerBound
-        }
-        XCTAssertTrue(minimumViewportSourceContract(minimumViewportObservationSource))
-        for (label, original, replacement) in [
-            ("removed context guard", "if minimumViewportContextMatches {", "if true {"),
-            ("broadened profile", "== \"iphone-se-3-ios-18.0-minimum\"", "!= \"unrelated-profile\""),
-            ("removed uniqueness guard", "if matchCount == 1 {", "if matchCount >= 1 {"),
-            ("arbitrary first match", "query.element(boundBy: 0)", "query.firstMatch"),
-            ("duplicate query count", "let matchCount = query.count", "let matchCount = query.count\n                    let duplicateCount = query.count"),
-            ("unconditional completeness", "minimumViewportIncompleteReasons.isEmpty", "true"),
-            ("nonfinite JSON number", "? NSNumber(value: Double(value)) as Any : NSNull()", "? NSNumber(value: Double(value)) as Any : NSNumber(value: Double(value))"),
-            ("acceptance metadata", "\"acceptanceEligible\": false", "\"acceptanceEligible\": true"),
-            ("added action", "add(minimumViewportAttachment)", "app.tap()\n                add(minimumViewportAttachment)"),
-            ("wrong content identity", "identifier: \"s5.1.work.header\"", "identifier: \"s5.1.work.description\""),
-            ("removed state boundary", "== \"state.work.validation-error\"", "== \"state.work.editing\""),
-        ] {
-            let mutatedObservation = minimumViewportObservationSource.replacingOccurrences(
-                of: original, with: replacement
-            )
-            XCTAssertNotEqual(mutatedObservation, minimumViewportObservationSource, label)
-            XCTAssertFalse(minimumViewportSourceContract(mutatedObservation), label)
-        }
-        let minimumViewportObservedBranch =
+        XCTAssertFalse(uiSource.contains("S10_4_MINIMUM_WORK_VIEWPORT_OBSERVATION"))
+        XCTAssertFalse(uiSource.contains("minimumViewportObservation"))
+        let minimumWorkValidationPreservedBranch =
             "        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n" +
                 "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n" +
                 minimumWorkValidationViewportCall +
-                minimumViewportObservationSource +
                 "        }\n"
-        let minimumViewportPlacement = minimumViewportObservedBranch + workValidationBaseline
-        let minimumViewportPlacementContract: (String) -> Bool = { source in
-            source.components(separatedBy: minimumViewportPlacement).count - 1 == 1
-                && source.components(separatedBy: minimumViewportObservationSource).count - 1 == 1
+        let minimumWorkValidationPlacement = minimumWorkValidationPreservedBranch + workValidationBaseline
+        let minimumWorkValidationPlacementContract: (String) -> Bool = { source in
+            source.components(separatedBy: minimumWorkValidationPlacement).count - 1 == 1
                 && source.components(separatedBy: workValidationBaseline).count - 1 == 1
         }
-        XCTAssertTrue(minimumViewportPlacementContract(workValidationRouteSource))
-        for (label, replacement) in [
-            ("removed observation", ""),
-            ("duplicated observation", minimumViewportObservationSource + minimumViewportObservationSource),
-            ("audit inserted into observation", minimumViewportObservationSource + "            app.performAccessibilityAudit()\n"),
-        ] {
-            let mutatedRoute = workValidationRouteSource.replacingOccurrences(
-                of: minimumViewportObservationSource, with: replacement
-            )
-            XCTAssertNotEqual(mutatedRoute, workValidationRouteSource, label)
-            XCTAssertFalse(minimumViewportPlacementContract(mutatedRoute), label)
-        }
+        XCTAssertTrue(minimumWorkValidationPlacementContract(workValidationRouteSource))
         for (label, original, replacement) in [
             ("broadened shard guard",
              "        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n",
@@ -6106,24 +5947,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 of: original, with: replacement
             )
             XCTAssertNotEqual(mutatedRoute, workValidationRouteSource, label)
-            XCTAssertFalse(minimumViewportPlacementContract(mutatedRoute), label)
+            XCTAssertFalse(minimumWorkValidationPlacementContract(mutatedRoute), label)
         }
-        let minimumViewportMovedBeforeDismissal = workValidationRouteSource
-            .replacingOccurrences(of: minimumViewportObservationSource, with: "")
-            .replacingOccurrences(
-                of: "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n",
-                with: minimumViewportObservationSource +
-                    "            try dismissMinimumWorkValidationKeyboardAccessory(in: app)\n"
-            )
-        XCTAssertNotEqual(minimumViewportMovedBeforeDismissal, workValidationRouteSource)
-        XCTAssertFalse(minimumViewportPlacementContract(minimumViewportMovedBeforeDismissal))
-        // Excise only this independently validated observation from legacy negative receivers.
-        let minimumQuickPathWithoutViewportObservation =
-            workValidationMinimumQuickPathSource.replacingOccurrences(
-                of: minimumViewportObservationSource, with: ""
-            )
         let minimumQuickPathWithoutGuardObservation =
-            minimumQuickPathWithoutViewportObservation.replacingOccurrences(
+            workValidationMinimumQuickPathSource.replacingOccurrences(
                 of: minimumQuickPathGuardObservation,
                 with: ""
             )
@@ -6169,7 +5996,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 minimumWorkValidationViewportCall +
                 "        }\n"
         XCTAssertEqual(
-            minimumQuickPathWithoutViewportObservation.components(
+            workValidationMinimumQuickPathSource.components(
                 separatedBy: minimumWorkValidationKeyboardAccessoryCall
             ).count - 1,
             1
@@ -6189,7 +6016,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         let minimumWorkValidationQuickPathProhibitionSource =
-            minimumQuickPathWithoutViewportObservation.replacingOccurrences(
+            workValidationMinimumQuickPathSource.replacingOccurrences(
                 of: minimumWorkValidationViewportCall,
                 with: ""
             )
@@ -6696,7 +6523,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 ),
               let minimumWorkValidationCallRange =
                 workValidationRouteSource.range(
-                    of: minimumViewportObservedBranch
+                    of: minimumWorkValidationPreservedBranch
                 ),
               let minimumWorkValidationBaselineRange =
                 workValidationRouteSource.range(
@@ -10977,7 +10804,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workSavingPositioningSource.utf8.count, 25_019)
         XCTAssertEqual(
             Data(workSavingPositioningSource.utf8).sha256,
-            "45E20AFB104568CEDD7E18179E2626FAB79363E3E41A8F226598E9FF1078706F"
+            "4FF6D1DFFBE792E75C621CB92CA42F1E0AED7E6C7F773429D260A472AE00FF33"
         )
         let workSavingRouteBeforeEvidence =
             "        scroll(saveWork, in: app)\n" +
@@ -11010,7 +10837,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workSavingTabBarCountPolicy =
             "        let workTabBars = app.tabBars\n" +
                 "        let expectedWorkSavingTabBarCount: Int\n" +
-                "        if #available(iOS 26.0, *) {\n" +
+                "        if #available(iOS 18.0, *) {\n" +
                 "            expectedWorkSavingTabBarCount = 0\n" +
                 "        } else {\n" +
                 "            expectedWorkSavingTabBarCount = 1\n" +
@@ -11024,6 +10851,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workSavingPrimaryNavigationWait =
             #"        let issueScreen = element("s5.1.issue.screen", in: app)"# + "\n" +
                 "        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))\n" +
+                "        XCTAssertEqual(app.tabBars.count, 1)\n" +
                 #"        let dueStatus = element("s5.1.issue.status", in: app)"#
         XCTAssertEqual(
             uiSource.components(
@@ -15779,7 +15607,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             recordWorkSourcePath,
             byteCount: 16_217,
-            sha256: "D96F1479DC103649DE04015F060A320A3E06CE6BE610A69C80791EF35BEDBC3B"
+            sha256: "CF6C1A3C157DBC86C49B583C635FCD8A008BBEAA5C9A9F625031B34A27E0BAD5"
         )
         let recordWorkSource = try text(recordWorkSourcePath)
         let recordWorkDateSemanticComposition =
@@ -15833,7 +15661,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "private struct RecordWorkTabBarVisibility: ViewModifier {\n" +
                 "    @ViewBuilder\n" +
                 "    func body(content: Content) -> some View {\n" +
-                "        if #available(iOS 26.0, *) {\n" +
+                "        if #available(iOS 18.0, *) {\n" +
                 "            content.toolbar(.hidden, for: .tabBar)\n" +
                 "        } else {\n" +
                 "            content\n" +
@@ -17318,7 +17146,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             (
                 "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
                 16_217,
-                "D96F1479DC103649DE04015F060A320A3E06CE6BE610A69C80791EF35BEDBC3B",
+                "CF6C1A3C157DBC86C49B583C635FCD8A008BBEAA5C9A9F625031B34A27E0BAD5",
                 [
                     #"AssetRoundsPrimaryAction("Record work", action: save)"#,
                     "AssetRoundsSecondaryAction(\n" +
@@ -22714,10 +22542,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 844_967)
+        XCTAssertEqual(uiSource.utf8.count, 835_984)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "D6AE5BA1A398FA52D63DB7CB85A57634718239027F341D9F01DCF81683091AF9"
+            "F4929E5A2267CFACD08E0E374BD4EF7FD9F60920ADB975DAB2E051B28EDDC981"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
