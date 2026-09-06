@@ -855,7 +855,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
         }
         guard diagnosticProbe == nil
-                || (shard.shardID == "s10.4.minimum.minimum-os" && segment == .none) else {
+                || (segment == .none && (
+                    (diagnosticProbe == .minimumNewSign
+                        && shard.shardID == "s10.4.minimum.minimum-os")
+                    || (diagnosticProbe == .minimumPreflight
+                        && shard.shardID == "s10.4.minimum.bounded")
+                )) else {
             throw AutomationConfigurationError.invalid(
                 "Focused diagnostics require the frozen minimum shard and no segment"
             )
@@ -2633,6 +2638,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             )
                             return
                         }
+                        printJSONLine(
+                            prefix: "S10_4_MINIMUM_DOUBLE_CACHED_GEOMETRY",
+                            object: [
+                                "schemaVersion": 1,
+                                "acceptanceEligible": false,
+                                "finalAcceptanceEligible": false,
+                                "shardID": "s10.4.minimum.double-length",
+                                "stateID": "state.check-preflight.ready",
+                                "observationPhase": "after-final-off-app-guard",
+                                "applicationFrame": auditFrameObject(finalApplicationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "scrollFrame": auditFrameObject(finalScrollFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "navigationFrame": auditFrameObject(finalNavigationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "tabFrame": auditFrameObject(finalTabBarFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "confirmationFrame": auditFrameObject(finalConfirmationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "safeTop": finalSafeTop.isFinite ? finalSafeTop as Any : NSNull(),
+                                "safeBottom": finalSafeBottom.isFinite ? finalSafeBottom as Any : NSNull(),
+                                "previousCommandedDragDistance": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                "previousConfirmationMinYBeforeDrag": previousConfirmationMinYBeforeDrag.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                "previousConfirmationMinYAfterDrag": previousConfirmationMinYAfterDrag.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                "previousObservedMovement": previousObservedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                            ]
+                        )
                     }
                 } else {
                     let expectedKeyboardFrame = CGRect(
@@ -5775,6 +5802,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         return "[# Short description #]"
                     case .some("s10.4.minimum.accented"):
                         return "S\u{0308}h\u{0303}o\u{0325}r\u{0300}t\u{0303} d\u{030A}e\u{0308}s\u{0327}c\u{0325}r\u{0300}i\u{0325}p\u{030A}t\u{0303}i\u{0325}o\u{0325}n\u{0303}"
+                    case .some("s10.4.minimum.rtl-string"):
+                        return "\u{202E}Short description\u{202C}"
                     default:
                         return "Short description"
                     }
@@ -11750,6 +11779,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ) || (
                 shard.shardID == "s10.4.minimum.double-length"
                     && stateID == "state.check-preflight.ready"
+            ) || (
+                shard.shardID == "s10.4.minimum.accented"
+                    && stateID == "state.work.validation-error"
             ) {
                 var observedIssueCount = 0
                 try app.performAccessibilityAudit(for: .contrast) { issue in

@@ -769,7 +769,7 @@ jobs:
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: true
-      s10_4_shard_id: s10.4.minimum.minimum-os
+      s10_4_shard_id: s10.4.minimum.bounded
       s10_4_segment_id: none
       s10_4_execution_role: payload-consumer
       s10_4_payload_artifact_name: ios-ci-s10-4-hybrid-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}

@@ -722,6 +722,9 @@ jobs:
                   github:macos-26:s10.4.current.default-light:iphone-17-ios-26.2-current | \
                   github:macos-26:s10.4.current.default-dark:iphone-17-ios-26.2-current | \
                   github:macos-26:s10.4.minimum.minimum-os:iphone-se-3-ios-18.0-minimum) ;;
+                  github:macos-26:s10.4.minimum.bounded:iphone-se-3-ios-18.0-minimum)
+                    test "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" = minimum-preflight
+                    ;;
                   *) exit 1 ;;
                 esac
                 ;;
@@ -736,7 +739,10 @@ jobs:
             test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "github:macos-26"
             test "$DISPATCH_S10_4_EXECUTION_ROLE" = payload-consumer
             test "$DISPATCH_S10_4_PILOT_MODE" = true
-            test "$CI_S10_4_SHARD_ID" = "s10.4.minimum.minimum-os"
+            case "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID:$CI_S10_4_SHARD_ID" in
+              minimum-new-sign:s10.4.minimum.minimum-os | minimum-preflight:s10.4.minimum.bounded) ;;
+              *) exit 1 ;;
+            esac
             test "$CI_S10_4_DEVICE_PROFILE_ID" = "iphone-se-3-ios-18.0-minimum"
             test "$CI_S10_4_SEGMENT_ID" = none
             test "$GITHUB_REF" = "refs/heads/phase/s10-brand-refresh"
@@ -2364,8 +2370,11 @@ jobs:
             test "$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE" = \
               s10-4-focused-diagnostics-development-only
             test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = github:macos-26
-            test "$CI_S10_4_SHARD_ID:$CI_S10_4_SEGMENT_ID" = \
-              s10.4.minimum.minimum-os:none
+            case "$WORKER_S10_4_DIAGNOSTIC_PROBE_ID:$CI_S10_4_SHARD_ID" in
+              minimum-new-sign:s10.4.minimum.minimum-os | minimum-preflight:s10.4.minimum.bounded) ;;
+              *) exit 1 ;;
+            esac
+            test "$CI_S10_4_SEGMENT_ID" = none
             test "$GITHUB_REF" = refs/heads/phase/s10-brand-refresh
             [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
             diagnostic_exit_path="$CI_ARTIFACT_DIR/s10-4-diagnostic-ui-stage-exit.txt"
@@ -5184,7 +5193,10 @@ jobs:
           test "$CI_S10_4_EXECUTION_ROLE" = payload-consumer
           test "$CI_S10_4_PILOT_MODE" = true
           test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = github:macos-26
-          test "$CI_S10_4_SHARD_ID" = s10.4.minimum.minimum-os
+          case "$WORKER_S10_4_DIAGNOSTIC_PROBE_ID:$CI_S10_4_SHARD_ID" in
+            minimum-new-sign:s10.4.minimum.minimum-os | minimum-preflight:s10.4.minimum.bounded) ;;
+            *) exit 1 ;;
+          esac
           test "$CI_S10_4_SEGMENT_ID" = none
           test "$GITHUB_REF" = refs/heads/phase/s10-brand-refresh
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -5392,6 +5404,7 @@ jobs:
             --arg repository "$GITHUB_REPOSITORY" \
             --arg runID "$GITHUB_RUN_ID" \
             --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg shardID "$CI_S10_4_SHARD_ID" \
             --arg priorJobStatus "$DIAGNOSTIC_PRIOR_JOB_STATUS" \
             --arg uiWrapperExit "$ui_wrapper_exit" \
             --arg uiTeeExit "$ui_tee_exit" \
@@ -5423,7 +5436,7 @@ jobs:
                   head: $head, ref: $ref, repository: $repository,
                   runID: ($runID | tonumber), runAttempt: ($runAttempt | tonumber),
                   runnerProvider: "github", runnerLabel: "macos-26",
-                  shardID: "s10.4.minimum.minimum-os",
+                  shardID: $shardID,
                   deviceProfileID: "iphone-se-3-ios-18.0-minimum"
                 },
                 rawExitDisposition: {

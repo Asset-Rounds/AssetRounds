@@ -57,7 +57,10 @@ case "$diagnostic_probe_id" in
     test "${CI_RUNNER_PROVIDER:?}" = "github"
     test "${CI_S10_4_EXECUTION_ROLE:?}" = "payload-consumer"
     test "${CI_S10_4_PILOT_MODE:?}" = "true"
-    test "${CI_S10_4_SHARD_ID:?}" = "s10.4.minimum.minimum-os"
+    case "$diagnostic_probe_id:${CI_S10_4_SHARD_ID:?}" in
+      minimum-new-sign:s10.4.minimum.minimum-os | minimum-preflight:s10.4.minimum.bounded) ;;
+      *) exit 1 ;;
+    esac
     test "${CI_S10_4_SEGMENT_ID:?}" = "none"
     test "$selected_ui_selector" = \
       "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests"
