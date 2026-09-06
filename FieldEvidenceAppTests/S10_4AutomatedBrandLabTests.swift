@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 24_297,
-            sha256: "46FD5DB228A85955A4930410AA5C007118711C435144F11004980511EEB8FBFC"
+            byteCount: 31_646,
+            sha256: "F0A5D4D71F3B808DDB6AB2FE04ACA5EB198291E674A429FFC578B65ED8C34682"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -225,7 +225,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(simulatorAppLifecycleSource.contains(
             #"> "$failure_diagnostic_path/simulator-app-lifecycle.log" 2>&1"#
         ))
+        let incidentCollectorSource = try boundedSource(
+            uiSmokeSource,
+            from: "  # H408 optional incident-correlated app log; originals remain unchanged.\n",
+            before: "  # K404 failure-only bounded/accented/RTL app lifecycle context.\n"
+        )
+        XCTAssertEqual(incidentCollectorSource.utf8.count, 7_078)
+        XCTAssertEqual(Data(incidentCollectorSource.utf8).sha256, "90E2F55ECDB708966A0E96280F59E90E02DBCFA2CE779C954DD1D83D19E9EE8B")
+        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n  esac\nfi\n\n"
+        XCTAssertTrue(uiSmokeSource.contains(incidentStartSource))
+        for prohibited in ["log stream", "OS_ACTIVITY_MODE", "simctl terminate", "simctl launch", "performAccessibilityAudit", "exit 0"] {
+            XCTAssertFalse(incidentCollectorSource.contains(prohibited), prohibited)
+        }
         let uiSmokeOutsideAXDiagnostic = uiSmokeSource
+            .replacingOccurrences(of: incidentCollectorSource, with: "")
+            .replacingOccurrences(of: incidentStartSource, with: "")
             .replacingOccurrences(of: simulatorAXDiagnosticSource, with: "")
             .replacingOccurrences(of: focusedDiagnosticSelectionSource, with: "")
             .replacingOccurrences(of: simulatorAppLifecycleSource, with: "")
@@ -5013,10 +5027,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertEqual(source.utf8.count, bytes)
             XCTAssertEqual(Data(source.utf8).sha256, sha256)
         }
-        XCTAssertEqual(workValidationGateSource.utf8.count, 35_227)
+        XCTAssertEqual(workValidationGateSource.utf8.count, 35_298)
         XCTAssertEqual(
             Data(workValidationGateSource.utf8).sha256,
-            "AEE450C4F1F517251CEEB761DD81823FDBE0261A3B402E8CFBF67596C811BB42"
+            "BDC48E6C888129443852C0D81A4BD4146F58D8C6EBE70A4E9B672CE61F122600"
         )
         let workValidationMinimumQuickPathGate =
             "        if automationShard?.deviceProfileID\n" +
@@ -5031,10 +5045,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: workValidationMinimumQuickPathGate,
             before: k121WorkValidationBaseline
         )
-        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 29_496)
+        XCTAssertEqual(workValidationMinimumQuickPathSource.utf8.count, 29_567)
         XCTAssertEqual(
             Data(workValidationMinimumQuickPathSource.utf8).sha256,
-            "340645FAECD9B0888840969564EB61250A88A60060B0E1E76D8E1F146A8AA6AD"
+            "AD71157CA21EDF873B8A006DD01A6932ED86CBE848D4EF11D9E40AD869FCB4C8"
         )
         let signDetailPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
@@ -5976,6 +5990,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "                    throw AutomationConfigurationError.invalid(\n" +
                 "                        \"S10.4 minimum work-validation QuickPath state changed before dismissal\""
         )
+        let exactCachedGuardAdmission = "                    if let shard = automationShard,\n                       shard.shardID == \"s10.4.minimum.bounded\"\n                        || shard.shardID == \"s10.4.minimum.accented\"\n                        || shard.shardID == \"s10.4.minimum.rtl-string\" {"
+        XCTAssertTrue(minimumQuickPathGuardObservation.hasPrefix(exactCachedGuardAdmission))
+        for wrongProfile in ["s10.4.minimum.rtl", "s10.4.minimum.tall", "s10.4.minimum.double-length", "s10.4.current.default-light"] {
+            let hostile = exactCachedGuardAdmission.replacingOccurrences(of: "s10.4.minimum.rtl-string", with: wrongProfile)
+            XCTAssertNotEqual(hostile, exactCachedGuardAdmission)
+            XCTAssertFalse(minimumQuickPathGuardObservation.hasPrefix(hostile))
+        }
         for requiredGuardObservation in [
             #"shard.shardID == "s10.4.minimum.accented""#,
             #"prefix: "S10_4_WORK_VALIDATION_QUICKPATH_GUARD_FAILURE""#,
@@ -12187,10 +12208,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 16_892)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 17_178)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "8A5AC120AEF4EC82FD05CA09EB46339EB4F2D0A40E36C2F1002B0609032F58AD"
+            "B9AD9E3F579C445DD062F6B604C65D8A24977071E65DAF2565AED5CE4FC14FF7"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -22630,10 +22651,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 835_984)
+        XCTAssertEqual(uiSource.utf8.count, 836_341)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "F4929E5A2267CFACD08E0E374BD4EF7FD9F60920ADB975DAB2E051B28EDDC981"
+            "CDBAE01A5D8256E44293DC8B959EAC24FB564BAE060343099CB72702796D15B5"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -25045,10 +25066,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 16_877)
+        XCTAssertEqual(captureSource.utf8.count, 17_163)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "AADA4075186C6862B94B6C00B81DF66524700C0157E5751DA3F85E63A08BE9DA"
+            "3F2A2EF742C0978F6A999A22DF51F5B5E3E1B2972F10E20152C08723C96EEA8A"
         )
         let captureBoundedUTF8Source = try boundedSource(
             captureSource,
@@ -25156,10 +25177,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"",
             before: "            } else {\n                try app.performAccessibilityAudit(for: .contrast)\n            }"
         )
-        XCTAssertEqual(nativeContrastObservationSource.utf8.count, 956)
+        XCTAssertEqual(nativeContrastObservationSource.utf8.count, 1_242)
         XCTAssertEqual(
             Data(nativeContrastObservationSource.utf8).sha256,
-            "FE3AA3F9A32A0072B2AB828E75A56CA371C82EB00B713F842DEE50C1A5855169"
+            "59A9FA90BDEC32F014479947C222CF9F54C7DAE81C69A1D3763CAFFD7B8CDD7D"
         )
         for exact in [
             #"stateID == "state.work.validation-error""#,
@@ -25172,6 +25193,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "return false",
         ] {
             XCTAssertTrue(nativeContrastObservationSource.contains(exact), exact)
+        }
+        let exactObservedContrastAdmission = "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.bounded\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.double-length\"\n                    && stateID == \"state.check-preflight.ready\"\n"
+        XCTAssertTrue(nativeContrastObservationSource.hasPrefix(exactObservedContrastAdmission))
+        for (oldValue, wrongValue) in [
+            ("s10.4.minimum.bounded", "s10.4.minimum.tall"),
+            ("s10.4.minimum.double-length", "s10.4.minimum.rtl-string"),
+            ("state.work.validation-error", "state.work.editing"),
+            ("state.check-preflight.ready", "state.check-preflight.confirming"),
+            ("&& stateID", "|| stateID"),
+        ] {
+            let hostile = exactObservedContrastAdmission.replacingOccurrences(of: oldValue, with: wrongValue)
+            XCTAssertNotEqual(hostile, exactObservedContrastAdmission)
+            XCTAssertFalse(nativeContrastObservationSource.hasPrefix(hostile))
         }
         XCTAssertFalse(nativeContrastObservationSource.contains("observedIssueCount <= 3"))
         XCTAssertEqual(

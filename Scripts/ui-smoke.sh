@@ -114,6 +114,14 @@ if [ "${CI_S10_4_EXECUTION_ROLE:-}" = "payload-consumer" ] && \
   pilot_consumer=true
 fi
 
+ips_test_started_epoch=""
+if [ "${CI_RUNNER_PROVIDER:-}" = github ] && [ "${CI_TASK_ID:-}" = S10.4 ]; then
+  case "${CI_S10_4_SHARD_ID:-}" in
+    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall)
+      ips_test_started_epoch="$(date +%s)" ;;
+  esac
+fi
+
 if [ "$pilot_consumer" = true ]; then
   set -e
   test "${CI_S10_4_PILOT_PAYLOAD_VERIFIED:?}" = "true"
@@ -232,6 +240,136 @@ if [ "$xcodebuild_status" -ne 0 ]; then
       >> "$diagnostic_status_path"
     return 0
   }
+
+  # H408 optional incident-correlated app log; originals remain unchanged.
+  if [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
+     [ "${CI_TASK_ID:-}" = S10.4 ] &&
+     [ "${CI_S10_4_PILOT_MODE:-false}" = false ] &&
+     { [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.minimum-os ] ||
+       [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.accented ] ||
+       [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.tall ]; }; then
+    ips_now="$(date +%s)"
+    ips_origin="${CI_BUDGET_START_EPOCH:-}"
+    ips_total="${CI_TOTAL_BUDGET_SECONDS:-}"
+    ips_budget=false
+    if [[ "$ips_now" =~ ^[1-9][0-9]{0,9}$ ]] &&
+       [[ "$ips_origin" =~ ^[1-9][0-9]{0,9}$ ]] &&
+       [[ "$ips_total" =~ ^[1-9][0-9]{0,9}$ ]] &&
+       [ "$ips_origin" -le "$ips_now" ] &&
+       [ "$(( ips_total - (ips_now - ips_origin) ))" -ge 40 ]; then
+      ips_budget=true
+    fi
+    if [ "$ips_budget" = true ]; then
+      ips_binding="$(Scripts/run-with-timeout.sh 5 python3 - \
+        "$failure_attachment_export_path" "${ips_test_started_epoch:-}" "$ips_now" <<'PY'
+import datetime as dt, json, pathlib, re, sys
+
+def select(root, start, end):
+    if not re.fullmatch(r'[1-9][0-9]{0,9}',start) or not re.fullmatch(r'[1-9][0-9]{0,9}',end) or int(start)>int(end):
+        return 'skip-invalid-interval'
+    root=pathlib.Path(root)
+    if not root.is_dir() or root.is_symlink(): return 'skip-missing-exports'
+    files=[]
+    for ordinal,p in enumerate(root.iterdir()):
+        if ordinal>=4096: return 'skip-too-many-export-entries'
+        if p.suffix.lower()=='.ips':
+            files.append(p)
+            if len(files)>20: return 'skip-too-many-reports'
+    candidates=[]
+    def unique_object(pairs):
+        result={}
+        for key,value in pairs:
+            if key in result: raise ValueError('duplicate key')
+            result[key]=value
+        return result
+    decoder=json.JSONDecoder(object_pairs_hook=unique_object)
+    def stamp(s):
+        if not isinstance(s,str) or len(s)>40: raise ValueError()
+        return dt.datetime.strptime(s,'%Y-%m-%d %H:%M:%S.%f %z').timestamp()
+    for p in files:
+        if p.is_symlink() or not p.is_file() or p.stat().st_size>1048576: return 'skip-invalid-report'
+        try:
+            with p.open('rb') as stream: raw=stream.read(1048577)
+            if len(raw)>1048576: return 'skip-invalid-report'
+            text=raw.decode('utf-8-sig')
+            header,offset=decoder.raw_decode(text)
+            tail=text[offset:].lstrip(); body,offset=decoder.raw_decode(tail)
+            if tail[offset:].strip(): raise ValueError()
+            if not isinstance(header,dict) or not isinstance(body,dict): raise ValueError()
+            if header.get('bundleID')!='com.palatis3.fieldrecord': continue
+            if body.get('procName')!='FieldEvidenceApp' or body.get('bundleInfo',{}).get('CFBundleIdentifier')!='com.palatis3.fieldrecord': raise ValueError()
+            incident=body.get('incident',''); pid=body.get('pid')
+            if not re.fullmatch(r'[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}',incident) or header.get('incident_id')!=incident: raise ValueError()
+            if type(pid) is not int or not 0<pid<=2147483647: raise ValueError()
+            launch=stamp(body.get('procLaunch')); capture=stamp(body.get('captureTime'))
+            if not int(start)<=launch<=capture<=int(end): continue
+            candidates.append((pid,incident,body['procLaunch'],body['captureTime']))
+        except (ValueError,TypeError,AttributeError,UnicodeError,OSError): return 'skip-invalid-report'
+    if not candidates: return 'skip-no-current-app-incident'
+    if len(candidates)!=1: return 'skip-ambiguous-incidents'
+    pid,incident,launch,capture=candidates[0]
+    return f'{pid}\t{incident}\t{launch}\t{capture}'
+
+if __name__=='__main__':
+    try: print(select(*sys.argv[1:]))
+    except (OSError,ValueError): print('skip-input-error')
+PY
+      )"
+      ips_parser_status="$?"
+      printf 'ips_parser_status=%s\nips_binding=%s\n' "$ips_parser_status" "$ips_binding" >> "$diagnostic_status_path"
+      IFS=$'\t' read -r ips_pid ips_incident ips_launch ips_capture <<< "$ips_binding"
+      if [ "$ips_parser_status" -eq 0 ] && [[ "$ips_pid" =~ ^[1-9][0-9]{0,9}$ ]] &&
+         [ "$ips_pid" -le 2147483647 ]; then
+        ips_binding_now="$ips_now"
+        ips_now="$(date +%s)"
+        ips_origin="${CI_BUDGET_START_EPOCH:-}"
+        ips_total="${CI_TOTAL_BUDGET_SECONDS:-}"
+        ips_query_budget=false
+        if [[ "$ips_now" =~ ^[1-9][0-9]{0,9}$ ]] &&
+           [[ "$ips_origin" =~ ^[1-9][0-9]{0,9}$ ]] &&
+           [[ "$ips_total" =~ ^[1-9][0-9]{0,9}$ ]] &&
+           [ "$ips_origin" -le "$ips_now" ] &&
+           [ "$ips_binding_now" -le "$ips_now" ] &&
+           [ "$(( ips_total - (ips_now - ips_origin) ))" -ge 35 ]; then
+          ips_query_budget=true
+        fi
+        if [ "$ips_query_budget" = true ]; then
+        ips_raw="$(mktemp "${RUNNER_TEMP:?}/FieldEvidenceIncidentLog.XXXXXX")"
+        if [ "$?" -eq 0 ]; then
+          printf 'ips_query_started_utc=%s\nips_query_lookback_seconds=600\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$diagnostic_status_path"
+          run_diagnostic ips_app_log Scripts/run-with-timeout.sh 25 \
+            xcrun simctl spawn "$CI_SIMULATOR_UDID" log show \
+              --last 10m --style compact \
+              --predicate "process == \"FieldEvidenceApp\" AND processIdentifier == $ips_pid" \
+            > "$ips_raw" 2>&1
+          ips_query_status="$diagnostic_status"
+          ips_snapshot_bytes="$(LC_ALL=C wc -c < "$ips_raw" | tr -d '[:space:]')"
+          /usr/bin/head -c "$ips_snapshot_bytes" "$ips_raw" | /usr/bin/tail -c 1048576 \
+            > "$failure_diagnostic_path/simulator-incident-app.log"
+          ips_snapshot_status="$?"
+          ips_retained_bytes="$(LC_ALL=C wc -c < "$failure_diagnostic_path/simulator-incident-app.log" | tr -d '[:space:]')"
+          printf 'ips_query_ended_utc=%s\nips_query_status=%s\nips_snapshot_status=%s\nips_snapshot_bytes=%s\nips_retained_bytes=%s\nips_capture=bounded_snapshot_not_completion_proof\n' \
+            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$ips_query_status" "$ips_snapshot_status" \
+            "$ips_snapshot_bytes" "$ips_retained_bytes" >> "$diagnostic_status_path"
+          if [ "$ips_snapshot_bytes" -gt 1048576 ]; then printf 'ips_truncated=true\n' >> "$diagnostic_status_path"; fi
+          if [ "$ips_query_status" -ne 0 ] || [ "$ips_snapshot_status" -ne 0 ] || [ "$ips_retained_bytes" -eq 0 ]; then
+            printf 'ips_incomplete=true\n' >> "$diagnostic_status_path"
+          fi
+          rm -f "$ips_raw"
+        else
+          printf 'ips_app_log=skip-temp-error\n' >> "$diagnostic_status_path"
+        fi
+        else
+          printf 'ips_app_log=skip-invalid-or-insufficient-rechecked-budget\n' >> "$diagnostic_status_path"
+        fi
+      else
+        printf 'ips_app_log=skip-no-validated-binding\n' >> "$diagnostic_status_path"
+      fi
+    else
+      printf 'ips_app_log=skip-invalid-or-insufficient-budget\n' >> "$diagnostic_status_path"
+    fi
+  fi
+  # End H408 optional incident-correlated app log.
 
   # K404 failure-only bounded/accented/RTL app lifecycle context.
   diagnostic_report_app_patterns=()

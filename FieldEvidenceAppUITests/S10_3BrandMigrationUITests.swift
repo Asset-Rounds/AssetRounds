@@ -5823,7 +5823,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       preActionValidationLabelMatches else {
                     if let shard = automationShard,
                        shard.shardID == "s10.4.minimum.bounded"
-                        || shard.shardID == "s10.4.minimum.accented" {
+                        || shard.shardID == "s10.4.minimum.accented"
+                        || shard.shardID == "s10.4.minimum.rtl-string" {
                         // Failure-only evidence: all inputs below were cached before this guard.
                         let failedGuardPredicates: [String: Bool] = [
                             "preActionAppForeground": preActionAppForeground,
@@ -11742,6 +11743,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && stateID == "state.work.validation-error"
             ) || (
                 shard.shardID == "s10.4.minimum.rtl"
+                    && stateID == "state.check-preflight.ready"
+            ) || (
+                shard.shardID == "s10.4.minimum.bounded"
+                    && stateID == "state.work.validation-error"
+            ) || (
+                shard.shardID == "s10.4.minimum.double-length"
                     && stateID == "state.check-preflight.ready"
             ) {
                 var observedIssueCount = 0
