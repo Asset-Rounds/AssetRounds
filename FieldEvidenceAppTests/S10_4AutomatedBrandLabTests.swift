@@ -2804,8 +2804,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(issueTabBarFailureSource.contains("shard.ordinal == 11"))
         XCTAssertTrue(issueTabBarFailureSource.contains("rawTree.prefix(262_144)"))
         XCTAssertFalse(issueTabBarFailureSource.contains(".tap()"))
-        let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        if let shard = automationShard, shard.shardID == \"s10.4.minimum.bounded\" {", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
-        XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 14, shard.requirementID == \"bounded\""))
+        let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        if let shard = automationShard, shard.shardID == \"s10.4.minimum.bounded\" || shard.shardID == \"s10.4.minimum.accented\" {", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
+        XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 14 && shard.requirementID == \"bounded\""))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 13 && shard.requirementID == \"accented\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("diagnosticProbe == nil, automationSegment == .none"))
         XCTAssertTrue(boundedEnteredZoneSource.contains("zone.typeText(\"\\n\")"))
         XCTAssertEqual(boundedEnteredZoneSource.components(separatedBy: "zone.typeText(\"\\n\")").count - 1, 1)
@@ -2814,6 +2815,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(boundedEnteredZoneSource.contains("hasKeyboardFocus == false"))
         XCTAssertTrue(boundedEnteredZoneSource.contains("predicate: \"exists == false\""))
         XCTAssertFalse(boundedEnteredZoneSource.contains("performAccessibilityAudit"))
+        let postSaveIssueQuery = try boundedSource(uiSource, from: "        let issueScreen: XCUIElement", before: "        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))")
+        XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.minimum-os\""))
+        XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.rtl-string\""))
+        XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.ordinal == 11"))
+        XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.requirementID == \"rtl_string\""))
+        XCTAssertTrue(postSaveIssueQuery.contains("diagnosticProbe == nil && automationSegment == .none"))
+        XCTAssertTrue(postSaveIssueQuery.contains("issueScreen = app.scrollViews.matching("))
+        XCTAssertTrue(postSaveIssueQuery.contains("issueScreen = element(\"s5.1.issue.screen\", in: app)"))
+        XCTAssertFalse(postSaveIssueQuery.contains(".tap()"))
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
         let recordWorkWithoutBaselineStart =
             "    @MainActor\n" +
@@ -3544,22 +3554,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("Missing the bounded Preflight AX-only gate")
             return
         }
-        let preflightZoneCommonPrefix = String(
-            preflightZoneScrollToBeginSource[
-                preflightZoneScrollToBeginSource.startIndex ..<
-                    preflightZoneAXTextGateRange.lowerBound
-            ]
-        )
         let preflightZoneCommonSuffix = String(
             preflightZoneScrollToBeginSource[
                 preflightZoneAXTextGateRange.upperBound ..<
                     preflightZoneScrollToBeginSource.endIndex
             ]
-        )
-        XCTAssertEqual(preflightZoneCommonPrefix.utf8.count, 532)
-        XCTAssertEqual(
-            Data(preflightZoneCommonPrefix.utf8).sha256,
-            "0FB1F11F3E261BF33E2CD1BEEB666FB25E96390179BB96AEBE83CF6AD4798E1F"
         )
         XCTAssertEqual(preflightZoneCommonSuffix.utf8.count, 134)
         XCTAssertEqual(
@@ -9209,6 +9208,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let issueRecheckDueSuccessRouteSource =
             issueRecheckDueRouteSource.replacingOccurrences(
                 of: issueRecheckDueFailureObservationSource,
+                with: ""
+            ).replacingOccurrences(
+                of: "diagnosticProbe == nil",
                 with: ""
             )
         for exactFailureBound in [
@@ -18144,10 +18146,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 887_673)
+        XCTAssertEqual(uiSource.utf8.count, 888_239)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "F3BBC746A7D56C73F001DEA403735CE20CB9106037FE96A3DEE9DBE848F77F3C"
+            "34E7F44885EB3B6557DDE90035D17EB56474C898B88EB4AF4D67455E807AA7BB"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

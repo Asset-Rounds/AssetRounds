@@ -4244,11 +4244,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(zone, in: app)
         zone.tap()
         zone.typeText("America/New_York")
-        if let shard = automationShard, shard.shardID == "s10.4.minimum.bounded" {
+        if let shard = automationShard, shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented" {
             let enteredZoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")
             let enteredZoneAcknowledgements = ["s3.preflight.time-zone-confirmed", "s3.preflight.after-dark", "s3.preflight.safe-position"]
             guard diagnosticProbe == nil, automationSegment == .none,
-                  shard.ordinal == 14, shard.requirementID == "bounded",
+                  (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
+                    || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented"),
                   shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
                   enteredZoneFields.count == 1, zone.exists, zone.isEnabled,
                   (zone.value as? String) == "America/New_York",
@@ -7437,7 +7438,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.work.saving", in: app)
 
         let issueScreen: XCUIElement
-        if automationShard?.shardID == "s10.4.minimum.minimum-os" {
+        if automationShard?.shardID == "s10.4.minimum.minimum-os"
+            || (automationShard?.shardID == "s10.4.minimum.rtl-string"
+                && automationShard?.ordinal == 11
+                && automationShard?.requirementID == "rtl_string"
+                && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+                && diagnosticProbe == nil && automationSegment == .none) {
             issueScreen = app.scrollViews.matching(
                 identifier: "s5.1.issue.screen"
             ).firstMatch
