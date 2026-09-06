@@ -2360,6 +2360,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         residual in
                                         recognizedResidualDistance - residual
                                     }
+                                let measuredResponseGain = previousCommandedDragDistance.flatMap { command in
+                                    previousObservedMovement.flatMap { movement -> CGFloat? in
+                                        guard command.isFinite, movement.isFinite, command != 0 else { return nil }
+                                        let gain = movement / command
+                                        return gain.isFinite && gain > 0 ? gain : nil
+                                    }
+                                }
                                 let jointMaximumShift = min(
                                     maximumShift,
                                     liveApplicationFrame.minY - headingFrame.maxY
@@ -2368,24 +2375,22 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 if let previousCommandedDragDistance,
                                    let previousObservedMovement,
                                    let previousConfirmationMinYAfterDrag,
-                                   let previousCommandMinusObservedResidual,
-                                   let predictedRecognizedMovement,
+                                   let measuredResponseGain,
                                    previousCommandedDragDistance.isFinite,
                                    previousObservedMovement.isFinite,
-                                   previousCommandMinusObservedResidual.isFinite,
-                                   predictedRecognizedMovement.isFinite,
+                                   measuredResponseGain.isFinite,
                                    previousConfirmationMinYAfterDrag == confirmationFrame.minY,
                                    previousCommandedDragDistance <= -minimumGestureDistance,
                                    previousObservedMovement < 0,
-                                   previousCommandMinusObservedResidual < 0,
+                                   measuredResponseGain > 0,
                                    minimumShift <= jointMaximumShift {
                                     let minimumCommand = max(
                                         -receiverCapacity,
-                                        minimumShift + previousCommandMinusObservedResidual
+                                        minimumShift / measuredResponseGain
                                     )
                                     let maximumCommand = min(
                                         -minimumGestureDistance,
-                                        jointMaximumShift + previousCommandMinusObservedResidual
+                                        jointMaximumShift / measuredResponseGain
                                     )
                                     if minimumCommand.isFinite,
                                        maximumCommand.isFinite,
@@ -2393,7 +2398,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         let selectedCommand = minimumCommand
                                             + (maximumCommand - minimumCommand) / 2
                                         let predictedSelectedMovement = selectedCommand
-                                            - previousCommandMinusObservedResidual
+                                            * measuredResponseGain
                                         if selectedCommand.isFinite,
                                            predictedSelectedMovement.isFinite,
                                            selectedCommand >= -receiverCapacity,

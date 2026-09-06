@@ -3468,6 +3468,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let safeBottom = liveBottom - verticalInset",
             "let receiverInset: CGFloat = 24",
             "let minimumGestureDistance: CGFloat = 44",
+            "command != 0",
+            "let gain = movement / command",
+            "gain.isFinite && gain > 0",
+            "minimumShift / measuredResponseGain",
+            "jointMaximumShift / measuredResponseGain",
+            "* measuredResponseGain",
             "minimumCommand < maximumCommand",
             "(maximumCommand - minimumCommand) / 2",
             "predictedSelectedMovement >= minimumShift",
@@ -18146,10 +18152,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 888_239)
+        XCTAssertEqual(uiSource.utf8.count, 888_551)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "34E7F44885EB3B6557DDE90035D17EB56474C898B88EB4AF4D67455E807AA7BB"
+            "0EBFF798FEF76AB76305D236BA703E5CB2A073390E232D83F6CE786C92275A51"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
