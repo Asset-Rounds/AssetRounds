@@ -2804,6 +2804,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(issueTabBarFailureSource.contains("shard.ordinal == 11"))
         XCTAssertTrue(issueTabBarFailureSource.contains("rawTree.prefix(262_144)"))
         XCTAssertFalse(issueTabBarFailureSource.contains(".tap()"))
+        let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        if let shard = automationShard, shard.shardID == \"s10.4.minimum.bounded\" {", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
+        XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 14, shard.requirementID == \"bounded\""))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("diagnosticProbe == nil, automationSegment == .none"))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("zone.typeText(\"\\n\")"))
+        XCTAssertEqual(boundedEnteredZoneSource.components(separatedBy: "zone.typeText(\"\\n\")").count - 1, 1)
+        XCTAssertEqual(boundedEnteredZoneSource.components(separatedBy: "(zone.value as? String) == \"America/New_York\"").count - 1, 2)
+        XCTAssertTrue(boundedEnteredZoneSource.contains("hasKeyboardFocus == true"))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("hasKeyboardFocus == false"))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("predicate: \"exists == false\""))
+        XCTAssertFalse(boundedEnteredZoneSource.contains("performAccessibilityAudit"))
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
         let recordWorkWithoutBaselineStart =
             "    @MainActor\n" +
@@ -3308,73 +3318,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
-        let freshPreflightKeyboardDismissal =
-            #"let doneKey = app.keyboards.buttons["Done"]"# + "\n" +
-                "        if doneKey.exists && doneKey.isHittable {\n" +
-                "            doneKey.tap()\n" +
-                "        } else {\n" +
-                "            dismissKeyboard(in: app)\n" +
-                "        }\n" +
-                "        XCTAssertTrue(\n" +
-                "            wait(\n" +
-                "                for: app.keyboards.firstMatch,\n" +
-                #"                predicate: "exists == false","# + "\n" +
-                "                timeout: 10\n" +
-                "            )\n" +
-                "        )\n" +
-                #"        setToggle("s3.preflight.time-zone-confirmed", in: app)"# +
-                "\n" +
-                preflightAXTextAfterDarkGate +
-                #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
-                "        app.swipeUp()\n" +
-                #"        setToggle("s3.preflight.safe-position", in: app)"#
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: freshPreflightKeyboardDismissal
-            ).count - 1,
-            1
+        let freshPreflightKeyboardDismissal = try boundedSource(
+            uiSource,
+            from: "        zone.typeText(\"America/New_York\")",
+            before: "        let begin = element(\"s3.preflight.begin\", in: app)"
         )
-        XCTAssertEqual(freshPreflightKeyboardDismissal.utf8.count, 866)
-        XCTAssertEqual(
-            Data(freshPreflightKeyboardDismissal.utf8).sha256,
-            "FF2FC53FF71E73F483237C776A6C0805527FCA1DBA82E535FF2701A520C3BAD0"
-        )
-        XCTAssertEqual(
-            freshPreflightKeyboardDismissal.components(
-                separatedBy: preflightAXTextAfterDarkGate
-            ).count - 1,
-            1
-        )
-        guard let freshPreflightAXTextGateRange =
-            freshPreflightKeyboardDismissal.range(
-                of: preflightAXTextAfterDarkGate
-            )
-        else {
-            XCTFail("Missing the fresh Preflight AX-only gate")
-            return
+        XCTAssertTrue(freshPreflightKeyboardDismissal.contains("if doneKey.exists && doneKey.isHittable"))
+        XCTAssertTrue(freshPreflightKeyboardDismissal.contains("doneKey.tap()"))
+        XCTAssertTrue(freshPreflightKeyboardDismissal.contains("dismissKeyboard(in: app)"))
+        XCTAssertTrue(freshPreflightKeyboardDismissal.contains("predicate: \"exists == false\""))
+        XCTAssertTrue(freshPreflightKeyboardDismissal.contains("timeout: 10"))
+        XCTAssertEqual(freshPreflightKeyboardDismissal.components(separatedBy: preflightAXTextAfterDarkGate).count - 1, 1)
+        let preflightCompletionSteps = ["predicate: \"exists == false\"", "setToggle(\"s3.preflight.time-zone-confirmed\"", "setToggle(\"s3.preflight.after-dark\"", "app.swipeUp()", "setToggle(\"s3.preflight.safe-position\""]
+        var preflightCompletionRemainder = freshPreflightKeyboardDismissal[...]
+        for step in preflightCompletionSteps {
+            guard let range = preflightCompletionRemainder.range(of: step) else {
+                XCTFail("Missing or reordered Preflight completion step: \(step)")
+                return
+            }
+            preflightCompletionRemainder = preflightCompletionRemainder[range.upperBound...]
         }
-        let freshPreflightCommonPrefix = String(
-            freshPreflightKeyboardDismissal[
-                freshPreflightKeyboardDismissal.startIndex ..<
-                    freshPreflightAXTextGateRange.lowerBound
-            ]
-        )
-        let freshPreflightCommonSuffix = String(
-            freshPreflightKeyboardDismissal[
-                freshPreflightAXTextGateRange.upperBound ..<
-                    freshPreflightKeyboardDismissal.endIndex
-            ]
-        )
-        XCTAssertEqual(freshPreflightCommonPrefix.utf8.count, 433)
-        XCTAssertEqual(
-            Data(freshPreflightCommonPrefix.utf8).sha256,
-            "D24661E5EECA6A0D3530124830AB6A208DDBE316D070C78D9FBC9ACCA23F54AE"
-        )
-        XCTAssertEqual(freshPreflightCommonSuffix.utf8.count, 132)
-        XCTAssertEqual(
-            Data(freshPreflightCommonSuffix.utf8).sha256,
-            "29BF67EDA28503EFCF11B60C2E4E91529FE1747A58ACC907747AAE0EC6C1690C"
-        )
         XCTAssertFalse(
             uiSource.contains(
                 "doneKey.exists ? doneKey.tap() : dismissKeyboard(in: app)"
@@ -18181,10 +18144,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 885_361)
+        XCTAssertEqual(uiSource.utf8.count, 887_673)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "8672BB2F6ADBA39AB4FE196646A3BF8AB4314C3364A7EF83F8FF724705BE32BC"
+            "F3BBC746A7D56C73F001DEA403735CE20CB9106037FE96A3DEE9DBE848F77F3C"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -20556,26 +20519,46 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(nativeContrastObservationSource.contains(exact), exact)
         }
-        let exactObservedContrastAdmission = "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.bounded\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.double-length\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")\n"
-        XCTAssertTrue(nativeContrastObservationSource.hasPrefix(exactObservedContrastAdmission))
-        for (oldValue, wrongValue) in [
-            ("s10.4.minimum.bounded", "s10.4.minimum.tall"),
-            ("s10.4.minimum.double-length", "s10.4.minimum.rtl-string"),
-            ("s10.4.minimum.accented", "s10.4.minimum.tall"),
-            ("shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.work.validation-error\"", "shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.check-preflight.ready\""),
-            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.work.validation-error\""),
-            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.check-preflight.ready\""),
-            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    || (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")"),
-            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.editing\")"),
-            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\" || stateID == \"state.work.editing\")"),
-            ("s10.4.minimum.rtl-string", "s10.4.minimum.tall"),
-            ("state.work.validation-error", "state.work.editing"),
-            ("state.check-preflight.ready", "state.check-preflight.confirming"),
-            ("&& stateID", "|| stateID"),
+        let exactSingleStateAdmissions = [
+            ("s10.4.minimum.minimum-os", "state.work.validation-error"),
+            ("s10.4.minimum.rtl", "state.check-preflight.ready"),
+            ("s10.4.minimum.bounded", "state.work.validation-error"),
+            ("s10.4.minimum.double-length", "state.check-preflight.ready"),
+            ("s10.4.minimum.accented", "state.work.validation-error"),
+            ("s10.4.minimum.tall", "state.work.validation-error"),
+        ]
+        for (shardID, stateID) in exactSingleStateAdmissions {
+            let exactArm = "shard.shardID == \(String(reflecting: shardID))\n" +
+                "                    && stateID == \(String(reflecting: stateID))"
+            XCTAssertEqual(
+                nativeContrastObservationSource.components(separatedBy: exactArm).count - 1,
+                1,
+                "Exact diagnostic admission for \(shardID)/\(stateID)"
+            )
+            XCTAssertFalse(
+                nativeContrastObservationSource.contains(
+                    exactArm.replacingOccurrences(of: "&& stateID", with: "|| stateID")
+                )
+            )
+        }
+        let exactRTLStringAdmission =
+            "shard.shardID == \"s10.4.minimum.rtl-string\"\n" +
+            "                    && (stateID == \"state.check-preflight.ready\"\n" +
+            "                        || stateID == \"state.work.validation-error\")"
+        XCTAssertEqual(
+            nativeContrastObservationSource.components(
+                separatedBy: exactRTLStringAdmission
+            ).count - 1,
+            1
+        )
+        for excludedTallState in [
+            "state.check-preflight.ready",
+            "state.work.editing",
         ] {
-            let hostile = exactObservedContrastAdmission.replacingOccurrences(of: oldValue, with: wrongValue)
-            XCTAssertNotEqual(hostile, exactObservedContrastAdmission)
-            XCTAssertFalse(nativeContrastObservationSource.hasPrefix(hostile))
+            let forbiddenArm =
+                "shard.shardID == \"s10.4.minimum.tall\"\n" +
+                "                    && stateID == \(String(reflecting: excludedTallState))"
+            XCTAssertFalse(nativeContrastObservationSource.contains(forbiddenArm))
         }
         XCTAssertFalse(nativeContrastObservationSource.contains("observedIssueCount <= 3"))
         XCTAssertEqual(

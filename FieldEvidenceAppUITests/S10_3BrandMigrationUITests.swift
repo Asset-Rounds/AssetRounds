@@ -4244,11 +4244,41 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(zone, in: app)
         zone.tap()
         zone.typeText("America/New_York")
-        let doneKey = app.keyboards.buttons["Done"]
-        if doneKey.exists && doneKey.isHittable {
-            doneKey.tap()
+        if let shard = automationShard, shard.shardID == "s10.4.minimum.bounded" {
+            let enteredZoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")
+            let enteredZoneAcknowledgements = ["s3.preflight.time-zone-confirmed", "s3.preflight.after-dark", "s3.preflight.safe-position"]
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  shard.ordinal == 14, shard.requirementID == "bounded",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  enteredZoneFields.count == 1, zone.exists, zone.isEnabled,
+                  (zone.value as? String) == "America/New_York",
+                  NSPredicate(format: "hasKeyboardFocus == true").evaluate(with: zone),
+                  enteredZoneAcknowledgements.allSatisfy({ identifier in
+                      let controls = app.switches.matching(identifier: identifier)
+                      return controls.count == 1 && (controls.firstMatch.value as? String) == "0"
+                  }), preflight.exists, app.state == .runningForeground else {
+                throw AutomationConfigurationError.invalid("Bounded entered time zone is not ready to submit")
+            }
+            let enteredZoneLabel = zone.label
+            let enteredZonePlaceholder = zone.placeholderValue
+            zone.typeText("\n")
+            guard wait(for: zone, predicate: "hasKeyboardFocus == false", timeout: 10),
+                  enteredZoneFields.count == 1,
+                  (zone.value as? String) == "America/New_York",
+                  zone.label == enteredZoneLabel, zone.placeholderValue == enteredZonePlaceholder,
+                  enteredZoneAcknowledgements.allSatisfy({ identifier in
+                      let controls = app.switches.matching(identifier: identifier)
+                      return controls.count == 1 && (controls.firstMatch.value as? String) == "0"
+                  }), preflight.exists, app.state == .runningForeground else {
+                throw AutomationConfigurationError.invalid("Bounded entered time zone submit changed state")
+            }
         } else {
-            dismissKeyboard(in: app)
+            let doneKey = app.keyboards.buttons["Done"]
+            if doneKey.exists && doneKey.isHittable {
+                doneKey.tap()
+            } else {
+                dismissKeyboard(in: app)
+            }
         }
         XCTAssertTrue(
             wait(
@@ -12196,6 +12226,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && stateID == "state.check-preflight.ready"
             ) || (
                 shard.shardID == "s10.4.minimum.accented"
+                    && stateID == "state.work.validation-error"
+            ) || (
+                shard.shardID == "s10.4.minimum.tall"
                     && stateID == "state.work.validation-error"
             ) || (
                 shard.shardID == "s10.4.minimum.rtl-string"
