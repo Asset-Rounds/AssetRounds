@@ -15496,6 +15496,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let preWorkScreenIdentifier = workScreen.identifier
         let preDescriptionIdentifier = descriptionField.identifier
         let preDescriptionLabel = descriptionField.label
+        let preDescriptionPlaceholderValue = descriptionField.placeholderValue
         let preValidationIdentifier = validationLabel.identifier
         let preValidationLabel = validationLabel.label
         let preNoteHeadingLabel = noteHeading.label
@@ -15531,8 +15532,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if !descriptionField.isHittable { return "description-hittable" }
             if preDescriptionIdentifier != "s5.1.work.description" { return "description-identifier" }
             if preDescriptionLabel != "\u{202E}Short description\u{202C}" { return "description-label" }
-            if (descriptionField.value as? String) != "" {
-                return "description-empty-value"
+            if preDescriptionPlaceholderValue != "\u{202E}Short description\u{202C}"
+                || (descriptionField.value as? String) != preDescriptionPlaceholderValue {
+                return "description-placeholder-value"
             }
             if !validationLabel.exists { return "validation-exists" }
             if !validationLabel.isEnabled { return "validation-enabled" }
@@ -15700,8 +15702,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if postDescriptionField.label != preDescriptionLabel {
                 return "post-description-label"
             }
-            if (postDescriptionField.value as? String) != "" {
-                return "post-description-empty-value"
+            if postDescriptionField.placeholderValue != preDescriptionPlaceholderValue
+                || (postDescriptionField.value as? String) != preDescriptionPlaceholderValue {
+                return "post-description-placeholder-value"
             }
             if !postValidationLabel.exists { return "post-validation-exists" }
             if !postValidationLabel.isEnabled { return "post-validation-enabled" }

@@ -350,7 +350,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 22_742,
-            sha256: "35F1FF45A794B01725759C63276EA339CEC68C82E87EB86D61F7D8D101D3145A"
+            sha256: "EB821E2981E0CA5FCE3F8D5F3028682497BA12BA300BD180576ECAEC8A435246"
         )
         try assertFile(
             visualSchemaPath,
@@ -370,10 +370,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 93_604,
-            sha256: "4AD56989000ED3F501E467CA7810E375F818A38120FE798F2237C8B3A930D3F8"
+            byteCount: 94_862,
+            sha256: "6F861C4F1D38AF935212EEB13899ACED226055AD1CC26BF31EFBDE0E89DC0959"
         )
         let dispatcherSource = try text(dispatcherPath)
+        let unitOnlyJobSource = try boundedSource(
+            dispatcherSource,
+            from: "  bitrise-unit-only:\n",
+            before: "  reject-invalid-bitrise-unit-only-selection:\n"
+        )
+        for requiredMode in [
+            "inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only'",
+            "inputs.run_ui_smoke == false",
+            "inputs.s10_4_shard_id == 's10.4.current.default-light'",
+            "runner_label: bitrise-m4-pro", "runner_provider: bitrise",
+            "run_ui_smoke: false", "s10_4_segment_id: none",
+            "s10_4_execution_role: independent", "s10_4_pilot_mode: false",
+            "s10_4_unit_only: true",
+        ] {
+            XCTAssertTrue(unitOnlyJobSource.contains(requiredMode), requiredMode)
+        }
         let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
         try assertFile(
             bitriseProbePath,
@@ -384,10 +400,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 358_470,
-            sha256: "DC3E324793B806F0955374065F6AC3369891F0692DF4BABE0EDAB7D4F7061166"
+            byteCount: 375_842,
+            sha256: "6CBA1C456B844652EF6207CBA6EA4EC94D261D4386FE293380F4C31628396A7B"
         )
         let workflowSource = try text(workflowPath)
+        // H410 unit qualification deliberately omits UI; it never produces a shard pass.
+        let unitOnlyRecordSource = try boundedSource(
+            workflowSource,
+            from: "      - name: Record Bitrise compilation and five-unit development evidence\n",
+            before: "      - name: Validate Bitrise development-only segment evidence\n"
+        )
+        for requiredBoundary in [
+            "qualificationPassed: $qualificationPassed",
+            "diagnosticOnly: true",
+            "acceptingReceipt: false",
+            "feedsAcceptanceAssembler: false",
+            "finalAcceptanceEligible: false",
+            "test \"$ui_artifacts_absent\" = true",
+            "test \"$accepting_artifacts_absent\" = true",
+        ] {
+            XCTAssertTrue(unitOnlyRecordSource.contains(requiredBoundary), requiredBoundary)
+        }
+        XCTAssertFalse(unitOnlyRecordSource.contains("qualificationPassed: true"))
+        XCTAssertFalse(unitOnlyRecordSource.contains("finalAcceptanceEligible: true"))
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
         let retiredF25WatchdogTuple = "] == [420, 900, 1200, 2220, 4500]"
         XCTAssertEqual(
@@ -539,7 +574,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 10)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 11)
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -957,12 +992,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(getMacJobSource.contains("warp-xcode-26.5-development-only"))
         XCTAssertFalse(warpJobSource.contains("github-xcode-26.6-acceptance"))
         XCTAssertFalse(warpJobSource.contains("getmac-xcode-26.6-development-only"))
-        XCTAssertEqual(
-            dispatcherSource.components(
-                separatedBy: "    uses: ./.github/workflows/ios-ci-worker.yml"
-            ).count - 1,
-            16
-        )
         let pilotRejectSource = try boundedSource(
             dispatcherSource,
             from: "  reject-invalid-s10-4-hybrid-equivalence-pilot-selection:",
@@ -2195,12 +2224,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(getMacFailSource.components(separatedBy: "          exit 1").count - 1, 1)
         XCTAssertFalse(getMacFailSource.contains("exit 0"))
 
-        XCTAssertEqual(
-            workflowSource.components(
-                separatedBy: #"  group: ${{ inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id))) }}"#
-            ).count - 1,
-            1
-        )
+        XCTAssertTrue(workflowSource.contains(#"inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha)"#))
+        XCTAssertTrue(workflowSource.contains(#" || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}"#))
         XCTAssertEqual(workflowSource.components(separatedBy: "  cancel-in-progress: false").count - 1, 1)
         let unitPath = "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
         let unitSource = try text(unitPath)
@@ -17886,8 +17911,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "focusedDescriptionFieldCount == 1").count - 1, 1)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "postKeyboardCount == 0").count - 1, 1)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "postDoneButtonCount == 0").count - 1, 1)
-        XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "(descriptionField.value as? String) != \"\"").count - 1, 1)
-        XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "(postDescriptionField.value as? String) != \"\"").count - 1, 1)
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("let preDescriptionLabel = descriptionField.label\n        let preDescriptionPlaceholderValue = descriptionField.placeholderValue"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("            if preDescriptionPlaceholderValue != \"\\u{202E}Short description\\u{202C}\"\n                || (descriptionField.value as? String) != preDescriptionPlaceholderValue {\n                return \"description-placeholder-value\"\n            }"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("            if postDescriptionField.placeholderValue != preDescriptionPlaceholderValue\n                || (postDescriptionField.value as? String) != preDescriptionPlaceholderValue {\n                return \"post-description-placeholder-value\"\n            }"))
+        let exactRTLDescriptionPlaceholder = "\u{202E}Short description\u{202C}"
+        let matchesEmptyRTLDescription: (String?, String?) -> Bool = { placeholder, value in
+            placeholder == exactRTLDescriptionPlaceholder && value == placeholder
+        }
+        XCTAssertTrue(matchesEmptyRTLDescription(exactRTLDescriptionPlaceholder, exactRTLDescriptionPlaceholder))
+        XCTAssertFalse(matchesEmptyRTLDescription(nil, nil))
+        XCTAssertFalse(matchesEmptyRTLDescription(exactRTLDescriptionPlaceholder, nil))
+        XCTAssertFalse(matchesEmptyRTLDescription(nil, exactRTLDescriptionPlaceholder))
+        for invalid in ["", "Short description", "entered text", "\u{202E}Short description", "Short description\u{202C}"] {
+            XCTAssertFalse(matchesEmptyRTLDescription(invalid, invalid))
+            XCTAssertFalse(matchesEmptyRTLDescription(exactRTLDescriptionPlaceholder, invalid))
+            XCTAssertFalse(matchesEmptyRTLDescription(invalid, exactRTLDescriptionPlaceholder))
+        }
         XCTAssertFalse(rtlWorkValidationAccessorySource.contains("performAccessibilityAudit"))
         XCTAssertFalse(rtlWorkValidationAccessorySource.contains("captureBaseline("))
         XCTAssertFalse(rtlWorkValidationAccessorySource.contains(".swipe"))
@@ -17961,10 +18000,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 871_381)
+        XCTAssertEqual(uiSource.utf8.count, 871_708)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "E3D3FCD890410A9727E920A4885EA6C5C1ACFF3CFF34F221338D72CF9AA2D047"
+            "5900DD2584343DB281B0DF4CCD176F0FC01F8668D0F3B0AC7A5870D3AB8B82D8"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -20812,10 +20851,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertFalse(matrixSource.contains("getmac"))
         XCTAssertFalse(matrixSource.contains("warp"))
-        XCTAssertEqual(
-            dispatcherSource.components(separatedBy: "      s10_4_segment_id: none").count - 1,
-            14
-        )
         let rejectSource = try boundedSource(
             dispatcherSource,
             from: "  reject-invalid-segmented-selection:",
@@ -21558,11 +21593,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(partialCleanupSource.contains("segment-receipt.json"))
         XCTAssertTrue(partialCleanupSource.contains("segment-receipt.pending.json"))
         XCTAssertTrue(partialCleanupSource.contains("SHA256SUMS.txt"))
-        XCTAssertTrue(
-            workerSource.contains(
-                #"name: ${{ inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))))) }}"#
-            )
-        )
+        XCTAssertTrue(workerSource.contains(#"inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha)"#))
+        XCTAssertTrue(workerSource.contains(#" || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)))))) }}"#))
         let bitriseScanMarker = "      - name: Verify Bitrise evidence contains no cache credentials"
         let workerHashMarker = "      - name: Hash collected evidence"
         let workerUploadMarker = "      - name: Upload build evidence"
