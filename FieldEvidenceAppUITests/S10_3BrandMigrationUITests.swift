@@ -6059,7 +6059,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     if let shard = automationShard,
                        shard.shardID == "s10.4.minimum.bounded"
                         || shard.shardID == "s10.4.minimum.accented"
-                        || shard.shardID == "s10.4.minimum.rtl-string" {
+                        || shard.shardID == "s10.4.minimum.rtl-string"
+                        || shard.shardID == "s10.4.minimum.tall" {
                         // Failure-only evidence: all inputs below were cached before this guard.
                         let failedGuardPredicates: [String: Bool] = [
                             "preActionAppForeground": preActionAppForeground,

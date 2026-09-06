@@ -5093,14 +5093,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "                    throw AutomationConfigurationError.invalid(\n" +
                 "                        \"S10.4 minimum work-validation QuickPath state changed before dismissal\""
         )
-        let exactCachedGuardAdmission = "                    if let shard = automationShard,\n                       shard.shardID == \"s10.4.minimum.bounded\"\n                        || shard.shardID == \"s10.4.minimum.accented\"\n                        || shard.shardID == \"s10.4.minimum.rtl-string\" {"
+        let exactCachedGuardAdmission = "                    if let shard = automationShard,\n                       shard.shardID == \"s10.4.minimum.bounded\"\n                        || shard.shardID == \"s10.4.minimum.accented\"\n                        || shard.shardID == \"s10.4.minimum.rtl-string\"\n                        || shard.shardID == \"s10.4.minimum.tall\" {"
         XCTAssertTrue(minimumQuickPathGuardObservation.hasPrefix(exactCachedGuardAdmission))
-        for wrongProfile in ["s10.4.minimum.rtl", "s10.4.minimum.tall", "s10.4.minimum.double-length", "s10.4.current.default-light"] {
+        for wrongProfile in ["s10.4.minimum.rtl", "s10.4.minimum.minimum-os", "s10.4.minimum.double-length", "s10.4.current.default-light"] {
             let hostile = exactCachedGuardAdmission.replacingOccurrences(of: "s10.4.minimum.rtl-string", with: wrongProfile)
             XCTAssertNotEqual(hostile, exactCachedGuardAdmission)
             XCTAssertFalse(minimumQuickPathGuardObservation.hasPrefix(hostile))
         }
         for requiredGuardObservation in [
+            #"shard.shardID == "s10.4.minimum.tall""#,
             #"shard.shardID == "s10.4.minimum.accented""#,
             #"prefix: "S10_4_WORK_VALIDATION_QUICKPATH_GUARD_FAILURE""#,
             #""acceptanceEligible": false"#,
@@ -18077,10 +18078,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 881_413)
+        XCTAssertEqual(uiSource.utf8.count, 881_478)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "AE8E625E4536E159E1927F698AADED9BCEACF3EFE5990440A1D8ADED644D7083"
+            "68D46D44EE0D6FB54548FB42C85F1622A0F376CD858BF4CA1F7CA2B4666D1B4F"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
