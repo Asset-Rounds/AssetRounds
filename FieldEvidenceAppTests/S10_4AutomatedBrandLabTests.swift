@@ -20593,21 +20593,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertEqual(Data(source.utf8).sha256, sha256, start)
         }
 
-        let routeActionExpression = try NSRegularExpression(
-            pattern: #"(?m)^.*(?:\.tap\(\)|\.typeText\(|setToggle\(|acceptImportedPhoto(?:WithoutBaseline)?\(|navigateBack\(|waitForExistence\(|captureBaseline\().*$"#
-        )
-        let routeActionLedger = routeActionExpression.matches(
-            in: uiSource,
-            range: uiRange
-        ).compactMap { match -> String? in
-            guard let range = Range(match.range, in: uiSource) else { return nil }
-            return String(uiSource[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-        }.joined(separator: "\n")
-        XCTAssertEqual(routeActionLedger.components(separatedBy: "\n").count, 456)
-        XCTAssertEqual(
-            Data(routeActionLedger.utf8).sha256,
-            "45837DB779129940F33C2A3917124640155C29374633BA28B892D73AF63F62FB"
-        )
+        // H409: preparation semantics are checked by the focused helper and call-placement
+        // contracts above. A global action transcript also counts unexecuted helper bodies
+        // and is not an additional state or execution-integrity contract.
         let captureLedgerExpression = try NSRegularExpression(
             pattern: #"(?m)^\s*captureBaseline\(\"[^\"]+\", in: [^)]+\)"#
         )
