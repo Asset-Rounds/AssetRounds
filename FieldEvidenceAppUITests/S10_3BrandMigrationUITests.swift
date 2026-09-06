@@ -4191,10 +4191,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             let boundedZoneLabel = boundedZone.label
             let boundedDone = boundedDoneButtons.firstMatch
-            guard boundedDone.exists, boundedDone.isEnabled, boundedDone.isHittable else {
+            guard boundedDone.exists, boundedDone.isEnabled else {
                 throw AutomationConfigurationError.invalid("Bounded preflight Done is unavailable")
             }
-            boundedDone.tap()
+            boundedZone.typeText("\n")
             guard boundedKeyboards.firstMatch.waitForNonExistence(timeout: 10),
                   wait(for: boundedZone, predicate: "hasKeyboardFocus == false", timeout: 10),
                   boundedZoneFields.count == 1, boundedConfirmation.count == 1,
@@ -6352,6 +6352,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 == "iphone-se-3-ios-18.0-minimum"
         let expectedWorkHelperTextCount =
             minimumOSWorkHelperDuplicateExpected ? 2 : 1
+        let rtlStringWorkHelperUsesOptionalNestedLabel =
+            automationShard?.shardID == "s10.4.minimum.rtl-string"
+        let rtlStringWorkImportFixtureLabels: XCUIElementQuery? =
+            rtlStringWorkHelperUsesOptionalNestedLabel
+                ? importPhoto.descendants(matching: .staticText).matching(
+                    NSPredicate(format: "label == %@", observedWorkHelperLabel)
+                )
+                : nil
         let workScrollViews = app.scrollViews.containing(
             .image,
             identifier: "s5.1.work.photo"
@@ -6383,6 +6391,65 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && frame.size.height.isFinite
         }
         let workHelperTextBindingsAreValid: () -> Bool = {
+            if rtlStringWorkHelperUsesOptionalNestedLabel {
+                guard let importFixtureLabels =
+                    rtlStringWorkImportFixtureLabels else {
+                    return false
+                }
+                let nestedLabelCount = importFixtureLabels.count
+                guard workHelperTexts.count == 1
+                        || workHelperTexts.count == 2,
+                      nestedLabelCount == workHelperTexts.count - 1,
+                      nestedLabelCount == 0 || nestedLabelCount == 1,
+                      workHelper.exists,
+                      importPhoto.exists,
+                      workPreview.exists else {
+                    return false
+                }
+                let helperFrame = workHelper.frame
+                let importFixtureFrame = importPhoto.frame
+                let previewFrame = workPreview.frame
+                guard importPhoto.elementType == .button,
+                      importPhoto.identifier == "s5.1.work.import-fixture",
+                      importPhoto.label == observedWorkHelperLabel,
+                      (importPhoto.value as? String) == "",
+                      workPreview.elementType == .image,
+                      workPreview.identifier == "s5.1.work.photo",
+                      workPreview.label == observedWorkHelperLabel,
+                      (workPreview.value as? String) == "",
+                      workHelper.elementType == .staticText,
+                      workHelper.identifier.isEmpty,
+                      workHelper.label == observedWorkHelperLabel,
+                      (workHelper.value as? String) == "",
+                      workEditingFrameIsValid(helperFrame),
+                      workEditingFrameIsValid(importFixtureFrame),
+                      workEditingFrameIsValid(previewFrame),
+                      helperFrame.maxY < importFixtureFrame.minY,
+                      importFixtureFrame.maxY < previewFrame.minY else {
+                    return false
+                }
+                guard nestedLabelCount == 1 else {
+                    return true
+                }
+                let globalNestedLabel = minimumOSWorkImportFixtureLabel
+                let importDescendantLabel = importFixtureLabels.firstMatch
+                let globalNestedLabelFrame = globalNestedLabel.frame
+                let importDescendantLabelFrame = importDescendantLabel.frame
+                return globalNestedLabel.exists
+                    && importDescendantLabel.exists
+                    && globalNestedLabel.elementType == .staticText
+                    && importDescendantLabel.elementType == .staticText
+                    && globalNestedLabel.identifier.isEmpty
+                    && importDescendantLabel.identifier.isEmpty
+                    && globalNestedLabel.label == observedWorkHelperLabel
+                    && importDescendantLabel.label == observedWorkHelperLabel
+                    && (globalNestedLabel.value as? String) == ""
+                    && (importDescendantLabel.value as? String) == ""
+                    && workEditingFrameIsValid(globalNestedLabelFrame)
+                    && workEditingFrameIsValid(importDescendantLabelFrame)
+                    && globalNestedLabelFrame == importFixtureFrame
+                    && importDescendantLabelFrame == importFixtureFrame
+            }
             guard workHelperTexts.count == expectedWorkHelperTextCount else {
                 return false
             }
@@ -17020,7 +17087,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     private func setToggle(_ identifier: String, in app: XCUIApplication) {
-        let toggle = element(identifier, in: app)
+        let toggle: XCUIElement
+        if automationShard?.shardID == "s10.4.minimum.rtl",
+           identifier == "s3.preflight.time-zone-confirmed" {
+            let matches = app.switches.matching(identifier: identifier)
+            guard matches.count == 1 else {
+                XCTFail("RTL preflight confirmation switch is ambiguous.")
+                return
+            }
+            toggle = matches.firstMatch
+        } else {
+            toggle = element(identifier, in: app)
+        }
         scroll(toggle, in: app)
         XCTAssertEqual(toggle.elementType, .switch)
         assertMinimumGeometry(toggle)

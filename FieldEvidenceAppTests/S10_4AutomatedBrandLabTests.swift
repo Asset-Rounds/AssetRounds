@@ -2774,7 +2774,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertTrue(boundedPreflightPreparation.contains("guard diagnosticProbe == nil, automationSegment == .none,"))
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 14, shard.requirementID == \"bounded\","))
-        XCTAssertTrue(boundedPreflightPreparation.contains("boundedDone.tap()"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("boundedZone.typeText(\"\\n\")"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("guard boundedDone.exists, boundedDone.isEnabled else"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("hasKeyboardFocus == true"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("boundedKeyboards.firstMatch.waitForNonExistence(timeout: 10)"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("hasKeyboardFocus == false"))
+        XCTAssertFalse(boundedPreflightPreparation.contains(".tap()"))
         XCTAssertTrue(boundedPreflightPreparation.contains("(boundedZone.value as? String) == boundedZoneValue"))
         XCTAssertTrue(boundedPreflightPreparation.contains("(boundedConfirmation.firstMatch.value as? String) == boundedConfirmationValue"))
         XCTAssertTrue(boundedPreflightPreparation.contains("!boundedBeginButtons.firstMatch.isEnabled"))
@@ -2786,7 +2791,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(boundedPreflightPreparation.contains("captureBaseline("))
         XCTAssertTrue(boundedPreflightPreparation.contains("boundedZone.placeholderValue == boundedZonePlaceholder"))
         XCTAssertTrue(boundedPreflightPreparation.contains("boundedConfirmationValue == \"0\""))
-        XCTAssertEqual(boundedPreflightPreparation.components(separatedBy: "boundedDone.tap()").count - 1, 1)
+        XCTAssertEqual(boundedPreflightPreparation.components(separatedBy: "boundedZone.typeText(\"\\n\")").count - 1, 1)
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
         let recordWorkWithoutBaselineStart =
             "    @MainActor\n" +
@@ -6591,26 +6596,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             0
         )
 
-        let unchangedGlobalSetToggleHelper =
-            "    @MainActor\n" +
-                "    private func setToggle(_ identifier: String, " +
-                "in app: XCUIApplication) {\n" +
-                "        let toggle = element(identifier, in: app)\n" +
-                "        scroll(toggle, in: app)\n" +
-                "        XCTAssertEqual(toggle.elementType, .switch)\n" +
-                "        assertMinimumGeometry(toggle)\n" +
-                #"        if (toggle.value as? String) != "1" {"# + "\n" +
-                "            toggle.tap()\n" +
-                "        }\n" +
-                #"        XCTAssertTrue(wait(for: toggle, predicate: "value == '1'", timeout: 10))"# +
-                "\n" +
-                "    }"
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: unchangedGlobalSetToggleHelper
-            ).count - 1,
-            1
-        )
+        let toggleHelperStart = try XCTUnwrap(uiSource.range(of:
+            "    private func setToggle(_ identifier: String, in app: XCUIApplication) {"))
+        let toggleHelperEnd = try XCTUnwrap(uiSource.range(of:
+            "    private func assertText(", range: toggleHelperStart.upperBound..<uiSource.endIndex))
+        let toggleHelper = String(uiSource[toggleHelperStart.lowerBound..<toggleHelperEnd.lowerBound])
+        XCTAssertTrue(toggleHelper.contains("automationShard?.shardID == \"s10.4.minimum.rtl\""))
+        XCTAssertTrue(toggleHelper.contains("identifier == \"s3.preflight.time-zone-confirmed\""))
+        XCTAssertTrue(toggleHelper.contains("app.switches.matching(identifier: identifier)"))
+        XCTAssertTrue(toggleHelper.contains("guard matches.count == 1 else"))
+        XCTAssertTrue(toggleHelper.contains("toggle = matches.firstMatch"))
+        XCTAssertTrue(toggleHelper.contains("toggle = element(identifier, in: app)"))
+        XCTAssertTrue(toggleHelper.contains("scroll(toggle, in: app)"))
+        XCTAssertTrue(toggleHelper.contains("XCTAssertEqual(toggle.elementType, .switch)"))
+        XCTAssertTrue(toggleHelper.contains("assertMinimumGeometry(toggle)"))
+        XCTAssertTrue(toggleHelper.contains("if (toggle.value as? String) != \"1\""))
+        XCTAssertEqual(toggleHelper.components(separatedBy: "toggle.tap()").count - 1, 1)
+        XCTAssertTrue(toggleHelper.contains("XCTAssertTrue(wait(for: toggle, predicate: \"value == '1'\", timeout: 10))"))
 
         // Native profile tests own this preparation geometry; keep its route binding.
         XCTAssertTrue(uiSource.contains("    @MainActor\n    private func dismissKeyboard(in app: XCUIApplication) {"))
@@ -7052,7 +7054,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             ("label: workHelperLabel", 1),
             ("let observedWorkHelperLabel = workPreview.label", 1),
-            (#"NSPredicate(format: "label == %@", observedWorkHelperLabel)"#, 1),
+            (#"NSPredicate(format: "label == %@", observedWorkHelperLabel)"#, 2),
             (#"NSPredicate(format: "label == %@", workHelperLabel)"#, 0),
         ] {
             XCTAssertEqual(
@@ -7120,77 +7122,39 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let workEditingPassiveBindings =
-            "        let workHelperTexts = app.staticTexts.matching(\n" +
-                #"            NSPredicate(format: "label == %@", observedWorkHelperLabel)"# + "\n" +
-                "        )\n" +
-                "        let minimumOSWorkHelperDuplicateExpected =\n" +
-                "            automationShard?.deviceProfileID\n" +
-                #"                == "iphone-se-3-ios-18.0-minimum""# + "\n" +
-                "        let expectedWorkHelperTextCount =\n" +
-                "            minimumOSWorkHelperDuplicateExpected ? 2 : 1\n" +
-                "        let workScrollViews = app.scrollViews.containing(\n" +
-                "            .image,\n" +
-                #"            identifier: "s5.1.work.photo""# + "\n" +
-                "        )\n" +
-                "        let workNavigationBars = app.navigationBars.matching(\n" +
-                "            identifier: observedRecordWorkTitle\n" +
-                "        )"
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingPassiveBindings
-            ).count - 1,
-            1
-        )
-        let workEditingMinimumOSHelperDisambiguation =
-            "        let workHelper = workHelperTexts.firstMatch\n" +
-                "        let minimumOSWorkImportFixtureLabel = workHelperTexts.element(boundBy: 1)\n" +
-                "        let workScrollView = workScrollViews.firstMatch\n" +
-                "        let workNavigationBar = workNavigationBars.firstMatch\n" +
-                "        let verticalInset: CGFloat = 16\n" +
-                "        let receiverInset: CGFloat = 24\n" +
-                "        let minimumGestureDistance: CGFloat = 44\n"
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingMinimumOSHelperDisambiguation
-            ).count - 1,
-            1
-        )
-        let workEditingMinimumOSHelperValidation =
-            "        let workHelperTextBindingsAreValid: () -> Bool = {\n" +
-                "            guard workHelperTexts.count == expectedWorkHelperTextCount else {\n" +
-                "                return false\n" +
-                "            }\n" +
-                "            guard minimumOSWorkHelperDuplicateExpected else {\n" +
-                "                return true\n" +
-                "            }\n" +
-                "            guard workHelper.exists,\n" +
-                "                  importPhoto.exists,\n" +
-                "                  minimumOSWorkImportFixtureLabel.exists else {\n" +
-                "                return false\n" +
-                "            }\n" +
-                "            let helperFrame = workHelper.frame\n" +
-                "            let importFixtureFrame = importPhoto.frame\n" +
-                "            let nestedLabelFrame = minimumOSWorkImportFixtureLabel.frame\n" +
-                "            return importPhoto.elementType == .button\n" +
-                #"                && importPhoto.identifier == "s5.1.work.import-fixture""# + "\n" +
-                "                && importPhoto.label == observedWorkHelperLabel\n" +
-                "                && minimumOSWorkImportFixtureLabel.elementType == .staticText\n" +
-                "                && minimumOSWorkImportFixtureLabel.identifier.isEmpty\n" +
-                "                && minimumOSWorkImportFixtureLabel.label == observedWorkHelperLabel\n" +
-                #"                && (minimumOSWorkImportFixtureLabel.value as? String) == """# + "\n" +
-                "                && workEditingFrameIsValid(helperFrame)\n" +
-                "                && workEditingFrameIsValid(importFixtureFrame)\n" +
-                "                && workEditingFrameIsValid(nestedLabelFrame)\n" +
-                "                && nestedLabelFrame == importFixtureFrame\n" +
-                "                && helperFrame != nestedLabelFrame\n" +
-                "                && helperFrame.maxY < nestedLabelFrame.minY\n" +
-                "        }"
-        XCTAssertEqual(
-            workEditingPositioningSource.components(
-                separatedBy: workEditingMinimumOSHelperValidation
-            ).count - 1,
-            1
+        for workEditingHelperBinding in [
+            "let workHelperTexts = app.staticTexts.matching(",
+            #"automationShard?.shardID == "s10.4.minimum.rtl-string""#,
+            "rtlStringWorkHelperUsesOptionalNestedLabel\n                ? importPhoto.descendants",
+            "importPhoto.descendants(matching: .staticText).matching(",
+            "if rtlStringWorkHelperUsesOptionalNestedLabel {",
+            "let workHelper = workHelperTexts.firstMatch",
+            "let workHelperTextBindingsAreValid: () -> Bool = {",
+            "nestedLabelCount == workHelperTexts.count - 1",
+            "nestedLabelCount == 0 || nestedLabelCount == 1",
+            #"importPhoto.identifier == "s5.1.work.import-fixture""#,
+            #"workPreview.identifier == "s5.1.work.photo""#,
+            "helperFrame.maxY < importFixtureFrame.minY",
+            "importFixtureFrame.maxY < previewFrame.minY",
+            "let globalNestedLabel = minimumOSWorkImportFixtureLabel",
+            "let importDescendantLabel = importFixtureLabels.firstMatch",
+            "importDescendantLabel.identifier.isEmpty",
+            "importDescendantLabel.label == observedWorkHelperLabel",
+            #"(importDescendantLabel.value as? String) == """#,
+            "globalNestedLabelFrame == importFixtureFrame",
+            "importDescendantLabelFrame == importFixtureFrame",
+            "guard workHelperTexts.count == expectedWorkHelperTextCount else {",
+            "guard minimumOSWorkHelperDuplicateExpected else {",
+        ] {
+            XCTAssertTrue(
+                workEditingPositioningSource.contains(workEditingHelperBinding),
+                workEditingHelperBinding
+            )
+        }
+        XCTAssertFalse(
+            workEditingPositioningSource.contains(
+                "workHelperTexts.count == 1 || workHelperTexts.count == 2"
+            )
         )
         let workEditingPassiveAXBindings =
             "        let workPreviewImages = app.images.matching(\n" +
@@ -7206,22 +7170,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         for (workEditingIdentityLock, count) in [
             ("workHelperTextBindingsAreValid()", 5),
-            ("workHelperTexts.count == 1", 0),
+            ("workHelperTexts.count == 1", 1),
             ("workPreviewImages.count == 1", 1),
             ("workScrollViews.count == 1", 5),
             ("workNavigationBars.count == 1", 5),
             ("workEditingTabBars.count == 0", 1),
-            ("workHelper.exists", 6),
+            ("workHelper.exists", 7),
             ("workPreviewImage.exists", 1),
             ("workScrollView.exists", 4),
             ("workNavigationBar.exists", 4),
             ("workEditingTabBar.exists", 0),
-            ("workPreview.exists", 2),
+            ("workPreview.exists", 3),
             ("app.state == .runningForeground", 3),
-            ("workHelper.elementType == .staticText", 1),
-            ("workHelper.identifier.isEmpty", 1),
-            ("workHelper.label == observedWorkHelperLabel", 1),
-            (#"(workHelper.value as? String) == """#, 1),
+            ("workHelper.elementType == .staticText", 2),
+            ("workHelper.identifier.isEmpty", 2),
+            ("workHelper.label == observedWorkHelperLabel", 2),
+            (#"(workHelper.value as? String) == """#, 2),
             ("workPreviewImage.elementType == .image", 1),
             (#"workPreviewImage.identifier == "s5.1.work.photo""#, 1),
             ("workPreviewImage.label == observedWorkHelperLabel", 1),
@@ -18090,10 +18054,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 876_533)
+        XCTAssertEqual(uiSource.utf8.count, 880_757)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "BBDBDC6864F9A70852F771349F60830D59A77132E5EC05187B6BA58DDE781893"
+            "F0676E3AA89EA8BAF1D3DC9453A6DE9D1E03D3B7B3D33C41D11F3534652354D3"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
