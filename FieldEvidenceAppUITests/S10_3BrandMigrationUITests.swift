@@ -2164,6 +2164,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         )
                         let preflightTabBar = preflightTabBars.firstMatch
                         let confirmationText = confirmationTexts.firstMatch
+                        let headingLabel = "Site time zone Site time zone"
+                        let headingTexts = preflightScrollView.staticTexts.matching(
+                            NSPredicate(format: "label == %@", headingLabel)
+                        )
+                        let headingText = headingTexts.firstMatch
+                        var residualTargetContext: [String: Any]?
                         let observedAssistantFrame = inputAssistantFrame
                         let verticalInset: CGFloat = 16
                         let receiverInset: CGFloat = 24
@@ -2186,6 +2192,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                   confirmationText.identifier.isEmpty,
                                   confirmationText.elementType == .staticText,
                                   confirmationText.label == confirmationLabel,
+                                  headingTexts.count == 1,
+                                  headingText.exists,
+                                  headingText.identifier.isEmpty,
+                                  headingText.elementType == .staticText,
+                                  headingText.label == headingLabel,
                                   keyboard.exists,
                                   keyboard.frame == observedKeyboardFrame,
                                   inputAssistantViews.count == 1,
@@ -2206,6 +2217,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             let navigationFrame = preflightNavigationBar.frame
                             let tabBarFrame = preflightTabBar.frame
                             let confirmationFrame = confirmationText.frame
+                            let headingFrame = headingText.frame
                             let liveBottom = min(
                                 liveScrollFrame.maxY,
                                 min(
@@ -2239,6 +2251,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                   !tabBarFrame.isEmpty,
                                   !confirmationFrame.isNull,
                                   !confirmationFrame.isEmpty,
+                                  !headingFrame.isNull,
+                                  !headingFrame.isEmpty,
+                                  [liveApplicationFrame, scrollFrame, liveScrollFrame,
+                                   navigationFrame, tabBarFrame, confirmationFrame,
+                                   headingFrame].allSatisfy({ frame in
+                                      auditFrameObject(frame).values.allSatisfy { $0.isFinite }
+                                          && frame.maxX.isFinite && frame.maxY.isFinite
+                                  }),
+                                  [safeTop, safeBottom, receiverTop, receiverBottom,
+                                   minimumShift, maximumShift].allSatisfy({ $0.isFinite }),
                                   safeBottom > safeTop,
                                   receiverBottom > receiverTop,
                                   confirmationFrame.height
@@ -2250,10 +2272,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 return
                             }
                             if confirmationFrame.minY >= safeTop,
-                               confirmationFrame.maxY <= safeBottom {
+                               confirmationFrame.maxY <= safeBottom,
+                               headingFrame.maxY <= liveApplicationFrame.minY {
                                 break
                             }
                             guard maximumShift < 0 else {
+                                printJSONLine(
+                                    prefix: "S10_4_MINIMUM_DOUBLE_CACHED_GEOMETRY",
+                                    object: [
+                                        "schemaVersion": 1,
+                                        "acceptanceEligible": false,
+                                        "finalAcceptanceEligible": false,
+                                        "shardID": "s10.4.minimum.double-length",
+                                        "stateID": "state.check-preflight.ready",
+                                        "observationPhase": "failed-non-upward-guard",
+                                        "applicationFrame": auditFrameObject(liveApplicationFrame),
+                                        "headingFrame": auditFrameObject(headingFrame),
+                                        "confirmationFrame": auditFrameObject(confirmationFrame),
+                                        "safeTop": Double(safeTop),
+                                        "safeBottom": Double(safeBottom),
+                                        "residualTarget": residualTargetContext.map { $0 as Any } ?? NSNull(),
+                                    ]
+                                )
                                 XCTFail(
                                     "The minimum double-length preflight confirmation requires a non-upward shift."
                                 )
@@ -2282,22 +2322,59 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         residual in
                                         recognizedResidualDistance - residual
                                     }
-                                if minimumShift > recognizedResidualDistance {
-                                    guard let previousCommandedDragDistance,
-                                          let previousObservedMovement,
-                                          let previousCommandMinusObservedResidual,
-                                          let predictedRecognizedMovement,
-                                          previousCommandedDragDistance
-                                            <= -minimumGestureDistance,
-                                          previousObservedMovement < 0,
-                                          previousCommandMinusObservedResidual < 0,
-                                          predictedRecognizedMovement
-                                            >= minimumShift,
-                                          predictedRecognizedMovement
-                                            <= maximumShift else {
+                                let jointMaximumShift = min(
+                                    maximumShift,
+                                    liveApplicationFrame.minY - headingFrame.maxY
+                                )
+                                var selectedResidualDistance: CGFloat?
+                                if let previousCommandedDragDistance,
+                                   let previousObservedMovement,
+                                   let previousConfirmationMinYAfterDrag,
+                                   let previousCommandMinusObservedResidual,
+                                   let predictedRecognizedMovement,
+                                   previousCommandedDragDistance.isFinite,
+                                   previousObservedMovement.isFinite,
+                                   previousCommandMinusObservedResidual.isFinite,
+                                   predictedRecognizedMovement.isFinite,
+                                   previousConfirmationMinYAfterDrag == confirmationFrame.minY,
+                                   previousCommandedDragDistance <= -minimumGestureDistance,
+                                   previousObservedMovement < 0,
+                                   previousCommandMinusObservedResidual < 0,
+                                   minimumShift <= jointMaximumShift {
+                                    if predictedRecognizedMovement >= minimumShift,
+                                       predictedRecognizedMovement <= jointMaximumShift {
+                                        selectedResidualDistance = recognizedResidualDistance
+                                    } else {
+                                        let minimumCommand = max(
+                                            -receiverCapacity,
+                                            minimumShift + previousCommandMinusObservedResidual
+                                        )
+                                        let maximumCommand = min(
+                                            -minimumGestureDistance,
+                                            jointMaximumShift + previousCommandMinusObservedResidual
+                                        )
+                                        if minimumCommand.isFinite,
+                                           maximumCommand.isFinite,
+                                           minimumCommand < maximumCommand {
+                                            let midpointCommand = minimumCommand
+                                                + (maximumCommand - minimumCommand) / 2
+                                            let predictedMidpointMovement = midpointCommand
+                                                - previousCommandMinusObservedResidual
+                                            if midpointCommand.isFinite,
+                                               predictedMidpointMovement.isFinite,
+                                               midpointCommand >= -receiverCapacity,
+                                               midpointCommand <= -minimumGestureDistance,
+                                               predictedMidpointMovement >= minimumShift,
+                                               predictedMidpointMovement <= jointMaximumShift {
+                                                selectedResidualDistance = midpointCommand
+                                            }
+                                        }
+                                    }
+                                }
+                                guard let selectedResidualDistance else {
                                         let optionalNumber: (CGFloat?) -> Any = {
                                             value in
-                                            value.map { Double($0) } ?? NSNull()
+                                            value.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull()
                                         }
                                         let optionalString: (String?) -> Any = {
                                             value in
@@ -2347,6 +2424,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         ),
                                         "minimumShift": Double(minimumShift),
                                         "maximumShift": Double(maximumShift),
+                                        "headingFrame": auditFrameObject(headingFrame),
+                                        "jointMaximumShift": jointMaximumShift.isFinite ? jointMaximumShift as Any : NSNull(),
                                         "intervalWidth": Double(
                                             maximumShift - minimumShift
                                         ),
@@ -2465,9 +2544,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         "S10.4 minimum double-length preflight residual diagnostic completed nonaccepting"
                                     )
                                         return
-                                    }
                                 }
-                                dragDistance = recognizedResidualDistance
+                                residualTargetContext = [
+                                    "attemptOrdinal": attemptIndex + 1,
+                                    "headingFrame": auditFrameObject(headingFrame),
+                                    "confirmationFrame": auditFrameObject(confirmationFrame),
+                                    "minimumShift": Double(minimumShift),
+                                    "jointMaximumShift": Double(jointMaximumShift),
+                                    "previousCommand": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousMovement": previousObservedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "priorResidual": previousCommandMinusObservedResidual.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "selectedCommand": Double(selectedResidualDistance),
+                                ]
+                                dragDistance = selectedResidualDistance
                             } else if abs(maximumShift) <= receiverCapacity {
                                 dragDistance = maximumShift
                             } else {
@@ -2541,6 +2630,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                   confirmationText.identifier.isEmpty,
                                   confirmationText.elementType == .staticText,
                                   confirmationText.label == confirmationLabel,
+                                  headingTexts.count == 1,
+                                  headingText.exists,
+                                  headingText.identifier.isEmpty,
+                                  headingText.elementType == .staticText,
+                                  headingText.label == headingLabel,
                                   keyboard.exists,
                                   keyboard.frame == observedKeyboardFrame,
                                   inputAssistantViews.count == 1,
@@ -2576,6 +2670,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         let finalNavigationFrame = preflightNavigationBar.frame
                         let finalTabBarFrame = preflightTabBar.frame
                         let finalConfirmationFrame = confirmationText.frame
+                        let finalHeadingFrame = headingText.frame
                         let finalSafeTop = max(
                             finalScrollFrame.minY,
                             finalNavigationFrame.maxY
@@ -2599,6 +2694,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                               confirmationText.identifier.isEmpty,
                               confirmationText.elementType == .staticText,
                               confirmationText.label == confirmationLabel,
+                              headingTexts.count == 1,
+                              headingText.exists,
+                              headingText.identifier.isEmpty,
+                              headingText.elementType == .staticText,
+                              headingText.label == headingLabel,
                               keyboard.exists,
                               keyboard.frame == observedKeyboardFrame,
                               inputAssistantViews.count == 1,
@@ -2630,9 +2730,44 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                               !finalTabBarFrame.isEmpty,
                               !finalConfirmationFrame.isNull,
                               !finalConfirmationFrame.isEmpty,
+                              !finalHeadingFrame.isNull,
+                              !finalHeadingFrame.isEmpty,
+                              [finalApplicationFrame, finalScrollFrame,
+                               finalNavigationFrame, finalTabBarFrame,
+                               finalConfirmationFrame, finalHeadingFrame].allSatisfy({ frame in
+                                  auditFrameObject(frame).values.allSatisfy { $0.isFinite }
+                                      && frame.maxX.isFinite && frame.maxY.isFinite
+                              }),
+                              finalSafeTop.isFinite,
+                              finalSafeBottom.isFinite,
+                              finalHeadingFrame.maxY <= finalApplicationFrame.minY,
                               finalSafeBottom > finalSafeTop,
                               finalConfirmationFrame.minY >= finalSafeTop,
                               finalConfirmationFrame.maxY <= finalSafeBottom else {
+                            printJSONLine(
+                                prefix: "S10_4_MINIMUM_DOUBLE_CACHED_GEOMETRY",
+                                object: [
+                                    "schemaVersion": 1,
+                                    "acceptanceEligible": false,
+                                    "finalAcceptanceEligible": false,
+                                    "shardID": "s10.4.minimum.double-length",
+                                    "stateID": "state.check-preflight.ready",
+                                    "observationPhase": "failed-final-off-app-guard",
+                                    "applicationFrame": auditFrameObject(finalApplicationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "scrollFrame": auditFrameObject(finalScrollFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "navigationFrame": auditFrameObject(finalNavigationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "tabFrame": auditFrameObject(finalTabBarFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "confirmationFrame": auditFrameObject(finalConfirmationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "headingFrame": auditFrameObject(finalHeadingFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "residualTarget": residualTargetContext.map { $0 as Any } ?? NSNull(),
+                                    "safeTop": finalSafeTop.isFinite ? finalSafeTop as Any : NSNull(),
+                                    "safeBottom": finalSafeBottom.isFinite ? finalSafeBottom as Any : NSNull(),
+                                    "previousCommandedDragDistance": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousConfirmationMinYBeforeDrag": previousConfirmationMinYBeforeDrag.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousConfirmationMinYAfterDrag": previousConfirmationMinYAfterDrag.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousObservedMovement": previousObservedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                ]
+                            )
                             XCTFail(
                                 "The minimum double-length preflight confirmation was not fully contained before capture."
                             )
@@ -2652,6 +2787,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 "navigationFrame": auditFrameObject(finalNavigationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                 "tabFrame": auditFrameObject(finalTabBarFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                 "confirmationFrame": auditFrameObject(finalConfirmationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "headingFrame": auditFrameObject(finalHeadingFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "residualTarget": residualTargetContext.map { $0 as Any } ?? NSNull(),
                                 "safeTop": finalSafeTop.isFinite ? finalSafeTop as Any : NSNull(),
                                 "safeBottom": finalSafeBottom.isFinite ? finalSafeBottom as Any : NSNull(),
                                 "previousCommandedDragDistance": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
@@ -11784,7 +11921,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && stateID == "state.work.validation-error"
             ) || (
                 shard.shardID == "s10.4.minimum.rtl-string"
-                    && stateID == "state.check-preflight.ready"
+                    && (stateID == "state.check-preflight.ready"
+                        || stateID == "state.work.validation-error")
             ) {
                 var observedIssueCount = 0
                 try app.performAccessibilityAudit(for: .contrast) { issue in

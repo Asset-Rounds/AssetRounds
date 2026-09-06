@@ -3786,10 +3786,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     preflightQuickPathSource.endIndex
             ]
         )
-        XCTAssertEqual(preflightMinimumSource.utf8.count, 86_679)
+        XCTAssertEqual(preflightMinimumSource.utf8.count, 97_550)
         XCTAssertEqual(
             Data(preflightMinimumSource.utf8).sha256,
-            "1ABB7D66E58A12C39D7EDADCC78AE3DDF7FF445D488521598730BA5FDB56F4EE"
+            "229D8FBFDDD621ACEA4256C3318AF70D029AE1760373145357A961138A2A9C19"
         )
         XCTAssertEqual(currentProfilePreflightQuickPathSource.utf8.count, 30_051)
         XCTAssertEqual(
@@ -6941,10 +6941,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 preflightOffAppSource.startIndex..<minimumDoubleLengthPositioningStartRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 32_513)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.utf8.count, 43_384)
         XCTAssertEqual(
             Data(minimumDoubleLengthPositioningSource.utf8).sha256,
-            "0D00DB4D652AB7DB32D7003D29BACAB2EB92ADB0B06FEC106779D00912C8DB28"
+            "55C72EF44423A65B0CC552A62EB82DA91D8873A7FB5F50334ABE2BD105A9BDB1"
         )
         XCTAssertEqual(
             preflightOffAppSource.components(
@@ -7068,10 +7068,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "confirmationFrame.height\n" +
                 "<= safeBottom - safeTop,\n" +
                 "minimumShift <= maximumShift else {",
-            "if confirmationFrame.minY >= safeTop,\n" +
-                "confirmationFrame.maxY <= safeBottom {\n" +
-                "break\n" +
-                "}",
+            "if confirmationFrame.minY >= safeTop,\nconfirmationFrame.maxY <= safeBottom,\nheadingFrame.maxY <= liveApplicationFrame.minY {\nbreak\n}",
             "guard maximumShift < 0 else {",
             "let receiverCapacity = receiverBottom - receiverTop",
             "guard receiverCapacity >= minimumGestureDistance else {",
@@ -7090,20 +7087,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "residual in\n" +
                 "recognizedResidualDistance - residual\n" +
                 "}",
-            "if minimumShift > recognizedResidualDistance {",
-            "guard let previousCommandedDragDistance,\n" +
-                "let previousObservedMovement,\n" +
-                "let previousCommandMinusObservedResidual,\n" +
-                "let predictedRecognizedMovement,\n" +
-                "previousCommandedDragDistance\n" +
-                "<= -minimumGestureDistance,\n" +
-                "previousObservedMovement < 0,\n" +
-                "previousCommandMinusObservedResidual < 0,\n" +
-                "predictedRecognizedMovement\n" +
-                ">= minimumShift,\n" +
-                "predictedRecognizedMovement\n" +
-                "<= maximumShift else {",
-            "dragDistance = recognizedResidualDistance",
+            "guard let selectedResidualDistance else {",
+            "if let previousCommandedDragDistance,\nlet previousObservedMovement,\nlet previousConfirmationMinYAfterDrag,\nlet previousCommandMinusObservedResidual,\nlet predictedRecognizedMovement,\npreviousCommandedDragDistance.isFinite,\npreviousObservedMovement.isFinite,\npreviousCommandMinusObservedResidual.isFinite,\npredictedRecognizedMovement.isFinite,\npreviousConfirmationMinYAfterDrag == confirmationFrame.minY,\npreviousCommandedDragDistance <= -minimumGestureDistance,\npreviousObservedMovement < 0,\npreviousCommandMinusObservedResidual < 0,\nminimumShift <= jointMaximumShift {",
+            "dragDistance = selectedResidualDistance",
             "} else if abs(maximumShift) <= receiverCapacity {\n" +
                 "dragDistance = maximumShift\n" +
                 "} else {",
@@ -7218,9 +7204,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             stagedMaximumShiftBranch.lowerBound
         )
         let residualDiagnosticStart =
-            "                                if minimumShift > recognizedResidualDistance {"
+            "                                guard let selectedResidualDistance else {"
         let residualDiagnosticEnd =
-            "                                dragDistance = recognizedResidualDistance"
+            "                                residualTargetContext = ["
         guard let residualDiagnosticStartRange =
             minimumDoubleLengthPositioningSource.range(of: residualDiagnosticStart),
             let residualDiagnosticEndRange =
@@ -7240,10 +7226,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     residualDiagnosticEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(minimumDoubleLengthResidualDiagnosticSource.utf8.count, 12_648)
+        XCTAssertEqual(minimumDoubleLengthResidualDiagnosticSource.utf8.count, 11_968)
         XCTAssertEqual(
             Data(minimumDoubleLengthResidualDiagnosticSource.utf8).sha256,
-            "95ABBDC66A633FEE6BEA9482E30788FB9373DD68338E439A091A183ACD70B3F3"
+            "FB259467F3254BEF9A527CA623B162A3CF834008CCEDE04DCB1871D67E4C316E"
         )
         for diagnosticLock in [
             "\"schemaVersion\": 1",
@@ -7332,13 +7318,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("confirmationText.label == confirmationLabel", 3),
             ("keyboardIsAbsentOrInertOffApp(in: app)", 3),
             ("preflightPositioningDirection", 5),
-            ("attemptIndex", 2),
-            ("previousCommandedDragDistance", 9),
-            ("previousConfirmationMinYBeforeDrag", 6),
-            ("previousConfirmationMinYAfterDrag", 6),
-            ("previousObservedMovement", 9),
-            ("previousCommandMinusObservedResidual", 6),
-            ("predictedRecognizedMovement", 6),
+            ("attemptIndex", 3),
+            ("previousCommandedDragDistance", 13),
+            ("previousConfirmationMinYBeforeDrag", 8),
+            ("previousConfirmationMinYAfterDrag", 10),
+            ("previousObservedMovement", 13),
+            ("previousCommandMinusObservedResidual", 11),
+            ("predictedRecognizedMovement", 7),
             ("dragDirection", 3),
             ("dragStartPoint", 4),
             ("CGPoint(", 1),
@@ -7372,6 +7358,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                                 "navigationFrame": auditFrameObject(finalNavigationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                 "tabFrame": auditFrameObject(finalTabBarFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                 "confirmationFrame": auditFrameObject(finalConfirmationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "headingFrame": auditFrameObject(finalHeadingFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "residualTarget": residualTargetContext.map { $0 as Any } ?? NSNull(),
                                 "safeTop": finalSafeTop.isFinite ? finalSafeTop as Any : NSNull(),
                                 "safeBottom": finalSafeBottom.isFinite ? finalSafeBottom as Any : NSNull(),
                                 "previousCommandedDragDistance": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
@@ -7387,15 +7375,52 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let minimumDoubleLengthFinalGuardTail =
-            "                              finalConfirmationFrame.minY >= finalSafeTop,\n" +
-                "                              finalConfirmationFrame.maxY <= finalSafeBottom else {\n" +
-                "                            XCTFail(\n" +
-                #"                                "The minimum double-length preflight confirmation was not fully contained before capture.""# +
-                "\n                            )\n" +
-                "                            return\n" +
-                "                        }\n" +
-                "                    }"
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                        let headingLabel = \"Site time zone Site time zone\"\n                        let headingTexts = preflightScrollView.staticTexts.matching(\n                            NSPredicate(format: \"label == %@\", headingLabel)\n                        )\n                        let headingText = headingTexts.firstMatch\n                        var residualTargetContext: [String: Any]?\n").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                                let jointMaximumShift = min(\n                                    maximumShift,\n                                    liveApplicationFrame.minY - headingFrame.maxY\n                                )\n                                var selectedResidualDistance: CGFloat?\n                                if let previousCommandedDragDistance,\n                                   let previousObservedMovement,\n                                   let previousConfirmationMinYAfterDrag,\n                                   let previousCommandMinusObservedResidual,\n                                   let predictedRecognizedMovement,\n                                   previousCommandedDragDistance.isFinite,\n                                   previousObservedMovement.isFinite,\n                                   previousCommandMinusObservedResidual.isFinite,\n                                   predictedRecognizedMovement.isFinite,\n                                   previousConfirmationMinYAfterDrag == confirmationFrame.minY,\n                                   previousCommandedDragDistance <= -minimumGestureDistance,\n                                   previousObservedMovement < 0,\n                                   previousCommandMinusObservedResidual < 0,\n                                   minimumShift <= jointMaximumShift {\n                                    if predictedRecognizedMovement >= minimumShift,\n                                       predictedRecognizedMovement <= jointMaximumShift {\n                                        selectedResidualDistance = recognizedResidualDistance\n                                    } else {\n                                        let minimumCommand = max(\n                                            -receiverCapacity,\n                                            minimumShift + previousCommandMinusObservedResidual\n                                        )\n                                        let maximumCommand = min(\n                                            -minimumGestureDistance,\n                                            jointMaximumShift + previousCommandMinusObservedResidual\n                                        )\n                                        if minimumCommand.isFinite,\n                                           maximumCommand.isFinite,\n                                           minimumCommand < maximumCommand {\n                                            let midpointCommand = minimumCommand\n                                                + (maximumCommand - minimumCommand) / 2\n                                            let predictedMidpointMovement = midpointCommand\n                                                - previousCommandMinusObservedResidual\n                                            if midpointCommand.isFinite,\n                                               predictedMidpointMovement.isFinite,\n                                               midpointCommand >= -receiverCapacity,\n                                               midpointCommand <= -minimumGestureDistance,\n                                               predictedMidpointMovement >= minimumShift,\n                                               predictedMidpointMovement <= jointMaximumShift {\n                                                selectedResidualDistance = midpointCommand\n                                            }\n                                        }\n                                    }\n                                }\n                                guard let selectedResidualDistance else {\n").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                                }\n                                residualTargetContext = [\n                                    \"attemptOrdinal\": attemptIndex + 1,\n                                    \"headingFrame\": auditFrameObject(headingFrame),\n                                    \"confirmationFrame\": auditFrameObject(confirmationFrame),\n                                    \"minimumShift\": Double(minimumShift),\n                                    \"jointMaximumShift\": Double(jointMaximumShift),\n                                    \"previousCommand\": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),\n                                    \"previousMovement\": previousObservedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),\n                                    \"priorResidual\": previousCommandMinusObservedResidual.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),\n                                    \"selectedCommand\": Double(selectedResidualDistance),\n                                ]\n                                dragDistance = selectedResidualDistance").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "                              !finalHeadingFrame.isNull,\n                              !finalHeadingFrame.isEmpty,\n                              [finalApplicationFrame, finalScrollFrame,\n                               finalNavigationFrame, finalTabBarFrame,\n                               finalConfirmationFrame, finalHeadingFrame].allSatisfy({ frame in\n                                  auditFrameObject(frame).values.allSatisfy { $0.isFinite }\n                                      && frame.maxX.isFinite && frame.maxY.isFinite\n                              }),\n                              finalSafeTop.isFinite,\n                              finalSafeBottom.isFinite,\n                              finalHeadingFrame.maxY <= finalApplicationFrame.minY,\n").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "headingTexts.count == 1").count - 1, 3)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "headingText.identifier.isEmpty").count - 1, 3)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "headingText.elementType == .staticText").count - 1, 3)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "headingText.label == headingLabel").count - 1, 3)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "S10_4_MINIMUM_DOUBLE_CACHED_GEOMETRY").count - 1, 3)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "\"observationPhase\": \"failed-final-off-app-guard\"").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "\"observationPhase\": \"after-final-off-app-guard\"").count - 1, 1)
+        XCTAssertEqual(minimumDoubleLengthPositioningSource.components(separatedBy: "\"observationPhase\": \"failed-non-upward-guard\"").count - 1, 1)
+        let minimumDoubleLengthFinalGuardTail = #"""
+                              finalConfirmationFrame.minY >= finalSafeTop,
+                              finalConfirmationFrame.maxY <= finalSafeBottom else {
+                            printJSONLine(
+                                prefix: "S10_4_MINIMUM_DOUBLE_CACHED_GEOMETRY",
+                                object: [
+                                    "schemaVersion": 1,
+                                    "acceptanceEligible": false,
+                                    "finalAcceptanceEligible": false,
+                                    "shardID": "s10.4.minimum.double-length",
+                                    "stateID": "state.check-preflight.ready",
+                                    "observationPhase": "failed-final-off-app-guard",
+                                    "applicationFrame": auditFrameObject(finalApplicationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "scrollFrame": auditFrameObject(finalScrollFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "navigationFrame": auditFrameObject(finalNavigationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "tabFrame": auditFrameObject(finalTabBarFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "confirmationFrame": auditFrameObject(finalConfirmationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "headingFrame": auditFrameObject(finalHeadingFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "residualTarget": residualTargetContext.map { $0 as Any } ?? NSNull(),
+                                    "safeTop": finalSafeTop.isFinite ? finalSafeTop as Any : NSNull(),
+                                    "safeBottom": finalSafeBottom.isFinite ? finalSafeBottom as Any : NSNull(),
+                                    "previousCommandedDragDistance": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousConfirmationMinYBeforeDrag": previousConfirmationMinYBeforeDrag.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousConfirmationMinYAfterDrag": previousConfirmationMinYAfterDrag.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousObservedMovement": previousObservedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                ]
+                            )
+                            XCTFail(
+                                "The minimum double-length preflight confirmation was not fully contained before capture."
+                            )
+                            return
+                        }
+                    }
+"""#
         XCTAssertTrue(
             minimumDoubleLengthPositioningSource.hasSuffix(
                 String(minimumDoubleLengthFinalGuardTail.dropLast(
@@ -12325,10 +12350,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 17_462)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 17_532)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "DCDF0BF93473757B1C32B1425B0217A4377588A3A5315A2AC200BD22122CDF15"
+            "F7B2D60132EB8C721D721325B152BD37101ABA2431528188461F16FEC294D414"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -22768,10 +22793,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 839_109)
+        XCTAssertEqual(uiSource.utf8.count, 850_050)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "0962AA7F62C3414C2541E3840E42819DB6FA979063C03F48705ADBB6EBA21863"
+            "2EA45E374E16550D6A901BDAFCCB95EC1B769F4656EC95951B96D14C1023B40C"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -25183,10 +25208,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 17_447)
+        XCTAssertEqual(captureSource.utf8.count, 17_517)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "13E587E0E237EF038AF4C08649AA06D694F6FFD9D3D43A27FA1817009D31C855"
+            "052B502FCCC5994C712C68FA8249D274543579609A8D6895BCC5D5B68A56DD32"
         )
         let captureBoundedUTF8Source = try boundedSource(
             captureSource,
@@ -25294,10 +25319,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"",
             before: "            } else {\n                try app.performAccessibilityAudit(for: .contrast)\n            }"
         )
-        XCTAssertEqual(nativeContrastObservationSource.utf8.count, 1_526)
+        XCTAssertEqual(nativeContrastObservationSource.utf8.count, 1_596)
         XCTAssertEqual(
             Data(nativeContrastObservationSource.utf8).sha256,
-            "8963D6201E18CEBAB165A14D0E27162BACF2C4B89F4E602AA8A4188B1ED34020"
+            "68D1CD76327C23BAA7334B27ABFEB7720D38C5FE3FC76A6EAD9A7206D7F16C1F"
         )
         for exact in [
             #"stateID == "state.work.validation-error""#,
@@ -25311,14 +25336,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(nativeContrastObservationSource.contains(exact), exact)
         }
-        let exactObservedContrastAdmission = "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.bounded\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.double-length\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.check-preflight.ready\"\n"
+        let exactObservedContrastAdmission = "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.bounded\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.double-length\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")\n"
         XCTAssertTrue(nativeContrastObservationSource.hasPrefix(exactObservedContrastAdmission))
         for (oldValue, wrongValue) in [
             ("s10.4.minimum.bounded", "s10.4.minimum.tall"),
             ("s10.4.minimum.double-length", "s10.4.minimum.rtl-string"),
             ("s10.4.minimum.accented", "s10.4.minimum.tall"),
             ("shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.work.validation-error\"", "shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.check-preflight.ready\""),
-            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.check-preflight.ready\"", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.work.validation-error\""),
+            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.work.validation-error\""),
+            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.check-preflight.ready\""),
+            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    || (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")"),
+            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.editing\")"),
+            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\")", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && (stateID == \"state.check-preflight.ready\"\n                        || stateID == \"state.work.validation-error\" || stateID == \"state.work.editing\")"),
             ("s10.4.minimum.rtl-string", "s10.4.minimum.tall"),
             ("state.work.validation-error", "state.work.editing"),
             ("state.check-preflight.ready", "state.check-preflight.confirming"),
