@@ -4144,6 +4144,64 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             try completeFocusedDiagnosticPreflight(in: app)
             throw FocusedDiagnosticProbeStop.completed
         }
+        if let shard = automationShard,
+           shard.shardID == "s10.4.minimum.bounded" {
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  shard.ordinal == 14, shard.requirementID == "bounded",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {
+                throw AutomationConfigurationError.invalid("Bounded preflight preparation has an invalid route")
+            }
+            let boundedZoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")
+            let boundedConfirmation = app.switches.matching(identifier: "s3.preflight.time-zone-confirmed")
+            let boundedAfterDark = app.switches.matching(identifier: "s3.preflight.after-dark")
+            let boundedSafePosition = app.switches.matching(identifier: "s3.preflight.safe-position")
+            let boundedKeyboards = app.keyboards
+            guard boundedZoneFields.count == 1, boundedConfirmation.count == 1,
+                  boundedAfterDark.count == 1, boundedSafePosition.count == 1,
+                  boundedKeyboards.count == 1 else {
+                throw AutomationConfigurationError.invalid("Bounded preflight preparation is ambiguous")
+            }
+            let boundedZone = boundedZoneFields.firstMatch
+            let boundedZoneValue = boundedZone.value as? String
+            let boundedZonePlaceholder = boundedZone.placeholderValue
+            let boundedDoneButtons = boundedKeyboards.firstMatch.buttons.matching(identifier: "Done")
+            guard boundedDoneButtons.count == 1,
+                  boundedZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 1,
+                  boundedZone.exists, boundedZone.isEnabled,
+                  let boundedConfirmationValue = boundedConfirmation.firstMatch.value as? String,
+                  boundedConfirmationValue == "0",
+                  (boundedAfterDark.firstMatch.value as? String) == "0",
+                  (boundedSafePosition.firstMatch.value as? String) == "0",
+                  preflight.exists, zone.exists, app.state == .runningForeground else {
+                throw AutomationConfigurationError.invalid("Bounded preflight input or acknowledgements changed")
+            }
+            let boundedZoneLabel = boundedZone.label
+            let boundedDone = boundedDoneButtons.firstMatch
+            guard boundedDone.exists, boundedDone.isEnabled, boundedDone.isHittable else {
+                throw AutomationConfigurationError.invalid("Bounded preflight Done is unavailable")
+            }
+            boundedDone.tap()
+            guard boundedKeyboards.firstMatch.waitForNonExistence(timeout: 10),
+                  wait(for: boundedZone, predicate: "hasKeyboardFocus == false", timeout: 10),
+                  boundedZoneFields.count == 1, boundedConfirmation.count == 1,
+                  boundedAfterDark.count == 1, boundedSafePosition.count == 1,
+                  boundedZone.label == boundedZoneLabel,
+                  boundedZone.placeholderValue == boundedZonePlaceholder,
+                  (boundedZone.value as? String) == boundedZoneValue,
+                  (boundedConfirmation.firstMatch.value as? String) == boundedConfirmationValue,
+                  (boundedAfterDark.firstMatch.value as? String) == "0",
+                  (boundedSafePosition.firstMatch.value as? String) == "0",
+                  preflight.exists, app.state == .runningForeground else {
+                throw AutomationConfigurationError.invalid("Bounded preflight Done did not preserve the ready state")
+            }
+            let boundedBeginButtons = app.buttons.matching(identifier: "s3.preflight.begin")
+            guard boundedBeginButtons.count == 1,
+                  boundedBeginButtons.firstMatch.exists,
+                  !boundedBeginButtons.firstMatch.isEnabled else {
+                throw AutomationConfigurationError.invalid("Bounded preflight must expose its disabled Begin action")
+            }
+            assertLocalizedLabel(boundedBeginButtons.firstMatch, equals: "Begin check")
+        }
         captureBaseline("state.check-preflight.ready", in: app)
 
         scroll(zone, in: app)

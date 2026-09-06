@@ -2740,6 +2740,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             0
         )
         let uiSource = try text(sourceParts[0])
+        let boundedPreflightPreparation = try boundedSource(
+            uiSource,
+            from: "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\" {",
+            before: "        captureBaseline(\"state.check-preflight.ready\", in: app)"
+        )
+        XCTAssertTrue(boundedPreflightPreparation.contains("guard diagnosticProbe == nil, automationSegment == .none,"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 14, shard.requirementID == \"bounded\","))
+        XCTAssertTrue(boundedPreflightPreparation.contains("boundedDone.tap()"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("(boundedZone.value as? String) == boundedZoneValue"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("(boundedConfirmation.firstMatch.value as? String) == boundedConfirmationValue"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("!boundedBeginButtons.firstMatch.isEnabled"))
+        XCTAssertFalse(boundedPreflightPreparation.contains("performAccessibilityAudit"))
+        XCTAssertFalse(boundedPreflightPreparation.contains("return true"))
+        XCTAssertFalse(boundedPreflightPreparation.contains("scroll("))
+        XCTAssertFalse(boundedPreflightPreparation.contains("coordinate("))
+        XCTAssertFalse(boundedPreflightPreparation.contains("swipe"))
+        XCTAssertFalse(boundedPreflightPreparation.contains("captureBaseline("))
+        XCTAssertTrue(boundedPreflightPreparation.contains("boundedZone.placeholderValue == boundedZonePlaceholder"))
+        XCTAssertTrue(boundedPreflightPreparation.contains("boundedConfirmationValue == \"0\""))
+        XCTAssertEqual(boundedPreflightPreparation.components(separatedBy: "boundedDone.tap()").count - 1, 1)
         XCTAssertTrue(uiSource.contains("class S10_4AutomatedBrandLabUITests"))
         let recordWorkWithoutBaselineStart =
             "    @MainActor\n" +
@@ -3340,11 +3360,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     currentProfilePreflightQuickPathStartRange.lowerBound
             ]
         )
-        let currentProfilePreflightQuickPathSource = String(
-            preflightQuickPathSource[
-                currentProfilePreflightQuickPathStartRange.lowerBound ..<
-                    preflightQuickPathSource.endIndex
-            ]
+        let currentProfilePreflightQuickPathSource = try boundedSource(
+            preflightQuickPathSource,
+            from: "        if automationShard?.deviceProfileID\n            == \"iphone-17-ios-26.2-current\" {",
+            before: "        if diagnosticProbe == .minimumPreflight {\n"
         )
         for retiredMinimumDoubleLengthDiagnosticSymbol in [
             #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#,
@@ -4043,17 +4062,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         )
 
-        let currentProfileRestorationBeforeCapture =
+        let currentProfileRestorationBeforeBoundedPreparation =
             currentProfileRestorationFailure +
                 "\n            }\n        }\n" +
                 "        if diagnosticProbe == .minimumPreflight {\n" +
                 "            try completeFocusedDiagnosticPreflight(in: app)\n" +
                 "            throw FocusedDiagnosticProbeStop.completed\n" +
                 "        }\n" +
-                preflightQuickPathCapture
+                "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\" {"
         XCTAssertEqual(
             uiSource.components(
-                separatedBy: currentProfileRestorationBeforeCapture
+                separatedBy: currentProfileRestorationBeforeBoundedPreparation
             ).count - 1,
             1
         )
@@ -17980,10 +17999,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 871_708)
+        XCTAssertEqual(uiSource.utf8.count, 875_795)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "5900DD2584343DB281B0DF4CCD176F0FC01F8668D0F3B0AC7A5870D3AB8B82D8"
+            "2C200205452FC32665BB8EEE48EFFA69F155423821B4DB0E091A5309892FBD2C"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
