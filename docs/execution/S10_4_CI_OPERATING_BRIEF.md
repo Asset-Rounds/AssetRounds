@@ -1,131 +1,32 @@
-# S10.4 CI operating brief
+# S10.4 active CI operating brief
 
-Navigation and working status, introduced by CURRENT_TASK H401 on 2026-09-05.
-This is not independent authority or acceptance evidence. Verify live refs/runs before acting.
+Owner-authorized development streamlining, 2026-09-06. Read this brief first, then CURRENT_TASK's active reading map, Frozen authority/package, Outcome, Environment, and H409. This is navigation and policy summary; pinned product/acceptance authorities remain controlling.
 
-## Read in this order
+## Objective and current evidence
 
-1. `AGENTS.md`: scope, current model routing, safe parallel ownership.
-2. `CURRENT_TASK.md`: Active reading map; Frozen authority and package; Outcome/GOLDEN/ALT-1; Environment; H388, H392, H394, H401; latest recovery entries.
-3. Pinned `BUILD_PLAN_V4.md` product invariants and runbook S10.4. Do not execute other cards.
-4. `KNOWN_BUGS.md`, relevant HANDOFF/State history and exact failure artifacts.
+Finish S10.4's complete automated evidence, then follow the authorized S10 sequence. Current verified source base is K419 c4192d6c1ae331e69c98e9cc4a75267bcd3333b2 on phase/s10-brand-refresh. Main/P remains01233f789b1cef5a6f56c7ff4caa9271409cd3bc. Verify live refs and job identities before mutations; this checkpoint is not a substitute.
 
-The 2.76 MB task history records consumed experiments as well as active exceptions.
-Do not replay old prospective instructions or confuse an old successful head with the current one.
-DECISIONS and prior HANDOFF entries are history; Release checklists describe owner-only later gates.
-Read historical commands in their recorded card/head context. Their enduring product/acceptance
-invariants remain binding unless explicitly amended. This rule applies to all repository MD files.
+K419 current-light development qualification reached67states and allfiveunits. Latest audited minimum progress: ordinaryRTL8states/runtime logging crash; RTL-string22states/Note occluded by separate keyboard Done toolbar; double-length8states/native preflight Contrast failure on the nearly offscreen Site time zone heading. Fresh double run34040621636 passed Reports, answering the preceding no-transition uncertainty. Prepared corrections are exactRTL Done, incident-collector ordering/input, and a bounded double-length endpoint-selection hypothesis. They remain unverified until exact-head hosted qualification. Preserve original evidence and record new results separately.
 
-| Apparent historical conflict | Active S10.4 interpretation |
-| --- | --- |
-| One correction per hosted cycle | H394 permits a finite independently reviewed development batch |
-| Minimum shard must pass before other profiles run | H401 permits distinct ordinary profiles in parallel after the stated qualification |
-| Generic F25 is 300/900/1200/1800/4500 | S10.4's recorded H330/K272/K274 exception is 420/900/1200/2520/4500; preserve the live selector and worker equality |
-| No cancellation versus fail-fast | H392 only permits its narrow evidenced nonaccepting-run cancellation; diagnostic stages retain cleanup/upload |
-| GitHub only versus Bitrise | Ordinary GitHub acceptance stays available; Bitrise development is not acceptance; the narrow formal exception needs equivalence |
-| An old entry says prepare/dispatch a particular K | Consumed historical instruction, not a command to rerun that old head |
+## Development loop
 
-The watchdog clarification changes no timeout. Its source is CURRENT_TASK's Environment section
-and the exact selector SHA `692DD6F7DBCF771170191E7839C6B6281FB0A72603475FF2D0D81E35078330E2`.
+1. Read the actual current source and complete relevant terminal evidence. Distinguish static checks, compilation, units, UI progress, full shard evidence and formal acceptance.
+2. Reuse agents; parallelize independent diagnosis or nonoverlapping work. Root owns integration, refs and dispatch. Batch compatible diagnosed fixes. Use one independent integration review for the combined candidate; continue that review for corrections instead of starting redundant reviews.
+3. Retire superseded source-text locks and consumed implementation prescriptions. Replace them with focused checks of active semantics and contracts. Maintain a compact retirement-to-coverage map. Do not mechanically reproduce every historical hash, byte count, guard spelling, query count or source-slice boundary.
+4. Preserve current environment/toolchain/selector/receipt and artifact-integrity bindings, required product/state semantics, strict AX/contrast, hostile-input rejection, and all final acceptance obligations. A textual lock can be retired only when its active purpose is retained in focused executable checks, native required regressions, or equivalent independently reviewed coverage. Lack of a failing test is not proof of coverage.
+5. Equivalent native UI preparation is permitted when its required state, public action, assertions and evidence are preserved. Do not retain obsolete preparation guards solely because history used them. Do not guess offsets, hide failures, add acceptance exceptions, or weaken semantic assertions merely to get a pass.
+6. Use supported deterministic checks and explicitly assess affected unsupported cases once on the combined draft. Avoid repeating unchanged checks or optional diagnostics unless their result changes the next decision.
+7. For an isolated minimum-profile change, qualification may be compilation, all required unit methods, and the affected existing regression routes on that exact head, without an automatic67-state current-light prerequisite. Record changed behavior, affected/omitted coverage and review rationale. Broaden qualification for shared behavior changes or uncertain impact. Do not claim an unimplemented focused route exists or relabel accepting runs as diagnostics.
+8. Once ready, freeze candidate bytes and gather the complete same-head matrix. Inspect all terminal evidence before correction/retry. Never duplicate an active shard, retry a known deterministic failure unchanged, transfer old-head acceptance, or count cleanup/upload success as earlier-step success.
 
-## Current checkpoint at introduction
+## Historical instructions and housekeeping
 
-- Branch: `phase/s10-brand-refresh`; immutable main/P: `01233f789b1cef5a6f56c7ff4caa9271409cd3bc`.
-- Product/test candidate K400: `03beae8232c0dd9a73853584dae2ef3f906786e1`; no accepted K400 shard.
-- K399 default-light run `33959005633` is historical verified evidence, not K400 acceptance.
-- K400 focused run `33973576829`: Bitrise producer succeeded; both GitHub consumers failed units before UI. One source-count expectation remains stale (four actual occurrences versus five expected).
-- K400 removed an obsolete diagnostic that deliberately failed the ordinary minimum-double route. That removal has not yet been verified by a completed ordinary minimum-double run.
-- Current/minimum environments remain iPhone17/iOS26.2 build23C54 and SE3/iOS18.0 build22A3351, Xcode26.6 build17F113. Windows performs static authoring/checks only.
+CURRENT_TASK's historical State/recovery entries, DECISIONS and completed HANDOFF entries are immutable provenance. Their prospective implementation/dispatch commands were consumed at their recorded heads. They do not impose recurring source-text locks or pending actions. Enduring product, environment, integrity and acceptance invariants remain active unless explicitly amended by the owner.
 
-## Why recent progress was slow
+At integration boundaries, and approximately every8hours while S10.4 remains active, check for actionable new accumulation. Reuse the last coverage map and inspect changed sections; do not rescan unchanged history or create cleanup churn on a frozen candidate. Fold justified cleanup into the current candidate and single review. Preserve commits and original artifacts. The task heartbeat is s10-4-verification-housekeeping; pause it once S10.4 is accepted. Housekeeping does not authorize later-card changes.
 
-The investigation identified repeated stale source-lock corrections, expensive minimum-runtime
-setup before those failures were detected, consumed diagnostics remaining in ordinary routes,
-and a partly implemented fast-loop policy. These are distinct from actual product defects.
-Twelve of the 29 numbered K370-K400 recovery entries are source-lock reconciliations; this
-does not measure total minutes or all historical failures. Track stage timings from logs.
+## Routes, capacity and acceptance
 
-## Operating loop
+Author on Windows; iOS compilation/Simulator execution uses only currently authorized hosted routes and exact pinned environments. Up to5GitHub macOS and3Bitrise M4 distinct useful jobs may run when dependency-ready. Bitrise development evidence remains nonaccepting; formal hybrid use still requires the exact existing equivalence gate. Use the maximum useful eligible subset, not duplicates or known-failing jobs. Preserve existing watchdogs and original complete artifact/checksum enforcement.
 
-1. Diagnose independent failures in parallel with exact evidence and non-overlapping ownership.
-2. Form a finite batch of understood compatible corrections; review shared-helper interactions.
-3. Run the supported source preflight, AuthorityH, affected syntax/manifest/pin checks and independent review before paying for hosted work. Explicitly review skipped affected assertions.
-4. Use relevant existing short diagnostics and affected ordinary-route regressions. State the new question each dispatch answers. Do not repeat a known deterministic failure or treat isolated success as full-route readiness.
-5. Freeze a ready candidate, then harvest the complete 14-shard same-head matrix. Avoid nonessential edits during this sweep. Inspect artifacts/checksums in parallel with eligible refill.
-6. Assemble evidence and obtain genuine owner visual review, then complete S10.4 evidence K and receipt C. S10.5 physical evidence and S10.6 release evidence remain later gates.
-
-## Runner allocation and implemented capabilities
-
-| Route | Available role | Important limit |
-| --- | --- | --- |
-| GitHub, up to 5 macOS workers | Exact minimum-runtime work and ordinary formal acceptance | Distinct eligible tuples; H180 refill and no duplicate active shard |
-| Bitrise, up to 3 M4 workers | Cached current-runtime development and shared payload producer | Do not send iOS18 minimum shards to a known missing runtime |
-| Hybrid pilot | One sealed build, same-run test-without-building consumers | Nonaccepting; formal Bitrise exception needs complete exact-head equivalence and valid accepting receipts |
-| Cross-run diagnostic payload reuse/grouped probes | Authorized by H394 | Not implemented at this checkpoint; never describe authorization as capability |
-| Pre-provisioned macOS evaluation | H402 permits a bounded nonaccepting exact-iOS18 environment evaluation | Inventory and pin the actual route first; one concurrent canary, at most three initial attempts; no acceptance promotion, billing/settings/secrets changes or shared-data cleanup |
-
-Use all eight only when eight distinct useful jobs are dependency-ready. Idle capacity is better
-than knowingly doomed duplicates. Do not add more harness architecture unless it measurably
-shortens the current bottleneck and its verification cost is justified.
-
-H402 authorizes evaluating already-provided pre-provisioned macOS capacity; it does not claim
-that an exact iOS18 runner is available or that a new route is implemented. Verify the actual
-Xcode/runtime tuple, clean isolated test state and complete evidence, then compare measured
-timings/reliability. Canary evidence remains nonaccepting; formal use needs the applicable
-recorded same-head equivalence and acceptance-route requirements. Preserve ongoing jobs.
-
-H401 removes historical minimum-first serialization after static review and a complete fast
-current-runtime qualification: distinct full-route GitHub minimum profiles may run in parallel.
-These are ordinary acceptance attempts, not promoted diagnostics; only complete passing proof
-counts. Next required ordinary regression: `s10.4.minimum.double-length`. Preserve the candidate
-while harvesting useful results rather than changing its head after every transient failure.
-
-## Non-negotiable proof
-
-H403 adds an impact-based **development-only** qualification exception: independently reviewed
-diagnostic-only or allowlisted CI-harness-only changes may proceed to further minimum-runtime
-diagnostics after exact-head hosted compilation, all five required units and the affected targeted
-regressions, without a mandatory full current-runtime route. Record the impact assessment and
-executed/omitted coverage first. Shared behavior changes or uncertain impact require broader
-qualification. This does not promote diagnostics, bypass ordinary acceptance prerequisites,
-implement a missing probe, or transfer old-head results. Existing in-progress runs remain untouched.
-Read CURRENT_TASK H403 for the controlling limits; all final proof below is unchanged.
-
-All 14 shards on one exact head; 67 states per shard; 938 visual cells; 84 accessibility rows;
-six tasks; pinned environments/commands/watchdogs; strict native AX/contrast; independently
-checksummed screenshots/artifacts and receipts; genuine human visual approval. Old evidence
-stays preserved but never substitutes for current-head proof. No manual PASS is invented.
-
-## Status vocabulary
-
-H407 defines the reviewed prospective exact GitHub image-adoption implementation envelope.
-Its authority stage does not itself change formal acceptance. Preserve frozen activation;
-use the new exact source-bound receipt contract only after implementation and qualification.
-Original receipt/API/checksum auditing remains mandatory and distinct from offline schema
-validation. Historical runs and pilot evidence remain nonaccepting. Read CURRENT_TASK H407
-for the exact seven paths, prospective anchor and unchanged final requirements.
-
-H405 supersedes H404's old/new passing-pair prerequisite: qualify exact environment
-identity separately from reliability and app acceptance. Verify the exact newer image,
-compiler/SDK, both runtimes, isolation, commands and complete evidence; explicitly retain
-native AX/bootstrap/handshake reliability failures. After the independent assessment,
-use useful nonaccepting diagnostics/affected routes without an unavailable old-image
-counterpart. Formal adoption still needs a reviewed prospective exact-image update;
-no old result is promoted and all14 final-head shards remain mandatory. The H404 limits
-below describe its original bounded experiment, not H405's later development permission.
-
-H404 adds a bounded, nonaccepting GitHub image-equivalence evaluation for exactly
-`20260728.0273.1` and `20260831.0337.3`. Read its full CURRENT_TASK protocol before
-dispatch: four attempts maximum, two concurrent, current default-light and minimum-OS
-only, complete same-head baseline/candidate pairs required. The existing route name
-contains "acceptance", but these evaluation runs and any emitted receipts MUST stay
-outside the final matrix. No formal image pin or validator changed. Missing baseline
-means equivalence remains unproven; useful diagnostics are preserved. H404's explicit
-authority-only qualification exception avoids repeating unchanged Bitrise routes for
-Markdown-only changes, while every canary still runs its own build/five units/full UI.
-
-Report these separately: static checks; compilation; five units; UI states reached; complete
-shard evidence; formal accepted count. A cleanup/upload step is not proof of earlier success.
-An intentional diagnostic failure may contain useful observations but is not a green shard.
-Missing artifacts stay incomplete. Do not promise an ETA until the known blockers are closed
-and a stable head is actually progressing through the matrix.
+Final S10.4 proof remains all14complete shards on one exact head,67states each,938visualcells,84accessibilityrows,six common tasks, exact commands/environment/source receipts, strict native AX/contrast with only existing eligible exceptions, complete checksummed original artifacts, and genuine human visual review. No historical source-lock retirement changes this bar. S10.5 physical proof and S10.6 release evidence remain separate subsequent cards; no release/signing/upload authority is added.

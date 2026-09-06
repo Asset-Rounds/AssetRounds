@@ -2355,17 +2355,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         if minimumCommand.isFinite,
                                            maximumCommand.isFinite,
                                            minimumCommand < maximumCommand {
-                                            let midpointCommand = minimumCommand
-                                                + (maximumCommand - minimumCommand) / 2
-                                            let predictedMidpointMovement = midpointCommand
+                                            let selectedCommand = minimumCommand
+                                            let predictedSelectedMovement = selectedCommand
                                                 - previousCommandMinusObservedResidual
-                                            if midpointCommand.isFinite,
-                                               predictedMidpointMovement.isFinite,
-                                               midpointCommand >= -receiverCapacity,
-                                               midpointCommand <= -minimumGestureDistance,
-                                               predictedMidpointMovement >= minimumShift,
-                                               predictedMidpointMovement <= jointMaximumShift {
-                                                selectedResidualDistance = midpointCommand
+                                            if selectedCommand.isFinite,
+                                               predictedSelectedMovement.isFinite,
+                                               selectedCommand >= -receiverCapacity,
+                                               selectedCommand <= -minimumGestureDistance,
+                                               predictedSelectedMovement >= minimumShift,
+                                               predictedSelectedMovement <= jointMaximumShift {
+                                                selectedResidualDistance = selectedCommand
                                             }
                                         }
                                     }
@@ -6241,6 +6240,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             try dismissMinimumWorkValidationKeyboardAccessory(in: app)
             scroll(saveWork, in: app)
             assertControl(saveWork, label: "Record work")
+        }
+        if automationShard?.shardID == "s10.4.minimum.rtl-string" {
+            try dismissRTLStringWorkValidationKeyboardAccessory(in: app)
         }
         captureBaseline("state.work.validation-error", in: app)
         scroll(description, in: app)
@@ -15376,6 +15378,360 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return false
         }
         return true
+    }
+
+    @MainActor
+    private func dismissRTLStringWorkValidationKeyboardAccessory(
+        in app: XCUIApplication
+    ) throws {
+        let stateID = "state.work.validation-error"
+        let expectedMigratedStateIDs = Array(
+            Self.segmentedRouteStateIDs.prefix(22)
+        )
+        guard let shard = automationShard,
+              shard.ordinal == 11,
+              shard.shardID == "s10.4.minimum.rtl-string",
+              shard.requirementID == "rtl_string",
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+              automationSegment == .none,
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              Self.segmentedRouteStateIDs[22] == stateID,
+              segmentedRouteStateCursor == 0,
+              migratedStateIDs == expectedMigratedStateIDs,
+              automationAXTreeDigests.keys.sorted()
+                == expectedMigratedStateIDs.sorted(),
+              automationContrastExceptions.isEmpty,
+              !automatedSegmentFinished else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 RTL-string work-validation keyboard accessory gate is invalid"
+            )
+        }
+
+        let focusedPredicate = NSPredicate(
+            format: "hasKeyboardFocus == true"
+        )
+        let workScreens = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.screen"
+        )
+        let descriptionFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.description"
+        )
+        let focusedDescriptionFields = descriptionFields.matching(
+            focusedPredicate
+        )
+        let validationLabels = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.validation"
+        )
+        let noteHeadings = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "\u{202E}Note\u{202C}")
+        )
+        let noteFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.note"
+        )
+        let keyboards = app.keyboards
+        let doneButtons = app.buttons.matching(
+            identifier: "s5.1.work.keyboard-done"
+        )
+        let quickPathIntroductionViews = app.descendants(
+            matching: .other
+        ).matching(identifier: "UIContinuousPathIntroductionView")
+        let quickPathIntroductionButtons = quickPathIntroductionViews.buttons
+        let quickPathIntroductionStaticTexts =
+            quickPathIntroductionViews.staticTexts
+
+        let workScreenCount = workScreens.count
+        let descriptionFieldCount = descriptionFields.count
+        let focusedDescriptionFieldCount = focusedDescriptionFields.count
+        let validationLabelCount = validationLabels.count
+        let noteHeadingCount = noteHeadings.count
+        let noteFieldCount = noteFields.count
+        let keyboardCount = keyboards.count
+        let doneButtonCount = doneButtons.count
+        let quickPathIntroductionCount = quickPathIntroductionViews.count
+        let quickPathIntroductionButtonCount =
+            quickPathIntroductionButtons.count
+        let quickPathIntroductionStaticTextCount =
+            quickPathIntroductionStaticTexts.count
+        guard workScreenCount == 1,
+              descriptionFieldCount == 1,
+              focusedDescriptionFieldCount == 1,
+              validationLabelCount == 1,
+              noteHeadingCount == 1,
+              noteFieldCount == 1,
+              keyboardCount == 1,
+              doneButtonCount == 1,
+              quickPathIntroductionCount == 0,
+              quickPathIntroductionButtonCount == 0,
+              quickPathIntroductionStaticTextCount == 0 else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 RTL-string work-validation keyboard accessory structure is invalid"
+            )
+        }
+
+        let workScreen = workScreens.element(boundBy: 0)
+        let descriptionField = descriptionFields.element(boundBy: 0)
+        let validationLabel = validationLabels.element(boundBy: 0)
+        let noteHeading = noteHeadings.element(boundBy: 0)
+        let noteField = noteFields.element(boundBy: 0)
+        let keyboard = keyboards.element(boundBy: 0)
+        let doneButton = doneButtons.element(boundBy: 0)
+        let frameIsValid: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+        let applicationFrame = app.frame
+        let workScreenFrame = workScreen.frame
+        let descriptionFrame = descriptionField.frame
+        let validationFrame = validationLabel.frame
+        let noteHeadingFrame = noteHeading.frame
+        let noteFieldFrame = noteField.frame
+        let keyboardFrame = keyboard.frame
+        let doneButtonFrame = doneButton.frame
+        let preWorkScreenIdentifier = workScreen.identifier
+        let preDescriptionIdentifier = descriptionField.identifier
+        let preDescriptionLabel = descriptionField.label
+        let preValidationIdentifier = validationLabel.identifier
+        let preValidationLabel = validationLabel.label
+        let preNoteHeadingLabel = noteHeading.label
+        let preNoteHeadingType = noteHeading.elementType
+        let preNoteFieldIdentifier = noteField.identifier
+        let noteHeadingOverlapsDoneAccessoryBand =
+            noteHeadingFrame.minY < doneButtonFrame.maxY
+                && noteHeadingFrame.maxY > doneButtonFrame.minY
+        let firstFailedPreTapSemanticLabel: String? = {
+            if app.state != .runningForeground { return "app-foreground" }
+            if !frameIsValid(applicationFrame) { return "app-frame-valid" }
+            if !frameIsValid(workScreenFrame) { return "work-frame-valid" }
+            if !frameIsValid(descriptionFrame) { return "description-frame-valid" }
+            if !frameIsValid(validationFrame) { return "validation-frame-valid" }
+            if !frameIsValid(noteHeadingFrame) { return "note-heading-frame-valid" }
+            if !frameIsValid(noteFieldFrame) { return "note-field-frame-valid" }
+            if !frameIsValid(keyboardFrame) { return "keyboard-frame-valid" }
+            if !frameIsValid(doneButtonFrame) { return "done-frame-valid" }
+            if !applicationFrame.contains(workScreenFrame) { return "app-contains-work" }
+            if !applicationFrame.contains(descriptionFrame) { return "app-contains-description" }
+            if !applicationFrame.contains(validationFrame) { return "app-contains-validation" }
+            if !applicationFrame.contains(noteHeadingFrame) { return "app-contains-note-heading" }
+            if !applicationFrame.contains(noteFieldFrame) { return "app-contains-note-field" }
+            if !applicationFrame.contains(keyboardFrame) { return "app-contains-keyboard" }
+            if !applicationFrame.contains(doneButtonFrame) { return "app-contains-done" }
+            if !noteHeadingOverlapsDoneAccessoryBand { return "note-heading-overlaps-done-accessory" }
+            if !workScreen.exists { return "work-exists" }
+            if !workScreen.isEnabled { return "work-enabled" }
+            if !workScreen.isHittable { return "work-hittable" }
+            if preWorkScreenIdentifier != "s5.1.work.screen" { return "work-identifier" }
+            if !descriptionField.exists { return "description-exists" }
+            if !descriptionField.isEnabled { return "description-enabled" }
+            if !descriptionField.isHittable { return "description-hittable" }
+            if preDescriptionIdentifier != "s5.1.work.description" { return "description-identifier" }
+            if preDescriptionLabel != "\u{202E}Short description\u{202C}" { return "description-label" }
+            if (descriptionField.value as? String) != "" {
+                return "description-empty-value"
+            }
+            if !validationLabel.exists { return "validation-exists" }
+            if !validationLabel.isEnabled { return "validation-enabled" }
+            if preValidationIdentifier != "s5.1.work.validation" { return "validation-identifier" }
+            if preValidationLabel != "\u{202E}Short description\u{202C}" { return "validation-label" }
+            if !noteHeading.exists { return "note-heading-exists" }
+            if preNoteHeadingLabel != "\u{202E}Note\u{202C}" { return "note-heading-label" }
+            if preNoteHeadingType != .staticText { return "note-heading-type" }
+            if !noteField.exists { return "note-field-exists" }
+            if preNoteFieldIdentifier != "s5.1.work.note" { return "note-field-identifier" }
+            if !keyboard.exists { return "keyboard-exists" }
+            if !doneButton.exists { return "done-exists" }
+            if !doneButton.isEnabled { return "done-enabled" }
+            if !doneButton.isHittable { return "done-hittable" }
+            if doneButton.identifier != "s5.1.work.keyboard-done" { return "done-identifier" }
+            if doneButton.label != "\u{202E}Done\u{202C}" { return "done-label" }
+            if doneButton.elementType != .button { return "done-type" }
+            return nil
+        }()
+        if let firstFailedPreTapSemanticLabel {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 RTL-string work-validation keyboard accessory semantics are invalid: "
+                    + firstFailedPreTapSemanticLabel
+            )
+        }
+
+        doneButton.tap()
+        guard keyboard.waitForNonExistence(timeout: 10),
+              doneButton.waitForNonExistence(timeout: 10) else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 RTL-string work-validation keyboard accessory did not dismiss"
+            )
+        }
+
+        let postWorkScreens = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.screen"
+        )
+        let postDescriptionFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.description"
+        )
+        let postFocusedDescriptionFields = postDescriptionFields.matching(
+            focusedPredicate
+        )
+        let postValidationLabels = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.validation"
+        )
+        let postNoteHeadings = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", "\u{202E}Note\u{202C}")
+        )
+        let postNoteFields = app.descendants(matching: .any).matching(
+            identifier: "s5.1.work.note"
+        )
+        let postKeyboards = app.keyboards
+        let postDoneButtons = app.buttons.matching(
+            identifier: "s5.1.work.keyboard-done"
+        )
+        let postQuickPathIntroductionViews = app.descendants(
+            matching: .other
+        ).matching(identifier: "UIContinuousPathIntroductionView")
+        let postQuickPathIntroductionButtons =
+            postQuickPathIntroductionViews.buttons
+        let postQuickPathIntroductionStaticTexts =
+            postQuickPathIntroductionViews.staticTexts
+
+        let postWorkScreenCount = postWorkScreens.count
+        let postDescriptionFieldCount = postDescriptionFields.count
+        let postFocusedDescriptionFieldCount =
+            postFocusedDescriptionFields.count
+        let postValidationLabelCount = postValidationLabels.count
+        let postNoteHeadingCount = postNoteHeadings.count
+        let postNoteFieldCount = postNoteFields.count
+        let postKeyboardCount = postKeyboards.count
+        let postDoneButtonCount = postDoneButtons.count
+        let postQuickPathIntroductionCount =
+            postQuickPathIntroductionViews.count
+        let postQuickPathIntroductionButtonCount =
+            postQuickPathIntroductionButtons.count
+        let postQuickPathIntroductionStaticTextCount =
+            postQuickPathIntroductionStaticTexts.count
+        guard postWorkScreenCount == 1,
+              postDescriptionFieldCount == 1,
+              postFocusedDescriptionFieldCount == 0,
+              postValidationLabelCount == 1,
+              postNoteHeadingCount == 1,
+              postNoteFieldCount == 1,
+              postKeyboardCount == 0,
+              postDoneButtonCount == 0,
+              postQuickPathIntroductionCount == 0,
+              postQuickPathIntroductionButtonCount == 0,
+              postQuickPathIntroductionStaticTextCount == 0 else {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 RTL-string work-validation post-dismiss structure is invalid"
+            )
+        }
+
+        let postWorkScreen = postWorkScreens.element(boundBy: 0)
+        let postDescriptionField = postDescriptionFields.element(boundBy: 0)
+        let postValidationLabel = postValidationLabels.element(boundBy: 0)
+        let postNoteHeading = postNoteHeadings.element(boundBy: 0)
+        let postNoteField = postNoteFields.element(boundBy: 0)
+        let postApplicationFrame = app.frame
+        let postWorkScreenFrame = postWorkScreen.frame
+        let postDescriptionFrame = postDescriptionField.frame
+        let postValidationFrame = postValidationLabel.frame
+        let postNoteHeadingFrame = postNoteHeading.frame
+        let postNoteFieldFrame = postNoteField.frame
+        let firstFailedPostDismissSemanticLabel: String? = {
+            if app.state != .runningForeground { return "post-app-foreground" }
+            if segmentedRouteStateCursor != 0 { return "post-route-cursor" }
+            if migratedStateIDs != expectedMigratedStateIDs {
+                return "post-migrated-state-ids"
+            }
+            if automationAXTreeDigests.keys.sorted()
+                != expectedMigratedStateIDs.sorted() {
+                return "post-ax-tree-digests"
+            }
+            if !automationContrastExceptions.isEmpty {
+                return "post-contrast-exceptions-empty"
+            }
+            if automatedSegmentFinished { return "post-segment-unfinished" }
+            if !frameIsValid(postApplicationFrame) { return "post-app-frame-valid" }
+            if !frameIsValid(postWorkScreenFrame) { return "post-work-frame-valid" }
+            if !frameIsValid(postDescriptionFrame) {
+                return "post-description-frame-valid"
+            }
+            if !frameIsValid(postValidationFrame) {
+                return "post-validation-frame-valid"
+            }
+            if !frameIsValid(postNoteHeadingFrame) {
+                return "post-note-heading-frame-valid"
+            }
+            if !frameIsValid(postNoteFieldFrame) {
+                return "post-note-field-frame-valid"
+            }
+            if !postApplicationFrame.contains(postWorkScreenFrame) {
+                return "post-app-contains-work"
+            }
+            if !postApplicationFrame.contains(postDescriptionFrame) {
+                return "post-app-contains-description"
+            }
+            if !postApplicationFrame.contains(postValidationFrame) {
+                return "post-app-contains-validation"
+            }
+            if !postApplicationFrame.contains(postNoteHeadingFrame) {
+                return "post-app-contains-note-heading"
+            }
+            if !postApplicationFrame.contains(postNoteFieldFrame) {
+                return "post-app-contains-note-field"
+            }
+            if postNoteHeadingFrame.maxY > postNoteFieldFrame.minY {
+                return "post-note-heading-before-note-field"
+            }
+            if !postWorkScreen.exists { return "post-work-exists" }
+            if !postWorkScreen.isEnabled { return "post-work-enabled" }
+            if !postWorkScreen.isHittable { return "post-work-hittable" }
+            if postWorkScreen.identifier != preWorkScreenIdentifier {
+                return "post-work-identifier"
+            }
+            if !postDescriptionField.exists { return "post-description-exists" }
+            if !postDescriptionField.isEnabled { return "post-description-enabled" }
+            if !postDescriptionField.isHittable { return "post-description-hittable" }
+            if postDescriptionField.identifier != preDescriptionIdentifier {
+                return "post-description-identifier"
+            }
+            if postDescriptionField.label != preDescriptionLabel {
+                return "post-description-label"
+            }
+            if (postDescriptionField.value as? String) != "" {
+                return "post-description-empty-value"
+            }
+            if !postValidationLabel.exists { return "post-validation-exists" }
+            if !postValidationLabel.isEnabled { return "post-validation-enabled" }
+            if postValidationLabel.identifier != preValidationIdentifier {
+                return "post-validation-identifier"
+            }
+            if postValidationLabel.label != preValidationLabel {
+                return "post-validation-label"
+            }
+            if !postNoteHeading.exists { return "post-note-heading-exists" }
+            if !postNoteHeading.isHittable { return "post-note-heading-hittable" }
+            if postNoteHeading.label != preNoteHeadingLabel {
+                return "post-note-heading-label"
+            }
+            if postNoteHeading.elementType != preNoteHeadingType {
+                return "post-note-heading-type"
+            }
+            if !postNoteField.exists { return "post-note-field-exists" }
+            if !postNoteField.isHittable { return "post-note-field-hittable" }
+            if postNoteField.identifier != preNoteFieldIdentifier {
+                return "post-note-field-identifier"
+            }
+            return nil
+        }()
+        if let firstFailedPostDismissSemanticLabel {
+            throw AutomationConfigurationError.invalid(
+                "S10.4 RTL-string work-validation post-dismiss semantics are invalid: "
+                    + firstFailedPostDismissSemanticLabel
+            )
+        }
     }
 
     @MainActor
