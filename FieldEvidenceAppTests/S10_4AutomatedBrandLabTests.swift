@@ -3365,6 +3365,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "        if automationShard?.deviceProfileID\n            == \"iphone-17-ios-26.2-current\" {",
             before: "        if diagnosticProbe == .minimumPreflight {\n"
         )
+        let doublePreflightViewportSource = try boundedSource(
+            preflightMinimumSource,
+            from: "                        let preflightTabBars = app.tabBars",
+            before: "\n                } else {"
+        )
+        for nativeViewportInvariant in [
+            "let maximumShift = min(",
+            "liveApplicationFrame.minY - headingFrame.maxY",
+            "headingFrame.maxY <= liveApplicationFrame.minY",
+            "finalHeadingFrame.maxY <= finalApplicationFrame.minY",
+            "finalConfirmationFrame.minY >= finalSafeTop",
+            "finalConfirmationFrame.maxY <= finalSafeBottom",
+            "let safeBottom = liveBottom - verticalInset",
+            "let receiverInset: CGFloat = 24",
+            "let minimumGestureDistance: CGFloat = 44",
+            "minimumCommand < maximumCommand",
+            "(maximumCommand - minimumCommand) / 2",
+            "predictedSelectedMovement >= minimumShift",
+            "predictedSelectedMovement <= jointMaximumShift",
+            "confirmationMovement * dragDistance > 0",
+        ] {
+            XCTAssertTrue(doublePreflightViewportSource.contains(nativeViewportInvariant))
+        }
+        XCTAssertFalse(doublePreflightViewportSource.contains(") + verticalInset"))
+        XCTAssertFalse(doublePreflightViewportSource.contains(
+            "selectedResidualDistance = recognizedResidualDistance"
+        ))
+
         for retiredMinimumDoubleLengthDiagnosticSymbol in [
             #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#,
             "diagnoseMinimumDoubleLengthPreflightNativeContrast",
@@ -17999,10 +18027,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 875_795)
+        XCTAssertEqual(uiSource.utf8.count, 875_681)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "2C200205452FC32665BB8EEE48EFFA69F155423821B4DB0E091A5309892FBD2C"
+            "2DE0FA8352193DB8E49FE785B8401097420E2BB943D0231B388EDFE52A1F42A0"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

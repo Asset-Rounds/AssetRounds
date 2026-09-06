@@ -2228,7 +2228,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             let safeTop = max(
                                 liveScrollFrame.minY,
                                 navigationFrame.maxY
-                            ) + verticalInset
+                            )
                             let safeBottom = liveBottom - verticalInset
                             let receiverTop = max(
                                 liveScrollFrame.minY,
@@ -2237,8 +2237,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             let receiverBottom = liveBottom - receiverInset
                             let minimumShift =
                                 safeTop - confirmationFrame.minY
-                            let maximumShift =
-                                safeBottom - confirmationFrame.maxY
+                            let maximumShift = min(
+                                safeBottom - confirmationFrame.maxY,
+                                liveApplicationFrame.minY - headingFrame.maxY
+                            )
                             guard !liveApplicationFrame.isNull,
                                   !liveApplicationFrame.isEmpty,
                                   !scrollFrame.isNull,
@@ -2272,7 +2274,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 return
                             }
                             if confirmationFrame.minY >= safeTop,
-                               confirmationFrame.maxY <= safeBottom {
+                               confirmationFrame.maxY <= safeBottom,
+                               headingFrame.maxY <= liveApplicationFrame.minY {
                                 break
                             }
                             guard maximumShift < 0 else {
@@ -2340,32 +2343,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                    previousObservedMovement < 0,
                                    previousCommandMinusObservedResidual < 0,
                                    minimumShift <= jointMaximumShift {
-                                    if predictedRecognizedMovement >= minimumShift,
-                                       predictedRecognizedMovement <= jointMaximumShift {
-                                        selectedResidualDistance = recognizedResidualDistance
-                                    } else {
-                                        let minimumCommand = max(
-                                            -receiverCapacity,
-                                            minimumShift + previousCommandMinusObservedResidual
-                                        )
-                                        let maximumCommand = min(
-                                            -minimumGestureDistance,
-                                            jointMaximumShift + previousCommandMinusObservedResidual
-                                        )
-                                        if minimumCommand.isFinite,
-                                           maximumCommand.isFinite,
-                                           minimumCommand < maximumCommand {
-                                            let selectedCommand = minimumCommand
-                                            let predictedSelectedMovement = selectedCommand
-                                                - previousCommandMinusObservedResidual
-                                            if selectedCommand.isFinite,
-                                               predictedSelectedMovement.isFinite,
-                                               selectedCommand >= -receiverCapacity,
-                                               selectedCommand <= -minimumGestureDistance,
-                                               predictedSelectedMovement >= minimumShift,
-                                               predictedSelectedMovement <= jointMaximumShift {
-                                                selectedResidualDistance = selectedCommand
-                                            }
+                                    let minimumCommand = max(
+                                        -receiverCapacity,
+                                        minimumShift + previousCommandMinusObservedResidual
+                                    )
+                                    let maximumCommand = min(
+                                        -minimumGestureDistance,
+                                        jointMaximumShift + previousCommandMinusObservedResidual
+                                    )
+                                    if minimumCommand.isFinite,
+                                       maximumCommand.isFinite,
+                                       minimumCommand < maximumCommand {
+                                        let selectedCommand = minimumCommand
+                                            + (maximumCommand - minimumCommand) / 2
+                                        let predictedSelectedMovement = selectedCommand
+                                            - previousCommandMinusObservedResidual
+                                        if selectedCommand.isFinite,
+                                           predictedSelectedMovement.isFinite,
+                                           selectedCommand >= -receiverCapacity,
+                                           selectedCommand <= -minimumGestureDistance,
+                                           predictedSelectedMovement >= minimumShift,
+                                           predictedSelectedMovement <= jointMaximumShift {
+                                            selectedResidualDistance = selectedCommand
                                         }
                                     }
                                 }
@@ -2672,7 +2671,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         let finalSafeTop = max(
                             finalScrollFrame.minY,
                             finalNavigationFrame.maxY
-                        ) + verticalInset
+                        )
                         let finalSafeBottom = min(
                             finalScrollFrame.maxY,
                             min(
@@ -2740,7 +2739,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                               finalSafeBottom.isFinite,
                               finalSafeBottom > finalSafeTop,
                               finalConfirmationFrame.minY >= finalSafeTop,
-                              finalConfirmationFrame.maxY <= finalSafeBottom else {
+                              finalConfirmationFrame.maxY <= finalSafeBottom,
+                              finalHeadingFrame.maxY <= finalApplicationFrame.minY else {
                             printJSONLine(
                                 prefix: "S10_4_MINIMUM_DOUBLE_CACHED_GEOMETRY",
                                 object: [
