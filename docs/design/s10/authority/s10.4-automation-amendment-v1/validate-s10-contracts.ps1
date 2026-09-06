@@ -124,6 +124,92 @@ function Get-GitBlobSha256 {
     return ([string]$value).Trim()
 }
 
+function Assert-GitHubEnvironmentContract {
+    param($Contract)
+    if ($Contract -isnot [System.Management.Automation.PSCustomObject]) {
+        Add-ValidationError "GitHub environment contract must be an object."
+        return
+    }
+    $expected = [ordered]@{
+        contract_version = "s10.4-github-image-adoption-v1"
+        authority_head = "d5b2dd30e5552a8d836c941d914802206e15a9a6"
+        image_os = "macos26"
+        image_version = "20260831.0337.3"
+        macos_product_name = "macOS"
+        macos_product_version = "26.6.2"
+        macos_build_version = "25G83"
+        architecture = "arm64"
+    }
+    Assert-ExactSet @($Contract.PSObject.Properties.Name) @(@($expected.Keys) + "worker_source_sha256") "GitHub environment contract fields"
+    foreach ($field in @(@($expected.Keys) + "worker_source_sha256")) {
+        if (-not ($Contract.PSObject.Properties.Name -ccontains $field) -or $Contract.$field -isnot [string]) {
+            Add-ValidationError "GitHub environment contract $field must be a string."
+            return
+        }
+    }
+    foreach ($field in $expected.Keys) {
+        Assert-Equal $Contract.$field $expected[$field] "GitHub environment contract $field"
+    }
+    if ([string]$Contract.worker_source_sha256 -cnotmatch '^[0-9A-F]{64}$') {
+        Add-ValidationError "GitHub environment worker source digest is malformed."
+    }
+    Assert-Equal (Get-Sha256 (Join-Path $RepositoryRoot ".github/workflows/ios-ci-worker.yml")) $Contract.worker_source_sha256 "GitHub reviewed worker source"
+    Assert-Commit $Contract.authority_head "GitHub image authority"
+    $parents = @(& git -C $RepositoryRoot rev-list --parents -n 1 $Contract.authority_head 2>$null)
+    if ($LASTEXITCODE -ne 0) { throw "Cannot resolve GitHub image authority parent." }
+    Assert-Equal ($parents -join "") "$($Contract.authority_head) bcc23ef9fb8690986014fbe5df434a18fa0a979d" "GitHub image authority direct parent"
+    $paths = @(& git -C $RepositoryRoot diff-tree --no-commit-id --name-only -r $Contract.authority_head 2>$null)
+    if ($LASTEXITCODE -ne 0) { throw "Cannot resolve GitHub image authority paths." }
+    Assert-ExactSet $paths @("docs/execution/CURRENT_TASK.md", "docs/execution/S10_4_CI_OPERATING_BRIEF.md") "GitHub image authority-only paths"
+}
+
+function Assert-GitHubReceiptEnvironment {
+    param($Receipt, [string]$Label)
+    # Original raw receipt projection, API identity and checksum authenticity remain
+    # mandatory terminal-audit evidence, not claims made by this offline validator.
+    if (-not ($Receipt.PSObject.Properties.Name -ccontains "github_environment")) {
+        Add-ValidationError "$Label is missing the prospective GitHub environment."
+        return
+    }
+    $environment = $Receipt.github_environment
+    $contract = $manifest.github_environment_contract
+    if ($environment -isnot [System.Management.Automation.PSCustomObject]) {
+        Add-ValidationError "$Label GitHub environment must be an object."
+        return
+    }
+    Assert-ExactSet @($environment.PSObject.Properties.Name) @($contract.PSObject.Properties.Name) "$Label GitHub environment fields"
+    foreach ($field in $contract.PSObject.Properties.Name) {
+        if (-not ($environment.PSObject.Properties.Name -ccontains $field) -or $environment.$field -isnot [string]) {
+            Add-ValidationError "$Label GitHub environment $field must be a string."
+            return
+        }
+        Assert-Equal $environment.$field $contract.$field "$Label GitHub environment $field"
+    }
+    Assert-Equal $Receipt.source_product_head $ProductHead "$Label GitHub source head"
+    if ($Receipt.source_product_head -ceq $contract.authority_head) {
+        Add-ValidationError "$Label requires a strict post-authority source head."
+    }
+    Assert-Ancestor $contract.authority_head $Receipt.source_product_head "$Label prospective GitHub ancestry"
+    Assert-Equal (Get-GitBlobSha256 $Receipt.source_product_head ".github/workflows/ios-ci-worker.yml") $contract.worker_source_sha256 "$Label run-head GitHub producer"
+    $sourceManifest = Get-GitJson $Receipt.source_product_head "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json"
+    if (-not ($sourceManifest.PSObject.Properties.Name -ccontains "github_environment_contract")) {
+        Add-ValidationError "$Label source head lacks the prospective GitHub contract."
+        return
+    }
+    if ($sourceManifest.github_environment_contract -isnot [System.Management.Automation.PSCustomObject]) {
+        Add-ValidationError "$Label source contract must be an object."
+        return
+    }
+    Assert-ExactSet @($sourceManifest.github_environment_contract.PSObject.Properties.Name) @($contract.PSObject.Properties.Name) "$Label source contract fields"
+    foreach ($field in $contract.PSObject.Properties.Name) {
+        if (-not ($sourceManifest.github_environment_contract.PSObject.Properties.Name -ccontains $field) -or $sourceManifest.github_environment_contract.$field -isnot [string]) {
+            Add-ValidationError "$Label source contract $field must be a string."
+            return
+        }
+        Assert-Equal $sourceManifest.github_environment_contract.$field $contract.$field "$Label source contract $field"
+    }
+}
+
 function Get-ZipEntryText {
     param([string]$ZipPath, [string]$Suffix)
     Add-Type -AssemblyName System.IO.Compression
@@ -225,6 +311,7 @@ $token = Read-JsonFile $tokenPath
 $stage = Read-JsonFile $stagePath
 $activation = Read-JsonFile $activationPath
 $shardContract = Read-JsonFile $shardContractPath
+Assert-GitHubEnvironmentContract $manifest.github_environment_contract
 
 $expectedFrozenSchemaDocuments = @(
     "s10-activation",
@@ -677,6 +764,7 @@ foreach ($githubReceipt in $githubEquivalenceReceipts) {
     Assert-Equal $githubReceipt.receipt_evidence_id $githubRunEvidenceID "$githubShardID GitHub equivalence evidence ID"
     Assert-Contains @($githubReceipt.evidence_ids) $githubRunEvidenceID "$githubShardID GitHub equivalence evidence"
     Assert-Equal $githubReceipt.source_product_head $ProductHead "$githubShardID GitHub equivalence head"
+    Assert-GitHubReceiptEnvironment $githubReceipt "$githubShardID GitHub equivalence"
     Assert-Equal $githubReceipt.xcode_version $activation.toolchain.xcode_version "$githubShardID GitHub equivalence Xcode version"
     Assert-Equal $githubReceipt.xcode_build $activation.toolchain.xcode_build "$githubShardID GitHub equivalence Xcode build"
     Assert-Equal $githubReceipt.simulator_runtime $hybrid.bitrise_current_device_profile.simulator_runtime "$githubShardID GitHub equivalence runtime"
@@ -702,12 +790,16 @@ foreach ($receipt in $visual.shard_receipts) {
     Assert-Equal $receipt.device_profile_id $shard.device_profile_id "$($receipt.shard_id) receipt profile"
     Assert-Equal $receipt.accessibility_feature $shard.accessibility_feature "$($receipt.shard_id) receipt feature"
     Assert-Equal $receipt.source_product_head $ProductHead "$($receipt.shard_id) receipt E"
-    $provider = if ([string]::IsNullOrWhiteSpace([string]$receipt.runner_provider)) { "github_actions" } else { [string]$receipt.runner_provider }
+    $provider = if ($null -eq $receipt.PSObject.Properties["runner_provider"] -or [string]::IsNullOrWhiteSpace([string]$receipt.runner_provider)) { "github_actions" } else { [string]$receipt.runner_provider }
     if ($provider -ceq "github_actions") {
         Assert-Equal $receipt.runner_label $activation.toolchain.runner_label "$($receipt.shard_id) GitHub runner label"
-        Assert-Equal $receipt.runner_image $activation.toolchain.runner_image "$($receipt.shard_id) GitHub runner image"
+        Assert-Equal $receipt.runner_image "$($manifest.github_environment_contract.image_os)-$($manifest.github_environment_contract.image_version)" "$($receipt.shard_id) GitHub runner image"
+        Assert-GitHubReceiptEnvironment $receipt "$($receipt.shard_id) GitHub receipt"
     }
     elseif ($provider -ceq "bitrise_build_hub") {
+        if ($receipt.PSObject.Properties.Name -ccontains "github_environment") {
+            Add-ValidationError "$($receipt.shard_id) Bitrise receipt must not carry GitHub environment fields."
+        }
         $bitriseReceiptCount++
         Assert-Contains $expectedBitriseShards $receipt.shard_id "$($receipt.shard_id) Bitrise eligibility"
         Assert-Equal $receipt.runner_label "bitrise-m4-pro" "$($receipt.shard_id) Bitrise runner label"

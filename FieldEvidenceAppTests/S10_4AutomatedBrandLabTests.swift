@@ -341,13 +341,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         try assertFile(
             manifestPath,
-            byteCount: 22_277,
-            sha256: "A3FCAB8091B34B7BC1E179C1BBD8B45E018A932C20603A3CBBDAB2E28D58404B"
+            byteCount: 22_742,
+            sha256: "77B1C961A859ADFA13CC2E0EFC607CA10BF54D0983B944E141C3812FB5DD99ED"
         )
         try assertFile(
             visualSchemaPath,
-            byteCount: 27_765,
-            sha256: "07E272957EB850AFAB888BE5E4C4CC55097C597D57D2EA9C249F1575DE9F58C2"
+            byteCount: 29_709,
+            sha256: "4DF9004286D536140B000E3A42AA055FBB347870A50526F159ED4E4184C2AB6A"
         )
         try assertFile(
             accessibilitySchemaPath,
@@ -376,8 +376,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 354_488,
-            sha256: "16A8E9E34E638347796C28D11C86DB2C6F651A383EACE443EA04C80F107B15CE"
+            byteCount: 357_780,
+            sha256: "68EBD349B676B8177A1E76C0C3DE2A6F521DF2E72382D3EEF1109F5D0E71BC5D"
         )
         let workflowSource = try text(workflowPath)
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
@@ -1383,10 +1383,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerExecutionSource = String(
             workflowSource[workerExecutionStart.lowerBound..<workerExecutionEnd.lowerBound]
         )
-        XCTAssertEqual(workerExecutionSource.utf8.count, 158_519)
+        XCTAssertEqual(workerExecutionSource.utf8.count, 161_027)
         XCTAssertEqual(
             Data(workerExecutionSource.utf8).sha256,
-            "FC5D551DBC9184303B7F915E65815F3DBB431EE669D2C11C7987C551EE32EEDE"
+            "EEE869A148DBEF9AFAACDFCFE9E8C2B610387DDFC0DC8118F7E7B9E5209D14A9"
         )
         XCTAssertEqual(
             workerExecutionSource.components(
@@ -1741,11 +1741,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"test "$RUNNER_ARCH" = "ARM64""#).count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             workflowSource.components(separatedBy: #"test "$(uname -m)" = "arm64""#).count - 1,
-            3
+            4
         )
         XCTAssertEqual(
             workflowSource.components(
@@ -2431,6 +2431,94 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(retainRunSource.contains("${{"))
 
         let manifest = try json(manifestPath)
+        let h407Environment = try object(manifest, "github_environment_contract")
+        let h407ExpectedEnvironment: [String: String] = [
+            "contract_version": "s10.4-github-image-adoption-v1",
+            "authority_head": "d5b2dd30e5552a8d836c941d914802206e15a9a6",
+            "worker_source_sha256": try data(workflowPath).sha256,
+            "image_os": "macos26",
+            "image_version": "20260831.0337.3",
+            "macos_product_name": "macOS",
+            "macos_product_version": "26.6.2",
+            "macos_build_version": "25G83",
+            "architecture": "arm64",
+        ]
+        let h407EnvironmentMatches: ([String: Any]?) -> Bool = { value in
+            guard let value,
+                  Set(value.keys) == Set(h407ExpectedEnvironment.keys) else {
+                return false
+            }
+            return h407ExpectedEnvironment.allSatisfy { key, expected in
+                (value[key] as? String) == expected
+            }
+        }
+        XCTAssertTrue(h407EnvironmentMatches(h407Environment))
+        XCTAssertFalse(h407EnvironmentMatches(nil))
+        for key in h407ExpectedEnvironment.keys.sorted() {
+            var missing = h407Environment
+            missing.removeValue(forKey: key)
+            XCTAssertFalse(h407EnvironmentMatches(missing), key)
+            var wrong = h407Environment
+            wrong[key] = "unreviewed"
+            XCTAssertFalse(h407EnvironmentMatches(wrong), key)
+            wrong[key] = 1
+            XCTAssertFalse(h407EnvironmentMatches(wrong), key)
+            wrong[key] = [h407ExpectedEnvironment[key]!]
+            XCTAssertFalse(h407EnvironmentMatches(wrong), key)
+            wrong[key] = NSNull()
+            XCTAssertFalse(h407EnvironmentMatches(wrong), key)
+        }
+        var h407ExtraField = h407Environment
+        h407ExtraField["acceptanceEligible"] = true
+        XCTAssertFalse(h407EnvironmentMatches(h407ExtraField))
+        var h407OldImage = h407Environment
+        h407OldImage["image_version"] = "20260728.0273.1"
+        XCTAssertFalse(h407EnvironmentMatches(h407OldImage))
+        let h407ProviderMatches: (String?, [String: Any]?) -> Bool = { provider, value in
+            switch provider {
+            case nil, .some(""), .some("github_actions"):
+                return h407EnvironmentMatches(value)
+            case .some("bitrise_build_hub"):
+                return value == nil
+            default:
+                return false
+            }
+        }
+        for provider in [nil, "", "github_actions"] as [String?] {
+            XCTAssertTrue(h407ProviderMatches(provider, h407Environment))
+            XCTAssertFalse(h407ProviderMatches(provider, nil))
+        }
+        XCTAssertTrue(h407ProviderMatches("bitrise_build_hub", nil))
+        XCTAssertFalse(h407ProviderMatches("bitrise_build_hub", h407Environment))
+        XCTAssertFalse(h407ProviderMatches("unknown", nil))
+        let h407VisualProperties = try object(try json(visualSchemaPath), "properties")
+        for receiptKey in ["shard_receipts", "github_equivalence_receipts"] {
+            let receiptItem = try object(try object(h407VisualProperties, receiptKey), "items")
+            let receiptProperties = try object(receiptItem, "properties")
+            let environmentSchema = try object(receiptProperties, "github_environment")
+            XCTAssertEqual(try string(environmentSchema, "type"), "object")
+            XCTAssertEqual(environmentSchema["additionalProperties"] as? Bool, false)
+            XCTAssertEqual(Set(try strings(environmentSchema, "required")), Set(h407ExpectedEnvironment.keys))
+            let environmentProperties = try object(environmentSchema, "properties")
+            XCTAssertEqual(Set(environmentProperties.keys), Set(h407ExpectedEnvironment.keys))
+            for key in h407ExpectedEnvironment.keys.sorted() {
+                let definition = try object(environmentProperties, key)
+                switch key {
+                case "authority_head":
+                    XCTAssertEqual(try string(definition, "type"), "string")
+                    XCTAssertEqual(try string(definition, "pattern"), "^[0-9a-f]{40}$")
+                case "worker_source_sha256":
+                    XCTAssertEqual(try string(definition, "type"), "string")
+                    XCTAssertEqual(try string(definition, "pattern"), "^[0-9A-F]{64}$")
+                default:
+                    XCTAssertEqual(try string(definition, "const"), h407ExpectedEnvironment[key])
+                }
+            }
+            XCTAssertEqual(
+                try strings(receiptItem, "required").contains("github_environment"),
+                receiptKey == "github_equivalence_receipts"
+            )
+        }
         XCTAssertEqual(try string(manifest, "schema_version"), "1.0.0")
         XCTAssertEqual(try string(manifest, "document_status"), "frozen")
         XCTAssertEqual(

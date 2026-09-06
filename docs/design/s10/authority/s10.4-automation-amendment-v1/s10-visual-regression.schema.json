@@ -364,6 +364,22 @@
           "artifact_checksum_manifest_path": { "type": "string", "minLength": 1 },
           "artifact_checksum_manifest_sha256": { "type": "string", "pattern": "^[0-9A-F]{64}$" },
           "runner_provider": { "enum": ["github_actions", "bitrise_build_hub"] },
+          "github_environment": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["contract_version", "authority_head", "worker_source_sha256", "image_os", "image_version", "macos_product_name", "macos_product_version", "macos_build_version", "architecture"],
+            "properties": {
+              "contract_version": { "const": "s10.4-github-image-adoption-v1" },
+              "authority_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+              "worker_source_sha256": { "type": "string", "pattern": "^[0-9A-F]{64}$" },
+              "image_os": { "const": "macos26" },
+              "image_version": { "const": "20260831.0337.3" },
+              "macos_product_name": { "const": "macOS" },
+              "macos_product_version": { "const": "26.6.2" },
+              "macos_build_version": { "const": "25G83" },
+              "architecture": { "const": "arm64" }
+            }
+          },
           "build_payload": {
             "type": "object",
             "additionalProperties": false,
@@ -447,8 +463,24 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["receipt_id", "shard_id", "run_id", "job_id", "artifact_id", "artifact_digest", "receipt_evidence_id", "receipt_sha256", "artifact_checksum_manifest_sha256", "source_product_head", "xcode_version", "xcode_build", "simulator_runtime", "simulator_name", "simulator_os_build", "selector", "state_set_sha256", "shared_build_archive_sha256", "shared_build_xctestrun_sha256", "shared_build_products_sha256", "unit_test_count", "unit_result", "ax_state_count", "ax_result", "contrast_state_count", "contrast_result", "accessibility_task_count", "task_result", "watchdog_result", "receipt_result", "evidence_ids"],
+        "required": ["receipt_id", "shard_id", "run_id", "job_id", "artifact_id", "artifact_digest", "receipt_evidence_id", "receipt_sha256", "artifact_checksum_manifest_sha256", "source_product_head", "xcode_version", "xcode_build", "simulator_runtime", "simulator_name", "simulator_os_build", "selector", "state_set_sha256", "shared_build_archive_sha256", "shared_build_xctestrun_sha256", "shared_build_products_sha256", "unit_test_count", "unit_result", "ax_state_count", "ax_result", "contrast_state_count", "contrast_result", "accessibility_task_count", "task_result", "watchdog_result", "receipt_result", "evidence_ids", "github_environment"],
         "properties": {
+          "github_environment": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["contract_version", "authority_head", "worker_source_sha256", "image_os", "image_version", "macos_product_name", "macos_product_version", "macos_build_version", "architecture"],
+            "properties": {
+              "contract_version": { "const": "s10.4-github-image-adoption-v1" },
+              "authority_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+              "worker_source_sha256": { "type": "string", "pattern": "^[0-9A-F]{64}$" },
+              "image_os": { "const": "macos26" },
+              "image_version": { "const": "20260831.0337.3" },
+              "macos_product_name": { "const": "macOS" },
+              "macos_product_version": { "const": "26.6.2" },
+              "macos_build_version": { "const": "25G83" },
+              "architecture": { "const": "arm64" }
+            }
+          },
           "receipt_id": { "type": "string", "pattern": "^s10\\.4-github-equivalence-(default-light|default-dark)$" },
           "shard_id": { "enum": ["s10.4.current.default-light", "s10.4.current.default-dark"] },
           "run_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },

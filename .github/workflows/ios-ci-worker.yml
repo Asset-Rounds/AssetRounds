@@ -1041,9 +1041,53 @@ jobs:
             "$CI_RUNNER_PROVIDER" "$CI_RUNNER_LABEL" "$RUNNER_NAME" "$RUNNER_ARCH" \
             "$(uname -m)" "$(sw_vers -productVersion)" "$DEVELOPER_DIR" \
             | tee "$CI_ARTIFACT_DIR/runner-provider.txt"
+          if test "$CI_RUNNER_PROVIDER" = "github"; then
+            printf 'macos_product_name=%s\nmacos_build_version=%s\n' \
+              "$(sw_vers -productName)" "$(sw_vers -buildVersion)" \
+              | tee -a "$CI_ARTIFACT_DIR/runner-provider.txt"
+          fi
           printf 'repository=%s\nref=%s\nsha=%s\nrun_id=%s\nrun_attempt=%s\n' \
             "$GITHUB_REPOSITORY" "$GITHUB_REF" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
             | tee "$CI_ARTIFACT_DIR/github-run.txt"
+          if test "$CI_RUNNER_PROVIDER" = "github" \
+            && test "${CI_TASK_ID:-}" = "S10.4" \
+            && test "${CI_S10_4_PILOT_MODE:-false}" = "false" \
+            && test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "independent" \
+            && test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" = "none"; then
+            test "${ImageOS:-}" = "macos26"
+            test "${ImageVersion:-}" = "20260831.0337.3"
+            test "$RUNNER_ARCH" = "ARM64"
+            test "$(uname -m)" = "arm64"
+            test "$(sw_vers -productName)" = "macOS"
+            test "$(sw_vers -productVersion)" = "26.6.2"
+            test "$(sw_vers -buildVersion)" = "25G83"
+            test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+            github_environment_manifest="docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json"
+            github_worker_source_sha256="$(shasum -a 256 .github/workflows/ios-ci-worker.yml | awk '{print toupper($1)}')"
+            github_environment_json="$(jq -cn \
+              --arg workerHash "$github_worker_source_sha256" \
+              --arg imageOS "$ImageOS" --arg imageVersion "$ImageVersion" \
+              --arg productName "$(sw_vers -productName)" \
+              --arg productVersion "$(sw_vers -productVersion)" \
+              --arg buildVersion "$(sw_vers -buildVersion)" \
+              --arg architecture "$(uname -m)" '
+                {
+                  contract_version: "s10.4-github-image-adoption-v1",
+                  authority_head: "d5b2dd30e5552a8d836c941d914802206e15a9a6",
+                  worker_source_sha256: $workerHash,
+                  image_os: $imageOS,
+                  image_version: $imageVersion,
+                  macos_product_name: $productName,
+                  macos_product_version: $productVersion,
+                  macos_build_version: $buildVersion,
+                  architecture: $architecture
+                }
+              ')"
+            jq -e --argjson observed "$github_environment_json" \
+              '.github_environment_contract == $observed' \
+              "$github_environment_manifest" > /dev/null
+            printf 'CI_S10_4_GITHUB_ENVIRONMENT=%s\n' "$github_environment_json" >> "$GITHUB_ENV"
+          fi
           test -d "$DEVELOPER_DIR"
           test -f "$PROJECT_PATH/project.pbxproj"
           test -f "$PROJECT_PATH/xcshareddata/xcschemes/$SCHEME.xcscheme"
@@ -4438,6 +4482,16 @@ jobs:
           done < <(jq -c '.[]' "$shard_evidence_path/contrast.json")
           test "$(find "$state_contrast_path" -type f -name 'state.*.json' | wc -l | tr -d ' ')" -eq 67
 
+          github_environment_json='null'
+          if test "$CI_RUNNER_PROVIDER" = "github" \
+            && test "${CI_S10_4_PILOT_MODE:-false}" = "false" \
+            && test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "independent" \
+            && test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" = "none"; then
+            github_environment_json="${CI_S10_4_GITHUB_ENVIRONMENT:?}"
+            jq -e --argjson observed "$github_environment_json" \
+              '.github_environment_contract == $observed' \
+              docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json > /dev/null
+          fi
           jq -n \
             --arg taskID "$CI_TASK_ID" \
             --arg shardID "$CI_S10_4_SHARD_ID" \
@@ -4447,6 +4501,7 @@ jobs:
             --arg runtimeBuild "$SIMULATOR_RUNTIME_BUILD" \
             --arg simulatorName "$SIMULATOR_NAME" \
             --arg productHead "$GITHUB_SHA" \
+            --argjson githubEnvironment "$github_environment_json" \
             --argjson candidateCount 67 \
             --argjson stateAXRowCount 67 \
             --argjson accessibilityRowCount "$expected_accessibility_rows" \
@@ -4465,7 +4520,7 @@ jobs:
                 stateAXRowCount: $stateAXRowCount,
                 accessibilityRowCount: $accessibilityRowCount,
                 contrastRowCount: $contrastRowCount
-              }
+              } + (if $githubEnvironment == null then {} else {github_environment: $githubEnvironment} end)
             ' > "$shard_evidence_path/shard-receipt.json"
 
       # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN
