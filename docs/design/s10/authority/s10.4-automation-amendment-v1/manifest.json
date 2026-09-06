@@ -56,7 +56,7 @@
   "github_environment_contract": {
     "contract_version": "s10.4-github-image-adoption-v1",
     "authority_head": "d5b2dd30e5552a8d836c941d914802206e15a9a6",
-    "worker_source_sha256": "6CBA1C456B844652EF6207CBA6EA4EC94D261D4386FE293380F4C31628396A7B",
+    "worker_source_sha256": "C9410A389FC818EF2039A4F6931DA68C1DA1E47DEAAEA10A5D86C70883CC5430",
     "image_os": "macos26",
     "image_version": "20260831.0337.3",
     "macos_product_name": "macOS",

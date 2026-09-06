@@ -761,17 +761,12 @@ jobs:
 
           if test "$DISPATCH_S10_4_UNIT_ONLY" = true; then
             test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = bitrise:bitrise-m4-pro
-            test "$CI_TASK_ID:$CI_TIER" = S10.4:F25
-            test "$CI_SELECTOR_RUN_UI_SMOKE" = true
-            test "$DISPATCH_RUN_UI_SMOKE" = false
-            test "$CI_S10_4_SHARD_ID:$CI_S10_4_DEVICE_PROFILE_ID" = \
-              s10.4.current.default-light:iphone-17-ios-26.2-current
-            test "$CI_S10_4_SEGMENT_ID" = none
-            test "$DISPATCH_S10_4_EXECUTION_ROLE" = independent
-            test "$DISPATCH_S10_4_PILOT_MODE" = false
+            test "$CI_TASK_ID:$CI_TIER:$CI_SELECTOR_RUN_UI_SMOKE:$DISPATCH_RUN_UI_SMOKE" = S10.4:F25:true:false
+            test "$CI_S10_4_SHARD_ID:$CI_S10_4_DEVICE_PROFILE_ID:$CI_S10_4_SEGMENT_ID" = \
+              s10.4.current.default-light:iphone-17-ios-26.2-current:none
+            test "$DISPATCH_S10_4_EXECUTION_ROLE:$DISPATCH_S10_4_PILOT_MODE" = independent:false
             test -z "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME"
-            test "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" = none
-            test "$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" = none
+            test "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID:$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" = none:none
             CI_RUN_UI_SMOKE=false
           fi
 
@@ -5884,312 +5879,131 @@ jobs:
         if: ${{ always() && inputs.s10_4_unit_only == true }}
         shell: bash
         env:
-          UNIT_ONLY_BUILD_STEP_OUTCOME: ${{ steps.build_unsigned_simulator_app.outcome }}
-          UNIT_ONLY_TEST_STEP_OUTCOME: ${{ steps.run_targeted_tests.outcome }}
-          UNIT_ONLY_EVIDENCE_STEP_OUTCOME: ${{ steps.validate_required_evidence.outcome }}
-          UNIT_ONLY_PRIOR_JOB_STATUS: ${{ job.status }}
-          UNIT_ONLY_DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
-          UNIT_ONLY_DISPATCH_SHARD_ID: ${{ inputs.s10_4_shard_id }}
-          UNIT_ONLY_DISPATCH_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
-          UNIT_ONLY_DISPATCH_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
-          UNIT_ONLY_DISPATCH_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
-          UNIT_ONLY_DISPATCH_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
-          UNIT_ONLY_DISPATCH_DIAGNOSTIC_PROBE_ID: ${{ inputs.s10_4_diagnostic_probe_id }}
-          UNIT_ONLY_DISPATCH_DIAGNOSTIC_EXECUTION_LANE: ${{ inputs.s10_4_diagnostic_execution_lane }}
+          BUILD_OUTCOME: ${{ steps.build_unsigned_simulator_app.outcome }}
+          UNIT_OUTCOME: ${{ steps.run_targeted_tests.outcome }}
+          EVIDENCE_OUTCOME: ${{ steps.validate_required_evidence.outcome }}
+          PRIOR_STATUS: ${{ job.status }}
+          REQUESTED_UI: ${{ inputs.run_ui_smoke }}
+          REQUESTED_SHARD: ${{ inputs.s10_4_shard_id }}
         run: |
           set -euo pipefail
           artifact_dir="${CI_ARTIFACT_DIR:-$RUNNER_TEMP/FieldEvidenceCI}"
-          record_path="$artifact_dir/bitrise-development-unit/development-unit-record.json"
-          mkdir -p "$(dirname "$record_path")"
-
-          expected_unit_tests="$(jq -cn '[
+          record="$artifact_dir/bitrise-development-unit/development-unit-record.json"
+          mkdir -p "$(dirname "$record")"
+          expected="$(jq -cn '[
             "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth",
             "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices",
             "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory",
             "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree",
             "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract"
           ]')"
-          observed_unit_tests='[]'
-          unit_results_exact=false
+
+          unit_scan='{"valid":false,"tests":[]}'
           if test -s "$artifact_dir/unit-test-results.json"; then
             set +e
-            observed_unit_tests="$(jq -cS --arg bundleType "Unit test bundle" '
-              def normalize_identifier:
-                sub("\\(\\)$"; "");
-              def executed_cases($bundleName; $bundleType):
-                . as $node
-                | (
-                    if $node.nodeType? == $bundleType
-                    then ($node.name? // "")
-                    else $bundleName
-                    end
-                  ) as $nextBundle
-                | if $node.nodeType? == "Test Case" then
-                    if (
-                      $nextBundle | type == "string" and length > 0
-                    ) and (
-                      $node.nodeIdentifier? | type == "string" and length > 0
-                    ) and (
-                      $node.result? | type == "string" and length > 0
-                    ) and (
-                      [$node.children[]? | .. | objects | select(.nodeType? == "Test Case")]
-                      | length == 0
-                    ) then
-                      ($node.nodeIdentifier | normalize_identifier) as $identifier
-                      | {
-                          identifier: (
-                            if ($identifier | startswith($nextBundle + "/"))
-                            then $identifier
-                            else ($nextBundle + "/" + $identifier)
-                            end
-                          ),
-                          result: $node.result
-                        }
-                    else error("malformed, nested, or unbound native unit test case")
-                    end
-                  else ($node.children[]? | executed_cases($nextBundle; $bundleType))
-                  end;
-              [.testNodes[]? | executed_cases(null; $bundleType)]
-              | sort_by(.identifier)
+            scanned="$(jq -cS --argjson expected "$expected" '
+              [.. | objects | select(.nodeType? == "Unit test bundle")] as $bundles
+              | [.. | objects | select(.nodeType? == "Test Case")] as $all
+              | [$bundles[0] | .. | objects | select(.nodeType? == "Test Case")
+                  | (.nodeIdentifier | sub("\\(\\)$"; "")) as $id
+                  | {identifier: (if ($id | startswith("FieldEvidenceAppTests/")) then $id
+                      else ("FieldEvidenceAppTests/" + $id) end), result}] as $bound
+              | {tests: $bound, valid: (
+                  ($bundles | length) == 1
+                  and $bundles[0].name == "FieldEvidenceAppTests"
+                  and ($all | length) == ($bound | length)
+                  and ($bound | length) == 5
+                  and ([$bound[].identifier] | unique | length) == 5
+                  and all($all[];
+                    ([.children[]? | .. | objects | select(.nodeType? == "Test Case")] | length) == 0)
+                  and all($bound[]; .result == "Passed")
+                  and ([$bound[].identifier] | sort) == ($expected | sort)
+                )}
             ' "$artifact_dir/unit-test-results.json" 2>/dev/null)"
-            observed_status=$?
+            scan_status=$?
             set -e
-            if test "$observed_status" -ne 0 || \
-                ! jq -e 'type == "array"' <<< "$observed_unit_tests" > /dev/null 2>&1; then
-              observed_unit_tests='[]'
-            elif jq -e --argjson expected "$expected_unit_tests" '
-              type == "array"
-              and length == 5
-              and ([.[].identifier] | unique | length) == 5
-              and all(.[];
-                (keys | sort) == ["identifier", "result"]
-                and (.identifier | type == "string")
-                and .result == "Passed")
-              and ([.[].identifier] | sort) == ($expected | sort)
-            ' <<< "$observed_unit_tests" > /dev/null; then
-              unit_results_exact=true
+            if test "$scan_status" -eq 0 && jq -e '
+              (keys | sort) == ["tests", "valid"]
+              and (.tests | type == "array")
+              and (.valid | type == "boolean")
+            ' <<< "$scanned" > /dev/null; then
+              unit_scan="$scanned"
             fi
           fi
+          exact_units="$(jq -r '.valid' <<< "$unit_scan")"
 
-          build_evidence_present=false
-          if test -s "$artifact_dir/build-smoke.log" && \
-              test -d "$artifact_dir/Build.xcresult" && \
-              test -n "$(find "$artifact_dir/Build.xcresult" -mindepth 1 -print -quit)"; then
-            build_evidence_present=true
-          fi
-          unit_evidence_present=false
-          if test -s "$artifact_dir/test-smoke.log" && \
-              test -s "$artifact_dir/unit-test-results.json" && \
-              test -s "$artifact_dir/unit-executed-tests.json" && \
-              test -d "$artifact_dir/UnitTests.xcresult" && \
-              test -n "$(find "$artifact_dir/UnitTests.xcresult" -mindepth 1 -print -quit)"; then
-            unit_evidence_present=true
-          fi
+          build_evidence=false
+          test -s "$artifact_dir/build-smoke.log" \
+            && test -n "$(find "$artifact_dir/Build.xcresult" -mindepth 1 -print -quit 2>/dev/null)" \
+            && build_evidence=true
+          unit_evidence=false
+          test -s "$artifact_dir/test-smoke.log" \
+            && test -s "$artifact_dir/unit-test-results.json" \
+            && test -s "$artifact_dir/unit-executed-tests.json" \
+            && test -n "$(find "$artifact_dir/UnitTests.xcresult" -mindepth 1 -print -quit 2>/dev/null)" \
+            && unit_evidence=true
 
-          ui_artifacts_absent=true
-          for forbidden_path in \
-            "$artifact_dir/ui-smoke.log" \
-            "$artifact_dir/UISmoke.xcresult" \
-            "$artifact_dir/ui-final.png" \
-            "$artifact_dir/s10-4/$UNIT_ONLY_DISPATCH_SHARD_ID" \
-            "$artifact_dir/ax" \
-            "$artifact_dir/contrast" \
-            "$artifact_dir/accessibility" \
-            "$artifact_dir/s10-4-segment-plan.json" \
-            "$artifact_dir/s10-4-segment-plan-source-sha256.txt" \
-            "$artifact_dir/s10-4-segment-plan-development-binding-redacted.json"; do
-            if test -e "$forbidden_path"; then
-              ui_artifacts_absent=false
-            fi
+          ui_absent=true
+          for path in ui-smoke.log UISmoke.xcresult ui-final.png s10-4 ax contrast accessibility \
+            s10-4-segment-plan.json s10-4-segment-plan-source-sha256.txt \
+            s10-4-segment-plan-development-binding-redacted.json; do
+            test ! -e "$artifact_dir/$path" || ui_absent=false
           done
-
-          accepting_artifacts_absent=true
-          if find "$artifact_dir" -type f \( \
-              -name 'shard-receipt.json' -o \
-              -name 'segment-receipt.json' -o \
-              -name 'segment-receipt.pending.json' -o \
-              -name 's10-4-pilot-receipt.json' \) -print -quit | grep -q .; then
-            accepting_artifacts_absent=false
-          fi
+          receipts_absent=true
+          find "$artifact_dir" -type f \( -name 'shard-receipt.json' -o \
+            -name 'segment-receipt.json' -o -name 'segment-receipt.pending.json' -o \
+            -name 's10-4-pilot-receipt.json' \) -print -quit | grep -q . \
+            && receipts_absent=false || true
 
           mode_valid=false
-          if test "${CI_RUNNER_PROVIDER:-}:$CI_RUNNER_LABEL" = bitrise:bitrise-m4-pro && \
-              test "${CI_TASK_ID:-}:${CI_TIER:-}" = S10.4:F25 && \
-              test "${CI_SELECTOR_RUN_UI_SMOKE:-}" = true && \
-              test "${CI_RUN_UI_SMOKE:-}" = false && \
-              test "$UNIT_ONLY_DISPATCH_RUN_UI_SMOKE" = false && \
-              test "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_DEVICE_PROFILE_ID:-}" = \
-                s10.4.current.default-light:iphone-17-ios-26.2-current && \
-              test "$UNIT_ONLY_DISPATCH_SHARD_ID" = s10.4.current.default-light && \
-              test "$UNIT_ONLY_DISPATCH_SEGMENT_ID" = none && \
-              test "$UNIT_ONLY_DISPATCH_EXECUTION_ROLE" = independent && \
-              test "$UNIT_ONLY_DISPATCH_PILOT_MODE" = false && \
-              test -z "$UNIT_ONLY_DISPATCH_PAYLOAD_ARTIFACT_NAME" && \
-              test "$UNIT_ONLY_DISPATCH_DIAGNOSTIC_PROBE_ID" = none && \
-              test "$UNIT_ONLY_DISPATCH_DIAGNOSTIC_EXECUTION_LANE" = none; then
-            mode_valid=true
-          fi
+          test "${CI_S10_4_UNIT_ONLY:-}:${CI_RUNNER_PROVIDER:-}:$CI_RUNNER_LABEL:${CI_TASK_ID:-}:${CI_TIER:-}" = \
+            true:bitrise:bitrise-m4-pro:S10.4:F25 \
+            && test "${CI_SELECTOR_RUN_UI_SMOKE:-}:${CI_RUN_UI_SMOKE:-}:$REQUESTED_UI" = true:false:false \
+            && test "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_DEVICE_PROFILE_ID:-}:$REQUESTED_SHARD" = \
+              s10.4.current.default-light:iphone-17-ios-26.2-current:s10.4.current.default-light \
+            && test "${CI_S10_4_SEGMENT_ID:-}:${CI_S10_4_EXECUTION_ROLE:-}:${CI_S10_4_PILOT_MODE:-}" = none:independent:false \
+            && test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-}:${WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE:-}:${CI_S10_4_PAYLOAD_ARTIFACT_NAME:-}" = none:none: \
+            && mode_valid=true
+          qualified=false
+          test "$mode_valid:$BUILD_OUTCOME:$UNIT_OUTCOME:$EVIDENCE_OUTCOME" = true:success:success:success \
+            && test "$build_evidence:$unit_evidence:$exact_units:$ui_absent:$receipts_absent" = true:true:true:true:true \
+            && qualified=true
 
-          qualification_passed=false
-          if test "$mode_valid" = true && \
-              test "$UNIT_ONLY_BUILD_STEP_OUTCOME" = success && \
-              test "$UNIT_ONLY_TEST_STEP_OUTCOME" = success && \
-              test "$UNIT_ONLY_EVIDENCE_STEP_OUTCOME" = success && \
-              test "$build_evidence_present" = true && \
-              test "$unit_evidence_present" = true && \
-              test "$unit_results_exact" = true && \
-              test "$ui_artifacts_absent" = true && \
-              test "$accepting_artifacts_absent" = true; then
-            qualification_passed=true
-          fi
-
-          jq -n -cS \
-            --arg laneID "bitrise-build-hub-xcode-26.6-unit-development-only" \
-            --arg provider "${CI_RUNNER_PROVIDER:-}" \
-            --arg runnerLabel "$CI_RUNNER_LABEL" \
-            --arg runnerName "${RUNNER_NAME:-}" \
-            --arg runnerArchitecture "${RUNNER_ARCH:-}" \
-            --arg repository "$GITHUB_REPOSITORY" \
-            --arg ref "$GITHUB_REF" \
-            --arg headSHA "$GITHUB_SHA" \
-            --arg runID "$GITHUB_RUN_ID" \
-            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
-            --arg taskID "${CI_TASK_ID:-}" \
-            --arg tier "${CI_TIER:-}" \
-            --arg shardID "${CI_S10_4_SHARD_ID:-$UNIT_ONLY_DISPATCH_SHARD_ID}" \
-            --arg deviceProfileID "${CI_S10_4_DEVICE_PROFILE_ID:-}" \
-            --arg simulatorRuntime "${SIMULATOR_RUNTIME:-}" \
-            --arg simulatorRuntimeBuild "${SIMULATOR_RUNTIME_BUILD:-}" \
-            --arg simulatorName "${SIMULATOR_NAME:-}" \
-            --arg xcodeVersion "$EXPECTED_XCODE_VERSION" \
-            --arg xcodeBuild "${EXPECTED_XCODE_BUILD#Build version }" \
-            --arg sdkName "iphonesimulator26.5" \
-            --arg sdkBuild "23F81a" \
-            --arg configuration "$CONFIGURATION" \
-            --arg priorJobStatus "$UNIT_ONLY_PRIOR_JOB_STATUS" \
-            --arg buildStepOutcome "$UNIT_ONLY_BUILD_STEP_OUTCOME" \
-            --arg unitStepOutcome "$UNIT_ONLY_TEST_STEP_OUTCOME" \
-            --arg evidenceStepOutcome "$UNIT_ONLY_EVIDENCE_STEP_OUTCOME" \
-            --argjson expectedUnitTests "$expected_unit_tests" \
-            --argjson observedUnitTests "$observed_unit_tests" \
-            --argjson modeValid "$mode_valid" \
-            --argjson buildEvidencePresent "$build_evidence_present" \
-            --argjson unitEvidencePresent "$unit_evidence_present" \
-            --argjson unitResultsExact "$unit_results_exact" \
-            --argjson uiArtifactsAbsent "$ui_artifacts_absent" \
-            --argjson acceptingArtifactsAbsent "$accepting_artifacts_absent" \
-            --argjson qualificationPassed "$qualification_passed" '
-              {
-                schemaVersion: 1,
-                laneID: $laneID,
-                modeValid: $modeValid,
-                repository: $repository,
-                ref: $ref,
-                headSHA: $headSHA,
-                runID: $runID,
-                runAttempt: $runAttempt,
-                provider: $provider,
-                runnerLabel: $runnerLabel,
-                runnerName: $runnerName,
-                runnerArchitecture: $runnerArchitecture,
-                taskID: $taskID,
-                tier: $tier,
-                shardID: $shardID,
-                deviceProfileID: $deviceProfileID,
-                segmentID: "none",
-                executionRole: "independent",
-                pilotMode: false,
-                diagnosticProbeID: "none",
-                payloadArtifactName: "",
-                selectorUI: true,
-                requestedUI: false,
-                effectiveUI: false,
-                toolchain: {
-                  xcodeVersion: $xcodeVersion,
-                  xcodeBuild: $xcodeBuild,
-                  sdkName: $sdkName,
-                  sdkBuild: $sdkBuild,
-                  architecture: $runnerArchitecture,
-                  configuration: $configuration
-                },
-                simulator: {
-                  runtime: $simulatorRuntime,
-                  runtimeBuild: $simulatorRuntimeBuild,
-                  name: $simulatorName,
-                  deviceProfileID: $deviceProfileID
-                },
-                build: {
-                  command: "Scripts/build-smoke.sh",
-                  stepOutcome: $buildStepOutcome,
-                  evidencePresent: $buildEvidencePresent
-                },
-                units: {
-                  command: "Scripts/test-smoke.sh",
-                  stepOutcome: $unitStepOutcome,
-                  evidenceValidationOutcome: $evidenceStepOutcome,
-                  expectedTests: $expectedUnitTests,
-                  observedTests: $observedUnitTests,
-                  exactFivePassed: $unitResultsExact,
-                  evidencePresent: $unitEvidencePresent
-                },
-                requestedCoverage: ["unsigned Debug build-for-testing", "all five S10.4 unit methods"],
-                omittedCoverage: ["UI", "state evidence", "accessibility", "contrast", "shard receipt", "segment receipt"],
-                uiArtifactsAbsent: $uiArtifactsAbsent,
-                acceptingArtifactsAbsent: $acceptingArtifactsAbsent,
-                priorJobStatus: $priorJobStatus,
-                result: (if $qualificationPassed then "qualified" else "failed-or-unavailable" end),
-                qualificationPassed: $qualificationPassed,
-                diagnosticOnly: true,
-                acceptingReceipt: false,
-                feedsAcceptanceAssembler: false,
-                finalAcceptanceEligible: false
-              }
-            ' > "$record_path"
-
+          jq -n -cS --argjson scan "$unit_scan" \
+            --arg provider "${CI_RUNNER_PROVIDER:-}" --arg runnerLabel "$CI_RUNNER_LABEL" \
+            --arg runnerName "${RUNNER_NAME:-}" --arg architecture "${RUNNER_ARCH:-}" \
+            --arg repository "$GITHUB_REPOSITORY" --arg ref "$GITHUB_REF" --arg head "$GITHUB_SHA" \
+            --arg runID "$GITHUB_RUN_ID" --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg runtime "${SIMULATOR_RUNTIME:-}" --arg runtimeBuild "${SIMULATOR_RUNTIME_BUILD:-}" \
+            --arg simulator "${SIMULATOR_NAME:-}" --arg prior "$PRIOR_STATUS" \
+            --arg build "$BUILD_OUTCOME" --arg unit "$UNIT_OUTCOME" --arg evidence "$EVIDENCE_OUTCOME" \
+            --argjson mode "$mode_valid" --argjson buildEvidence "$build_evidence" \
+            --argjson unitEvidence "$unit_evidence" --argjson uiAbsent "$ui_absent" \
+            --argjson receiptsAbsent "$receipts_absent" --argjson qualified "$qualified" '
+            {schemaVersion:1, laneID:"bitrise-build-hub-xcode-26.6-unit-development-only",
+             run:{repository:$repository,ref:$ref,head:$head,id:$runID,attempt:$runAttempt},
+             runner:{provider:$provider,label:$runnerLabel,name:$runnerName,architecture:$architecture},
+             environment:{xcodeVersion:"Xcode 26.6",xcodeBuild:"17F113",sdk:"iphonesimulator26.5",sdkBuild:"23F81a",
+               runtime:$runtime,runtimeBuild:$runtimeBuild,simulator:$simulator,profile:"iphone-17-ios-26.2-current",configuration:"Debug"},
+             modeValid:$mode, shardID:"s10.4.current.default-light",segmentID:"none",executionRole:"independent",
+             selectorUI:true,requestedUI:false,effectiveUI:false,
+             coverage:{requested:["unsigned Debug build-for-testing","all five S10.4 unit methods"],
+               omitted:["UI","state","AX","contrast","segment receipt","shard receipt"]},
+             build:{stepOutcome:$build,evidencePresent:$buildEvidence},
+             units:{stepOutcome:$unit,evidenceOutcome:$evidence,evidencePresent:$unitEvidence,
+               exactFivePassed:$scan.valid,observed:$scan.tests},
+             uiArtifactsAbsent:$uiAbsent,acceptingArtifactsAbsent:$receiptsAbsent,priorJobStatus:$prior,
+             result:(if $qualified then "qualified" else "failed-or-unavailable" end),qualificationPassed:$qualified,
+             diagnosticOnly:true,acceptingReceipt:false,feedsAcceptanceAssembler:false,finalAcceptanceEligible:false}
+          ' > "$record"
           jq -e '
-            .schemaVersion == 1
-            and .laneID == "bitrise-build-hub-xcode-26.6-unit-development-only"
-            and (.modeValid | type == "boolean")
-            and .selectorUI == true
-            and .requestedUI == false
-            and .effectiveUI == false
-            and .segmentID == "none"
-            and .executionRole == "independent"
-            and .pilotMode == false
-            and .diagnosticProbeID == "none"
-            and .payloadArtifactName == ""
-            and (.units.expectedTests | type == "array" and length == 5)
-            and (.units.observedTests | type == "array")
-            and (.units.exactFivePassed | type == "boolean")
-            and (.qualificationPassed | type == "boolean")
-            and .result == (if .qualificationPassed then "qualified" else "failed-or-unavailable" end)
-            and (
-              (.qualificationPassed == false)
-              or (
-                .modeValid == true
-                and .provider == "bitrise"
-                and .runnerLabel == "bitrise-m4-pro"
-                and .taskID == "S10.4"
-                and .tier == "F25"
-                and .shardID == "s10.4.current.default-light"
-                and .deviceProfileID == "iphone-17-ios-26.2-current"
-                and .build.stepOutcome == "success"
-                and .build.evidencePresent == true
-                and .units.stepOutcome == "success"
-                and .units.evidenceValidationOutcome == "success"
-                and .units.exactFivePassed == true
-                and .units.evidencePresent == true
-                and .uiArtifactsAbsent == true
-                and .acceptingArtifactsAbsent == true
-              )
-            )
-            and .diagnosticOnly == true
-            and .acceptingReceipt == false
-            and .feedsAcceptanceAssembler == false
-            and .finalAcceptanceEligible == false
-          ' "$record_path" > /dev/null
-          test "$ui_artifacts_absent" = true
-          test "$accepting_artifacts_absent" = true
+            .schemaVersion == 1 and .laneID == "bitrise-build-hub-xcode-26.6-unit-development-only"
+            and .selectorUI and (.requestedUI|not) and (.effectiveUI|not) and .diagnosticOnly
+            and (.acceptingReceipt|not) and (.feedsAcceptanceAssembler|not) and (.finalAcceptanceEligible|not)
+            and ((.qualificationPassed | not) or (.modeValid and .build.evidencePresent and .units.evidencePresent
+              and .units.exactFivePassed and .uiArtifactsAbsent and .acceptingArtifactsAbsent))
+          ' "$record" > /dev/null
+          test "$ui_absent:$receipts_absent" = true:true
 
       - name: Validate Bitrise development-only segment evidence
         if: ${{ always() && inputs.s10_4_pilot_mode == false && inputs.s10_4_execution_role != 'payload-consumer' && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id != 'none' }}

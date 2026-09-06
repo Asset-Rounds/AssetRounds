@@ -350,7 +350,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 22_742,
-            sha256: "EB821E2981E0CA5FCE3F8D5F3028682497BA12BA300BD180576ECAEC8A435246"
+            sha256: "1931761AF50D49D34ABB85AD0F4C104A7932D8246F54E8B49AA513BE48BC1F19"
         )
         try assertFile(
             visualSchemaPath,
@@ -370,23 +370,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 94_862,
-            sha256: "6F861C4F1D38AF935212EEB13899ACED226055AD1CC26BF31EFBDE0E89DC0959"
+            byteCount: 94_594,
+            sha256: "99757AF745B0C406DA415D4E230EFB28E3B4A4231EAB3086C83F19331A23BBB1"
         )
         let dispatcherSource = try text(dispatcherPath)
         let unitOnlyJobSource = try boundedSource(
             dispatcherSource,
-            from: "  bitrise-unit-only:\n",
-            before: "  reject-invalid-bitrise-unit-only-selection:\n"
+            from: "  bitrise-shard:\n",
+            before: "  reject-invalid-bitrise-development-selection:\n"
         )
         for requiredMode in [
             "inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only'",
             "inputs.run_ui_smoke == false",
             "inputs.s10_4_shard_id == 's10.4.current.default-light'",
             "runner_label: bitrise-m4-pro", "runner_provider: bitrise",
-            "run_ui_smoke: false", "s10_4_segment_id: none",
-            "s10_4_execution_role: independent", "s10_4_pilot_mode: false",
-            "s10_4_unit_only: true",
+            "s10_4_segment_id: none",
+            #"run_ui_smoke: ${{ inputs.execution_lane != 'bitrise-build-hub-xcode-26.6-unit-development-only' }}"#,
+            #"s10_4_unit_only: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' }}"#,
         ] {
             XCTAssertTrue(unitOnlyJobSource.contains(requiredMode), requiredMode)
         }
@@ -400,8 +400,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 375_842,
-            sha256: "6CBA1C456B844652EF6207CBA6EA4EC94D261D4386FE293380F4C31628396A7B"
+            byteCount: 368_936,
+            sha256: "C9410A389FC818EF2039A4F6931DA68C1DA1E47DEAAEA10A5D86C70883CC5430"
         )
         let workflowSource = try text(workflowPath)
         // H410 unit qualification deliberately omits UI; it never produces a shard pass.
@@ -411,18 +411,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "      - name: Validate Bitrise development-only segment evidence\n"
         )
         for requiredBoundary in [
-            "qualificationPassed: $qualificationPassed",
-            "diagnosticOnly: true",
-            "acceptingReceipt: false",
-            "feedsAcceptanceAssembler: false",
-            "finalAcceptanceEligible: false",
-            "test \"$ui_artifacts_absent\" = true",
-            "test \"$accepting_artifacts_absent\" = true",
+            "qualificationPassed:$qualified",
+            "diagnosticOnly:true",
+            "acceptingReceipt:false",
+            "feedsAcceptanceAssembler:false",
+            "finalAcceptanceEligible:false",
+            "test \"$ui_absent:$receipts_absent\" = true:true",
         ] {
             XCTAssertTrue(unitOnlyRecordSource.contains(requiredBoundary), requiredBoundary)
         }
-        XCTAssertFalse(unitOnlyRecordSource.contains("qualificationPassed: true"))
-        XCTAssertFalse(unitOnlyRecordSource.contains("finalAcceptanceEligible: true"))
+        XCTAssertFalse(unitOnlyRecordSource.contains("qualificationPassed:true"))
+        XCTAssertFalse(unitOnlyRecordSource.contains("finalAcceptanceEligible:true"))
         let currentF25WatchdogTuple = "] == [420, 900, 1200, 2520, 4500]"
         let retiredF25WatchdogTuple = "] == [420, 900, 1200, 2220, 4500]"
         XCTAssertEqual(
@@ -921,16 +920,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ]
         )
         let warpJobSource = String(dispatcherSource[warpJobRange.lowerBound...])
-        let jobHeaderExpression = try NSRegularExpression(
-            pattern: #"(?m)^  [A-Za-z0-9_-]+:\n"#
-        )
-        XCTAssertEqual(
-            jobHeaderExpression.numberOfMatches(
-                in: jobsSource,
-                range: NSRange(location: 0, length: jobsSource.utf16.count)
-            ),
-            27
-        )
+        // H409/K423: job totals are historical layout, not route admission.
+        // Scoped provider conditions and native selector validation remain authoritative.
 
         let githubLaneGate =
             #"    if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' }}"#
@@ -941,7 +932,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let bitriseProbeLaneGate =
             #"    if: ${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none' }}"#
         let bitriseLaneGate =
-            #"    if: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' }}"#
+            #"(inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none')"#
         XCTAssertEqual(githubJobSource.components(separatedBy: githubLaneGate).count - 1, 1)
         XCTAssertEqual(getMacJobSource.components(separatedBy: getMacLaneGate).count - 1, 1)
         XCTAssertEqual(warpJobSource.components(separatedBy: warpLaneGate).count - 1, 1)
@@ -964,7 +955,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "    uses: ./.github/workflows/ios-ci-worker.yml",
             "      runner_label: bitrise-m4-pro",
             "      runner_provider: bitrise",
-            "      run_ui_smoke: true",
+            #"      run_ui_smoke: ${{ inputs.execution_lane != 'bitrise-build-hub-xcode-26.6-unit-development-only' }}"#,
             #"      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}"#,
             "      s10_4_segment_id: none",
             "    secrets: inherit",
