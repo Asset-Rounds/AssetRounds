@@ -98,6 +98,13 @@ stays preserved but never substitutes for current-head proof. No manual PASS is 
 
 ## Status vocabulary
 
+H407 defines the reviewed prospective exact GitHub image-adoption implementation envelope.
+Its authority stage does not itself change formal acceptance. Preserve frozen activation;
+use the new exact source-bound receipt contract only after implementation and qualification.
+Original receipt/API/checksum auditing remains mandatory and distinct from offline schema
+validation. Historical runs and pilot evidence remain nonaccepting. Read CURRENT_TASK H407
+for the exact seven paths, prospective anchor and unchanged final requirements.
+
 H405 supersedes H404's old/new passing-pair prerequisite: qualify exact environment
 identity separately from reliability and app acceptance. Verify the exact newer image,
 compiler/SDK, both runtimes, isolation, commands and complete evidence; explicitly retain
