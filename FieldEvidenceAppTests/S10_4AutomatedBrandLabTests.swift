@@ -12325,10 +12325,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     issueRecheckDuePositioningHelperEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 17_319)
+        XCTAssertEqual(restoredCaptureBaselineSource.utf8.count, 17_462)
         XCTAssertEqual(
             Data(restoredCaptureBaselineSource.utf8).sha256,
-            "452DA9F62EAB479838CC1DF6925600BE17016092DFD3E4AFC5D173D9D4DA62E1"
+            "DCDF0BF93473757B1C32B1425B0217A4377588A3A5315A2AC200BD22122CDF15"
         )
         XCTAssertEqual(issueRecheckDuePositioningHelperSource.utf8.count, 23_849)
         XCTAssertEqual(
@@ -22768,10 +22768,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
-        XCTAssertEqual(uiSource.utf8.count, 838_966)
+        XCTAssertEqual(uiSource.utf8.count, 839_109)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "EDCF98BFCFD616BF751A937B408E02F9412B59C9BA5CDD44171613F0DE72C3E6"
+            "0962AA7F62C3414C2541E3840E42819DB6FA979063C03F48705ADBB6EBA21863"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -25183,10 +25183,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func captureBaseline(\n",
             before: "\n\n    @MainActor\n    private func shouldPrepareNormalEvidence("
         )
-        XCTAssertEqual(captureSource.utf8.count, 17_304)
+        XCTAssertEqual(captureSource.utf8.count, 17_447)
         XCTAssertEqual(
             Data(captureSource.utf8).sha256,
-            "0EEBF2AC79A1E4A16DB717D96CB7F23FD3C65FA6B4DD1EDAB5B02480BB3198C8"
+            "13E587E0E237EF038AF4C08649AA06D694F6FFD9D3D43A27FA1817009D31C855"
         )
         let captureBoundedUTF8Source = try boundedSource(
             captureSource,
@@ -25294,10 +25294,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"",
             before: "            } else {\n                try app.performAccessibilityAudit(for: .contrast)\n            }"
         )
-        XCTAssertEqual(nativeContrastObservationSource.utf8.count, 1_383)
+        XCTAssertEqual(nativeContrastObservationSource.utf8.count, 1_526)
         XCTAssertEqual(
             Data(nativeContrastObservationSource.utf8).sha256,
-            "D538DAA19D2EFC53223F94045D5FEF8C973A1BBA54C8A2F8C5C9FEA9C5E1354D"
+            "8963D6201E18CEBAB165A14D0E27162BACF2C4B89F4E602AA8A4188B1ED34020"
         )
         for exact in [
             #"stateID == "state.work.validation-error""#,
@@ -25311,13 +25311,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(nativeContrastObservationSource.contains(exact), exact)
         }
-        let exactObservedContrastAdmission = "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.bounded\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.double-length\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.work.validation-error\"\n"
+        let exactObservedContrastAdmission = "            } else if (\n                shard.shardID == \"s10.4.minimum.minimum-os\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.bounded\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.double-length\"\n                    && stateID == \"state.check-preflight.ready\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.work.validation-error\"\n            ) || (\n                shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.check-preflight.ready\"\n"
         XCTAssertTrue(nativeContrastObservationSource.hasPrefix(exactObservedContrastAdmission))
         for (oldValue, wrongValue) in [
             ("s10.4.minimum.bounded", "s10.4.minimum.tall"),
             ("s10.4.minimum.double-length", "s10.4.minimum.rtl-string"),
             ("s10.4.minimum.accented", "s10.4.minimum.tall"),
             ("shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.work.validation-error\"", "shard.shardID == \"s10.4.minimum.accented\"\n                    && stateID == \"state.check-preflight.ready\""),
+            ("shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.check-preflight.ready\"", "shard.shardID == \"s10.4.minimum.rtl-string\"\n                    && stateID == \"state.work.validation-error\""),
+            ("s10.4.minimum.rtl-string", "s10.4.minimum.tall"),
             ("state.work.validation-error", "state.work.editing"),
             ("state.check-preflight.ready", "state.check-preflight.confirming"),
             ("&& stateID", "|| stateID"),

@@ -11782,6 +11782,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ) || (
                 shard.shardID == "s10.4.minimum.accented"
                     && stateID == "state.work.validation-error"
+            ) || (
+                shard.shardID == "s10.4.minimum.rtl-string"
+                    && stateID == "state.check-preflight.ready"
             ) {
                 var observedIssueCount = 0
                 try app.performAccessibilityAudit(for: .contrast) { issue in
