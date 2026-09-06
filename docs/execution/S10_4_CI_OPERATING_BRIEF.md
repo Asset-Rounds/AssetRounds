@@ -1,10 +1,10 @@
 # S10.4 active CI operating brief
 
-Owner-authorized development streamlining, 2026-09-06. Read this brief first, then CURRENT_TASK's active reading map, Frozen authority/package, Outcome, Environment, and H409. This is navigation and policy summary; pinned product/acceptance authorities remain controlling.
+Owner-authorized development streamlining, 2026-09-06. Read this brief first, then CURRENT_TASK's active reading map, Frozen authority/package, Outcome, Environment, H409 and H410. This is navigation and policy summary; pinned product/acceptance authorities remain controlling.
 
 ## Objective and current evidence
 
-Finish S10.4's complete automated evidence, then follow the authorized S10 sequence. Current verified source base is K419 c4192d6c1ae331e69c98e9cc4a75267bcd3333b2 on phase/s10-brand-refresh. Main/P remains01233f789b1cef5a6f56c7ff4caa9271409cd3bc. Verify live refs and job identities before mutations; this checkpoint is not a substitute.
+Finish S10.4's complete automated evidence, then follow the authorized S10 sequence. Current source base is K421 ae44770434c51b18cdadc4927d35cdd1c60c997a on phase/s10-brand-refresh. Main/P remains01233f789b1cef5a6f56c7ff4caa9271409cd3bc. Verify live refs and job identities before mutations; this checkpoint is not a substitute.
 
 K419 current-light development qualification reached67states and allfiveunits. Latest audited minimum progress: ordinaryRTL8states/runtime logging crash; RTL-string22states/Note occluded by separate keyboard Done toolbar; double-length8states/native preflight Contrast failure on the nearly offscreen Site time zone heading. Fresh double run34040621636 passed Reports, answering the preceding no-transition uncertainty. Prepared corrections are exactRTL Done, incident-collector ordering/input, and a bounded double-length endpoint-selection hypothesis. They remain unverified until exact-head hosted qualification. Preserve original evidence and record new results separately.
 
@@ -18,6 +18,10 @@ K419 current-light development qualification reached67states and allfiveunits. L
 6. Use supported deterministic checks and explicitly assess affected unsupported cases once on the combined draft. Avoid repeating unchanged checks or optional diagnostics unless their result changes the next decision.
 7. For an isolated minimum-profile change, qualification may be compilation, all required unit methods, and the affected existing regression routes on that exact head, without an automatic67-state current-light prerequisite. Record changed behavior, affected/omitted coverage and review rationale. Broaden qualification for shared behavior changes or uncertain impact. Do not claim an unimplemented focused route exists or relabel accepting runs as diagnostics.
 8. Once ready, freeze candidate bytes and gather the complete same-head matrix. Inspect all terminal evidence before correction/retry. Never duplicate an active shard, retry a known deterministic failure unchanged, transfer old-head acceptance, or count cleanup/upload success as earlier-step success.
+
+## Bounded startup and unit feedback improvement
+
+H410 authorizes a closed compilation/unit-only Bitrise development mode plus H402 inventory of existing exact-runtime capacity. The mode is not dispatchable until its exact implementation and continuing independent review are complete. It preserves canonical F25 selectors and explicitly omits UI only for its validated current-runtime diagnostic tuple. Exact build and five Passed native unit identities with complete original artifacts are qualification evidence only; affected UI and final matrix remain required. No automatic67-state current-light prerequisite applies to testing the new mode. Preserve current native runs while preparing it. Existing runtime capacity must be proved; no purchases, account changes, agent installation or runtime substitution are authorized. See H410 for exact paths, source-binding amendment, closed inputs, integrity and acceptance protections.
 
 ## Historical instructions and housekeeping
 
