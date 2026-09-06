@@ -88,11 +88,16 @@ class SwiftSubset:
                     expression = self.canonical(j + 1, end)
                 self.declarations.setdefault((token.scope, name), []).append((token.start, expression))
             if token.text == "for" and i + 3 < len(self.tokens):
+                names, expression_start = (self.tokens[i + 1].text,), i + 3
                 if self.tokens[i + 2].text != "in":
-                    continue
-                j = self.expression_end(i + 3, stop_brace=True)
+                    header = self.canonical(i + 1, min(i + 7, len(self.tokens)))
+                    pair = re.fullmatch(r"\(([A-Za-z_]\w*),([A-Za-z_]\w*)\)in", header)
+                    if not pair or pair[1] == pair[2] or "_" in pair.groups():
+                        continue
+                    names, expression_start = pair.groups(), i + 7
+                j = self.expression_end(expression_start, stop_brace=True)
                 if j < len(self.tokens) and self.tokens[j].text == "{":
-                    self.loops[j + 1] = (self.tokens[i + 1].text, self.canonical(i + 3, j), token.start, token.scope)
+                    self.loops[j + 1] = (names, self.canonical(expression_start, j), token.start, token.scope)
 
     def lex(self, text):
         tokens = []
@@ -233,7 +238,7 @@ class SwiftSubset:
                     return value
                 except Unsupported:
                     return self.evaluate(expression, start, current, overrides, trail | {key})
-            if current in self.loops and self.loops[current][0] == name:
+            if current in self.loops and name in self.loops[current][0]:
                 if name not in overrides:
                     raise Unsupported("Loop binding requires its lexical iteration context")
                 return overrides[name]
@@ -346,16 +351,35 @@ class SwiftSubset:
                 chain.append(self.loops[current])
             current = self.parents[current]
         contexts = [{}]
-        names = [row[0] for row in chain]
+        names = [name for row in chain for name in row[0]]
         if len(names) != len(set(names)):
             raise Unsupported("Repeated nested loop binding")
-        for name, expression, position, loop_scope in reversed(chain):
+        for bindings, expression, position, loop_scope in reversed(chain):
             expanded = []
             for context in contexts:
-                values = self.evaluate(expression, position, loop_scope, context)
+                if len(bindings) == 2:
+                    # Closed tuple support: direct arrays of literal (String, Int)
+                    # pairs only. No aliases, interpolation, arithmetic or dynamics.
+                    if not expression.startswith("[") or not expression.endswith("]"):
+                        raise Unsupported("Tuple loop requires a direct literal pair array")
+                    values = []
+                    for row in self.split(expression[1:-1]):
+                        if not row:
+                            continue
+                        pair = re.fullmatch(r"\((@L\d+@),(\d[\d_]*)\)", row)
+                        if not pair:
+                            raise Unsupported("Tuple loop requires literal string/integer pairs")
+                        label = self.evaluate(pair[1], position, loop_scope, context)
+                        values.append((label, int(pair[2].replace("_", ""))))
+                        if len(values) > 2000:
+                            raise Unsupported("Nonliteral or unbounded loop")
+                else:
+                    values = self.evaluate(expression, position, loop_scope, context)
                 if not isinstance(values, list) or len(values) > 2000:
                     raise Unsupported("Nonliteral or unbounded loop")
-                expanded.extend(dict(context, **{name: value}) for value in values)
+                if len(expanded) + len(values) > 2000:
+                    raise Unsupported("Unbounded combined loop context")
+                expanded.extend(dict(context, **dict(zip(bindings, value if len(bindings) == 2 else (value,)))) for value in values)
             contexts = expanded
         return contexts
 
@@ -502,6 +526,29 @@ class Audit {
         shadow = run(source)
         if len(shadow) != 1 or shadow[0]["status"] != expected_status:
             raise ValueError(f"Self-test lexical shadow was guessed: {shadow}")
+    pair_cases = [
+        ('for (lock, count) in [("alpha", 2), ("beta", 0)] {\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["PASS", "PASS"]),
+        ('for (lock, count) in [("alpha", 1)] {\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["FAIL"]),
+        ('for (lock, count) in [("alpha", 2)] {\n let count = 1\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["FAIL"]),
+        ('for (lock, count) in [("alpha", 2)] {\n var count = 2\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["SKIPPED"]),
+        ('for (lock, count) in [("alpha", unresolved)] {\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["SKIPPED"]),
+        ('let pairs = [("alpha", 2)]\nfor (lock, count) in pairs {\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["SKIPPED"]),
+        ('for (lock, count) in [("alpha", 2)] {\n for count in [2] {\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n }\n}', ["SKIPPED"]),
+        ('for (lock, count) in [("alpha", true)] {\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["SKIPPED"]),
+        ('for (lock, count) in [("alpha", 1 + 1)] {\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["SKIPPED"]),
+        ('for (lock, count) in [("alpha", 2, 3)] {\n XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}', ["SKIPPED"]),
+    ]
+    for source, expected_statuses in pair_cases:
+        pair_results = run('let source = "alpha alpha"\nlet count = 99\n' + source)
+        if [row["status"] for row in pair_results] != expected_statuses:
+            raise ValueError(f"Self-test tuple iteration context was guessed: {pair_results}")
+    nested_pairs = ",".join('("alpha", 2)' for _ in range(50))
+    combined = run('let source = "alpha alpha"\n'
+        + 'for (lock, count) in [' + nested_pairs + '] {\n'
+        + 'for (other, expected) in [' + nested_pairs + '] {\n'
+        + 'XCTAssertEqual(source.components(separatedBy: lock).count - 1, count)\n}\n}')
+    if len(combined) != 1 or combined[0]["status"] != "SKIPPED":
+        raise ValueError("Self-test cumulative tuple context bound was not enforced")
     missing = run('let source = "alpha"\nlet slice = try boundedSource(source, from: "missing", before: "alpha")\nXCTAssertEqual(slice.utf8.count, 0)')
     if len(missing) != 1 or missing[0]["status"] != "ERROR":
         raise ValueError("Self-test missing marker was not rejected")
