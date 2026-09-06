@@ -6966,21 +6966,55 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             guard minimumOSWorkHelperDuplicateExpected else {
                 return workSavingHelperTexts.count == expectedWorkHelperTextCount
             }
-            guard workSavingHelperTexts.count == 1,
-                  workSavingHelper.exists else {
-                return false
-            }
             if self.diagnosticProbe == nil, self.automationSegment == .none,
                let shard = self.automationShard,
                shard.shardID == "s10.4.minimum.minimum-os", shard.ordinal == 8,
                shard.requirementID == "minimum_os",
                shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+                let importButtons = workScrollView.buttons.matching(identifier: "s5.1.work.import-fixture")
+                guard importButtons.count == 1 else { return false }
+                let importButton = importButtons.element(boundBy: 0)
+                let nestedLabels = importButton.descendants(matching: .staticText).matching(
+                    NSPredicate(format: "label == %@", observedWorkHelperLabel)
+                )
+                let helperCount = workSavingHelperTexts.count
+                let nestedCount = nestedLabels.count
+                guard helperCount == 1 || helperCount == 2,
+                      nestedCount == helperCount - 1,
+                      nestedCount == 0 || nestedCount == 1,
+                      workSavingHelper.exists, importButton.exists else { return false }
                 guard let helperSnapshot = try? workSavingHelper.snapshot() else { return false }
-                return helperSnapshot.elementType == .staticText
+                guard let importSnapshot = try? importButton.snapshot() else { return false }
+                guard helperSnapshot.elementType == .staticText
                     && helperSnapshot.identifier.isEmpty
                     && helperSnapshot.label == observedWorkHelperLabel
                     && (helperSnapshot.value as? String) == ""
-                    && workEditingFrameIsValid(helperSnapshot.frame)
+                    && workEditingFrameIsValid(helperSnapshot.frame),
+                      importSnapshot.elementType == .button,
+                      importSnapshot.identifier == "s5.1.work.import-fixture",
+                      importSnapshot.label == observedWorkHelperLabel,
+                      (importSnapshot.value as? String) == "",
+                      !importSnapshot.isEnabled,
+                      workEditingFrameIsValid(importSnapshot.frame),
+                      helperSnapshot.frame.maxY < importSnapshot.frame.minY else { return false }
+                guard nestedCount == 1 else { return true }
+                guard let nestedSnapshot = try? nestedLabels.element(boundBy: 0).snapshot(),
+                      let globalNestedSnapshot = try? workSavingHelperTexts.element(boundBy: 1).snapshot() else { return false }
+                return nestedSnapshot.elementType == .staticText
+                    && globalNestedSnapshot.elementType == .staticText
+                    && nestedSnapshot.identifier.isEmpty && globalNestedSnapshot.identifier.isEmpty
+                    && nestedSnapshot.label == observedWorkHelperLabel
+                    && globalNestedSnapshot.label == observedWorkHelperLabel
+                    && (nestedSnapshot.value as? String) == ""
+                    && (globalNestedSnapshot.value as? String) == ""
+                    && workEditingFrameIsValid(nestedSnapshot.frame)
+                    && workEditingFrameIsValid(globalNestedSnapshot.frame)
+                    && nestedSnapshot.frame == importSnapshot.frame
+                    && globalNestedSnapshot.frame == importSnapshot.frame
+            }
+            guard workSavingHelperTexts.count == 1,
+                  workSavingHelper.exists else {
+                return false
             }
             return workSavingHelper.elementType == .staticText
                 && workSavingHelper.identifier.isEmpty
@@ -9410,7 +9444,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         }
 
-        var purchase = firstPurchaseButton(in: app)
+        guard var purchase = firstPurchaseButton(in: app) else {
+            XCTFail("The purchase control is missing or ambiguous")
+            return usedSettingsRetry
+        }
         scroll(purchase, in: app)
         purchase.tap()
         var purchaseState = element("s7.2.paywall.purchase-state", in: app)
@@ -9466,7 +9503,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     timeout: 20
                 ))
                 XCTAssertTrue(store.isEnabled)
-                purchase = firstPurchaseButton(in: app)
+                guard let retryPurchase = firstPurchaseButton(in: app) else {
+                    XCTFail("The retry purchase control is missing or ambiguous")
+                    return usedSettingsRetry
+                }
+                purchase = retryPurchase
                 scroll(purchase, in: app)
                 XCTAssertTrue(purchase.waitForExistence(timeout: 20))
                 XCTAssertTrue(purchase.isEnabled)
@@ -17452,11 +17493,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func firstPurchaseButton(in app: XCUIApplication) -> XCUIElement {
+    private func firstPurchaseButton(in app: XCUIApplication) -> XCUIElement? {
         if usesPseudolanguage {
             let store = element("s7.2.paywall.store", in: app)
             XCTAssertTrue(store.waitForExistence(timeout: 30))
             let scopedButtons = store.descendants(matching: .button)
+            if diagnosticProbe == nil, automationSegment == .none,
+               let shard = automationShard,
+               shard.shardID == "s10.4.minimum.rtl-string",
+               shard.ordinal == 11, shard.requirementID == "rtl_string",
+               shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+                let expectedPurchaseLabel = "\u{202E}Subscribe\u{202C}"
+                let purchaseButtons = scopedButtons.matching(
+                    NSPredicate(format: "label == %@", expectedPurchaseLabel)
+                )
+                guard purchaseButtons.count == 1 else { return nil }
+                let purchase = purchaseButtons.element(boundBy: 0)
+                guard purchase.exists, purchase.elementType == .button,
+                      purchase.identifier != "s7.2.paywall.close",
+                      purchase.label == expectedPurchaseLabel,
+                      purchase.isEnabled, purchase.isHittable else { return nil }
+                return purchase
+            }
             for index in 0..<scopedButtons.count {
                 let candidate = scopedButtons.element(boundBy: index)
                 if candidate.identifier != "s7.2.paywall.close",

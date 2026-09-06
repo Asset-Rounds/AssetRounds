@@ -7116,7 +7116,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ),
             ("label: workHelperLabel", 1),
             ("let observedWorkHelperLabel = workPreview.label", 1),
-            (#"NSPredicate(format: "label == %@", observedWorkHelperLabel)"#, 3),
             (#"NSPredicate(format: "label == %@", workHelperLabel)"#, 0),
         ] {
             XCTAssertEqual(
@@ -7970,6 +7969,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let minimumSavingStructuralBinding = try boundedSource(
+            workSavingPositioningSource,
+            from: "            if self.diagnosticProbe == nil, self.automationSegment == .none,",
+            before: "            guard workSavingHelperTexts.count == 1,"
+        )
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"shard.shardID == "s10.4.minimum.minimum-os", shard.ordinal == 8"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"shard.requirementID == "minimum_os""#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"guard importButtons.count == 1 else { return false }"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"NSPredicate(format: "label == %@", observedWorkHelperLabel)"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"nestedCount == helperCount - 1"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"nestedCount == 0 || nestedCount == 1"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"!importSnapshot.isEnabled"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"helperSnapshot.frame.maxY < importSnapshot.frame.minY"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"nestedSnapshot.frame == importSnapshot.frame"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"globalNestedSnapshot.frame == importSnapshot.frame"#))
         for (workSavingHelperSemanticProof, count) in [
             ("return workSavingHelperTexts.count == expectedWorkHelperTextCount", 1),
             ("workSavingHelperTexts.count == 1", 1),
@@ -8240,7 +8255,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("workNavigationBars.count == 1", 4),
             ("workNoteHeading.exists", 4),
             ("workTabBar.exists", 0),
-            ("workSavingHelper.exists", 5),
+            ("workSavingHelper.exists else {", 1),
             ("workScrollView.exists", 3),
             ("workNavigationBar.exists", 3),
             ("workPreview.exists", 4),
@@ -11079,11 +11094,38 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             uiSource.contains("        let session = try SKTestSession(contentsOf: fixtureURL)")
         )
         XCTAssertFalse(uiSource.contains("        storeKitSession = session"))
-        let purchaseRecoveryStart =
-            #"        var purchase = firstPurchaseButton(in: app)"# + "\n" +
-                "        scroll(purchase, in: app)\n" +
-                "        purchase.tap()\n" +
-                #"        var purchaseState = element("s7.2.paywall.purchase-state", in: app)"#
+        let purchaseRecoveryStart = try boundedSource(
+            uiSource,
+            from: "        guard var purchase = firstPurchaseButton(in: app) else {",
+            before: "        var purchaseState = element("
+        ) + #"        var purchaseState = element("s7.2.paywall.purchase-state", in: app)"#
+        let retryPurchaseSelection = try boundedSource(
+            uiSource,
+            from: "                guard let retryPurchase = firstPurchaseButton(in: app) else {",
+            before: "                scroll(purchase, in: app)"
+        )
+        let purchaseSelectorSource = try boundedSource(
+            uiSource,
+            from: "    private func firstPurchaseButton(in app: XCUIApplication) -> XCUIElement? {",
+            before: "    @MainActor\n    private func assertControl("
+        )
+        XCTAssertTrue(purchaseSelectorSource.contains(#"diagnosticProbe == nil, automationSegment == .none"#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"shard.shardID == "s10.4.minimum.rtl-string""#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"shard.ordinal == 11, shard.requirementID == "rtl_string""#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"let expectedPurchaseLabel = "\u{202E}Subscribe\u{202C}""#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"guard purchaseButtons.count == 1 else { return nil }"#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.elementType == .button"#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.label == expectedPurchaseLabel"#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.isEnabled, purchase.isHittable else { return nil }"#))
+        XCTAssertTrue(purchaseRecoveryStart.contains(#"XCTFail("The purchase control is missing or ambiguous")"#))
+        XCTAssertTrue(purchaseRecoveryStart.contains(#"return usedSettingsRetry"#))
+        XCTAssertTrue(purchaseRecoveryStart.contains(#"scroll(purchase, in: app)"#))
+        XCTAssertTrue(purchaseRecoveryStart.contains(#"purchase.tap()"#))
+        XCTAssertTrue(retryPurchaseSelection.contains(#"XCTFail("The retry purchase control is missing or ambiguous")"#))
+        XCTAssertTrue(retryPurchaseSelection.contains(#"return usedSettingsRetry"#))
+        XCTAssertTrue(retryPurchaseSelection.contains(#"purchase = retryPurchase"#))
+        XCTAssertFalse(retryPurchaseSelection.contains(".tap("))
         let purchaseRecoveryEnd =
             #"        let terms = element("s7.2.paywall.terms", in: app)"#
         XCTAssertEqual(
@@ -11177,7 +11219,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let mutablePurchaseBindings = [
             #"        var store = element("s7.2.paywall.store", in: app)"#,
-            #"        var purchase = firstPurchaseButton(in: app)"#,
+            #"        guard var purchase = firstPurchaseButton(in: app) else {"#,
             #"        var purchaseState = element("s7.2.paywall.purchase-state", in: app)"#,
         ]
         for binding in mutablePurchaseBindings {
@@ -11191,7 +11233,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             unverifiedRetryStart,
             #"                guard let retainedSession = storeKitSession else {"#,
             #"                    XCTFail("The retained StoreKit test session is required")"#,
-            "                    return usedSettingsRetry",
             "                app.terminate()",
             "                retainedSession.resetToDefaultState()",
             "                retainedSession.clearTransactions()",
@@ -11212,7 +11253,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "                XCTAssertTrue(store.waitForExistence(timeout: 30))",
             #"                    predicate: "value == 'Ready'","#,
             "                XCTAssertTrue(store.isEnabled)",
-            "                purchase = firstPurchaseButton(in: app)",
+            "                guard let retryPurchase = firstPurchaseButton(in: app) else {",
             "                scroll(purchase, in: app)",
             "                XCTAssertTrue(purchase.waitForExistence(timeout: 20))",
             "                XCTAssertTrue(purchase.isEnabled)",
@@ -11276,7 +11317,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                    timeout: 20\n" +
                 "                ))\n" +
                 "                XCTAssertTrue(store.isEnabled)\n" +
-                "                purchase = firstPurchaseButton(in: app)\n" +
+                retryPurchaseSelection +
                 "                scroll(purchase, in: app)\n" +
                 "                XCTAssertTrue(purchase.waitForExistence(timeout: 20))\n" +
                 "                XCTAssertTrue(purchase.isEnabled)\n" +
@@ -11405,7 +11446,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         XCTAssertEqual(
-            unverifiedRetrySource.components(
+            retainedStoreKitResetAndRelaunch.components(
                 separatedBy: "                    return usedSettingsRetry"
             ).count - 1,
             1
@@ -18196,10 +18237,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 891_377)
+        XCTAssertEqual(uiSource.utf8.count, 895_210)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "ECED08539108B3A456250475438745B11414989EA076F44EBDF31991ECD2DD3F"
+            "270151933F6A9CF938EE2EC7E98D3B1AD6374163CAF0DB03BEE7ED215B98E377"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
