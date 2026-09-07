@@ -2775,6 +2775,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(boundedPreflightPreparation.contains("guard diagnosticProbe == nil, automationSegment == .none,"))
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 14 && shard.requirementID == \"bounded\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 13 && shard.requirementID == \"accented\""))
+        XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 10 && shard.requirementID == \"rtl\""))
+        XCTAssertTrue(boundedPreflightPreparation.contains("|| shard.shardID == \"s10.4.minimum.rtl\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 11 && shard.requirementID == \"rtl_string\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("|| shard.shardID == \"s10.4.minimum.rtl-string\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\""))
@@ -2814,6 +2816,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(issueTabBarFailureSource.contains("rawTree.prefix(262_144)"))
         XCTAssertFalse(issueTabBarFailureSource.contains(".tap()"))
         let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        zone.typeText(\"America/New_York\")", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
+        XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 9 && shard.requirementID == \"double_length\""))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("|| shard.shardID == \"s10.4.minimum.double-length\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 11 && shard.requirementID == \"rtl_string\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("|| shard.shardID == \"s10.4.minimum.rtl-string\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\""))
@@ -18522,10 +18526,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 913_753)
+        XCTAssertEqual(uiSource.utf8.count, 914_096)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "5A3C467F3143A1FA0884CA77F0633F556514ED0C3D6A48564822A388D4AC4F7A"
+            "6DDE6E64765068FA39C2856A231E43B8619A6A857164AB7038253E6D138F777A"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
