@@ -18398,10 +18398,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let scopedButtons = store.descendants(matching: .button)
             if diagnosticProbe == nil, automationSegment == .none,
                let shard = automationShard,
-               shard.shardID == "s10.4.minimum.rtl-string",
-               shard.ordinal == 11, shard.requirementID == "rtl_string",
+               ((shard.shardID == "s10.4.minimum.rtl-string"
+                    && shard.ordinal == 11 && shard.requirementID == "rtl_string")
+                || (shard.shardID == "s10.4.minimum.tall"
+                    && shard.ordinal == 12 && shard.requirementID == "tall")),
                shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
-                let expectedPurchaseLabel = "\u{202E}Subscribe\u{202C}"
+                let expectedPurchaseLabel: String
+                if shard.shardID == "s10.4.minimum.tall" {
+                    let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
+                    expectedPurchaseLabel = tallMarker + "Subscribe" + tallMarker
+                } else {
+                    expectedPurchaseLabel = "\u{202E}Subscribe\u{202C}"
+                }
                 let purchaseButtons = scopedButtons.matching(
                     NSPredicate(format: "label == %@", expectedPurchaseLabel)
                 )

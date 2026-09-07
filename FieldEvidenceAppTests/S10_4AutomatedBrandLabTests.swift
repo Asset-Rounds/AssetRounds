@@ -11373,9 +11373,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertTrue(purchaseSelectorSource.contains(#"diagnosticProbe == nil, automationSegment == .none"#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"shard.shardID == "s10.4.minimum.rtl-string""#))
-        XCTAssertTrue(purchaseSelectorSource.contains(#"shard.ordinal == 11, shard.requirementID == "rtl_string""#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"shard.ordinal == 11 && shard.requirementID == "rtl_string""#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
-        XCTAssertTrue(purchaseSelectorSource.contains(#"let expectedPurchaseLabel = "\u{202E}Subscribe\u{202C}""#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"expectedPurchaseLabel = "\u{202E}Subscribe\u{202C}""#))
+        let purchasePairAdmission = try boundedSource(purchaseSelectorSource, from: "            if diagnosticProbe == nil, automationSegment == .none,", before: "                let expectedPurchaseLabel:")
+        XCTAssertTrue(purchasePairAdmission.contains(#"shard.shardID == "s10.4.minimum.tall""#))
+        XCTAssertTrue(purchasePairAdmission.contains(#"shard.ordinal == 12 && shard.requirementID == "tall""#))
+        XCTAssertEqual(purchasePairAdmission.components(separatedBy: "||").count - 1, 1)
+        XCTAssertTrue(purchaseSelectorSource.contains(#"if shard.shardID == "s10.4.minimum.tall""#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"expectedPurchaseLabel = tallMarker + "Subscribe" + tallMarker"#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}""#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"guard purchaseButtons.count == 1 else { return nil }"#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.elementType == .button"#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.label == expectedPurchaseLabel"#))
@@ -18784,10 +18791,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 947_160)
+        XCTAssertEqual(uiSource.utf8.count, 947_638)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "7B102DC29B9DBBBBA39BFDB645DB258556BE4653F89CE88DDF99A16C04EB0B37"
+            "B1EAC4E299A2CC33CA861589CE8C391B713195F4B2CE543FB4353099EA7404FB"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
