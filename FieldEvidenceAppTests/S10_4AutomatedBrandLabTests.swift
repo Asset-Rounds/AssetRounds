@@ -18253,15 +18253,32 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !postNoteHeading.isHittable { return \"post-note-heading-hittable\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !postNoteField.exists { return \"post-note-field-exists\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !postNoteField.isHittable { return \"post-note-field-hittable\" }"))
+        let tallValidationPositioningSource = try boundedSource(
+            rtlWorkValidationAccessorySource,
+            from: "        if shard.shardID == \"s10.4.minimum.tall\" {",
+            before: "\n    }"
+        )
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"let tallRequiredControls = [postDescriptionField, postValidationLabel, postNoteHeading, postNoteField, tallSave]"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"let minimumShift = max(visibleFrame.minY - top, -maximumGestureDistance)"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"let maximumShift = min(visibleFrame.maxY - bottom, -minimumGestureDistance)"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"minimumShift <= maximumShift"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"for _ in 0..<4"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"requiredFrames.allSatisfy({ visibleFrame.contains($0) })"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"guard tallSave.frame.minY < saveBeforeDrag else"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"(postNoteField.value as? String) == tallNoteValue"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"!focusedPredicate.evaluate(with: postDescriptionField)"#))
+        XCTAssertTrue(tallValidationPositioningSource.contains(#"finalVisibleFrame.contains($0.frame)"#))
+        XCTAssertFalse(tallValidationPositioningSource.contains(".tap("))
+        XCTAssertFalse(tallValidationPositioningSource.contains("performAccessibilityAudit"))
         let rtlWorkGeometrySource = try boundedSource(
             uiSource,
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 896_218)
+        XCTAssertEqual(uiSource.utf8.count, 902_665)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "981D09EA7994675C7323D07BDB11370FED511CCFC3506F84317495D082ECAC40"
+            "6F6F827D1A20494F981F8DEF5F6542AF6999DBE437B62B972042BA036E2D2DC5"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

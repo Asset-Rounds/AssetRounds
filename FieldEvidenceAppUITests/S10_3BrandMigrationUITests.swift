@@ -16104,6 +16104,99 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     + firstFailedPostDismissSemanticLabel
             )
         }
+        if shard.shardID == "s10.4.minimum.tall" {
+            let tallWorkScrolls = app.scrollViews.matching(identifier: "s5.1.work.screen")
+            let tallNavigationBars = app.navigationBars
+            let tallSaveButtons = app.buttons.matching(identifier: "s5.1.work.save")
+            guard tallWorkScrolls.count == 1, tallNavigationBars.count == 1,
+                  tallSaveButtons.count == 1 else {
+                throw AutomationConfigurationError.invalid("Tall validation positioning bindings are ambiguous")
+            }
+            let tallWorkScroll = tallWorkScrolls.element(boundBy: 0)
+            let tallNavigationBar = tallNavigationBars.element(boundBy: 0)
+            let tallSave = tallSaveButtons.element(boundBy: 0)
+            let tallSaveLabel = tallSave.label
+            let tallNoteValue = postNoteField.value as? String
+            let tallRequiredControls = [postDescriptionField, postValidationLabel, postNoteHeading, postNoteField, tallSave]
+            let tallVisibleFrame: () -> CGRect = {
+                let contentFrame = app.frame.intersection(tallWorkScroll.frame)
+                let navigationFrame = tallNavigationBar.frame
+                let visibleTop = max(contentFrame.minY, navigationFrame.maxY)
+                guard frameIsValid(contentFrame), frameIsValid(navigationFrame),
+                      visibleTop < contentFrame.maxY else { return .null }
+                return CGRect(x: contentFrame.minX, y: visibleTop,
+                              width: contentFrame.width, height: contentFrame.maxY - visibleTop)
+            }
+            let tallStateIsPreserved: () -> Bool = {
+                app.state == .runningForeground
+                    && postWorkScreens.count == 1 && postDescriptionFields.count == 1
+                    && postValidationLabels.count == 1 && postNoteHeadings.count == 1
+                    && postNoteFields.count == 1 && tallSaveButtons.count == 1
+                    && tallWorkScrolls.count == 1 && tallNavigationBars.count == 1
+                    && postKeyboards.count == 0 && postDoneButtons.count == 0
+                    && postWorkScreen.isEnabled && postWorkScreen.isHittable
+                    && postDescriptionField.isEnabled && postValidationLabel.isEnabled
+                    && !focusedPredicate.evaluate(with: postDescriptionField)
+                    && postDescriptionField.label == preDescriptionLabel
+                    && postDescriptionField.placeholderValue == preDescriptionPlaceholderValue
+                    && (postDescriptionField.value as? String) == preDescriptionPlaceholderValue
+                    && postValidationLabel.label == preValidationLabel
+                    && postNoteHeading.label == preNoteHeadingLabel
+                    && postNoteHeading.elementType == preNoteHeadingType
+                    && (postNoteField.value as? String) == tallNoteValue
+                    && tallSave.label == tallSaveLabel && !tallSaveLabel.isEmpty
+                    && tallSave.isEnabled && tallSave.elementType == .button
+                    && self.migratedStateIDs == expectedMigratedStateIDs
+                    && self.automationAXTreeDigests.keys.sorted() == expectedMigratedStateIDs.sorted()
+                    && self.automationContrastExceptions.isEmpty && !self.automatedSegmentFinished
+                    && self.segmentedRouteStateCursor == 0
+            }
+            let dragInset: CGFloat = 24
+            let minimumGestureDistance: CGFloat = 44
+            for _ in 0..<4 {
+                let visibleFrame = tallVisibleFrame()
+                let requiredFrames = tallRequiredControls.map { $0.frame }
+                guard tallStateIsPreserved(), frameIsValid(visibleFrame),
+                      tallRequiredControls.allSatisfy({ $0.exists }),
+                      requiredFrames.allSatisfy(frameIsValid),
+                      requiredFrames.allSatisfy({ $0.minX >= visibleFrame.minX && $0.maxX <= visibleFrame.maxX }) else {
+                    throw AutomationConfigurationError.invalid("Tall validation positioning state changed")
+                }
+                if requiredFrames.allSatisfy({ visibleFrame.contains($0) }) { break }
+                guard let top = requiredFrames.map({ $0.minY }).min(),
+                      let bottom = requiredFrames.map({ $0.maxY }).max() else {
+                    throw AutomationConfigurationError.invalid("Tall validation positioning content is missing")
+                }
+                let maximumGestureDistance = visibleFrame.height - 2 * dragInset
+                let minimumShift = max(visibleFrame.minY - top, -maximumGestureDistance)
+                let maximumShift = min(visibleFrame.maxY - bottom, -minimumGestureDistance)
+                guard maximumGestureDistance >= minimumGestureDistance,
+                      minimumShift <= maximumShift else {
+                    throw AutomationConfigurationError.invalid("Tall validation content has no feasible upward gesture")
+                }
+                let dragDistance = (minimumShift + maximumShift) / 2
+                let scrollFrame = tallWorkScroll.frame
+                let origin = tallWorkScroll.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                let dragStart = origin.withOffset(CGVector(
+                    dx: visibleFrame.midX - scrollFrame.minX,
+                    dy: visibleFrame.maxY - scrollFrame.minY - dragInset
+                ))
+                let dragEnd = dragStart.withOffset(CGVector(dx: 0, dy: dragDistance))
+                let saveBeforeDrag = tallSave.frame.minY
+                dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
+                guard tallSave.frame.minY < saveBeforeDrag else {
+                    throw AutomationConfigurationError.invalid("Tall validation positioning gesture was not recognized")
+                }
+            }
+            let finalVisibleFrame = tallVisibleFrame()
+            guard tallStateIsPreserved(), frameIsValid(finalVisibleFrame),
+                  tallRequiredControls.allSatisfy({
+                      $0.exists && frameIsValid($0.frame) && finalVisibleFrame.contains($0.frame)
+                  }), tallSave.isHittable, postDescriptionField.isHittable,
+                  postNoteHeading.isHittable, postNoteField.isHittable else {
+                throw AutomationConfigurationError.invalid("Tall validation content remains outside the viewport")
+            }
+        }
     }
 
     @MainActor
