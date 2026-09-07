@@ -2851,6 +2851,72 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(accentedAvailablePositioning.contains("actualMovement.isFinite"))
         XCTAssertTrue(accentedAvailablePositioning.contains("!(nearest > 0 && blockedPositiveDirection)"))
         XCTAssertTrue(accentedAvailablePositioning.contains("!(nearest < 0 && blockedNegativeDirection)"))
+        let accentedAttemptCache = try boundedSource(
+            accentedAvailablePositioning, from: "                cachedAttemptGeometry.append(",
+            before: "                guard app.state == .runningForeground"
+        )
+        XCTAssertTrue(accentedAttemptCache.contains("attempt, cachedViewport, cachedRequired"))
+        XCTAssertTrue(accentedAttemptCache.contains("cachedSiblings.prefix(128).map { identifier, frame in"))
+        XCTAssertTrue(accentedAttemptCache.contains("boundedCachedIdentifier(identifier)"))
+        XCTAssertTrue(accentedAttemptCache.contains("bounded.text, bounded.originalBytes, bounded.retainedBytes, bounded.truncated, frame"))
+        let accentedIdentifierBound = try boundedSource(
+            accentedAvailablePositioning, from: "            func boundedCachedIdentifier(",
+            before: "            let movementScalar:"
+        )
+        XCTAssertTrue(accentedIdentifierBound.contains("for scalar in value.unicodeScalars"))
+        XCTAssertTrue(accentedIdentifierBound.contains("scalarText.utf8.count"))
+        XCTAssertTrue(accentedIdentifierBound.contains("guard retainedBytes + scalarBytes <= 1_024 else { break }"))
+        XCTAssertTrue(accentedIdentifierBound.contains("retained += scalarText"))
+        XCTAssertTrue(accentedIdentifierBound.contains("retainedBytes += scalarBytes"))
+        XCTAssertTrue(accentedIdentifierBound.contains("let originalBytes = value.utf8.count"))
+        XCTAssertTrue(accentedIdentifierBound.contains("return (retained, originalBytes, retainedBytes, retainedBytes < originalBytes)"))
+        XCTAssertTrue(accentedAttemptCache.contains("cachedSiblings.count"))
+        let accentedCommandCache = try boundedSource(
+            accentedAvailablePositioning, from: "                cachedPlannedCommands.append(",
+            before: "                previousMovement = (shift, cachedRequired[0].minY, cachedViewport)"
+        )
+        XCTAssertTrue(accentedCommandCache.contains("attempt, selected.lower, selected.upper, selected.nearest"))
+        XCTAssertTrue(accentedCommandCache.contains("shift, startY, cachedViewport, scrollFrame"))
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "cachedAttemptGeometry.append(").count - 1, 1)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "cachedPlannedCommands.append(").count - 1, 1)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "for attempt in 0...4").count - 1, 1)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "guard attempt < 4,").count - 1, 1)
+        let accentedCachedFailureSerialization = try boundedSource(
+            accentedAvailablePositioning, from: "                let attemptObservations:",
+            before: "                if let data = try? JSONSerialization.data"
+        )
+        for cachedEvidenceContract in [
+            "cachedAttemptGeometry.map", "cachedPlannedCommands.map",
+            "\"phase\": \"cached-before-state-validation\"", "\"atomicSnapshot\": false",
+            "\"phase\": \"planned-before-native-press\"", "\"deliveredTouchCoordinates\": false",
+            "\"siblingsTruncated\": observed.siblingCount > observed.siblings.count",
+            "jsonFrame(observed.viewport)", "jsonFrame(observed.scrollFrame)", "jsonFrame(frame)",
+            "\"identifierOriginalUTF8Bytes\": sibling.originalBytes",
+            "\"identifierRetainedUTF8Bytes\": sibling.retainedBytes", "\"identifierTruncated\": sibling.truncated",
+            "movementScalar(observed.lower)", "movementScalar(observed.upper)",
+            "movementScalar(observed.nearest)", "movementScalar(observed.shift)",
+            "\"plannedViewportStartY\": movementScalar(observed.startY)",
+            "\"plannedViewportEndY\": movementScalar(observed.startY + observed.shift)",
+            "\"attemptGeometry\": attemptObservations", "\"plannedCommands\": plannedCommandObservations",
+            "\"diagnosticOnly\": true", "\"finalAcceptanceEligible\": false",
+        ] {
+            XCTAssertTrue(accentedCachedFailureSerialization.contains(cachedEvidenceContract), cachedEvidenceContract)
+        }
+        for cachedOnlySource in [accentedAttemptCache, accentedCommandCache, accentedCachedFailureSerialization] {
+            for nativeReadOrAction in ["app.", "app.frame", ".exists", ".screenPoint", ".press(", ".tap(", "wait(", "screenshot(", "debugDescription"] {
+                XCTAssertFalse(cachedOnlySource.contains(nativeReadOrAction), nativeReadOrAction)
+            }
+        }
+        XCTAssertFalse(accentedAttemptCache.contains(".frame"))
+        XCTAssertFalse(accentedCommandCache.contains(".frame"))
+        XCTAssertEqual(accentedCachedFailureSerialization.components(separatedBy: ".frame").count - 1, 1)
+        let accentedSnapshotCachePosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "cachedAttemptGeometry.append("))
+        let accentedAttemptLimitPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "guard attempt < 4,"))
+        let accentedCommandCachePosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "cachedPlannedCommands.append("))
+        let accentedPressPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "start.press("))
+        XCTAssertLessThan(accentedSnapshotCachePosition.lowerBound, accentedAttemptLimitPosition.lowerBound)
+        XCTAssertLessThan(accentedAttemptLimitPosition.lowerBound, accentedCommandCachePosition.lowerBound)
+        XCTAssertLessThan(accentedCommandCachePosition.lowerBound, accentedPressPosition.lowerBound)
         let accentedIntervalSelection = try boundedSource(accentedAvailablePositioning, from: "                let candidates = allowedIntervals.compactMap", before: "                let startY = shift < 0")
         for predicate in [
             "interval.lower.isFinite, interval.upper.isFinite",
@@ -2896,6 +2962,41 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(doubleInitialProgressFailure.contains("return NSNull()"))
         XCTAssertFalse(doubleInitialProgressFailure.contains(".tap()"))
         XCTAssertFalse(doubleInitialProgressFailure.contains(".waitFor"))
+        for exact in [
+            "self.diagnosticProbe == nil, self.automationSegment == .none",
+            #"shard.shardID == "s10.4.minimum.double-length", shard.ordinal == 9"#,
+            #"shard.requirementID == "double_length""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #""diagnosticOnly": true, "finalAcceptanceEligible": false"#,
+            #""atomicWithCachedChecks": false"#,
+            "originalTreeBytes", "retainedTreeBytes", "treeTruncated",
+        ] {
+            XCTAssertTrue(doubleInitialProgressFailure.contains(exact), exact)
+        }
+        var doubleInitialFailureOrder = doubleInitialProgressFailure[...]
+        for exact in [
+            "let interactiveSwitchFrameAfterDrag = interactiveSwitch.frame",
+            "guard (interactiveSwitchFrameAfterDrag.minY",
+            "* dragDistance > 0 else {",
+            "if self.diagnosticProbe == nil",
+            "print(\"S10_4_DOUBLE_INITIAL_PROGRESS_FAILURE ",
+            "let observationTime =",
+            "let screenshot = XCTAttachment(screenshot: app.screenshot())",
+            "self.add(screenshot)",
+            "let rawTree = Data(app.debugDescription.utf8)",
+            "let retainedTree = rawTree.prefix(262_144)",
+            "self.add(tree)",
+            #""event": "failure-observation-complete""#,
+        ] {
+            let range = try XCTUnwrap(doubleInitialFailureOrder.range(of: exact), exact)
+            doubleInitialFailureOrder = doubleInitialFailureOrder[range.upperBound...]
+        }
+        XCTAssertEqual(doubleInitialProgressFailure.components(separatedBy: "app.screenshot()").count - 1, 1)
+        XCTAssertEqual(doubleInitialProgressFailure.components(separatedBy: "app.debugDescription").count - 1, 1)
+        XCTAssertEqual(doubleInitialProgressFailure.components(separatedBy: "interactiveSwitch.frame").count - 1, 1)
+        for prohibited in ["captureBaseline", "performAccessibilityAudit", "return true", "continue", ".press(", ".isHittable", ".exists"] {
+            XCTAssertFalse(doubleInitialProgressFailure.contains(prohibited), prohibited)
+        }
         let postSaveIssueQuery = try boundedSource(uiSource, from: "        let issueScreen: XCUIElement", before: #"        if diagnosticProbe == nil, automationSegment == .none,"#)
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.minimum-os\""))
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.rtl-string\""))
@@ -7453,6 +7554,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 workEditingLocalizedLabelBinding
             )
         }
+        let pairedWorkHelperFailure = try boundedSource(workEditingPositioningSource,
+            from: "            if observesBoundedOrRTLWorkHelperCount, let shard = automationShard {",
+            before: #"            XCTFail("Record-work editing positioning bindings are ambiguous.")"#)
+        XCTAssertEqual(workEditingPositioningSource.components(separatedBy: pairedWorkHelperFailure).count - 1, 1)
+        let workEditingOutsidePairedFailure = workEditingPositioningSource.replacingOccurrences(of: pairedWorkHelperFailure, with: "")
+        for pairedFailureOnlyForm in ["XCTAttachment(", ".lifetime = .keepAlways", "printJSONLine("] {
+            XCTAssertEqual(workEditingOutsidePairedFailure.components(separatedBy: pairedFailureOnlyForm).count - 1, 0, pairedFailureOnlyForm)
+            XCTAssertEqual(pairedWorkHelperFailure.components(separatedBy: pairedFailureOnlyForm).count - 1, 2, pairedFailureOnlyForm)
+        }
         for workEditingDiagnosticResidue in [
             "workEditingDiagnostic",
             "emitWorkEditingPositioningDiagnostic",
@@ -7464,8 +7574,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #""elapsedMilliseconds""#,
             #""queries":"#,
             "S10_4_AX_TEXT_WORK_EDITING_FINAL_GUARD_DIAGNOSTIC",
-            "XCTAttachment(",
-            ".lifetime = .keepAlways",
             "throw AutomationConfigurationError.invalid(",
             "S10.4 AX-text Record-work editing positioning diagnostic",
         ] {
@@ -7490,6 +7598,61 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let pairedWorkHelperObservationGate = try boundedSource(workEditingPositioningSource,
+            from: "        let observesBoundedOrRTLWorkHelperCount =",
+            before: "        let workHelperTextBindingsAreValid:")
+        for exact in [
+            "diagnosticProbe == nil && automationSegment == .none",
+            #"automationShard?.shardID == "s10.4.minimum.bounded""#,
+            "automationShard?.ordinal == 14",
+            #"automationShard?.shardID == "s10.4.minimum.rtl""#,
+            "automationShard?.ordinal == 10",
+            #"automationShard?.requirementID == "rtl""#,
+            #"automationShard?.requirementID == "bounded""#,
+            #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "var observedBoundedOrRTLWorkHelperCount: Int?",
+        ] {
+            XCTAssertTrue(pairedWorkHelperObservationGate.contains(exact), exact)
+        }
+        XCTAssertEqual(pairedWorkHelperObservationGate.components(separatedBy: "||").count - 1, 1)
+        let pairedWorkHelperCountRead = try boundedSource(workEditingPositioningSource,
+            from: "            let helperTextCount = workHelperTexts.count",
+            before: "            guard minimumOSWorkHelperDuplicateExpected else {")
+        XCTAssertEqual(pairedWorkHelperCountRead.components(separatedBy: "workHelperTexts.count").count - 1, 1)
+        XCTAssertTrue(pairedWorkHelperCountRead.contains("if observesBoundedOrRTLWorkHelperCount {"))
+        XCTAssertTrue(pairedWorkHelperCountRead.contains("observedBoundedOrRTLWorkHelperCount = helperTextCount"))
+        XCTAssertTrue(pairedWorkHelperCountRead.contains("guard helperTextCount == expectedWorkHelperTextCount else {"))
+        XCTAssertTrue(pairedWorkHelperCountRead.contains("return false"))
+        for exact in [
+            #""diagnosticOnly": true, "finalAcceptanceEligible": false"#,
+            #""helperCountEvaluated": observedBoundedOrRTLWorkHelperCount != nil"#,
+            #""helperCount": observedBoundedOrRTLWorkHelperCount.map { $0 as Any } ?? NSNull()"#,
+            #""expectedHelperCount": expectedWorkHelperTextCount"#,
+            #""failureBoundary": "work-helper-or-scroll-or-navigation-bindings""#,
+            "originalTreeBytes", "retainedTreeBytes", "treeTruncated",
+            #""atomicWithCachedChecks": false"#,
+        ] {
+            XCTAssertTrue(pairedWorkHelperFailure.contains(exact), exact)
+        }
+        var pairedWorkHelperFailureOrder = pairedWorkHelperFailure[...]
+        for exact in [
+            #""event": "cached-binding-failure""#,
+            "let observationTime =",
+            "let screenshot = XCTAttachment(screenshot: app.screenshot())",
+            "add(screenshot)",
+            "let rawTree = Data(app.debugDescription.utf8)",
+            "let retainedTree = rawTree.prefix(262_144)",
+            "add(tree)",
+            #""event": "failure-observation-complete""#,
+        ] {
+            let range = try XCTUnwrap(pairedWorkHelperFailureOrder.range(of: exact), exact)
+            pairedWorkHelperFailureOrder = pairedWorkHelperFailureOrder[range.upperBound...]
+        }
+        for prohibited in ["workHelperTexts.count", ".exists", ".frame", ".tap()", "captureBaseline", "performAccessibilityAudit", "waitForExistence", "return true"] {
+            XCTAssertFalse(pairedWorkHelperFailure.contains(prohibited), prohibited)
+        }
+        XCTAssertEqual(pairedWorkHelperFailure.components(separatedBy: "app.screenshot()").count - 1, 1)
+        XCTAssertEqual(pairedWorkHelperFailure.components(separatedBy: "app.debugDescription").count - 1, 1)
         let workEditingEvidenceBoundary =
             "        var workEditingAXTextFallbackAccepted = false\n" +
                 "        if preparesWorkEditingEvidence {\n" +
@@ -7610,7 +7773,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"(importDescendantLabel.value as? String) == """#,
             "globalNestedLabelFrame == importFixtureFrame",
             "importDescendantLabelFrame == importFixtureFrame",
-            "guard workHelperTexts.count == expectedWorkHelperTextCount else {",
+            "guard helperTextCount == expectedWorkHelperTextCount else {",
             "guard minimumOSWorkHelperDuplicateExpected else {",
         ] {
             XCTAssertTrue(
@@ -8222,8 +8385,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "waitForNonExistence",
             "Thread.sleep",
             "performAccessibilityAudit",
-            "XCTAttachment(",
-            "printJSONLine(",
             "emitAutomationTaskEvidence",
             "emitAutomationShardReceipt",
         ] {
@@ -19093,10 +19254,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 969_978)
+        XCTAssertEqual(uiSource.utf8.count, 979_200)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "AECBA86D73D323E5CE845E2DD6E0B34DDF6861B536CEA49DC5A5B139A1A225A9"
+            "DF2969E2F0A81BE8F4E6573AF6E19594AEDFA29F36B69F131EDA614ACA4C98BF"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

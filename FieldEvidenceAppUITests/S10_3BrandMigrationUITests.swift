@@ -3324,6 +3324,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                                let json = String(data: data, encoding: .utf8) {
                                                 print("S10_4_DOUBLE_INITIAL_PROGRESS_FAILURE \(json)")
                                             }
+                                            let observationTime = ISO8601DateFormatter().string(from: Date())
+                                            let screenshot = XCTAttachment(screenshot: app.screenshot())
+                                            screenshot.name = "S10.4 initial double visible signed-progress failure app"
+                                            screenshot.lifetime = .keepAlways
+                                            self.add(screenshot)
+                                            let rawTree = Data(app.debugDescription.utf8)
+                                            let retainedTree = rawTree.prefix(262_144)
+                                            let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
+                                            tree.name = "S10.4 initial double visible signed-progress failure tree"
+                                            tree.lifetime = .keepAlways
+                                            self.add(tree)
+                                            self.printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                                                "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                                                "seam": "initial double visible signed-progress", "event": "failure-observation-complete",
+                                                "shardID": shard.shardID, "ordinal": shard.ordinal,
+                                                "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID,
+                                                "diagnosticProbe": NSNull(), "automationSegment": "none",
+                                                "observationStartedAt": observationTime, "atomicWithCachedChecks": false,
+                                                "originalTreeBytes": rawTree.count, "retainedTreeBytes": retainedTree.count,
+                                                "treeTruncated": rawTree.count > retainedTree.count,
+                                            ])
                                         }
                                         XCTFail("The serial visible preflight positioning gesture did not make signed progress.")
                                         return false
@@ -6987,6 +7008,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && frame.size.width.isFinite
                 && frame.size.height.isFinite
         }
+        let observesBoundedOrRTLWorkHelperCount =
+            diagnosticProbe == nil && automationSegment == .none
+                && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+                && ((automationShard?.shardID == "s10.4.minimum.bounded"
+                    && automationShard?.ordinal == 14
+                    && automationShard?.requirementID == "bounded")
+                    || (automationShard?.shardID == "s10.4.minimum.rtl"
+                        && automationShard?.ordinal == 10
+                        && automationShard?.requirementID == "rtl"))
+        var observedBoundedOrRTLWorkHelperCount: Int?
         let workHelperTextBindingsAreValid: () -> Bool = {
             if rtlStringWorkHelperUsesOptionalNestedLabel {
                 guard let importFixtureLabels =
@@ -7047,7 +7078,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && globalNestedLabelFrame == importFixtureFrame
                     && importDescendantLabelFrame == importFixtureFrame
             }
-            guard workHelperTexts.count == expectedWorkHelperTextCount else {
+            let helperTextCount = workHelperTexts.count
+            if observesBoundedOrRTLWorkHelperCount {
+                observedBoundedOrRTLWorkHelperCount = helperTextCount
+            }
+            guard helperTextCount == expectedWorkHelperTextCount else {
                 return false
             }
             guard minimumOSWorkHelperDuplicateExpected else {
@@ -7123,6 +7158,38 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         guard workHelperTextBindingsAreValid(),
               workScrollViews.count == 1,
               workNavigationBars.count == 1 else {
+            if observesBoundedOrRTLWorkHelperCount, let shard = automationShard {
+                printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "seam": "minimum work-editing helper", "event": "cached-binding-failure",
+                    "shardID": shard.shardID, "ordinal": shard.ordinal,
+                    "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID,
+                    "diagnosticProbe": NSNull(), "automationSegment": "none",
+                    "helperCountEvaluated": observedBoundedOrRTLWorkHelperCount != nil,
+                    "helperCount": observedBoundedOrRTLWorkHelperCount.map { $0 as Any } ?? NSNull(),
+                    "expectedHelperCount": expectedWorkHelperTextCount,
+                    "helperCountMatchedExpected": observedBoundedOrRTLWorkHelperCount.map { ($0 == expectedWorkHelperTextCount) as Any } ?? NSNull(),
+                    "failureBoundary": "work-helper-or-scroll-or-navigation-bindings",
+                ])
+                let observationTime = ISO8601DateFormatter().string(from: Date())
+                let screenshot = XCTAttachment(screenshot: app.screenshot())
+                screenshot.name = "S10.4 minimum work-editing binding failure app"
+                screenshot.lifetime = .keepAlways
+                add(screenshot)
+                let rawTree = Data(app.debugDescription.utf8)
+                let retainedTree = rawTree.prefix(262_144)
+                let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
+                tree.name = "S10.4 minimum work-editing binding failure tree"
+                tree.lifetime = .keepAlways
+                add(tree)
+                printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "seam": "minimum work-editing helper", "event": "failure-observation-complete",
+                    "observationStartedAt": observationTime, "atomicWithCachedChecks": false,
+                    "originalTreeBytes": rawTree.count, "retainedTreeBytes": retainedTree.count,
+                    "treeTruncated": rawTree.count > retainedTree.count,
+                ])
+            }
             XCTFail("Record-work editing positioning bindings are ambiguous.")
             return
         }
@@ -10053,6 +10120,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             var blockedPositiveDirection = false
             var blockedNegativeDirection = false
             var cachedMovementResponses: [[String: Any]] = []
+            var cachedAttemptGeometry: [(attempt: Int, viewport: CGRect, required: [CGRect], siblings: [(identifier: String, originalBytes: Int, retainedBytes: Int, truncated: Bool, frame: CGRect)], siblingCount: Int)] = []
+            var cachedPlannedCommands: [(attempt: Int, lower: CGFloat, upper: CGFloat, nearest: CGFloat, shift: CGFloat, startY: CGFloat, viewport: CGRect, scrollFrame: CGRect)] = []
+            func boundedCachedIdentifier(_ value: String) -> (text: String, originalBytes: Int, retainedBytes: Int, truncated: Bool) {
+                var retained = ""
+                var retainedBytes = 0
+                for scalar in value.unicodeScalars {
+                    let scalarText = String(scalar)
+                    let scalarBytes = scalarText.utf8.count
+                    guard retainedBytes + scalarBytes <= 1_024 else { break }
+                    retained += scalarText
+                    retainedBytes += scalarBytes
+                }
+                let originalBytes = value.utf8.count
+                return (retained, originalBytes, retainedBytes, retainedBytes < originalBytes)
+            }
             let movementScalar: (CGFloat) -> Any = { value in
                 if value.isFinite { return value }
                 return NSNull()
@@ -10064,7 +10146,34 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     }
                     return NSNull()
                 }
+                let attemptObservations: [[String: Any]] = cachedAttemptGeometry.map { observed in
+                    ["attempt": observed.attempt, "phase": "cached-before-state-validation",
+                     "atomicSnapshot": false, "viewport": jsonFrame(observed.viewport),
+                     "required": observed.required.enumerated().map { index, frame in
+                         ["index": index, "frame": jsonFrame(frame)] as [String: Any]
+                     },
+                     "siblingCount": observed.siblingCount,
+                     "siblingsTruncated": observed.siblingCount > observed.siblings.count,
+                     "siblings": observed.siblings.map { sibling in
+                         ["identifier": sibling.identifier, "identifierOriginalUTF8Bytes": sibling.originalBytes,
+                          "identifierRetainedUTF8Bytes": sibling.retainedBytes, "identifierTruncated": sibling.truncated,
+                          "frame": jsonFrame(sibling.frame)] as [String: Any]
+                     }]
+                }
+                let plannedCommandObservations: [[String: Any]] = cachedPlannedCommands.map { observed in
+                    ["attempt": observed.attempt, "phase": "planned-before-native-press",
+                     "deliveredTouchCoordinates": false,
+                     "lower": movementScalar(observed.lower), "upper": movementScalar(observed.upper),
+                     "nearest": movementScalar(observed.nearest), "shift": movementScalar(observed.shift),
+                     "viewport": jsonFrame(observed.viewport), "scrollFrame": jsonFrame(observed.scrollFrame),
+                     "plannedViewportStartX": movementScalar(observed.viewport.midX),
+                     "plannedViewportStartY": movementScalar(observed.startY),
+                     "plannedViewportEndX": movementScalar(observed.viewport.midX),
+                     "plannedViewportEndY": movementScalar(observed.startY + observed.shift)]
+                }
                 let payload: [String: Any] = [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "attemptGeometry": attemptObservations, "plannedCommands": plannedCommandObservations,
                     "stage": stage,
                     "viewport": jsonFrame(cachedViewport),
                     "required": cachedRequired.enumerated().map { index, frame in
@@ -10095,6 +10204,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let siblings = availableScroll.staticTexts.allElementsBoundByIndex
                     + availableScroll.buttons.allElementsBoundByIndex
                 cachedSiblings = siblings.map { ($0.identifier, $0.frame) }
+                cachedAttemptGeometry.append((attempt, cachedViewport, cachedRequired,
+                    cachedSiblings.prefix(128).map { identifier, frame in
+                        let bounded = boundedCachedIdentifier(identifier)
+                        return (bounded.text, bounded.originalBytes, bounded.retainedBytes, bounded.truncated, frame)
+                    }, cachedSiblings.count))
                 guard app.state == .runningForeground, scrolls.count == 1,
                       requiredQueries.allSatisfy({ $0.count == 1 }),
                       validFrame(cachedViewport), cachedRequired.allSatisfy(validFrame),
@@ -10200,6 +10314,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let origin = availableScroll.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
                 let start = origin.withOffset(CGVector(dx: cachedViewport.midX - scrollFrame.minX, dy: startY - scrollFrame.minY))
                 let end = start.withOffset(CGVector(dx: 0, dy: shift))
+                cachedPlannedCommands.append((attempt, selected.lower, selected.upper, selected.nearest,
+                    shift, startY, cachedViewport, scrollFrame))
                 previousMovement = (shift, cachedRequired[0].minY, cachedViewport)
                 start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
             }
