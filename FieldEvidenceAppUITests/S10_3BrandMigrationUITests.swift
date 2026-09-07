@@ -4693,8 +4693,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     private func assertFirstReceiptAndReport(in app: XCUIApplication) {
-        XCTAssertTrue(element("s3.receipt.screen", in: app)
-            .waitForExistence(timeout: 40))
+        let firstReceiptScreen: XCUIElement
+        if diagnosticProbe == nil, automationSegment == .none,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.accented", shard.ordinal == 13,
+           shard.requirementID == "accented",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            firstReceiptScreen = app.scrollViews.matching(identifier: "s3.receipt.screen").firstMatch
+        } else {
+            firstReceiptScreen = element("s3.receipt.screen", in: app)
+        }
+        XCTAssertTrue(firstReceiptScreen.waitForExistence(timeout: 40))
         assertUnidentifiedLocalizedLabel("Complete: Check complete", in: app)
         let saved = element("s3.receipt.saved", in: app)
         XCTAssertTrue(saved.waitForExistence(timeout: 15))
@@ -4743,8 +4752,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertControl(history, label: "Report history")
         let historyOpenAt = Date()
         history.tap()
-        XCTAssertTrue(element("s4.4.history.screen", in: app)
-            .waitForExistence(timeout: 30))
+        let reportHistoryScreen: XCUIElement
+        if diagnosticProbe == nil, automationSegment == .none,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.tall", shard.ordinal == 12,
+           shard.requirementID == "tall",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            reportHistoryScreen = app.scrollViews.matching(identifier: "s4.4.history.screen").firstMatch
+        } else {
+            reportHistoryScreen = element("s4.4.history.screen", in: app)
+        }
+        XCTAssertTrue(reportHistoryScreen.waitForExistence(timeout: 30))
         recordMetric("report_history_open", since: historyOpenAt)
         XCTAssertTrue(element("s4.4.reports.view-report", in: app)
             .waitForExistence(timeout: 20))

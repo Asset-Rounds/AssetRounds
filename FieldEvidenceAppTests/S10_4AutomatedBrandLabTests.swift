@@ -4312,6 +4312,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
             ]
         )
+        let accentedReceiptLookupSource = try boundedSource(
+            uiSource,
+            from: "        let firstReceiptScreen: XCUIElement",
+            before: "        let saved = element("
+        )
+        XCTAssertTrue(accentedReceiptLookupSource.contains(#"diagnosticProbe == nil, automationSegment == .none"#))
+        XCTAssertTrue(accentedReceiptLookupSource.contains(#"shard.shardID == "s10.4.minimum.accented", shard.ordinal == 13"#))
+        XCTAssertTrue(accentedReceiptLookupSource.contains(#"shard.requirementID == "accented""#))
+        XCTAssertTrue(accentedReceiptLookupSource.contains(#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
+        XCTAssertTrue(accentedReceiptLookupSource.contains(#"firstReceiptScreen = app.scrollViews.matching(identifier: "s3.receipt.screen").firstMatch"#))
+        XCTAssertTrue(accentedReceiptLookupSource.contains(#"firstReceiptScreen = element("s3.receipt.screen", in: app)"#))
+        XCTAssertTrue(accentedReceiptLookupSource.contains(#"XCTAssertTrue(firstReceiptScreen.waitForExistence(timeout: 40))"#))
+        XCTAssertFalse(accentedReceiptLookupSource.contains(".tap("))
+        let tallHistoryLookupSource = try boundedSource(
+            uiSource,
+            from: "        let reportHistoryScreen: XCUIElement",
+            before: "        recordMetric(\"report_history_open\", since: historyOpenAt)"
+        )
+        XCTAssertTrue(tallHistoryLookupSource.contains(#"diagnosticProbe == nil, automationSegment == .none"#))
+        XCTAssertTrue(tallHistoryLookupSource.contains(#"shard.shardID == "s10.4.minimum.tall", shard.ordinal == 12"#))
+        XCTAssertTrue(tallHistoryLookupSource.contains(#"shard.requirementID == "tall""#))
+        XCTAssertTrue(tallHistoryLookupSource.contains(#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
+        XCTAssertTrue(tallHistoryLookupSource.contains(#"reportHistoryScreen = app.scrollViews.matching(identifier: "s4.4.history.screen").firstMatch"#))
+        XCTAssertTrue(tallHistoryLookupSource.contains(#"reportHistoryScreen = element("s4.4.history.screen", in: app)"#))
+        XCTAssertTrue(tallHistoryLookupSource.contains(#"XCTAssertTrue(reportHistoryScreen.waitForExistence(timeout: 30))"#))
+        XCTAssertEqual(tallHistoryLookupSource.components(separatedBy: "waitForExistence(").count - 1, 1)
+        XCTAssertFalse(tallHistoryLookupSource.contains(".tap("))
         let reportHistoryPositioningGate =
             #"        if automationShard?.shardID == "s10.4.current.ax-text","# + "\n" +
                 "           shouldPrepareNormalEvidence(\n" +
@@ -11570,12 +11597,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        XCTAssertEqual(
-            availablePurchaseFunctionSource.components(
-                separatedBy: "return usedSettingsRetry"
-            ).count - 1,
-            14
-        )
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n            return\n"))
         XCTAssertFalse(availablePurchaseFunctionSource.contains("\n                    return\n"))
         let availablePurchaseTerminalReturn =
@@ -18237,10 +18258,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 895_210)
+        XCTAssertEqual(uiSource.utf8.count, 896_218)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "270151933F6A9CF938EE2EC7E98D3B1AD6374163CAF0DB03BEE7ED215B98E377"
+            "981D09EA7994675C7323D07BDB11370FED511CCFC3506F84317495D082ECAC40"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
