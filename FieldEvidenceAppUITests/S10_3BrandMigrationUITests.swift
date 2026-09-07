@@ -4764,9 +4764,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         selectedIssue: XCUIElement
     ) -> Bool {
         let expectedHeading = "Choose one visible issue Choose one visible issue"
-        let expectedVisibleLabel = "Visible issue Visible issue"
+        let expectedVisibleLabel = "Visible issue"
         let expectedSelectedIssueLabel =
-            "Section appears dark Section appears dark"
+            "Section appears dark"
         let expectedSelectedValue = "Selected Selected"
         let headingQuery = app.staticTexts.matching(
             NSPredicate(format: "label == %@", expectedHeading)
@@ -4775,7 +4775,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             identifier: "s3.outcome.screen"
         )
         let outcomeNavigationBars = app.navigationBars.matching(
-            NSPredicate(format: "label == %@", "Outcome Outcome")
+            identifier: "Outcome Outcome"
         )
         let issueControls = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "s3.outcome.issue.")
@@ -4851,7 +4851,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "diagnosticProbe": NSNull(), "automationSegment": "none",
                     "observationStartedAt": observationTime, "atomicWithCachedChecks": false,
                     "navigationObservedAt": ISO8601DateFormatter().string(from: Date()),
-                    "expectedLabel": "Outcome Outcome",
+                    "expectedIdentifier": "Outcome Outcome",
                     "observedNavigationCount": observedNavigationCount,
                     "retainedNavigationCount": retainedNavigationCount,
                     "navigationTruncated": observedNavigationCount > retainedNavigationCount,
@@ -4885,6 +4885,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let heading = headingQuery.firstMatch
         let outcomeScrollView = outcomeScrollViews.firstMatch
         let outcomeNavigationBar = outcomeNavigationBars.firstMatch
+        let outcomeNavigationTitles = outcomeNavigationBar.staticTexts.matching(
+            NSPredicate(format: "label == %@", "Outcome Outcome")
+        )
         let initialIssueBindings = (0..<issueControls.count).map { index in
             let element = issueControls.element(boundBy: index)
             return (
@@ -4957,7 +4960,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               outcomeScrollView.identifier == "s3.outcome.screen",
               outcomeNavigationBar.exists,
               outcomeNavigationBar.elementType == .navigationBar,
-              outcomeNavigationBar.label == "Outcome Outcome",
+              outcomeNavigationBar.identifier == "Outcome Outcome",
+              outcomeNavigationTitles.count == 1,
+              outcomeNavigationTitles.firstMatch.label == "Outcome Outcome",
               visibleIssue.exists,
               visibleIssue.isEnabled,
               visibleIssue.elementType == .button,
@@ -4996,7 +5001,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   outcomeScrollView.identifier == "s3.outcome.screen",
                   outcomeNavigationBar.exists,
                   outcomeNavigationBar.elementType == .navigationBar,
-                  outcomeNavigationBar.label == "Outcome Outcome",
+                  outcomeNavigationBar.identifier == "Outcome Outcome",
+                  outcomeNavigationTitles.count == 1,
+                  outcomeNavigationTitles.firstMatch.label == "Outcome Outcome",
                   visibleIssue.exists,
                   visibleIssue.isEnabled,
                   visibleIssue.elementType == .button,
@@ -10190,6 +10197,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             var cachedMovementResponses: [[String: Any]] = []
             var cachedAttemptGeometry: [(attempt: Int, viewport: CGRect, required: [CGRect], siblings: [(identifier: String, originalBytes: Int, retainedBytes: Int, truncated: Bool, frame: CGRect)], siblingCount: Int)] = []
             var cachedPlannedCommands: [(attempt: Int, lower: CGFloat, upper: CGFloat, nearest: CGFloat, shift: CGFloat, startY: CGFloat, viewport: CGRect, scrollFrame: CGRect)] = []
+            var cachedAttemptReadWindows: [(attempt: Int, receiverStart: Double, receiverEnd: Double, requiredStart: Double, requiredEnd: Double)] = []
+            var cachedPressFrameObservations: [(attempt: Int, phase: String, receiver: CGRect, anchor: CGRect, receiverStart: Double, receiverEnd: Double, anchorStart: Double, anchorEnd: Double)] = []
+            var cachedPressCallWindows: [(attempt: Int, started: Double, returned: Double)] = []
             func boundedCachedIdentifier(_ value: String) -> (text: String, originalBytes: Int, retainedBytes: Int, truncated: Bool) {
                 var retained = ""
                 var retainedBytes = 0
@@ -10239,9 +10249,36 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                      "plannedViewportEndX": movementScalar(observed.viewport.midX),
                      "plannedViewportEndY": movementScalar(observed.startY + observed.shift)]
                 }
+                let attemptReadWindows: [[String: Any]] = cachedAttemptReadWindows.map { observed in
+                    ["attempt": observed.attempt,
+                     "receiverReadStartedUptime": movementScalar(CGFloat(observed.receiverStart)),
+                     "receiverReadEndedUptime": movementScalar(CGFloat(observed.receiverEnd)),
+                     "requiredFramesReadStartedUptime": movementScalar(CGFloat(observed.requiredStart)),
+                     "requiredFramesReadEndedUptime": movementScalar(CGFloat(observed.requiredEnd)),
+                     "anchorReadIsWithinRequiredFramesWindow": true]
+                }
+                let pressFrameObservations: [[String: Any]] = cachedPressFrameObservations.map { observed in
+                    ["attempt": observed.attempt, "phase": observed.phase,
+                     "atomicSnapshot": false, "deliveredTouchCoordinates": false,
+                     "receiverFrame": jsonFrame(observed.receiver), "anchorFrame": jsonFrame(observed.anchor),
+                     "receiverReadStartedUptime": movementScalar(CGFloat(observed.receiverStart)),
+                     "receiverReadEndedUptime": movementScalar(CGFloat(observed.receiverEnd)),
+                     "anchorReadStartedUptime": movementScalar(CGFloat(observed.anchorStart)),
+                     "anchorReadEndedUptime": movementScalar(CGFloat(observed.anchorEnd))]
+                }
+                let pressCallWindows: [[String: Any]] = cachedPressCallWindows.map { observed in
+                    ["attempt": observed.attempt,
+                     "nativeCallStartedUptime": movementScalar(CGFloat(observed.started)),
+                     "nativeCallReturnedUptime": movementScalar(CGFloat(observed.returned)),
+                     "isDeliveredTouchTiming": false]
+                }
                 let payload: [String: Any] = [
                     "diagnosticOnly": true, "finalAcceptanceEligible": false,
                     "attemptGeometry": attemptObservations, "plannedCommands": plannedCommandObservations,
+                    "observationClock": "test-runner-process-system-uptime-seconds",
+                    "attemptReadWindows": attemptReadWindows,
+                    "pressFrameObservations": pressFrameObservations,
+                    "pressCallWindows": pressCallWindows,
                     "stage": stage,
                     "viewport": jsonFrame(cachedViewport),
                     "required": cachedRequired.enumerated().map { index, frame in
@@ -10266,9 +10303,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             var positioned = false
             for attempt in 0...4 {
+                let attemptReceiverReadStartedAt = ProcessInfo.processInfo.systemUptime
                 let scrollFrame = availableScroll.frame
+                let attemptReceiverReadEndedAt = ProcessInfo.processInfo.systemUptime
                 cachedViewport = app.frame.intersection(scrollFrame)
+                let attemptRequiredReadStartedAt = ProcessInfo.processInfo.systemUptime
                 cachedRequired = required.map { $0.frame }
+                let attemptRequiredReadEndedAt = ProcessInfo.processInfo.systemUptime
+                cachedAttemptReadWindows.append((attempt, attemptReceiverReadStartedAt,
+                    attemptReceiverReadEndedAt, attemptRequiredReadStartedAt, attemptRequiredReadEndedAt))
                 let siblings = availableScroll.staticTexts.allElementsBoundByIndex
                     + availableScroll.buttons.allElementsBoundByIndex
                 cachedSiblings = siblings.map { ($0.identifier, $0.frame) }
@@ -10385,7 +10428,30 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 cachedPlannedCommands.append((attempt, selected.lower, selected.upper, selected.nearest,
                     shift, startY, cachedViewport, scrollFrame))
                 previousMovement = (shift, cachedRequired[0].minY, cachedViewport)
+                let beforePressReceiverStartedAt = ProcessInfo.processInfo.systemUptime
+                let beforePressReceiverFrame = availableScroll.frame
+                let beforePressReceiverEndedAt = ProcessInfo.processInfo.systemUptime
+                let beforePressAnchorStartedAt = ProcessInfo.processInfo.systemUptime
+                let beforePressAnchorFrame = required[0].frame
+                let beforePressAnchorEndedAt = ProcessInfo.processInfo.systemUptime
+                cachedPressFrameObservations.append((attempt, "before-native-press",
+                    beforePressReceiverFrame, beforePressAnchorFrame,
+                    beforePressReceiverStartedAt, beforePressReceiverEndedAt,
+                    beforePressAnchorStartedAt, beforePressAnchorEndedAt))
+                let nativePressStartedAt = ProcessInfo.processInfo.systemUptime
                 start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+                let nativePressReturnedAt = ProcessInfo.processInfo.systemUptime
+                let afterPressReceiverStartedAt = ProcessInfo.processInfo.systemUptime
+                let afterPressReceiverFrame = availableScroll.frame
+                let afterPressReceiverEndedAt = ProcessInfo.processInfo.systemUptime
+                let afterPressAnchorStartedAt = ProcessInfo.processInfo.systemUptime
+                let afterPressAnchorFrame = required[0].frame
+                let afterPressAnchorEndedAt = ProcessInfo.processInfo.systemUptime
+                cachedPressFrameObservations.append((attempt, "after-native-press-return",
+                    afterPressReceiverFrame, afterPressAnchorFrame,
+                    afterPressReceiverStartedAt, afterPressReceiverEndedAt,
+                    afterPressAnchorStartedAt, afterPressAnchorEndedAt))
+                cachedPressCallWindows.append((attempt, nativePressStartedAt, nativePressReturnedAt))
             }
             guard positioned else {
                 _ = failPositioning("attempts-exhausted")

@@ -559,12 +559,12 @@ def select(roots, start, end):
             if type(pid) is not int or not 0<pid<=2147483647: raise ValueError()
             launch=stamp(body.get('procLaunch')); capture=stamp(body.get('captureTime'))
             if not int(start)<=launch<=capture<=int(end): continue
-            candidates.append((pid,incident,body['procLaunch'],body['captureTime']))
+            candidates.append((pid,incident,body['procLaunch'],body['captureTime'],int(capture)))
         except (ValueError,TypeError,AttributeError,UnicodeError,OSError): return 'skip-invalid-report'
     if not candidates: return 'skip-no-current-app-incident'
     if len(candidates)!=1: return 'skip-ambiguous-incidents'
-    pid,incident,launch,capture=candidates[0]
-    return f'{pid}\t{incident}\t{launch}\t{capture}'
+    pid,incident,launch,capture,capture_epoch=candidates[0]
+    return f'{pid}\t{incident}\t{launch}\t{capture}\t{capture_epoch}'
 
 if __name__=='__main__':
     try: print(select(sys.argv[1:-2], sys.argv[-2], sys.argv[-1]))
@@ -572,8 +572,11 @@ if __name__=='__main__':
 PY
       )"
       ips_parser_status="$?"
-      printf 'ips_parser_status=%s\nips_binding=%s\n' "$ips_parser_status" "$ips_binding" >> "$diagnostic_status_path"
-      IFS=$'\t' read -r ips_pid ips_incident ips_launch ips_capture <<< "$ips_binding"
+      IFS=$'\t' read -r ips_pid ips_incident ips_launch ips_capture ips_capture_epoch ips_extra <<< "$ips_binding"
+      if [[ "$ips_capture_epoch" =~ ^[1-9][0-9]{0,9}$ ]] && [ -z "$ips_extra" ]; then
+        ips_binding="$(printf '%s\t%s\t%s\t%s' "$ips_pid" "$ips_incident" "$ips_launch" "$ips_capture")"
+      fi
+      printf 'ips_parser_status=%s\nips_binding=%s\nips_capture_epoch=%s\n' "$ips_parser_status" "$ips_binding" "$ips_capture_epoch" >> "$diagnostic_status_path"
       if [ "$ips_parser_status" -eq 0 ] && [[ "$ips_pid" =~ ^[1-9][0-9]{0,9}$ ]] &&
          [ "$ips_pid" -le 2147483647 ]; then
         ips_binding_now="$ips_now"
@@ -590,12 +593,32 @@ PY
           ips_query_budget=true
         fi
         if [ "$ips_query_budget" = true ]; then
+        ips_window_valid=true
+        ips_lookback_minutes=10
+        ips_window_policy=default-ten-minute
+        if [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]; then
+          ips_window_policy=validated-incident-age-whole-minute
+          ips_window_valid=false
+          if [[ "$ips_capture_epoch" =~ ^[1-9][0-9]{0,9}$ ]] &&
+             [ -z "$ips_extra" ] && [ "$ips_capture_epoch" -le "$ips_now" ]; then
+            ips_incident_age="$(( ips_now - ips_capture_epoch ))"
+            ips_lookback_minutes="$(( ips_incident_age / 60 + 1 ))"
+            if [ "$ips_lookback_minutes" -ge 1 ] && [ "$ips_lookback_minutes" -le 10 ]; then
+              ips_window_valid=true
+            fi
+          fi
+        fi
+        if [ "$ips_window_valid" = true ]; then
+        ips_lookback_seconds="$(( ips_lookback_minutes * 60 ))"
+        ips_requested_lower_bound_epoch="$(( ips_now - ips_lookback_seconds ))"
         ips_raw="$(mktemp "${RUNNER_TEMP:?}/FieldEvidenceIncidentLog.XXXXXX")"
         if [ "$?" -eq 0 ]; then
-          printf 'ips_query_started_utc=%s\nips_query_lookback_seconds=600\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$diagnostic_status_path"
+          printf 'ips_query_started_utc=%s\nips_query_lookback_seconds=%s\nips_window_policy=%s\nips_window_computed_epoch=%s\nips_requested_lower_bound_epoch=%s\nips_window_bound=rolling_request_not_confirmed_coverage\n' \
+            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$ips_lookback_seconds" "$ips_window_policy" \
+            "$ips_now" "$ips_requested_lower_bound_epoch" >> "$diagnostic_status_path"
           run_diagnostic ips_app_log Scripts/run-with-timeout.sh 25 \
             xcrun simctl spawn "$CI_SIMULATOR_UDID" log show \
-              --last 10m --style compact \
+              --last "${ips_lookback_minutes}m" --style compact \
               --predicate "process == \"FieldEvidenceApp\" AND processIdentifier == $ips_pid" \
             > "$ips_raw" 2>&1
           ips_query_status="$diagnostic_status"
@@ -636,6 +659,9 @@ PY
           rm -f "$ips_raw"
         else
           printf 'ips_app_log=skip-temp-error\n' >> "$diagnostic_status_path"
+        fi
+        else
+          printf 'ips_app_log=skip-invalid-or-stale-incident-window\nips_window_acceptance_eligible=false\n' >> "$diagnostic_status_path"
         fi
         else
           printf 'ips_app_log=skip-invalid-or-insufficient-rechecked-budget\n' >> "$diagnostic_status_path"

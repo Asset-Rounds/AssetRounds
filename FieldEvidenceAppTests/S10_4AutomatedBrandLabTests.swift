@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 34_073,
-            sha256: "BCF79F28B6409FA4AEBBC5650A3BE7C5224A9A6450E6B9B0998A7A8EB6B05E19"
+            byteCount: 35_746,
+            sha256: "359BB1C77B39F9CB1EED2AC7A9C87456215D9110F6EA18623A4EFACF259721FF"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -254,14 +254,53 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n  esac\nfi\n\n"
         XCTAssertTrue(uiSmokeSource.contains(incidentStartSource))
-        // K417 exact incident admission and bounded same-snapshot prefix; no query change.
+        // Preserve K417 incident admission and bounded same-snapshot prefix.
         XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ]; }; then"))
         XCTAssertTrue(incidentCollectorSource.contains("          ips_prefix_limit=\"$ips_snapshot_bytes\"\n          if [ \"$ips_prefix_limit\" -gt 1048576 ]; then ips_prefix_limit=1048576; fi\n          /usr/bin/head -c \"$ips_prefix_limit\" \"$ips_raw\" \\\n            > \"$failure_diagnostic_path/simulator-incident-app-prefix.log\"\n          ips_prefix_status=\"$?\"\n          ips_prefix_bytes=\"$(LC_ALL=C wc -c < \"$failure_diagnostic_path/simulator-incident-app-prefix.log\" | tr -d '[:space:]')\"\n          ips_tail_snapshot_start=0\n          if [ \"$ips_snapshot_bytes\" -gt 1048576 ]; then\n            ips_tail_snapshot_start=\"$(( ips_snapshot_bytes - 1048576 ))\"\n          fi\n          ips_prefix_tail_overlap=0\n          if [ \"$ips_prefix_bytes\" -gt \"$ips_tail_snapshot_start\" ]; then\n            ips_prefix_tail_overlap=\"$(( ips_prefix_bytes - ips_tail_snapshot_start ))\"\n          fi\n          printf 'ips_prefix_status=%s\\nips_prefix_bytes=%s\\nips_prefix_start_byte=0\\nips_prefix_end_byte=%s\\nips_tail_snapshot_start_byte=%s\\nips_tail_snapshot_end_byte=%s\\nips_prefix_tail_overlap_bytes=%s\\nips_prefix_capture=bounded_snapshot_not_completion_proof\\n' \\\n            \"$ips_prefix_status\" \"$ips_prefix_bytes\" \"$ips_prefix_bytes\" \\\n            \"$ips_tail_snapshot_start\" \"$ips_snapshot_bytes\" \"$ips_prefix_tail_overlap\" \\\n            >> \"$diagnostic_status_path\"\n          if [ \"$ips_query_status\" -ne 0 ] || [ \"$ips_prefix_status\" -ne 0 ] || \\\n             [ \"$ips_prefix_bytes\" -ne \"$ips_prefix_limit\" ] || [ \"$ips_prefix_bytes\" -eq 0 ]; then\n            printf 'ips_prefix_incomplete=true\\n' >> \"$diagnostic_status_path\"\n          fi\n"))
-        XCTAssertTrue(incidentCollectorSource.contains("--last 10m --style compact"))
+        for exact in [
+            "int(capture)", "capture_epoch=candidates[0]",
+            #"ips_capture_epoch ips_extra <<< "$ips_binding""#,
+            #"printf '%s\t%s\t%s\t%s' "$ips_pid" "$ips_incident" "$ips_launch" "$ips_capture""#,
+            "ips_capture_epoch=%s", "ips_lookback_minutes=10",
+            #"if [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]; then"#,
+            #"[ "$ips_capture_epoch" -le "$ips_now" ]"#,
+            #"ips_incident_age="$(( ips_now - ips_capture_epoch ))""#,
+            #"ips_lookback_minutes="$(( ips_incident_age / 60 + 1 ))""#,
+            #"[ "$ips_lookback_minutes" -ge 1 ] && [ "$ips_lookback_minutes" -le 10 ]"#,
+            #"--last "${ips_lookback_minutes}m" --style compact"#,
+            "ips_query_lookback_seconds=%s", "ips_window_computed_epoch=%s",
+            "ips_requested_lower_bound_epoch=%s",
+            "rolling_request_not_confirmed_coverage",
+            "skip-invalid-or-stale-incident-window", "ips_window_acceptance_eligible=false",
+            "Scripts/run-with-timeout.sh 5 python3",
+            #"-ge 40"#, #"-ge 35"#,
+            "if not int(start)<=launch<=capture<=int(end): continue",
+            "if len(candidates)!=1: return 'skip-ambiguous-incidents'",
+        ] {
+            XCTAssertTrue(incidentCollectorSource.contains(exact), exact)
+        }
+        func incidentLookbackMinutes(ordinaryRTL: Bool, capture: String, now: String) -> Int? {
+            guard ordinaryRTL else { return 10 }
+            let epochPattern = #"^[1-9][0-9]{0,9}$"#
+            guard capture.range(of: epochPattern, options: .regularExpression) != nil,
+                  now.range(of: epochPattern, options: .regularExpression) != nil,
+                  let captureEpoch = Int(capture), let nowEpoch = Int(now),
+                  captureEpoch <= nowEpoch else { return nil }
+            let minutes = (nowEpoch - captureEpoch) / 60 + 1
+            return (1...10).contains(minutes) ? minutes : nil
+        }
+        for (age, expected) in [(0, 1), (59, 1), (60, 2), (133, 3), (539, 9), (540, 10), (599, 10)] {
+            XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: true, capture: "1000", now: String(1000 + age)), expected)
+        }
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "1001", now: "1000"))
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "1000", now: "1600"))
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "", now: "1000"))
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "01", now: "1000"))
+        XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: false, capture: "1000", now: "1600"), 10)
         XCTAssertTrue(incidentCollectorSource.contains("Scripts/run-with-timeout.sh 25"))
         XCTAssertTrue(incidentCollectorSource.contains("/usr/bin/head -c \"$ips_snapshot_bytes\" \"$ips_raw\" | /usr/bin/tail -c 1048576"))
         XCTAssertEqual(incidentCollectorSource.components(separatedBy: "log show").count - 1, 1)
-        XCTAssertEqual(incidentCollectorSource.components(separatedBy: "s10.4.minimum.rtl").count - 1, 1)
+        XCTAssertEqual(incidentCollectorSource.components(separatedBy: "s10.4.minimum.rtl").count - 1, 2)
         XCTAssertFalse(incidentCollectorSource.contains("s10.4.minimum.rtl-string"))
         XCTAssertFalse(incidentCollectorSource.contains("--start"))
         XCTAssertFalse(incidentCollectorSource.contains("--end"))
@@ -2917,6 +2956,85 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(accentedSnapshotCachePosition.lowerBound, accentedAttemptLimitPosition.lowerBound)
         XCTAssertLessThan(accentedAttemptLimitPosition.lowerBound, accentedCommandCachePosition.lowerBound)
         XCTAssertLessThan(accentedCommandCachePosition.lowerBound, accentedPressPosition.lowerBound)
+        for exact in [
+            "var cachedAttemptReadWindows: [(attempt: Int, receiverStart: Double, receiverEnd: Double, requiredStart: Double, requiredEnd: Double)] = []",
+            "var cachedPressFrameObservations: [(attempt: Int, phase: String, receiver: CGRect, anchor: CGRect, receiverStart: Double, receiverEnd: Double, anchorStart: Double, anchorEnd: Double)] = []",
+            "var cachedPressCallWindows: [(attempt: Int, started: Double, returned: Double)] = []",
+            "cachedAttemptReadWindows.append((attempt, attemptReceiverReadStartedAt",
+            "cachedPressFrameObservations.append((attempt, \"before-native-press\"",
+            "cachedPressFrameObservations.append((attempt, \"after-native-press-return\"",
+            "cachedPressCallWindows.append((attempt, nativePressStartedAt, nativePressReturnedAt))",
+            "\"observationClock\": \"test-runner-process-system-uptime-seconds\"",
+            "\"atomicSnapshot\": false, \"deliveredTouchCoordinates\": false",
+            "\"isDeliveredTouchTiming\": false",
+            "movementScalar(CGFloat(observed.receiverStart))",
+            "movementScalar(CGFloat(observed.receiverEnd))",
+            "movementScalar(CGFloat(observed.requiredStart))",
+            "movementScalar(CGFloat(observed.requiredEnd))",
+            "movementScalar(CGFloat(observed.anchorStart))",
+            "movementScalar(CGFloat(observed.anchorEnd))",
+            "movementScalar(CGFloat(observed.started))",
+            "movementScalar(CGFloat(observed.returned))",
+            "jsonFrame(observed.receiver)",
+            "jsonFrame(observed.anchor)",
+        ] {
+            XCTAssertTrue(accentedAvailablePositioning.contains(exact), exact)
+        }
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "cachedPressFrameObservations.append(").count - 1, 2)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "cachedPressCallWindows.append(").count - 1, 1)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "let beforePressReceiverFrame = availableScroll.frame").count - 1, 1)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "let beforePressAnchorFrame = required[0].frame").count - 1, 1)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "let afterPressReceiverFrame = availableScroll.frame").count - 1, 1)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "let afterPressAnchorFrame = required[0].frame").count - 1, 1)
+        let accentedAttemptReadPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let attemptReceiverReadStartedAt = ProcessInfo.processInfo.systemUptime"))
+        let accentedAttemptFramePosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let scrollFrame = availableScroll.frame"))
+        let accentedAttemptRequiredStartPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let attemptRequiredReadStartedAt = ProcessInfo.processInfo.systemUptime"))
+        let accentedAttemptCacheAppendPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "cachedAttemptReadWindows.append("))
+        let accentedPreviousMovementPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "previousMovement = (shift, cachedRequired[0].minY, cachedViewport)"))
+        let accentedBeforeReceiverPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let beforePressReceiverFrame = availableScroll.frame"))
+        let accentedBeforeAnchorPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let beforePressAnchorFrame = required[0].frame"))
+        let accentedPressStartPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let nativePressStartedAt = ProcessInfo.processInfo.systemUptime"))
+        let accentedNativePressPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: accentedNativeDrag))
+        let accentedPressReturnPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let nativePressReturnedAt = ProcessInfo.processInfo.systemUptime"))
+        let accentedAfterReceiverPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let afterPressReceiverFrame = availableScroll.frame"))
+        let accentedAfterAnchorPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "let afterPressAnchorFrame = required[0].frame"))
+        let accentedCallCachePosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "cachedPressCallWindows.append("))
+        XCTAssertLessThan(accentedAttemptReadPosition.lowerBound, accentedAttemptFramePosition.lowerBound)
+        XCTAssertLessThan(accentedAttemptFramePosition.lowerBound, accentedAttemptRequiredStartPosition.lowerBound)
+        XCTAssertLessThan(accentedAttemptRequiredStartPosition.lowerBound, accentedAttemptCacheAppendPosition.lowerBound)
+        XCTAssertLessThan(accentedPreviousMovementPosition.lowerBound, accentedBeforeReceiverPosition.lowerBound)
+        XCTAssertLessThan(accentedBeforeReceiverPosition.lowerBound, accentedBeforeAnchorPosition.lowerBound)
+        XCTAssertLessThan(accentedBeforeAnchorPosition.lowerBound, accentedPressStartPosition.lowerBound)
+        XCTAssertLessThan(accentedPressStartPosition.lowerBound, accentedNativePressPosition.lowerBound)
+        XCTAssertLessThan(accentedNativePressPosition.lowerBound, accentedPressReturnPosition.lowerBound)
+        XCTAssertLessThan(accentedPressReturnPosition.lowerBound, accentedAfterReceiverPosition.lowerBound)
+        XCTAssertLessThan(accentedAfterReceiverPosition.lowerBound, accentedAfterAnchorPosition.lowerBound)
+        XCTAssertLessThan(accentedAfterAnchorPosition.lowerBound, accentedCallCachePosition.lowerBound)
+        let accentedObservationSerialization = try boundedSource(accentedAvailablePositioning, from: "let attemptReadWindows:", before: "if let data = try? JSONSerialization.data")
+        for cachedObservationContract in [
+            "cachedAttemptReadWindows.map",
+            "cachedPressFrameObservations.map",
+            "cachedPressCallWindows.map",
+            "\"attemptReadWindows\": attemptReadWindows",
+            "\"pressFrameObservations\": pressFrameObservations",
+            "\"pressCallWindows\": pressCallWindows",
+            "\"anchorReadIsWithinRequiredFramesWindow\": true",
+            "\"isDeliveredTouchTiming\": false",
+        ] {
+            XCTAssertTrue(accentedObservationSerialization.contains(cachedObservationContract), cachedObservationContract)
+        }
+        for cachedOnlySource in [accentedObservationSerialization] {
+            for nativeReadOrAction in ["app.", "app.frame", ".exists", ".screenPoint", ".press(", ".tap(", "wait(", "screenshot(", "debugDescription"] {
+                XCTAssertFalse(cachedOnlySource.contains(nativeReadOrAction), nativeReadOrAction)
+            }
+        }
+        XCTAssertTrue(accentedAvailablePositioning.contains("XCTFail(\"Accented available paywall positioning failed: \\(stage)\")"))
+        let accentedFailurePrintPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "print(\"S10_4_ACCENTED_AVAILABLE_POSITION_FAILURE"))
+        let accentedFailureXCTFailPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "XCTFail(\"Accented available paywall positioning failed:"))
+        let accentedFailureReturnPosition = try XCTUnwrap(accentedAvailablePositioning.range(of: "return false", range: accentedFailureXCTFailPosition.upperBound..<accentedAvailablePositioning.endIndex))
+        XCTAssertLessThan(accentedFailurePrintPosition.lowerBound, accentedFailureXCTFailPosition.lowerBound)
+        XCTAssertLessThan(accentedFailureXCTFailPosition.lowerBound, accentedFailureReturnPosition.lowerBound)
+
         let accentedIntervalSelection = try boundedSource(accentedAvailablePositioning, from: "                let candidates = allowedIntervals.compactMap", before: "                let startY = shift < 0")
         for predicate in [
             "interval.lower.isFinite, interval.upper.isFinite",
@@ -18991,8 +19109,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"identifier BEGINSWITH %@"#, #"s3.outcome.issue."#,
             #"visibleIssue.identifier == "s3.outcome.visible-issue""#,
             #"selectedIssue.identifier == "s3.outcome.issue.dark_section""#,
-            #"Visible issue Visible issue"#,
-            #"Section appears dark Section appears dark"#,
+            #"let expectedVisibleLabel = "Visible issue""#,
+            #""Section appears dark""#,
             #"Selected Selected"#,
             "let liveScrollFrame = scrollFrame.intersection(applicationFrame)",
             "outcomeScrollView.descendants(matching: .button)",
@@ -19019,6 +19137,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(doubleOutcomeHelperSource.contains(invariant), invariant)
         }
+        // Native bar identity and its scoped visible title are distinct AX attributes.
+        for exact in [
+            #"identifier: "Outcome Outcome""#,
+            "outcomeNavigationBar.staticTexts.matching(",
+            #""expectedIdentifier": "Outcome Outcome""#,
+            #"let expectedVisibleLabel = "Visible issue""#,
+            #"let expectedSelectedValue = "Selected Selected""#,
+        ] {
+            XCTAssertTrue(doubleOutcomeHelperSource.contains(exact), exact)
+        }
+        for twice in [
+            #"outcomeNavigationBar.identifier == "Outcome Outcome""#,
+            "outcomeNavigationTitles.count == 1",
+            #"outcomeNavigationTitles.firstMatch.label == "Outcome Outcome""#,
+            "visibleIssue.label == expectedVisibleLabel",
+            "selectedIssue.label == expectedSelectedIssueLabel",
+            "stringValue(visibleIssue) == expectedSelectedValue",
+            "stringValue(selectedIssue) == expectedSelectedValue",
+        ] {
+            XCTAssertEqual(doubleOutcomeHelperSource.components(separatedBy: twice).count - 1, 2, twice)
+        }
+        XCTAssertFalse(doubleOutcomeHelperSource.contains("outcomeNavigationBar.label"))
         XCTAssertEqual(doubleOutcomeHelperSource.components(separatedBy: "thenDragTo:").count - 1, 1)
         XCTAssertTrue(doubleOutcomeCallerSource.contains("else { return }"))
         let doubleOutcomeBindingFailure = try boundedSource(
@@ -19430,10 +19570,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 989_121)
+        XCTAssertEqual(uiSource.utf8.count, 994_405)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "4787F3CB9C6C4D9D73CC2DF5DE3D3FFB832CB241144A4038A3E0FACA49DCD0BA"
+            "3F6078EABEDAFB0D7F0CCCFBF8C09746E5D00970F41A54A3981099BEDD0BF253"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
