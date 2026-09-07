@@ -3683,17 +3683,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("Missing the bounded Preflight AX-only gate")
             return
         }
-        let preflightZoneCommonSuffix = String(
-            preflightZoneScrollToBeginSource[
-                preflightZoneAXTextGateRange.upperBound ..<
-                    preflightZoneScrollToBeginSource.endIndex
-            ]
+        let preflightInitialSafePositionSequence = try boundedSource(
+            uiSource,
+            from: "        setToggle(\"s3.preflight.after-dark\", in: app)\n        app.swipeUp()\n        if diagnosticProbe == nil, automationSegment == .none,\n",
+            before: #"        let begin = element("s3.preflight.begin", in: app)"#
         )
-        XCTAssertEqual(preflightZoneCommonSuffix.utf8.count, 134)
-        XCTAssertEqual(
-            Data(preflightZoneCommonSuffix.utf8).sha256,
-            "1D4C3D7FAC6F78A169F724BCECD6A12130BD1C8984D02097485165AA9390F920"
-        )
+        XCTAssertTrue(preflightInitialSafePositionSequence.contains(
+            "        setToggle(\"s3.preflight.after-dark\", in: app)\n        app.swipeUp()\n        if diagnosticProbe == nil, automationSegment == .none,\n"
+        ))
+        XCTAssertTrue(preflightInitialSafePositionSequence.contains(
+            "            guard positionInitialDoubleSafePosition(in: app) else { return }\n        }\n        setToggle(\"s3.preflight.safe-position\", in: app)\n"
+        ))
+        XCTAssertEqual(preflightInitialSafePositionSequence.components(
+            separatedBy: #"setToggle("s3.preflight.after-dark", in: app)"#
+        ).count - 1, 1)
+        XCTAssertEqual(preflightInitialSafePositionSequence.components(
+            separatedBy: #"setToggle("s3.preflight.safe-position", in: app)"#
+        ).count - 1, 1)
+        XCTAssertEqual(preflightInitialSafePositionSequence.components(
+            separatedBy: "positionInitialDoubleSafePosition(in: app)"
+        ).count - 1, 1)
 
         let currentProfilePreflightQuickPathStructureLocks = [
             "let currentPreflightQuickPathIntroductionViews =",
