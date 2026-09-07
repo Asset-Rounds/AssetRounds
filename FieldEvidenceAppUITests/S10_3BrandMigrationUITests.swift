@@ -4811,6 +4811,74 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "issueControlCount": issueControlCount,
                 ]
             )
+            if diagnosticProbe == nil, automationSegment == .none,
+               let shard = automationShard,
+               shard.shardID == "s10.4.minimum.double-length", shard.ordinal == 9,
+               shard.requirementID == "double_length",
+               shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+                let observationTime = ISO8601DateFormatter().string(from: Date())
+                let scalar: (CGFloat) -> Any = { value in
+                    if value.isFinite { return value }
+                    return NSNull()
+                }
+                let frameRecord: (CGRect) -> [Any] = { frame in
+                    [frame.origin.x, frame.origin.y, frame.width, frame.height].map(scalar)
+                }
+                let stringRecord: (String) -> [String: Any] = { value in
+                    let originalCount = value.count
+                    return [
+                        "text": String(value.prefix(256)),
+                        "originalCharacterCount": originalCount,
+                        "truncated": originalCount > 256,
+                    ]
+                }
+                let observedNavigationBars = app.navigationBars
+                let observedNavigationCount = observedNavigationBars.count
+                let retainedNavigationCount = min(observedNavigationCount, 8)
+                let navigationRecords: [[String: Any]] = (0..<retainedNavigationCount).map { index in
+                    let navigation = observedNavigationBars.element(boundBy: index)
+                    return [
+                        "index": index,
+                        "label": stringRecord(navigation.label),
+                        "identifier": stringRecord(navigation.identifier),
+                        "frame": frameRecord(navigation.frame),
+                    ]
+                }
+                printJSONLine(prefix: "S10_4_DOUBLE_OUTCOME_BINDING_OBSERVATION", object: [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "shardID": shard.shardID, "ordinal": shard.ordinal,
+                    "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID,
+                    "diagnosticProbe": NSNull(), "automationSegment": "none",
+                    "observationStartedAt": observationTime, "atomicWithCachedChecks": false,
+                    "navigationObservedAt": ISO8601DateFormatter().string(from: Date()),
+                    "expectedLabel": "Outcome Outcome",
+                    "observedNavigationCount": observedNavigationCount,
+                    "retainedNavigationCount": retainedNavigationCount,
+                    "navigationTruncated": observedNavigationCount > retainedNavigationCount,
+                    "navigationRecords": navigationRecords,
+                ])
+                let screenshot = XCTAttachment(screenshot: app.screenshot())
+                screenshot.name = "S10.4 double outcome binding failure app"
+                screenshot.lifetime = .keepAlways
+                add(screenshot)
+                let rawTree = Data(app.debugDescription.utf8)
+                let retainedTree = rawTree.prefix(262_144)
+                let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
+                tree.name = "S10.4 double outcome binding failure tree"
+                tree.lifetime = .keepAlways
+                add(tree)
+                printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "seam": "double outcome binding", "event": "failure-observation-complete",
+                    "shardID": shard.shardID, "ordinal": shard.ordinal,
+                    "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID,
+                    "diagnosticProbe": NSNull(), "automationSegment": "none",
+                    "observationStartedAt": observationTime, "atomicWithCachedChecks": false,
+                    "observationCompletedAt": ISO8601DateFormatter().string(from: Date()),
+                    "originalTreeBytes": rawTree.count, "retainedTreeBytes": retainedTree.count,
+                    "treeTruncated": rawTree.count > retainedTree.count,
+                ])
+            }
             XCTFail("Double outcome positioning bindings are ambiguous.")
             return false
         }
@@ -8176,10 +8244,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             issueScreen = element("s5.1.issue.screen", in: app)
         }
         if diagnosticProbe == nil, automationSegment == .none,
-           automationShard?.shardID == "s10.4.minimum.minimum-os",
-           automationShard?.ordinal == 8,
-           automationShard?.requirementID == "minimum_os",
-           automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+           let shard = automationShard,
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+           (shard.shardID == "s10.4.minimum.minimum-os" && shard.ordinal == 8 && shard.requirementID == "minimum_os")
+            || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented") {
             let coherentIssueExpectation = XCTNSPredicateExpectation(
                 predicate: NSPredicate { _, _ in
                     issueScreen.exists && app.tabBars.count == 1
@@ -10481,18 +10549,88 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
 
         var measuredUndertravel: CGFloat = 0
-        for _ in 0..<4 {
-            let viewportTop = store.frame.minY
-            let viewportBottom = store.frame.maxY
+        for intervalDiagnosticAttempt in 0..<4 {
+            let intervalStoreTopFrame = store.frame
+            let viewportTop = intervalStoreTopFrame.minY
+            let intervalStoreBottomFrame = store.frame
+            let viewportBottom = intervalStoreBottomFrame.maxY
+            let intervalCloseFrame = close.frame
+            let intervalPurchaseFrame = purchase.frame
             let minimumShift = max(
-                viewportTop - close.frame.minY,
-                viewportBottom - purchase.frame.minY
+                viewportTop - intervalCloseFrame.minY,
+                viewportBottom - intervalPurchaseFrame.minY
             )
-            let maximumShift = viewportBottom - support.frame.maxY
+            let intervalSupportFrame = support.frame
+            let maximumShift = viewportBottom - intervalSupportFrame.maxY
             if minimumShift <= 0, maximumShift >= 0 {
                 break
             }
             guard minimumShift <= maximumShift else {
+                if diagnosticProbe == nil, automationSegment == .none,
+                   let shard = automationShard,
+                   shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                   (shard.shardID == "s10.4.minimum.tall" && shard.ordinal == 12 && shard.requirementID == "tall")
+                    || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string") {
+                    let finite: (CGFloat) -> Any = { value in value.isFinite ? value as Any : NSNull() }
+                    let cachedFrame: (CGRect) -> [String: Any] = { frame in
+                        ["x": finite(frame.origin.x), "y": finite(frame.origin.y),
+                         "width": finite(frame.width), "height": finite(frame.height),
+                         "minY": finite(frame.minY), "maxY": finite(frame.maxY),
+                         "isNull": frame.isNull, "isInfinite": frame.isInfinite]
+                    }
+                    let closeToSupportSpan = intervalSupportFrame.maxY - intervalCloseFrame.minY
+                    let sampledViewportSpan = viewportBottom - viewportTop
+                    let spanRelationEvaluable = closeToSupportSpan.isFinite && sampledViewportSpan.isFinite
+                    let purchaseOrderEvaluable = intervalPurchaseFrame.minY.isFinite && intervalSupportFrame.maxY.isFinite
+                    printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                        "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                        "seam": "purchase-complete interval", "event": "cached-infeasible-interval",
+                        "attempt": intervalDiagnosticAttempt,
+                        "shardID": shard.shardID, "ordinal": shard.ordinal,
+                        "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID,
+                        "diagnosticProbe": NSNull(), "automationSegment": "none",
+                        "acquisitionOrder": ["store.frame:first", "store.frame:second", "close.frame", "purchase.frame", "support.frame"],
+                        "atomicSnapshot": false, "frameNamesAreSourceBindings": true,
+                        "storeTopFrame": cachedFrame(intervalStoreTopFrame),
+                        "storeBottomFrame": cachedFrame(intervalStoreBottomFrame),
+                        "closeFrame": cachedFrame(intervalCloseFrame),
+                        "purchaseFrame": cachedFrame(intervalPurchaseFrame),
+                        "supportFrame": cachedFrame(intervalSupportFrame),
+                        "viewportTop": finite(viewportTop), "viewportBottom": finite(viewportBottom),
+                        "minimumShift": finite(minimumShift), "maximumShift": finite(maximumShift),
+                        "boundsFinite": minimumShift.isFinite && maximumShift.isFinite,
+                        "closeToSupportSpan": finite(closeToSupportSpan),
+                        "sampledViewportSpan": finite(sampledViewportSpan),
+                        "spanRelationEvaluable": spanRelationEvaluable,
+                        "closeToSupportFitsSampledViewport": spanRelationEvaluable
+                            ? (closeToSupportSpan <= sampledViewportSpan) as Any : NSNull(),
+                        "purchaseOrderEvaluable": purchaseOrderEvaluable,
+                        "purchaseStartsAtOrAfterSupportEnd": purchaseOrderEvaluable
+                            ? (intervalPurchaseFrame.minY >= intervalSupportFrame.maxY) as Any : NSNull(),
+                        "recordedAt": ISO8601DateFormatter().string(from: Date()),
+                    ])
+                    let observationTime = ISO8601DateFormatter().string(from: Date())
+                    let screenshot = XCTAttachment(screenshot: app.screenshot())
+                    screenshot.name = "S10.4 purchase-complete interval failure app"
+                    screenshot.lifetime = .keepAlways
+                    add(screenshot)
+                    let rawTree = Data(app.debugDescription.utf8)
+                    let retainedTree = rawTree.prefix(262_144)
+                    let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
+                    tree.name = "S10.4 purchase-complete interval failure tree"
+                    tree.lifetime = .keepAlways
+                    add(tree)
+                    printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                        "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                        "seam": "purchase-complete interval", "event": "failure-observation-complete",
+                        "observationStartedAt": observationTime,
+                        "observationCompletedAt": ISO8601DateFormatter().string(from: Date()),
+                        "atomicWithCachedChecks": false,
+                        "originalTreeBytes": rawTree.count, "retainedTreeBytes": retainedTree.count,
+                        "treeTruncated": rawTree.count > retainedTree.count,
+                        "rawUTF8PrefixMaySplitScalar": true,
+                    ])
+                }
                 XCTFail("The purchase-complete viewport has no feasible positioning interval.")
                 return usedSettingsRetry
             }

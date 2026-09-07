@@ -3257,10 +3257,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n        let dueStatus = element(\"s5.1.issue.status\", in: app)"
         )
         let coherentIssueSource = try boundedSource(postSavingTransitionSource, from: "        if diagnosticProbe == nil, automationSegment == .none,", before: "        let issueTabBarCount =")
-        for clause in [#"automationShard?.shardID == "s10.4.minimum.minimum-os""#, "automationShard?.ordinal == 8", #"automationShard?.requirementID == "minimum_os""#, #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#, "issueScreen.exists && app.tabBars.count == 1", "XCTWaiter.wait(for: [coherentIssueExpectation], timeout: 85)"] {
-            XCTAssertTrue(coherentIssueSource.contains(clause))
+        // Both exact minimum tuples wait for the same required issue and shell state.
+        let coherentIssueGate = "        if diagnosticProbe == nil, automationSegment == .none,\n           let shard = automationShard,\n           shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n           (shard.shardID == \"s10.4.minimum.minimum-os\" && shard.ordinal == 8 && shard.requirementID == \"minimum_os\")\n            || (shard.shardID == \"s10.4.minimum.accented\" && shard.ordinal == 13 && shard.requirementID == \"accented\") {\n"
+        XCTAssertEqual(coherentIssueSource.components(separatedBy: coherentIssueGate).count - 1, 1)
+        for clause in ["issueScreen.exists && app.tabBars.count == 1", "XCTWaiter.wait(for: [coherentIssueExpectation], timeout: 85)"] {
+            XCTAssertEqual(coherentIssueSource.components(separatedBy: clause).count - 1, 1)
         }
-        XCTAssertFalse(coherentIssueSource.contains("||"))
+        XCTAssertEqual(coherentIssueSource.components(separatedBy: "||").count - 1, 1)
+        for forbidden in [".tap(", ".press(", ".swipe", "app.screenshot()", "app.debugDescription", "printJSONLine(", "Thread.sleep("] {
+            XCTAssertFalse(coherentIssueSource.contains(forbidden), forbidden)
+        }
         XCTAssertEqual(coherentIssueSource.components(separatedBy: "XCTWaiter.wait(").count - 1, 1)
         XCTAssertEqual(coherentIssueSource.components(separatedBy: "issueScreen.waitForExistence(timeout: 85)").count - 1, 1)
         XCTAssertFalse(coherentIssueSource.contains("timeout: 10"))
@@ -13152,14 +13158,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "              purchase.waitForExistence(timeout: 20) else",
             "The purchase-complete viewport controls must exist before positioning.",
             "var measuredUndertravel: CGFloat = 0",
-            "for _ in 0..<4",
-            "let viewportTop = store.frame.minY",
-            "let viewportBottom = store.frame.maxY",
+            "for intervalDiagnosticAttempt in 0..<4",
+            "let viewportTop = intervalStoreTopFrame.minY",
+            "let viewportBottom = intervalStoreBottomFrame.maxY",
             "let minimumShift = max(\n" +
-                "                viewportTop - close.frame.minY,\n" +
-                "                viewportBottom - purchase.frame.minY\n" +
+                "                viewportTop - intervalCloseFrame.minY,\n" +
+                "                viewportBottom - intervalPurchaseFrame.minY\n" +
                 "            )",
-            "let maximumShift = viewportBottom - support.frame.maxY",
+            "let maximumShift = viewportBottom - intervalSupportFrame.maxY",
             "if minimumShift <= 0, maximumShift >= 0",
             "guard minimumShift <= maximumShift else",
             "The purchase-complete viewport has no feasible positioning interval.",
@@ -13173,6 +13179,121 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 lock
             )
         }
+
+        // The cached operands retain five separate native reads in their original order.
+        let purchaseIntervalPreparationSource = try boundedSource(
+            postPurchaseNonAXSuffixSource,
+            from: "        var measuredUndertravel: CGFloat = 0",
+            before: "            guard minimumShift <= maximumShift else"
+        )
+        let purchaseIntervalFailureSource = try boundedSource(
+            postPurchaseNonAXSuffixSource,
+            from: "            guard minimumShift <= maximumShift else {",
+            before: "            guard maximumShift > 0 else"
+        )
+        let purchaseIntervalOrderedTokens = [
+            "let intervalStoreTopFrame = store.frame",
+            "let viewportTop = intervalStoreTopFrame.minY",
+            "let intervalStoreBottomFrame = store.frame",
+            "let viewportBottom = intervalStoreBottomFrame.maxY",
+            "let intervalCloseFrame = close.frame",
+            "let intervalPurchaseFrame = purchase.frame",
+            "let minimumShift = max(",
+            "let intervalSupportFrame = support.frame",
+            "let maximumShift = viewportBottom - intervalSupportFrame.maxY",
+            "if minimumShift <= 0, maximumShift >= 0",
+            "guard minimumShift <= maximumShift else",
+        ]
+        var purchaseIntervalCursor = postPurchaseNonAXSuffixSource.startIndex
+        for token in purchaseIntervalOrderedTokens {
+            let occurrence = try XCTUnwrap(postPurchaseNonAXSuffixSource.range(
+                of: token, range: purchaseIntervalCursor..<postPurchaseNonAXSuffixSource.endIndex
+            ))
+            purchaseIntervalCursor = occurrence.upperBound
+        }
+        XCTAssertEqual(purchaseIntervalPreparationSource.components(separatedBy: " = store.frame").count - 1, 2)
+        XCTAssertEqual(purchaseIntervalPreparationSource.components(separatedBy: " = close.frame").count - 1, 1)
+        XCTAssertEqual(purchaseIntervalPreparationSource.components(separatedBy: " = purchase.frame").count - 1, 1)
+        XCTAssertEqual(purchaseIntervalPreparationSource.components(separatedBy: " = support.frame").count - 1, 1)
+        let purchaseIntervalDiagnosticGate = "                if diagnosticProbe == nil, automationSegment == .none,\n                   let shard = automationShard,\n                   shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n                   (shard.shardID == \"s10.4.minimum.tall\" && shard.ordinal == 12 && shard.requirementID == \"tall\")\n                    || (shard.shardID == \"s10.4.minimum.rtl-string\" && shard.ordinal == 11 && shard.requirementID == \"rtl_string\") {\n"
+        XCTAssertEqual(purchaseIntervalFailureSource.components(separatedBy: purchaseIntervalDiagnosticGate).count - 1, 1)
+        let purchaseIntervalDiagnosticLocks = [
+            "let finite: (CGFloat) -> Any = { value in value.isFinite ? value as Any : NSNull() }",
+            "\"x\": finite(frame.origin.x), \"y\": finite(frame.origin.y)",
+            "\"width\": finite(frame.width), \"height\": finite(frame.height)",
+            "\"minY\": finite(frame.minY), \"maxY\": finite(frame.maxY)",
+            "\"isNull\": frame.isNull, \"isInfinite\": frame.isInfinite",
+            "let closeToSupportSpan = intervalSupportFrame.maxY - intervalCloseFrame.minY",
+            "let sampledViewportSpan = viewportBottom - viewportTop",
+            "let spanRelationEvaluable = closeToSupportSpan.isFinite && sampledViewportSpan.isFinite",
+            "let purchaseOrderEvaluable = intervalPurchaseFrame.minY.isFinite && intervalSupportFrame.maxY.isFinite",
+            "\"attempt\": intervalDiagnosticAttempt",
+            "\"shardID\": shard.shardID, \"ordinal\": shard.ordinal",
+            "\"requirementID\": shard.requirementID, \"deviceProfileID\": shard.deviceProfileID",
+            "\"diagnosticProbe\": NSNull(), \"automationSegment\": \"none\"",
+            "\"acquisitionOrder\": [\"store.frame:first\", \"store.frame:second\", \"close.frame\", \"purchase.frame\", \"support.frame\"]",
+            "\"atomicSnapshot\": false, \"frameNamesAreSourceBindings\": true",
+            "\"storeTopFrame\": cachedFrame(intervalStoreTopFrame)",
+            "\"storeBottomFrame\": cachedFrame(intervalStoreBottomFrame)",
+            "\"closeFrame\": cachedFrame(intervalCloseFrame)",
+            "\"purchaseFrame\": cachedFrame(intervalPurchaseFrame)",
+            "\"supportFrame\": cachedFrame(intervalSupportFrame)",
+            "\"viewportTop\": finite(viewportTop), \"viewportBottom\": finite(viewportBottom)",
+            "\"minimumShift\": finite(minimumShift), \"maximumShift\": finite(maximumShift)",
+            "\"boundsFinite\": minimumShift.isFinite && maximumShift.isFinite",
+            "\"closeToSupportSpan\": finite(closeToSupportSpan)",
+            "\"sampledViewportSpan\": finite(sampledViewportSpan)",
+            "\"spanRelationEvaluable\": spanRelationEvaluable",
+            "\"closeToSupportFitsSampledViewport\": spanRelationEvaluable\n                            ? (closeToSupportSpan <= sampledViewportSpan) as Any : NSNull()",
+            "\"purchaseOrderEvaluable\": purchaseOrderEvaluable",
+            "\"purchaseStartsAtOrAfterSupportEnd\": purchaseOrderEvaluable\n                            ? (intervalPurchaseFrame.minY >= intervalSupportFrame.maxY) as Any : NSNull()",
+            "\"recordedAt\": ISO8601DateFormatter().string(from: Date())",
+            "let retainedTree = rawTree.prefix(262_144)",
+            "\"observationStartedAt\": observationTime",
+            "\"observationCompletedAt\": ISO8601DateFormatter().string(from: Date())",
+            "\"atomicWithCachedChecks\": false",
+            "\"originalTreeBytes\": rawTree.count, \"retainedTreeBytes\": retainedTree.count",
+            "\"treeTruncated\": rawTree.count > retainedTree.count",
+            "\"rawUTF8PrefixMaySplitScalar\": true",
+            "                XCTFail(\"The purchase-complete viewport has no feasible positioning interval.\")\n                return usedSettingsRetry",
+        ]
+        for lock in purchaseIntervalDiagnosticLocks {
+            XCTAssertEqual(purchaseIntervalFailureSource.components(separatedBy: lock).count - 1, 1, lock)
+        }
+        let purchaseIntervalFailureOrder = [
+            "\"event\": \"cached-infeasible-interval\"",
+            "let observationTime = ISO8601DateFormatter().string(from: Date())",
+            "let screenshot = XCTAttachment(screenshot: app.screenshot())",
+            "add(screenshot)",
+            "let rawTree = Data(app.debugDescription.utf8)",
+            "let retainedTree = rawTree.prefix(262_144)",
+            "add(tree)",
+            "\"event\": \"failure-observation-complete\"",
+            "XCTFail(\"The purchase-complete viewport has no feasible positioning interval.\")",
+            "return usedSettingsRetry",
+        ]
+        var purchaseIntervalFailureCursor = purchaseIntervalFailureSource.startIndex
+        for token in purchaseIntervalFailureOrder {
+            let occurrence = try XCTUnwrap(purchaseIntervalFailureSource.range(
+                of: token, range: purchaseIntervalFailureCursor..<purchaseIntervalFailureSource.endIndex
+            ))
+            purchaseIntervalFailureCursor = occurrence.upperBound
+        }
+        XCTAssertEqual(purchaseIntervalFailureSource.components(separatedBy: "app.screenshot()").count - 1, 1)
+        XCTAssertEqual(purchaseIntervalFailureSource.components(separatedBy: "app.debugDescription").count - 1, 1)
+        XCTAssertEqual(purchaseIntervalFailureSource.components(separatedBy: "printJSONLine(").count - 1, 2)
+        XCTAssertEqual(purchaseIntervalFailureSource.components(separatedBy: "\"diagnosticOnly\": true, \"finalAcceptanceEligible\": false").count - 1, 2)
+        XCTAssertEqual(purchaseIntervalFailureSource.components(separatedBy: ".lifetime = .keepAlways").count - 1, 2)
+        for forbidden in [".tap(", ".press(", ".swipe", ".waitForExistence(", "captureBaseline(", "performAccessibilityAudit(", ".label", ".isHittable", ".exists"] {
+            XCTAssertFalse(purchaseIntervalFailureSource.contains(forbidden), forbidden)
+        }
+        let purchaseIntervalOutsideFailure = postPurchaseNonAXSuffixSource.replacingOccurrences(
+            of: purchaseIntervalFailureSource, with: ""
+        )
+        for forbidden in ["app.screenshot()", "app.debugDescription", "printJSONLine("] {
+            XCTAssertFalse(purchaseIntervalOutsideFailure.contains(forbidden), forbidden)
+        }
+        XCTAssertEqual(postPurchaseNonAXSuffixSource.components(separatedBy: "intervalDiagnosticAttempt").count - 1, 2)
 
         let postPurchaseViewportGestureLocks = [
             "let targetDistance = maximumShift",
@@ -18900,8 +19021,63 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(doubleOutcomeHelperSource.components(separatedBy: "thenDragTo:").count - 1, 1)
         XCTAssertTrue(doubleOutcomeCallerSource.contains("else { return }"))
-        XCTAssertFalse(doubleOutcomeHelperSource.contains("screenshot()"))
-        XCTAssertFalse(doubleOutcomeHelperSource.contains("debugDescription"))
+        let doubleOutcomeBindingFailure = try boundedSource(
+            doubleOutcomeHelperSource,
+            from: "        guard headingCount == 1,",
+            before: "        let heading = headingQuery.firstMatch"
+        )
+        let doubleOutcomeObservation = try boundedSource(
+            doubleOutcomeBindingFailure,
+            from: "            if diagnosticProbe == nil, automationSegment == .none,",
+            before: "            XCTFail(\"Double outcome positioning bindings are ambiguous.\")"
+        )
+        for exact in [
+            "diagnosticProbe == nil, automationSegment == .none",
+            #"shard.shardID == "s10.4.minimum.double-length", shard.ordinal == 9"#,
+            #"shard.requirementID == "double_length""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "min(observedNavigationCount, 8)", "(0..<retainedNavigationCount).map",
+            "observedNavigationBars.element(boundBy: index)",
+            "String(value.prefix(256))", "let originalCount = value.count",
+            #""originalCharacterCount": originalCount"#, #""truncated": originalCount > 256"#,
+            "if value.isFinite { return value }", "return NSNull()",
+            "stringRecord(navigation.label)", "stringRecord(navigation.identifier)",
+            "frameRecord(navigation.frame)",
+            #""diagnosticOnly": true, "finalAcceptanceEligible": false"#,
+            #""diagnosticProbe": NSNull(), "automationSegment": "none"#,
+            #""atomicWithCachedChecks": false"#,
+            "navigationObservedAt", "observationStartedAt", "observationCompletedAt",
+            "observedNavigationCount > retainedNavigationCount",
+            "originalTreeBytes", "retainedTreeBytes", "treeTruncated",
+        ] {
+            XCTAssertTrue(doubleOutcomeObservation.contains(exact), exact)
+        }
+        var doubleOutcomeFailureOrder = doubleOutcomeBindingFailure[...]
+        for exact in [
+            "guard headingCount == 1,", "outcomeNavigationCount == 1,",
+            "S10_4_DOUBLE_OUTCOME_POSITIONING_FAILURE",
+            #""outcomeNavigationCount": outcomeNavigationCount"#,
+            "if diagnosticProbe == nil", "let observationTime =",
+            "let observedNavigationCount = observedNavigationBars.count",
+            "let navigationRecords:", "S10_4_DOUBLE_OUTCOME_BINDING_OBSERVATION",
+            "app.screenshot()", "add(screenshot)", "app.debugDescription",
+            "rawTree.prefix(262_144)", "add(tree)",
+            #""event": "failure-observation-complete""#,
+            #"XCTFail("Double outcome positioning bindings are ambiguous.")"#,
+            "return false",
+        ] {
+            let range = try XCTUnwrap(doubleOutcomeFailureOrder.range(of: exact), exact)
+            doubleOutcomeFailureOrder = doubleOutcomeFailureOrder[range.upperBound...]
+        }
+        for once in ["observedNavigationBars.count", "navigation.label", "navigation.identifier", "navigation.frame", "app.screenshot()", "app.debugDescription"] {
+            XCTAssertEqual(doubleOutcomeObservation.components(separatedBy: once).count - 1, 1, once)
+        }
+        for prohibited in [".tap(", ".press(", ".swipe", ".waitFor", ".exists", ".isHittable", "firstMatch", "captureBaseline", "performAccessibilityAudit", "return true", "continue", "while "] {
+            XCTAssertFalse(doubleOutcomeObservation.contains(prohibited), prohibited)
+        }
+        let doubleOutcomeWithoutObservation = doubleOutcomeHelperSource.replacingOccurrences(of: doubleOutcomeObservation, with: "")
+        XCTAssertFalse(doubleOutcomeWithoutObservation.contains("screenshot()"))
+        XCTAssertFalse(doubleOutcomeWithoutObservation.contains("debugDescription"))
         XCTAssertFalse(doubleOutcomeHelperSource.contains("measuredInitialOvertravel"))
         XCTAssertFalse(doubleOutcomeHelperSource.contains("gain"))
 
@@ -19254,10 +19430,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 979_200)
+        XCTAssertEqual(uiSource.utf8.count, 989_121)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "DF2969E2F0A81BE8F4E6573AF6E19594AEDFA29F36B69F131EDA614ACA4C98BF"
+            "4787F3CB9C6C4D9D73CC2DF5DE3D3FFB832CB241144A4038A3E0FACA49DCD0BA"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
