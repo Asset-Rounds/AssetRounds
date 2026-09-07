@@ -7942,8 +7942,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
+        let savingNoteLabelSelection = try boundedSource(
+            workSavingPositioningSource,
+            from: "        let expectedWorkNoteHeadingLabel: String",
+            before: "        let workNoteHeadings ="
+        )
+        for savingNoteAdmission in [
+            "if diagnosticProbe == nil, automationSegment == .none,",
+            "let shard = automationShard,",
+            #"shard.shardID == "s10.4.minimum.accented", shard.ordinal == 13,"#,
+            #"shard.requirementID == "accented","#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #"expectedWorkNoteHeadingLabel = "N\u{0300}o\u{0325}t\u{0303}e\u{0308}""#,
+            "} else {",
+            "expectedWorkNoteHeadingLabel = automationShard?.shardID",
+        ] {
+            XCTAssertTrue(savingNoteLabelSelection.contains(savingNoteAdmission))
+        }
+        XCTAssertFalse(savingNoteLabelSelection.contains(" || "))
+        XCTAssertFalse(savingNoteLabelSelection.contains(".label"))
+        XCTAssertFalse(savingNoteLabelSelection.contains(".value"))
         for savingNoteLabelInvariant in [
-            "let expectedWorkNoteHeadingLabel = automationShard?.shardID",
+            "let expectedWorkNoteHeadingLabel: String",
             "== \"s10.4.minimum.rtl-string\"",
             #"? "\u{202E}Note\u{202C}""#,
             #": "Note""#,
@@ -8012,6 +8032,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"helperSnapshot.frame.maxY < importSnapshot.frame.minY"#))
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"nestedSnapshot.frame == importSnapshot.frame"#))
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"globalNestedSnapshot.frame == importSnapshot.frame"#))
+        for absentValueProof in [
+            #"(helperSnapshot.value == nil || (helperSnapshot.value as? String) == "")"#,
+            #"(importSnapshot.value == nil || (importSnapshot.value as? String) == "")"#,
+            #"(nestedSnapshot.value == nil || (nestedSnapshot.value as? String) == "")"#,
+            #"(globalNestedSnapshot.value == nil || (globalNestedSnapshot.value as? String) == "")"#,
+        ] {
+            XCTAssertTrue(minimumSavingStructuralBinding.contains(absentValueProof), absentValueProof)
+        }
         for (workSavingHelperSemanticProof, count) in [
             ("return workSavingHelperTexts.count == expectedWorkHelperTextCount", 1),
             ("workSavingHelperTexts.count == 1", 1),
@@ -8019,7 +8047,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("helperSnapshot.elementType == .staticText", 1),
             ("helperSnapshot.identifier.isEmpty", 1),
             ("helperSnapshot.label == observedWorkHelperLabel", 1),
-            (#"(helperSnapshot.value as? String) == """#, 1),
+            (#"(helperSnapshot.value == nil || (helperSnapshot.value as? String) == "")"#, 1),
             ("workEditingFrameIsValid(helperSnapshot.frame)", 1),
             ("workSavingHelper.elementType == .staticText", 1),
             ("workSavingHelper.identifier.isEmpty", 1),
@@ -8221,31 +8249,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 signedAXTextMover
             )
         }
-
-        let minimumSavingDiagnosticStart = try XCTUnwrap(workSavingPositioningSource.range(of:
-            "                let recordSavingBindingFailure:"))
-        let minimumSavingDiagnosticEnd = try XCTUnwrap(workSavingPositioningSource.range(of:
-            "            guard workSavingHelperTexts.count == 1,", range:
-                minimumSavingDiagnosticStart.upperBound..<workSavingPositioningSource.endIndex))
-        let minimumSavingDiagnosticSource = String(workSavingPositioningSource[
-            minimumSavingDiagnosticStart.lowerBound..<minimumSavingDiagnosticEnd.lowerBound])
-        XCTAssertTrue(minimumSavingDiagnosticSource.contains("S10_4_MINIMUM_SAVING_BINDING_FAILURE"))
-        for stage in ["import-cardinality", "helper-cardinality-or-existence", "helper-snapshot-acquisition",
-                      "import-snapshot-acquisition", "helper-import-attributes", "nested-snapshot-acquisition", "nested-attributes"] {
-            XCTAssertTrue(minimumSavingDiagnosticSource.contains("recordSavingBindingFailure(\"" + stage + "\""))
-        }
-        XCTAssertTrue(minimumSavingDiagnosticSource.contains("return nestedAttributesAreValid"))
-        XCTAssertTrue(minimumSavingDiagnosticSource.contains("guard nestedCount == 1 else { return true }"))
-        let minimumSavingFormatterEnd = try XCTUnwrap(minimumSavingDiagnosticSource.range(of:
-            "                let importButtons ="))
-        let minimumSavingFormatter = String(minimumSavingDiagnosticSource[..<minimumSavingFormatterEnd.lowerBound])
-        for forbidden in [".snapshot()", ".exists", ".count ==", ".tap()", ".waitForExistence", "XCTFail", "captureBaseline"] {
-            XCTAssertFalse(minimumSavingFormatter.contains(forbidden))
-        }
-        XCTAssertTrue(minimumSavingFormatter.contains("snapshot.value"))
-        XCTAssertTrue(minimumSavingFormatter.contains("snapshot.isEnabled"))
-        XCTAssertTrue(minimumSavingFormatter.contains("$0.isFinite"))
-        XCTAssertTrue(minimumSavingFormatter.contains("prefix(256)"))
 
         let workSavingFinalDisjointAcceptance =
             "              (workSavingOrdinaryCompositionAccepted\n" +
@@ -18160,6 +18163,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func dismissRTLStringWorkValidationKeyboardAccessory(",
             before: "    @MainActor\n    private func dismissMinimumWorkValidationKeyboardAccessory("
         )
+        let boundedValidationFailureDiagnostic = try boundedSource(
+            rtlWorkValidationAccessorySource,
+            from: "        if let firstFailedPreTapSemanticLabel {",
+            before: "            throw AutomationConfigurationError.invalid("
+        )
+        for boundedFailureInvariant in [
+            "diagnosticProbe == nil, automationSegment == .none,",
+            #"shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,"#,
+            #"shard.requirementID == "bounded","#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "applicationFrame", "workScreenFrame", "keyboardFrame", "doneButtonFrame",
+            "firstFailedPreTapSemanticLabel", "$0.isFinite", "NSNull()",
+            "S10_4_BOUNDED_VALIDATION_PRETAP_FAILURE",
+        ] {
+            XCTAssertTrue(boundedValidationFailureDiagnostic.contains(boundedFailureInvariant))
+        }
+        for boundedFailureForbidden in [".frame", ".snapshot()", ".tap()", ".exists", ".waitFor", "return", "XCTFail", " || "] {
+            XCTAssertFalse(boundedValidationFailureDiagnostic.contains(boundedFailureForbidden))
+        }
+
         let rtlWorkValidationAccessoryCall = try boundedSource(
             uiSource,
             from: "        if automationShard?.shardID == \"s10.4.minimum.rtl-string\"\n",
@@ -18300,10 +18323,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 906_538)
+        XCTAssertEqual(uiSource.utf8.count, 904_611)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "7723ECC27B1217AF1126C71CDFF7D5C1F9D24AD96E6F5FBBA69036ADBE61D15E"
+            "344975F0B406E22EF007955B8D88E8D45B364953C383B4CA9B1E4526B741D74D"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

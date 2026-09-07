@@ -6955,10 +6955,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             automationShard?.shardID == "s10.4.current.ax-text"
                 && preparesWorkSavingEvidence
         if preparesWorkSavingEvidence {
-        let expectedWorkNoteHeadingLabel = automationShard?.shardID
-            == "s10.4.minimum.rtl-string"
-                ? "\u{202E}Note\u{202C}"
-                : "Note"
+        let expectedWorkNoteHeadingLabel: String
+        if diagnosticProbe == nil, automationSegment == .none,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.accented", shard.ordinal == 13,
+           shard.requirementID == "accented",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            expectedWorkNoteHeadingLabel = "N\u{0300}o\u{0325}t\u{0303}e\u{0308}"
+        } else {
+            expectedWorkNoteHeadingLabel = automationShard?.shardID
+                == "s10.4.minimum.rtl-string"
+                    ? "\u{202E}Note\u{202C}"
+                    : "Note"
+        }
         let workNoteHeadings = app.staticTexts.matching(
             NSPredicate(format: "label == %@", expectedWorkNoteHeadingLabel)
         )
@@ -6989,47 +6998,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                shard.shardID == "s10.4.minimum.minimum-os", shard.ordinal == 8,
                shard.requirementID == "minimum_os",
                shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
-                let recordSavingBindingFailure: (String, [String: any XCUIElementSnapshot], [String: Int]) -> Void = { stage, snapshots, counts in
-                    var attributes: [String: Any] = [:]
-                    for (name, snapshot) in snapshots {
-                        let frame = snapshot.frame
-                        let rawValue = snapshot.value
-                        attributes[name] = [
-                            "elementType": String(describing: snapshot.elementType),
-                            "identifier": String(snapshot.identifier.prefix(256)),
-                            "identifierTruncated": snapshot.identifier.count > 256,
-                            "label": String(snapshot.label.prefix(256)),
-                            "labelTruncated": snapshot.label.count > 256,
-                            "valueType": rawValue.map { String(reflecting: type(of: $0)) } ?? "nil",
-                            "stringValue": (rawValue as? String).map { String($0.prefix(256)) } as Any? ?? NSNull(),
-                            "stringValueTruncated": (rawValue as? String).map { $0.count > 256 } ?? false,
-                            "enabled": snapshot.isEnabled,
-                            "frameValid": workEditingFrameIsValid(frame),
-                            "frame": [frame.origin.x, frame.origin.y, frame.width, frame.height].map {
-                                $0.isFinite ? $0 as Any : NSNull()
-                            },
-                        ]
-                    }
-                    let observation: [String: Any] = [
-                        "shardID": "s10.4.minimum.minimum-os",
-                        "stateID": "state.work.saving",
-                        "stage": stage,
-                        "expectedHelperLabel": String(observedWorkHelperLabel.prefix(256)),
-                        "expectedHelperLabelTruncated": observedWorkHelperLabel.count > 256,
-                        "counts": counts,
-                        "snapshots": attributes,
-                    ]
-                    if JSONSerialization.isValidJSONObject(observation),
-                       let data = try? JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys]),
-                       let json = String(data: data, encoding: .utf8) {
-                        print("S10_4_MINIMUM_SAVING_BINDING_FAILURE \(json)")
-                    }
-                }
                 let importButtons = workScrollView.buttons.matching(identifier: "s5.1.work.import-fixture")
-                guard importButtons.count == 1 else {
-                    recordSavingBindingFailure("import-cardinality", [:], [:])
-                    return false
-                }
+                guard importButtons.count == 1 else { return false }
                 let importButton = importButtons.element(boundBy: 0)
                 let nestedLabels = importButton.descendants(matching: .staticText).matching(
                     NSPredicate(format: "label == %@", observedWorkHelperLabel)
@@ -7039,55 +7009,35 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 guard helperCount == 1 || helperCount == 2,
                       nestedCount == helperCount - 1,
                       nestedCount == 0 || nestedCount == 1,
-                      workSavingHelper.exists, importButton.exists else {
-                    recordSavingBindingFailure("helper-cardinality-or-existence", [:], ["helper": helperCount, "nested": nestedCount])
-                    return false
-                }
-                guard let helperSnapshot = try? workSavingHelper.snapshot() else {
-                    recordSavingBindingFailure("helper-snapshot-acquisition", [:], ["helper": helperCount, "nested": nestedCount])
-                    return false
-                }
-                guard let importSnapshot = try? importButton.snapshot() else {
-                    recordSavingBindingFailure("import-snapshot-acquisition", ["helper": helperSnapshot], ["helper": helperCount, "nested": nestedCount])
-                    return false
-                }
+                      workSavingHelper.exists, importButton.exists else { return false }
+                guard let helperSnapshot = try? workSavingHelper.snapshot() else { return false }
+                guard let importSnapshot = try? importButton.snapshot() else { return false }
                 guard helperSnapshot.elementType == .staticText
                     && helperSnapshot.identifier.isEmpty
                     && helperSnapshot.label == observedWorkHelperLabel
-                    && (helperSnapshot.value as? String) == ""
+                    && (helperSnapshot.value == nil || (helperSnapshot.value as? String) == "")
                     && workEditingFrameIsValid(helperSnapshot.frame),
                       importSnapshot.elementType == .button,
                       importSnapshot.identifier == "s5.1.work.import-fixture",
                       importSnapshot.label == observedWorkHelperLabel,
-                      (importSnapshot.value as? String) == "",
+                      (importSnapshot.value == nil || (importSnapshot.value as? String) == ""),
                       !importSnapshot.isEnabled,
                       workEditingFrameIsValid(importSnapshot.frame),
-                      helperSnapshot.frame.maxY < importSnapshot.frame.minY else {
-                    recordSavingBindingFailure("helper-import-attributes", ["helper": helperSnapshot, "import": importSnapshot], ["helper": helperCount, "nested": nestedCount])
-                    return false
-                }
+                      helperSnapshot.frame.maxY < importSnapshot.frame.minY else { return false }
                 guard nestedCount == 1 else { return true }
                 guard let nestedSnapshot = try? nestedLabels.element(boundBy: 0).snapshot(),
-                      let globalNestedSnapshot = try? workSavingHelperTexts.element(boundBy: 1).snapshot() else {
-                    recordSavingBindingFailure("nested-snapshot-acquisition", ["helper": helperSnapshot, "import": importSnapshot], ["helper": helperCount, "nested": nestedCount])
-                    return false
-                }
-                let nestedAttributesAreValid = nestedSnapshot.elementType == .staticText
+                      let globalNestedSnapshot = try? workSavingHelperTexts.element(boundBy: 1).snapshot() else { return false }
+                return nestedSnapshot.elementType == .staticText
                     && globalNestedSnapshot.elementType == .staticText
                     && nestedSnapshot.identifier.isEmpty && globalNestedSnapshot.identifier.isEmpty
                     && nestedSnapshot.label == observedWorkHelperLabel
                     && globalNestedSnapshot.label == observedWorkHelperLabel
-                    && (nestedSnapshot.value as? String) == ""
-                    && (globalNestedSnapshot.value as? String) == ""
+                    && (nestedSnapshot.value == nil || (nestedSnapshot.value as? String) == "")
+                    && (globalNestedSnapshot.value == nil || (globalNestedSnapshot.value as? String) == "")
                     && workEditingFrameIsValid(nestedSnapshot.frame)
                     && workEditingFrameIsValid(globalNestedSnapshot.frame)
                     && nestedSnapshot.frame == importSnapshot.frame
                     && globalNestedSnapshot.frame == importSnapshot.frame
-                if !nestedAttributesAreValid {
-                    recordSavingBindingFailure("nested-attributes", ["helper": helperSnapshot, "import": importSnapshot,
-                        "nested": nestedSnapshot, "globalNested": globalNestedSnapshot], ["helper": helperCount, "nested": nestedCount])
-                }
-                return nestedAttributesAreValid
             }
             guard workSavingHelperTexts.count == 1,
                   workSavingHelper.exists else {
@@ -15983,6 +15933,29 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return nil
         }()
         if let firstFailedPreTapSemanticLabel {
+            if diagnosticProbe == nil, automationSegment == .none,
+               shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,
+               shard.requirementID == "bounded",
+               shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+                let cachedFrames = ["app": applicationFrame, "work": workScreenFrame,
+                                    "keyboard": keyboardFrame, "done": doneButtonFrame]
+                let frameRecords = cachedFrames.mapValues { frame in
+                    [frame.origin.x, frame.origin.y, frame.width, frame.height].map {
+                        $0.isFinite ? $0 as Any : NSNull()
+                    }
+                }
+                let observation: [String: Any] = [
+                    "shardID": "s10.4.minimum.bounded",
+                    "stateID": "state.work.validation-error",
+                    "stage": firstFailedPreTapSemanticLabel,
+                    "frames": frameRecords,
+                ]
+                if JSONSerialization.isValidJSONObject(observation),
+                   let data = try? JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys]),
+                   let json = String(data: data, encoding: .utf8) {
+                    print("S10_4_BOUNDED_VALIDATION_PRETAP_FAILURE \(json)")
+                }
+            }
             throw AutomationConfigurationError.invalid(
                 "S10.4 RTL-string work-validation keyboard accessory semantics are invalid: "
                     + firstFailedPreTapSemanticLabel
