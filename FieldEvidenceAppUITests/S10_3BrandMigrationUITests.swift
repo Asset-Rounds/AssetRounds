@@ -9461,7 +9461,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             var cachedSiblings: [(String, CGRect)] = []
             let failPositioning: (String) -> Bool = { stage in
                 let jsonFrame: (CGRect) -> Any = { frame in
-                    validFrame(frame) ? ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height] : NSNull()
+                    if validFrame(frame) {
+                        return ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height]
+                    }
+                    return NSNull()
                 }
                 let payload: [String: Any] = [
                     "stage": stage,
