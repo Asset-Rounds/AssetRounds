@@ -2854,7 +2854,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(doubleInitialProgressFailure.contains("return NSNull()"))
         XCTAssertFalse(doubleInitialProgressFailure.contains(".tap()"))
         XCTAssertFalse(doubleInitialProgressFailure.contains(".waitFor"))
-        let postSaveIssueQuery = try boundedSource(uiSource, from: "        let issueScreen: XCUIElement", before: "        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))")
+        let postSaveIssueQuery = try boundedSource(uiSource, from: "        let issueScreen: XCUIElement", before: #"        if diagnosticProbe == nil, automationSegment == .none,"#)
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.minimum-os\""))
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.rtl-string\""))
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.ordinal == 11"))
@@ -3113,8 +3113,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "        captureBaseline(\"state.work.saving\", in: app)",
             before: "\n        let dueStatus = element(\"s5.1.issue.status\", in: app)"
         )
+        let coherentIssueSource = try boundedSource(postSavingTransitionSource, from: "        if diagnosticProbe == nil, automationSegment == .none,", before: "        let issueTabBarCount =")
+        for clause in [#"automationShard?.shardID == "s10.4.minimum.minimum-os""#, "automationShard?.ordinal == 8", #"automationShard?.requirementID == "minimum_os""#, #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#, "issueScreen.exists && app.tabBars.count == 1", "XCTWaiter.wait(for: [coherentIssueExpectation], timeout: 85)"] {
+            XCTAssertTrue(coherentIssueSource.contains(clause))
+        }
+        XCTAssertFalse(coherentIssueSource.contains("||"))
+        XCTAssertEqual(coherentIssueSource.components(separatedBy: "XCTWaiter.wait(").count - 1, 1)
+        XCTAssertEqual(coherentIssueSource.components(separatedBy: "issueScreen.waitForExistence(timeout: 85)").count - 1, 1)
+        XCTAssertFalse(coherentIssueSource.contains("timeout: 10"))
         for exact in [
-            "automationShard?.shardID == \"s10.4.minimum.minimum-os\"",
             "issueScreen = app.scrollViews.matching(",
             "identifier: \"s5.1.issue.screen\"",
             "issueScreen = element(\"s5.1.issue.screen\", in: app)",
@@ -18349,19 +18356,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let doubleOutcomeCallerSource = try boundedSource(
             uiSource,
             from: "        let issue = element(\"s3.outcome.issue.dark_section\", in: app)",
-            before: "        let continueButton = element(\"s3.outcome.continue\", in: app)",
-            label: "double outcome caller"
+            before: "        let continueButton = element(\"s3.outcome.continue\", in: app)"
         )
-        try assertOrdered(
-            [
-                "waitForLocalizedSelection(\n            issue,",
-                "let preparesDoubleOutcomeViewport = diagnosticProbe == nil",
-                "prepareDoubleOutcomeVisibleIssueViewport(",
-                "captureBaseline(\"state.check-outcome.visible-issue\", in: app)",
-            ],
-            in: doubleOutcomeCallerSource,
-            label: "double outcome preparation before strict capture"
-        )
+        var doubleOutcomeOrderStart = doubleOutcomeCallerSource.startIndex
+        for fragment in [
+            "waitForLocalizedSelection(\n            issue,",
+            "let preparesDoubleOutcomeViewport = diagnosticProbe == nil",
+            "prepareDoubleOutcomeVisibleIssueViewport(",
+            "captureBaseline(\"state.check-outcome.visible-issue\", in: app)",
+        ] {
+            doubleOutcomeOrderStart = try XCTUnwrap(
+                doubleOutcomeCallerSource.range(
+                    of: fragment,
+                    range: doubleOutcomeOrderStart..<doubleOutcomeCallerSource.endIndex
+                )
+            ).upperBound
+        }
         let exactDoubleAdmissionTokens = [
             "automationSegment == .none",
             #"automationShard?.shardID == "s10.4.minimum.double-length""#,
@@ -18396,8 +18406,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let doubleOutcomeHelperSource = try boundedSource(
             uiSource,
             from: "    private func prepareDoubleOutcomeVisibleIssueViewport(",
-            before: "    @MainActor\n    private func assertFirstReceiptAndReport",
-            label: "double outcome viewport helper"
+            before: "    @MainActor\n    private func assertFirstReceiptAndReport"
         )
         for invariant in [
             #"app.staticTexts.matching("#, #"label == %@"#,
@@ -18763,10 +18772,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 946_245)
+        XCTAssertEqual(uiSource.utf8.count, 946_979)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "A6DCBD941A7EEE418B1C2B785EB070501C4C3C7D6A137DDCE80ABE8D37C985D7"
+            "A6268306E8F9FEDF53F0A892CB09D11F580ACC643995B9B84758A010F4901520"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

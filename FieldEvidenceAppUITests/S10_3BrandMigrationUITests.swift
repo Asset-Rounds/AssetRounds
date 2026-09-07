@@ -8074,7 +8074,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         } else {
             issueScreen = element("s5.1.issue.screen", in: app)
         }
-        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))
+        if diagnosticProbe == nil, automationSegment == .none,
+           automationShard?.shardID == "s10.4.minimum.minimum-os",
+           automationShard?.ordinal == 8,
+           automationShard?.requirementID == "minimum_os",
+           automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            let coherentIssueExpectation = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in
+                    issueScreen.exists && app.tabBars.count == 1
+                },
+                object: nil
+            )
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [coherentIssueExpectation], timeout: 85),
+                .completed
+            )
+        } else {
+            XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))
+        }
         let issueTabBarCount = app.tabBars.count
         if issueTabBarCount != 1,
            diagnosticProbe == nil, automationSegment == .none,
