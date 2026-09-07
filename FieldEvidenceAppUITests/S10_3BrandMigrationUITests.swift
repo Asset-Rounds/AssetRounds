@@ -17366,6 +17366,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let preNoteHeadingLabel = noteHeading.label
         let preNoteHeadingType = noteHeading.elementType
         let preNoteFieldIdentifier = noteField.identifier
+        let permitsAccentedOffAppKeyboardAccessory = usesAccentedSourceOwnedDoneTarget
+            && [applicationFrame, workScreenFrame, descriptionFrame, validationFrame,
+                noteHeadingFrame, noteFieldFrame, keyboardFrame, doneButtonFrame]
+                .allSatisfy(frameIsValid)
+            && [workScreenFrame, descriptionFrame, validationFrame,
+                noteHeadingFrame, noteFieldFrame, doneButtonFrame]
+                .allSatisfy { applicationFrame.contains($0) }
+            && keyboardFrame.minY >= applicationFrame.maxY
+            && keyboardFrame.minX >= applicationFrame.minX
+            && keyboardFrame.maxX <= applicationFrame.maxX
+            && [descriptionFrame, validationFrame, noteHeadingFrame, noteFieldFrame]
+                .allSatisfy { $0.maxY <= doneButtonFrame.minY }
+            && descriptionFrame.maxY <= validationFrame.minY
+            && validationFrame.maxY <= noteHeadingFrame.minY
+            && noteHeadingFrame.maxY <= noteFieldFrame.minY
         let noteHeadingOverlapsDoneAccessoryBand =
             noteHeadingFrame.minY < doneButtonFrame.maxY
                 && noteHeadingFrame.maxY > doneButtonFrame.minY
@@ -17402,9 +17417,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if !applicationFrame.contains(validationFrame) { return "app-contains-validation" }
             if !applicationFrame.contains(noteHeadingFrame) { return "app-contains-note-heading" }
             if !applicationFrame.contains(noteFieldFrame) { return "app-contains-note-field" }
-            if !usesRTLStringNativeDoneTarget && !applicationFrame.contains(keyboardFrame) { return "app-contains-keyboard" }
+            if !usesRTLStringNativeDoneTarget && !applicationFrame.contains(keyboardFrame) && !permitsAccentedOffAppKeyboardAccessory { return "app-contains-keyboard" }
             if !applicationFrame.contains(doneButtonFrame) { return "app-contains-done" }
-            if !permitsRTLStringNoteOutsideDoneBand && !noteHeadingOverlapsDoneAccessoryBand { return "note-heading-overlaps-done-accessory" }
+            if !permitsRTLStringNoteOutsideDoneBand && !noteHeadingOverlapsDoneAccessoryBand && !permitsAccentedOffAppKeyboardAccessory { return "note-heading-overlaps-done-accessory" }
             if !workScreen.exists { return "work-exists" }
             if !workScreen.isEnabled { return "work-enabled" }
             if !workScreen.isHittable { return "work-hittable" }

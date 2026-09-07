@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 37_466,
-            sha256: "D814FCDAF1E017F2D8E3198ED6D2F55C4B32E52B360920CCD7C0A3CBF69BFB4A"
+            byteCount: 37_427,
+            sha256: "71DC8B4533C127E92E0357AD267C0796532B63A90805C441145E9C9374062299"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -252,7 +252,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "  # H408 optional incident-correlated app log; originals remain unchanged.\n",
             before: "  # End H408 optional incident-correlated app log.\n"
         )
-        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n    s10.4.minimum.rtl-string)\n      if [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; then\n        ips_test_started_epoch=\"$(date +%s)\"\n      fi ;;\n  esac\nfi\n\n"
+        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n    s10.4.minimum.rtl-string)\n      if [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; then\n        ips_test_started_epoch=\"$(date +%s)\"\n      fi ;;\n  esac\nfi\n\n"
         XCTAssertTrue(uiSmokeSource.contains(incidentStartSource))
         // K470: closed bounded admission joins the existing failure-only incident profiles.
         let incidentAdmissionSource = try boundedSource(
@@ -272,15 +272,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(incidentAdmissionSource.contains(required), required)
         }
+        // K472: ordinary worker omission uses the already validated canonical probe.
+        XCTAssertTrue(uiSmokeSource.contains(#"diagnostic_probe_id="${CI_S10_4_DIAGNOSTIC_PROBE_ID:-none}""#))
+        XCTAssertTrue(uiSmokeSource.contains(#"case "$diagnostic_probe_id" in"#))
+        XCTAssertEqual(uiSmokeSource.components(separatedBy: #"[ "$diagnostic_probe_id" = none ]"#).count - 1, 3)
+        XCTAssertFalse(uiSmokeSource.contains("${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}"))
         // K471: exact ordinary RTL-string joins three diagnostic input gates only.
-        XCTAssertTrue(simulatorAppLifecycleSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = \"s10.4.minimum.rtl\" ] || \\\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] && \\\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] && \\\n         [ \"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}\" = none ] && \\\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] && \\\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
-        XCTAssertTrue(incidentAdmissionSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
+        XCTAssertTrue(simulatorAppLifecycleSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = \"s10.4.minimum.rtl\" ] || \\\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] && \\\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] && \\\n         [ \"$diagnostic_probe_id\" = none ] && \\\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] && \\\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
+        XCTAssertTrue(incidentAdmissionSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
         XCTAssertEqual(incidentAdmissionSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = "#).count - 1, 6)
         for excluded in ["s10.4.minimum.double-length", "s10.4.current."] {
             XCTAssertFalse(incidentAdmissionSource.contains(excluded), excluded)
         }
         // Preserve K417 incident admission and bounded same-snapshot prefix.
-        XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
+        XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
         XCTAssertTrue(incidentCollectorSource.contains("          ips_prefix_limit=\"$ips_snapshot_bytes\"\n          if [ \"$ips_prefix_limit\" -gt 1048576 ]; then ips_prefix_limit=1048576; fi\n          /usr/bin/head -c \"$ips_prefix_limit\" \"$ips_raw\" \\\n            > \"$failure_diagnostic_path/simulator-incident-app-prefix.log\"\n          ips_prefix_status=\"$?\"\n          ips_prefix_bytes=\"$(LC_ALL=C wc -c < \"$failure_diagnostic_path/simulator-incident-app-prefix.log\" | tr -d '[:space:]')\"\n          ips_tail_snapshot_start=0\n          if [ \"$ips_snapshot_bytes\" -gt 1048576 ]; then\n            ips_tail_snapshot_start=\"$(( ips_snapshot_bytes - 1048576 ))\"\n          fi\n          ips_prefix_tail_overlap=0\n          if [ \"$ips_prefix_bytes\" -gt \"$ips_tail_snapshot_start\" ]; then\n            ips_prefix_tail_overlap=\"$(( ips_prefix_bytes - ips_tail_snapshot_start ))\"\n          fi\n          printf 'ips_prefix_status=%s\\nips_prefix_bytes=%s\\nips_prefix_start_byte=0\\nips_prefix_end_byte=%s\\nips_tail_snapshot_start_byte=%s\\nips_tail_snapshot_end_byte=%s\\nips_prefix_tail_overlap_bytes=%s\\nips_prefix_capture=bounded_snapshot_not_completion_proof\\n' \\\n            \"$ips_prefix_status\" \"$ips_prefix_bytes\" \"$ips_prefix_bytes\" \\\n            \"$ips_tail_snapshot_start\" \"$ips_snapshot_bytes\" \"$ips_prefix_tail_overlap\" \\\n            >> \"$diagnostic_status_path\"\n          if [ \"$ips_query_status\" -ne 0 ] || [ \"$ips_prefix_status\" -ne 0 ] || \\\n             [ \"$ips_prefix_bytes\" -ne \"$ips_prefix_limit\" ] || [ \"$ips_prefix_bytes\" -eq 0 ]; then\n            printf 'ips_prefix_incomplete=true\\n' >> \"$diagnostic_status_path\"\n          fi\n"))
         for exact in [
             "int(capture)", "capture_epoch=candidates[0]",
@@ -20110,7 +20115,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.bounded", 14, "rtl", "iphone-se-3-ios-18.0-minimum"))
         XCTAssertFalse(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.tall", 12, "tall", "iphone-se-3-ios-18.0-minimum"))
         XCTAssertFalse(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.bounded", 14, "bounded", "iphone-17-ios-26.2-current"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !usesRTLStringNativeDoneTarget && !applicationFrame.contains(keyboardFrame)"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !usesRTLStringNativeDoneTarget && !applicationFrame.contains(keyboardFrame) && !permitsAccentedOffAppKeyboardAccessory { return \"app-contains-keyboard\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !frameIsValid(keyboardFrame)"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !keyboard.exists"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(doneButtonFrame)"))
@@ -20155,7 +20160,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(noteOverlapPreconditionPasses(true, hostileNoteRoute.0, hostileNoteRoute.1, hostileNoteRoute.2, hostileNoteRoute.3, hostileNoteRoute.4, hostileNoteRoute.5))
         }
         XCTAssertFalse(rtlNoteOverlapAdmission.contains("usesRTLStringNativeDoneTarget"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !permitsRTLStringNoteOutsideDoneBand && !noteHeadingOverlapsDoneAccessoryBand { return \"note-heading-overlaps-done-accessory\" }"))
+        // K472: cached positive geometry for the exact accented source-owned accessory.
+        let accentedOffAppAccessoryGeometry = try boundedSource(
+            rtlWorkValidationAccessorySource,
+            from: "        let permitsAccentedOffAppKeyboardAccessory =",
+            before: "        let noteHeadingOverlapsDoneAccessoryBand ="
+        )
+        for required in ["permitsAccentedOffAppKeyboardAccessory = usesAccentedSourceOwnedDoneTarget", "[applicationFrame, workScreenFrame, descriptionFrame, validationFrame,\n                noteHeadingFrame, noteFieldFrame, keyboardFrame, doneButtonFrame]\n                .allSatisfy(frameIsValid)", "[workScreenFrame, descriptionFrame, validationFrame,\n                noteHeadingFrame, noteFieldFrame, doneButtonFrame]\n                .allSatisfy { applicationFrame.contains($0) }", "keyboardFrame.minY >= applicationFrame.maxY", "keyboardFrame.minX >= applicationFrame.minX", "keyboardFrame.maxX <= applicationFrame.maxX", "[descriptionFrame, validationFrame, noteHeadingFrame, noteFieldFrame]\n                .allSatisfy { $0.maxY <= doneButtonFrame.minY }", "descriptionFrame.maxY <= validationFrame.minY", "validationFrame.maxY <= noteHeadingFrame.minY", "noteHeadingFrame.maxY <= noteFieldFrame.minY"] {
+            XCTAssertTrue(accentedOffAppAccessoryGeometry.contains(required), required)
+        }
+        XCTAssertEqual(accentedOffAppAccessoryGeometry.components(separatedBy: "&&").count - 1, 9)
+        XCTAssertEqual(accentedOffAppAccessoryGeometry.components(separatedBy: ".allSatisfy").count - 1, 3)
+        XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "permitsAccentedOffAppKeyboardAccessory").count - 1, 3)
+        for prohibited in ["app.frame", "doneButton.frame", "keyboard.frame", "screenshot", "debugDescription", "tap()", "press(", "swipe", "printJSONLine", "return true", "||", "!", " + ", " - ", " * ", " / ", "insetBy", ".union(", "isEmpty"] {
+            XCTAssertFalse(accentedOffAppAccessoryGeometry.contains(prohibited), prohibited)
+        }
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !permitsRTLStringNoteOutsideDoneBand && !noteHeadingOverlapsDoneAccessoryBand && !permitsAccentedOffAppKeyboardAccessory { return \"note-heading-overlaps-done-accessory\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.exists { return \"work-exists\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.isEnabled { return \"work-enabled\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.isHittable { return \"work-hittable\" }"))
@@ -20220,10 +20240,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_035_927)
+        XCTAssertEqual(uiSource.utf8.count, 1_037_015)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "21BD083233C3B81BF84BEBE6CF1923B591F508D2C428EC1D42556375077D4152"
+            "33624D945DDF6D98451CA77F532A8608B419FD9E367E503B177C16F0793FD896"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

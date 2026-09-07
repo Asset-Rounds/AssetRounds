@@ -124,7 +124,7 @@ if [ "${CI_RUNNER_PROVIDER:-}" = github ] && [ "${CI_TASK_ID:-}" = S10.4 ]; then
       ips_test_started_epoch="$(date +%s)" ;;
     s10.4.minimum.rtl-string)
       if [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
-         [ "${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] &&
+         [ "$diagnostic_probe_id" = none ] &&
          [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
          [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; then
         ips_test_started_epoch="$(date +%s)"
@@ -261,7 +261,7 @@ if [ "$xcodebuild_status" -ne 0 ]; then
        [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.rtl" ] || \
        { [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl-string ] && \
          [ "${CI_S10_4_PILOT_MODE:-}" = false ] && \
-         [ "${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] && \
+         [ "$diagnostic_probe_id" = none ] && \
          [ "${CI_S10_4_SEGMENT_ID:-}" = none ] && \
          [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; }; }; then
     diagnostic_report_app_patterns=(-o -iname 'FieldEvidenceApp*')
@@ -515,7 +515,7 @@ if [ "$xcodebuild_status" -ne 0 ]; then
        [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ] ||
        { [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl-string ] &&
          [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
-         [ "${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] &&
+         [ "$diagnostic_probe_id" = none ] &&
          [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
          [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; }; }; then
     ips_now="$(date +%s)"
