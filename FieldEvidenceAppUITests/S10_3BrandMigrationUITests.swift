@@ -9428,6 +9428,139 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         assertText("s7.2.paywall.price", equals: "$59.99", in: app)
         assertText("s7.2.paywall.trial", equals: "14 days free", in: app)
         }
+        if preparesPaywallAvailableEvidence,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.accented",
+           shard.ordinal == 13, shard.requirementID == "accented",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+           diagnosticProbe == nil, automationSegment == .none {
+            let requiredQueries = [
+                app.staticTexts.matching(identifier: "s7.2.paywall.product-name"),
+                app.staticTexts.matching(identifier: "s7.2.paywall.duration"),
+                app.staticTexts.matching(identifier: "s7.2.paywall.price"),
+                app.staticTexts.matching(identifier: "s7.2.paywall.trial"),
+                app.buttons.matching(identifier: "s7.2.paywall.terms"),
+            ]
+            let scrolls = app.scrollViews.containing(.staticText, identifier: "s7.2.paywall.product-name")
+                .containing(.button, identifier: "s7.2.paywall.terms")
+            guard scrolls.count == 1, requiredQueries.allSatisfy({ $0.count == 1 }) else {
+                XCTFail("Accented available paywall bindings are ambiguous")
+                return usedSettingsRetry
+            }
+            let availableScroll = scrolls.firstMatch
+            let required = requiredQueries.map { $0.firstMatch }
+            let expectedLabels = required.map { $0.label }
+            let expectedValues = required.map { $0.value as? String }
+            let validFrame: (CGRect) -> Bool = { frame in
+                !frame.isNull && !frame.isInfinite && !frame.isEmpty
+                    && frame.minX.isFinite && frame.minY.isFinite
+                    && frame.maxX.isFinite && frame.maxY.isFinite
+            }
+            var cachedViewport = CGRect.null
+            var cachedRequired: [CGRect] = []
+            var cachedSiblings: [(String, CGRect)] = []
+            let failPositioning: (String) -> Bool = { stage in
+                let jsonFrame: (CGRect) -> Any = { frame in
+                    validFrame(frame) ? ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height] : NSNull()
+                }
+                let payload: [String: Any] = [
+                    "stage": stage,
+                    "viewport": jsonFrame(cachedViewport),
+                    "required": cachedRequired.enumerated().map { index, frame in
+                        ["index": index, "frame": jsonFrame(frame), "visibility": !validFrame(frame) ? "unavailable" : cachedViewport.contains(frame) ? "contained" : cachedViewport.intersects(frame) ? "intersecting" : "outside"] as [String: Any]
+                    },
+                    "siblingCount": cachedSiblings.count,
+                    "siblingsTruncated": cachedSiblings.count > 128,
+                    "siblings": cachedSiblings.prefix(128).map { identifier, frame in
+                        ["identifier": String(identifier.prefix(256)), "frame": jsonFrame(frame),
+                         "visibility": !validFrame(frame) ? "unavailable" : cachedViewport.contains(frame) ? "contained" : cachedViewport.intersects(frame) ? "intersecting" : "outside"] as [String: Any]
+                    },
+                ]
+                if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                   let text = String(data: data, encoding: .utf8) {
+                    print("S10_4_ACCENTED_AVAILABLE_POSITION_FAILURE \(text)")
+                }
+                XCTFail("Accented available paywall positioning failed: \(stage)")
+                return false
+            }
+            var positioned = false
+            for attempt in 0...4 {
+                let scrollFrame = availableScroll.frame
+                cachedViewport = app.frame.intersection(scrollFrame)
+                cachedRequired = required.map { $0.frame }
+                let siblings = availableScroll.staticTexts.allElementsBoundByIndex
+                    + availableScroll.buttons.allElementsBoundByIndex
+                cachedSiblings = siblings.map { ($0.identifier, $0.frame) }
+                guard app.state == .runningForeground, scrolls.count == 1,
+                      requiredQueries.allSatisfy({ $0.count == 1 }),
+                      validFrame(cachedViewport), cachedRequired.allSatisfy(validFrame),
+                      required.enumerated().allSatisfy({ index, control in
+                          control.exists && control.isEnabled && control.label == expectedLabels[index]
+                              && (control.value as? String) == expectedValues[index]
+                      }),
+                      cachedRequired[0].minY < cachedRequired[1].minY,
+                      cachedRequired[1].minY < cachedRequired[2].minY,
+                      cachedRequired[2].minY < cachedRequired[3].minY else {
+                    _ = failPositioning("state-or-geometry")
+                    return usedSettingsRetry
+                }
+                let siblingFrames = cachedSiblings.map { $0.1 }.filter(validFrame)
+                if cachedViewport.contains(cachedRequired[0]),
+                   siblingFrames.allSatisfy({ !cachedViewport.intersects($0) || cachedViewport.contains($0) }) {
+                    positioned = true
+                    break
+                }
+                guard attempt < 4,
+                      cachedRequired[0].minX >= cachedViewport.minX,
+                      cachedRequired[0].maxX <= cachedViewport.maxX else {
+                    _ = failPositioning("unresolved-clipping")
+                    return usedSettingsRetry
+                }
+                let anchorLower = cachedViewport.minY - cachedRequired[0].minY
+                let anchorUpper = cachedViewport.maxY - cachedRequired[0].maxY
+                guard anchorLower <= anchorUpper else {
+                    _ = failPositioning("anchor-does-not-fit")
+                    return usedSettingsRetry
+                }
+                var allowedIntervals: [(lower: CGFloat, upper: CGFloat)] = [(anchorLower, anchorUpper)]
+                for frame in siblingFrames where frame.maxX > cachedViewport.minX && frame.minX < cachedViewport.maxX {
+                    var alternatives: [(lower: CGFloat, upper: CGFloat)] = [
+                        (-CGFloat.infinity, cachedViewport.minY - frame.maxY),
+                        (cachedViewport.maxY - frame.minY, CGFloat.infinity),
+                    ]
+                    if frame.minX >= cachedViewport.minX && frame.maxX <= cachedViewport.maxX,
+                       frame.height <= cachedViewport.height {
+                        alternatives.append((cachedViewport.minY - frame.minY, cachedViewport.maxY - frame.maxY))
+                    }
+                    allowedIntervals = allowedIntervals.flatMap { interval in
+                        alternatives.compactMap { alternative -> (lower: CGFloat, upper: CGFloat)? in
+                            let lower = max(interval.lower, alternative.lower)
+                            let upper = min(interval.upper, alternative.upper)
+                            return lower <= upper ? (lower, upper) : nil
+                        }
+                    }
+                    if allowedIntervals.isEmpty { break }
+                }
+                let candidates = allowedIntervals.map { interval in
+                    min(max(CGFloat.zero, interval.lower), interval.upper)
+                }.filter { $0.isFinite && abs($0) < cachedViewport.height }
+                guard let shift = candidates.min(by: { abs($0) == abs($1) ? $0 < $1 : abs($0) < abs($1) }),
+                      shift != 0 else {
+                    _ = failPositioning("no-feasible-nonclipping-shift")
+                    return usedSettingsRetry
+                }
+                let startY = shift < 0 ? cachedViewport.maxY - (cachedViewport.height - abs(shift)) / 2
+                    : cachedViewport.minY + (cachedViewport.height - abs(shift)) / 2
+                let origin = availableScroll.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                let start = origin.withOffset(CGVector(dx: cachedViewport.midX - scrollFrame.minX, dy: startY - scrollFrame.minY))
+                let end = start.withOffset(CGVector(dx: 0, dy: shift))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+            guard positioned else {
+                _ = failPositioning("attempts-exhausted")
+                return usedSettingsRetry
+            }
+        }
         if emitsEvidence {
             captureBaseline("state.paywall.available", in: app)
         }

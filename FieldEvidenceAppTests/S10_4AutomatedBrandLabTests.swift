@@ -2827,6 +2827,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(boundedEnteredZoneSource.contains("hasKeyboardFocus == false"))
         XCTAssertTrue(boundedEnteredZoneSource.contains("predicate: \"exists == false\""))
         XCTAssertFalse(boundedEnteredZoneSource.contains("performAccessibilityAudit"))
+        let accentedAvailablePositioning = try boundedSource(uiSource, from: "            let requiredQueries = [", before: "            captureBaseline(\"state.paywall.available\", in: app)")
+        XCTAssertTrue(accentedAvailablePositioning.contains("app.frame.intersection(scrollFrame)"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("allowedIntervals.flatMap"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("cachedViewport.contains($0)"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("lower <= upper ? (lower, upper) : nil"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("for attempt in 0...4"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("S10_4_ACCENTED_AVAILABLE_POSITION_FAILURE"))
+        XCTAssertFalse(accentedAvailablePositioning.contains(".tap()"))
+        XCTAssertFalse(accentedAvailablePositioning.contains("performAccessibilityAudit"))
         let postSaveIssueQuery = try boundedSource(uiSource, from: "        let issueScreen: XCUIElement", before: "        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))")
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.minimum-os\""))
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.rtl-string\""))
@@ -18509,10 +18518,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 904_942)
+        XCTAssertEqual(uiSource.utf8.count, 913_381)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "8A51D14973AFBAFD24B36CD7AEA88D5DDC36E2F37BC8AD9E514BEA6DF8BBA41B"
+            "E1C8DF9B3F19AA6FA2FD2DCBBC4894913689A5CC8992106B0D0BBEDF01908F14"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
