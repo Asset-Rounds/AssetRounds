@@ -122,6 +122,13 @@ if [ "${CI_RUNNER_PROVIDER:-}" = github ] && [ "${CI_TASK_ID:-}" = S10.4 ]; then
   case "${CI_S10_4_SHARD_ID:-}" in
     s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)
       ips_test_started_epoch="$(date +%s)" ;;
+    s10.4.minimum.rtl-string)
+      if [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+         [ "${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] &&
+         [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+         [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; then
+        ips_test_started_epoch="$(date +%s)"
+      fi ;;
   esac
 fi
 
@@ -251,7 +258,12 @@ if [ "$xcodebuild_status" -ne 0 ]; then
      [ "${CI_TASK_ID:-}" = "S10.4" ] && \
      { [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.bounded" ] || \
        [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.accented" ] || \
-       [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.rtl" ]; }; then
+       [ "${CI_S10_4_SHARD_ID:-}" = "s10.4.minimum.rtl" ] || \
+       { [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl-string ] && \
+         [ "${CI_S10_4_PILOT_MODE:-}" = false ] && \
+         [ "${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] && \
+         [ "${CI_S10_4_SEGMENT_ID:-}" = none ] && \
+         [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; }; }; then
     diagnostic_report_app_patterns=(-o -iname 'FieldEvidenceApp*')
     simulator_lifecycle_raw="$(mktemp "${RUNNER_TEMP:?}/FieldEvidenceSimulatorLifecycle.XXXXXX")"
     simulator_lifecycle_temp_status="$?"
@@ -500,7 +512,12 @@ if [ "$xcodebuild_status" -ne 0 ]; then
        [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.accented ] ||
        [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.bounded ] ||
        [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.tall ] ||
-       [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]; }; then
+       [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ] ||
+       { [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl-string ] &&
+         [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+         [ "${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] &&
+         [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+         [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; }; }; then
     ips_now="$(date +%s)"
     ips_origin="${CI_BUDGET_START_EPOCH:-}"
     ips_total="${CI_TOTAL_BUDGET_SECONDS:-}"
@@ -603,14 +620,19 @@ PY
         ips_lookback_minutes=10
         ips_window_policy=default-ten-minute
         if [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]; then
-          ips_window_policy=validated-incident-age-whole-minute
+          ips_window_policy=validated-test-start-age-capped-ten-minute
           ips_window_valid=false
           if [[ "$ips_capture_epoch" =~ ^[1-9][0-9]{0,9}$ ]] &&
              [ -z "$ips_extra" ] && [ "$ips_capture_epoch" -le "$ips_now" ]; then
             ips_incident_age="$(( ips_now - ips_capture_epoch ))"
-            ips_lookback_minutes="$(( ips_incident_age / 60 + 1 ))"
-            if [ "$ips_lookback_minutes" -ge 1 ] && [ "$ips_lookback_minutes" -le 10 ]; then
+            if [ "$ips_incident_age" -le 599 ] &&
+               [[ "$ips_test_started_epoch" =~ ^[1-9][0-9]{0,9}$ ]] &&
+               [ "$ips_test_started_epoch" -le "$ips_capture_epoch" ]; then
+              ips_test_age="$(( ips_now - ips_test_started_epoch ))"
+              ips_lookback_minutes="$(( ips_test_age / 60 + 1 ))"
+              if [ "$ips_lookback_minutes" -gt 10 ]; then ips_lookback_minutes=10; fi
               ips_window_valid=true
+              printf 'ips_window_test_started_epoch=%s\n' "$ips_test_started_epoch" >> "$diagnostic_status_path"
             fi
           fi
         fi

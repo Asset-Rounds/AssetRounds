@@ -4406,8 +4406,32 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         captureBaseline("state.check-preflight.ready", in: app)
 
-        scroll(zone, in: app)
+        let doublePreflightFocusIdentity: (label: String, value: String?, placeholder: String?)?
+        if automationShard?.shardID == "s10.4.minimum.double-length" {
+            doublePreflightFocusIdentity = try prepareInitialDoublePreflightFocus(
+                zone: zone, preflight: preflight, in: app
+            )
+        } else {
+            doublePreflightFocusIdentity = nil
+            scroll(zone, in: app)
+        }
         zone.tap()
+        if let doublePreflightFocusIdentity {
+            let focusZoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")
+            guard wait(for: zone, predicate: "hasKeyboardFocus == true", timeout: 10),
+                  focusZoneFields.count == 1,
+                  zone.elementType == .textField,
+                  zone.identifier == "s3.preflight.time-zone",
+                  zone.label == doublePreflightFocusIdentity.label,
+                  (zone.value as? String) == doublePreflightFocusIdentity.value,
+                  zone.placeholderValue == doublePreflightFocusIdentity.placeholder,
+                  ["s3.preflight.time-zone-confirmed", "s3.preflight.after-dark", "s3.preflight.safe-position"].allSatisfy({ identifier in
+                      let controls = app.switches.matching(identifier: identifier)
+                      return controls.count == 1 && (controls.firstMatch.value as? String) == "0"
+                  }), preflight.exists, app.state == .runningForeground else {
+                throw AutomationConfigurationError.invalid("Double preflight time-zone focus did not preserve the empty input state")
+            }
+        }
         zone.typeText("America/New_York")
         if let shard = automationShard, shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented" || shard.shardID == "s10.4.minimum.rtl-string" || shard.shardID == "s10.4.minimum.double-length" || shard.shardID == "s10.4.minimum.rtl" {
             let enteredZoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")
@@ -10728,8 +10752,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return usedSettingsRetry
         }
 
+        let usesTallPurchaseCompleteViewport =
+            automationShard?.shardID == "s10.4.minimum.tall"
+        if usesTallPurchaseCompleteViewport {
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.ordinal == 12, shard.requirementID == "tall",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  shard.locale == "en-US-tall" else {
+                XCTFail("Tall purchase-complete preparation has an invalid route.")
+                return usedSettingsRetry
+            }
+        }
         if automationShard?.shardID == "s10.4.current.ax-text" ||
-            automationShard?.shardID == "s10.4.minimum.minimum-os" {
+            automationShard?.shardID == "s10.4.minimum.minimum-os" ||
+            usesTallPurchaseCompleteViewport {
             if shouldPrepareNormalEvidence(
                 for: "state.paywall.purchase-complete",
                 in: app
@@ -10914,6 +10951,39 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private func positionAXTextPurchaseCompleteViewport(
         in app: XCUIApplication
     ) -> Bool {
+        let usesTallPurchaseCompleteViewport =
+            automationShard?.shardID == "s10.4.minimum.tall"
+        if usesTallPurchaseCompleteViewport {
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.ordinal == 12, shard.requirementID == "tall",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  shard.locale == "en-US-tall" else {
+                XCTFail("Tall purchase-complete helper has an invalid route.")
+                return false
+            }
+        }
+        let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
+        let expectedReadyValue = usesTallPurchaseCompleteViewport
+            ? tallMarker + "Ready" + tallMarker : "Ready"
+        let expectedCloseLabel = usesTallPurchaseCompleteViewport
+            ? tallMarker + "Close" + tallMarker : "Close"
+        let expectedTermsLabel = usesTallPurchaseCompleteViewport
+            ? tallMarker + "Terms" + tallMarker : "Terms"
+        let expectedPrivacyLabel = usesTallPurchaseCompleteViewport
+            ? tallMarker + "Privacy" + tallMarker : "Privacy"
+        let expectedSupportLabel = usesTallPurchaseCompleteViewport
+            ? tallMarker + "Support" + tallMarker : "Support"
+        let expectedPurchaseLabel = usesTallPurchaseCompleteViewport
+            ? tallMarker + "Subscribe" + tallMarker : "Subscribe"
+        let expectedVerifiedLabel = usesTallPurchaseCompleteViewport
+            ? tallMarker + "Complete: " + tallMarker + " Purchase "
+                + tallMarker + " verified. " + tallMarker + " Subscription "
+                + tallMarker + " access " + tallMarker + " is "
+                + tallMarker + " ready." + tallMarker
+            : "Complete: Purchase verified. Subscription access is ready."
+        let expectedTallNavigationIdentifier =
+            tallMarker + "Subscription" + tallMarker
         let purchasePredicate = NSPredicate(
             format: "label CONTAINS[c] 'Subscribe' OR " +
                 "label CONTAINS[c] 'Trial' OR label CONTAINS[c] '$59.99'"
@@ -10939,7 +11009,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let supportButtons = app.buttons.matching(
             identifier: "s7.2.paywall.support"
         )
-        let purchaseButtons = app.buttons.matching(purchasePredicate)
+        let purchaseButtons = usesTallPurchaseCompleteViewport
+            ? app.buttons.matching(NSPredicate(format: "label == %@", expectedPurchaseLabel))
+            : app.buttons.matching(purchasePredicate)
         let screen = screens.firstMatch
         let store = stores.firstMatch
         let close = closeButtons.firstMatch
@@ -10948,6 +11020,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let privacy = privacyButtons.firstMatch
         let support = supportButtons.firstMatch
         let purchase = purchaseButtons.firstMatch
+        let tallNavigationBars = screen.descendants(matching: .navigationBar)
+            .matching(identifier: expectedTallNavigationIdentifier)
+        let tallStoreScrollViews = store.descendants(matching: .scrollView)
+        let tallNavigationBar = tallNavigationBars.firstMatch
+        let tallStoreScrollView = tallStoreScrollViews.firstMatch
         let routeQueries = [
             screens,
             stores,
@@ -11002,27 +11079,36 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && support.identifier == "s7.2.paywall.support"
                 && purchase.elementType == .button
                 && purchase.identifier.isEmpty
+                && (!usesTallPurchaseCompleteViewport || (
+                    tallNavigationBars.count == 1
+                        && tallStoreScrollViews.count == 1
+                        && tallNavigationBar.exists
+                        && tallStoreScrollView.exists
+                        && tallNavigationBar.elementType == .navigationBar
+                        && tallNavigationBar.identifier == expectedTallNavigationIdentifier
+                        && tallStoreScrollView.elementType == .scrollView
+                ))
         }
         let hasExactValues: () -> Bool = {
             hasStableRoute()
-                && (store.value as? String) == "Ready"
-                && close.label == "Close"
+                && (store.value as? String) == expectedReadyValue
+                && close.label == expectedCloseLabel
                 && (close.value as? String) == ""
                 && close.isEnabled
                 && purchaseState.label
-                    == "Complete: Purchase verified. Subscription access is ready."
+                    == expectedVerifiedLabel
                 && (purchaseState.value as? String) == ""
                 && purchaseState.isEnabled
-                && terms.label == "Terms"
+                && terms.label == expectedTermsLabel
                 && (terms.value as? String) == ""
                 && terms.isEnabled
-                && privacy.label == "Privacy"
+                && privacy.label == expectedPrivacyLabel
                 && (privacy.value as? String) == ""
                 && privacy.isEnabled
-                && support.label == "Support"
+                && support.label == expectedSupportLabel
                 && (support.value as? String) == ""
                 && support.isEnabled
-                && purchase.label == "Subscribe"
+                && purchase.label == expectedPurchaseLabel
                 && (purchase.value as? String) == ""
                 && purchase.isEnabled
         }
@@ -11032,10 +11118,56 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let usesMinimumOSViewport =
             automationShard?.shardID == "s10.4.minimum.minimum-os"
+        var tallSampledApplicationFrame: CGRect?
+        let sampledViewportFrame: () -> CGRect? = {
+            guard usesTallPurchaseCompleteViewport else { return store.frame }
+            tallSampledApplicationFrame = nil
+            let applicationFrame = app.frame
+            let screenFrame = screen.frame
+            let storeFrame = store.frame
+            let scrollFrame = tallStoreScrollView.frame
+            let navigationFrame = tallNavigationBar.frame
+            guard [applicationFrame, screenFrame, storeFrame, scrollFrame,
+                   navigationFrame].allSatisfy(isValidFrame),
+                  screenFrame.contains(navigationFrame) else { return nil }
+            let clippedFrame = applicationFrame.intersection(screenFrame)
+                .intersection(storeFrame).intersection(scrollFrame)
+            guard isValidFrame(clippedFrame),
+                  navigationFrame.minX <= clippedFrame.minX,
+                  navigationFrame.maxX >= clippedFrame.maxX,
+                  navigationFrame.maxY < clippedFrame.maxY else { return nil }
+            let visibleTop = max(clippedFrame.minY, navigationFrame.maxY)
+            let visibleFrame = CGRect(
+                x: clippedFrame.minX, y: visibleTop,
+                width: clippedFrame.width,
+                height: clippedFrame.maxY - visibleTop
+            )
+            guard isValidFrame(visibleFrame) else { return nil }
+            tallSampledApplicationFrame = applicationFrame
+            return visibleFrame
+        }
         let receiverInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
         var completedGestureCount = 0
         var measuredUndertravel: CGFloat = 0
+        var tallCachedIntervalObservation: [String: Any]?
+        func cacheTallInterval(
+            frames: [String: CGRect], minimumShift: CGFloat, maximumShift: CGFloat
+        ) {
+            guard usesTallPurchaseCompleteViewport else { return }
+            let finite: (CGFloat) -> Any = { $0.isFinite ? $0 as Any : NSNull() }
+            let cachedFrames = frames.mapValues { frame -> [String: Any] in
+                ["x": finite(frame.minX), "y": finite(frame.minY),
+                 "width": finite(frame.width), "height": finite(frame.height),
+                 "maxY": finite(frame.maxY), "isNull": frame.isNull,
+                 "isInfinite": frame.isInfinite]
+            }
+            tallCachedIntervalObservation = [
+                "frames": cachedFrames, "minimumShift": finite(minimumShift),
+                "maximumShift": finite(maximumShift), "cachedIntervalAvailable": true,
+                "viewportBasis": "app-screen-store-scroll-intersection-below-navigation",
+            ]
+        }
 
         func positionViewport(
             named stage: String,
@@ -11051,10 +11183,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         "AX-text purchase-complete \(stage) route changed."
                     )
                 }
+                if usesTallPurchaseCompleteViewport { tallCachedIntervalObservation = nil }
                 guard let geometry = interval(),
                       geometry.minimumShift.isFinite,
                       geometry.maximumShift.isFinite,
                       geometry.minimumShift <= geometry.maximumShift else {
+                    if usesTallPurchaseCompleteViewport {
+                        var observation = tallCachedIntervalObservation
+                            ?? ["cachedIntervalAvailable": false]
+                        observation["diagnosticOnly"] = true
+                        observation["finalAcceptanceEligible"] = false
+                        observation["atomicSnapshot"] = false
+                        observation["event"] = "infeasible-stage"
+                        observation["seam"] = "tall purchase-complete positioning"
+                        observation["stage"] = stage
+                        observation["shardID"] = "s10.4.minimum.tall"
+                        observation["ordinal"] = 12
+                        observation["requirementID"] = "tall"
+                        printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: observation)
+                    }
                     return fail(
                         "AX-text purchase-complete \(stage) interval is infeasible."
                     )
@@ -11098,9 +11245,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     ? clampedMagnitude
                     : -clampedMagnitude
 
-                let storeOrigin = store.coordinate(
-                    withNormalizedOffset: CGVector(dx: 0, dy: 0)
-                )
+                var sampledApplicationOrigin = CGPoint.zero
+                if usesTallPurchaseCompleteViewport {
+                    guard let applicationFrame = tallSampledApplicationFrame,
+                          isValidFrame(applicationFrame),
+                          applicationFrame.contains(geometry.storeFrame) else {
+                        return fail("Tall purchase-complete receiver has no matching application frame.")
+                    }
+                    sampledApplicationOrigin = applicationFrame.origin
+                }
+                let storeOrigin = usesTallPurchaseCompleteViewport
+                    ? app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                        .withOffset(CGVector(
+                            dx: geometry.storeFrame.minX - sampledApplicationOrigin.x,
+                            dy: geometry.storeFrame.minY - sampledApplicationOrigin.y
+                        ))
+                    : store.coordinate(
+                        withNormalizedOffset: CGVector(dx: 0, dy: 0)
+                    )
                 let dragStartOffsetY = dragDistance > 0
                     ? receiverInset
                     : geometry.storeFrame.height - receiverInset
@@ -11122,6 +11284,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             dy: dragStartOffsetY + dragDistance
                         )
                     )
+                if usesTallPurchaseCompleteViewport {
+                    let receiverX = geometry.storeFrame.midX
+                    let receiverStartY = geometry.storeFrame.minY + dragStartOffsetY
+                    let receiverEndY = receiverStartY + dragDistance
+                    let receiverTop = geometry.storeFrame.minY + receiverInset
+                    let receiverBottom = geometry.storeFrame.maxY - receiverInset
+                    guard [receiverX, receiverStartY, receiverEndY,
+                           receiverTop, receiverBottom, dragDistance].allSatisfy({ $0.isFinite }),
+                          receiverX > geometry.storeFrame.minX,
+                          receiverX < geometry.storeFrame.maxX,
+                          receiverStartY >= receiverTop,
+                          receiverStartY <= receiverBottom,
+                          receiverEndY >= receiverTop,
+                          receiverEndY <= receiverBottom,
+                          abs(dragDistance) >= minimumGestureDistance else {
+                        return fail("Tall purchase-complete gesture leaves the unobscured receiver.")
+                    }
+                }
                 let purchaseStateBeforeDrag = purchaseState.frame.minY
                 let supportBeforeDrag = support.frame.minY
                 guard purchaseStateBeforeDrag.isFinite,
@@ -11173,7 +11353,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             minimumShift: CGFloat,
             maximumShift: CGFloat
         )? = {
-            let storeFrame = store.frame
+            guard let storeFrame = sampledViewportFrame() else { return nil }
             let closeFrame = close.frame
             let termsFrame = terms.frame
             let privacyFrame = privacy.frame
@@ -11210,6 +11390,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     )
                 )
             )
+            cacheTallInterval(
+                frames: ["viewport": storeFrame, "close": closeFrame, "terms": termsFrame,
+                         "privacy": privacyFrame, "support": supportFrame, "subscribe": purchaseFrame],
+                minimumShift: minimumShift, maximumShift: maximumShift
+            )
             return (storeFrame, minimumShift, maximumShift)
         }
         guard positionViewport(
@@ -11219,7 +11404,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return false
         }
 
-        let legalStoreFrame = store.frame
+        guard let legalStoreFrame = sampledViewportFrame() else {
+            return fail("Purchase-complete legal viewport has invalid visible bounds.")
+        }
         let legalCloseFrame = close.frame
         let legalTermsFrame = terms.frame
         let legalPrivacyFrame = privacy.frame
@@ -11275,7 +11462,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             minimumShift: CGFloat,
             maximumShift: CGFloat
         )? = {
-            let storeFrame = store.frame
+            guard let storeFrame = sampledViewportFrame() else { return nil }
             let closeFrame = close.frame
             let purchaseStateFrame = purchaseState.frame
             let termsFrame = terms.frame
@@ -11293,6 +11480,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ].allSatisfy(isValidFrame),
                   storeFrame.minY <= storeFrame.maxY else {
                 return nil
+            }
+            if usesTallPurchaseCompleteViewport {
+                let minimumShift = max(
+                    storeFrame.minY - closeFrame.minY,
+                    max(storeFrame.minY - purchaseStateFrame.minY,
+                        max(storeFrame.maxY - termsFrame.minY,
+                            max(storeFrame.maxY - privacyFrame.minY,
+                                max(storeFrame.maxY - supportFrame.minY,
+                                    storeFrame.maxY - purchaseFrame.minY))))
+                )
+                let maximumShift = min(
+                    storeFrame.maxY - closeFrame.maxY,
+                    storeFrame.maxY - purchaseStateFrame.maxY
+                )
+                cacheTallInterval(
+                    frames: ["viewport": storeFrame, "close": closeFrame,
+                             "verifiedStatus": purchaseStateFrame, "terms": termsFrame,
+                             "privacy": privacyFrame, "support": supportFrame, "subscribe": purchaseFrame],
+                    minimumShift: minimumShift, maximumShift: maximumShift
+                )
+                return (storeFrame, minimumShift, maximumShift)
             }
             let minimumShift = Swift.max(
                 storeFrame.minY - purchaseStateFrame.minY,
@@ -11320,7 +11528,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             return false
         }
 
-        let verifiedStoreFrame = store.frame
+        guard let verifiedStoreFrame = sampledViewportFrame() else {
+            return fail("Purchase-complete verified viewport has invalid visible bounds.")
+        }
         let verifiedCloseFrame = close.frame
         let verifiedPurchaseStateFrame = purchaseState.frame
         let verifiedTermsFrame = terms.frame
@@ -11336,6 +11546,37 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             verifiedSupportFrame,
             verifiedPurchaseFrame,
         ]
+        if usesTallPurchaseCompleteViewport {
+            let tallInteractiveFrames = [verifiedCloseFrame, verifiedTermsFrame,
+                                         verifiedPrivacyFrame, verifiedSupportFrame]
+            let tallOffscreenFrames = [verifiedTermsFrame, verifiedPrivacyFrame,
+                                       verifiedSupportFrame, verifiedPurchaseFrame]
+            guard hasExactValues(),
+                  verifiedFrames.allSatisfy(isValidFrame),
+                  tallInteractiveFrames.allSatisfy({
+                      $0.width >= minimumGestureDistance && $0.height >= minimumGestureDistance
+                  }),
+                  tallOffscreenFrames.allSatisfy({
+                      $0.minX >= verifiedStoreFrame.minX && $0.maxX <= verifiedStoreFrame.maxX
+                  }),
+                  verifiedStoreFrame.contains(verifiedCloseFrame),
+                  verifiedStoreFrame.contains(verifiedPurchaseStateFrame),
+                  close.isHittable, purchaseState.isHittable,
+                  verifiedCloseFrame.maxY <= verifiedPurchaseStateFrame.minY,
+                  verifiedPurchaseStateFrame.maxY <= verifiedTermsFrame.minY,
+                  verifiedTermsFrame.minY >= verifiedStoreFrame.maxY,
+                  verifiedPrivacyFrame.minY >= verifiedStoreFrame.maxY,
+                  verifiedSupportFrame.minY >= verifiedStoreFrame.maxY,
+                  verifiedPurchaseFrame.minY >= verifiedStoreFrame.maxY,
+                  verifiedTermsFrame.maxY <= verifiedPrivacyFrame.minY,
+                  verifiedPrivacyFrame.maxY <= verifiedSupportFrame.minY,
+                  verifiedSupportFrame.maxY <= verifiedPurchaseFrame.minY,
+                  !terms.isHittable, !privacy.isHittable,
+                  !support.isHittable, !purchase.isHittable else {
+                return fail("Tall purchase-complete primary-action viewport is unsafe.")
+            }
+            return true
+        }
         guard hasExactValues(),
               verifiedFrames.allSatisfy(isValidFrame),
               verifiedCloseFrame.maxY <= verifiedStoreFrame.minY,
@@ -20054,6 +20295,131 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(back.waitForExistence(timeout: 15))
         XCTAssertTrue(back.isHittable)
         back.tap()
+    }
+
+    @MainActor
+    private func prepareInitialDoublePreflightFocus(
+        zone: XCUIElement,
+        preflight: XCUIElement,
+        in app: XCUIApplication
+    ) throws -> (label: String, value: String?, placeholder: String?) {
+        guard diagnosticProbe == nil, automationSegment == .none,
+              let shard = automationShard,
+              shard.shardID == "s10.4.minimum.double-length", shard.ordinal == 9,
+              shard.requirementID == "double_length",
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {
+            throw AutomationConfigurationError.invalid("Double preflight focus preparation has an invalid route")
+        }
+        let screens = app.scrollViews.matching(identifier: "s3.preflight.screen").containing(
+            .textField, identifier: "s3.preflight.time-zone"
+        )
+        let zoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")
+        let navigationBars = app.navigationBars
+        let tabBars = app.tabBars
+        let acknowledgements = ["s3.preflight.time-zone-confirmed", "s3.preflight.after-dark", "s3.preflight.safe-position"].map {
+            app.switches.matching(identifier: $0)
+        }
+        let beginButtons = app.buttons.matching(identifier: "s3.preflight.begin")
+        let screen = screens.firstMatch
+        let navigationBar = navigationBars.firstMatch
+        let tabBar = tabBars.firstMatch
+        let detail = element("s2.sign-detail.screen", in: app)
+        let identity = (label: zone.label, value: zone.value as? String, placeholder: zone.placeholderValue)
+        guard identity.value == "" || (identity.placeholder != nil && identity.value == identity.placeholder) else {
+            throw AutomationConfigurationError.invalid("Double preflight focus preparation requires an empty input")
+        }
+        let validFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull && !frame.isEmpty && !frame.isInfinite
+                && [frame.minX, frame.minY, frame.maxX, frame.maxY, frame.width, frame.height].allSatisfy { $0.isFinite }
+        }
+        func observe() throws -> (application: CGRect, scroll: CGRect, navigation: CGRect, tab: CGRect, field: CGRect, controls: [CGRect]) {
+            guard screens.count == 1, zoneFields.count == 1,
+                  navigationBars.count == 1, tabBars.count == 1,
+                  acknowledgements.allSatisfy({ $0.count == 1 }), beginButtons.count == 1,
+                  app.state == .runningForeground, preflight.exists, !detail.exists,
+                  zone.exists, zone.isEnabled,
+                  zone.elementType == .textField,
+                  zone.identifier == "s3.preflight.time-zone",
+                  !app.keyboards.firstMatch.exists,
+                  zoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0,
+                  zone.label == identity.label, (zone.value as? String) == identity.value,
+                  zone.placeholderValue == identity.placeholder,
+                  acknowledgements.allSatisfy({ ($0.firstMatch.value as? String) == "0" }),
+                  beginButtons.firstMatch.exists, !beginButtons.firstMatch.isEnabled else {
+                throw AutomationConfigurationError.invalid("Double preflight focus preparation changed the ready state")
+            }
+            let result = (application: app.frame, scroll: screen.frame,
+                          navigation: navigationBar.frame, tab: tabBar.frame, field: zone.frame,
+                          controls: acknowledgements.map { $0.firstMatch.frame })
+            guard ([result.application, result.scroll, result.navigation, result.tab, result.field] + result.controls).allSatisfy(validFrame) else {
+                throw AutomationConfigurationError.invalid("Double preflight focus preparation has invalid live frames")
+            }
+            return result
+        }
+        func viewport(application: CGRect, scroll: CGRect, navigation: CGRect, tab: CGRect) throws -> CGRect {
+            let live = scroll.intersection(application)
+            let top = max(live.minY, navigation.maxY) + 16
+            let bottom = min(live.maxY, min(application.maxY, tab.minY)) - 16
+            guard validFrame(live), top.isFinite, bottom.isFinite, bottom > top else {
+                throw AutomationConfigurationError.invalid("Double preflight focus viewport is invalid")
+            }
+            return CGRect(x: live.minX, y: top, width: live.width, height: bottom - top)
+        }
+        let before = try observe()
+        let beforeViewport = try viewport(application: before.application, scroll: before.scroll, navigation: before.navigation, tab: before.tab)
+        let diagnosticScalar: (CGFloat) -> Any = { $0.isFinite ? Double($0) as Any : NSNull() }
+        let beforeContext: [String: Any] = [
+            "application": auditFrameObject(before.application), "scroll": auditFrameObject(before.scroll),
+            "navigation": auditFrameObject(before.navigation), "tab": auditFrameObject(before.tab),
+            "field": auditFrameObject(before.field), "controls": before.controls.map { auditFrameObject($0) },
+            "viewport": auditFrameObject(beforeViewport),
+        ]
+        if !beforeViewport.contains(before.field) {
+            let lowerShift = beforeViewport.minY - before.field.minY
+            let upperShift = beforeViewport.maxY - before.field.maxY
+            let dragDistance = max(CGFloat(44), lowerShift)
+            let receiverTop = beforeViewport.minY + 24
+            let receiverBottom = beforeViewport.maxY - 24
+            let live = before.scroll.intersection(before.application)
+            let gutterLeft = live.minX
+            let gutterRight = ([live.maxX, before.field.minX] + before.controls.map { $0.minX }).min()!
+            guard before.field.minY < beforeViewport.minY,
+                  before.field.minX >= beforeViewport.minX, before.field.maxX <= beforeViewport.maxX,
+                  before.field.height <= beforeViewport.height,
+                  [lowerShift, upperShift, dragDistance, receiverTop, receiverBottom, gutterLeft, gutterRight].allSatisfy({ $0.isFinite }),
+                  dragDistance >= 44, dragDistance <= upperShift,
+                  dragDistance <= receiverBottom - receiverTop,
+                  gutterRight > gutterLeft else {
+                printJSONLine(prefix: "S10_4_DOUBLE_PREFLIGHT_FOCUS_FAILURE", object: ["diagnosticOnly": true, "finalAcceptanceEligible": false, "atomicSnapshot": false, "shardID": shard.shardID, "ordinal": shard.ordinal, "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID, "scope": "initial-preflight-post-ready-focus", "stage": "infeasible", "before": beforeContext, "lowerShift": diagnosticScalar(lowerShift), "upperShift": diagnosticScalar(upperShift), "dragDistance": diagnosticScalar(dragDistance), "receiverTop": diagnosticScalar(receiverTop), "receiverBottom": diagnosticScalar(receiverBottom), "gutterLeft": diagnosticScalar(gutterLeft), "gutterRight": diagnosticScalar(gutterRight)])
+                throw AutomationConfigurationError.invalid("Double preflight focus cannot certify one downward drag")
+            }
+            let receiverX = gutterLeft + (gutterRight - gutterLeft) / 2
+            let startPoint = CGPoint(x: receiverX, y: receiverTop)
+            let endPoint = CGPoint(x: receiverX, y: receiverTop + dragDistance)
+            let obstacles = [before.navigation, before.tab, before.field] + before.controls
+            guard live.contains(startPoint), live.contains(endPoint),
+                  obstacles.allSatisfy({ obstacle in
+                      receiverX < obstacle.minX || receiverX > obstacle.maxX
+                          || endPoint.y < obstacle.minY || startPoint.y > obstacle.maxY
+                  }) else {
+                printJSONLine(prefix: "S10_4_DOUBLE_PREFLIGHT_FOCUS_FAILURE", object: ["diagnosticOnly": true, "finalAcceptanceEligible": false, "atomicSnapshot": false, "shardID": shard.shardID, "ordinal": shard.ordinal, "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID, "scope": "initial-preflight-post-ready-focus", "stage": "receiver-obstructed", "before": beforeContext, "receiverX": diagnosticScalar(receiverX), "startY": diagnosticScalar(startPoint.y), "endY": diagnosticScalar(endPoint.y), "dragDistance": diagnosticScalar(dragDistance)])
+                throw AutomationConfigurationError.invalid("Double preflight focus drag receiver is obstructed")
+            }
+            let origin = screen.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            let start = origin.withOffset(CGVector(dx: startPoint.x - before.scroll.minX, dy: startPoint.y - before.scroll.minY))
+            let end = start.withOffset(CGVector(dx: 0, dy: dragDistance))
+            start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+            let after = try observe()
+            let afterViewport = try viewport(application: after.application, scroll: after.scroll, navigation: after.navigation, tab: after.tab)
+            guard after.field.minY > before.field.minY, afterViewport.contains(after.field) else {
+                printJSONLine(prefix: "S10_4_DOUBLE_PREFLIGHT_FOCUS_FAILURE", object: ["diagnosticOnly": true, "finalAcceptanceEligible": false, "atomicSnapshot": false, "shardID": shard.shardID, "ordinal": shard.ordinal, "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID, "scope": "initial-preflight-post-ready-focus", "stage": "insufficient-movement", "before": beforeContext, "afterApplication": auditFrameObject(after.application), "afterScroll": auditFrameObject(after.scroll), "afterNavigation": auditFrameObject(after.navigation), "afterTab": auditFrameObject(after.tab), "afterField": auditFrameObject(after.field), "afterControls": after.controls.map { auditFrameObject($0) }, "afterViewport": auditFrameObject(afterViewport), "dragDistance": diagnosticScalar(dragDistance), "observedMovement": diagnosticScalar(after.field.minY - before.field.minY)])
+                throw AutomationConfigurationError.invalid("Double preflight focus drag did not fully expose the field")
+            }
+        }
+        guard zone.isHittable else {
+            throw AutomationConfigurationError.invalid("Double preflight exposed field is not tappable")
+        }
+        return identity
     }
 
     @MainActor

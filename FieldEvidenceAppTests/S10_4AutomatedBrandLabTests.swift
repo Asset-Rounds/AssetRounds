@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 36_184,
-            sha256: "A92A4C7966CF10AD1F45F0C53C85FC749CFD7F2811D536A6F631CECD6C690C6C"
+            byteCount: 37_466,
+            sha256: "D814FCDAF1E017F2D8E3198ED6D2F55C4B32E52B360920CCD7C0A3CBF69BFB4A"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -252,7 +252,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "  # H408 optional incident-correlated app log; originals remain unchanged.\n",
             before: "  # End H408 optional incident-correlated app log.\n"
         )
-        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n  esac\nfi\n\n"
+        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n    s10.4.minimum.rtl-string)\n      if [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; then\n        ips_test_started_epoch=\"$(date +%s)\"\n      fi ;;\n  esac\nfi\n\n"
         XCTAssertTrue(uiSmokeSource.contains(incidentStartSource))
         // K470: closed bounded admission joins the existing failure-only incident profiles.
         let incidentAdmissionSource = try boundedSource(
@@ -272,12 +272,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(incidentAdmissionSource.contains(required), required)
         }
-        XCTAssertEqual(incidentAdmissionSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = "#).count - 1, 5)
-        for excluded in ["s10.4.minimum.rtl-string", "s10.4.minimum.double-length", "s10.4.current."] {
+        // K471: exact ordinary RTL-string joins three diagnostic input gates only.
+        XCTAssertTrue(simulatorAppLifecycleSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = \"s10.4.minimum.rtl\" ] || \\\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] && \\\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] && \\\n         [ \"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}\" = none ] && \\\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] && \\\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
+        XCTAssertTrue(incidentAdmissionSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
+        XCTAssertEqual(incidentAdmissionSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = "#).count - 1, 6)
+        for excluded in ["s10.4.minimum.double-length", "s10.4.current."] {
             XCTAssertFalse(incidentAdmissionSource.contains(excluded), excluded)
         }
         // Preserve K417 incident admission and bounded same-snapshot prefix.
-        XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ]; }; then"))
+        XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
         XCTAssertTrue(incidentCollectorSource.contains("          ips_prefix_limit=\"$ips_snapshot_bytes\"\n          if [ \"$ips_prefix_limit\" -gt 1048576 ]; then ips_prefix_limit=1048576; fi\n          /usr/bin/head -c \"$ips_prefix_limit\" \"$ips_raw\" \\\n            > \"$failure_diagnostic_path/simulator-incident-app-prefix.log\"\n          ips_prefix_status=\"$?\"\n          ips_prefix_bytes=\"$(LC_ALL=C wc -c < \"$failure_diagnostic_path/simulator-incident-app-prefix.log\" | tr -d '[:space:]')\"\n          ips_tail_snapshot_start=0\n          if [ \"$ips_snapshot_bytes\" -gt 1048576 ]; then\n            ips_tail_snapshot_start=\"$(( ips_snapshot_bytes - 1048576 ))\"\n          fi\n          ips_prefix_tail_overlap=0\n          if [ \"$ips_prefix_bytes\" -gt \"$ips_tail_snapshot_start\" ]; then\n            ips_prefix_tail_overlap=\"$(( ips_prefix_bytes - ips_tail_snapshot_start ))\"\n          fi\n          printf 'ips_prefix_status=%s\\nips_prefix_bytes=%s\\nips_prefix_start_byte=0\\nips_prefix_end_byte=%s\\nips_tail_snapshot_start_byte=%s\\nips_tail_snapshot_end_byte=%s\\nips_prefix_tail_overlap_bytes=%s\\nips_prefix_capture=bounded_snapshot_not_completion_proof\\n' \\\n            \"$ips_prefix_status\" \"$ips_prefix_bytes\" \"$ips_prefix_bytes\" \\\n            \"$ips_tail_snapshot_start\" \"$ips_snapshot_bytes\" \"$ips_prefix_tail_overlap\" \\\n            >> \"$diagnostic_status_path\"\n          if [ \"$ips_query_status\" -ne 0 ] || [ \"$ips_prefix_status\" -ne 0 ] || \\\n             [ \"$ips_prefix_bytes\" -ne \"$ips_prefix_limit\" ] || [ \"$ips_prefix_bytes\" -eq 0 ]; then\n            printf 'ips_prefix_incomplete=true\\n' >> \"$diagnostic_status_path\"\n          fi\n"))
         for exact in [
             "int(capture)", "capture_epoch=candidates[0]",
@@ -287,8 +290,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"if [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]; then"#,
             #"[ "$ips_capture_epoch" -le "$ips_now" ]"#,
             #"ips_incident_age="$(( ips_now - ips_capture_epoch ))""#,
-            #"ips_lookback_minutes="$(( ips_incident_age / 60 + 1 ))""#,
-            #"[ "$ips_lookback_minutes" -ge 1 ] && [ "$ips_lookback_minutes" -le 10 ]"#,
+            #"[ "$ips_incident_age" -le 599 ]"#,
+            #"[ "$ips_test_started_epoch" -le "$ips_capture_epoch" ]"#,
+            #"ips_test_age="$(( ips_now - ips_test_started_epoch ))""#,
+            #"ips_lookback_minutes="$(( ips_test_age / 60 + 1 ))""#,
+            #"if [ "$ips_lookback_minutes" -gt 10 ]; then ips_lookback_minutes=10; fi"#,
+            "ips_window_test_started_epoch=%s",
             #"--last "${ips_lookback_minutes}m" --style compact"#,
             "ips_query_lookback_seconds=%s", "ips_window_computed_epoch=%s",
             "ips_requested_lower_bound_epoch=%s",
@@ -321,15 +328,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(incidentParserSource.contains("if len(candidates)!=1: return 'skip-ambiguous-incidents'"))
         XCTAssertTrue(incidentParserSource.contains("if key in result: raise ValueError('duplicate key')"))
         XCTAssertTrue(incidentParserSource.contains("decoder=json.JSONDecoder(object_pairs_hook=unique_object)"))
-        func incidentLookbackMinutes(ordinaryRTL: Bool, capture: String, now: String) -> Int? {
+        func incidentLookbackMinutes(
+            ordinaryRTL: Bool, capture: String, now: String,
+            testStart: String = "1000", extra: String = ""
+        ) -> Int? {
             guard ordinaryRTL else { return 10 }
             let epochPattern = #"^[1-9][0-9]{0,9}$"#
             guard capture.range(of: epochPattern, options: .regularExpression) != nil,
                   now.range(of: epochPattern, options: .regularExpression) != nil,
+                  testStart.range(of: epochPattern, options: .regularExpression) != nil,
+                  extra.isEmpty,
                   let captureEpoch = Int(capture), let nowEpoch = Int(now),
-                  captureEpoch <= nowEpoch else { return nil }
-            let minutes = (nowEpoch - captureEpoch) / 60 + 1
-            return (1...10).contains(minutes) ? minutes : nil
+                  let testStartEpoch = Int(testStart),
+                  testStartEpoch <= captureEpoch, captureEpoch <= nowEpoch,
+                  nowEpoch - captureEpoch <= 599 else { return nil }
+            return min(10, (nowEpoch - testStartEpoch) / 60 + 1)
         }
         for (age, expected) in [(0, 1), (59, 1), (60, 2), (133, 3), (539, 9), (540, 10), (599, 10)] {
             XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: true, capture: "1000", now: String(1000 + age)), expected)
@@ -339,11 +352,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "", now: "1000"))
         XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "01", now: "1000"))
         XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: false, capture: "1000", now: "1600"), 10)
+        XCTAssertTrue(incidentCollectorSource.contains("        if [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ]; then\n          ips_window_policy=validated-test-start-age-capped-ten-minute\n          ips_window_valid=false\n          if [[ \"$ips_capture_epoch\" =~ ^[1-9][0-9]{0,9}$ ]] &&\n             [ -z \"$ips_extra\" ] && [ \"$ips_capture_epoch\" -le \"$ips_now\" ]; then\n            ips_incident_age=\"$(( ips_now - ips_capture_epoch ))\"\n            if [ \"$ips_incident_age\" -le 599 ] &&\n               [[ \"$ips_test_started_epoch\" =~ ^[1-9][0-9]{0,9}$ ]] &&\n               [ \"$ips_test_started_epoch\" -le \"$ips_capture_epoch\" ]; then\n              ips_test_age=\"$(( ips_now - ips_test_started_epoch ))\"\n              ips_lookback_minutes=\"$(( ips_test_age / 60 + 1 ))\"\n              if [ \"$ips_lookback_minutes\" -gt 10 ]; then ips_lookback_minutes=10; fi\n              ips_window_valid=true\n              printf 'ips_window_test_started_epoch=%s\\n' \"$ips_test_started_epoch\" >> \"$diagnostic_status_path\"\n            fi\n          fi\n        fi\n"))
+        // K471: bounded launch-era request, with capture staleness still fail-closed.
+        XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: true, capture: "1900", now: "2000", testStart: "1"), 10)
+        XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: true, capture: "1900", now: "2000", testStart: "1840"), 3)
+        XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: true, capture: "1401", now: "2000", testStart: "1"), 10)
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "1400", now: "2000", testStart: "1"))
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "1900", now: "2000", testStart: "1901"))
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "1900", now: "2000", testStart: ""))
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "1900", now: "2000", testStart: "01"))
+        XCTAssertNil(incidentLookbackMinutes(ordinaryRTL: true, capture: "1900", now: "2000", testStart: "1", extra: "unexpected"))
+        XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: false, capture: "", now: "", testStart: "", extra: "unexpected"), 10)
         XCTAssertTrue(incidentCollectorSource.contains("Scripts/run-with-timeout.sh 25"))
         XCTAssertTrue(incidentCollectorSource.contains("/usr/bin/head -c \"$ips_snapshot_bytes\" \"$ips_raw\" | /usr/bin/tail -c 1048576"))
         XCTAssertEqual(incidentCollectorSource.components(separatedBy: "log show").count - 1, 1)
-        XCTAssertEqual(incidentCollectorSource.components(separatedBy: "s10.4.minimum.rtl").count - 1, 2)
-        XCTAssertFalse(incidentCollectorSource.contains("s10.4.minimum.rtl-string"))
+        XCTAssertEqual(incidentCollectorSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]"#).count - 1, 2)
+        XCTAssertEqual(incidentCollectorSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl-string ]"#).count - 1, 1)
         XCTAssertFalse(incidentCollectorSource.contains("--start"))
         XCTAssertFalse(incidentCollectorSource.contains("--end"))
         for prohibited in ["log stream", "OS_ACTIVITY_MODE", "simctl terminate", "simctl launch", "performAccessibilityAudit", "exit 0"] {
@@ -3988,8 +4012,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertNil(directResidualCommand(CGFloat.nan, -171, 490, 44))
         XCTAssertNil(directResidualCommand(-188, -CGFloat.infinity, 490, 44))
 
+        XCTAssertFalse(preflightMinimumSource.contains(
+            #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#
+        ))
         for retiredMinimumDoubleLengthDiagnosticSymbol in [
-            #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#,
             "diagnoseMinimumDoubleLengthPreflightNativeContrast",
             "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_NATIVE_CONTRAST_DIAGNOSTIC",
             "S10.4 minimum double-length preflight native contrast diagnostic",
@@ -4021,45 +4047,132 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let preflightZoneScroll = "        scroll(zone, in: app)"
-        XCTAssertEqual(
-            uiSource.components(separatedBy: preflightZoneScroll).count - 1,
-            1
+        let preflightInputToBeginSource = try boundedSource(
+            uiSource,
+            from: "        let doublePreflightFocusIdentity:",
+            before: #"        let begin = element("s3.preflight.begin", in: app)"#
         )
-        guard let preflightZoneScrollRange = uiSource.range(
-            of: preflightZoneScroll,
-            range: preflightQuickPathCaptureRange.upperBound..<uiSource.endIndex
-        ), let preflightBeginRange = uiSource.range(
-            of: #"        let begin = element("s3.preflight.begin", in: app)"#,
-            range: preflightZoneScrollRange.upperBound..<uiSource.endIndex
-        ) else {
-            XCTFail("Missing the unchanged post-capture Preflight input slices")
-            return
+        XCTAssertEqual(preflightInputToBeginSource.components(separatedBy: preflightAXTextAfterDarkGate).count - 1, 1)
+        let doubleFocusPreparationSource = try boundedSource(
+            uiSource,
+            from: "    private func prepareInitialDoublePreflightFocus(",
+            before: "    private func scroll(_ value: XCUIElement, in app: XCUIApplication)"
+        )
+        let doubleFocusActionSource = try boundedSource(
+            preflightInputToBeginSource,
+            from: "        let doublePreflightFocusIdentity:",
+            before: "        zone.typeText(\"America/New_York\")"
+        )
+        for invariant in [
+            "diagnosticProbe == nil, automationSegment == .none",
+            "shard.shardID == \"s10.4.minimum.double-length\", shard.ordinal == 9",
+            "shard.requirementID == \"double_length\"",
+            "shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"",
+            "app.scrollViews.matching(identifier: \"s3.preflight.screen\").containing(",
+            ".textField, identifier: \"s3.preflight.time-zone\"",
+            "zoneFields.count == 1",
+            "zone.elementType == .textField",
+            "zone.identifier == \"s3.preflight.time-zone\"",
+            "identity.value == \"\" || (identity.placeholder != nil && identity.value == identity.placeholder)",
+            "!app.keyboards.firstMatch.exists",
+            "hasKeyboardFocus == true",
+            "== 0",
+            "zone.label == identity.label, (zone.value as? String) == identity.value",
+            "zone.placeholderValue == identity.placeholder",
+            "acknowledgements.allSatisfy({ $0.count == 1 })",
+            "acknowledgements.allSatisfy({ ($0.firstMatch.value as? String) == \"0\" })",
+            "beginButtons.firstMatch.exists, !beginButtons.firstMatch.isEnabled",
+            "!detail.exists",
+            "!frame.isNull && !frame.isEmpty && !frame.isInfinite",
+            ".allSatisfy(validFrame)",
+            "let live = scroll.intersection(application)",
+            "let top = max(live.minY, navigation.maxY) + 16",
+            "let bottom = min(live.maxY, min(application.maxY, tab.minY)) - 16",
+            "if !beforeViewport.contains(before.field)",
+            "let lowerShift = beforeViewport.minY - before.field.minY",
+            "let upperShift = beforeViewport.maxY - before.field.maxY",
+            "let dragDistance = max(CGFloat(44), lowerShift)",
+            "let receiverTop = beforeViewport.minY + 24",
+            "let receiverBottom = beforeViewport.maxY - 24",
+            "let gutterRight = ([live.maxX, before.field.minX] + before.controls.map { $0.minX }).min()!",
+            "before.field.minY < beforeViewport.minY",
+            "before.field.minX >= beforeViewport.minX, before.field.maxX <= beforeViewport.maxX",
+            "before.field.height <= beforeViewport.height",
+            "dragDistance >= 44, dragDistance <= upperShift",
+            "dragDistance <= receiverBottom - receiverTop",
+            "gutterRight > gutterLeft",
+            "live.contains(startPoint), live.contains(endPoint)",
+            "receiverX < obstacle.minX || receiverX > obstacle.maxX",
+            "|| endPoint.y < obstacle.minY || startPoint.y > obstacle.maxY",
+            "let origin = screen.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))",
+            "start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)",
+            "let after = try observe()",
+            "after.field.minY > before.field.minY, afterViewport.contains(after.field)",
+            "guard zone.isHittable else",
+        ] {
+            XCTAssertTrue(doubleFocusPreparationSource.contains(invariant), invariant)
         }
-        let preflightCaptureToZoneScrollSource = String(
-            uiSource[
-                preflightQuickPathCaptureRange.lowerBound ..<
-                    preflightZoneScrollRange.lowerBound
-            ]
+        for invariant in [
+            "if automationShard?.shardID == \"s10.4.minimum.double-length\" {",
+            "doublePreflightFocusIdentity = try prepareInitialDoublePreflightFocus(",
+            "} else {\n            doublePreflightFocusIdentity = nil\n            scroll(zone, in: app)\n        }\n        zone.tap()\n        if let doublePreflightFocusIdentity {",
+            "guard wait(for: zone, predicate: \"hasKeyboardFocus == true\", timeout: 10),",
+            "focusZoneFields.count == 1",
+            "zone.elementType == .textField",
+            "zone.identifier == \"s3.preflight.time-zone\"",
+            "zone.label == doublePreflightFocusIdentity.label",
+            "(zone.value as? String) == doublePreflightFocusIdentity.value",
+            "zone.placeholderValue == doublePreflightFocusIdentity.placeholder",
+            "return controls.count == 1 && (controls.firstMatch.value as? String) == \"0\"",
+            "}), preflight.exists, app.state == .runningForeground else {",
+        ] {
+            XCTAssertTrue(doubleFocusActionSource.contains(invariant), invariant)
+        }
+        XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: ".press(").count - 1, 1)
+        XCTAssertEqual(doubleFocusActionSource.components(separatedBy: "zone.tap()").count - 1, 1)
+        XCTAssertEqual(doubleFocusActionSource.components(separatedBy: "wait(for: zone").count - 1, 1)
+        for prohibited in [".tap(", ".typeText(", ".swipe", "while ", "for attempt", "setToggle", "catch", "screenshot", "debugDescription"] {
+            XCTAssertFalse(doubleFocusPreparationSource.contains(prohibited), prohibited)
+        }
+        for prohibited in ["beginButtons", "s3.preflight.begin", "coordinate(", "catch", ".typeText("] {
+            XCTAssertFalse(doubleFocusActionSource.contains(prohibited), prohibited)
+        }
+        XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: "S10_4_DOUBLE_PREFLIGHT_FOCUS_FAILURE").count - 1, 3)
+        XCTAssertTrue(doubleFocusPreparationSource.contains("\"observedMovement\": diagnosticScalar(after.field.minY - before.field.minY)"))
+        XCTAssertTrue(doubleFocusPreparationSource.contains("\"diagnosticOnly\": true"))
+        XCTAssertTrue(doubleFocusPreparationSource.contains("\"finalAcceptanceEligible\": false"))
+        XCTAssertTrue(doubleFocusPreparationSource.contains("\"atomicSnapshot\": false"))
+        XCTAssertTrue(doubleFocusPreparationSource.contains("\"shardID\": shard.shardID"))
+        XCTAssertTrue(doubleFocusPreparationSource.contains("\"scope\": \"initial-preflight-post-ready-focus\""))
+        XCTAssertTrue(doubleFocusPreparationSource.contains("$0.isFinite ? Double($0) as Any : NSNull()"))
+        XCTAssertTrue(doubleFocusPreparationSource.contains("\"lowerShift\": diagnosticScalar(lowerShift)"))
+        XCTAssertTrue(doubleFocusPreparationSource.contains("\"upperShift\": diagnosticScalar(upperShift)"))
+        let doubleFocusInfeasibleFailure = try boundedSource(
+            doubleFocusPreparationSource,
+            from: "                  gutterRight > gutterLeft else {",
+            before: "            let receiverX ="
         )
-        let preflightZoneScrollToBeginSource = String(
-            uiSource[
-                preflightZoneScrollRange.lowerBound..<preflightBeginRange.lowerBound
-            ]
+        XCTAssertTrue(doubleFocusInfeasibleFailure.contains("throw AutomationConfigurationError.invalid(\"Double preflight focus cannot certify one downward drag\")"))
+        for prohibited in ["return", ".tap(", ".typeText(", "catch"] {
+            XCTAssertFalse(doubleFocusInfeasibleFailure.contains(prohibited), prohibited)
+        }
+        let doubleFocusPostDragFailure = try boundedSource(
+            doubleFocusPreparationSource,
+            from: "            guard after.field.minY > before.field.minY, afterViewport.contains(after.field) else {",
+            before: "        guard zone.isHittable else {"
         )
-        XCTAssertEqual(
-            preflightZoneScrollToBeginSource.components(
-                separatedBy: preflightAXTextAfterDarkGate
-            ).count - 1,
-            1
+        XCTAssertTrue(doubleFocusPostDragFailure.contains("throw AutomationConfigurationError.invalid(\"Double preflight focus drag did not fully expose the field\")"))
+        for prohibited in ["return", ".tap(", ".typeText(", "catch"] {
+            XCTAssertFalse(doubleFocusPostDragFailure.contains(prohibited), prohibited)
+        }
+        let doubleFocusInputFailure = try boundedSource(
+            doubleFocusActionSource,
+            from: "                  }), preflight.exists, app.state == .runningForeground else {",
+            before: "            }"
         )
-        guard let preflightZoneAXTextGateRange =
-            preflightZoneScrollToBeginSource.range(
-                of: preflightAXTextAfterDarkGate
-            )
-        else {
-            XCTFail("Missing the bounded Preflight AX-only gate")
-            return
+        XCTAssertTrue(doubleFocusInputFailure.contains("throw AutomationConfigurationError.invalid(\"Double preflight time-zone focus did not preserve the empty input state\")"))
+        for prohibited in ["return", ".tap(", ".typeText(", "catch"] {
+            XCTAssertFalse(doubleFocusInputFailure.contains(prohibited), prohibited)
         }
         let preflightInitialSafePositionSequence = try boundedSource(
             uiSource,
@@ -13493,8 +13606,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let postPurchaseCapture =
             #"        captureBaseline("state.paywall.purchase-complete", in: app)"#
         let postPurchaseAXGateStart =
-            #"        if automationShard?.shardID == "s10.4.current.ax-text" ||"# + "\n" +
-                #"            automationShard?.shardID == "s10.4.minimum.minimum-os" {"#
+            #"        if automationShard?.shardID == "s10.4.current.ax-text" ||"#
         let postPurchaseNonAXSuffixStart =
             "        var measuredUndertravel: CGFloat = 0"
         let postPurchaseAXHelperBoundary =
@@ -13551,6 +13663,33 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(axHelperCall.lowerBound, axCapture.lowerBound)
         XCTAssertLessThan(axCapture.lowerBound, axReturn.lowerBound)
         XCTAssertTrue(postPurchaseAXGateSource.hasPrefix(postPurchaseAXGateStart))
+        let tallPurchaseCaller = try boundedSource(
+            postPurchaseViewportPreludeSource,
+            from: "        let usesTallPurchaseCompleteViewport =",
+            before: "\n        }\n"
+        )
+        for admission in [
+            #"automationShard?.shardID == "s10.4.minimum.tall""#,
+            "if usesTallPurchaseCompleteViewport",
+            "guard diagnosticProbe == nil, automationSegment == .none",
+            #"shard.ordinal == 12, shard.requirementID == "tall""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #"shard.locale == "en-US-tall""#,
+            "Tall purchase-complete preparation has an invalid route.",
+            "return usedSettingsRetry",
+        ] {
+            XCTAssertTrue(tallPurchaseCaller.contains(admission), admission)
+        }
+        XCTAssertFalse(tallPurchaseCaller.contains("shouldPrepareNormalEvidence"))
+        XCTAssertFalse(tallPurchaseCaller.contains("captureBaseline"))
+        XCTAssertTrue(postPurchaseAXGateSource.contains("usesTallPurchaseCompleteViewport"))
+        XCTAssertTrue(postPurchaseAXGateSource.contains("guard positionAXTextPurchaseCompleteViewport(in: app) else"))
+        XCTAssertTrue(postPurchaseAXGateSource.contains("return usedSettingsRetry"))
+        let tallHelperFailureReturn = try XCTUnwrap(postPurchaseAXGateSource.range(
+            of: "return usedSettingsRetry", range: axHelperCall.upperBound..<axCapture.lowerBound
+        ))
+        XCTAssertLessThan(tallHelperFailureReturn.lowerBound, axCapture.lowerBound)
+
         XCTAssertEqual(
             postPurchaseAXGateSource.components(
                 separatedBy: "diagnoseSegment2AXTextPaywallPurchaseCompleteNativeContrast"
@@ -13829,7 +13968,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"identifier: "s7.2.paywall.terms""#,
             #"identifier: "s7.2.paywall.privacy""#,
             #"identifier: "s7.2.paywall.support""#,
-            "let purchaseButtons = app.buttons.matching(purchasePredicate)",
+            "let purchaseButtons = usesTallPurchaseCompleteViewport",
             "purchase.identifier.isEmpty",
             "let usesMinimumOSViewport =",
             #"automationShard?.shardID == "s10.4.minimum.minimum-os""#,
@@ -13837,13 +13976,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(postPurchaseAXRouteSource.contains(exactRouteLock), exactRouteLock)
         }
         for exactValueLock in [
-            #"(store.value as? String) == "Ready""#,
-            #"close.label == "Close""#,
-            #"== "Complete: Purchase verified. Subscription access is ready.""#,
-            #"terms.label == "Terms""#,
-            #"privacy.label == "Privacy""#,
-            #"support.label == "Support""#,
-            #"purchase.label == "Subscribe""#,
+            #"(store.value as? String) == expectedReadyValue"#,
+            #"close.label == expectedCloseLabel"#,
+            #"== expectedVerifiedLabel"#,
+            #"terms.label == expectedTermsLabel"#,
+            #"privacy.label == expectedPrivacyLabel"#,
+            #"support.label == expectedSupportLabel"#,
+            #"purchase.label == expectedPurchaseLabel"#,
             "close.isEnabled", "purchaseState.isEnabled", "terms.isEnabled",
             "privacy.isEnabled", "support.isEnabled", "purchase.isEnabled",
         ] {
@@ -13865,7 +14004,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "receiverCapacity >= minimumGestureDistance",
             "let targetDistance = geometry.minimumShift > 0",
             "let dragDistance = targetDistance > 0",
-            "let storeOrigin = store.coordinate(",
+            "let storeOrigin = usesTallPurchaseCompleteViewport",
             "let dragStart = usesMinimumOSViewport",
             "withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)",
             "let dragEnd = usesMinimumOSViewport",
@@ -13949,13 +14088,137 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let lowercasedAXHelperSource = postPurchaseAXHelperSource.lowercased()
         for prohibitedHelperSideEffect in [
             "capturebaseline(", "performaccessibilityaudit", "issuehandler",
-            "xctattachment", "printjsonline", "candidate", "xctexpectfailure",
+            "xctattachment", "candidate", "xctexpectfailure",
             "swipeup", "swipedown",
             "dispatchqueue", "sleep(",
         ] {
             XCTAssertFalse(lowercasedAXHelperSource.contains(prohibitedHelperSideEffect))
         }
-        XCTAssertFalse(postPurchaseAXHelperSource.contains("close.isHittable"))
+        let tallPurchaseHelperAdmission = try boundedSource(
+            postPurchaseAXHelperSource,
+            from: "        let usesTallPurchaseCompleteViewport =",
+            before: "        let tallMarker ="
+        )
+        for admission in [
+            #"automationShard?.shardID == "s10.4.minimum.tall""#,
+            "if usesTallPurchaseCompleteViewport",
+            "guard diagnosticProbe == nil, automationSegment == .none",
+            #"shard.ordinal == 12, shard.requirementID == "tall""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #"shard.locale == "en-US-tall""#,
+            "Tall purchase-complete helper has an invalid route.",
+            "return false",
+        ] {
+            XCTAssertTrue(tallPurchaseHelperAdmission.contains(admission), admission)
+        }
+        for literal in [
+            #"let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}""#,
+            #"? tallMarker + "Ready" + tallMarker : "Ready""#,
+            #"? tallMarker + "Close" + tallMarker : "Close""#,
+            #"? tallMarker + "Terms" + tallMarker : "Terms""#,
+            #"? tallMarker + "Privacy" + tallMarker : "Privacy""#,
+            #"? tallMarker + "Support" + tallMarker : "Support""#,
+            #"? tallMarker + "Subscribe" + tallMarker : "Subscribe""#,
+            #"? tallMarker + "Complete: " + tallMarker + " Purchase ""#,
+            #"+ tallMarker + " verified. " + tallMarker + " Subscription ""#,
+            #"+ tallMarker + " access " + tallMarker + " is ""#,
+            #"+ tallMarker + " ready." + tallMarker"#,
+            #": "Complete: Purchase verified. Subscription access is ready.""#,
+            #"tallMarker + "Subscription" + tallMarker"#,
+            #"? app.buttons.matching(NSPredicate(format: "label == %@", expectedPurchaseLabel))"#,
+            ": app.buttons.matching(purchasePredicate)",
+        ] {
+            XCTAssertTrue(postPurchaseAXRouteSource.contains(literal), literal)
+        }
+        for geometry in [
+            "screen.descendants(matching: .navigationBar)",
+            ".matching(identifier: expectedTallNavigationIdentifier)",
+            "store.descendants(matching: .scrollView)",
+            "tallNavigationBars.count == 1", "tallStoreScrollViews.count == 1",
+            "guard usesTallPurchaseCompleteViewport else { return store.frame }",
+            "screenFrame.contains(navigationFrame)",
+            "applicationFrame.intersection(screenFrame)",
+            ".intersection(storeFrame).intersection(scrollFrame)",
+            "navigationFrame.maxY < clippedFrame.maxY",
+            "let visibleTop = max(clippedFrame.minY, navigationFrame.maxY)",
+            "height: clippedFrame.maxY - visibleTop",
+        ] {
+            XCTAssertTrue(postPurchaseAXRouteSource.contains(geometry), geometry)
+        }
+        for receiver in [
+            "dx: geometry.storeFrame.minX - sampledApplicationOrigin.x",
+            "dy: geometry.storeFrame.minY - sampledApplicationOrigin.y",
+            "guard let applicationFrame = tallSampledApplicationFrame",
+            "applicationFrame.contains(geometry.storeFrame)",
+            "sampledApplicationOrigin = applicationFrame.origin",
+            "if usesTallPurchaseCompleteViewport",
+            "receiverStartY >= receiverTop", "receiverStartY <= receiverBottom",
+            "receiverEndY >= receiverTop", "receiverEndY <= receiverBottom",
+            "abs(dragDistance) >= minimumGestureDistance",
+            "Tall purchase-complete gesture leaves the unobscured receiver.",
+        ] {
+            XCTAssertTrue(postPurchaseAXPositioningSource.contains(receiver), receiver)
+        }
+        let tallFinalViewport = try boundedSource(
+            postPurchaseAXVerifiedSource,
+            from: "        if usesTallPurchaseCompleteViewport {\n            let tallInteractiveFrames",
+            before: "\n        guard hasExactValues(),"
+        )
+        for obligation in [
+            "verifiedCloseFrame, verifiedTermsFrame",
+            "verifiedPrivacyFrame, verifiedSupportFrame",
+            "$0.width >= minimumGestureDistance && $0.height >= minimumGestureDistance",
+            "$0.minX >= verifiedStoreFrame.minX && $0.maxX <= verifiedStoreFrame.maxX",
+            "guard hasExactValues()", "verifiedFrames.allSatisfy(isValidFrame)",
+            "verifiedStoreFrame.contains(verifiedCloseFrame)",
+            "verifiedStoreFrame.contains(verifiedPurchaseStateFrame)",
+            "close.isHittable, purchaseState.isHittable",
+            "verifiedCloseFrame.maxY <= verifiedPurchaseStateFrame.minY",
+            "verifiedPurchaseStateFrame.maxY <= verifiedTermsFrame.minY",
+            "verifiedTermsFrame.minY >= verifiedStoreFrame.maxY",
+            "verifiedPrivacyFrame.minY >= verifiedStoreFrame.maxY",
+            "verifiedSupportFrame.minY >= verifiedStoreFrame.maxY",
+            "verifiedPurchaseFrame.minY >= verifiedStoreFrame.maxY",
+            "verifiedTermsFrame.maxY <= verifiedPrivacyFrame.minY",
+            "verifiedPrivacyFrame.maxY <= verifiedSupportFrame.minY",
+            "verifiedSupportFrame.maxY <= verifiedPurchaseFrame.minY",
+            "!terms.isHittable, !privacy.isHittable",
+            "!support.isHittable, !purchase.isHittable",
+            "return fail(\"Tall purchase-complete primary-action viewport is unsafe.\")",
+            "return true",
+        ] {
+            XCTAssertTrue(tallFinalViewport.contains(obligation), obligation)
+        }
+        XCTAssertFalse(tallFinalViewport.contains("xmark"))
+        XCTAssertFalse(postPurchaseAXHelperSource.contains(".tap()"))
+        let tallInfeasibleObservation = try boundedSource(
+            postPurchaseAXPositioningSource,
+            from: "                    if usesTallPurchaseCompleteViewport {\n                        var observation = tallCachedIntervalObservation",
+            before: "                    return fail("
+        )
+        for record in [
+            #"?? ["cachedIntervalAvailable": false]"#,
+            #"observation["diagnosticOnly"] = true"#,
+            #"observation["finalAcceptanceEligible"] = false"#,
+            #"observation["atomicSnapshot"] = false"#,
+            #"observation["event"] = "infeasible-stage""#,
+            #"observation["stage"] = stage"#,
+            #"printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: observation)"#,
+        ] {
+            XCTAssertTrue(tallInfeasibleObservation.contains(record), record)
+        }
+        for nativeRead in [".frame", ".exists", ".label", ".value", ".count", ".isHittable",
+                           "screenshot", "debugDescription", ".tap(", ".press("] {
+            XCTAssertFalse(tallInfeasibleObservation.contains(nativeRead), nativeRead)
+        }
+        XCTAssertEqual(postPurchaseAXHelperSource.components(separatedBy: "printJSONLine(").count - 1, 1)
+        XCTAssertTrue(postPurchaseAXPositioningSource.contains(
+            "if usesTallPurchaseCompleteViewport { tallCachedIntervalObservation = nil }\n                guard let geometry = interval()"
+        ))
+        XCTAssertTrue(postPurchaseAXPositioningSource.contains(
+            "return fail(\n                        \"AX-text purchase-complete \\(stage) interval is infeasible.\""
+        ))
+
 
         let deleteCompositionLocks = [
             #"let deleteMessage = element("s6.1.delete.message", in: app)"#,
@@ -19957,10 +20220,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_010_886)
+        XCTAssertEqual(uiSource.utf8.count, 1_035_927)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "96EDD2478988BC2059FF6506C98F97E84497CCFE70681350C6A4840E96B4DB64"
+            "21BD083233C3B81BF84BEBE6CF1923B591F508D2C428EC1D42556375077D4152"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
