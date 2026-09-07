@@ -6835,26 +6835,87 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
-        let positionedSafePositionToggle =
-            #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
-                "        app.swipeUp()\n" +
-                #"        setToggle("s3.preflight.safe-position", in: app)"#
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: positionedSafePositionToggle
-            ).count - 1,
-            4
+        let initialDoubleSafePositionPreparation = try boundedSource(
+            freshPreflightKeyboardDismissal,
+            from: "        if diagnosticProbe == nil, automationSegment == .none,\n           let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.double-length\", shard.ordinal == 9,",
+            before: "        setToggle(\"s3.preflight.safe-position\", in: app)"
         )
-        let unpositionedSafePositionToggle =
-            #"        setToggle("s3.preflight.after-dark", in: app)"# + "\n" +
-                #"        setToggle("s3.preflight.safe-position", in: app)"#
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: unpositionedSafePositionToggle
-            ).count - 1,
-            0
+        XCTAssertTrue(initialDoubleSafePositionPreparation.contains("shard.requirementID == \"double_length\""))
+        XCTAssertTrue(initialDoubleSafePositionPreparation.contains("shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\""))
+        XCTAssertTrue(initialDoubleSafePositionPreparation.contains("guard positionInitialDoubleSafePosition(in: app) else { return }"))
+        XCTAssertEqual(uiSource.components(separatedBy: "positionInitialDoubleSafePosition(in: app)").count - 1, 1)
+        let doubleSafePositionSource = try boundedSource(
+            uiSource,
+            from: "    private func positionInitialDoubleSafePosition(in app: XCUIApplication) -> Bool {",
+            before: "    @MainActor\n    private func positionPreflightAfterDarkForAXText("
         )
-
+        for requiredDoublePreparation in [
+            "guard diagnosticProbe == nil, automationSegment == .none",
+            "shard.shardID == \"s10.4.minimum.double-length\", shard.ordinal == 9",
+            "shard.requirementID == \"double_length\"",
+            "shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"",
+            "safePositions.count == 1", "screens.count == 1",
+            "receivers.count == 1", "app.scrollViews.containing(.switch, identifier: \"s3.preflight.safe-position\")",
+            "receiver.identifier == \"s3.preflight.screen\"", "receiverFrame == scrollFrame",
+            "navigationBars.count == 1", "tabBars.count == 1",
+            "confirmations.count == 1", "afterDarks.count == 1", "zones.count == 1", "begins.count == 1",
+            "safePosition.elementType == .switch",
+            "safePosition.label == \"I am in a safe, authorized position to take these photos.\"",
+            "safePosition.isEnabled && (safePosition.value as? String) == \"0\"",
+            "(zone.value as? String) == \"America/New_York\"",
+            "zone.label == expectedZoneLabel", "confirmation.label == expectedConfirmationLabel",
+            "!hasKeyboardFocus.evaluate(with: zone)",
+            "(confirmation.value as? String) == \"1\"", "(afterDark.value as? String) == \"1\"",
+            "begin.identifier == \"s3.preflight.begin\" && !begin.isEnabled",
+            "keyboards.count == 0 && inputViews.count == 0",
+            "applicationFrame.intersection(scrollFrame)",
+            "applicationFrame.contains(navigationFrame), applicationFrame.contains(tabFrame)",
+            "targetFrame.minX >= viewport.minX, targetFrame.maxX <= viewport.maxX",
+            "max(viewport.minY, navigationFrame.maxY)", "min(viewport.maxY, tabFrame.minY)",
+            "safeBottom > safeTop, receiverBottom > receiverTop",
+            "assistantFrames.allSatisfy({ validFrame($0) && !safeViewport.intersects($0) })",
+            "let verticalInset: CGFloat = 16", "let receiverInset: CGFloat = 24", "let minimumGestureDistance: CGFloat = 44",
+            "for attempt in 0...4", "guard attempt < 4",
+            "viewport == previous.viewport, navigationFrame == previous.navigation",
+            "tabFrame == previous.tab, movement.isFinite, movement != 0",
+            "(movement > 0) == (previous.command > 0)",
+            "if safeViewport.contains(targetFrame), safePosition.isHittable",
+            "minimumShift.isFinite, maximumShift.isFinite, minimumShift <= maximumShift",
+            "lower = max(minimumShift, -receiverCapacity)", "upper = min(maximumShift, -minimumGestureDistance)",
+            "lower = max(minimumShift, minimumGestureDistance)", "upper = min(maximumShift, receiverCapacity)",
+            "lower.isFinite, upper.isFinite, lower <= upper",
+            "let distance = lower / 2 + upper / 2",
+            "distance.isFinite, distance != 0, distance >= lower, distance <= upper",
+            "abs(distance) >= minimumGestureDistance, abs(distance) <= receiverCapacity",
+            "direction != positioningDirection", "startY.isFinite, endY.isFinite",
+            "endY >= receiverTop, endY <= receiverBottom",
+            "withVelocity: .slow, thenHoldForDuration: 0.2",
+        ] {
+            XCTAssertTrue(doubleSafePositionSource.contains(requiredDoublePreparation), requiredDoublePreparation)
+        }
+        let doubleRouteValidation = try XCTUnwrap(doubleSafePositionSource.range(of: "guard stableState()"))
+        let doubleGeometryRead = try XCTUnwrap(doubleSafePositionSource.range(of: "let applicationFrame = app.frame"))
+        let doubleLiveSuccess = try XCTUnwrap(doubleSafePositionSource.range(of: "if safeViewport.contains(targetFrame), safePosition.isHittable"))
+        let doubleActionBound = try XCTUnwrap(doubleSafePositionSource.range(of: "guard attempt < 4"))
+        let doubleNativeAction = try XCTUnwrap(doubleSafePositionSource.range(of: "start.press("))
+        XCTAssertLessThan(doubleRouteValidation.lowerBound, doubleGeometryRead.lowerBound)
+        XCTAssertLessThan(doubleGeometryRead.lowerBound, doubleLiveSuccess.lowerBound)
+        XCTAssertLessThan(doubleLiveSuccess.lowerBound, doubleActionBound.lowerBound)
+        XCTAssertLessThan(doubleActionBound.lowerBound, doubleNativeAction.lowerBound)
+        XCTAssertEqual(doubleSafePositionSource.components(separatedBy: ".press(").count - 1, 1)
+        for prohibitedDoublePreparation in [".tap(", ".typeText(", "wait(", "waitForExistence", "sleep(", "captureBaseline(", "performAccessibilityAudit", "printJSONLine", "setToggle("] {
+            XCTAssertFalse(doubleSafePositionSource.contains(prohibitedDoublePreparation), prohibitedDoublePreparation)
+        }
+        let laterPreflightToggleSteps = "        setToggle(\"s3.preflight.after-dark\", in: app)\n        app.swipeUp()\n        setToggle(\"s3.preflight.safe-position\", in: app)"
+        for (laterStart, laterEnd) in [
+            ("    private func completeWorkAndResolvedRecheckAtXXXL(", "    private func captureAlternativeCompletedCheckStates("),
+            ("    private func beginFreshCheck(in app: XCUIApplication) {", "    private func purchaseBlockedEvaluationAndBeginFreshCheck("),
+            ("    private func performAlternativeRecheck(", "    private func diagnoseSegment2AXTextRecheckOutcomeDifferentIssueInterval("),
+        ] {
+            let laterPreflightSource = try boundedSource(uiSource, from: laterStart, before: laterEnd)
+            XCTAssertTrue(laterPreflightSource.contains(laterPreflightToggleSteps))
+            XCTAssertFalse(laterPreflightSource.contains("positionInitialDoubleSafePosition"))
+        }
         let toggleHelperStart = try XCTUnwrap(uiSource.range(of:
             "    private func setToggle(_ identifier: String, in app: XCUIApplication) {"))
         let toggleHelperEnd = try XCTUnwrap(uiSource.range(of:
@@ -18770,11 +18831,39 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for clause in ["diagnosticProbe == nil", "automationSegment == .none", #"shard.shardID == "s10.4.minimum.rtl-string""#, "shard.ordinal == 11", #"shard.requirementID == "rtl_string""#, #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#] {
             XCTAssertTrue(rtlNoteOverlapAdmission.contains(clause))
         }
-        XCTAssertEqual(rtlNoteOverlapAdmission.components(separatedBy: "||").count - 1, 1)
+        XCTAssertEqual(
+            rtlNoteOverlapAdmission.replacingOccurrences(
+                of: "permitsRTLStringNoteOutsideDoneBand",
+                with: "usesRTLStringNativeDoneTarget"
+            ),
+            rtlNativeDoneTargetAdmission
+        )
         XCTAssertTrue(rtlNoteOverlapAdmission.contains(#"shard.shardID == "s10.4.minimum.bounded""#))
         XCTAssertTrue(rtlNoteOverlapAdmission.contains("shard.ordinal == 14"))
         XCTAssertTrue(rtlNoteOverlapAdmission.contains(#"shard.requirementID == "bounded""#))
-        XCTAssertFalse(rtlNoteOverlapAdmission.contains(#"shard.shardID == "s10.4.minimum.rtl""#))
+        XCTAssertTrue(rtlNoteOverlapAdmission.contains(#"shard.shardID == "s10.4.minimum.rtl""#))
+        XCTAssertTrue(rtlNoteOverlapAdmission.contains("shard.ordinal == 10 && shard.requirementID == \"rtl\""))
+        let noteOverlapPreconditionPasses: (Bool, String?, String, String, Int, String, String) -> Bool = {
+            overlaps, probe, segment, shardID, ordinal, requirementID, profileID in
+            overlaps || nativeDoneTargetAdmitted(probe, segment, shardID, ordinal, requirementID, profileID)
+        }
+        for tuple in nativeDoneTargetTuples {
+            XCTAssertTrue(noteOverlapPreconditionPasses(false, nil, "none", tuple.0, tuple.1, tuple.2, "iphone-se-3-ios-18.0-minimum"))
+            XCTAssertTrue(noteOverlapPreconditionPasses(true, nil, "none", tuple.0, tuple.1, tuple.2, "iphone-se-3-ios-18.0-minimum"))
+        }
+        let hostileNoteRoutes: [(String?, String, String, Int, String, String)] = [
+            ("probe", "none", "s10.4.minimum.rtl", 10, "rtl", "iphone-se-3-ios-18.0-minimum"),
+            (nil, "segment", "s10.4.minimum.rtl", 10, "rtl", "iphone-se-3-ios-18.0-minimum"),
+            (nil, "none", "s10.4.minimum.tall", 12, "tall", "iphone-se-3-ios-18.0-minimum"),
+            (nil, "none", "s10.4.minimum.rtl", 11, "rtl", "iphone-se-3-ios-18.0-minimum"),
+            (nil, "none", "s10.4.minimum.rtl", 10, "rtl_string", "iphone-se-3-ios-18.0-minimum"),
+            (nil, "none", "s10.4.minimum.rtl", 10, "rtl", "iphone-17-ios-26.2-current"),
+            (nil, "none", "unknown", 10, "rtl", "iphone-se-3-ios-18.0-minimum"),
+        ]
+        for hostileNoteRoute in hostileNoteRoutes {
+            XCTAssertFalse(noteOverlapPreconditionPasses(false, hostileNoteRoute.0, hostileNoteRoute.1, hostileNoteRoute.2, hostileNoteRoute.3, hostileNoteRoute.4, hostileNoteRoute.5))
+            XCTAssertTrue(noteOverlapPreconditionPasses(true, hostileNoteRoute.0, hostileNoteRoute.1, hostileNoteRoute.2, hostileNoteRoute.3, hostileNoteRoute.4, hostileNoteRoute.5))
+        }
         XCTAssertFalse(rtlNoteOverlapAdmission.contains("usesRTLStringNativeDoneTarget"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !permitsRTLStringNoteOutsideDoneBand && !noteHeadingOverlapsDoneAccessoryBand { return \"note-heading-overlaps-done-accessory\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.exists { return \"work-exists\" }"))
@@ -18841,10 +18930,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 949_269)
+        XCTAssertEqual(uiSource.utf8.count, 960_377)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "1B373524358315172CC9FC47EA4E35D0CB0ECAA069226508428D5BB8E5A1ADDD"
+            "F66B5C9734CBF1EC84D76457754D17C83B80CB3069B8AABAE262B4232AC18B29"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

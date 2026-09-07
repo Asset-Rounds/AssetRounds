@@ -4328,6 +4328,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         setToggle("s3.preflight.after-dark", in: app)
         app.swipeUp()
+        if diagnosticProbe == nil, automationSegment == .none,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.double-length", shard.ordinal == 9,
+           shard.requirementID == "double_length",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            guard positionInitialDoubleSafePosition(in: app) else { return }
+        }
         setToggle("s3.preflight.safe-position", in: app)
 
         let begin = element("s3.preflight.begin", in: app)
@@ -16647,6 +16654,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             && automationSegment == .none
             && ((shard.shardID == "s10.4.minimum.rtl-string"
                     && shard.ordinal == 11 && shard.requirementID == "rtl_string")
+                || (shard.shardID == "s10.4.minimum.rtl"
+                    && shard.ordinal == 10 && shard.requirementID == "rtl")
                 || (shard.shardID == "s10.4.minimum.bounded"
                     && shard.ordinal == 14 && shard.requirementID == "bounded"))
             && shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
@@ -17829,6 +17838,181 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         return arguments
     }
 
+    @MainActor
+    private func positionInitialDoubleSafePosition(in app: XCUIApplication) -> Bool {
+        guard diagnosticProbe == nil, automationSegment == .none,
+              let shard = automationShard,
+              shard.shardID == "s10.4.minimum.double-length", shard.ordinal == 9,
+              shard.requirementID == "double_length",
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {
+            XCTFail("Initial double-length safe-position preparation route changed.")
+            return false
+        }
+        let screens = app.scrollViews.matching(identifier: "s3.preflight.screen")
+        let receivers = app.scrollViews.containing(.switch, identifier: "s3.preflight.safe-position")
+        let navigationBars = app.navigationBars
+        let tabBars = app.tabBars
+        let safePositions = app.switches.matching(identifier: "s3.preflight.safe-position")
+        let zones = app.textFields.matching(identifier: "s3.preflight.time-zone")
+        let confirmations = app.switches.matching(identifier: "s3.preflight.time-zone-confirmed")
+        let afterDarks = app.switches.matching(identifier: "s3.preflight.after-dark")
+        let begins = app.buttons.matching(identifier: "s3.preflight.begin")
+        let keyboards = app.keyboards
+        let inputViews = app.otherElements.matching(identifier: "inputView")
+        let assistants = app.otherElements.matching(identifier: "SystemInputAssistantView")
+        let uniqueBindings: () -> Bool = {
+            screens.count == 1 && receivers.count == 1 && navigationBars.count == 1 && tabBars.count == 1
+                && safePositions.count == 1 && zones.count == 1
+                && confirmations.count == 1 && afterDarks.count == 1 && begins.count == 1
+        }
+        let fail: (String) -> Bool = { stage in
+            XCTFail("Initial double-length safe-position preparation failed: \(stage)")
+            return false
+        }
+        guard uniqueBindings() else { return fail("ambiguous-bindings") }
+        let screen = screens.firstMatch
+        let receiver = receivers.firstMatch
+        let navigationBar = navigationBars.firstMatch
+        let tabBar = tabBars.firstMatch
+        let safePosition = safePositions.firstMatch
+        let zone = zones.firstMatch
+        let confirmation = confirmations.firstMatch
+        let afterDark = afterDarks.firstMatch
+        let begin = begins.firstMatch
+        let expectedZoneLabel = zone.label
+        let expectedConfirmationLabel = confirmation.label
+        let expectedNavigationIdentifier = navigationBar.identifier
+        let validFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull && !frame.isInfinite && !frame.isEmpty
+                && frame.minX.isFinite && frame.maxX.isFinite
+                && frame.minY.isFinite && frame.maxY.isFinite
+        }
+        let hasKeyboardFocus = NSPredicate(format: "hasKeyboardFocus == true")
+        let stableState: () -> Bool = {
+            app.state == .runningForeground && uniqueBindings()
+                && screen.exists && screen.elementType == .scrollView
+                && screen.identifier == "s3.preflight.screen"
+                && receiver.exists && receiver.elementType == .scrollView
+                && receiver.identifier == "s3.preflight.screen"
+                && navigationBar.exists && navigationBar.elementType == .navigationBar
+                && !expectedNavigationIdentifier.isEmpty
+                && navigationBar.identifier == expectedNavigationIdentifier
+                && tabBar.exists && tabBar.elementType == .tabBar
+                && safePosition.exists && safePosition.elementType == .switch
+                && safePosition.identifier == "s3.preflight.safe-position"
+                && safePosition.label == "I am in a safe, authorized position to take these photos."
+                && safePosition.isEnabled && (safePosition.value as? String) == "0"
+                && zone.exists && zone.elementType == .textField
+                && zone.identifier == "s3.preflight.time-zone"
+                && !expectedZoneLabel.isEmpty && zone.label == expectedZoneLabel
+                && zone.isEnabled && (zone.value as? String) == "America/New_York"
+                && !hasKeyboardFocus.evaluate(with: zone)
+                && confirmation.exists && confirmation.elementType == .switch
+                && confirmation.identifier == "s3.preflight.time-zone-confirmed"
+                && !expectedConfirmationLabel.isEmpty && confirmation.label == expectedConfirmationLabel
+                && confirmation.isEnabled && (confirmation.value as? String) == "1"
+                && afterDark.exists && afterDark.elementType == .switch
+                && afterDark.identifier == "s3.preflight.after-dark"
+                && afterDark.label == "It is dark enough to observe the sign's visible illumination."
+                && afterDark.isEnabled && (afterDark.value as? String) == "1"
+                && begin.exists && begin.elementType == .button
+                && begin.identifier == "s3.preflight.begin" && !begin.isEnabled
+                && keyboards.count == 0 && inputViews.count == 0
+        }
+        let verticalInset: CGFloat = 16
+        let receiverInset: CGFloat = 24
+        let minimumGestureDistance: CGFloat = 44
+        var previous: (minY: CGFloat, command: CGFloat, viewport: CGRect, navigation: CGRect, tab: CGRect)?
+        var positioningDirection: CGFloat?
+        for attempt in 0...4 {
+            guard stableState() else { return fail("state-changed") }
+            let applicationFrame = app.frame
+            let scrollFrame = screen.frame
+            let receiverFrame = receiver.frame
+            let viewport = applicationFrame.intersection(scrollFrame)
+            let navigationFrame = navigationBar.frame
+            let tabFrame = tabBar.frame
+            let targetFrame = safePosition.frame
+            let assistantFrames = assistants.allElementsBoundByIndex.map { $0.frame }
+            guard [applicationFrame, scrollFrame, receiverFrame, viewport, navigationFrame, tabFrame, targetFrame].allSatisfy(validFrame),
+                  receiverFrame == scrollFrame,
+                  applicationFrame.contains(navigationFrame), applicationFrame.contains(tabFrame),
+                  navigationFrame.maxY <= tabFrame.minY,
+                  targetFrame.minX >= viewport.minX, targetFrame.maxX <= viewport.maxX else {
+                return fail("invalid-geometry")
+            }
+            let obstructionTop = max(viewport.minY, navigationFrame.maxY)
+            let obstructionBottom = min(viewport.maxY, tabFrame.minY)
+            let safeTop = obstructionTop + verticalInset
+            let safeBottom = obstructionBottom - verticalInset
+            let receiverTop = obstructionTop + receiverInset
+            let receiverBottom = obstructionBottom - receiverInset
+            let receiverCapacity = receiverBottom - receiverTop
+            let safeViewport = CGRect(x: viewport.minX, y: safeTop, width: viewport.width, height: safeBottom - safeTop)
+            guard safeTop.isFinite, safeBottom.isFinite,
+                  receiverTop.isFinite, receiverBottom.isFinite, receiverCapacity.isFinite,
+                  safeBottom > safeTop, receiverBottom > receiverTop,
+                  validFrame(safeViewport), targetFrame.height <= safeViewport.height,
+                  receiverCapacity >= minimumGestureDistance,
+                  assistantFrames.allSatisfy({ validFrame($0) && !safeViewport.intersects($0) }) else {
+                return fail("obstructed-or-infeasible-viewport")
+            }
+            if let previous {
+                let movement = targetFrame.minY - previous.minY
+                guard viewport == previous.viewport, navigationFrame == previous.navigation,
+                      tabFrame == previous.tab, movement.isFinite, movement != 0,
+                      (movement > 0) == (previous.command > 0) else {
+                    return fail("invalid-native-progress")
+                }
+            }
+            if safeViewport.contains(targetFrame), safePosition.isHittable {
+                return true
+            }
+            guard attempt < 4 else { return fail("unresolved-containment") }
+            let minimumShift = safeTop - targetFrame.minY
+            let maximumShift = safeBottom - targetFrame.maxY
+            guard minimumShift.isFinite, maximumShift.isFinite, minimumShift <= maximumShift else {
+                return fail("invalid-containment-interval")
+            }
+            let lower: CGFloat
+            let upper: CGFloat
+            if maximumShift < 0 {
+                lower = max(minimumShift, -receiverCapacity)
+                upper = min(maximumShift, -minimumGestureDistance)
+            } else if minimumShift > 0 {
+                lower = max(minimumShift, minimumGestureDistance)
+                upper = min(maximumShift, receiverCapacity)
+            } else {
+                return fail("contained-but-not-hittable")
+            }
+            guard lower.isFinite, upper.isFinite, lower <= upper else {
+                return fail("no-feasible-native-stroke")
+            }
+            let distance = lower / 2 + upper / 2
+            guard distance.isFinite, distance != 0, distance >= lower, distance <= upper,
+                  abs(distance) >= minimumGestureDistance, abs(distance) <= receiverCapacity else {
+                return fail("invalid-native-stroke")
+            }
+            let direction: CGFloat = distance > 0 ? 1 : -1
+            if let positioningDirection, direction != positioningDirection {
+                return fail("direction-reversed")
+            }
+            positioningDirection = direction
+            let startY = distance > 0 ? receiverTop : receiverBottom
+            let endY = startY + distance
+            guard startY.isFinite, endY.isFinite,
+                  startY >= receiverTop, startY <= receiverBottom,
+                  endY >= receiverTop, endY <= receiverBottom else {
+                return fail("stroke-outside-receiver")
+            }
+            let origin = screen.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            let start = origin.withOffset(CGVector(dx: viewport.midX - scrollFrame.minX, dy: startY - scrollFrame.minY))
+            let end = start.withOffset(CGVector(dx: 0, dy: distance))
+            previous = (targetFrame.minY, distance, viewport, navigationFrame, tabFrame)
+            start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+        }
+        return fail("attempts-exhausted")
+    }
     @MainActor
     private func positionPreflightAfterDarkForAXText(
         in app: XCUIApplication
