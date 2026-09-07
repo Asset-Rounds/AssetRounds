@@ -6384,7 +6384,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         if automationShard?.shardID == "s10.4.minimum.rtl-string"
             || (diagnosticProbe == nil && automationSegment == .none
                 && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
-                && ((automationShard?.shardID == "s10.4.minimum.tall"
+                && ((automationShard?.shardID == "s10.4.minimum.rtl"
+                        && automationShard?.ordinal == 10 && automationShard?.requirementID == "rtl")
+                    || (automationShard?.shardID == "s10.4.minimum.tall"
                         && automationShard?.ordinal == 12 && automationShard?.requirementID == "tall")
                     || (automationShard?.shardID == "s10.4.minimum.bounded"
                         && automationShard?.ordinal == 14 && automationShard?.requirementID == "bounded"))) {
@@ -15741,7 +15743,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               (shard.ordinal == 11 && shard.shardID == "s10.4.minimum.rtl-string"
                 && shard.requirementID == "rtl_string")
                 || (diagnosticProbe == nil
-                    && ((shard.ordinal == 12 && shard.shardID == "s10.4.minimum.tall"
+                    && ((shard.ordinal == 10 && shard.shardID == "s10.4.minimum.rtl"
+                            && shard.requirementID == "rtl")
+                        || (shard.ordinal == 12 && shard.shardID == "s10.4.minimum.tall"
                             && shard.requirementID == "tall")
                         || (shard.ordinal == 14 && shard.shardID == "s10.4.minimum.bounded"
                             && shard.requirementID == "bounded"))),
@@ -15765,6 +15769,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let expectedNoteLabel: String
         let expectedDoneLabel: String
         switch shard.requirementID {
+        case "rtl":
+            expectedDescriptionLabel = "Short description"
+            expectedNoteLabel = "Note"
+            expectedDoneLabel = "Done"
         case "tall":
             let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
             expectedDescriptionLabel = tallMarker + "Short " + tallMarker + " description" + tallMarker

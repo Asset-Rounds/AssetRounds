@@ -18342,14 +18342,49 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(rtlWorkValidationAccessoryCall.contains("captureBaseline("))
         XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"diagnosticProbe == nil && automationSegment == .none"#))
         XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
+        XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.shardID == "s10.4.minimum.rtl""#))
+        XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.ordinal == 10 && automationShard?.requirementID == "rtl""#))
         XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.ordinal == 12 && automationShard?.requirementID == "tall""#))
         XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.ordinal == 14 && automationShard?.requirementID == "bounded""#))
+        let ordinaryRTLAccessoryIsAdmitted: (
+            String, Int, String, String, Bool, Bool
+        ) -> Bool = { shardID, ordinal, requirementID, profileID,
+                      diagnosticProbeIsNil, segmentIsNone in
+            diagnosticProbeIsNil && segmentIsNone
+                && shardID == "s10.4.minimum.rtl" && ordinal == 10
+                && requirementID == "rtl"
+                && profileID == "iphone-se-3-ios-18.0-minimum"
+        }
+        XCTAssertTrue(ordinaryRTLAccessoryIsAdmitted(
+            "s10.4.minimum.rtl", 10, "rtl",
+            "iphone-se-3-ios-18.0-minimum", true, true
+        ))
+        for hostileRTLAccessoryRoute in [
+            ("s10.4.minimum.rtl-string", 10, "rtl", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.rtl", 11, "rtl", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.rtl", 10, "rtl_string", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.rtl", 10, "rtl", "iphone-17-ios-26.2-current", true, true),
+            ("s10.4.minimum.rtl", 10, "rtl", "iphone-se-3-ios-18.0-minimum", false, true),
+            ("s10.4.minimum.rtl", 10, "rtl", "iphone-se-3-ios-18.0-minimum", true, false),
+        ] {
+            XCTAssertFalse(ordinaryRTLAccessoryIsAdmitted(
+                hostileRTLAccessoryRoute.0, hostileRTLAccessoryRoute.1,
+                hostileRTLAccessoryRoute.2, hostileRTLAccessoryRoute.3,
+                hostileRTLAccessoryRoute.4, hostileRTLAccessoryRoute.5
+            ))
+        }
 
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"shard.ordinal == 12 && shard.shardID == "s10.4.minimum.tall""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"shard.ordinal == 10 && shard.shardID == "s10.4.minimum.rtl""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"&& shard.requirementID == "rtl""#))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"&& shard.requirementID == "tall""#))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"shard.ordinal == 14 && shard.shardID == "s10.4.minimum.bounded""#))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"&& shard.requirementID == "bounded""#))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"|| (diagnosticProbe == nil"#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"case "rtl":"#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDescriptionLabel = "Short description""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedNoteLabel = "Note""#))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDoneLabel = "Done""#))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDescriptionLabel = tallMarker + "Short " + tallMarker + " description" + tallMarker"#))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedNoteLabel = tallMarker + "Note" + tallMarker"#))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDoneLabel = tallMarker + "Done" + tallMarker"#))
@@ -18471,10 +18506,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 904_284)
+        XCTAssertEqual(uiSource.utf8.count, 904_764)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "7A7CC9D62F3329D93EFA9021652857F9E0360FAC8AC24AAB33FF576B0A061AD6"
+            "586A68E56CE9D9E382DA92E7950127C799AF071AE7748D62A9DD5DACDF8C2A38"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
