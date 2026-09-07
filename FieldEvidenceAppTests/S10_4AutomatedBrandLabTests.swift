@@ -7628,10 +7628,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            }\n" +
                 "            let liveFramesAreValid =\n" +
                 "                rawFramesAreValid && workEditingFrameIsValid(liveScrollFrame)"
+        let rtlEditingHeadingAdmission = try boundedSource(workEditingPositioningSource, from: "        let protectsRTLStringEditingHeading =", before: "        let rtlEditingHeadings:")
+        for clause in ["diagnosticProbe == nil", "automationSegment == .none", #"automationShard?.shardID == "s10.4.minimum.rtl-string""#, "automationShard?.ordinal == 11", #"automationShard?.requirementID == "rtl_string""#, #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#] {
+            XCTAssertTrue(rtlEditingHeadingAdmission.contains(clause))
+        }
+        XCTAssertFalse(rtlEditingHeadingAdmission.contains("||"))
+        for semantic in ["guard let rtlEditingHeadings else { return helperFrame }", "rtlEditingHeadings.count == 1", "heading.label == observedRecordWorkTitle", "headingFrame.maxY < helperFrame.minY", "return headingFrame.union(helperFrame)", "let minimumShift = safeTop - targetFrame.minY", "let maximumShift = safeBottom - targetFrame.maxY", "targetFrame.height <= safeBottom - safeTop", "let finalTargetFrame = workEditingTargetFrame(finalHelperFrame)", "finalTargetFrame.minY >= finalSafeTop", "finalTargetFrame.maxY <= finalSafeBottom"] {
+            XCTAssertTrue(workEditingPositioningSource.contains(semantic))
+        }
         let workEditingPositiveInterval =
-            "            let minimumShift = safeTop - helperFrame.minY\n" +
-                "            let maximumShift = safeBottom - helperFrame.maxY\n" +
-                "            let requiredPreviewBelowViewportMovement =\n" +
+            "            let requiredPreviewBelowViewportMovement =\n" +
                 "                liveScrollFrame.maxY + verticalInset - previewFrame.minY\n" +
                 "            let requiredRigidDownwardMovement = workEditingAXTextEnabled\n" +
                 "                ? max(minimumShift, requiredPreviewBelowViewportMovement)\n" +
@@ -7654,8 +7660,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "                !workEditingAXTextEnabled\n" +
                 "                    || workPreviewImage.isHittable\n" +
                 "                    || previewFrame.minY > liveScrollFrame.maxY\n" +
-                "            if helperFrame.minY >= safeTop,\n" +
-                "               helperFrame.maxY <= safeBottom,\n" +
+                "            if targetFrame.minY >= safeTop,\n" +
+                "               targetFrame.maxY <= safeBottom,\n" +
                 "               workHelper.isHittable,\n" +
                 "               previewPlacementAccepted {\n" +
                 "                break\n" +
@@ -18340,6 +18346,178 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let uiSource = try text(uiPath)
         XCTAssertFalse(uiSource.contains("\r"))
+        let doubleOutcomeCallerSource = try boundedSource(
+            uiSource,
+            from: "        let issue = element(\"s3.outcome.issue.dark_section\", in: app)",
+            before: "        let continueButton = element(\"s3.outcome.continue\", in: app)",
+            label: "double outcome caller"
+        )
+        try assertOrdered(
+            [
+                "waitForLocalizedSelection(\n            issue,",
+                "let preparesDoubleOutcomeViewport = diagnosticProbe == nil",
+                "prepareDoubleOutcomeVisibleIssueViewport(",
+                "captureBaseline(\"state.check-outcome.visible-issue\", in: app)",
+            ],
+            in: doubleOutcomeCallerSource,
+            label: "double outcome preparation before strict capture"
+        )
+        let exactDoubleAdmissionTokens = [
+            "automationSegment == .none",
+            #"automationShard?.shardID == "s10.4.minimum.double-length""#,
+            "automationShard?.ordinal == 9",
+            #"automationShard?.requirementID == "double_length""#,
+            #"== "iphone-se-3-ios-18.0-minimum""#,
+        ]
+        exactDoubleAdmissionTokens.forEach {
+            XCTAssertTrue(doubleOutcomeCallerSource.contains($0), $0)
+        }
+        let admitted: (Bool, String, String, Int, String, String) -> Bool = {
+            probeIsNil, segment, shardID, ordinal, requirement, profile in
+            probeIsNil && segment == "none"
+                && shardID == "s10.4.minimum.double-length"
+                && ordinal == 9 && requirement == "double_length"
+                && profile == "iphone-se-3-ios-18.0-minimum"
+        }
+        let admissionCases = [
+            (true, "none", "s10.4.minimum.double-length", 9, "double_length", "iphone-se-3-ios-18.0-minimum", "admit"),
+            (false, "none", "s10.4.minimum.double-length", 9, "double_length", "iphone-se-3-ios-18.0-minimum", "probe"),
+            (true, "segment1", "s10.4.minimum.double-length", 9, "double_length", "iphone-se-3-ios-18.0-minimum", "segment"),
+            (true, "none", "s10.4.minimum.rtl", 9, "double_length", "iphone-se-3-ios-18.0-minimum", "shard"),
+            (true, "none", "s10.4.minimum.double-length", 8, "double_length", "iphone-se-3-ios-18.0-minimum", "ordinal"),
+            (true, "none", "s10.4.minimum.double-length", 9, "rtl", "iphone-se-3-ios-18.0-minimum", "requirement"),
+            (true, "none", "s10.4.minimum.double-length", 9, "double_length", "iphone-16-pro-ios-26.0", "profile"),
+        ]
+        XCTAssertEqual(
+            admissionCases.filter { admitted($0.0, $0.1, $0.2, $0.3, $0.4, $0.5) }.map(\.6),
+            ["admit"]
+        )
+
+        let doubleOutcomeHelperSource = try boundedSource(
+            uiSource,
+            from: "    private func prepareDoubleOutcomeVisibleIssueViewport(",
+            before: "    @MainActor\n    private func assertFirstReceiptAndReport",
+            label: "double outcome viewport helper"
+        )
+        for invariant in [
+            #"app.staticTexts.matching("#, #"label == %@"#,
+            #"Choose one visible issue Choose one visible issue"#,
+            #"app.scrollViews.matching("#, #"identifier: "s3.outcome.screen""#,
+            #"app.navigationBars.matching("#, #"Outcome Outcome"#,
+            #"identifier BEGINSWITH %@"#, #"s3.outcome.issue."#,
+            #"visibleIssue.identifier == "s3.outcome.visible-issue""#,
+            #"selectedIssue.identifier == "s3.outcome.issue.dark_section""#,
+            #"Visible issue Visible issue"#,
+            #"Section appears dark Section appears dark"#,
+            #"Selected Selected"#,
+            "let liveScrollFrame = scrollFrame.intersection(applicationFrame)",
+            "outcomeScrollView.descendants(matching: .button)",
+            "outcomeScrollView.descendants(matching: .staticText)",
+            "let viewportLeft = liveScrollFrame.minX",
+            "let viewportRight = liveScrollFrame.maxX",
+            "let viewportTop = max(liveScrollFrame.minY, navigationFrame.maxY)",
+            "let viewportBottom = min(liveScrollFrame.maxY, applicationFrame.maxY)",
+            "headingFrame.minX >= viewportLeft && headingFrame.maxX <= viewportRight",
+            "selectedFrame.minX >= viewportLeft && selectedFrame.maxX <= viewportRight",
+            "if siblingFrame.minX >= viewportLeft",
+            "siblingFrame.maxX <= viewportRight",
+            "var feasibleIntervals = [minimumShift...maximumShift]",
+            "frame.maxY <= viewportTop",
+            "frame.minY >= viewportBottom",
+            "for attemptIndex in 0...4",
+            "guard attemptIndex < 4 else",
+            "nearestFeasibleShift != 0",
+            "abs(nearestFeasibleShift) <= receiverCapacity",
+            "S10_4_DOUBLE_OUTCOME_POSITIONING_FAILURE",
+            #""acceptanceEligible": false"#,
+            "observedHeadingShift * direction > 0",
+            "observedSelectedShift * direction > 0",
+        ] {
+            XCTAssertTrue(doubleOutcomeHelperSource.contains(invariant), invariant)
+        }
+        XCTAssertEqual(doubleOutcomeHelperSource.components(separatedBy: "thenDragTo:").count - 1, 1)
+        XCTAssertTrue(doubleOutcomeCallerSource.contains("else { return }"))
+        XCTAssertFalse(doubleOutcomeHelperSource.contains("screenshot()"))
+        XCTAssertFalse(doubleOutcomeHelperSource.contains("debugDescription"))
+        XCTAssertFalse(doubleOutcomeHelperSource.contains("measuredInitialOvertravel"))
+        XCTAssertFalse(doubleOutcomeHelperSource.contains("gain"))
+
+        func feasibleShift(
+            target: ClosedRange<Double>,
+            sibling: ClosedRange<Double>,
+            viewport: ClosedRange<Double>,
+            siblingIsHorizontallyContained: Bool = true
+        ) -> [ClosedRange<Double>] {
+            var options: [(Double?, Double?)] = [
+                (nil, viewport.lowerBound - sibling.upperBound),
+                (viewport.upperBound - sibling.lowerBound, nil),
+            ]
+            if siblingIsHorizontallyContained {
+                options.append(
+                    (viewport.lowerBound - sibling.lowerBound,
+                     viewport.upperBound - sibling.upperBound)
+                )
+            }
+            return options.compactMap { lower, upper in
+                let lo = max(target.lowerBound, lower ?? target.lowerBound)
+                let hi = min(target.upperBound, upper ?? target.upperBound)
+                return lo <= hi ? lo...hi : nil
+            }
+        }
+        func placement(
+            _ frame: ClosedRange<Double>,
+            in viewport: ClosedRange<Double>
+        ) -> String {
+            if frame.upperBound <= viewport.lowerBound { return "above" }
+            if frame.lowerBound >= viewport.upperBound { return "below" }
+            if frame.lowerBound >= viewport.lowerBound,
+               frame.upperBound <= viewport.upperBound { return "contained" }
+            return "clipped"
+        }
+        func targetInterval(
+            heading: ClosedRange<Double>,
+            selected: ClosedRange<Double>,
+            viewport: ClosedRange<Double>
+        ) -> ClosedRange<Double>? {
+            let lower = max(
+                viewport.lowerBound - heading.lowerBound,
+                viewport.lowerBound - selected.lowerBound
+            )
+            let upper = min(
+                viewport.upperBound - heading.upperBound,
+                viewport.upperBound - selected.upperBound
+            )
+            return lower <= upper ? lower...upper : nil
+        }
+        XCTAssertEqual(
+            feasibleShift(target: -20...20, sibling: 120...140, viewport: 100...300),
+            [-20...20]
+        )
+        XCTAssertEqual(
+            feasibleShift(target: -80 ... -40, sibling: 310...350, viewport: 100...300),
+            [-80 ... -50]
+        )
+        XCTAssertTrue(
+            feasibleShift(target: 10...20, sibling: 95...305, viewport: 100...300).isEmpty
+        )
+        XCTAssertEqual(placement(5...10, in: 0...100), "contained")
+        XCTAssertEqual(placement(90...95, in: 0...100), "contained")
+        XCTAssertEqual(placement(5...10, in: 16...84), "above")
+        XCTAssertEqual(placement(90...95, in: 16...84), "below")
+        XCTAssertEqual(
+            targetInterval(heading: 5...25, selected: 75...95, viewport: 0...100),
+            -5...5
+        )
+        XCTAssertEqual(
+            feasibleShift(
+                target: -20...20,
+                sibling: -40 ... -30,
+                viewport: 0...100,
+                siblingIsHorizontallyContained: false
+            ),
+            [-20...20]
+        )
+
         let rtlWorkValidationAccessorySource = try boundedSource(
             uiSource,
             from: "    private func dismissRTLStringWorkValidationKeyboardAccessory(",
@@ -18514,7 +18692,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for clause in ["diagnosticProbe == nil", "automationSegment == .none", #"shard.shardID == "s10.4.minimum.rtl-string""#, "shard.ordinal == 11", #"shard.requirementID == "rtl_string""#, #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#] {
             XCTAssertTrue(rtlNoteOverlapAdmission.contains(clause))
         }
-        XCTAssertFalse(rtlNoteOverlapAdmission.contains("||"))
+        XCTAssertEqual(rtlNoteOverlapAdmission.components(separatedBy: "||").count - 1, 1)
+        XCTAssertTrue(rtlNoteOverlapAdmission.contains(#"shard.shardID == "s10.4.minimum.bounded""#))
+        XCTAssertTrue(rtlNoteOverlapAdmission.contains("shard.ordinal == 14"))
+        XCTAssertTrue(rtlNoteOverlapAdmission.contains(#"shard.requirementID == "bounded""#))
+        XCTAssertFalse(rtlNoteOverlapAdmission.contains(#"shard.shardID == "s10.4.minimum.rtl""#))
         XCTAssertFalse(rtlNoteOverlapAdmission.contains("usesRTLStringNativeDoneTarget"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !permitsRTLStringNoteOutsideDoneBand && !noteHeadingOverlapsDoneAccessoryBand { return \"note-heading-overlaps-done-accessory\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.exists { return \"work-exists\" }"))
@@ -18581,10 +18763,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 920_752)
+        XCTAssertEqual(uiSource.utf8.count, 946_245)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "5CDEDCE3AE3BEFB9ACE672277441DA844C94B36C5FE7370CE46A64A16D205C6F"
+            "A6DCBD941A7EEE418B1C2B785EB070501C4C3C7D6A137DDCE80ABE8D37C985D7"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

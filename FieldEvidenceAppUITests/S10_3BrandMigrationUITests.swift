@@ -4691,6 +4691,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             selectedReleaseValue: "Selected",
             timeout: 10
         )
+        let preparesDoubleOutcomeViewport = diagnosticProbe == nil
+            && automationSegment == .none
+            && automationShard?.shardID == "s10.4.minimum.double-length"
+            && automationShard?.ordinal == 9
+            && automationShard?.requirementID == "double_length"
+            && automationShard?.deviceProfileID
+                == "iphone-se-3-ios-18.0-minimum"
+        if preparesDoubleOutcomeViewport {
+            guard prepareDoubleOutcomeVisibleIssueViewport(
+                in: app,
+                visibleIssue: visible,
+                selectedIssue: issue
+            ) else { return }
+        }
         captureBaseline("state.check-outcome.visible-issue", in: app)
 
         let continueButton = element("s3.outcome.continue", in: app)
@@ -4713,6 +4727,455 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(save, in: app)
         assertControl(save, label: "Save and finish")
         save.tap()
+    }
+
+    @MainActor
+    private func prepareDoubleOutcomeVisibleIssueViewport(
+        in app: XCUIApplication,
+        visibleIssue: XCUIElement,
+        selectedIssue: XCUIElement
+    ) -> Bool {
+        let expectedHeading = "Choose one visible issue Choose one visible issue"
+        let expectedVisibleLabel = "Visible issue Visible issue"
+        let expectedSelectedIssueLabel =
+            "Section appears dark Section appears dark"
+        let expectedSelectedValue = "Selected Selected"
+        let headingQuery = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", expectedHeading)
+        )
+        let outcomeScrollViews = app.scrollViews.matching(
+            identifier: "s3.outcome.screen"
+        )
+        let outcomeNavigationBars = app.navigationBars.matching(
+            NSPredicate(format: "label == %@", "Outcome Outcome")
+        )
+        let issueControls = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "s3.outcome.issue.")
+        )
+        let isValidFrame: (CGRect) -> Bool = { frame in
+            !frame.isNull
+                && !frame.isEmpty
+                && !frame.isInfinite
+                && frame.origin.x.isFinite
+                && frame.origin.y.isFinite
+                && frame.size.width.isFinite
+                && frame.size.height.isFinite
+        }
+        let stringValue: (XCUIElement) -> String? = { element in
+            element.value as? String
+        }
+        let headingCount = headingQuery.count
+        let outcomeScrollCount = outcomeScrollViews.count
+        let outcomeNavigationCount = outcomeNavigationBars.count
+        let issueControlCount = issueControls.count
+        guard headingCount == 1,
+              outcomeScrollCount == 1,
+              outcomeNavigationCount == 1,
+              issueControlCount > 0 else {
+            printJSONLine(
+                prefix: "S10_4_DOUBLE_OUTCOME_POSITIONING_FAILURE",
+                object: [
+                    "acceptanceEligible": false,
+                    "reason": "Double outcome positioning bindings are ambiguous.",
+                    "headingCount": headingCount,
+                    "outcomeScrollCount": outcomeScrollCount,
+                    "outcomeNavigationCount": outcomeNavigationCount,
+                    "issueControlCount": issueControlCount,
+                ]
+            )
+            XCTFail("Double outcome positioning bindings are ambiguous.")
+            return false
+        }
+        let heading = headingQuery.firstMatch
+        let outcomeScrollView = outcomeScrollViews.firstMatch
+        let outcomeNavigationBar = outcomeNavigationBars.firstMatch
+        let initialIssueBindings = (0..<issueControls.count).map { index in
+            let element = issueControls.element(boundBy: index)
+            return (
+                identifier: element.identifier,
+                label: element.label,
+                value: stringValue(element)
+            )
+        }
+        let initialIssueIdentifiers = initialIssueBindings.map(\.identifier)
+        let outcomeButtons = outcomeScrollView.descendants(matching: .button)
+        let outcomeStaticTexts = outcomeScrollView.descendants(matching: .staticText)
+        let initialOutcomeButtonBindings = (0..<outcomeButtons.count).map { index in
+            let element = outcomeButtons.element(boundBy: index)
+            return (
+                type: element.elementType,
+                identifier: element.identifier,
+                label: element.label,
+                value: stringValue(element),
+                enabled: element.isEnabled
+            )
+        }
+        let initialOutcomeStaticTextBindings = (0..<outcomeStaticTexts.count).map { index in
+            let element = outcomeStaticTexts.element(boundBy: index)
+            return (
+                type: element.elementType,
+                identifier: element.identifier,
+                label: element.label,
+                value: stringValue(element),
+                enabled: element.isEnabled
+            )
+        }
+        let finiteFrameObject: (CGRect) -> [String: Any] = { frame in
+            self.auditFrameObject(frame).mapValues { value in
+                value.isFinite ? value as Any : NSNull()
+            }
+        }
+        let boundedEvidenceString: (String) -> String = { value in
+            String(value.prefix(256))
+        }
+        var cachedFailureEvidence: [String: Any] = [
+            "acceptanceEligible": false,
+            "headingCount": headingCount,
+            "outcomeScrollCount": outcomeScrollCount,
+            "outcomeNavigationCount": outcomeNavigationCount,
+            "issueControlCount": issueControlCount,
+            "issueControls": initialIssueBindings.map { binding in
+                [
+                    "identifier": binding.identifier,
+                    "label": binding.label,
+                    "value": binding.value.map { $0 as Any } ?? NSNull(),
+                ]
+            },
+        ]
+        let failWithCachedEvidence: (String) -> Bool = { reason in
+            cachedFailureEvidence["reason"] = reason
+            self.printJSONLine(
+                prefix: "S10_4_DOUBLE_OUTCOME_POSITIONING_FAILURE",
+                object: cachedFailureEvidence
+            )
+            XCTFail(reason)
+            return false
+        }
+        guard app.state == .runningForeground,
+              heading.exists,
+              heading.elementType == .staticText,
+              heading.identifier.isEmpty,
+              heading.label == expectedHeading,
+              outcomeScrollView.exists,
+              outcomeScrollView.elementType == .scrollView,
+              outcomeScrollView.identifier == "s3.outcome.screen",
+              outcomeNavigationBar.exists,
+              outcomeNavigationBar.elementType == .navigationBar,
+              outcomeNavigationBar.label == "Outcome Outcome",
+              visibleIssue.exists,
+              visibleIssue.isEnabled,
+              visibleIssue.elementType == .button,
+              visibleIssue.identifier == "s3.outcome.visible-issue",
+              visibleIssue.label == expectedVisibleLabel,
+              stringValue(visibleIssue) == expectedSelectedValue,
+              selectedIssue.exists,
+              selectedIssue.isEnabled,
+              selectedIssue.elementType == .button,
+              selectedIssue.identifier == "s3.outcome.issue.dark_section",
+              selectedIssue.label == expectedSelectedIssueLabel,
+              stringValue(selectedIssue) == expectedSelectedValue,
+              Set(initialIssueIdentifiers).count == initialIssueBindings.count,
+              initialIssueBindings.allSatisfy({ binding in
+                  binding.identifier.hasPrefix("s3.outcome.issue.")
+                      && !binding.label.isEmpty
+                      && binding.value != nil
+              }) else {
+            return failWithCachedEvidence("Double outcome positioning route identity is invalid.")
+        }
+
+        let bindingsAreStable: () -> Bool = {
+            guard app.state == .runningForeground,
+                  headingQuery.count == 1,
+                  outcomeScrollViews.count == 1,
+                  outcomeNavigationBars.count == 1,
+                  issueControls.count == initialIssueBindings.count,
+                  outcomeButtons.count == initialOutcomeButtonBindings.count,
+                  outcomeStaticTexts.count == initialOutcomeStaticTextBindings.count,
+                  heading.exists,
+                  heading.elementType == .staticText,
+                  heading.identifier.isEmpty,
+                  heading.label == expectedHeading,
+                  outcomeScrollView.exists,
+                  outcomeScrollView.elementType == .scrollView,
+                  outcomeScrollView.identifier == "s3.outcome.screen",
+                  outcomeNavigationBar.exists,
+                  outcomeNavigationBar.elementType == .navigationBar,
+                  outcomeNavigationBar.label == "Outcome Outcome",
+                  visibleIssue.exists,
+                  visibleIssue.isEnabled,
+                  visibleIssue.elementType == .button,
+                  visibleIssue.identifier == "s3.outcome.visible-issue",
+                  visibleIssue.label == expectedVisibleLabel,
+                  stringValue(visibleIssue) == expectedSelectedValue,
+                  selectedIssue.exists,
+                  selectedIssue.isEnabled,
+                  selectedIssue.elementType == .button,
+                  selectedIssue.identifier == "s3.outcome.issue.dark_section",
+                  selectedIssue.label == expectedSelectedIssueLabel,
+                  stringValue(selectedIssue) == expectedSelectedValue else {
+                return false
+            }
+            let issuesAreStable = (0..<issueControls.count).allSatisfy { index in
+                let element = issueControls.element(boundBy: index)
+                let initial = initialIssueBindings[index]
+                return element.exists
+                    && element.isEnabled
+                    && element.elementType == .button
+                    && element.identifier == initial.identifier
+                    && element.label == initial.label
+                    && stringValue(element) == initial.value
+            }
+            let buttonsAreStable = (0..<outcomeButtons.count).allSatisfy { index in
+                let element = outcomeButtons.element(boundBy: index)
+                let initial = initialOutcomeButtonBindings[index]
+                return element.exists
+                    && element.elementType == initial.type
+                    && element.identifier == initial.identifier
+                    && element.label == initial.label
+                    && stringValue(element) == initial.value
+                    && element.isEnabled == initial.enabled
+            }
+            let staticTextsAreStable = (0..<outcomeStaticTexts.count).allSatisfy { index in
+                let element = outcomeStaticTexts.element(boundBy: index)
+                let initial = initialOutcomeStaticTextBindings[index]
+                return element.exists
+                    && element.elementType == initial.type
+                    && element.identifier == initial.identifier
+                    && element.label == initial.label
+                    && stringValue(element) == initial.value
+                    && element.isEnabled == initial.enabled
+            }
+            return issuesAreStable && buttonsAreStable && staticTextsAreStable
+        }
+        let receiverInset: CGFloat = 24
+        var pendingHeadingMinY: CGFloat?
+        var pendingSelectedMinY: CGFloat?
+        var pendingDirection: CGFloat?
+        for attemptIndex in 0...4 {
+            guard bindingsAreStable() else {
+                return failWithCachedEvidence("Double outcome positioning route changed.")
+            }
+            let applicationFrame = app.frame
+            let scrollFrame = outcomeScrollView.frame
+            let navigationFrame = outcomeNavigationBar.frame
+            let headingFrame = heading.frame
+            let selectedFrame = selectedIssue.frame
+            let issueFrames = (0..<issueControls.count).map {
+                issueControls.element(boundBy: $0).frame
+            }
+            let outcomeButtonFrames = (0..<outcomeButtons.count).map {
+                outcomeButtons.element(boundBy: $0).frame
+            }
+            let outcomeStaticTextFrames = (0..<outcomeStaticTexts.count).map {
+                outcomeStaticTexts.element(boundBy: $0).frame
+            }
+            let siblingFrames = outcomeButtonFrames + outcomeStaticTextFrames
+            let liveScrollFrame = scrollFrame.intersection(applicationFrame)
+            cachedFailureEvidence = [
+                "acceptanceEligible": false,
+                "attemptIndex": attemptIndex,
+                "applicationState": String(describing: app.state),
+                "applicationFrame": finiteFrameObject(applicationFrame),
+                "headingFrame": finiteFrameObject(headingFrame),
+                "outcomeScrollFrame": finiteFrameObject(scrollFrame),
+                "outcomeNavigationFrame": finiteFrameObject(navigationFrame),
+                "visibleIssueFrame": finiteFrameObject(visibleIssue.frame),
+                "selectedIssueFrame": finiteFrameObject(selectedFrame),
+                "issueControls": initialIssueBindings.indices.map { index in
+                    [
+                        "identifier": initialIssueBindings[index].identifier,
+                        "label": initialIssueBindings[index].label,
+                        "value": initialIssueBindings[index].value.map { $0 as Any } ?? NSNull(),
+                        "frame": finiteFrameObject(issueFrames[index]),
+                    ]
+                },
+                "outcomeButtons": initialOutcomeButtonBindings.indices.map { index in
+                    [
+                        "type": String(describing: initialOutcomeButtonBindings[index].type),
+                        "identifier": boundedEvidenceString(
+                            initialOutcomeButtonBindings[index].identifier
+                        ),
+                        "label": boundedEvidenceString(initialOutcomeButtonBindings[index].label),
+                        "value": initialOutcomeButtonBindings[index].value.map {
+                            boundedEvidenceString($0) as Any
+                        } ?? NSNull(),
+                        "enabled": initialOutcomeButtonBindings[index].enabled,
+                        "frame": finiteFrameObject(outcomeButtonFrames[index]),
+                    ]
+                },
+                "outcomeStaticTexts": initialOutcomeStaticTextBindings.indices.map { index in
+                    [
+                        "type": String(describing: initialOutcomeStaticTextBindings[index].type),
+                        "identifier": boundedEvidenceString(
+                            initialOutcomeStaticTextBindings[index].identifier
+                        ),
+                        "label": boundedEvidenceString(
+                            initialOutcomeStaticTextBindings[index].label
+                        ),
+                        "value": initialOutcomeStaticTextBindings[index].value.map {
+                            boundedEvidenceString($0) as Any
+                        } ?? NSNull(),
+                        "enabled": initialOutcomeStaticTextBindings[index].enabled,
+                        "frame": finiteFrameObject(outcomeStaticTextFrames[index]),
+                    ]
+                },
+            ]
+            guard isValidFrame(applicationFrame),
+                  isValidFrame(scrollFrame),
+                  isValidFrame(navigationFrame),
+                  isValidFrame(headingFrame),
+                  isValidFrame(selectedFrame),
+                  isValidFrame(liveScrollFrame),
+                  issueFrames.allSatisfy(isValidFrame),
+                  siblingFrames.allSatisfy(isValidFrame) else {
+                return failWithCachedEvidence("Double outcome positioning geometry is invalid.")
+            }
+            if let previousHeadingMinY = pendingHeadingMinY,
+               let previousSelectedMinY = pendingSelectedMinY,
+               let direction = pendingDirection {
+                let observedHeadingShift = headingFrame.minY - previousHeadingMinY
+                let observedSelectedShift = selectedFrame.minY - previousSelectedMinY
+                guard observedHeadingShift.isFinite,
+                      observedSelectedShift.isFinite,
+                      observedHeadingShift * direction > 0,
+                      observedSelectedShift * direction > 0 else {
+                    return failWithCachedEvidence("Double outcome gesture did not move the live targets in the commanded direction.")
+                }
+                pendingHeadingMinY = nil
+                pendingSelectedMinY = nil
+                pendingDirection = nil
+            }
+            let viewportLeft = liveScrollFrame.minX
+            let viewportRight = liveScrollFrame.maxX
+            let viewportTop = max(liveScrollFrame.minY, navigationFrame.maxY)
+            let viewportBottom = min(liveScrollFrame.maxY, applicationFrame.maxY)
+            let receiverTop = viewportTop + receiverInset
+            let receiverBottom = viewportBottom - receiverInset
+            let receiverCapacity = receiverBottom - receiverTop
+            let minimumShift = max(
+                viewportTop - headingFrame.minY,
+                viewportTop - selectedFrame.minY
+            )
+            let maximumShift = min(
+                viewportBottom - headingFrame.maxY,
+                viewportBottom - selectedFrame.maxY
+            )
+            let headingIsHorizontallyContained =
+                headingFrame.minX >= viewportLeft && headingFrame.maxX <= viewportRight
+            let selectedIsHorizontallyContained =
+                selectedFrame.minX >= viewportLeft && selectedFrame.maxX <= viewportRight
+            guard viewportLeft.isFinite,
+                  viewportRight.isFinite,
+                  viewportTop.isFinite,
+                  viewportBottom.isFinite,
+                  receiverTop.isFinite,
+                  receiverBottom.isFinite,
+                  receiverCapacity.isFinite,
+                  minimumShift.isFinite,
+                  maximumShift.isFinite,
+                  viewportLeft < viewportRight,
+                  viewportTop < viewportBottom,
+                  receiverTop < receiverBottom,
+                  receiverCapacity > 0,
+                  headingFrame.height <= viewportBottom - viewportTop,
+                  selectedFrame.height <= viewportBottom - viewportTop,
+                  headingIsHorizontallyContained,
+                  selectedIsHorizontallyContained,
+                  minimumShift <= maximumShift else {
+                return failWithCachedEvidence("Double outcome target has no finite unobscured viewport interval.")
+            }
+
+            var feasibleIntervals = [minimumShift...maximumShift]
+            for siblingFrame in siblingFrames {
+                var siblingOptions: [(lower: CGFloat?, upper: CGFloat?)] = [
+                    (nil, viewportTop - siblingFrame.maxY),
+                    (viewportBottom - siblingFrame.minY, nil),
+                ]
+                if siblingFrame.minX >= viewportLeft,
+                   siblingFrame.maxX <= viewportRight {
+                    siblingOptions.append(
+                        (viewportTop - siblingFrame.minY, viewportBottom - siblingFrame.maxY)
+                    )
+                }
+                var nextIntervals: [ClosedRange<CGFloat>] = []
+                for interval in feasibleIntervals {
+                    for option in siblingOptions {
+                        let lower = max(interval.lowerBound, option.lower ?? interval.lowerBound)
+                        let upper = min(interval.upperBound, option.upper ?? interval.upperBound)
+                        if lower <= upper { nextIntervals.append(lower...upper) }
+                    }
+                }
+                feasibleIntervals = nextIntervals
+            }
+            guard !feasibleIntervals.isEmpty else {
+                return failWithCachedEvidence("Double outcome sibling composition has no safe interval.")
+            }
+            let nearestFeasibleShift = feasibleIntervals.map { interval -> CGFloat in
+                if interval.contains(0) { return 0 }
+                return abs(interval.lowerBound) <= abs(interval.upperBound)
+                    ? interval.lowerBound
+                    : interval.upperBound
+            }.min(by: { abs($0) < abs($1) })!
+            if nearestFeasibleShift == 0 {
+                let siblingsAreUnclipped = siblingFrames.allSatisfy { frame in
+                    frame.maxY <= viewportTop
+                        || (frame.minY >= viewportTop
+                            && frame.maxY <= viewportBottom
+                            && frame.minX >= viewportLeft
+                            && frame.maxX <= viewportRight)
+                        || frame.minY >= viewportBottom
+                }
+                guard headingFrame.minY >= viewportTop,
+                      headingFrame.maxY <= viewportBottom,
+                      headingIsHorizontallyContained,
+                      selectedFrame.minY >= viewportTop,
+                      selectedFrame.maxY <= viewportBottom,
+                      selectedIsHorizontallyContained,
+                      selectedIssue.isHittable,
+                      siblingsAreUnclipped else {
+                    return failWithCachedEvidence("Double outcome final composition is not safely contained.")
+                }
+                return true
+            }
+            guard attemptIndex < 4 else {
+                return failWithCachedEvidence("Double outcome composition did not converge in four gestures.")
+            }
+            guard nearestFeasibleShift.isFinite,
+                  nearestFeasibleShift != 0,
+                  abs(nearestFeasibleShift) <= receiverCapacity else {
+                return failWithCachedEvidence("Double outcome direct residual shift is not recognizable.")
+            }
+            let receiverX = liveScrollFrame.midX
+            let startY = nearestFeasibleShift < 0 ? receiverBottom : receiverTop
+            let endY = startY + nearestFeasibleShift
+            let startPoint = CGPoint(x: receiverX, y: startY)
+            let endPoint = CGPoint(x: receiverX, y: endY)
+            guard liveScrollFrame.contains(startPoint),
+                  liveScrollFrame.contains(endPoint),
+                  endY >= receiverTop,
+                  endY <= receiverBottom else {
+                return failWithCachedEvidence("Double outcome drag receiver is out of bounds.")
+            }
+            pendingHeadingMinY = headingFrame.minY
+            pendingSelectedMinY = selectedFrame.minY
+            pendingDirection = nearestFeasibleShift
+            let scrollOrigin = outcomeScrollView.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0)
+            )
+            let dragStart = scrollOrigin.withOffset(
+                CGVector(dx: receiverX - scrollFrame.minX, dy: startY - scrollFrame.minY)
+            )
+            let dragEnd = dragStart.withOffset(
+                CGVector(dx: 0, dy: nearestFeasibleShift)
+            )
+            dragStart.press(
+                forDuration: 0.2,
+                thenDragTo: dragEnd,
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+        }
+        return failWithCachedEvidence("Double outcome final verification was not reached.")
     }
 
     @MainActor
@@ -6718,6 +7181,28 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return
             }
         }
+        let protectsRTLStringEditingHeading = diagnosticProbe == nil
+            && automationSegment == .none
+            && automationShard?.shardID == "s10.4.minimum.rtl-string"
+            && automationShard?.ordinal == 11
+            && automationShard?.requirementID == "rtl_string"
+            && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+        let rtlEditingHeadings: XCUIElementQuery? = protectsRTLStringEditingHeading
+            ? app.staticTexts.matching(identifier: "s5.1.work.header") : nil
+        let workEditingTargetFrame: (CGRect) -> CGRect? = { helperFrame in
+            guard let rtlEditingHeadings else { return helperFrame }
+            guard rtlEditingHeadings.count == 1 else { return nil }
+            let heading = rtlEditingHeadings.element(boundBy: 0)
+            guard heading.exists,
+                  heading.elementType == .staticText,
+                  heading.identifier == "s5.1.work.header",
+                  heading.label == observedRecordWorkTitle else { return nil }
+            let headingFrame = heading.frame
+            guard workEditingFrameIsValid(headingFrame),
+                  workEditingFrameIsValid(helperFrame),
+                  headingFrame.maxY < helperFrame.minY else { return nil }
+            return headingFrame.union(helperFrame)
+        }
         var provenGestureCount = 0
         for _ in 0..<4 {
             guard app.state == .runningForeground,
@@ -6736,6 +7221,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let navigationFrame = workNavigationBar.frame
             let helperFrame = workHelper.frame
             let previewFrame = workPreviewImage.frame
+            let targetFrame = workEditingTargetFrame(helperFrame)
             let commonFramesAreValid =
                 workEditingFrameIsValid(applicationFrame)
                     && workEditingFrameIsValid(scrollFrame)
@@ -6768,12 +7254,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 ) + receiverInset
                 receiverBottom = liveScrollFrame.maxY - receiverInset
             }
-            guard let safeTop = safeTop,
+            guard let targetFrame,
+                  let safeTop = safeTop,
                   let safeBottom = safeBottom,
                   let receiverTop = receiverTop,
                   let receiverBottom = receiverBottom,
                   safeBottom > safeTop,
-                  helperFrame.height <= safeBottom - safeTop else {
+                  targetFrame.height <= safeBottom - safeTop,
+                  !protectsRTLStringEditingHeading
+                    || (targetFrame.minX >= liveScrollFrame.minX
+                        && targetFrame.maxX <= liveScrollFrame.maxX) else {
                 XCTFail("Record-work editing viewport geometry is invalid.")
                 return
             }
@@ -6781,15 +7271,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 !workEditingAXTextEnabled
                     || workPreviewImage.isHittable
                     || previewFrame.minY > liveScrollFrame.maxY
-            if helperFrame.minY >= safeTop,
-               helperFrame.maxY <= safeBottom,
+            if targetFrame.minY >= safeTop,
+               targetFrame.maxY <= safeBottom,
                workHelper.isHittable,
                previewPlacementAccepted {
                 break
             }
 
-            let minimumShift = safeTop - helperFrame.minY
-            let maximumShift = safeBottom - helperFrame.maxY
+            let minimumShift = safeTop - targetFrame.minY
+            let maximumShift = safeBottom - targetFrame.maxY
             let requiredPreviewBelowViewportMovement =
                 liveScrollFrame.maxY + verticalInset - previewFrame.minY
             let requiredRigidDownwardMovement = workEditingAXTextEnabled
@@ -6910,6 +7400,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 }
             }
         }
+        let finalTargetFrame = workEditingTargetFrame(finalHelperFrame)
         let finalScrollFrameIsValid = workEditingFrameIsValid(finalScrollFrame)
         let finalWorkEditingCompositionIsValid =
             !workEditingAXTextEnabled
@@ -6962,6 +7453,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               workEditingFrameIsValid(finalNavigationFrame),
               workEditingFrameIsValid(finalScrollFrame),
               workEditingFrameIsValid(finalHelperFrame),
+              let finalTargetFrame,
+              finalTargetFrame.minY >= finalSafeTop,
+              finalTargetFrame.maxY <= finalSafeBottom,
+              !protectsRTLStringEditingHeading
+                || (finalTargetFrame.minX >= finalScrollFrame.minX
+                    && finalTargetFrame.maxX <= finalScrollFrame.maxX),
               finalHelperFrame.minY >= finalSafeTop,
               finalHelperFrame.maxY <= finalSafeBottom,
               finalHelperIsHittable,
@@ -16103,8 +16600,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && noteHeadingFrame.maxY > doneButtonFrame.minY
         let permitsRTLStringNoteOutsideDoneBand = diagnosticProbe == nil
             && automationSegment == .none
-            && shard.shardID == "s10.4.minimum.rtl-string"
-            && shard.ordinal == 11 && shard.requirementID == "rtl_string"
+            && ((shard.shardID == "s10.4.minimum.rtl-string"
+                    && shard.ordinal == 11 && shard.requirementID == "rtl_string")
+                || (shard.shardID == "s10.4.minimum.bounded"
+                    && shard.ordinal == 14 && shard.requirementID == "bounded"))
             && shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
         let usesRTLStringNativeDoneTarget = diagnosticProbe == nil
             && automationSegment == .none
