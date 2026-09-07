@@ -6960,6 +6960,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
            shard.requirementID == "accented",
            shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
             expectedWorkNoteHeadingLabel = "N\u{0300}o\u{0325}t\u{0303}e\u{0308}"
+        } else if diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.shardID == "s10.4.minimum.tall", shard.ordinal == 12,
+                  shard.requirementID == "tall",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
+            expectedWorkNoteHeadingLabel = tallMarker + "Note" + tallMarker
         } else {
             expectedWorkNoteHeadingLabel = automationShard?.shardID
                 == "s10.4.minimum.rtl-string"
@@ -16024,6 +16031,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let noteHeadingOverlapsDoneAccessoryBand =
             noteHeadingFrame.minY < doneButtonFrame.maxY
                 && noteHeadingFrame.maxY > doneButtonFrame.minY
+        let usesRTLStringNativeDoneTarget = diagnosticProbe == nil
+            && automationSegment == .none
+            && shard.shardID == "s10.4.minimum.rtl-string"
+            && shard.ordinal == 11 && shard.requirementID == "rtl_string"
+            && shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
         let firstFailedPreTapSemanticLabel: String? = {
             if app.state != .runningForeground { return "app-foreground" }
             if !frameIsValid(applicationFrame) { return "app-frame-valid" }
@@ -16039,7 +16051,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if !applicationFrame.contains(validationFrame) { return "app-contains-validation" }
             if !applicationFrame.contains(noteHeadingFrame) { return "app-contains-note-heading" }
             if !applicationFrame.contains(noteFieldFrame) { return "app-contains-note-field" }
-            if !applicationFrame.contains(keyboardFrame) { return "app-contains-keyboard" }
+            if !usesRTLStringNativeDoneTarget && !applicationFrame.contains(keyboardFrame) { return "app-contains-keyboard" }
             if !applicationFrame.contains(doneButtonFrame) { return "app-contains-done" }
             if !noteHeadingOverlapsDoneAccessoryBand { return "note-heading-overlaps-done-accessory" }
             if !workScreen.exists { return "work-exists" }

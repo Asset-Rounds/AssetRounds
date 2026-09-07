@@ -8123,6 +8123,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(savingNoteLabelSelection.contains(savingNoteAdmission))
         }
+        XCTAssertTrue(savingNoteLabelSelection.contains(#"shard.shardID == "s10.4.minimum.tall", shard.ordinal == 12"#))
+        XCTAssertTrue(savingNoteLabelSelection.contains(#"shard.requirementID == "tall""#))
+        XCTAssertTrue(savingNoteLabelSelection.contains(#"let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}""#))
+        XCTAssertTrue(savingNoteLabelSelection.contains(#"expectedWorkNoteHeadingLabel = tallMarker + "Note" + tallMarker"#))
         XCTAssertFalse(savingNoteLabelSelection.contains(" || "))
         XCTAssertFalse(savingNoteLabelSelection.contains(".label"))
         XCTAssertFalse(savingNoteLabelSelection.contains(".value"))
@@ -18459,7 +18463,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(validationFrame) { return \"app-contains-validation\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(noteHeadingFrame) { return \"app-contains-note-heading\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(noteFieldFrame) { return \"app-contains-note-field\" }"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(keyboardFrame) { return \"app-contains-keyboard\" }"))
+        let rtlNativeDoneTargetAdmission = try boundedSource(rtlWorkValidationAccessorySource, from: "        let usesRTLStringNativeDoneTarget =", before: "        let firstFailedPreTapSemanticLabel:")
+        for clause in ["diagnosticProbe == nil", "automationSegment == .none", #"shard.shardID == "s10.4.minimum.rtl-string""#, "shard.ordinal == 11", #"shard.requirementID == "rtl_string""#, #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#] {
+            XCTAssertTrue(rtlNativeDoneTargetAdmission.contains(clause))
+        }
+        XCTAssertFalse(rtlNativeDoneTargetAdmission.contains("||"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !usesRTLStringNativeDoneTarget && !applicationFrame.contains(keyboardFrame)"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !frameIsValid(keyboardFrame)"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !keyboard.exists"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(doneButtonFrame)"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !doneButton.isEnabled"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !doneButton.isHittable"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(doneButtonFrame) { return \"app-contains-done\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !noteHeadingOverlapsDoneAccessoryBand { return \"note-heading-overlaps-done-accessory\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.exists { return \"work-exists\" }"))
@@ -18526,10 +18540,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 914_096)
+        XCTAssertEqual(uiSource.utf8.count, 914_927)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "6DDE6E64765068FA39C2856A231E43B8619A6A857164AB7038253E6D138F777A"
+            "86A18CC34F87123A4CDBEE6D56DCE96186851E4E9496798160DA9019AF42677D"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
