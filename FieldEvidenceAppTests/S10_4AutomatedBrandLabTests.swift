@@ -2769,12 +2769,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let uiSource = try text(sourceParts[0])
         let boundedPreflightPreparation = try boundedSource(
             uiSource,
-            from: "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\" || shard.shardID == \"s10.4.minimum.accented\" {",
+            from: "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\"",
             before: "        captureBaseline(\"state.check-preflight.ready\", in: app)"
         )
         XCTAssertTrue(boundedPreflightPreparation.contains("guard diagnosticProbe == nil, automationSegment == .none,"))
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 14 && shard.requirementID == \"bounded\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 13 && shard.requirementID == \"accented\""))
+        XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 11 && shard.requirementID == \"rtl_string\""))
+        XCTAssertTrue(boundedPreflightPreparation.contains("|| shard.shardID == \"s10.4.minimum.rtl-string\""))
+        XCTAssertTrue(boundedPreflightPreparation.contains("shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("boundedZone.typeText(\"\\n\")"))
         XCTAssertTrue(boundedPreflightPreparation.contains("guard boundedDone.exists, boundedDone.isEnabled else"))
         XCTAssertTrue(boundedPreflightPreparation.contains("hasKeyboardFocus == true"))
@@ -18362,10 +18365,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 903_491)
+        XCTAssertEqual(uiSource.utf8.count, 903_681)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "E6543DB444F89F6A448855CFCB18E41EFACD74E074A43F837BEE1EC57D489126"
+            "43F7BDE4D77B72FEA0136A85C0FA1EA05E07F92AF94D139A863A2B60F3874B20"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

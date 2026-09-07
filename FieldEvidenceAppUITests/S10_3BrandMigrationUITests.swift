@@ -4172,10 +4172,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             throw FocusedDiagnosticProbeStop.completed
         }
         if let shard = automationShard,
-           shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented" {
+           shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented"
+            || shard.shardID == "s10.4.minimum.rtl-string" {
             guard diagnosticProbe == nil, automationSegment == .none,
                   (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
-                    || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented"),
+                    || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented")
+                    || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string"),
                   shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {
                 throw AutomationConfigurationError.invalid("Bounded preflight preparation has an invalid route")
             }
