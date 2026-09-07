@@ -2854,7 +2854,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(issueTabBarFailureSource.contains("return"))
         XCTAssertTrue(issueTabBarFailureSource.contains("rawTree.prefix(262_144)"))
         XCTAssertFalse(issueTabBarFailureSource.contains(".tap()"))
-        let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        zone.typeText(\"America/New_York\")", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
+        let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        zone.typeText(\"America/New_York\")", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app, isInitialPreflightConfirmation: true)")
         XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 10 && shard.requirementID == \"rtl\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("|| shard.shardID == \"s10.4.minimum.rtl\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 9 && shard.requirementID == \"double_length\""))
@@ -6693,6 +6693,53 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let h135InvariantSource = String(
             h135Source.dropLast(h135ReplayPreparationClose.utf8.count)
         )
+        // Keep the ordinary RTL detail-route observation under the existing Signs shell.
+        let rtlScopedDetailObservationSource = try boundedSource(
+            uiSource,
+            from: "            let preActionDetailRouteExists: Bool\n",
+            before: #"            let returnKey = app.keyboards.buttons["Return"]"#
+        )
+        XCTAssertTrue(rtlScopedDetailObservationSource.hasPrefix(
+            "            let preActionDetailRouteExists: Bool\n            if diagnosticProbe == nil, automationSegment == .none,\n               let shard = automationShard,\n               shard.shardID == \"s10.4.minimum.rtl\", shard.ordinal == 10,\n               shard.requirementID == \"rtl\",\n               shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\" {\n"
+        ))
+        XCTAssertTrue(uiSource.contains(
+            "            let preActionNewSignRouteExists = newSignRoute.exists\n            let preActionDetailRouteExists: Bool\n"
+        ))
+        let rtlShellGuardSource = try boundedSource(
+            rtlScopedDetailObservationSource,
+            from: "                guard shell.exists,\n",
+            before: "                preActionDetailRouteExists = shell.descendants"
+        )
+        XCTAssertTrue(rtlShellGuardSource.hasPrefix(
+            "                guard shell.exists,\n                      (shell.value as? String) == effectiveAppearanceName(fallback: \"Light\") else {\n"
+        ))
+        XCTAssertTrue(rtlShellGuardSource.hasSuffix("                    return\n                }\n"))
+        XCTAssertTrue(rtlShellGuardSource.contains("                    XCTFail("))
+        XCTAssertTrue(rtlScopedDetailObservationSource.contains(
+            "                preActionDetailRouteExists = shell.descendants(matching: .any)\n                    .matching(identifier: \"s2.sign-detail.screen\").firstMatch.exists\n"
+        ))
+        XCTAssertTrue(rtlScopedDetailObservationSource.hasSuffix(
+            "            } else {\n                preActionDetailRouteExists = validationDetailRoute.exists\n            }\n"
+        ))
+        for (token, expectedCount) in [
+            ("shell.exists", 1), ("shell.value", 1),
+            ("shell.descendants(matching: .any)", 1),
+            (#".matching(identifier: "s2.sign-detail.screen").firstMatch.exists"#, 1),
+            ("preActionDetailRouteExists = validationDetailRoute.exists", 1),
+            ("XCTFail(", 1), ("                    return\n", 1),
+            (".exists", 3), (".value", 1), (".descendants(", 1),
+            (".matching(", 1), (".firstMatch", 1),
+        ] {
+            XCTAssertEqual(rtlScopedDetailObservationSource.components(separatedBy: token).count - 1, expectedCount, token)
+        }
+        for prohibited in [
+            ".count", ".scrollViews", "NSPredicate", "app.descendants",
+            "shell.identifier", ".frame", "app.state", "waitForExistence",
+            ".tap(", ".press(", "screenshot", "debugDescription",
+            "preActionDetailRouteExists = false", "preActionDetailRouteExists = true",
+        ] {
+            XCTAssertFalse(rtlScopedDetailObservationSource.contains(prohibited), prohibited)
+        }
         let quickPathSemanticSnapshots = [
             "            let preActionSiteValue = site.value as? String",
             "            let preActionErrorLabel = error.label",
@@ -7056,14 +7103,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             quickPathViewportToCaptureSource.components(separatedBy: quickPathRestorationFailure).count - 1,
             1
         )
-        XCTAssertEqual(
-            quickPathViewportToCaptureSource.components(separatedBy: "XCTFail(").count - 1,
-            5
-        )
-        XCTAssertEqual(
-            quickPathViewportToCaptureSource.components(separatedBy: "                    return\n").count - 1,
-            5
-        )
+        // Preserve each original QuickPath failure and immediate return independently.
+        for failureAndReturn in [
+            "XCTFail(\"The minimum-profile application or keyboard frame is empty.\")\n                    return\n",
+            "XCTFail(\"The minimum-profile keyboard geometry is not classifiable.\")\n                    return\n",
+            "XCTFail(\"The minimum-profile off-app new-sign keyboard is not inert with preserved state.\")\n                        return\n",
+            "XCTFail(\"The iOS 18 keyboard frame does not match the frozen QuickPath tutorial evidence.\")\n                        return\n",
+            "XCTFail(\"The new-sign validation state or content was not restored after dismissing the QuickPath tutorial.\")\n                        return\n",
+        ] {
+            XCTAssertEqual(quickPathViewportToCaptureSource.components(separatedBy: failureAndReturn).count - 1, 1, failureAndReturn)
+        }
         let quickPathCapturePrecededByRestoration =
             quickPathRestorationFailure +
                 "\n                }\n            }\n        }\n" +
@@ -7210,11 +7259,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(laterPreflightSource.contains(laterPreflightToggleSteps))
             XCTAssertFalse(laterPreflightSource.contains("positionInitialDoubleSafePosition"))
         }
-        let toggleHelperStart = try XCTUnwrap(uiSource.range(of:
-            "    private func setToggle(_ identifier: String, in app: XCUIApplication) {"))
-        let toggleHelperEnd = try XCTUnwrap(uiSource.range(of:
-            "    private func assertText(", range: toggleHelperStart.upperBound..<uiSource.endIndex))
-        let toggleHelper = String(uiSource[toggleHelperStart.lowerBound..<toggleHelperEnd.lowerBound])
+        let toggleHelper = try boundedSource(uiSource,
+            from: "    private func setToggle(_ identifier: String, in app: XCUIApplication, isInitialPreflightConfirmation: Bool = false) {",
+            before: "    @MainActor\n    private func assertText(")
         XCTAssertTrue(toggleHelper.contains("automationShard?.shardID == \"s10.4.minimum.rtl\""))
         XCTAssertTrue(toggleHelper.contains("identifier == \"s3.preflight.time-zone-confirmed\""))
         XCTAssertTrue(toggleHelper.contains("app.switches.matching(identifier: identifier)"))
@@ -7224,9 +7271,62 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(toggleHelper.contains("scroll(toggle, in: app)"))
         XCTAssertTrue(toggleHelper.contains("XCTAssertEqual(toggle.elementType, .switch)"))
         XCTAssertTrue(toggleHelper.contains("assertMinimumGeometry(toggle)"))
-        XCTAssertTrue(toggleHelper.contains("if (toggle.value as? String) != \"1\""))
+        XCTAssertTrue(toggleHelper.contains("let cachedToggleValue = toggle.value as? String"))
+        XCTAssertTrue(toggleHelper.contains("if cachedToggleValue != \"1\""))
         XCTAssertEqual(toggleHelper.components(separatedBy: "toggle.tap()").count - 1, 1)
         XCTAssertTrue(toggleHelper.contains("XCTAssertTrue(wait(for: toggle, predicate: \"value == '1'\", timeout: 10))"))
+
+        XCTAssertEqual(toggleHelper.components(separatedBy: "toggle.value as? String").count - 1, 1)
+        for exact in [
+            "isInitialPreflightConfirmation: Bool = false",
+            "if isInitialPreflightConfirmation,",
+            "diagnosticProbe == nil, automationSegment == .none",
+            #"shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded""#,
+            #"shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "toggle.descendants(matching: .switch)", "guard descendantCount == 1 else",
+            "guard actuatorExists == true else", "actuatorEnabled == true, actuatorHittable == true",
+            #"guard cachedToggleValue == "0" else"#, #"actuatorValue == "0" else"#,
+            "S10_4_INITIAL_CONFIRMATION_ACTUATOR_FAILURE",
+            #""diagnosticOnly": true, "finalAcceptanceEligible": false"#,
+            #""nativeReadsAreAtomic": false"#, "String($0.prefix(256))",
+            "bindingStartedAt.isFinite", "completedAt.isFinite",
+        ] {
+            XCTAssertTrue(toggleHelper.contains(exact), exact)
+        }
+        XCTAssertEqual(uiSource.components(separatedBy: "isInitialPreflightConfirmation: true").count - 1, 1)
+        for once in [
+            "actuatorMatches.count", "actuator.exists", "actuator.isEnabled",
+            "actuator.isHittable", "actuator.value as? String", "actuator.tap()",
+        ] {
+            XCTAssertEqual(toggleHelper.components(separatedBy: once).count - 1, 1, once)
+        }
+        let actuatorFailureRecord = try boundedSource(toggleHelper,
+            from: "                let failActuatorBinding:",
+            before: "                guard cachedToggleValue ==")
+        for prohibited in [
+            ".exists", ".isEnabled", ".isHittable", ".value", ".frame", ".label",
+            ".count", ".tap(", "wait(", "screenshot", "debugDescription",
+        ] {
+            XCTAssertFalse(actuatorFailureRecord.contains(prohibited), prohibited)
+        }
+        XCTAssertTrue(actuatorFailureRecord.contains("XCTFail(reason)"))
+        var actuatorOrder = toggleHelper[toggleHelper.startIndex...]
+        for exact in [
+            "scroll(toggle, in: app)", "assertMinimumGeometry(toggle)",
+            "let cachedToggleValue = toggle.value as? String", "if cachedToggleValue !=",
+            "if isInitialPreflightConfirmation,", "guard cachedToggleValue ==",
+            "toggle.descendants(matching: .switch)", "descendantCount = actuatorMatches.count",
+            "guard descendantCount == 1 else", "actuatorExists = actuator.exists",
+            "guard actuatorExists == true else", "actuatorEnabled = actuator.isEnabled",
+            "actuatorHittable = actuator.isHittable", "actuatorValue = actuator.value as? String",
+            "actuatorValueRead = true", "guard actuatorEnabled == true",
+            "actuator.tap()", "} else {", "toggle.tap()",
+            #"XCTAssertTrue(wait(for: toggle, predicate: "value == '1'", timeout: 10))"#,
+        ] {
+            let range = try XCTUnwrap(actuatorOrder.range(of: exact), exact)
+            actuatorOrder = actuatorOrder[range.upperBound...]
+        }
 
         // Native profile tests own this preparation geometry; keep its route binding.
         XCTAssertTrue(uiSource.contains("    @MainActor\n    private func dismissKeyboard(in app: XCUIApplication) {"))
@@ -19570,10 +19670,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 994_405)
+        XCTAssertEqual(uiSource.utf8.count, 999_358)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "3F6078EABEDAFB0D7F0CCCFBF8C09746E5D00970F41A54A3981099BEDD0BF253"
+            "E66EF5D1C98389869053D20176EA1A2F7597B4F6034D8B3F1221B0148BC1255C"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

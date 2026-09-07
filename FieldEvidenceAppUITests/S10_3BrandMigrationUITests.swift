@@ -1421,7 +1421,22 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let preActionErrorValue = error.value as? String
             let newSignRoute = element("s2.new-sign.screen", in: app)
             let preActionNewSignRouteExists = newSignRoute.exists
-            let preActionDetailRouteExists = validationDetailRoute.exists
+            let preActionDetailRouteExists: Bool
+            if diagnosticProbe == nil, automationSegment == .none,
+               let shard = automationShard,
+               shard.shardID == "s10.4.minimum.rtl", shard.ordinal == 10,
+               shard.requirementID == "rtl",
+               shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+                guard shell.exists,
+                      (shell.value as? String) == effectiveAppearanceName(fallback: "Light") else {
+                    XCTFail("The ordinary RTL Signs shell disappeared or changed appearance before the new-sign route observation.")
+                    return
+                }
+                preActionDetailRouteExists = shell.descendants(matching: .any)
+                    .matching(identifier: "s2.sign-detail.screen").firstMatch.exists
+            } else {
+                preActionDetailRouteExists = validationDetailRoute.exists
+            }
             let returnKey = app.keyboards.buttons["Return"]
             if !returnKey.waitForExistence(timeout: 1) || !returnKey.isHittable {
                 let applicationFrame = app.frame
@@ -4338,7 +4353,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 timeout: 10
             )
         )
-        setToggle("s3.preflight.time-zone-confirmed", in: app)
+        setToggle("s3.preflight.time-zone-confirmed", in: app, isInitialPreflightConfirmation: true)
         if automationShard?.shardID == "s10.4.current.ax-text" {
             guard positionPreflightAfterDarkForAXText(in: app) else {
                 XCTFail(
@@ -18792,7 +18807,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
-    private func setToggle(_ identifier: String, in app: XCUIApplication) {
+    private func setToggle(_ identifier: String, in app: XCUIApplication, isInitialPreflightConfirmation: Bool = false) {
         let toggle: XCUIElement
         if automationShard?.shardID == "s10.4.minimum.rtl",
            identifier == "s3.preflight.time-zone-confirmed" {
@@ -18808,8 +18823,73 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(toggle, in: app)
         XCTAssertEqual(toggle.elementType, .switch)
         assertMinimumGeometry(toggle)
-        if (toggle.value as? String) != "1" {
-            toggle.tap()
+        let cachedToggleValue = toggle.value as? String
+        if cachedToggleValue != "1" {
+            if isInitialPreflightConfirmation,
+               diagnosticProbe == nil, automationSegment == .none,
+               let shard = automationShard,
+               (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
+                || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string"),
+               shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+               identifier == "s3.preflight.time-zone-confirmed" {
+                let bindingStartedAt = ProcessInfo.processInfo.systemUptime
+                var descendantCount: Int?
+                var actuatorExists: Bool?
+                var actuatorEnabled: Bool?
+                var actuatorHittable: Bool?
+                var actuatorValue: String?
+                var actuatorValueRead = false
+                let failActuatorBinding: (String) -> Void = { reason in
+                    let completedAt = ProcessInfo.processInfo.systemUptime
+                    self.printJSONLine(prefix: "S10_4_INITIAL_CONFIRMATION_ACTUATOR_FAILURE", object: [
+                        "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                        "reason": reason, "initialPreflightConfirmation": true,
+                        "identifier": identifier, "shardID": shard.shardID,
+                        "ordinal": shard.ordinal, "requirementID": shard.requirementID,
+                        "deviceProfileID": shard.deviceProfileID,
+                        "diagnosticProbe": NSNull(), "automationSegment": "none",
+                        "clock": "test-runner-systemUptime", "nativeReadsAreAtomic": false,
+                        "bindingStartedAt": bindingStartedAt.isFinite ? bindingStartedAt as Any : NSNull(),
+                        "bindingFailedAt": completedAt.isFinite ? completedAt as Any : NSNull(),
+                        "cachedOuterValue": cachedToggleValue.map { String($0.prefix(256)) as Any } ?? NSNull(),
+                        "descendantCount": descendantCount.map { $0 as Any } ?? NSNull(),
+                        "actuatorExists": actuatorExists.map { $0 as Any } ?? NSNull(),
+                        "actuatorEnabled": actuatorEnabled.map { $0 as Any } ?? NSNull(),
+                        "actuatorHittable": actuatorHittable.map { $0 as Any } ?? NSNull(),
+                        "actuatorValueRead": actuatorValueRead,
+                        "actuatorValue": actuatorValue.map { String($0.prefix(256)) as Any } ?? NSNull(),
+                    ])
+                    XCTFail(reason)
+                }
+                guard cachedToggleValue == "0" else {
+                    failActuatorBinding("Initial confirmation outer value is not off.")
+                    return
+                }
+                let actuatorMatches = toggle.descendants(matching: .switch)
+                descendantCount = actuatorMatches.count
+                guard descendantCount == 1 else {
+                    failActuatorBinding("Initial confirmation actuator is ambiguous.")
+                    return
+                }
+                let actuator = actuatorMatches.firstMatch
+                actuatorExists = actuator.exists
+                guard actuatorExists == true else {
+                    failActuatorBinding("Initial confirmation actuator is unavailable.")
+                    return
+                }
+                actuatorEnabled = actuator.isEnabled
+                actuatorHittable = actuator.isHittable
+                actuatorValue = actuator.value as? String
+                actuatorValueRead = true
+                guard actuatorEnabled == true, actuatorHittable == true,
+                      actuatorValue == "0" else {
+                    failActuatorBinding("Initial confirmation actuator is not eligible and off.")
+                    return
+                }
+                actuator.tap()
+            } else {
+                toggle.tap()
+            }
         }
         XCTAssertTrue(wait(for: toggle, predicate: "value == '1'", timeout: 10))
     }
