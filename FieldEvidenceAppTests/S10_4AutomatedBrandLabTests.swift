@@ -8004,7 +8004,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"shard.shardID == "s10.4.minimum.minimum-os", shard.ordinal == 8"#))
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"shard.requirementID == "minimum_os""#))
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
-        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"guard importButtons.count == 1 else { return false }"#))
+        XCTAssertTrue(minimumSavingStructuralBinding.contains(#"guard importButtons.count == 1 else {"#))
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"NSPredicate(format: "label == %@", observedWorkHelperLabel)"#))
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"nestedCount == helperCount - 1"#))
         XCTAssertTrue(minimumSavingStructuralBinding.contains(#"nestedCount == 0 || nestedCount == 1"#))
@@ -8015,7 +8015,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for (workSavingHelperSemanticProof, count) in [
             ("return workSavingHelperTexts.count == expectedWorkHelperTextCount", 1),
             ("workSavingHelperTexts.count == 1", 1),
-            ("guard let helperSnapshot = try? workSavingHelper.snapshot() else { return false }", 1),
+            ("guard let helperSnapshot = try? workSavingHelper.snapshot() else {", 1),
             ("helperSnapshot.elementType == .staticText", 1),
             ("helperSnapshot.identifier.isEmpty", 1),
             ("helperSnapshot.label == observedWorkHelperLabel", 1),
@@ -8221,6 +8221,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 signedAXTextMover
             )
         }
+
+        let minimumSavingDiagnosticStart = try XCTUnwrap(workSavingPositioningSource.range(of:
+            "                let recordSavingBindingFailure:"))
+        let minimumSavingDiagnosticEnd = try XCTUnwrap(workSavingPositioningSource.range(of:
+            "            guard workSavingHelperTexts.count == 1,", range:
+                minimumSavingDiagnosticStart.upperBound..<workSavingPositioningSource.endIndex))
+        let minimumSavingDiagnosticSource = String(workSavingPositioningSource[
+            minimumSavingDiagnosticStart.lowerBound..<minimumSavingDiagnosticEnd.lowerBound])
+        XCTAssertTrue(minimumSavingDiagnosticSource.contains("S10_4_MINIMUM_SAVING_BINDING_FAILURE"))
+        for stage in ["import-cardinality", "helper-cardinality-or-existence", "helper-snapshot-acquisition",
+                      "import-snapshot-acquisition", "helper-import-attributes", "nested-snapshot-acquisition", "nested-attributes"] {
+            XCTAssertTrue(minimumSavingDiagnosticSource.contains("recordSavingBindingFailure(\"" + stage + "\""))
+        }
+        XCTAssertTrue(minimumSavingDiagnosticSource.contains("return nestedAttributesAreValid"))
+        XCTAssertTrue(minimumSavingDiagnosticSource.contains("guard nestedCount == 1 else { return true }"))
+        let minimumSavingFormatterEnd = try XCTUnwrap(minimumSavingDiagnosticSource.range(of:
+            "                let importButtons ="))
+        let minimumSavingFormatter = String(minimumSavingDiagnosticSource[..<minimumSavingFormatterEnd.lowerBound])
+        for forbidden in [".snapshot()", ".exists", ".count ==", ".tap()", ".waitForExistence", "XCTFail", "captureBaseline"] {
+            XCTAssertFalse(minimumSavingFormatter.contains(forbidden))
+        }
+        XCTAssertTrue(minimumSavingFormatter.contains("snapshot.value"))
+        XCTAssertTrue(minimumSavingFormatter.contains("snapshot.isEnabled"))
+        XCTAssertTrue(minimumSavingFormatter.contains("$0.isFinite"))
+        XCTAssertTrue(minimumSavingFormatter.contains("prefix(256)"))
 
         let workSavingFinalDisjointAcceptance =
             "              (workSavingOrdinaryCompositionAccepted\n" +
@@ -18275,10 +18300,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 902_665)
+        XCTAssertEqual(uiSource.utf8.count, 906_538)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "6F6F827D1A20494F981F8DEF5F6542AF6999DBE437B62B972042BA036E2D2DC5"
+            "7723ECC27B1217AF1126C71CDFF7D5C1F9D24AD96E6F5FBBA69036ADBE61D15E"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
