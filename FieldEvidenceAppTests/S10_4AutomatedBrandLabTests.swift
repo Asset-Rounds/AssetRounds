@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 36_099,
-            sha256: "F384C99AF23AA59DBBAA5005BB4AC9F800B7E259F6C564CD815BFAAFC145B778"
+            byteCount: 36_184,
+            sha256: "A92A4C7966CF10AD1F45F0C53C85FC749CFD7F2811D536A6F631CECD6C690C6C"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -252,8 +252,30 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "  # H408 optional incident-correlated app log; originals remain unchanged.\n",
             before: "  # End H408 optional incident-correlated app log.\n"
         )
-        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n  esac\nfi\n\n"
+        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n  esac\nfi\n\n"
         XCTAssertTrue(uiSmokeSource.contains(incidentStartSource))
+        // K470: closed bounded admission joins the existing failure-only incident profiles.
+        let incidentAdmissionSource = try boundedSource(
+            incidentCollectorSource,
+            from: #"  if [ "${CI_RUNNER_PROVIDER:-}" = github ] &&"#,
+            before: "    ips_now=\"$(date +%s)\"\n"
+        )
+        for required in [
+            #"[ "${CI_RUNNER_PROVIDER:-}" = github ]"#,
+            #"[ "${CI_TASK_ID:-}" = S10.4 ]"#,
+            #"[ "${CI_S10_4_PILOT_MODE:-false}" = false ]"#,
+            #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.minimum-os ]"#,
+            #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.accented ]"#,
+            #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.bounded ]"#,
+            #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.tall ]"#,
+            #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]"#,
+        ] {
+            XCTAssertTrue(incidentAdmissionSource.contains(required), required)
+        }
+        XCTAssertEqual(incidentAdmissionSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = "#).count - 1, 5)
+        for excluded in ["s10.4.minimum.rtl-string", "s10.4.minimum.double-length", "s10.4.current."] {
+            XCTAssertFalse(incidentAdmissionSource.contains(excluded), excluded)
+        }
         // Preserve K417 incident admission and bounded same-snapshot prefix.
         XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ]; }; then"))
         XCTAssertTrue(incidentCollectorSource.contains("          ips_prefix_limit=\"$ips_snapshot_bytes\"\n          if [ \"$ips_prefix_limit\" -gt 1048576 ]; then ips_prefix_limit=1048576; fi\n          /usr/bin/head -c \"$ips_prefix_limit\" \"$ips_raw\" \\\n            > \"$failure_diagnostic_path/simulator-incident-app-prefix.log\"\n          ips_prefix_status=\"$?\"\n          ips_prefix_bytes=\"$(LC_ALL=C wc -c < \"$failure_diagnostic_path/simulator-incident-app-prefix.log\" | tr -d '[:space:]')\"\n          ips_tail_snapshot_start=0\n          if [ \"$ips_snapshot_bytes\" -gt 1048576 ]; then\n            ips_tail_snapshot_start=\"$(( ips_snapshot_bytes - 1048576 ))\"\n          fi\n          ips_prefix_tail_overlap=0\n          if [ \"$ips_prefix_bytes\" -gt \"$ips_tail_snapshot_start\" ]; then\n            ips_prefix_tail_overlap=\"$(( ips_prefix_bytes - ips_tail_snapshot_start ))\"\n          fi\n          printf 'ips_prefix_status=%s\\nips_prefix_bytes=%s\\nips_prefix_start_byte=0\\nips_prefix_end_byte=%s\\nips_tail_snapshot_start_byte=%s\\nips_tail_snapshot_end_byte=%s\\nips_prefix_tail_overlap_bytes=%s\\nips_prefix_capture=bounded_snapshot_not_completion_proof\\n' \\\n            \"$ips_prefix_status\" \"$ips_prefix_bytes\" \"$ips_prefix_bytes\" \\\n            \"$ips_tail_snapshot_start\" \"$ips_snapshot_bytes\" \"$ips_prefix_tail_overlap\" \\\n            >> \"$diagnostic_status_path\"\n          if [ \"$ips_query_status\" -ne 0 ] || [ \"$ips_prefix_status\" -ne 0 ] || \\\n             [ \"$ips_prefix_bytes\" -ne \"$ips_prefix_limit\" ] || [ \"$ips_prefix_bytes\" -eq 0 ]; then\n            printf 'ips_prefix_incomplete=true\\n' >> \"$diagnostic_status_path\"\n          fi\n"))
@@ -4847,6 +4869,51 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 reportsIndexStartRange.lowerBound..<reportsIndexEndRange.lowerBound
             ]
         )
+        let boundedHistoryBindingSource = try boundedSource(
+            reportsIndexSource,
+            from: "        let history: XCUIElement",
+            before: "        scroll(history, in: app)"
+        )
+        let boundedHistoryTypedBranch = try boundedSource(
+            boundedHistoryBindingSource,
+            from: "        if diagnosticProbe == nil, automationSegment == .none,",
+            before: "        } else {"
+        )
+        for boundedHistoryInvariant in [
+            "diagnosticProbe == nil, automationSegment == .none",
+            #"shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14"#,
+            #"shard.requirementID == "bounded""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #"history = app.buttons.matching(identifier: "s4.4.sign-detail.report-history").firstMatch"#,
+        ] {
+            XCTAssertTrue(boundedHistoryTypedBranch.contains(boundedHistoryInvariant), boundedHistoryInvariant)
+        }
+        XCTAssertTrue(boundedHistoryBindingSource.contains(
+            "        } else {\n            history = element(\"s4.4.sign-detail.report-history\", in: app)\n        }"
+        ))
+        XCTAssertEqual(boundedHistoryBindingSource.components(separatedBy: "app.buttons.matching(").count - 1, 1)
+        XCTAssertEqual(boundedHistoryBindingSource.components(separatedBy: ".firstMatch").count - 1, 1)
+        XCTAssertEqual(boundedHistoryBindingSource.components(separatedBy: #"history = element("s4.4.sign-detail.report-history", in: app)"#).count - 1, 1)
+        for prohibitedHistoryBindingOperation in [
+            ".count", ".exists", ".isEnabled", ".isHittable", ".frame", ".label",
+            "NSPredicate", ".descendants", ".tap(", ".swipe", ".press(",
+            "wait(", "waitForExistence", "while ", "for ", "catch", "screenshot", "debugDescription",
+        ] {
+            XCTAssertFalse(boundedHistoryBindingSource.contains(prohibitedHistoryBindingOperation), prohibitedHistoryBindingOperation)
+        }
+        let initialHistoryActionSequence =
+            "        scroll(history, in: app)\n" +
+                "        assertControl(history, label: \"Report history\")\n" +
+                "        let historyOpenAt = Date()\n" +
+                "        history.tap()\n" +
+                "        let reportHistoryScreen: XCUIElement"
+        XCTAssertTrue(reportsIndexSource.contains(initialHistoryActionSequence))
+        XCTAssertEqual(reportsIndexSource.components(separatedBy: "history.tap()").count - 1, 1)
+        XCTAssertEqual(uiSource.components(separatedBy: #"let history = element("s4.4.sign-detail.report-history", in: app)"#).count - 1, 1)
+        let boundedHistoryProductSource = try text("FieldEvidenceApp/Features/Signs/SignDetailView.swift")
+        XCTAssertTrue(boundedHistoryProductSource.contains(#""s4.4.sign-detail.report-history""#))
+        XCTAssertTrue(boundedHistoryProductSource.contains(#"AssetRoundsSecondaryAction("Report history", action: openReportHistory)"#))
+        XCTAssertTrue(boundedHistoryProductSource.contains(".accessibilityIdentifier(Self.reportHistoryAccessibilityIdentifier)"))
         let accentedReceiptLookupSource = try boundedSource(
             uiSource,
             from: "        let firstReceiptScreen: XCUIElement",
@@ -19890,10 +19957,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_010_434)
+        XCTAssertEqual(uiSource.utf8.count, 1_010_886)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "87751FE602B4009B90349928EBDEC3AEFEF90A218E4165BA006A3E42E3635D7B"
+            "96EDD2478988BC2059FF6506C98F97E84497CCFE70681350C6A4840E96B4DB64"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

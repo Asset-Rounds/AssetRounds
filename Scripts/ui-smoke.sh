@@ -120,7 +120,7 @@ fi
 ips_test_started_epoch=""
 if [ "${CI_RUNNER_PROVIDER:-}" = github ] && [ "${CI_TASK_ID:-}" = S10.4 ]; then
   case "${CI_S10_4_SHARD_ID:-}" in
-    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.tall|s10.4.minimum.rtl)
+    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)
       ips_test_started_epoch="$(date +%s)" ;;
   esac
 fi
@@ -498,6 +498,7 @@ if [ "$xcodebuild_status" -ne 0 ]; then
      [ "${CI_S10_4_PILOT_MODE:-false}" = false ] &&
      { [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.minimum-os ] ||
        [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.accented ] ||
+       [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.bounded ] ||
        [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.tall ] ||
        [ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]; }; then
     ips_now="$(date +%s)"

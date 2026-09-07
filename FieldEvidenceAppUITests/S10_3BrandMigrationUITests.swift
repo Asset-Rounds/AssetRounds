@@ -5455,7 +5455,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     private func assertReportsIndex(in app: XCUIApplication) throws {
-        let history = element("s4.4.sign-detail.report-history", in: app)
+        let history: XCUIElement
+        if diagnosticProbe == nil, automationSegment == .none,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,
+           shard.requirementID == "bounded",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            history = app.buttons.matching(identifier: "s4.4.sign-detail.report-history").firstMatch
+        } else {
+            history = element("s4.4.sign-detail.report-history", in: app)
+        }
         scroll(history, in: app)
         assertControl(history, label: "Report history")
         let historyOpenAt = Date()
