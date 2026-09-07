@@ -2842,6 +2842,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(accentedAvailablePositioning.contains("S10_4_ACCENTED_AVAILABLE_POSITION_FAILURE"))
         XCTAssertFalse(accentedAvailablePositioning.contains(".tap()"))
         XCTAssertFalse(accentedAvailablePositioning.contains("performAccessibilityAudit"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("actualMovement = cachedRequired[0].minY - previousMovement.anchorMinY"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("cachedViewport == previousMovement.viewport"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("actualMovement.isFinite"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("!($0 > 0 && blockedPositiveDirection)"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("!($0 < 0 && blockedNegativeDirection)"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("cachedMovementResponses.append"))
         let doubleInitialProgressFailure = try boundedSource(uiSource, from: "                                    let interactiveSwitchFrameAfterDrag = interactiveSwitch.frame", before: "                                        XCTFail(\"The serial visible preflight positioning gesture did not make signed progress.\")")
         XCTAssertTrue(doubleInitialProgressFailure.contains("S10_4_DOUBLE_INITIAL_PROGRESS_FAILURE"))
         XCTAssertTrue(doubleInitialProgressFailure.contains("if value.isFinite { return value }"))
@@ -18472,10 +18478,31 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(noteHeadingFrame) { return \"app-contains-note-heading\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(noteFieldFrame) { return \"app-contains-note-field\" }"))
         let rtlNativeDoneTargetAdmission = try boundedSource(rtlWorkValidationAccessorySource, from: "        let usesRTLStringNativeDoneTarget =", before: "        let firstFailedPreTapSemanticLabel:")
-        for clause in ["diagnosticProbe == nil", "automationSegment == .none", #"shard.shardID == "s10.4.minimum.rtl-string""#, "shard.ordinal == 11", #"shard.requirementID == "rtl_string""#, #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#] {
+        for clause in ["diagnosticProbe == nil", "automationSegment == .none", #"shard.shardID == "s10.4.minimum.rtl-string""#, "shard.ordinal == 11", #"shard.requirementID == "rtl_string""#, #"shard.shardID == "s10.4.minimum.rtl""#, "shard.ordinal == 10", #"shard.requirementID == "rtl""#, #"shard.shardID == "s10.4.minimum.bounded""#, "shard.ordinal == 14", #"shard.requirementID == "bounded""#, #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#] {
             XCTAssertTrue(rtlNativeDoneTargetAdmission.contains(clause))
         }
-        XCTAssertFalse(rtlNativeDoneTargetAdmission.contains("||"))
+        XCTAssertFalse(rtlNativeDoneTargetAdmission.contains("s10.4.minimum.tall"))
+        XCTAssertFalse(rtlNativeDoneTargetAdmission.contains("s10.4.minimum.accented"))
+        XCTAssertFalse(rtlNativeDoneTargetAdmission.contains("s10.4.minimum.minimum-os"))
+        let nativeDoneTargetTuples = [
+            ("s10.4.minimum.rtl-string", 11, "rtl_string"),
+            ("s10.4.minimum.rtl", 10, "rtl"),
+            ("s10.4.minimum.bounded", 14, "bounded"),
+        ]
+        let nativeDoneTargetAdmitted: (String?, String, String, Int, String, String) -> Bool = { probe, segment, shardID, ordinal, requirementID, profileID in
+            probe == nil && segment == "none"
+                && profileID == "iphone-se-3-ios-18.0-minimum"
+                && nativeDoneTargetTuples.contains { $0 == (shardID, ordinal, requirementID) }
+        }
+        XCTAssertTrue(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.rtl-string", 11, "rtl_string", "iphone-se-3-ios-18.0-minimum"))
+        XCTAssertTrue(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.rtl", 10, "rtl", "iphone-se-3-ios-18.0-minimum"))
+        XCTAssertTrue(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.bounded", 14, "bounded", "iphone-se-3-ios-18.0-minimum"))
+        XCTAssertFalse(nativeDoneTargetAdmitted("probe", "none", "s10.4.minimum.rtl", 10, "rtl", "iphone-se-3-ios-18.0-minimum"))
+        XCTAssertFalse(nativeDoneTargetAdmitted(nil, "segment", "s10.4.minimum.rtl", 10, "rtl", "iphone-se-3-ios-18.0-minimum"))
+        XCTAssertFalse(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.rtl", 11, "rtl", "iphone-se-3-ios-18.0-minimum"))
+        XCTAssertFalse(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.bounded", 14, "rtl", "iphone-se-3-ios-18.0-minimum"))
+        XCTAssertFalse(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.tall", 12, "tall", "iphone-se-3-ios-18.0-minimum"))
+        XCTAssertFalse(nativeDoneTargetAdmitted(nil, "none", "s10.4.minimum.bounded", 14, "bounded", "iphone-17-ios-26.2-current"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !usesRTLStringNativeDoneTarget && !applicationFrame.contains(keyboardFrame)"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !frameIsValid(keyboardFrame)"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !keyboard.exists"))
@@ -18483,7 +18510,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !doneButton.isEnabled"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !doneButton.isHittable"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !applicationFrame.contains(doneButtonFrame) { return \"app-contains-done\" }"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !noteHeadingOverlapsDoneAccessoryBand { return \"note-heading-overlaps-done-accessory\" }"))
+        let rtlNoteOverlapAdmission = try boundedSource(rtlWorkValidationAccessorySource, from: "        let permitsRTLStringNoteOutsideDoneBand =", before: "        let usesRTLStringNativeDoneTarget =")
+        for clause in ["diagnosticProbe == nil", "automationSegment == .none", #"shard.shardID == "s10.4.minimum.rtl-string""#, "shard.ordinal == 11", #"shard.requirementID == "rtl_string""#, #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#] {
+            XCTAssertTrue(rtlNoteOverlapAdmission.contains(clause))
+        }
+        XCTAssertFalse(rtlNoteOverlapAdmission.contains("||"))
+        XCTAssertFalse(rtlNoteOverlapAdmission.contains("usesRTLStringNativeDoneTarget"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !permitsRTLStringNoteOutsideDoneBand && !noteHeadingOverlapsDoneAccessoryBand { return \"note-heading-overlaps-done-accessory\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.exists { return \"work-exists\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.isEnabled { return \"work-enabled\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !workScreen.isHittable { return \"work-hittable\" }"))
@@ -18548,10 +18581,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 918_079)
+        XCTAssertEqual(uiSource.utf8.count, 920_752)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "E96F73A0D38AB0D360996687749B11123F081EACF2A88333A5AB6B6ACA272BA7"
+            "5CDEDCE3AE3BEFB9ACE672277441DA844C94B36C5FE7370CE46A64A16D205C6F"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

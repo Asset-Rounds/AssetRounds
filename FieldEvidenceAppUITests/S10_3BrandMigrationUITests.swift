@@ -9501,6 +9501,14 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             var cachedViewport = CGRect.null
             var cachedRequired: [CGRect] = []
             var cachedSiblings: [(String, CGRect)] = []
+            var previousMovement: (command: CGFloat, anchorMinY: CGFloat, viewport: CGRect)?
+            var blockedPositiveDirection = false
+            var blockedNegativeDirection = false
+            var cachedMovementResponses: [[String: Any]] = []
+            let movementScalar: (CGFloat) -> Any = { value in
+                if value.isFinite { return value }
+                return NSNull()
+            }
             let failPositioning: (String) -> Bool = { stage in
                 let jsonFrame: (CGRect) -> Any = { frame in
                     if validFrame(frame) {
@@ -9514,6 +9522,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     "required": cachedRequired.enumerated().map { index, frame in
                         ["index": index, "frame": jsonFrame(frame), "visibility": !validFrame(frame) ? "unavailable" : cachedViewport.contains(frame) ? "contained" : cachedViewport.intersects(frame) ? "intersecting" : "outside"] as [String: Any]
                     },
+                    "movementResponses": cachedMovementResponses,
+                    "blockedPositiveDirection": blockedPositiveDirection,
+                    "blockedNegativeDirection": blockedNegativeDirection,
                     "siblingCount": cachedSiblings.count,
                     "siblingsTruncated": cachedSiblings.count > 128,
                     "siblings": cachedSiblings.prefix(128).map { identifier, frame in
@@ -9555,6 +9566,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     positioned = true
                     break
                 }
+                if let previousMovement {
+                    let actualMovement = cachedRequired[0].minY - previousMovement.anchorMinY
+                    cachedMovementResponses.append([
+                        "attempt": attempt,
+                        "command": movementScalar(previousMovement.command),
+                        "actualMovement": movementScalar(actualMovement),
+                        "viewportUnchanged": cachedViewport == previousMovement.viewport,
+                    ])
+                    guard cachedViewport == previousMovement.viewport,
+                          actualMovement.isFinite else {
+                        _ = failPositioning("movement-response-unavailable")
+                        return usedSettingsRetry
+                    }
+                    if actualMovement == 0 || (actualMovement > 0) != (previousMovement.command > 0) {
+                        if previousMovement.command > 0 {
+                            blockedPositiveDirection = true
+                        } else {
+                            blockedNegativeDirection = true
+                        }
+                    }
+                }
                 guard attempt < 4,
                       cachedRequired[0].minX >= cachedViewport.minX,
                       cachedRequired[0].maxX <= cachedViewport.maxX else {
@@ -9588,7 +9620,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 }
                 let candidates = allowedIntervals.map { interval in
                     min(max(CGFloat.zero, interval.lower), interval.upper)
-                }.filter { $0.isFinite && abs($0) < cachedViewport.height }
+                }.filter {
+                    $0.isFinite && abs($0) < cachedViewport.height
+                        && !($0 > 0 && blockedPositiveDirection)
+                        && !($0 < 0 && blockedNegativeDirection)
+                }
                 guard let shift = candidates.min(by: { abs($0) == abs($1) ? $0 < $1 : abs($0) < abs($1) }),
                       shift != 0 else {
                     _ = failPositioning("no-feasible-nonclipping-shift")
@@ -9599,6 +9635,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let origin = availableScroll.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
                 let start = origin.withOffset(CGVector(dx: cachedViewport.midX - scrollFrame.minX, dy: startY - scrollFrame.minY))
                 let end = start.withOffset(CGVector(dx: 0, dy: shift))
+                previousMovement = (shift, cachedRequired[0].minY, cachedViewport)
                 start.press(forDuration: 0.05, thenDragTo: end)
             }
             guard positioned else {
@@ -16064,10 +16101,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let noteHeadingOverlapsDoneAccessoryBand =
             noteHeadingFrame.minY < doneButtonFrame.maxY
                 && noteHeadingFrame.maxY > doneButtonFrame.minY
-        let usesRTLStringNativeDoneTarget = diagnosticProbe == nil
+        let permitsRTLStringNoteOutsideDoneBand = diagnosticProbe == nil
             && automationSegment == .none
             && shard.shardID == "s10.4.minimum.rtl-string"
             && shard.ordinal == 11 && shard.requirementID == "rtl_string"
+            && shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+        let usesRTLStringNativeDoneTarget = diagnosticProbe == nil
+            && automationSegment == .none
+            && ((shard.shardID == "s10.4.minimum.rtl-string"
+                    && shard.ordinal == 11 && shard.requirementID == "rtl_string")
+                || (shard.shardID == "s10.4.minimum.rtl"
+                    && shard.ordinal == 10 && shard.requirementID == "rtl")
+                || (shard.shardID == "s10.4.minimum.bounded"
+                    && shard.ordinal == 14 && shard.requirementID == "bounded"))
             && shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
         let firstFailedPreTapSemanticLabel: String? = {
             if app.state != .runningForeground { return "app-foreground" }
@@ -16086,7 +16132,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if !applicationFrame.contains(noteFieldFrame) { return "app-contains-note-field" }
             if !usesRTLStringNativeDoneTarget && !applicationFrame.contains(keyboardFrame) { return "app-contains-keyboard" }
             if !applicationFrame.contains(doneButtonFrame) { return "app-contains-done" }
-            if !noteHeadingOverlapsDoneAccessoryBand { return "note-heading-overlaps-done-accessory" }
+            if !permitsRTLStringNoteOutsideDoneBand && !noteHeadingOverlapsDoneAccessoryBand { return "note-heading-overlaps-done-accessory" }
             if !workScreen.exists { return "work-exists" }
             if !workScreen.isEnabled { return "work-enabled" }
             if !workScreen.isHittable { return "work-hittable" }
