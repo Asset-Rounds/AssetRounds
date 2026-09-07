@@ -8470,6 +8470,56 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
 
+        let rtlSavingTypedPhotoAdmission = try boundedSource(
+            uiSource,
+            from: "        let usesRTLStringSavingTypedPhotoQuery =",
+            before: "        let workSavingPreviewIsPresent:"
+        )
+        for rtlSavingTypedPhotoRoute in [
+            "diagnosticProbe == nil", "automationSegment == .none",
+            #"automationShard?.shardID == "s10.4.minimum.rtl-string""#,
+            "automationShard?.ordinal == 11",
+            #"automationShard?.requirementID == "rtl_string""#,
+            #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+        ] {
+            XCTAssertTrue(rtlSavingTypedPhotoAdmission.contains(rtlSavingTypedPhotoRoute), rtlSavingTypedPhotoRoute)
+        }
+        XCTAssertFalse(rtlSavingTypedPhotoAdmission.contains("||"))
+        let savingTypedPhotoPresence = try boundedSource(
+            uiSource,
+            from: "        let workSavingPreviewIsPresent: () -> Bool = {",
+            before: "        let workImportFixtureButtons:"
+        )
+        for savingTypedPhotoPresenceProof in [
+            "guard usesRTLStringSavingTypedPhotoQuery else {\n                return workPreview.exists\n            }",
+            "return workPreviewImages.count == 1",
+            "&& workPreviewImage.exists",
+            "&& workPreviewImage.elementType == .image",
+            #"&& workPreviewImage.identifier == "s5.1.work.photo""#,
+            "&& workPreviewImage.label == observedWorkHelperLabel",
+        ] {
+            XCTAssertTrue(savingTypedPhotoPresence.contains(savingTypedPhotoPresenceProof), savingTypedPhotoPresenceProof)
+        }
+        XCTAssertEqual(savingTypedPhotoPresence.components(separatedBy: "workPreview.exists").count - 1, 1)
+        XCTAssertFalse(savingTypedPhotoPresence.contains("||"))
+        for prohibitedSavingPhotoQueryChange in [
+            ".frame", ".isHittable", ".tap(", ".press(", "wait(", "waitFor", "sleep(",
+            "captureBaseline(", "performAccessibilityAudit", "XCTExpectFailure",
+        ] {
+            XCTAssertFalse(savingTypedPhotoPresence.contains(prohibitedSavingPhotoQueryChange), prohibitedSavingPhotoQueryChange)
+        }
+        XCTAssertEqual(workSavingPositioningSource.components(separatedBy: "workSavingPreviewIsPresent()").count - 1, 3)
+        XCTAssertEqual(workSavingPositioningSource.components(separatedBy: "workNavigationBar.exists,\n                  workSavingPreviewIsPresent(),").count - 1, 1)
+        XCTAssertEqual(workSavingPositioningSource.components(separatedBy: "workNavigationBar.exists,\n              workSavingPreviewIsPresent(),").count - 1, 2)
+        XCTAssertTrue(workSavingPositioningSource.contains("(!workEditingAXTextEnabled || workPreview.exists),"))
+        XCTAssertEqual(workSavingPositioningSource.components(separatedBy: "|| workPreviewImages.count == 1)").count - 1, 3)
+        let typedPhotoGuardOrder = try XCTUnwrap(savingTypedPhotoPresence.range(of: "guard usesRTLStringSavingTypedPhotoQuery"))
+        let typedPhotoCountOrder = try XCTUnwrap(savingTypedPhotoPresence.range(of: "return workPreviewImages.count == 1"))
+        let typedPhotoExistsOrder = try XCTUnwrap(savingTypedPhotoPresence.range(of: "&& workPreviewImage.exists"))
+        let typedPhotoIdentityOrder = try XCTUnwrap(savingTypedPhotoPresence.range(of: "&& workPreviewImage.elementType == .image"))
+        XCTAssertLessThan(typedPhotoGuardOrder.lowerBound, typedPhotoCountOrder.lowerBound)
+        XCTAssertLessThan(typedPhotoCountOrder.lowerBound, typedPhotoExistsOrder.lowerBound)
+        XCTAssertLessThan(typedPhotoExistsOrder.lowerBound, typedPhotoIdentityOrder.lowerBound)
         let workSavingAXTextInterval =
             "            if workEditingAXTextEnabled {\n" +
                 "                minimumShift = safeTop - buttonFrame.minY\n" +
@@ -8640,10 +8690,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ("workSavingHelper.exists else {", 1),
             ("workScrollView.exists", 3),
             ("workNavigationBar.exists", 3),
-            ("workPreview.exists", 4),
             ("progress.exists", 4),
             ("workImportFixtureButtons?.count == 1", 5),
-            ("workPreviewImages.count == 1", 3),
             ("workImportFixtureButton?.exists == true", 4),
             ("workImportFixtureButton?.elementType == .button", 4),
             ("workImportFixtureButton?.identifier", 4),
@@ -18939,10 +18987,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 960_377)
+        XCTAssertEqual(uiSource.utf8.count, 961_248)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "F66B5C9734CBF1EC84D76457754D17C83B80CB3069B8AABAE262B4232AC18B29"
+            "158D5FAEA14E0F842D18FBF261AE4ADAD30928B01ED775AA817E0C236244D39C"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

@@ -7538,6 +7538,22 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             : workHelperTexts
         let workSavingHelper = workSavingHelperTexts.firstMatch
+        let usesRTLStringSavingTypedPhotoQuery = diagnosticProbe == nil
+            && automationSegment == .none
+            && automationShard?.shardID == "s10.4.minimum.rtl-string"
+            && automationShard?.ordinal == 11
+            && automationShard?.requirementID == "rtl_string"
+            && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+        let workSavingPreviewIsPresent: () -> Bool = {
+            guard usesRTLStringSavingTypedPhotoQuery else {
+                return workPreview.exists
+            }
+            return workPreviewImages.count == 1
+                && workPreviewImage.exists
+                && workPreviewImage.elementType == .image
+                && workPreviewImage.identifier == "s5.1.work.photo"
+                && workPreviewImage.label == observedWorkHelperLabel
+        }
         let workImportFixtureButtons: XCUIElementQuery? = workEditingAXTextEnabled
             ? app.buttons.matching(identifier: "s5.1.work.import-fixture")
             : nil
@@ -7639,7 +7655,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 || workSavingHelper.exists),
               workScrollView.exists,
               workNavigationBar.exists,
-              workPreview.exists,
+              workSavingPreviewIsPresent(),
               progress.exists,
               savingInitialAXTextCompositionIsValid else {
             XCTFail("Record-work saving positioning route changed.")
@@ -7663,7 +7679,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     || workSavingHelper.exists),
                   workScrollView.exists,
                   workNavigationBar.exists,
-                  workPreview.exists,
+                  workSavingPreviewIsPresent(),
                   (!workEditingAXTextEnabled
                     || workImportFixtureButton?.exists == true),
                   (!workEditingAXTextEnabled
@@ -8068,7 +8084,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 || workSavingHelper.exists),
               workScrollView.exists,
               workNavigationBar.exists,
-              workPreview.exists,
+              workSavingPreviewIsPresent(),
               progress.exists,
               savingFinalSafeBottom > savingFinalSafeTop,
               (workSavingOrdinaryCompositionAccepted
