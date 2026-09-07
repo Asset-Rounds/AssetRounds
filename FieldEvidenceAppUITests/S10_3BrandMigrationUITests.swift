@@ -3290,9 +3290,41 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         withVelocity: .slow,
                                         thenHoldForDuration: 0.2
                                     )
-                                    guard (interactiveSwitch.frame.minY
+                                    let interactiveSwitchFrameAfterDrag = interactiveSwitch.frame
+                                    guard (interactiveSwitchFrameAfterDrag.minY
                                         - interactiveSwitchMinYBeforeDrag)
                                         * dragDistance > 0 else {
+                                        if self.diagnosticProbe == nil, self.automationSegment == .none,
+                                           let shard = self.automationShard,
+                                           shard.shardID == "s10.4.minimum.double-length", shard.ordinal == 9,
+                                           shard.requirementID == "double_length",
+                                           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+                                            let scalar: (CGFloat) -> Any = { value in
+                                                if value.isFinite { return value }
+                                                return NSNull()
+                                            }
+                                            let frameRecord: (CGRect) -> [Any] = { frame in
+                                                [frame.origin.x, frame.origin.y, frame.width, frame.height].map(scalar)
+                                            }
+                                            let record: [String: Any] = [
+                                                "shardID": shard.shardID,
+                                                "stage": "initial-visible-signed-progress",
+                                                "expectedLabel": String(expectedLabel.prefix(256)),
+                                                "labelTruncated": expectedLabel.count > 256,
+                                                "before": frameRecord(interactiveSwitchFrame),
+                                                "after": frameRecord(interactiveSwitchFrameAfterDrag),
+                                                "command": scalar(dragDistance), "direction": scalar(dragDirection),
+                                                "signedProgress": scalar((interactiveSwitchFrameAfterDrag.minY - interactiveSwitchMinYBeforeDrag) * dragDistance),
+                                                "safeTop": scalar(safeTop), "safeBottom": scalar(safeBottom),
+                                                "receiverTop": scalar(receiverTop), "receiverBottom": scalar(receiverBottom),
+                                                "app": frameRecord(liveApplicationFrame), "scroll": frameRecord(scrollFrame),
+                                                "navigation": frameRecord(navigationFrame), "assistant": frameRecord(assistantFrame),
+                                            ]
+                                            if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]),
+                                               let json = String(data: data, encoding: .utf8) {
+                                                print("S10_4_DOUBLE_INITIAL_PROGRESS_FAILURE \(json)")
+                                            }
+                                        }
                                         XCTFail("The serial visible preflight positioning gesture did not make signed progress.")
                                         return false
                                     }
@@ -4238,14 +4270,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         scroll(zone, in: app)
         zone.tap()
         zone.typeText("America/New_York")
-        if let shard = automationShard, shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented" || shard.shardID == "s10.4.minimum.rtl-string" || shard.shardID == "s10.4.minimum.double-length" {
+        if let shard = automationShard, shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented" || shard.shardID == "s10.4.minimum.rtl-string" || shard.shardID == "s10.4.minimum.double-length" || shard.shardID == "s10.4.minimum.rtl" {
             let enteredZoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")
             let enteredZoneAcknowledgements = ["s3.preflight.time-zone-confirmed", "s3.preflight.after-dark", "s3.preflight.safe-position"]
             guard diagnosticProbe == nil, automationSegment == .none,
                   (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
                     || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented")
                     || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string")
-                    || (shard.shardID == "s10.4.minimum.double-length" && shard.ordinal == 9 && shard.requirementID == "double_length"),
+                    || (shard.shardID == "s10.4.minimum.double-length" && shard.ordinal == 9 && shard.requirementID == "double_length")
+                    || (shard.shardID == "s10.4.minimum.rtl" && shard.ordinal == 10 && shard.requirementID == "rtl"),
                   shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
                   enteredZoneFields.count == 1, zone.exists, zone.isEnabled,
                   (zone.value as? String) == "America/New_York",

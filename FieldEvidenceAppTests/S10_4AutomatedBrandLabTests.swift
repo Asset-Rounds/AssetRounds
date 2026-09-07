@@ -2816,6 +2816,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(issueTabBarFailureSource.contains("rawTree.prefix(262_144)"))
         XCTAssertFalse(issueTabBarFailureSource.contains(".tap()"))
         let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        zone.typeText(\"America/New_York\")", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
+        XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 10 && shard.requirementID == \"rtl\""))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("|| shard.shardID == \"s10.4.minimum.rtl\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 9 && shard.requirementID == \"double_length\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("|| shard.shardID == \"s10.4.minimum.double-length\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 11 && shard.requirementID == \"rtl_string\""))
@@ -2840,6 +2842,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(accentedAvailablePositioning.contains("S10_4_ACCENTED_AVAILABLE_POSITION_FAILURE"))
         XCTAssertFalse(accentedAvailablePositioning.contains(".tap()"))
         XCTAssertFalse(accentedAvailablePositioning.contains("performAccessibilityAudit"))
+        let doubleInitialProgressFailure = try boundedSource(uiSource, from: "                                    let interactiveSwitchFrameAfterDrag = interactiveSwitch.frame", before: "                                        XCTFail(\"The serial visible preflight positioning gesture did not make signed progress.\")")
+        XCTAssertTrue(doubleInitialProgressFailure.contains("S10_4_DOUBLE_INITIAL_PROGRESS_FAILURE"))
+        XCTAssertTrue(doubleInitialProgressFailure.contains("if value.isFinite { return value }"))
+        XCTAssertTrue(doubleInitialProgressFailure.contains("return NSNull()"))
+        XCTAssertFalse(doubleInitialProgressFailure.contains(".tap()"))
+        XCTAssertFalse(doubleInitialProgressFailure.contains(".waitFor"))
         let postSaveIssueQuery = try boundedSource(uiSource, from: "        let issueScreen: XCUIElement", before: "        XCTAssertTrue(issueScreen.waitForExistence(timeout: 85))")
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.minimum-os\""))
         XCTAssertTrue(postSaveIssueQuery.contains("automationShard?.shardID == \"s10.4.minimum.rtl-string\""))
@@ -18540,10 +18548,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 914_927)
+        XCTAssertEqual(uiSource.utf8.count, 918_079)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "86A18CC34F87123A4CDBEE6D56DCE96186851E4E9496798160DA9019AF42677D"
+            "E96F73A0D38AB0D360996687749B11123F081EACF2A88333A5AB6B6ACA272BA7"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
