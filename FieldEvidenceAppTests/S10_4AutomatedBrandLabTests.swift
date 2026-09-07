@@ -2845,8 +2845,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(accentedAvailablePositioning.contains("actualMovement = cachedRequired[0].minY - previousMovement.anchorMinY"))
         XCTAssertTrue(accentedAvailablePositioning.contains("cachedViewport == previousMovement.viewport"))
         XCTAssertTrue(accentedAvailablePositioning.contains("actualMovement.isFinite"))
-        XCTAssertTrue(accentedAvailablePositioning.contains("!($0 > 0 && blockedPositiveDirection)"))
-        XCTAssertTrue(accentedAvailablePositioning.contains("!($0 < 0 && blockedNegativeDirection)"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("!(nearest > 0 && blockedPositiveDirection)"))
+        XCTAssertTrue(accentedAvailablePositioning.contains("!(nearest < 0 && blockedNegativeDirection)"))
+        let accentedIntervalSelection = try boundedSource(accentedAvailablePositioning, from: "                let candidates = allowedIntervals.compactMap", before: "                let startY = shift < 0")
+        for predicate in [
+            "interval.lower.isFinite, interval.upper.isFinite",
+            "interval.lower <= interval.upper",
+            "min(max(CGFloat.zero, interval.lower), interval.upper)",
+            "nearest.isFinite, abs(nearest) < cachedViewport.height",
+            "return (interval.lower, interval.upper, nearest)",
+            "abs($0.nearest) == abs($1.nearest)",
+            "? $0.nearest < $1.nearest",
+            ": abs($0.nearest) < abs($1.nearest)",
+            "selected.nearest != 0",
+            "shift.isFinite, shift != 0",
+            "shift >= selected.lower, shift <= selected.upper",
+            "(shift > 0) == (selected.nearest > 0)",
+            "abs(shift) < cachedViewport.height",
+            "nonclipping-midpoint-unavailable",
+        ] {
+            XCTAssertTrue(accentedIntervalSelection.contains(predicate), predicate)
+        }
+        let accentedNearestRanking = try XCTUnwrap(accentedIntervalSelection.range(of: "guard let selected = candidates.min"))
+        let accentedInteriorTarget = try XCTUnwrap(accentedIntervalSelection.range(of: "let shift = selected.lower / 2 + selected.upper / 2"))
+        let accentedTargetValidation = try XCTUnwrap(accentedIntervalSelection.range(of: "guard shift.isFinite"))
+        XCTAssertLessThan(accentedNearestRanking.lowerBound, accentedInteriorTarget.lowerBound)
+        XCTAssertLessThan(accentedInteriorTarget.lowerBound, accentedTargetValidation.lowerBound)
+        XCTAssertFalse(accentedIntervalSelection.contains(".press("))
+        XCTAssertFalse(accentedIntervalSelection.contains(".frame"))
         XCTAssertTrue(accentedAvailablePositioning.contains("cachedMovementResponses.append"))
         let accentedMovementClassification = try boundedSource(accentedAvailablePositioning, from: "                    guard cachedViewport == previousMovement.viewport,", before: "                guard attempt < 4,")
         let responseValidity = try XCTUnwrap(accentedMovementClassification.range(of: "actualMovement.isFinite"))
@@ -7379,6 +7405,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 minimumOSOptionalNestedAdmission
             )
         }
+        let tallEditingOptionalNestedAdmission = try boundedSource(
+            workEditingOptionalNestedAdmission,
+            from: #"                    && automationShard?.shardID == "s10.4.minimum.tall""#,
+            before: #"                    && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")"#
+        )
+        XCTAssertTrue(tallEditingOptionalNestedAdmission.contains(#"&& automationShard?.ordinal == 12"#))
+        XCTAssertTrue(tallEditingOptionalNestedAdmission.contains(#"&& automationShard?.requirementID == "tall""#))
+        XCTAssertTrue(workEditingOptionalNestedAdmission.contains(
+            "|| (diagnosticProbe == nil && automationSegment == .none\n"
+                + #"                    && automationShard?.shardID == "s10.4.minimum.tall""#
+        ))
+        XCTAssertEqual(workEditingOptionalNestedAdmission.components(
+            separatedBy: #"automationShard?.shardID == "s10.4.minimum.tall""#
+        ).count - 1, 1)
+        XCTAssertFalse(tallEditingOptionalNestedAdmission.contains("||"))
         let minimumOSOptionalNestedRouteIsAdmitted: (
             String, Int, String, String, Bool, Bool
         ) -> Bool = { shardID, ordinal, requirementID, profileID,
@@ -8166,6 +8207,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(savingNoteLabelSelection.contains(#"shard.requirementID == "tall""#))
         XCTAssertTrue(savingNoteLabelSelection.contains(#"let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}""#))
         XCTAssertTrue(savingNoteLabelSelection.contains(#"expectedWorkNoteHeadingLabel = tallMarker + "Note" + tallMarker"#))
+        let boundedSavingNoteAdmission = try boundedSource(savingNoteLabelSelection, from: #"shard.shardID == "s10.4.minimum.bounded""#, before: "        } else {")
+        for boundedSavingPredicate in [
+            #"shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,"#,
+            #"shard.requirementID == "bounded","#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #"expectedWorkNoteHeadingLabel = "[# Note #]""#,
+        ] {
+            XCTAssertTrue(boundedSavingNoteAdmission.contains(boundedSavingPredicate))
+        }
         XCTAssertFalse(savingNoteLabelSelection.contains(" || "))
         XCTAssertFalse(savingNoteLabelSelection.contains(".label"))
         XCTAssertFalse(savingNoteLabelSelection.contains(".value"))
@@ -18791,10 +18841,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 947_638)
+        XCTAssertEqual(uiSource.utf8.count, 949_269)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "B1EAC4E299A2CC33CA861589CE8C391B713195F4B2CE543FB4353099EA7404FB"
+            "1B373524358315172CC9FC47EA4E35D0CB0ECAA069226508428D5BB8E5A1ADDD"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

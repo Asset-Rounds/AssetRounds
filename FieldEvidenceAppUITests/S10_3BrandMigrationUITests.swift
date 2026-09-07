@@ -6939,6 +6939,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && automationShard?.ordinal == 8
                     && automationShard?.requirementID == "minimum_os"
                     && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
+                || (diagnosticProbe == nil && automationSegment == .none
+                    && automationShard?.shardID == "s10.4.minimum.tall"
+                    && automationShard?.ordinal == 12
+                    && automationShard?.requirementID == "tall"
+                    && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
         let rtlStringWorkImportFixtureLabels: XCUIElementQuery? =
             rtlStringWorkHelperUsesOptionalNestedLabel
                 ? importPhoto.descendants(matching: .staticText).matching(
@@ -7497,6 +7502,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
             let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
             expectedWorkNoteHeadingLabel = tallMarker + "Note" + tallMarker
+        } else if diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,
+                  shard.requirementID == "bounded",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            expectedWorkNoteHeadingLabel = "[# Note #]"
         } else {
             expectedWorkNoteHeadingLabel = automationShard?.shardID
                 == "s10.4.minimum.rtl-string"
@@ -10136,16 +10147,29 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     }
                     if allowedIntervals.isEmpty { break }
                 }
-                let candidates = allowedIntervals.map { interval in
-                    min(max(CGFloat.zero, interval.lower), interval.upper)
-                }.filter {
-                    $0.isFinite && abs($0) < cachedViewport.height
-                        && !($0 > 0 && blockedPositiveDirection)
-                        && !($0 < 0 && blockedNegativeDirection)
+                let candidates = allowedIntervals.compactMap { interval -> (lower: CGFloat, upper: CGFloat, nearest: CGFloat)? in
+                    guard interval.lower.isFinite, interval.upper.isFinite,
+                          interval.lower <= interval.upper else { return nil }
+                    let nearest = min(max(CGFloat.zero, interval.lower), interval.upper)
+                    guard nearest.isFinite, abs(nearest) < cachedViewport.height,
+                          !(nearest > 0 && blockedPositiveDirection),
+                          !(nearest < 0 && blockedNegativeDirection) else { return nil }
+                    return (interval.lower, interval.upper, nearest)
                 }
-                guard let shift = candidates.min(by: { abs($0) == abs($1) ? $0 < $1 : abs($0) < abs($1) }),
-                      shift != 0 else {
+                guard let selected = candidates.min(by: {
+                    abs($0.nearest) == abs($1.nearest)
+                        ? $0.nearest < $1.nearest
+                        : abs($0.nearest) < abs($1.nearest)
+                }), selected.nearest != 0 else {
                     _ = failPositioning("no-feasible-nonclipping-shift")
+                    return usedSettingsRetry
+                }
+                let shift = selected.lower / 2 + selected.upper / 2
+                guard shift.isFinite, shift != 0,
+                      shift >= selected.lower, shift <= selected.upper,
+                      (shift > 0) == (selected.nearest > 0),
+                      abs(shift) < cachedViewport.height else {
+                    _ = failPositioning("nonclipping-midpoint-unavailable")
                     return usedSettingsRetry
                 }
                 let startY = shift < 0 ? cachedViewport.maxY - (cachedViewport.height - abs(shift)) / 2
