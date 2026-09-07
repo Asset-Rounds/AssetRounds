@@ -18330,8 +18330,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         for boundedFailureInvariant in [
             "diagnosticProbe == nil, automationSegment == .none,",
-            #"shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,"#,
-            #"shard.requirementID == "bounded","#,
+            #"shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14"#,
+            #"shard.requirementID == "bounded")"#,
+            #"shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string""#,
+            #""shardID": shard.shardID"#,
+            "S10_4_RTL_STRING_VALIDATION_PRETAP_FAILURE",
             #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
             "applicationFrame", "workScreenFrame", "keyboardFrame", "doneButtonFrame",
             "firstFailedPreTapSemanticLabel", "$0.isFinite", "NSNull()",
@@ -18339,7 +18342,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(boundedValidationFailureDiagnostic.contains(boundedFailureInvariant))
         }
-        for boundedFailureForbidden in [".frame", ".snapshot()", ".tap()", ".exists", ".waitFor", "return", "XCTFail", " || "] {
+        for boundedFailureForbidden in [".frame", ".snapshot()", ".tap()", ".exists", ".waitFor", "return", "XCTFail"] {
             XCTAssertFalse(boundedValidationFailureDiagnostic.contains(boundedFailureForbidden))
         }
 
@@ -18405,9 +18408,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains(#"expectedDoneLabel = "[# Done #]""#))
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "doneButton.tap()").count - 1, 1)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "waitForNonExistence(timeout: 10)").count - 1, 2)
-        XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "shard.ordinal == 11").count - 1, 1)
-        XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "shard.shardID == \"s10.4.minimum.rtl-string\"").count - 1, 1)
-        XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "shard.requirementID == \"rtl_string\"").count - 1, 1)
+        let rtlWorkValidationEntryAdmission = try boundedSource(rtlWorkValidationAccessorySource, from: "        guard let shard = automationShard,", before: "        let expectedDescriptionLabel: String")
+        XCTAssertEqual(rtlWorkValidationEntryAdmission.components(separatedBy: "shard.ordinal == 11").count - 1, 1)
+        XCTAssertEqual(rtlWorkValidationEntryAdmission.components(separatedBy: "shard.shardID == \"s10.4.minimum.rtl-string\"").count - 1, 1)
+        XCTAssertEqual(rtlWorkValidationEntryAdmission.components(separatedBy: "shard.requirementID == \"rtl_string\"").count - 1, 1)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "postFocusedDescriptionFieldCount == 0").count - 1, 1)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "focusedDescriptionFieldCount == 1").count - 1, 1)
         XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "postKeyboardCount == 0").count - 1, 1)
@@ -18518,10 +18522,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 913_462)
+        XCTAssertEqual(uiSource.utf8.count, 913_753)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "128802B2E546FDDDE836367B0E69199E22EBC8CABDA640A269FE6D0204ED403B"
+            "5A3C467F3143A1FA0884CA77F0633F556514ED0C3D6A48564822A388D4AC4F7A"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

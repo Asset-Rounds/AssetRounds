@@ -16073,8 +16073,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }()
         if let firstFailedPreTapSemanticLabel {
             if diagnosticProbe == nil, automationSegment == .none,
-               shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,
-               shard.requirementID == "bounded",
+               (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
+                || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string"),
                shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
                 let cachedFrames = ["app": applicationFrame, "work": workScreenFrame,
                                     "keyboard": keyboardFrame, "done": doneButtonFrame]
@@ -16084,7 +16084,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     }
                 }
                 let observation: [String: Any] = [
-                    "shardID": "s10.4.minimum.bounded",
+                    "shardID": shard.shardID,
                     "stateID": "state.work.validation-error",
                     "stage": firstFailedPreTapSemanticLabel,
                     "frames": frameRecords,
@@ -16092,7 +16092,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 if JSONSerialization.isValidJSONObject(observation),
                    let data = try? JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys]),
                    let json = String(data: data, encoding: .utf8) {
-                    print("S10_4_BOUNDED_VALIDATION_PRETAP_FAILURE \(json)")
+                    let marker = shard.shardID == "s10.4.minimum.bounded"
+                        ? "S10_4_BOUNDED_VALIDATION_PRETAP_FAILURE"
+                        : "S10_4_RTL_STRING_VALIDATION_PRETAP_FAILURE"
+                    print("\(marker) \(json)")
                 }
             }
             throw AutomationConfigurationError.invalid(
