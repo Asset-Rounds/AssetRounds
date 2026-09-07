@@ -3468,16 +3468,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let safeBottom = liveBottom - verticalInset",
             "let receiverInset: CGFloat = 24",
             "let minimumGestureDistance: CGFloat = 44",
-            "command != 0",
-            "let gain = movement / command",
-            "gain.isFinite && gain > 0",
-            "minimumShift / measuredResponseGain",
-            "jointMaximumShift / measuredResponseGain",
-            "* measuredResponseGain",
-            "minimumCommand < maximumCommand",
-            "(maximumCommand - minimumCommand) / 2",
-            "predictedSelectedMovement >= minimumShift",
-            "predictedSelectedMovement <= jointMaximumShift",
+            "let minimumCommand = max(",
+            "-receiverCapacity,",
+            "let maximumCommand = min(",
+            "-minimumGestureDistance,",
+            "minimumCommand <= maximumCommand",
+            "let selectedCommand = minimumCommand",
+            "selectedCommand >= minimumShift",
+            "selectedCommand <= jointMaximumShift",
+            "previousConfirmationMinYAfterDrag == confirmationFrame.minY",
+            "previousCommandedDragDistance <= -minimumGestureDistance",
+            "previousObservedMovement < 0",
             "confirmationMovement * dragDistance > 0",
         ] {
             XCTAssertTrue(doublePreflightViewportSource.contains(nativeViewportInvariant))
@@ -3486,6 +3487,44 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(doublePreflightViewportSource.contains(
             "selectedResidualDistance = recognizedResidualDistance"
         ))
+        for retiredProportionalResponseToken in [
+            "measuredResponseGain",
+            "movement / command",
+            "minimumShift /",
+            "jointMaximumShift /",
+            "predictedSelectedMovement",
+            "(maximumCommand - minimumCommand) / 2",
+        ] {
+            XCTAssertFalse(
+                doublePreflightViewportSource.contains(retiredProportionalResponseToken),
+                retiredProportionalResponseToken
+            )
+        }
+
+        let directResidualCommand: (
+            CGFloat, CGFloat, CGFloat, CGFloat
+        ) -> CGFloat? = { minimumShift, jointMaximumShift,
+                         receiverCapacity, minimumGestureDistance in
+            guard [minimumShift, jointMaximumShift, receiverCapacity,
+                   minimumGestureDistance].allSatisfy(\.isFinite),
+                  receiverCapacity >= minimumGestureDistance,
+                  minimumGestureDistance > 0,
+                  minimumShift <= jointMaximumShift else { return nil }
+            let minimumCommand = max(-receiverCapacity, minimumShift)
+            let maximumCommand = min(-minimumGestureDistance, jointMaximumShift)
+            guard minimumCommand.isFinite,
+                  maximumCommand.isFinite,
+                  minimumCommand <= maximumCommand else { return nil }
+            return minimumCommand
+        }
+        XCTAssertEqual(directResidualCommand(-188, -171, 490, 44), -188)
+        XCTAssertEqual(directResidualCommand(-600, -100, 500, 44), -500)
+        XCTAssertEqual(directResidualCommand(-44, -44, 490, 44), -44)
+        XCTAssertNil(directResidualCommand(-40, -20, 490, 44))
+        XCTAssertNil(directResidualCommand(-70, -80, 490, 44))
+        XCTAssertNil(directResidualCommand(-188, -171, -490, 44))
+        XCTAssertNil(directResidualCommand(CGFloat.nan, -171, 490, 44))
+        XCTAssertNil(directResidualCommand(-188, -CGFloat.infinity, 490, 44))
 
         for retiredMinimumDoubleLengthDiagnosticSymbol in [
             #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#,
@@ -18323,10 +18362,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 904_611)
+        XCTAssertEqual(uiSource.utf8.count, 903_491)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "344975F0B406E22EF007955B8D88E8D45B364953C383B4CA9B1E4526B741D74D"
+            "E6543DB444F89F6A448855CFCB18E41EFACD74E074A43F837BEE1EC57D489126"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
