@@ -2813,7 +2813,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(issueTabBarFailureSource.contains("return"))
         XCTAssertTrue(issueTabBarFailureSource.contains("rawTree.prefix(262_144)"))
         XCTAssertFalse(issueTabBarFailureSource.contains(".tap()"))
-        let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        if let shard = automationShard, shard.shardID == \"s10.4.minimum.bounded\" || shard.shardID == \"s10.4.minimum.accented\" {", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
+        let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        zone.typeText(\"America/New_York\")", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
+        XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 11 && shard.requirementID == \"rtl_string\""))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("|| shard.shardID == \"s10.4.minimum.rtl-string\""))
+        XCTAssertTrue(boundedEnteredZoneSource.contains("shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 14 && shard.requirementID == \"bounded\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("shard.ordinal == 13 && shard.requirementID == \"accented\""))
         XCTAssertTrue(boundedEnteredZoneSource.contains("diagnosticProbe == nil, automationSegment == .none"))
@@ -18506,10 +18509,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 904_764)
+        XCTAssertEqual(uiSource.utf8.count, 904_942)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "586A68E56CE9D9E382DA92E7950127C799AF071AE7748D62A9DD5DACDF8C2A38"
+            "8A51D14973AFBAFD24B36CD7AEA88D5DDC36E2F37BC8AD9E514BEA6DF8BBA41B"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
