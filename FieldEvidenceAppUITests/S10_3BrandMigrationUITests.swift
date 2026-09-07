@@ -10201,7 +10201,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let start = origin.withOffset(CGVector(dx: cachedViewport.midX - scrollFrame.minX, dy: startY - scrollFrame.minY))
                 let end = start.withOffset(CGVector(dx: 0, dy: shift))
                 previousMovement = (shift, cachedRequired[0].minY, cachedViewport)
-                start.press(forDuration: 0.05, thenDragTo: end)
+                start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
             }
             guard positioned else {
                 _ = failPositioning("attempts-exhausted")
@@ -17876,10 +17876,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let keyboards = app.keyboards
         let inputViews = app.otherElements.matching(identifier: "inputView")
         let assistants = app.otherElements.matching(identifier: "SystemInputAssistantView")
+        var observedAfterDarkCount: Int?
+        var observedAfterDarkExists: Bool?
         let uniqueBindings: () -> Bool = {
-            screens.count == 1 && receivers.count == 1 && navigationBars.count == 1 && tabBars.count == 1
+            observedAfterDarkCount = nil
+            return screens.count == 1 && receivers.count == 1 && navigationBars.count == 1 && tabBars.count == 1
                 && safePositions.count == 1 && zones.count == 1
-                && confirmations.count == 1 && afterDarks.count == 1 && begins.count == 1
+                && confirmations.count == 1 && {
+                    let count = afterDarks.count
+                    observedAfterDarkCount = count
+                    return count == 1
+                }() && begins.count == 1
         }
         let fail: (String) -> Bool = { stage in
             XCTFail("Initial double-length safe-position preparation failed: \(stage)")
@@ -17905,7 +17912,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         let hasKeyboardFocus = NSPredicate(format: "hasKeyboardFocus == true")
         let stableState: () -> Bool = {
-            app.state == .runningForeground && uniqueBindings()
+            observedAfterDarkCount = nil
+            observedAfterDarkExists = nil
+            return app.state == .runningForeground && uniqueBindings()
                 && screen.exists && screen.elementType == .scrollView
                 && screen.identifier == "s3.preflight.screen"
                 && receiver.exists && receiver.elementType == .scrollView
@@ -17927,7 +17936,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && confirmation.identifier == "s3.preflight.time-zone-confirmed"
                 && !expectedConfirmationLabel.isEmpty && confirmation.label == expectedConfirmationLabel
                 && confirmation.isEnabled && (confirmation.value as? String) == "1"
-                && afterDark.exists && afterDark.elementType == .switch
+                && {
+                    let exists = afterDark.exists
+                    observedAfterDarkExists = exists
+                    return exists
+                }() && afterDark.elementType == .switch
                 && afterDark.identifier == "s3.preflight.after-dark"
                 && afterDark.label == "It is dark enough to observe the sign's visible illumination."
                 && afterDark.isEnabled && (afterDark.value as? String) == "1"
@@ -17941,7 +17954,50 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         var previous: (minY: CGFloat, command: CGFloat, viewport: CGRect, navigation: CGRect, tab: CGRect)?
         var positioningDirection: CGFloat?
         for attempt in 0...4 {
-            guard stableState() else { return fail("state-changed") }
+            guard stableState() else {
+                let finite: (CGFloat) -> Any = { value in value.isFinite ? value as Any : NSNull() }
+                let previousFrame: (CGRect) -> [String: Any] = { frame in
+                    ["x": finite(frame.origin.x), "y": finite(frame.origin.y),
+                     "width": finite(frame.width), "height": finite(frame.height)]
+                }
+                let previousObservation: Any = previous.map { observed in
+                    ["phase": "pre-command", "targetMinY": finite(observed.minY),
+                     "command": finite(observed.command), "viewport": previousFrame(observed.viewport),
+                     "navigation": previousFrame(observed.navigation), "tab": previousFrame(observed.tab)] as [String: Any]
+                }.map { $0 as Any } ?? NSNull()
+                printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "seam": "initial double safe-position", "event": "cached-state-changed",
+                    "failureReason": "state-changed", "attempt": attempt,
+                    "shardID": shard.shardID, "ordinal": shard.ordinal,
+                    "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID,
+                    "diagnosticProbe": NSNull(), "automationSegment": "none",
+                    "afterDarkCountEvaluated": observedAfterDarkCount != nil,
+                    "afterDarkCount": observedAfterDarkCount.map { $0 as Any } ?? NSNull(),
+                    "afterDarkExistsEvaluated": observedAfterDarkExists != nil,
+                    "afterDarkExists": observedAfterDarkExists.map { $0 as Any } ?? NSNull(),
+                    "previous": previousObservation,
+                ])
+                let observationTime = ISO8601DateFormatter().string(from: Date())
+                let screenshot = XCTAttachment(screenshot: app.screenshot())
+                screenshot.name = "S10.4 initial double safe-position failure app"
+                screenshot.lifetime = .keepAlways
+                add(screenshot)
+                let rawTree = Data(app.debugDescription.utf8)
+                let retainedTree = rawTree.prefix(262_144)
+                let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
+                tree.name = "S10.4 initial double safe-position failure tree"
+                tree.lifetime = .keepAlways
+                add(tree)
+                printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "seam": "initial double safe-position", "event": "failure-observation-complete",
+                    "observationStartedAt": observationTime, "atomicWithCachedChecks": false,
+                    "originalTreeBytes": rawTree.count, "retainedTreeBytes": retainedTree.count,
+                    "treeTruncated": rawTree.count > retainedTree.count,
+                ])
+                return fail("state-changed")
+            }
             let applicationFrame = app.frame
             let scrollFrame = screen.frame
             let receiverFrame = receiver.frame
@@ -18651,6 +18707,71 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                    candidate.isEnabled,
                    candidate.isHittable,
                    !candidate.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if diagnosticProbe == nil, automationSegment == .none,
+                       let shard = automationShard,
+                       shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,
+                       shard.requirementID == "bounded",
+                       shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+                        let selectedIdentifier = candidate.identifier
+                        let selectedLabel = candidate.label
+                        if selectedIdentifier == "xmark" || selectedLabel == "xmark" {
+                            func boundedWrongTargetText(_ value: String, limit: Int) -> (text: String, originalBytes: Int, retainedBytes: Int, truncated: Bool) {
+                                var retained = ""
+                                var retainedBytes = 0
+                                for scalar in value.unicodeScalars {
+                                    let scalarText = String(scalar)
+                                    let scalarBytes = scalarText.utf8.count
+                                    guard retainedBytes + scalarBytes <= limit else { break }
+                                    retained += scalarText
+                                    retainedBytes += scalarBytes
+                                }
+                                let originalBytes = value.utf8.count
+                                return (retained, originalBytes, retainedBytes, retainedBytes < originalBytes)
+                            }
+                            let identifier = boundedWrongTargetText(selectedIdentifier, limit: 1024)
+                            let label = boundedWrongTargetText(selectedLabel, limit: 1024)
+                            let selectedObservation: [String: Any] = [
+                                "schemaVersion": 1,
+                                "acceptanceEligible": false,
+                                "shardID": shard.shardID,
+                                "observationPhase": "selected-xmark-before-screenshot-and-hierarchy",
+                                "candidateIndex": index,
+                                "elementType": "button",
+                                "elementTypeBasis": "store.descendants(matching: .button)",
+                                "passedExistingEnabledAndHittableFilters": true,
+                                "identifier": identifier.text,
+                                "identifierScalars": identifier.text.unicodeScalars.map { String(format: "U+%04X", $0.value) },
+                                "identifierOriginalUTF8Bytes": identifier.originalBytes,
+                                "identifierRetainedUTF8Bytes": identifier.retainedBytes,
+                                "identifierTruncated": identifier.truncated,
+                                "label": label.text,
+                                "labelScalars": label.text.unicodeScalars.map { String(format: "U+%04X", $0.value) },
+                                "labelOriginalUTF8Bytes": label.originalBytes,
+                                "labelRetainedUTF8Bytes": label.retainedBytes,
+                                "labelTruncated": label.truncated,
+                                "snapshotAtomic": false,
+                            ]
+                            if let data = try? JSONSerialization.data(withJSONObject: selectedObservation, options: [.sortedKeys]),
+                               let text = String(data: data, encoding: .utf8) {
+                                print("S10_4_BOUNDED_WRONG_PURCHASE_TARGET \(text)")
+                            } else {
+                                print("S10_4_BOUNDED_WRONG_PURCHASE_TARGET serialization-unavailable")
+                            }
+                            let screenshot = XCTAttachment(screenshot: app.screenshot())
+                            screenshot.name = "S10.4 bounded wrong purchase target before dismissal"
+                            screenshot.lifetime = .keepAlways
+                            add(screenshot)
+                            let hierarchy = boundedWrongTargetText(store.debugDescription, limit: 65536)
+                            let hierarchyMetadata = "capture=store.debugDescription\noriginalUTF8Bytes=\(hierarchy.originalBytes)\nretainedUTF8Bytes=\(hierarchy.retainedBytes)\ntruncated=\(hierarchy.truncated)\nsnapshotAtomic=false\nacceptanceEligible=false\n"
+                            print("S10_4_BOUNDED_WRONG_PURCHASE_HIERARCHY originalUTF8Bytes=\(hierarchy.originalBytes) retainedUTF8Bytes=\(hierarchy.retainedBytes) truncated=\(hierarchy.truncated)")
+                            let tree = XCTAttachment(string: hierarchyMetadata + "\n" + hierarchy.text)
+                            tree.name = "S10.4 bounded wrong purchase target store hierarchy before dismissal"
+                            tree.lifetime = .keepAlways
+                            add(tree)
+                            XCTFail("Bounded purchase selection resolved native xmark; purchase target evidence is required.")
+                            return nil
+                        }
+                    }
                     return candidate
                 }
             }

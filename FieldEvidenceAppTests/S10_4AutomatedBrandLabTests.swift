@@ -2839,6 +2839,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(accentedAvailablePositioning.contains("cachedViewport.contains($0)"))
         XCTAssertTrue(accentedAvailablePositioning.contains("lower <= upper ? (lower, upper) : nil"))
         XCTAssertTrue(accentedAvailablePositioning.contains("for attempt in 0...4"))
+        let accentedNativeDrag = "start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)"
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: accentedNativeDrag).count - 1, 1)
+        XCTAssertEqual(accentedAvailablePositioning.components(separatedBy: "start.press(").count - 1, 1)
+        XCTAssertFalse(accentedAvailablePositioning.contains("start.press(forDuration: 0.05, thenDragTo: end)"))
         XCTAssertTrue(accentedAvailablePositioning.contains("S10_4_ACCENTED_AVAILABLE_POSITION_FAILURE"))
         XCTAssertFalse(accentedAvailablePositioning.contains(".tap()"))
         XCTAssertFalse(accentedAvailablePositioning.contains("performAccessibilityAudit"))
@@ -6867,7 +6871,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "receivers.count == 1", "app.scrollViews.containing(.switch, identifier: \"s3.preflight.safe-position\")",
             "receiver.identifier == \"s3.preflight.screen\"", "receiverFrame == scrollFrame",
             "navigationBars.count == 1", "tabBars.count == 1",
-            "confirmations.count == 1", "afterDarks.count == 1", "zones.count == 1", "begins.count == 1",
+            "confirmations.count == 1", "zones.count == 1", "begins.count == 1",
             "safePosition.elementType == .switch",
             "safePosition.label == \"I am in a safe, authorized position to take these photos.\"",
             "safePosition.isEnabled && (safePosition.value as? String) == \"0\"",
@@ -6902,6 +6906,62 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(doubleSafePositionSource.contains(requiredDoublePreparation), requiredDoublePreparation)
         }
+        let doubleCountObservation = try boundedSource(
+            doubleSafePositionSource, from: "let count = afterDarks.count",
+            before: "}() && begins.count == 1"
+        )
+        XCTAssertTrue(doubleCountObservation.contains("observedAfterDarkCount = count"))
+        XCTAssertTrue(doubleCountObservation.contains("return count == 1"))
+        let doubleExistsObservation = try boundedSource(
+            doubleSafePositionSource, from: "let exists = afterDark.exists",
+            before: "}() && afterDark.elementType == .switch"
+        )
+        XCTAssertTrue(doubleExistsObservation.contains("observedAfterDarkExists = exists"))
+        XCTAssertTrue(doubleExistsObservation.contains("return exists"))
+        XCTAssertEqual(doubleSafePositionSource.components(separatedBy: "afterDarks.count").count - 1, 1)
+        XCTAssertEqual(doubleSafePositionSource.components(separatedBy: "afterDark.exists").count - 1, 1)
+        let doubleStableEntry = try boundedSource(
+            doubleSafePositionSource, from: "let stableState: () -> Bool = {", before: "&& screen.exists"
+        )
+        XCTAssertTrue(doubleStableEntry.contains("observedAfterDarkCount = nil"))
+        XCTAssertTrue(doubleStableEntry.contains("observedAfterDarkExists = nil"))
+        XCTAssertTrue(doubleStableEntry.contains("return app.state == .runningForeground && uniqueBindings()"))
+        let doubleFailureObservation = try boundedSource(
+            doubleSafePositionSource, from: "guard stableState() else {", before: "let applicationFrame = app.frame"
+        )
+        for cachedContract in [
+            "value.isFinite ? value as Any : NSNull()",
+            "observedAfterDarkCount.map { $0 as Any } ?? NSNull()",
+            "observedAfterDarkExists.map { $0 as Any } ?? NSNull()",
+            "\"afterDarkCountEvaluated\": observedAfterDarkCount != nil",
+            "\"afterDarkExistsEvaluated\": observedAfterDarkExists != nil",
+            "\"phase\": \"pre-command\"", "\"previous\": previousObservation",
+            "\"diagnosticOnly\": true", "\"finalAcceptanceEligible\": false",
+            "\"event\": \"cached-state-changed\"", "\"failureReason\": \"state-changed\"",
+            "\"attempt\": attempt", "\"shardID\": shard.shardID", "\"ordinal\": shard.ordinal",
+            "\"requirementID\": shard.requirementID", "\"deviceProfileID\": shard.deviceProfileID",
+            "\"diagnosticProbe\": NSNull()", "\"automationSegment\": \"none\"",
+            "let rawTree = Data(app.debugDescription.utf8)", "rawTree.prefix(262_144)",
+            "\"originalTreeBytes\": rawTree.count", "\"retainedTreeBytes\": retainedTree.count",
+            "\"treeTruncated\": rawTree.count > retainedTree.count",
+            "\"observationStartedAt\": observationTime", "\"atomicWithCachedChecks\": false",
+            "return fail(\"state-changed\")",
+        ] {
+            XCTAssertTrue(doubleFailureObservation.contains(cachedContract), cachedContract)
+        }
+        XCTAssertEqual(doubleFailureObservation.components(separatedBy: "app.screenshot()").count - 1, 1)
+        XCTAssertEqual(doubleFailureObservation.components(separatedBy: "app.debugDescription").count - 1, 1)
+        XCTAssertEqual(doubleFailureObservation.components(separatedBy: ".lifetime = .keepAlways").count - 1, 2)
+        for forbiddenFailureRead in ["afterDark.", "afterDarks.", "safePosition.", "screen.", "app.frame", ".tap(", ".press(", "wait("] {
+            XCTAssertFalse(doubleFailureObservation.contains(forbiddenFailureRead), forbiddenFailureRead)
+        }
+        let doubleCachedRecord = try XCTUnwrap(doubleFailureObservation.range(of: "printJSONLine("))
+        let doubleFailureScreenshot = try XCTUnwrap(doubleFailureObservation.range(of: "app.screenshot()"))
+        let doubleFailureTree = try XCTUnwrap(doubleFailureObservation.range(of: "app.debugDescription"))
+        let doubleOriginalFailure = try XCTUnwrap(doubleFailureObservation.range(of: "return fail(\"state-changed\")"))
+        XCTAssertLessThan(doubleCachedRecord.lowerBound, doubleFailureScreenshot.lowerBound)
+        XCTAssertLessThan(doubleFailureScreenshot.lowerBound, doubleFailureTree.lowerBound)
+        XCTAssertLessThan(doubleFailureTree.lowerBound, doubleOriginalFailure.lowerBound)
         let doubleRouteValidation = try XCTUnwrap(doubleSafePositionSource.range(of: "guard stableState()"))
         let doubleGeometryRead = try XCTUnwrap(doubleSafePositionSource.range(of: "let applicationFrame = app.frame"))
         let doubleLiveSuccess = try XCTUnwrap(doubleSafePositionSource.range(of: "if safeViewport.contains(targetFrame), safePosition.isHittable"))
@@ -6912,7 +6972,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(doubleLiveSuccess.lowerBound, doubleActionBound.lowerBound)
         XCTAssertLessThan(doubleActionBound.lowerBound, doubleNativeAction.lowerBound)
         XCTAssertEqual(doubleSafePositionSource.components(separatedBy: ".press(").count - 1, 1)
-        for prohibitedDoublePreparation in [".tap(", ".typeText(", "wait(", "waitForExistence", "sleep(", "captureBaseline(", "performAccessibilityAudit", "printJSONLine", "setToggle("] {
+        for prohibitedDoublePreparation in [".tap(", ".typeText(", "wait(", "waitForExistence", "sleep(", "captureBaseline(", "performAccessibilityAudit", "setToggle("] {
             XCTAssertFalse(doubleSafePositionSource.contains(prohibitedDoublePreparation), prohibitedDoublePreparation)
         }
         let laterPreflightToggleSteps = "        setToggle(\"s3.preflight.after-dark\", in: app)\n        app.swipeUp()\n        setToggle(\"s3.preflight.safe-position\", in: app)"
@@ -11555,6 +11615,52 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.elementType == .button"#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.label == expectedPurchaseLabel"#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.isEnabled, purchase.isHittable else { return nil }"#))
+        let boundedWrongPurchaseDiagnostic = try boundedSource(purchaseSelectorSource,
+            from: "                    if diagnosticProbe == nil, automationSegment == .none,",
+            before: "                    return candidate")
+        for exact in [
+            #"shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14"#,
+            #"shard.requirementID == "bounded""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #"selectedIdentifier == "xmark" || selectedLabel == "xmark""#,
+            "for scalar in value.unicodeScalars",
+            "guard retainedBytes + scalarBytes <= limit else { break }",
+            "boundedWrongTargetText(selectedIdentifier, limit: 1024)",
+            "boundedWrongTargetText(selectedLabel, limit: 1024)",
+            #""acceptanceEligible": false"#,
+            #""snapshotAtomic": false"#,
+            #""passedExistingEnabledAndHittableFilters": true"#,
+            "identifier.text.unicodeScalars.map",
+            "label.text.unicodeScalars.map",
+            "identifierTruncated", "labelTruncated",
+            "originalUTF8Bytes", "retainedUTF8Bytes", "truncated",
+            "return nil",
+        ] {
+            XCTAssertTrue(boundedWrongPurchaseDiagnostic.contains(exact), exact)
+        }
+        var boundedWrongPurchaseOrder = boundedWrongPurchaseDiagnostic[...]
+        for exact in [
+            "let selectedIdentifier = candidate.identifier",
+            "let selectedLabel = candidate.label",
+            "if selectedIdentifier ==",
+            "let selectedObservation:",
+            "print(\"S10_4_BOUNDED_WRONG_PURCHASE_TARGET ",
+            "let screenshot = XCTAttachment(screenshot: app.screenshot())",
+            "add(screenshot)",
+            "let hierarchy = boundedWrongTargetText(store.debugDescription, limit: 65536)",
+            "let tree = XCTAttachment(string: hierarchyMetadata +",
+            "add(tree)",
+            "XCTFail(\"Bounded purchase selection resolved native xmark; purchase target evidence is required.\")",
+            "return nil",
+        ] {
+            let found = try XCTUnwrap(boundedWrongPurchaseOrder.range(of: exact), exact)
+            boundedWrongPurchaseOrder = boundedWrongPurchaseOrder[found.upperBound...]
+        }
+        XCTAssertEqual(boundedWrongPurchaseDiagnostic.components(separatedBy: "app.screenshot()").count - 1, 1)
+        XCTAssertEqual(boundedWrongPurchaseDiagnostic.components(separatedBy: "boundedWrongTargetText(store.debugDescription,").count - 1, 1)
+        for prohibited in [".tap()", "continue", "waitForExistence", "captureBaseline", "performAccessibilityAudit", "Subscribe", "scopedButtons."] {
+            XCTAssertFalse(boundedWrongPurchaseDiagnostic.contains(prohibited), prohibited)
+        }
         XCTAssertTrue(purchaseRecoveryStart.contains(#"XCTFail("The purchase control is missing or ambiguous")"#))
         XCTAssertTrue(purchaseRecoveryStart.contains(#"return usedSettingsRetry"#))
         XCTAssertTrue(purchaseRecoveryStart.contains(#"scroll(purchase, in: app)"#))
@@ -18987,10 +19093,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 961_248)
+        XCTAssertEqual(uiSource.utf8.count, 969_978)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "158D5FAEA14E0F842D18FBF261AE4ADAD30928B01ED775AA817E0C236244D39C"
+            "AECBA86D73D323E5CE845E2DD6E0B34DDF6861B536CEA49DC5A5B139A1A225A9"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
