@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 35_746,
-            sha256: "359BB1C77B39F9CB1EED2AC7A9C87456215D9110F6EA18623A4EFACF259721FF"
+            byteCount: 36_099,
+            sha256: "F384C99AF23AA59DBBAA5005BB4AC9F800B7E259F6C564CD815BFAAFC145B778"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -279,6 +279,26 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(incidentCollectorSource.contains(exact), exact)
         }
+        // K469: compare complete validated records; divergent payloads stay ambiguous.
+        let incidentParserSource = try boundedSource(
+            incidentCollectorSource,
+            from: "import datetime as dt, json, pathlib, re, sys\n",
+            before: "\nPY\n"
+        )
+        let validatedIncidentRecordSource = try boundedSource(
+            incidentParserSource,
+            from: "            if not int(start)<=launch<=capture<=int(end): continue\n",
+            before: "        except (ValueError,TypeError,AttributeError,UnicodeError,OSError,RecursionError):"
+        )
+        XCTAssertTrue(incidentParserSource.contains("    candidates=[]\n    canonical_reports=set()\n"))
+        XCTAssertTrue(validatedIncidentRecordSource.contains("            canonical=json.dumps([header,body],sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False)\n            if canonical not in canonical_reports:\n"))
+        XCTAssertTrue(validatedIncidentRecordSource.contains("            if canonical not in canonical_reports:\n                canonical_reports.add(canonical)\n                candidates.append((pid,incident,body['procLaunch'],body['captureTime'],int(capture)))\n"))
+        XCTAssertEqual(incidentParserSource.components(separatedBy: "canonical=json.dumps(").count - 1, 1)
+        XCTAssertEqual(incidentParserSource.components(separatedBy: "candidates.append(").count - 1, 1)
+        XCTAssertTrue(incidentParserSource.contains("except (ValueError,TypeError,AttributeError,UnicodeError,OSError,RecursionError): return 'skip-invalid-report'"))
+        XCTAssertTrue(incidentParserSource.contains("if len(candidates)!=1: return 'skip-ambiguous-incidents'"))
+        XCTAssertTrue(incidentParserSource.contains("if key in result: raise ValueError('duplicate key')"))
+        XCTAssertTrue(incidentParserSource.contains("decoder=json.JSONDecoder(object_pairs_hook=unique_object)"))
         func incidentLookbackMinutes(ordinaryRTL: Bool, capture: String, now: String) -> Int? {
             guard ordinaryRTL else { return 10 }
             let epochPattern = #"^[1-9][0-9]{0,9}$"#
@@ -3766,8 +3786,115 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let doublePreflightViewportSource = try boundedSource(
             preflightMinimumSource,
             from: "                        let preflightTabBars = app.tabBars",
-            before: "\n                } else {"
+            before: "\n                } else {\n                    let expectedKeyboardFrame = CGRect("
         )
+        let doublePreflightSubmissionSource = try boundedSource(
+            preflightMinimumSource,
+            from: "                    if automationShard?.shardID\n                        == \"s10.4.minimum.double-length\" {",
+            before: "                        let preflightTabBars = app.tabBars"
+        )
+        for submissionInvariant in [
+            "diagnosticProbe == nil, automationSegment == .none",
+            #"doubleShard.shardID == "s10.4.minimum.double-length""#,
+            "doubleShard.ordinal == 9",
+            #"doubleShard.requirementID == "double_length""#,
+            #"doubleShard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            "app.textFields.matching(", #"identifier: "s3.preflight.time-zone""#,
+            "app.switches.matching(", #"identifier: "s3.preflight.time-zone-confirmed""#,
+            "app.buttons.matching(", #"identifier: "s3.preflight.begin""#,
+            "let doubleKeyboards = app.keyboards",
+            "doubleZoneFields.count == 1", "doubleConfirmationToggles.count == 1",
+            "doubleBeginButtons.count == 0", "doubleBeginButtons.count == 1", "doubleKeyboards.count == 1",
+            "afterDarkToggles.count == 1", "safePositionToggles.count == 1",
+            "doubleDoneButtons.count == 1", "doubleDone.exists, doubleDone.isEnabled",
+            #"identifier: "Done""#,
+            #"doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 1"#,
+            "doubleZoneValue == preActionZoneValue", "doubleZoneLabel == preActionZoneLabel",
+            "let doubleZoneValue, let doubleZonePlaceholder", "!doubleZonePlaceholder.isEmpty",
+            "doubleZoneValue.isEmpty || doubleZoneValue == doubleZonePlaceholder",
+            "doubleConfirmation.exists, !doubleConfirmation.isEnabled",
+            #"(doubleConfirmation.value as? String) == "0""#,
+            #"(afterDark.value as? String) == "0""#, #"(safePosition.value as? String) == "0""#,
+            #"preActionAfterDarkValue == "0", preActionSafePositionValue == "0""#,
+            "preActionPreflightExists, !preActionDetailRouteExists", "app.state == .runningForeground",
+            #"assertLocalizedLabel(doubleZone, equals: "IANA time zone")"#,
+            #"assertLocalizedLabel(doubleBegin, equals: "Begin check")"#,
+            "doubleKeyboards.firstMatch.waitForNonExistence(timeout: 10)",
+            #"wait(for: doubleZone, predicate: "hasKeyboardFocus == false", timeout: 10)"#,
+            "doubleZone.placeholderValue == doubleZonePlaceholder",
+            "doubleZone.label == doubleZoneLabel", "(doubleZone.value as? String) == doubleZoneValue",
+            "afterDark.label == preActionAfterDarkLabel", "safePosition.label == preActionSafePositionLabel",
+        ] {
+            XCTAssertTrue(doublePreflightSubmissionSource.contains(submissionInvariant), submissionInvariant)
+        }
+        XCTAssertEqual(doublePreflightSubmissionSource.components(separatedBy: #"doubleZone.typeText("\n")"#).count - 1, 1)
+        XCTAssertEqual(preflightQuickPathSource.components(separatedBy: #"doubleZone.typeText("\n")"#).count - 1, 1)
+        for prohibited in [".tap(", ".press(", ".swipe", ".frame", "keyboardIsAbsentOrInertOffApp", "screenshot", "debugDescription"] {
+            XCTAssertFalse(doublePreflightSubmissionSource.contains(prohibited), prohibited)
+        }
+        let doubleSubmissionBeforeAction = try boundedSource(doublePreflightSubmissionSource,
+            from: "                        guard diagnosticProbe == nil",
+            before: #"                        doubleZone.typeText("\n")"#)
+        let doubleSubmissionAfterAction = try boundedSource(doublePreflightSubmissionSource,
+            from: #"                        doubleZone.typeText("\n")"#,
+            before: "                        // Double preflight viewport geometry starts from the submitted state.")
+        XCTAssertTrue(doubleSubmissionBeforeAction.contains("doubleDone.exists, doubleDone.isEnabled"))
+        XCTAssertTrue(doubleSubmissionBeforeAction.contains("doubleBeginButtons.count == 0"))
+        XCTAssertFalse(doubleSubmissionBeforeAction.contains("doubleBegin.exists"))
+        XCTAssertFalse(doubleSubmissionBeforeAction.contains("doubleBegin.isEnabled"))
+        XCTAssertFalse(doubleSubmissionBeforeAction.contains("doubleBegin.label"))
+        XCTAssertTrue(doubleSubmissionAfterAction.contains("doubleBeginButtons.count == 1"))
+        XCTAssertTrue(doubleSubmissionAfterAction.contains("doubleBegin.exists, !doubleBegin.isEnabled"))
+        XCTAssertTrue(doubleSubmissionAfterAction.contains("doubleKeyboards.firstMatch.waitForNonExistence(timeout: 10)"))
+        for preserved in [
+            "doubleZone.exists, doubleZone.isEnabled",
+            "doubleConfirmation.exists, !doubleConfirmation.isEnabled",
+            #"(doubleConfirmation.value as? String) == "0""#,
+            #"(afterDark.value as? String) == "0""#, #"(safePosition.value as? String) == "0""#,
+            "preActionPreflightExists, !preActionDetailRouteExists", "app.state == .runningForeground",
+        ] {
+            XCTAssertTrue(doubleSubmissionBeforeAction.contains(preserved), preserved)
+            XCTAssertTrue(doubleSubmissionAfterAction.contains(preserved), preserved)
+        }
+        let doublePreflightProductSource = try text("FieldEvidenceApp/Features/CheckRunner/PreflightView.swift")
+        for productPreparationInvariant in [
+            ".onSubmit {\n                    focusedField = nil\n                }",
+            #"AssetRoundsPrimaryAction("Begin check", action: begin)"#,
+            ".disabled(!canBegin || isBeginning)",
+            ".accessibilityIdentifier(Self.beginAccessibilityIdentifier)\n            .accessibilityHidden(focusedField == .timeZone)",
+            "hasValidConfirmedTimeZone && afterDarkAccepted && safePositionAccepted",
+            "confirmedTimeZoneID != nil || (hasValidEnteredTimeZone && isTimeZoneConfirmed)",
+        ] {
+            XCTAssertTrue(doublePreflightProductSource.contains(productPreparationInvariant), productPreparationInvariant)
+        }
+        XCTAssertEqual(doublePreflightViewportSource.components(separatedBy: "!keyboard.exists").count - 1, 3)
+        XCTAssertEqual(doublePreflightViewportSource.components(separatedBy: #"doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0"#).count - 1, 3)
+        for retiredKeyboardInvariant in [
+            "observedAssistantFrame", "keyboard.frame", "inputAssistantView.frame",
+            "keyboardIsAbsentOrInertOffApp(in: app)", "inputAssistantView.exists",
+        ] {
+            XCTAssertFalse(doublePreflightViewportSource.contains(retiredKeyboardInvariant), retiredKeyboardInvariant)
+        }
+        for finalReadyInvariant in [
+            "doubleZone.placeholderValue == doubleZonePlaceholder",
+            "doubleZone.label == doubleZoneLabel", "(doubleZone.value as? String) == doubleZoneValue",
+            "doubleConfirmationToggles.count == 1", "doubleConfirmation.exists, !doubleConfirmation.isEnabled",
+            #"(doubleConfirmation.value as? String) == "0""#,
+            "doubleBeginButtons.count == 1", "doubleBegin.exists, !doubleBegin.isEnabled",
+            "doubleBegin.label == doubleBeginLabel",
+            "preflight.exists", "preActionPreflightExists", "detailRoute.exists", "preActionDetailRouteExists",
+            "zone.label == preActionZoneLabel", "preActionZoneValue",
+            "afterDark.label == preActionAfterDarkLabel", "preActionAfterDarkValue",
+            "preActionSafePositionLabel", "preActionSafePositionValue",
+            "!zone.frame.contains(dragStartPoint)",
+            #""keyboardFrame": NSNull()"#, #""inputAssistantFrame": NSNull()"#,
+            #""keyboardFrameStatus": "not-sampled-after-required-disappearance""#,
+            #""inputAssistantFrameStatus": "not-sampled-after-keyboard-disappearance""#,
+            "S10_4_MINIMUM_DOUBLE_LENGTH_PREFLIGHT_RESIDUAL_DIAGNOSTIC",
+            "S10.4 minimum double-length preflight residual diagnostic completed nonaccepting",
+        ] {
+            XCTAssertTrue(doublePreflightViewportSource.contains(finalReadyInvariant), finalReadyInvariant)
+        }
         for nativeViewportInvariant in [
             "if maximumShift > -minimumGestureDistance",
             "|| (previousObservedMovement != nil",
@@ -6396,7 +6523,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         guard let preflightOffAppStartRange = preflightMinimumSource.range(
             of: "                if keyboardIsOffApp {"
         ), let preflightVisibleStartRange = preflightMinimumSource.range(
-            of: "\n                } else {",
+            of: "\n                } else {\n                    let expectedKeyboardFrame = CGRect(",
             range: preflightOffAppStartRange.upperBound..<preflightMinimumSource.endIndex
         ) else {
             XCTFail("Missing the preflight keyboard class branches")
@@ -19518,7 +19645,100 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(rtlWorkValidationAccessorySource.contains("sleep("))
         XCTAssertFalse(rtlWorkValidationAccessorySource.contains("ContrastAuditExceptionSignature"))
         XCTAssertFalse(rtlWorkValidationAccessorySource.contains("acceptanceEligible"))
-        XCTAssertFalse(rtlWorkValidationAccessorySource.contains("s10.4.minimum.accented"))
+        // K469: the new accented route selects the product-owned Done action by
+        // unique typed identifier, without inventing pseudolocalized glyphs.
+        let accentedAccessoryIsAdmitted: (String, Int, String, String, Bool, Bool) -> Bool = {
+            shardID, ordinal, requirementID, profileID, probeIsNil, segmentIsNone in
+            shardID == "s10.4.minimum.accented" && ordinal == 13
+                && requirementID == "accented"
+                && profileID == "iphone-se-3-ios-18.0-minimum"
+                && probeIsNil && segmentIsNone
+        }
+        XCTAssertTrue(accentedAccessoryIsAdmitted(
+            "s10.4.minimum.accented", 13, "accented",
+            "iphone-se-3-ios-18.0-minimum", true, true
+        ))
+        for hostileAccent in [
+            ("s10.4.minimum.tall", 13, "accented", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.accented", 12, "accented", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.accented", 13, "tall", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.accented", 13, "accented", "iphone-17-ios-26.2-current", true, true),
+            ("s10.4.minimum.accented", 13, "accented", "iphone-se-3-ios-18.0-minimum", false, true),
+            ("s10.4.minimum.accented", 13, "accented", "iphone-se-3-ios-18.0-minimum", true, false),
+        ] {
+            XCTAssertFalse(accentedAccessoryIsAdmitted(
+                hostileAccent.0, hostileAccent.1, hostileAccent.2,
+                hostileAccent.3, hostileAccent.4, hostileAccent.5
+            ))
+        }
+        XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.shardID == "s10.4.minimum.accented""#))
+        XCTAssertTrue(rtlWorkValidationAccessoryCall.contains(#"automationShard?.ordinal == 13 && automationShard?.requirementID == "accented""#))
+        XCTAssertTrue(rtlWorkValidationEntryAdmission.contains(#"shard.ordinal == 13 && shard.shardID == "s10.4.minimum.accented""#))
+        XCTAssertTrue(rtlWorkValidationEntryAdmission.contains(#"&& shard.requirementID == "accented""#))
+        let accentedDoneAdmission = try boundedSource(
+            rtlWorkValidationAccessorySource,
+            from: "        let usesAccentedSourceOwnedDoneTarget =",
+            before: "        var cachedAccentedDoneLabel: String?"
+        )
+        for admission in ["diagnosticProbe == nil", "automationSegment == .none",
+                          #"shard.shardID == "s10.4.minimum.accented""#,
+                          #"shard.ordinal == 13 && shard.requirementID == "accented""#,
+                          #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#] {
+            XCTAssertTrue(accentedDoneAdmission.contains(admission))
+        }
+        XCTAssertFalse(accentedDoneAdmission.contains("||"))
+        let accentedLabelCase = try boundedSource(
+            rtlWorkValidationAccessorySource,
+            from: "        case \"accented\":",
+            before: "        case \"bounded\":"
+        )
+        XCTAssertTrue(accentedLabelCase.contains(#"expectedDescriptionLabel = "S\u{0308}h\u{0303}o\u{0325}r\u{0300}t\u{0303} d\u{030A}e\u{0308}s\u{0327}c\u{0325}r\u{0300}i\u{0325}p\u{030A}t\u{0303}i\u{0325}o\u{0325}n\u{0303}""#))
+        XCTAssertTrue(accentedLabelCase.contains(#"expectedNoteLabel = "N\u{0300}o\u{0325}t\u{0303}e\u{0308}""#))
+        XCTAssertTrue(accentedLabelCase.contains("expectedDoneLabel = nil"))
+        XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "expectedDoneLabel = nil").count - 1, 1)
+        let accentedDoneLabelCheck = try boundedSource(
+            rtlWorkValidationAccessorySource,
+            from: "            if usesAccentedSourceOwnedDoneTarget {",
+            before: "            if doneButton.elementType != .button"
+        )
+        XCTAssertTrue(accentedDoneLabelCheck.contains("let observedDoneLabel = doneButton.label\n                cachedAccentedDoneLabel = observedDoneLabel"))
+        XCTAssertTrue(accentedDoneLabelCheck.contains("observedDoneLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty"))
+        XCTAssertTrue(accentedDoneLabelCheck.contains("} else {\n                guard let expectedDoneLabel else { return \"done-label-contract\" }\n                if doneButton.label != expectedDoneLabel { return \"done-label\" }"))
+        XCTAssertEqual(accentedDoneLabelCheck.components(separatedBy: "doneButton.label").count - 1, 2)
+        XCTAssertFalse(accentedDoneLabelCheck.contains(".tap("))
+        let accentedDoneLabelIsPresent: (String) -> Bool = {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        XCTAssertTrue(accentedDoneLabelIsPresent("Done"))
+        XCTAssertTrue(accentedDoneLabelIsPresent("Observed localized action"))
+        for emptyActionLabel in ["", " ", "\t\n"] {
+            XCTAssertFalse(accentedDoneLabelIsPresent(emptyActionLabel))
+        }
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("let doneButtons = app.buttons.matching(\n            identifier: \"s5.1.work.keyboard-done\"\n        )"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("doneButtonCount == 1,"))
+        let accentedCachedFailure = try boundedSource(
+            rtlWorkValidationAccessorySource,
+            from: "        if let firstFailedPreTapSemanticLabel {\n            if usesAccentedSourceOwnedDoneTarget {",
+            before: "            if diagnosticProbe == nil, automationSegment == .none,"
+        )
+        for cachedInvariant in ["applicationFrame", "workScreenFrame", "descriptionFrame",
+                                "validationFrame", "noteHeadingFrame", "noteFieldFrame",
+                                "keyboardFrame", "doneButtonFrame", "firstFailedPreTapSemanticLabel",
+                                "cachedAccentedDoneLabel", "unicodeScalars.prefix(256)",
+                                "doneLabelRead", "doneLabelOriginalUTF8Bytes", "doneLabelRetainedUTF8Bytes",
+                                "doneLabelTruncated", "cached-sequential-pre-tap", #""atomicSnapshot": false"#,
+                                "S10_4_ACCENTED_VALIDATION_PRETAP_FAILURE"] {
+            XCTAssertTrue(accentedCachedFailure.contains(cachedInvariant))
+        }
+        for forbidden in [".frame", ".exists", ".label", ".identifier", ".tap(", ".waitFor",
+                          ".screenshot", ".debugDescription", ".snapshot", "return", "XCTFail"] {
+            XCTAssertFalse(accentedCachedFailure.contains(forbidden))
+        }
+        XCTAssertFalse(accentedCachedFailure.contains("try "))
+        XCTAssertEqual(accentedCachedFailure.components(separatedBy: "print(").count - 1, 1)
+        XCTAssertEqual(rtlWorkValidationAccessorySource.components(separatedBy: "S10_4_ACCENTED_VALIDATION_PRETAP_FAILURE").count - 1, 1)
+        // Stable-ID ownership and all existing focus/content/action postconditions
+        // remain checked below; only the obsolete whole-helper accented ban retires.
         XCTAssertFalse(rtlWorkValidationAccessorySource.contains("shard.ordinal == 8"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if app.state != .runningForeground { return \"app-foreground\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !frameIsValid(applicationFrame) { return \"app-frame-valid\" }"))
@@ -19670,10 +19890,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 999_358)
+        XCTAssertEqual(uiSource.utf8.count, 1_010_434)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "E66EF5D1C98389869053D20176EA1A2F7597B4F6034D8B3F1221B0148BC1255C"
+            "87751FE602B4009B90349928EBDEC3AEFEF90A218E4165BA006A3E42E3635D7B"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

@@ -2201,6 +2201,111 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     }
                     if automationShard?.shardID
                         == "s10.4.minimum.double-length" {
+                        guard diagnosticProbe == nil, automationSegment == .none,
+                              let doubleShard = automationShard,
+                              doubleShard.shardID == "s10.4.minimum.double-length",
+                              doubleShard.ordinal == 9,
+                              doubleShard.requirementID == "double_length",
+                              doubleShard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {
+                            throw AutomationConfigurationError.invalid(
+                                "Double preflight empty submission has an invalid route"
+                            )
+                        }
+                        let doubleZoneFields = app.textFields.matching(
+                            identifier: "s3.preflight.time-zone"
+                        )
+                        let doubleConfirmationToggles = app.switches.matching(
+                            identifier: "s3.preflight.time-zone-confirmed"
+                        )
+                        let doubleBeginButtons = app.buttons.matching(
+                            identifier: "s3.preflight.begin"
+                        )
+                        let doubleKeyboards = app.keyboards
+                        guard doubleZoneFields.count == 1,
+                              doubleConfirmationToggles.count == 1,
+                              doubleBeginButtons.count == 0,
+                              afterDarkToggles.count == 1,
+                              safePositionToggles.count == 1,
+                              doubleKeyboards.count == 1 else {
+                            throw AutomationConfigurationError.invalid(
+                                "Double preflight empty submission is ambiguous"
+                            )
+                        }
+                        let doubleZone = doubleZoneFields.firstMatch
+                        let doubleConfirmation = doubleConfirmationToggles.firstMatch
+                        let doubleZoneLabel = doubleZone.label
+                        let doubleZonePlaceholder = doubleZone.placeholderValue
+                        let doubleZoneValue = doubleZone.value as? String
+                        let doubleDoneButtons = doubleKeyboards.firstMatch.buttons.matching(
+                            identifier: "Done"
+                        )
+                        guard doubleDoneButtons.count == 1,
+                              doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 1,
+                              doubleZone.exists, doubleZone.isEnabled,
+                              doubleZone.identifier == "s3.preflight.time-zone",
+                              doubleZoneLabel == preActionZoneLabel,
+                              doubleZoneValue == preActionZoneValue,
+                              let doubleZoneValue, let doubleZonePlaceholder,
+                              !doubleZonePlaceholder.isEmpty,
+                              doubleZoneValue.isEmpty || doubleZoneValue == doubleZonePlaceholder,
+                              doubleConfirmation.exists, !doubleConfirmation.isEnabled,
+                              (doubleConfirmation.value as? String) == "0",
+                              afterDark.exists, safePosition.exists,
+                              (afterDark.value as? String) == "0",
+                              (safePosition.value as? String) == "0",
+                              preActionAfterDarkValue == "0", preActionSafePositionValue == "0",
+                              preflight.exists == preActionPreflightExists,
+                              detailRoute.exists == preActionDetailRouteExists,
+                              preActionPreflightExists, !preActionDetailRouteExists,
+                              app.state == .runningForeground else {
+                            throw AutomationConfigurationError.invalid(
+                                "Double preflight input or acknowledgements changed before empty submission"
+                            )
+                        }
+                        assertLocalizedLabel(doubleZone, equals: "IANA time zone")
+                        let doubleDone = doubleDoneButtons.firstMatch
+                        guard doubleDone.exists, doubleDone.isEnabled else {
+                            throw AutomationConfigurationError.invalid(
+                                "Double preflight Done is unavailable"
+                            )
+                        }
+                        doubleZone.typeText("\n")
+                        guard doubleKeyboards.firstMatch.waitForNonExistence(timeout: 10),
+                              wait(for: doubleZone, predicate: "hasKeyboardFocus == false", timeout: 10),
+                              doubleZoneFields.count == 1,
+                              doubleConfirmationToggles.count == 1,
+                              doubleBeginButtons.count == 1,
+                              afterDarkToggles.count == 1,
+                              safePositionToggles.count == 1,
+                              doubleZone.exists, doubleZone.isEnabled,
+                              doubleZone.identifier == "s3.preflight.time-zone",
+                              doubleZone.label == doubleZoneLabel,
+                              doubleZone.placeholderValue == doubleZonePlaceholder,
+                              (doubleZone.value as? String) == doubleZoneValue,
+                              doubleConfirmation.exists, !doubleConfirmation.isEnabled,
+                              (doubleConfirmation.value as? String) == "0",
+                              afterDark.exists, afterDark.label == preActionAfterDarkLabel,
+                              (afterDark.value as? String) == "0",
+                              safePosition.exists, safePosition.label == preActionSafePositionLabel,
+                              (safePosition.value as? String) == "0",
+                              preflight.exists == preActionPreflightExists,
+                              detailRoute.exists == preActionDetailRouteExists,
+                              preActionPreflightExists, !preActionDetailRouteExists,
+                              app.state == .runningForeground else {
+                            throw AutomationConfigurationError.invalid(
+                                "Double preflight empty submission did not preserve the ready state"
+                            )
+                        }
+                        let doubleBegin = doubleBeginButtons.firstMatch
+                        guard doubleBegin.exists, !doubleBegin.isEnabled,
+                              doubleBegin.identifier == "s3.preflight.begin" else {
+                            throw AutomationConfigurationError.invalid(
+                                "Double preflight must expose its disabled Begin action after submission"
+                            )
+                        }
+                        let doubleBeginLabel = doubleBegin.label
+                        assertLocalizedLabel(doubleBegin, equals: "Begin check")
+                        // Double preflight viewport geometry starts from the submitted state.
                         let preflightTabBars = app.tabBars
                         let confirmationLabel =
                             "I confirm this is the site's time zone. " +
@@ -2219,7 +2324,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         )
                         let headingText = headingTexts.firstMatch
                         var residualTargetContext: [String: Any]?
-                        let observedAssistantFrame = inputAssistantFrame
                         let verticalInset: CGFloat = 16
                         let receiverInset: CGFloat = 24
                         let minimumGestureDistance: CGFloat = 44
@@ -2246,13 +2350,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                   headingText.identifier.isEmpty,
                                   headingText.elementType == .staticText,
                                   headingText.label == headingLabel,
-                                  keyboard.exists,
-                                  keyboard.frame == observedKeyboardFrame,
-                                  inputAssistantViews.count == 1,
-                                  inputAssistantView.exists,
-                                  inputAssistantView.frame
-                                    == observedAssistantFrame,
-                                  keyboardIsAbsentOrInertOffApp(in: app) else {
+                                  !keyboard.exists,
+                                  doubleZoneFields.count == 1,
+                                  doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0 else {
                                 XCTFail(
                                     "The minimum double-length preflight positioning route changed."
                                 )
@@ -2529,12 +2629,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                                 confirmationText.label,
                                             "confirmationTypeRawValue":
                                                 confirmationText.elementType.rawValue,
-                                            "keyboardFrame": auditFrameObject(
-                                                keyboard.frame
-                                            ),
-                                            "inputAssistantFrame": auditFrameObject(
-                                                inputAssistantView.frame
-                                            ),
+                                            "keyboardExists": keyboard.exists,
+                                            "keyboardFrame": NSNull(),
+                                            "keyboardFrameStatus": "not-sampled-after-required-disappearance",
+                                            "inputAssistantFrame": NSNull(),
+                                            "inputAssistantFrameStatus": "not-sampled-after-keyboard-disappearance",
                                         ],
                                         "queryCounts": [
                                             "preflightScrollViews":
@@ -2633,7 +2732,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             guard liveScrollFrame.contains(dragStartPoint),
                                   !zone.frame.contains(dragStartPoint) else {
                                 XCTFail(
-                                    "The minimum double-length preflight drag receiver overlaps the focused time-zone field."
+                                    "The minimum double-length preflight drag receiver overlaps the time-zone field."
                                 )
                                 return
                             }
@@ -2674,13 +2773,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                   headingText.identifier.isEmpty,
                                   headingText.elementType == .staticText,
                                   headingText.label == headingLabel,
-                                  keyboard.exists,
-                                  keyboard.frame == observedKeyboardFrame,
-                                  inputAssistantViews.count == 1,
-                                  inputAssistantView.exists,
-                                  inputAssistantView.frame
-                                    == observedAssistantFrame,
-                                  keyboardIsAbsentOrInertOffApp(in: app) else {
+                                  !keyboard.exists,
+                                  doubleZoneFields.count == 1,
+                                  doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0 else {
                                 XCTFail(
                                     "The minimum double-length preflight positioning route changed after the gesture."
                                 )
@@ -2738,13 +2833,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                               headingText.identifier.isEmpty,
                               headingText.elementType == .staticText,
                               headingText.label == headingLabel,
-                              keyboard.exists,
-                              keyboard.frame == observedKeyboardFrame,
-                              inputAssistantViews.count == 1,
-                              inputAssistantView.exists,
-                              inputAssistantView.frame
-                                == observedAssistantFrame,
-                              keyboardIsAbsentOrInertOffApp(in: app),
+                              !keyboard.exists,
+                              doubleZoneFields.count == 1,
+                              doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0,
+                              doubleZone.exists, doubleZone.isEnabled,
+                              doubleZone.identifier == "s3.preflight.time-zone",
+                              doubleZone.label == doubleZoneLabel,
+                              doubleZone.placeholderValue == doubleZonePlaceholder,
+                              (doubleZone.value as? String) == doubleZoneValue,
+                              doubleConfirmationToggles.count == 1,
+                              doubleConfirmation.exists, !doubleConfirmation.isEnabled,
+                              (doubleConfirmation.value as? String) == "0",
+                              doubleBeginButtons.count == 1,
+                              doubleBegin.exists, !doubleBegin.isEnabled,
+                              doubleBegin.identifier == "s3.preflight.begin",
+                              doubleBegin.label == doubleBeginLabel,
                               preflight.exists
                                 == preActionPreflightExists,
                               detailRoute.exists
@@ -2791,7 +2894,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     "finalAcceptanceEligible": false,
                                     "shardID": "s10.4.minimum.double-length",
                                     "stateID": "state.check-preflight.ready",
-                                    "observationPhase": "failed-final-off-app-guard",
+                                    "observationPhase": "failed-final-post-submit-guard",
                                     "applicationFrame": auditFrameObject(finalApplicationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                     "scrollFrame": auditFrameObject(finalScrollFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                     "navigationFrame": auditFrameObject(finalNavigationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
@@ -7005,6 +7108,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         && automationShard?.ordinal == 10 && automationShard?.requirementID == "rtl")
                     || (automationShard?.shardID == "s10.4.minimum.tall"
                         && automationShard?.ordinal == 12 && automationShard?.requirementID == "tall")
+                    || (automationShard?.shardID == "s10.4.minimum.accented"
+                        && automationShard?.ordinal == 13 && automationShard?.requirementID == "accented")
                     || (automationShard?.shardID == "s10.4.minimum.bounded"
                         && automationShard?.ordinal == 14 && automationShard?.requirementID == "bounded"))) {
             try dismissRTLStringWorkValidationKeyboardAccessory(in: app)
@@ -16863,6 +16968,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             && shard.requirementID == "rtl")
                         || (shard.ordinal == 12 && shard.shardID == "s10.4.minimum.tall"
                             && shard.requirementID == "tall")
+                        || (shard.ordinal == 13 && shard.shardID == "s10.4.minimum.accented"
+                            && shard.requirementID == "accented")
                         || (shard.ordinal == 14 && shard.shardID == "s10.4.minimum.bounded"
                             && shard.requirementID == "bounded"))),
               shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
@@ -16883,7 +16990,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let expectedDescriptionLabel: String
         let expectedNoteLabel: String
-        let expectedDoneLabel: String
+        let expectedDoneLabel: String?
         switch shard.requirementID {
         case "rtl":
             expectedDescriptionLabel = "Short description"
@@ -16894,6 +17001,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             expectedDescriptionLabel = tallMarker + "Short " + tallMarker + " description" + tallMarker
             expectedNoteLabel = tallMarker + "Note" + tallMarker
             expectedDoneLabel = tallMarker + "Done" + tallMarker
+        case "accented":
+            expectedDescriptionLabel = "S\u{0308}h\u{0303}o\u{0325}r\u{0300}t\u{0303} d\u{030A}e\u{0308}s\u{0327}c\u{0325}r\u{0300}i\u{0325}p\u{030A}t\u{0303}i\u{0325}o\u{0325}n\u{0303}"
+            expectedNoteLabel = "N\u{0300}o\u{0325}t\u{0303}e\u{0308}"
+            expectedDoneLabel = nil
         case "bounded":
             expectedDescriptionLabel = "[# Short description #]"
             expectedNoteLabel = "[# Note #]"
@@ -16903,6 +17014,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             expectedNoteLabel = "\u{202E}Note\u{202C}"
             expectedDoneLabel = "\u{202E}Done\u{202C}"
         }
+
+        let usesAccentedSourceOwnedDoneTarget = diagnosticProbe == nil
+            && automationSegment == .none
+            && shard.shardID == "s10.4.minimum.accented"
+            && shard.ordinal == 13 && shard.requirementID == "accented"
+            && shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+        var cachedAccentedDoneLabel: String?
 
         let focusedPredicate = NSPredicate(
             format: "hasKeyboardFocus == true"
@@ -17064,11 +17182,53 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             if !doneButton.isEnabled { return "done-enabled" }
             if !doneButton.isHittable { return "done-hittable" }
             if doneButton.identifier != "s5.1.work.keyboard-done" { return "done-identifier" }
-            if doneButton.label != expectedDoneLabel { return "done-label" }
+            if usesAccentedSourceOwnedDoneTarget {
+                let observedDoneLabel = doneButton.label
+                cachedAccentedDoneLabel = observedDoneLabel
+                if observedDoneLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return "done-label-empty"
+                }
+            } else {
+                guard let expectedDoneLabel else { return "done-label-contract" }
+                if doneButton.label != expectedDoneLabel { return "done-label" }
+            }
             if doneButton.elementType != .button { return "done-type" }
             return nil
         }()
         if let firstFailedPreTapSemanticLabel {
+            if usesAccentedSourceOwnedDoneTarget {
+                let cachedFrames = ["app": applicationFrame, "work": workScreenFrame,
+                                    "description": descriptionFrame, "validation": validationFrame,
+                                    "noteHeading": noteHeadingFrame, "noteField": noteFieldFrame,
+                                    "keyboard": keyboardFrame, "done": doneButtonFrame]
+                let frameRecords = cachedFrames.mapValues { frame in
+                    [frame.origin.x, frame.origin.y, frame.width, frame.height].map {
+                        $0.isFinite ? $0 as Any : NSNull()
+                    }
+                }
+                var retainedDoneLabel = ""
+                if let cachedAccentedDoneLabel {
+                    for scalar in cachedAccentedDoneLabel.unicodeScalars.prefix(256) {
+                        retainedDoneLabel.unicodeScalars.append(scalar)
+                    }
+                }
+                let observation: [String: Any] = [
+                    "shardID": shard.shardID, "stateID": stateID,
+                    "stage": firstFailedPreTapSemanticLabel,
+                    "sampling": "cached-sequential-pre-tap", "atomicSnapshot": false,
+                    "frames": frameRecords,
+                    "doneLabelRead": cachedAccentedDoneLabel != nil,
+                    "doneLabel": cachedAccentedDoneLabel == nil ? NSNull() : retainedDoneLabel as Any,
+                    "doneLabelOriginalUTF8Bytes": cachedAccentedDoneLabel.map { $0.utf8.count as Any } ?? NSNull(),
+                    "doneLabelRetainedUTF8Bytes": retainedDoneLabel.utf8.count,
+                    "doneLabelTruncated": cachedAccentedDoneLabel.map { ($0.utf8.count > retainedDoneLabel.utf8.count) as Any } ?? NSNull(),
+                ]
+                if JSONSerialization.isValidJSONObject(observation),
+                   let data = try? JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys]),
+                   let json = String(data: data, encoding: .utf8) {
+                    print("S10_4_ACCENTED_VALIDATION_PRETAP_FAILURE \(json)")
+                }
+            }
             if diagnosticProbe == nil, automationSegment == .none,
                (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
                 || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string"),

@@ -532,6 +532,7 @@ def select(roots, start, end):
                 files.append(p)
                 if len(files)>20: return 'skip-too-many-reports'
     candidates=[]
+    canonical_reports=set()
     def unique_object(pairs):
         result={}
         for key,value in pairs:
@@ -559,8 +560,12 @@ def select(roots, start, end):
             if type(pid) is not int or not 0<pid<=2147483647: raise ValueError()
             launch=stamp(body.get('procLaunch')); capture=stamp(body.get('captureTime'))
             if not int(start)<=launch<=capture<=int(end): continue
-            candidates.append((pid,incident,body['procLaunch'],body['captureTime'],int(capture)))
-        except (ValueError,TypeError,AttributeError,UnicodeError,OSError): return 'skip-invalid-report'
+            # Collapse only complete validated parsed records, preserving scalar types.
+            canonical=json.dumps([header,body],sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False)
+            if canonical not in canonical_reports:
+                canonical_reports.add(canonical)
+                candidates.append((pid,incident,body['procLaunch'],body['captureTime'],int(capture)))
+        except (ValueError,TypeError,AttributeError,UnicodeError,OSError,RecursionError): return 'skip-invalid-report'
     if not candidates: return 'skip-no-current-app-incident'
     if len(candidates)!=1: return 'skip-ambiguous-incidents'
     pid,incident,launch,capture,capture_epoch=candidates[0]
