@@ -4215,17 +4215,64 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         )
 
-        let currentProfileRestorationBeforeBoundedPreparation =
-            currentProfileRestorationFailure +
-                "\n            }\n        }\n" +
-                "        if diagnosticProbe == .minimumPreflight {\n" +
-                "            try completeFocusedDiagnosticPreflight(in: app)\n" +
-                "            throw FocusedDiagnosticProbeStop.completed\n" +
-                "        }\n" +
-                "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\" || shard.shardID == \"s10.4.minimum.accented\" {"
+        let minimumPreflightFocusedProbeGate =
+            "        if diagnosticProbe == .minimumPreflight {"
+        let minimumPreflightCompletionCall =
+            "            try completeFocusedDiagnosticPreflight(in: app)"
+        let minimumPreflightCompletionThrow =
+            "            throw FocusedDiagnosticProbeStop.completed"
+        let preCaptureMinimumPreparationGate =
+            "        if let shard = automationShard,\n" +
+            #"           shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented""#
+        let preCaptureMinimumPreparationBody =
+            #"            let boundedZoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")"#
+        let preflightReadyCapture =
+            #"        captureBaseline("state.check-preflight.ready", in: app)"#
+        let orderedPreparationAnchors = [
+            currentProfileRestorationFailure,
+            minimumPreflightFocusedProbeGate,
+            minimumPreflightCompletionCall,
+            minimumPreflightCompletionThrow,
+            preCaptureMinimumPreparationGate,
+            preCaptureMinimumPreparationBody,
+            preflightReadyCapture,
+        ]
+        var orderedPreparationSearchStart = uiSource.startIndex
+        let orderedPreparationRanges = orderedPreparationAnchors.compactMap {
+            anchor -> Range<String.Index>? in
+            guard let range = uiSource.range(
+                of: anchor,
+                range: orderedPreparationSearchStart..<uiSource.endIndex
+            ) else { return nil }
+            orderedPreparationSearchStart = range.upperBound
+            return range
+        }
+        guard orderedPreparationRanges.count == orderedPreparationAnchors.count else {
+            XCTFail("Missing the ordered restoration, focused-probe completion, or paired minimum preparation")
+            return
+        }
+        for uniquePreparationAnchor in [
+            currentProfileRestorationFailure,
+            minimumPreflightFocusedProbeGate,
+            minimumPreflightCompletionCall,
+            preCaptureMinimumPreparationGate,
+            preCaptureMinimumPreparationBody,
+        ] {
+            XCTAssertEqual(
+                uiSource.components(separatedBy: uniquePreparationAnchor).count - 1,
+                1,
+                uniquePreparationAnchor
+            )
+        }
+        let focusedProbeCompletionSource = String(
+            uiSource[
+                orderedPreparationRanges[1].lowerBound ..<
+                    orderedPreparationRanges[4].lowerBound
+            ]
+        )
         XCTAssertEqual(
-            uiSource.components(
-                separatedBy: currentProfileRestorationBeforeBoundedPreparation
+            focusedProbeCompletionSource.components(
+                separatedBy: minimumPreflightCompletionThrow
             ).count - 1,
             1
         )
