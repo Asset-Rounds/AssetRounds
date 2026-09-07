@@ -10093,6 +10093,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         _ = failPositioning("movement-response-unavailable")
                         return usedSettingsRetry
                     }
+                    if actualMovement != 0 {
+                        blockedPositiveDirection = false
+                        blockedNegativeDirection = false
+                    }
                     if actualMovement == 0 || (actualMovement > 0) != (previousMovement.command > 0) {
                         if previousMovement.command > 0 {
                             blockedPositiveDirection = true

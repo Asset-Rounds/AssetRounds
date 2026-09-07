@@ -2848,6 +2848,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(accentedAvailablePositioning.contains("!($0 > 0 && blockedPositiveDirection)"))
         XCTAssertTrue(accentedAvailablePositioning.contains("!($0 < 0 && blockedNegativeDirection)"))
         XCTAssertTrue(accentedAvailablePositioning.contains("cachedMovementResponses.append"))
+        let accentedMovementClassification = try boundedSource(accentedAvailablePositioning, from: "                    guard cachedViewport == previousMovement.viewport,", before: "                guard attempt < 4,")
+        let responseValidity = try XCTUnwrap(accentedMovementClassification.range(of: "actualMovement.isFinite"))
+        let movedState = try XCTUnwrap(accentedMovementClassification.range(of: "if actualMovement != 0"))
+        let clearPositive = try XCTUnwrap(accentedMovementClassification.range(of: "blockedPositiveDirection = false"))
+        let clearNegative = try XCTUnwrap(accentedMovementClassification.range(of: "blockedNegativeDirection = false"))
+        let classifyAttempt = try XCTUnwrap(accentedMovementClassification.range(of: "if actualMovement == 0 || (actualMovement > 0) != (previousMovement.command > 0)"))
+        XCTAssertLessThan(responseValidity.lowerBound, movedState.lowerBound)
+        XCTAssertLessThan(movedState.lowerBound, clearPositive.lowerBound)
+        XCTAssertLessThan(clearPositive.lowerBound, clearNegative.lowerBound)
+        XCTAssertLessThan(clearNegative.lowerBound, classifyAttempt.lowerBound)
+        XCTAssertTrue(accentedMovementClassification.contains("blockedPositiveDirection = true"))
+        XCTAssertTrue(accentedMovementClassification.contains("blockedNegativeDirection = true"))
         let doubleInitialProgressFailure = try boundedSource(uiSource, from: "                                    let interactiveSwitchFrameAfterDrag = interactiveSwitch.frame", before: "                                        XCTFail(\"The serial visible preflight positioning gesture did not make signed progress.\")")
         XCTAssertTrue(doubleInitialProgressFailure.contains("S10_4_DOUBLE_INITIAL_PROGRESS_FAILURE"))
         XCTAssertTrue(doubleInitialProgressFailure.contains("if value.isFinite { return value }"))
@@ -18772,10 +18784,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 946_979)
+        XCTAssertEqual(uiSource.utf8.count, 947_160)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "A6268306E8F9FEDF53F0A892CB09D11F580ACC643995B9B84758A010F4901520"
+            "7B102DC29B9DBBBBA39BFDB645DB258556BE4653F89CE88DDF99A16C04EB0B37"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
