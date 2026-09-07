@@ -2805,6 +2805,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let issueTabBarFailureSource = try boundedSource(uiSource, from: "        let issueTabBarCount = app.tabBars.count", before: "        XCTAssertEqual(issueTabBarCount, 1)")
         XCTAssertTrue(issueTabBarFailureSource.contains("if issueTabBarCount != 1,"))
         XCTAssertTrue(issueTabBarFailureSource.contains("shard.ordinal == 11"))
+        XCTAssertTrue(issueTabBarFailureSource.contains("shard.ordinal == 13 && shard.requirementID == \"accented\""))
+        XCTAssertTrue(issueTabBarFailureSource.contains("shard.shardID == \"s10.4.minimum.accented\""))
+        XCTAssertTrue(issueTabBarFailureSource.contains("? \"accented\" : \"RTL-string\""))
+        XCTAssertTrue(issueTabBarFailureSource.contains("finalAcceptanceEligible"))
+        XCTAssertFalse(issueTabBarFailureSource.contains("waitForExistence"))
+        XCTAssertFalse(issueTabBarFailureSource.contains("return"))
         XCTAssertTrue(issueTabBarFailureSource.contains("rawTree.prefix(262_144)"))
         XCTAssertFalse(issueTabBarFailureSource.contains(".tap()"))
         let boundedEnteredZoneSource = try boundedSource(uiSource, from: "        if let shard = automationShard, shard.shardID == \"s10.4.minimum.bounded\" || shard.shardID == \"s10.4.minimum.accented\" {", before: "        setToggle(\"s3.preflight.time-zone-confirmed\", in: app)")
@@ -7310,6 +7316,59 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"&& automationShard?.ordinal == 13"#))
         XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"&& automationShard?.requirementID == "accented""#))
         XCTAssertTrue(workEditingOptionalNestedAdmission.contains(#"&& automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")"#))
+        for minimumOSOptionalNestedAdmission in [
+            #"|| (diagnosticProbe == nil && automationSegment == .none"#,
+            #"&& automationShard?.shardID == "s10.4.minimum.minimum-os""#,
+            #"&& automationShard?.ordinal == 8"#,
+            #"&& automationShard?.requirementID == "minimum_os""#,
+            #"&& automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")"#,
+        ] {
+            XCTAssertTrue(
+                workEditingOptionalNestedAdmission.contains(
+                    minimumOSOptionalNestedAdmission
+                ),
+                minimumOSOptionalNestedAdmission
+            )
+        }
+        let minimumOSOptionalNestedRouteIsAdmitted: (
+            String, Int, String, String, Bool, Bool
+        ) -> Bool = { shardID, ordinal, requirementID, profileID,
+                      diagnosticProbeIsNil, segmentIsNone in
+            diagnosticProbeIsNil && segmentIsNone
+                && shardID == "s10.4.minimum.minimum-os"
+                && ordinal == 8 && requirementID == "minimum_os"
+                && profileID == "iphone-se-3-ios-18.0-minimum"
+        }
+        XCTAssertTrue(minimumOSOptionalNestedRouteIsAdmitted(
+            "s10.4.minimum.minimum-os", 8, "minimum_os",
+            "iphone-se-3-ios-18.0-minimum", true, true
+        ))
+        for hostileRoute in [
+            ("s10.4.minimum.bounded", 8, "minimum_os", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.minimum-os", 9, "minimum_os", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.minimum-os", 8, "tall", "iphone-se-3-ios-18.0-minimum", true, true),
+            ("s10.4.minimum.minimum-os", 8, "minimum_os", "iphone-17-ios-26.2-current", true, true),
+            ("s10.4.minimum.minimum-os", 8, "minimum_os", "iphone-se-3-ios-18.0-minimum", false, true),
+            ("s10.4.minimum.minimum-os", 8, "minimum_os", "iphone-se-3-ios-18.0-minimum", true, false),
+        ] {
+            XCTAssertFalse(minimumOSOptionalNestedRouteIsAdmitted(
+                hostileRoute.0, hostileRoute.1, hostileRoute.2,
+                hostileRoute.3, hostileRoute.4, hostileRoute.5
+            ))
+        }
+        let optionalNestedProjectionIsValid: (Int, Int) -> Bool = {
+            helperCount, nestedCount in
+            (helperCount == 1 || helperCount == 2)
+                && nestedCount == helperCount - 1
+                && (nestedCount == 0 || nestedCount == 1)
+        }
+        XCTAssertTrue(optionalNestedProjectionIsValid(1, 0))
+        XCTAssertTrue(optionalNestedProjectionIsValid(2, 1))
+        for rejectedProjection in [(0, 0), (1, 1), (2, 0), (2, 2), (3, 2)] {
+            XCTAssertFalse(optionalNestedProjectionIsValid(
+                rejectedProjection.0, rejectedProjection.1
+            ))
+        }
         for workEditingHelperBinding in [
             "let workHelperTexts = app.staticTexts.matching(",
             #"automationShard?.shardID == "s10.4.minimum.rtl-string""#,
@@ -9401,7 +9460,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         for exactFailureBound in [
             "diagnosticProbe == nil, automationSegment == .none",
-            #"shard.shardID == "s10.4.minimum.rtl-string", shard.ordinal == 11"#,
+            #"shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11"#,
             #"shard.requirementID == "rtl_string""#,
             #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
             "XCTAttachment(screenshot: app.screenshot())",
@@ -18412,10 +18471,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 903_681)
+        XCTAssertEqual(uiSource.utf8.count, 904_284)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "43F7BDE4D77B72FEA0136A85C0FA1EA05E07F92AF94D139A863A2B60F3874B20"
+            "7A7CC9D62F3329D93EFA9021652857F9E0360FAC8AC24AAB33FF576B0A061AD6"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

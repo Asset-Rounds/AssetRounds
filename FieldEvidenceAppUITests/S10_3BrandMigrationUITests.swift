@@ -6433,6 +6433,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && automationShard?.ordinal == 13
                     && automationShard?.requirementID == "accented"
                     && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
+                || (diagnosticProbe == nil && automationSegment == .none
+                    && automationShard?.shardID == "s10.4.minimum.minimum-os"
+                    && automationShard?.ordinal == 8
+                    && automationShard?.requirementID == "minimum_os"
+                    && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
         let rtlStringWorkImportFixtureLabels: XCUIElementQuery? =
             rtlStringWorkHelperUsesOptionalNestedLabel
                 ? importPhoto.descendants(matching: .staticText).matching(
@@ -7532,22 +7537,23 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         if issueTabBarCount != 1,
            diagnosticProbe == nil, automationSegment == .none,
            let shard = automationShard,
-           shard.shardID == "s10.4.minimum.rtl-string", shard.ordinal == 11,
-           shard.requirementID == "rtl_string",
+           (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string")
+            || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented"),
            shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
+            let failureProfile = shard.shardID == "s10.4.minimum.accented" ? "accented" : "RTL-string"
             let screenshot = XCTAttachment(screenshot: app.screenshot())
-            screenshot.name = "S10.4 RTL-string issue tab bar failure app"
+            screenshot.name = "S10.4 \(failureProfile) issue tab bar failure app"
             screenshot.lifetime = .keepAlways
             add(screenshot)
             let rawTree = Data(app.debugDescription.utf8)
             let retainedTree = rawTree.prefix(262_144)
             let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
-            tree.name = "S10.4 RTL-string issue tab bar failure tree"
+            tree.name = "S10.4 \(failureProfile) issue tab bar failure tree"
             tree.lifetime = .keepAlways
             add(tree)
             printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
                 "diagnosticOnly": true, "finalAcceptanceEligible": false,
-                "seam": "RTL-string issue tab bar", "originalTreeBytes": rawTree.count,
+                "seam": "\(failureProfile) issue tab bar", "originalTreeBytes": rawTree.count,
                 "retainedTreeBytes": retainedTree.count,
                 "treeTruncated": rawTree.count > retainedTree.count,
             ])
