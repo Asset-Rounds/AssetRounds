@@ -4379,6 +4379,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "    private func prepareInitialDoublePreflightFocus(",
             before: "    private func scroll(_ value: XCUIElement, in app: XCUIApplication)"
         )
+        // Command-space arithmetic is not a model of native gesture delivery.
+        func doubleFocusCommandModel(lowerShift: Double, upperShift: Double, capacity: Double) -> Double? {
+            guard [lowerShift, upperShift, capacity].allSatisfy({ $0.isFinite }) else { return nil }
+            let lower = max(44, lowerShift)
+            let upper = min(upperShift, capacity)
+            let command = lower + (upper - lower) / 2
+            guard [lower, upper, command].allSatisfy({ $0.isFinite }), lower <= upper,
+                  command >= 44, command <= upperShift, command <= capacity else { return nil }
+            return command
+        }
+        XCTAssertEqual(doubleFocusCommandModel(lowerShift: 85.5, upperShift: 541.5, capacity: 474), 279.75)
+        XCTAssertEqual(doubleFocusCommandModel(lowerShift: 85.5, upperShift: 200, capacity: 474), 142.75)
+        XCTAssertEqual(doubleFocusCommandModel(lowerShift: 10, upperShift: 100, capacity: 80), 62)
+        XCTAssertEqual(doubleFocusCommandModel(lowerShift: 44, upperShift: 44, capacity: 44), 44)
+        XCTAssertNil(doubleFocusCommandModel(lowerShift: 85.5, upperShift: 85, capacity: 474))
+        XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: 43, capacity: 474))
+        XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: 100, capacity: 43))
+        XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: 100, capacity: -1))
+        XCTAssertNil(doubleFocusCommandModel(lowerShift: Double.nan, upperShift: 100, capacity: 474))
+        XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: Double.infinity, capacity: 474))
+        XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: 100, capacity: Double.infinity))
         let doubleFocusActionSource = try boundedSource(
             preflightInputToBeginSource,
             from: "        let doublePreflightFocusIdentity:",
@@ -4412,7 +4433,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "if !beforeViewport.contains(before.field)",
             "let lowerShift = beforeViewport.minY - before.field.minY",
             "let upperShift = beforeViewport.maxY - before.field.maxY",
-            "let dragDistance = max(CGFloat(44), lowerShift)",
+            "let lowerCommand = max(CGFloat(44), lowerShift)",
+            "let upperCommand = min(upperShift, receiverBottom - receiverTop)",
+            "let dragDistance = lowerCommand + (upperCommand - lowerCommand) / 2",
+            "[lowerShift, upperShift, lowerCommand, upperCommand, dragDistance, receiverTop, receiverBottom, gutterLeft, gutterRight].allSatisfy({ $0.isFinite })",
+            "lowerCommand <= upperCommand",
             "let receiverTop = beforeViewport.minY + 24",
             "let receiverBottom = beforeViewport.maxY - 24",
             "let gutterRight = ([live.maxX, before.field.minX] + before.controls.map { $0.minX }).min()!",
@@ -20545,10 +20570,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_043_729)
+        XCTAssertEqual(uiSource.utf8.count, 1_043_962)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "8AD0D73F676296082A1BAD824EF04AC7BD139B76D6DC55F30DFB5FDAB06E8CDD"
+            "6890712353D9C451F7B78316B59DF9DCF79DA358A343990BC2388A516B51206D"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

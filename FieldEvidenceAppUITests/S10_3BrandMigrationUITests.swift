@@ -20470,16 +20470,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         if !beforeViewport.contains(before.field) {
             let lowerShift = beforeViewport.minY - before.field.minY
             let upperShift = beforeViewport.maxY - before.field.maxY
-            let dragDistance = max(CGFloat(44), lowerShift)
             let receiverTop = beforeViewport.minY + 24
             let receiverBottom = beforeViewport.maxY - 24
+            let lowerCommand = max(CGFloat(44), lowerShift)
+            let upperCommand = min(upperShift, receiverBottom - receiverTop)
+            let dragDistance = lowerCommand + (upperCommand - lowerCommand) / 2
             let live = before.scroll.intersection(before.application)
             let gutterLeft = live.minX
             let gutterRight = ([live.maxX, before.field.minX] + before.controls.map { $0.minX }).min()!
             guard before.field.minY < beforeViewport.minY,
                   before.field.minX >= beforeViewport.minX, before.field.maxX <= beforeViewport.maxX,
                   before.field.height <= beforeViewport.height,
-                  [lowerShift, upperShift, dragDistance, receiverTop, receiverBottom, gutterLeft, gutterRight].allSatisfy({ $0.isFinite }),
+                  [lowerShift, upperShift, lowerCommand, upperCommand, dragDistance, receiverTop, receiverBottom, gutterLeft, gutterRight].allSatisfy({ $0.isFinite }),
+                  lowerCommand <= upperCommand,
                   dragDistance >= 44, dragDistance <= upperShift,
                   dragDistance <= receiverBottom - receiverTop,
                   gutterRight > gutterLeft else {
