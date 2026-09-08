@@ -1247,7 +1247,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let getMacLaneGate =
             #"inputs.execution_lane == 'getmac-xcode-26.6-development-only'"#
         let warpLaneGate =
-            #"    if: ${{ inputs.execution_lane == 'warp-xcode-26.5-development-only' }}"#
+            #"    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'warp-xcode-26.5-development-only') }}"#
         let bitriseProbeLaneGate =
             #"inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none'"#
         let bitriseLaneGate =
@@ -6205,12 +6205,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let signDetailPositioningTailSource = String(
             signDetailRouteHeadSource[signDetailOpenIssueBaselineRange.lowerBound...]
         )
+        // H411 records the completed native journey before the segment can return.
+        // Specialize only that admitted addition away; preserve the original tail lock.
+        let minimumSignDetailJourney =
+            "        recordMinimumJourney(\"initial-check-report-open-issue\")\n"
+        XCTAssertEqual(signDetailPositioningTailSource.components(separatedBy: minimumSignDetailJourney).count - 1, 1)
+        XCTAssertTrue(signDetailPositioningTailSource.hasPrefix(
+            signDetailOpenIssueBaseline + "\n" + minimumSignDetailJourney +
+                "        if finishAutomatedSegmentIfNeeded(after: 22, in: app) { return }"
+        ))
+        let ordinarySignDetailPositioningTailSource = signDetailPositioningTailSource
+            .replacingOccurrences(of: minimumSignDetailJourney, with: "")
         for (source, bytes, sha256) in [
             (signDetailPositioningPrefixSource, 453,
              "BA050D696FD3D315E1E289A0411ECF7699F2E519B3A60E4B31578D6C6B5E209B"),
             (signDetailPositioningGateSource, 443,
              "37E9246E6725B110AFBB1C0DF6BC8F53B9DBF03FDDF2BFB4BD26DFB38159D21C"),
-            (signDetailPositioningTailSource, 471,
+            (ordinarySignDetailPositioningTailSource, 471,
              "E652C283399D20271E348B04FA26C76E1E88E158FA2C9558A449237C2371BD95"),
         ] {
             XCTAssertEqual(source.utf8.count, bytes)
@@ -12153,6 +12164,21 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     recheckPreflightPositioningRouteEndRange.upperBound
             ]
         )
+        // The source-defined segment2 guard supplements the preserved AX route.
+        let minimumRecheckPreflightGuard =
+            "        if minimumSegment == .segment2 {\n" +
+                "            guard app.descendants(matching: .any).matching(identifier: \"s3.preflight.screen\").count == 1,\n" +
+                "                  app.descendants(matching: .any).matching(identifier: \"s3.preflight.time-zone\").count == 0,\n" +
+                "                  app.descendants(matching: .any).matching(identifier: \"s3.preflight.time-zone-confirmed\").count == 0 else {\n" +
+                "                throw AutomationConfigurationError.invalid(\"Minimum work journey did not use the persisted confirmed preflight\")\n" +
+                "            }\n" +
+                "        }\n"
+        XCTAssertEqual(recheckPreflightPositioningRouteSource.components(separatedBy: minimumRecheckPreflightGuard).count - 1, 1)
+        XCTAssertTrue(recheckPreflightPositioningRouteSource.hasSuffix(
+            minimumRecheckPreflightGuard + recheckPreflightPositioningRouteEnd
+        ))
+        let ordinaryRecheckPreflightPositioningRouteSource = recheckPreflightPositioningRouteSource
+            .replacingOccurrences(of: minimumRecheckPreflightGuard, with: "")
         let recheckPreflightPositioningRouteLock =
             "        startRecheck.tap()\n" +
                 #"        XCTAssertTrue(element("s3.preflight.screen", in: app)"# +
@@ -12171,7 +12197,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        }\n" +
                 recheckPreflightPositioningRouteEnd
         XCTAssertEqual(
-            recheckPreflightPositioningRouteSource.components(
+            ordinaryRecheckPreflightPositioningRouteSource.components(
                 separatedBy: recheckPreflightPositioningRouteLock
             ).count - 1,
             1
