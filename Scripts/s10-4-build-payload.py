@@ -2023,11 +2023,229 @@ else:
 '''
 
 
+SHARED_REQUEST_DRIVER_SOURCE = r'''"""Finite workflow-owned request construction; all admission stays in the payload verifier."""
+import json
+import os
+from pathlib import Path
+import re
+import runpy
+import shlex
+import shutil
+import subprocess
+import sys
+import uuid
+
+root=Path(os.environ['GITHUB_WORKSPACE']).resolve()
+artifact=Path(os.environ['CI_ARTIFACT_DIR']).resolve()
+temp=Path(os.environ['RUNNER_TEMP']).resolve()
+kernel=runpy.run_path(str(root/'Scripts/s10-4-build-payload.py'))
+mode=os.environ['CI_S10_4_SHARED_BUILD_MODE']
+assert mode in ('producer','consumer')
+operation=sys.argv[1]
+prepared=temp/'FieldEvidenceSharedPrepared'
+qualified=temp/'FieldEvidenceSharedQualified'
+restored=temp/'FieldEvidenceSharedRestore'
+requests=artifact/'shared-build-requests'
+requests.mkdir(exist_ok=True)
+
+def save(path,value):
+    assert not path.exists()
+    path.write_text(json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False)+'\n',encoding='utf-8')
+
+def invoke(command,output,**fields):
+    request=dict(schemaVersion=1,contractID='s10.4.shared-build.v1',checkoutRoot=str(root),head=os.environ['GITHUB_SHA'],**fields)
+    path=requests/(command+'.json')
+    save(path,request)
+    result=subprocess.run([sys.executable,str(root/'Scripts/s10-4-build-payload.py'),command,'--request',str(path),'--output',str(output)],check=True,text=True,capture_output=True)
+    value=kernel['decode_bytes'](result.stdout.encode())
+    save(requests/(command+'-result.json'),value)
+    return value
+
+def append_env(key,value):
+    assert isinstance(value,str) and not any(x in value for x in ['\n','\r','\x00'])
+    with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as stream:
+        stream.write(key+'='+value+'\n')
+
+def current_job():
+    rid=int(os.environ['GITHUB_RUN_ID']); attempt=int(os.environ['GITHUB_RUN_ATTEMPT'])
+    jobs=kernel['list_api'](f'actions/runs/{rid}/attempts/{attempt}/jobs','jobs')
+    found=[j for j in jobs if j.get('runner_name')==os.environ['RUNNER_NAME'] and j.get('status')=='in_progress'
+           and any(s.get('name')=='Validate task selection and timeout tier' for s in j.get('steps',[]))]
+    assert len(found)==1
+    job=found[0]
+    assert job['run_id']==rid and job['run_attempt']==attempt and job['head_sha']==os.environ['GITHUB_SHA'] and job['head_branch']=='phase/s10-brand-refresh'
+    save(requests/(operation+'-job-api.json'),job)
+    return job
+
+def runtime_identity():
+    job=current_job()
+    return dict(runID=int(os.environ['GITHUB_RUN_ID']),runAttempt=int(os.environ['GITHUB_RUN_ATTEMPT']),
+                jobID=job['id'],runnerProvider=os.environ['CI_RUNNER_PROVIDER'],runnerName=os.environ['RUNNER_NAME'],
+                simulatorUDID=os.environ['CI_SIMULATOR_UDID'])
+
+if operation=='prepare':
+    assert mode=='producer'
+    identity=runtime_identity()
+    command=kernel['load'](artifact/'s10-4-shared-build-command.json')
+    # Actual shell invocation is captured immediately before the pinned cache wrapper.
+    # The untouched native log separately retains the wrapper's added build settings.
+    expected=['-project','FieldEvidenceApp.xcodeproj','-scheme','FieldEvidenceApp','-configuration','Debug',
+              '-destination',os.environ['CI_DESTINATION'],'-derivedDataPath',str(temp/'FieldEvidenceDerivedData'),
+              '-resultBundlePath',str(artifact/'Build.xcresult'),'CODE_SIGNING_ALLOWED=NO','build-for-testing']
+    assert command==['xcodebuild']+expected
+    result=invoke('prepare',prepared,producer=identity,toolchain=kernel['TOOLCHAIN'],
+                  derivedDataRoot=str(temp/'FieldEvidenceDerivedData'),buildCommand=command,
+                  buildResultBundle=str(artifact/'Build.xcresult'),buildLog=str(artifact/'build-smoke.log'))
+    append_env('CI_S10_4_SHARED_XCTESTRUN_PATH',result['xctestrunPath'])
+    append_env('CI_S10_4_SHARED_PRODUCTS_ROOT',str(prepared/'payload'/kernel['ROOT_LABEL']))
+    append_env('CI_S10_4_SHARED_EXECUTION_LANE','s10-4-shared-build-producer')
+elif operation=='qualify':
+    assert mode=='producer'
+    unit=temp/'FieldEvidenceSharedUnitOriginal'
+    unit.mkdir()
+    for name in ['UnitTests.xcresult','test-smoke.log','s10-4-shared-unit-command.json','ci-selection.json',
+                 'ci-selection-validation.txt','simulator-selection.txt','simulator-boot-start.log','simulator-boot.log',
+                 'runner-provider.txt','simulator-runtimes.json','simulator-devices.json','xcode-version.txt','build-settings.txt']:
+        source=artifact/name
+        assert source.exists() and not source.is_symlink()
+        if source.is_dir(): shutil.copytree(source,unit/name,symlinks=True)
+        else: shutil.copy2(source,unit/name)
+    native=subprocess.run(['xcrun','xcresulttool','get','test-results','tests','--path',str(unit/'UnitTests.xcresult'),'--compact'],check=True,capture_output=True)
+    tree=kernel['decode_bytes'](native.stdout)
+    save(unit/'unit-test-results.json',tree)
+    cases=[]
+    def walk(node):
+        if node.get('nodeType')=='Test Case':
+            prefix='test://com.apple.xcode/FieldEvidenceApp/'
+            url=node['nodeIdentifierURL']
+            assert url.startswith(prefix)
+            cases.append(dict(identifier=url[len(prefix):].removesuffix('()'),result=node['result']))
+        for child in node.get('children',[]): walk(child)
+    for node in tree['testNodes']: walk(node)
+    save(unit/'unit-executed-tests.json',cases)
+    invoke('qualify',qualified,preparedRoot=str(prepared),unitEvidenceRoot=str(unit),
+           unitCommand=kernel['load'](unit/'s10-4-shared-unit-command.json'),unitResultsRelativePath='unit-test-results.json',
+           executedTestsRelativePath='unit-executed-tests.json',unitXCResultRelativePath='UnitTests.xcresult',
+           unitLogRelativePath='test-smoke.log',unitDevice={'simulatorUDID':os.environ['CI_SIMULATOR_UDID']})
+elif operation=='seal':
+    assert mode=='producer'
+    invoke('seal',temp/'FieldEvidenceSharedSeal',preparedRoot=str(prepared),qualificationRoot=str(qualified),
+           payloadArtifactID=int(os.environ['SHARED_PAYLOAD_ARTIFACT_ID']),unitArtifactID=int(os.environ['SHARED_UNIT_ARTIFACT_ID']))
+elif operation=='restore':
+    assert mode=='consumer'
+    c=runtime_identity()
+    isolation=str(uuid.uuid4()).upper()
+    segment=os.environ['WORKER_S10_4_MINIMUM_SEGMENT_ID']
+    if segment=='none': segment=os.environ['CI_S10_4_SEGMENT_ID']
+    c.update(shardID=os.environ['CI_S10_4_SHARD_ID'],segmentID=segment,purpose='acceptance',toolchain=kernel['TOOLCHAIN'],
+             simulatorName=os.environ['SIMULATOR_NAME'],simulatorRuntime=os.environ['SIMULATOR_RUNTIME'],
+             simulatorRuntimeBuild=os.environ['SIMULATOR_RUNTIME_BUILD'],isolationID=isolation)
+    assert os.environ['CI_S10_4_PILOT_CREATED_SIMULATOR_UDID']==c['simulatorUDID'] and os.environ['CI_SIMULATOR_INITIAL_STATE']=='Shutdown'
+    creation=kernel['load'](artifact/'s10-4-shared-simulator-creation-command.json')
+    save(artifact/'s10-4-shared-isolation.json',dict(schemaVersion=1,runID=c['runID'],jobID=c['jobID'],
+         simulatorUDID=c['simulatorUDID'],isolationID=isolation,createdByThisJob=True,preexistingDevice=False,creationCommand=creation))
+    save(artifact/'s10-4-shared-consumer.json',c)
+    result=invoke('restore',restored,sourceRunID=os.environ['CI_S10_4_SHARED_PAYLOAD_RUN_ID'],consumer=c)
+    append_env('CI_S10_4_SHARED_XCTESTRUN_PATH',result['xctestrunPath'])
+    append_env('CI_S10_4_SHARED_PRODUCTS_ROOT',str(restored/'payload'/kernel['ROOT_LABEL']))
+    append_env('CI_S10_4_SHARED_EXECUTION_LANE','github-xcode-26.6-shared-build-acceptance')
+    # Original API, archives, checksums and qualification remain explicitly producer-owned.
+    proof=artifact/'shared-producer'
+    proof.mkdir()
+    for name in ['admission.json','shared-build-seal.json','producer-run.json','producer-job.json','artifact-metadata.json',
+                 'original-seal.zip','original-payload.zip','original-unit-evidence.zip','consumer-provenance.json','unit-proof']:
+        source=restored/name
+        if source.is_dir(): shutil.copytree(source,proof/name,symlinks=True)
+        else: shutil.copy2(source,proof/name)
+    mapping_text=os.environ['WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS']
+    mapping=kernel['decode_bytes'](mapping_text.encode()) if mapping_text else {}
+    assert type(mapping) is dict
+    source_map=artifact/'s10-4-shared-source-map.json'
+    save(source_map,mapping)
+    admission_output=artifact/'shared-dependency-admission'
+    subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--admit-shared-selection',str(restored),
+                    c['shardID'],segment,str(source_map),str(admission_output)],cwd=root,check=True)
+    matrix=kernel['load'](admission_output/'matrix-binding.json')
+    assert matrix['matrixID']==os.environ['WORKER_S10_4_SHARED_MATRIX_ID']
+    append_env('CI_S10_4_MATRIX_BINDING',str(admission_output/'matrix-binding.json'))
+    append_env('CI_S10_4_CONSUMER_BUILD_REFERENCE',str(artifact/'shared-consumer/consumer-build-reference.json'))
+    append_env('CI_S10_4_PRODUCER_PROOF_ROOT',str(proof/'unit-proof'))
+elif operation=='verify-consumer':
+    assert mode=='consumer'
+    invoke('verify-consumer',artifact/'shared-consumer',restoreRoot=str(restored),
+           consumer=kernel['load'](artifact/'s10-4-shared-consumer.json'),
+           uiCommand=kernel['load'](artifact/'s10-4-shared-ui-command.json'),
+           isolationReceipt=str(artifact/'s10-4-shared-isolation.json'))
+else:
+    raise AssertionError('Unknown shared operation')
+'''
+
+
+SHARED_UI_EVIDENCE_SOURCE = r'''import json
+import os
+from pathlib import Path
+import runpy
+import subprocess
+
+root=Path(os.environ['GITHUB_WORKSPACE']).resolve()
+artifact=Path(os.environ['CI_ARTIFACT_DIR']).resolve()
+k=runpy.run_path(str(root/'Scripts/s10-4-build-payload.py'))
+assert os.environ['CI_S10_4_SHARED_BUILD_MODE']=='consumer'
+reference=k['load'](artifact/'shared-consumer/consumer-build-reference.json')
+assert reference['productsUnchanged'] is True and reference['diagnosticOnly'] is False
+assert reference['unitTestCount']==0 and reference['producerUnitTestCount']==5
+result=artifact/'UISmoke.xcresult'
+assert result.is_dir() and not result.is_symlink()
+native=subprocess.run(['xcrun','xcresulttool','get','test-results','tests','--path',str(result),'--compact'],check=True,capture_output=True)
+tree=k['decode_bytes'](native.stdout)
+cases=[]
+def walk(node):
+    assert type(node) is dict
+    if node.get('nodeType')=='Test Case': cases.append(node)
+    children=node.get('children',[])
+    assert type(children) is list
+    for child in children: walk(child)
+for node in tree['testNodes']: walk(node)
+assert len(cases)==1
+case=cases[0]
+identifier='FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard'
+assert case['nodeIdentifierURL'].removesuffix('()')=='test://com.apple.xcode/FieldEvidenceApp/'+identifier
+assert case['nodeIdentifier']=='S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard()'
+assert case['result']=='Passed' and not case.get('isExpectedFailure',False)
+devices=tree['devices']
+assert type(devices) is list and len(devices)==1
+c=reference['consumer']
+expected=dict(deviceId=c['simulatorUDID'],deviceName=c['simulatorName'],osVersion=c['simulatorRuntime'].removeprefix('iOS '),
+              osBuildNumber=c['simulatorRuntimeBuild'],architecture='arm64',platform='iOS Simulator')
+assert all(devices[0].get(key)==value for key,value in expected.items())
+assert b'** TEST EXECUTE SUCCEEDED **' in (artifact/'ui-smoke.log').read_bytes()
+def save(path,value):
+    assert not path.exists()
+    path.write_text(json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False)+'\n',encoding='utf-8')
+save(artifact/'ui-test-results.json',tree)
+save(artifact/'ui-executed-tests.json',[dict(identifier=identifier,result='Passed')])
+save(artifact/'s10-4-shared-native-validation.json',dict(schemaVersion=1,validated=True,nativeUIResult='Passed',
+     executedUITestCount=1,uiTestIdentifier=identifier,uiResultsSHA256=k['sha256_file'](artifact/'ui-test-results.json'),
+     consumerBuildReferenceSHA256=k['sha256_file'](artifact/'shared-consumer/consumer-build-reference.json')))
+segment=c['segmentID']
+if segment!='none':
+    subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--collect-shared-segment',str(artifact),
+                    str(Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments'),c['shardID'],segment,
+                    os.environ['CI_S10_4_MATRIX_BINDING']],cwd=root,check=True)
+'''
+
+
 def main(argv=None):
     arguments = sys.argv[1:] if argv is None else list(argv)
     if arguments == ["emit-legacy-pilot-verifier"]:
         # stdout.buffer preserves the exact LF bytes on Windows as well as macOS.
         sys.stdout.buffer.write(LEGACY_PILOT_VERIFIER_SOURCE.encode("utf-8"))
+        return
+    if arguments == ["emit-shared-request-driver"]:
+        sys.stdout.buffer.write(SHARED_REQUEST_DRIVER_SOURCE.encode("utf-8"))
+        return
+    if arguments == ["emit-shared-ui-evidence"]:
+        sys.stdout.buffer.write(SHARED_UI_EVIDENCE_SOURCE.encode("utf-8"))
         return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=REQUEST_FIELDS)

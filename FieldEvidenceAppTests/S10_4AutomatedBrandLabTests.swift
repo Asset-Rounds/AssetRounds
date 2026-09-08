@@ -645,7 +645,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 24_942,
-            sha256: "5EFD9208C1CF9E012B8250E6DA2D4EF345261828B0E18865CD0F05F4A56EDBD0"
+            sha256: "86D94D6CE163CDC40E2622C5CD36C48C53421EECB53A61100C0D64D97BCB2044"
         )
         try assertFile(
             visualSchemaPath,
@@ -695,10 +695,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 365_326,
-            sha256: "A5B932843225ACFC2700CACB2252437A915F7C271AAB4F59024E270916511B8D"
+            byteCount: 351_005,
+            sha256: "2A829B3948DC4D7DE199DDA683BD48258C86D51EF6398A5593D8B1EA9995A896"
         )
         let workflowSource = try text(workflowPath)
+        // K483 moves only the two unchanged H411 Python bodies out of YAML.
+        let sharedPayloadEmitterSource = try text("Scripts/s10-4-build-payload.py")
+        let sharedExecutable0Marker = "SHARED_REQUEST_DRIVER_SOURCE = r'''"
+        let sharedExecutable0Start = try XCTUnwrap(sharedPayloadEmitterSource.range(of: sharedExecutable0Marker))
+        let sharedExecutable0End = try XCTUnwrap(sharedPayloadEmitterSource.range(
+            of: "'''", range: sharedExecutable0Start.upperBound..<sharedPayloadEmitterSource.endIndex
+        ))
+        let sharedExecutable0 = String(sharedPayloadEmitterSource[sharedExecutable0Start.upperBound..<sharedExecutable0End.lowerBound])
+        XCTAssertEqual(sharedExecutable0.utf8.count, 9_480)
+        XCTAssertEqual(Data(sharedExecutable0.utf8).sha256, "C2FF5EF0452479A8450C1E3696780A2538095ACE5129180E91DB9F7A5A7DD1C0")
+        XCTAssertTrue(sharedPayloadEmitterSource.contains("if arguments == [\"emit-shared-request-driver\"]:"))
+        XCTAssertTrue(sharedPayloadEmitterSource.contains("sys.stdout.buffer.write(SHARED_REQUEST_DRIVER_SOURCE.encode(\"utf-8\"))"))
+        XCTAssertTrue(workflowSource.contains("python3 Scripts/s10-4-build-payload.py emit-shared-request-driver > \"$RUNNER_TEMP/s10-4-shared-driver.py\""))
+        let sharedExecutable1Marker = "SHARED_UI_EVIDENCE_SOURCE = r'''"
+        let sharedExecutable1Start = try XCTUnwrap(sharedPayloadEmitterSource.range(of: sharedExecutable1Marker))
+        let sharedExecutable1End = try XCTUnwrap(sharedPayloadEmitterSource.range(
+            of: "'''", range: sharedExecutable1Start.upperBound..<sharedPayloadEmitterSource.endIndex
+        ))
+        let sharedExecutable1 = String(sharedPayloadEmitterSource[sharedExecutable1Start.upperBound..<sharedExecutable1End.lowerBound])
+        XCTAssertEqual(sharedExecutable1.utf8.count, 2_948)
+        XCTAssertEqual(Data(sharedExecutable1.utf8).sha256, "194514BECD0ABD96E1CD791EB780805FE45FABDB3C1BFB7E396081EC6427F85A")
+        XCTAssertTrue(sharedPayloadEmitterSource.contains("if arguments == [\"emit-shared-ui-evidence\"]:"))
+        XCTAssertTrue(sharedPayloadEmitterSource.contains("sys.stdout.buffer.write(SHARED_UI_EVIDENCE_SOURCE.encode(\"utf-8\"))"))
+        XCTAssertTrue(workflowSource.contains("python3 Scripts/s10-4-build-payload.py emit-shared-ui-evidence | python3 -"))
         // H410 unit qualification deliberately omits UI; it never produces a shard pass.
         let unitOnlyRecordSource = try boundedSource(
             workflowSource,
