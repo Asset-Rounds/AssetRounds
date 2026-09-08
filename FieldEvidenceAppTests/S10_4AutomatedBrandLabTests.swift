@@ -3222,6 +3222,97 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(clearNegative.lowerBound, classifyAttempt.lowerBound)
         XCTAssertTrue(accentedMovementClassification.contains("blockedPositiveDirection = true"))
         XCTAssertTrue(accentedMovementClassification.contains("blockedNegativeDirection = true"))
+        // K481: the full vertical gesture must avoid the closed focused-field rectangle.
+        let doubleVisibleReceiver = try boundedSource(uiSource,
+            from: "                        let positionVisiblePreflightControl:",
+            before: "                                XCTFail(\"The serial visible preflight control was not positioned within four attempts.\")")
+        XCTAssertTrue(doubleVisibleReceiver.contains("if centerAvoidsZone {\n                                        dragX = centerX\n                                    } else {"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("guard dragX.isFinite,\n                                          dragX >= receiverLeft, dragX <= receiverRight,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("focusedZoneFrame.origin.x, focusedZoneFrame.origin.y,\n                                        focusedZoneFrame.size.width, focusedZoneFrame.size.height,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("focusedZoneFrame.minX, focusedZoneFrame.maxX,\n                                        focusedZoneFrame.minY, focusedZoneFrame.maxY,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let focusedZoneFrame = zone.frame"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let receiverLeft = liveScrollFrame.minX + receiverInset"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let receiverRight = liveScrollFrame.maxX - receiverInset"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let dragStartY = dragDistance > 0 ? receiverTop : receiverBottom"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let dragEndY = dragStartY + dragDistance"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let segmentTop = min(dragStartY, dragEndY)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let segmentBottom = max(dragStartY, dragEndY)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let centerX = scrollFrame.midX"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("guard receiverScalars.allSatisfy({ $0.isFinite }),"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("!focusedZoneFrame.isNull, !focusedZoneFrame.isEmpty,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("focusedZoneFrame.size.width > 0, focusedZoneFrame.size.height > 0,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("receiverLeft < receiverRight,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("centerX >= receiverLeft, centerX <= receiverRight,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("segmentTop >= receiverTop, segmentBottom <= receiverBottom else {"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let segmentAvoidsZoneVertically = segmentBottom < focusedZoneFrame.minY"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("|| segmentTop > focusedZoneFrame.maxY"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("|| centerX < focusedZoneFrame.minX || centerX > focusedZoneFrame.maxX"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let leftBandLower = receiverLeft"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let leftBandUpper = min(receiverRight, focusedZoneFrame.minX)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("leftBandUpper > leftBandLower else {"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let leftBandMidpoint = leftBandLower / 2 + leftBandUpper / 2"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("guard leftBandMidpoint.isFinite,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("leftBandMidpoint > leftBandLower,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("leftBandMidpoint < leftBandUpper else {"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("dragX = leftBandMidpoint"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let dragStartPoint = CGPoint(x: dragX, y: dragStartY)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let dragEndPoint = CGPoint(x: dragX, y: dragEndY)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("dragX >= liveScrollFrame.minX, dragX <= liveScrollFrame.maxX,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("dragX >= liveApplicationFrame.minX, dragX <= liveApplicationFrame.maxX,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("segmentTop >= liveScrollFrame.minY, segmentBottom <= liveScrollFrame.maxY,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("segmentTop >= liveApplicationFrame.minY, segmentBottom <= liveApplicationFrame.maxY,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("|| dragX < focusedZoneFrame.minX || dragX > focusedZoneFrame.maxX else {"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("dx: dragStartPoint.x - scrollFrame.minX,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("dy: dragStartPoint.y - scrollFrame.minY"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("\"focusedZone\": frameRecord(focusedZoneFrame)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("\"dragStart\": [scalar(dragStartPoint.x), scalar(dragStartPoint.y)]"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("\"dragEnd\": [scalar(dragEndPoint.x), scalar(dragEndPoint.y)]"))
+
+        XCTAssertEqual(doubleVisibleReceiver.components(separatedBy: "let focusedZoneFrame = zone.frame").count - 1, 1)
+        XCTAssertEqual(doubleVisibleReceiver.components(separatedBy: "dragStart.press(").count - 1, 1)
+        XCTAssertFalse(doubleVisibleReceiver.contains("dx: scrollFrame.width / 2"))
+        let doubleReceiverSelection = try boundedSource(doubleVisibleReceiver,
+            from: "                                    let receiverLeft =",
+            before: "                                    let interactiveSwitchMinYBeforeDrag =")
+        for prohibited in [".frame", ".tap(", ".swipe", ".press(", "wait(", "screenshot", "debugDescription"] {
+            XCTAssertFalse(doubleReceiverSelection.contains(prohibited), prohibited)
+        }
+        // Sampled geometry is not a native hit-test guarantee. Closed-edge intersections fail.
+        let doubleReceiverModel: (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGRect) -> CGFloat? = {
+            left, right, center, startY, endY, zone in
+            let scalars = [left, right, center, startY, endY, zone.origin.x, zone.origin.y,
+                           zone.size.width, zone.size.height, zone.minX, zone.maxX, zone.minY, zone.maxY]
+            guard scalars.allSatisfy({ $0.isFinite }), !zone.isNull, !zone.isEmpty,
+                  zone.size.width > 0, zone.size.height > 0, left < right,
+                  center >= left, center <= right else { return nil }
+            let top = min(startY, endY), bottom = max(startY, endY)
+            if bottom < zone.minY || top > zone.maxY || center < zone.minX || center > zone.maxX {
+                return center
+            }
+            let upper = min(right, zone.minX)
+            guard upper > left else { return nil }
+            let midpoint = left / 2 + upper / 2
+            guard midpoint.isFinite, midpoint > left, midpoint < upper else { return nil }
+            return midpoint
+        }
+        let recordedFocusedZone = CGRect(x: 31.5, y: 375.5, width: 312, height: 66)
+        XCTAssertEqual(doubleReceiverModel(24, 351, 187.5, 383, 88, recordedFocusedZone), 27.75)
+        XCTAssertEqual(doubleReceiverModel(24, 351, 187.5, 88, 383, recordedFocusedZone), 27.75)
+        XCTAssertEqual(doubleReceiverModel(24, 351, 187.5, 88, 300, recordedFocusedZone), 187.5)
+        XCTAssertEqual(doubleReceiverModel(24, 351, 187.5, 375.5, 88, recordedFocusedZone), 27.75)
+        XCTAssertEqual(doubleReceiverModel(24, 351, 187.5, 441.5, 600, recordedFocusedZone), 27.75)
+        XCTAssertEqual(doubleReceiverModel(24, 351, 187.5, 88, 600, recordedFocusedZone), 27.75)
+        XCTAssertNil(doubleReceiverModel(24, 351, 187.5, 383, 88, CGRect(x: 24, y: 375.5, width: 320, height: 66)))
+        XCTAssertNil(doubleReceiverModel(24, 351, 187.5, 383, 88, CGRect(x: 0, y: 375.5, width: 375, height: 66)))
+        XCTAssertNil(doubleReceiverModel(24, 24, 24, 383, 88, recordedFocusedZone))
+        XCTAssertNil(doubleReceiverModel(351, 24, 187.5, 383, 88, recordedFocusedZone))
+        XCTAssertNil(doubleReceiverModel(24, 351, 352, 383, 88, recordedFocusedZone))
+        XCTAssertNil(doubleReceiverModel(24, 351, 187.5, .nan, 88, recordedFocusedZone))
+        XCTAssertNil(doubleReceiverModel(24, .infinity, 187.5, 383, 88, recordedFocusedZone))
+        XCTAssertNil(doubleReceiverModel(24, 351, 187.5, 383, 88, .null))
+        XCTAssertNil(doubleReceiverModel(24, 351, 187.5, 383, 88, .zero))
+        XCTAssertNil(doubleReceiverModel(24, 351, 187.5, 383, 88, CGRect(x: 31.5, y: 375.5, width: -1, height: 66)))
+        XCTAssertNil(doubleReceiverModel(24, 351, 187.5, 383, 88, CGRect(x: CGFloat(24).nextUp, y: 375.5, width: 320, height: 66)))
         let doubleInitialProgressFailure = try boundedSource(uiSource, from: "                                    let interactiveSwitchFrameAfterDrag = interactiveSwitch.frame", before: "                                        XCTFail(\"The serial visible preflight positioning gesture did not make signed progress.\")")
         XCTAssertTrue(doubleInitialProgressFailure.contains("S10_4_DOUBLE_INITIAL_PROGRESS_FAILURE"))
         XCTAssertTrue(doubleInitialProgressFailure.contains("if value.isFinite { return value }"))
@@ -14625,10 +14716,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(postPurchaseAXHelperSource.contains("guard usesPrimaryActionPurchaseCompleteViewport else { return }"))
         for positioning in [
             "if usesPrimaryActionPurchaseCompleteViewport { tallCachedIntervalObservation = nil }",
-            "observation[\"seam\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"RTL-string purchase-complete positioning\" : \"tall purchase-complete positioning\"",
-            "observation[\"shardID\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"s10.4.minimum.rtl-string\" : \"s10.4.minimum.tall\"",
-            "observation[\"ordinal\"] = usesRTLStringPurchaseCompleteViewport\n                            ? 11 : 12",
-            "observation[\"requirementID\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"rtl_string\" : \"tall\"",
+            "observation[\"seam\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"RTL-string purchase-complete positioning\" : usesBoundedPurchaseCompleteViewport\n                            ? \"bounded purchase-complete positioning\" : \"tall purchase-complete positioning\"",
+            "observation[\"shardID\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"s10.4.minimum.rtl-string\" : usesBoundedPurchaseCompleteViewport\n                            ? \"s10.4.minimum.bounded\" : \"s10.4.minimum.tall\"",
+            "observation[\"ordinal\"] = usesRTLStringPurchaseCompleteViewport\n                            ? 11 : usesBoundedPurchaseCompleteViewport\n                            ? 14 : 12",
+            "observation[\"requirementID\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"rtl_string\" : usesBoundedPurchaseCompleteViewport\n                            ? \"bounded\" : \"tall\"",
         ] {
             XCTAssertTrue(postPurchaseAXPositioningSource.contains(positioning), positioning)
         }
@@ -14637,6 +14728,48 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(postPurchaseAXLegalSource.contains("legalControlsMeetMinimumSize else {"))
         XCTAssertFalse(postPurchaseAXHelperSource.contains("xmark"))
         XCTAssertFalse(postPurchaseAXHelperSource.contains(".tap()"))
+        // H409: bounded reuses the existing legal-then-primary preparation, with exact admission and labels.
+        let boundedPurchaseCaller = try boundedSource(
+            uiSource,
+            from: "        let usesBoundedPurchaseCompleteViewport =",
+            before: "\n        }\n"
+        )
+        let boundedPurchaseHelper = try boundedSource(
+            postPurchaseAXHelperSource,
+            from: "        let usesBoundedPurchaseCompleteViewport =",
+            before: "        let usesPrimaryActionPurchaseCompleteViewport ="
+        )
+        for admission in [
+            #"automationShard?.shardID == "s10.4.minimum.bounded""#,
+            "if usesBoundedPurchaseCompleteViewport",
+            "guard diagnosticProbe == nil, automationSegment == .none",
+            #"shard.ordinal == 14, shard.requirementID == "bounded""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #"shard.locale == "en-US-bounded""#,
+        ] {
+            XCTAssertTrue(boundedPurchaseCaller.contains(admission), admission)
+            XCTAssertTrue(boundedPurchaseHelper.contains(admission), admission)
+        }
+        XCTAssertTrue(boundedPurchaseCaller.contains("Bounded purchase-complete preparation has an invalid route."))
+        XCTAssertTrue(boundedPurchaseCaller.contains("return usedSettingsRetry"))
+        XCTAssertTrue(boundedPurchaseHelper.contains("Bounded purchase-complete helper has an invalid route."))
+        XCTAssertTrue(boundedPurchaseHelper.contains("return false"))
+        XCTAssertFalse(boundedPurchaseCaller.contains("captureBaseline"))
+        XCTAssertFalse(boundedPurchaseHelper.contains("captureBaseline"))
+        XCTAssertTrue(rtlStringPurchaseCaptureGate.contains("usesRTLStringPurchaseCompleteViewport || usesBoundedPurchaseCompleteViewport"))
+        XCTAssertTrue(postPurchaseAXRouteSource.contains("usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport || usesBoundedPurchaseCompleteViewport"))
+        for binding in [
+            "let expectedReadyValue = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Ready\\u{202C}\"\n            : usesBoundedPurchaseCompleteViewport\n            ? \"[# Ready #]\"",
+            "let expectedCloseLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Close\\u{202C}\"\n            : usesBoundedPurchaseCompleteViewport\n            ? \"[# Close #]\"",
+            "let expectedTermsLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Terms\\u{202C}\"\n            : usesBoundedPurchaseCompleteViewport\n            ? \"[# Terms #]\"",
+            "let expectedPrivacyLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Privacy\\u{202C}\"\n            : usesBoundedPurchaseCompleteViewport\n            ? \"[# Privacy #]\"",
+            "let expectedSupportLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Support\\u{202C}\"\n            : usesBoundedPurchaseCompleteViewport\n            ? \"[# Support #]\"",
+            "let expectedPurchaseLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Subscribe\\u{202C}\"\n            : usesBoundedPurchaseCompleteViewport\n            ? \"[# Subscribe #]\"",
+            "let expectedVerifiedLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Complete: Purchase verified. Subscription access is ready.\\u{202C}\"\n            : usesBoundedPurchaseCompleteViewport\n            ? \"[# Complete: Purchase verified. Subscription access is ready. #]\"",
+            "let expectedTallNavigationIdentifier = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Subscription\\u{202C}\"\n            : usesBoundedPurchaseCompleteViewport\n            ? \"[# Subscription #]\"",
+        ] {
+            XCTAssertTrue(postPurchaseAXRouteSource.contains(binding), binding)
+        }
         let tallPurchaseHelperAdmission = try boundedSource(
             postPurchaseAXHelperSource,
             from: "        let usesTallPurchaseCompleteViewport =",
@@ -20765,10 +20898,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_047_532)
+        XCTAssertEqual(uiSource.utf8.count, 1_055_536)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "5A69E44F74A7DEF461BE6C08B96C08B537A04F34B0E79D13D9423318B644A4A6"
+            "846E5E0ADE097142129FAD9A97EAC41F535F23C72A3AA6CB3B30F5702F0C0A74"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

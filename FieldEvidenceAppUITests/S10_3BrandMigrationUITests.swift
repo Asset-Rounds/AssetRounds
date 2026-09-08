@@ -3415,6 +3415,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     )
                                     let navigationFrame = preflightNavigationBar.frame
                                     let assistantFrame = inputAssistantView.frame
+                                    let focusedZoneFrame = zone.frame
                                     let interactiveSwitchFrame =
                                         interactiveSwitch.frame
                                     let safeTop = max(
@@ -3518,16 +3519,78 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     } else {
                                         serialPositioningDirection = dragDirection
                                     }
+                                    let receiverLeft = liveScrollFrame.minX + receiverInset
+                                    let receiverRight = liveScrollFrame.maxX - receiverInset
+                                    let dragStartY = dragDistance > 0 ? receiverTop : receiverBottom
+                                    let dragEndY = dragStartY + dragDistance
+                                    let segmentTop = min(dragStartY, dragEndY)
+                                    let segmentBottom = max(dragStartY, dragEndY)
+                                    let centerX = scrollFrame.midX
+                                    let receiverScalars = [
+                                        liveApplicationFrame.minX, liveApplicationFrame.maxX,
+                                        liveApplicationFrame.minY, liveApplicationFrame.maxY,
+                                        liveScrollFrame.minX, liveScrollFrame.maxX,
+                                        liveScrollFrame.minY, liveScrollFrame.maxY,
+                                        focusedZoneFrame.origin.x, focusedZoneFrame.origin.y,
+                                        focusedZoneFrame.size.width, focusedZoneFrame.size.height,
+                                        focusedZoneFrame.minX, focusedZoneFrame.maxX,
+                                        focusedZoneFrame.minY, focusedZoneFrame.maxY,
+                                        receiverLeft, receiverRight, receiverTop, receiverBottom,
+                                        dragStartY, dragEndY, segmentTop, segmentBottom, centerX,
+                                    ]
+                                    guard receiverScalars.allSatisfy({ $0.isFinite }),
+                                          !focusedZoneFrame.isNull, !focusedZoneFrame.isEmpty,
+                                          focusedZoneFrame.size.width > 0, focusedZoneFrame.size.height > 0,
+                                          receiverLeft < receiverRight,
+                                          centerX >= receiverLeft, centerX <= receiverRight,
+                                          segmentTop >= receiverTop, segmentBottom <= receiverBottom else {
+                                        XCTFail("The serial visible preflight focused-zone receiver geometry is invalid.")
+                                        return false
+                                    }
+                                    let segmentAvoidsZoneVertically = segmentBottom < focusedZoneFrame.minY
+                                        || segmentTop > focusedZoneFrame.maxY
+                                    let centerAvoidsZone = segmentAvoidsZoneVertically
+                                        || centerX < focusedZoneFrame.minX || centerX > focusedZoneFrame.maxX
+                                    let dragX: CGFloat
+                                    if centerAvoidsZone {
+                                        dragX = centerX
+                                    } else {
+                                        let leftBandLower = receiverLeft
+                                        let leftBandUpper = min(receiverRight, focusedZoneFrame.minX)
+                                        guard leftBandLower.isFinite, leftBandUpper.isFinite,
+                                              leftBandUpper > leftBandLower else {
+                                            XCTFail("The serial visible preflight has no unobstructed left receiver band.")
+                                            return false
+                                        }
+                                        let leftBandMidpoint = leftBandLower / 2 + leftBandUpper / 2
+                                        guard leftBandMidpoint.isFinite,
+                                              leftBandMidpoint > leftBandLower,
+                                              leftBandMidpoint < leftBandUpper else {
+                                            XCTFail("The serial visible preflight left receiver midpoint is not representable.")
+                                            return false
+                                        }
+                                        dragX = leftBandMidpoint
+                                    }
+                                    let dragStartPoint = CGPoint(x: dragX, y: dragStartY)
+                                    let dragEndPoint = CGPoint(x: dragX, y: dragEndY)
+                                    guard dragX.isFinite,
+                                          dragX >= receiverLeft, dragX <= receiverRight,
+                                          dragX >= liveScrollFrame.minX, dragX <= liveScrollFrame.maxX,
+                                          dragX >= liveApplicationFrame.minX, dragX <= liveApplicationFrame.maxX,
+                                          segmentTop >= liveScrollFrame.minY, segmentBottom <= liveScrollFrame.maxY,
+                                          segmentTop >= liveApplicationFrame.minY, segmentBottom <= liveApplicationFrame.maxY,
+                                          segmentAvoidsZoneVertically
+                                            || dragX < focusedZoneFrame.minX || dragX > focusedZoneFrame.maxX else {
+                                        XCTFail("The serial visible preflight drag path intersects the focused zone or leaves the viewport.")
+                                        return false
+                                    }
                                     let scrollOrigin = preflightScrollView.coordinate(
                                         withNormalizedOffset: CGVector(dx: 0, dy: 0)
                                     )
-                                    let dragStartOffsetY = dragDistance > 0
-                                        ? receiverTop - scrollFrame.minY
-                                        : receiverBottom - scrollFrame.minY
                                     let dragStart = scrollOrigin.withOffset(
                                         CGVector(
-                                            dx: scrollFrame.width / 2,
-                                            dy: dragStartOffsetY
+                                            dx: dragStartPoint.x - scrollFrame.minX,
+                                            dy: dragStartPoint.y - scrollFrame.minY
                                         )
                                     )
                                     let dragEnd = dragStart.withOffset(
@@ -3565,6 +3628,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                                 "before": frameRecord(interactiveSwitchFrame),
                                                 "after": frameRecord(interactiveSwitchFrameAfterDrag),
                                                 "command": scalar(dragDistance), "direction": scalar(dragDirection),
+                                                "focusedZone": frameRecord(focusedZoneFrame),
+                                                "dragStart": [scalar(dragStartPoint.x), scalar(dragStartPoint.y)],
+                                                "dragEnd": [scalar(dragEndPoint.x), scalar(dragEndPoint.y)],
                                                 "signedProgress": scalar((interactiveSwitchFrameAfterDrag.minY - interactiveSwitchMinYBeforeDrag) * dragDistance),
                                                 "safeTop": scalar(safeTop), "safeBottom": scalar(safeBottom),
                                                 "receiverTop": scalar(receiverTop), "receiverBottom": scalar(receiverBottom),
@@ -10929,9 +10995,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return usedSettingsRetry
             }
         }
+        let usesBoundedPurchaseCompleteViewport =
+            automationShard?.shardID == "s10.4.minimum.bounded"
+        if usesBoundedPurchaseCompleteViewport {
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.ordinal == 14, shard.requirementID == "bounded",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  shard.locale == "en-US-bounded" else {
+                XCTFail("Bounded purchase-complete preparation has an invalid route.")
+                return usedSettingsRetry
+            }
+        }
         if automationShard?.shardID == "s10.4.current.ax-text" ||
             automationShard?.shardID == "s10.4.minimum.minimum-os" ||
-            usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport {
+            usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport || usesBoundedPurchaseCompleteViewport {
             if shouldPrepareNormalEvidence(
                 for: "state.paywall.purchase-complete",
                 in: app
@@ -11141,35 +11219,61 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return false
             }
         }
+        let usesBoundedPurchaseCompleteViewport =
+            automationShard?.shardID == "s10.4.minimum.bounded"
+        if usesBoundedPurchaseCompleteViewport {
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.ordinal == 14, shard.requirementID == "bounded",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  shard.locale == "en-US-bounded" else {
+                XCTFail("Bounded purchase-complete helper has an invalid route.")
+                return false
+            }
+        }
         let usesPrimaryActionPurchaseCompleteViewport =
-            usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport
+            usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport || usesBoundedPurchaseCompleteViewport
         let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
         let expectedReadyValue = usesRTLStringPurchaseCompleteViewport
             ? "\u{202E}Ready\u{202C}"
+            : usesBoundedPurchaseCompleteViewport
+            ? "[# Ready #]"
             : usesTallPurchaseCompleteViewport
             ? tallMarker + "Ready" + tallMarker : "Ready"
         let expectedCloseLabel = usesRTLStringPurchaseCompleteViewport
             ? "\u{202E}Close\u{202C}"
+            : usesBoundedPurchaseCompleteViewport
+            ? "[# Close #]"
             : usesTallPurchaseCompleteViewport
             ? tallMarker + "Close" + tallMarker : "Close"
         let expectedTermsLabel = usesRTLStringPurchaseCompleteViewport
             ? "\u{202E}Terms\u{202C}"
+            : usesBoundedPurchaseCompleteViewport
+            ? "[# Terms #]"
             : usesTallPurchaseCompleteViewport
             ? tallMarker + "Terms" + tallMarker : "Terms"
         let expectedPrivacyLabel = usesRTLStringPurchaseCompleteViewport
             ? "\u{202E}Privacy\u{202C}"
+            : usesBoundedPurchaseCompleteViewport
+            ? "[# Privacy #]"
             : usesTallPurchaseCompleteViewport
             ? tallMarker + "Privacy" + tallMarker : "Privacy"
         let expectedSupportLabel = usesRTLStringPurchaseCompleteViewport
             ? "\u{202E}Support\u{202C}"
+            : usesBoundedPurchaseCompleteViewport
+            ? "[# Support #]"
             : usesTallPurchaseCompleteViewport
             ? tallMarker + "Support" + tallMarker : "Support"
         let expectedPurchaseLabel = usesRTLStringPurchaseCompleteViewport
             ? "\u{202E}Subscribe\u{202C}"
+            : usesBoundedPurchaseCompleteViewport
+            ? "[# Subscribe #]"
             : usesTallPurchaseCompleteViewport
             ? tallMarker + "Subscribe" + tallMarker : "Subscribe"
         let expectedVerifiedLabel = usesRTLStringPurchaseCompleteViewport
             ? "\u{202E}Complete: Purchase verified. Subscription access is ready.\u{202C}"
+            : usesBoundedPurchaseCompleteViewport
+            ? "[# Complete: Purchase verified. Subscription access is ready. #]"
             : usesTallPurchaseCompleteViewport
             ? tallMarker + "Complete: " + tallMarker + " Purchase "
                 + tallMarker + " verified. " + tallMarker + " Subscription "
@@ -11178,6 +11282,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             : "Complete: Purchase verified. Subscription access is ready."
         let expectedTallNavigationIdentifier = usesRTLStringPurchaseCompleteViewport
             ? "\u{202E}Subscription\u{202C}"
+            : usesBoundedPurchaseCompleteViewport
+            ? "[# Subscription #]"
             : tallMarker + "Subscription" + tallMarker
         let purchasePredicate = NSPredicate(
             format: "label CONTAINS[c] 'Subscribe' OR " +
@@ -11391,14 +11497,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         observation["atomicSnapshot"] = false
                         observation["event"] = "infeasible-stage"
                         observation["seam"] = usesRTLStringPurchaseCompleteViewport
-                            ? "RTL-string purchase-complete positioning" : "tall purchase-complete positioning"
+                            ? "RTL-string purchase-complete positioning" : usesBoundedPurchaseCompleteViewport
+                            ? "bounded purchase-complete positioning" : "tall purchase-complete positioning"
                         observation["stage"] = stage
                         observation["shardID"] = usesRTLStringPurchaseCompleteViewport
-                            ? "s10.4.minimum.rtl-string" : "s10.4.minimum.tall"
+                            ? "s10.4.minimum.rtl-string" : usesBoundedPurchaseCompleteViewport
+                            ? "s10.4.minimum.bounded" : "s10.4.minimum.tall"
                         observation["ordinal"] = usesRTLStringPurchaseCompleteViewport
-                            ? 11 : 12
+                            ? 11 : usesBoundedPurchaseCompleteViewport
+                            ? 14 : 12
                         observation["requirementID"] = usesRTLStringPurchaseCompleteViewport
-                            ? "rtl_string" : "tall"
+                            ? "rtl_string" : usesBoundedPurchaseCompleteViewport
+                            ? "bounded" : "tall"
                         printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: observation)
                     }
                     return fail(
