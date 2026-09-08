@@ -4168,6 +4168,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(doubleElectionSource.contains(stagingObligation), stagingObligation)
         }
+        // Coarse movement reserves one recognized stage and one recognized finish.
+        let doubleCoarseSource = try boundedSource(doublePreflightViewportSource,
+            from: "let stagedDistance = max(", before: "let dragDirection: CGFloat")
+        for coarseObligation in [
+            "-receiverCapacity,", "maximumShift + 2 * minimumGestureDistance",
+            "<= -minimumGestureDistance else", "dragDistance = stagedDistance",
+            "selectedGestureIsStaging = false", "gestureSelectionKind = \"coarse\"",
+            "predictedSelectedMovement = nil", "selectedStageResidual = nil",
+        ] {
+            XCTAssertTrue(doubleCoarseSource.contains(coarseObligation), coarseObligation)
+        }
+        XCTAssertFalse(doubleCoarseSource.contains("maximumShift + minimumGestureDistance"))
         let doubleNativeProgress = try XCTUnwrap(doublePreflightViewportSource.range(of: "guard confirmationMovement * dragDistance > 0 else"))
         let doubleStageHistoryUpdate = try XCTUnwrap(doublePreflightViewportSource.range(of: "previousGestureWasStaging = selectedGestureIsStaging"))
         XCTAssertLessThan(doubleNativeProgress.lowerBound, doubleStageHistoryUpdate.lowerBound)
@@ -4203,7 +4215,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                   floor > 0, capacity >= floor, lower <= upper, upper < 0 else { return nil }
             if abs(upper) > capacity {
                 guard !wasStage else { return nil }
-                let command = max(-capacity, upper + floor)
+                let command = max(-capacity, upper + 2 * floor)
                 guard command <= -floor else { return nil }
                 return ("coarse", command, nil)
             }
@@ -4248,8 +4260,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThanOrEqual(594 + stagingElection.command, 594)
         let coarseElection = try XCTUnwrap(doublePreflightElection(-562, -545, 506, 44, false, nil, nil, nil, 626))
         XCTAssertEqual(coarseElection.kind, "coarse")
-        XCTAssertEqual(coarseElection.command, -501)
+        XCTAssertEqual(coarseElection.command, -457)
         XCTAssertNil(coarseElection.prediction)
+        // Exact initial operands; subsequent zero-loss responses are mathematical fixtures only.
+        let fractionalCoarseElection = try XCTUnwrap(doublePreflightElection(-562.012451171875, -545.012451171875, 506, 44, false, nil, nil, nil, 626.012451171875))
+        XCTAssertEqual(fractionalCoarseElection.command, -457.012451171875)
+        XCTAssertNil(fractionalCoarseElection.prediction)
+        XCTAssertGreaterThanOrEqual(594 + fractionalCoarseElection.command, 88)
+        XCTAssertLessThanOrEqual(594 + fractionalCoarseElection.command, 594)
+        let zeroLossStageElection = try XCTUnwrap(doublePreflightElection(-105, -88, 506, 44, false, -457.012451171875, -457.012451171875, 169, 169))
+        XCTAssertEqual(zeroLossStageElection.kind, "staging")
+        XCTAssertEqual(zeroLossStageElection.command, -44)
+        XCTAssertNil(zeroLossStageElection.prediction)
+        let zeroLossFinishElection = try XCTUnwrap(doublePreflightElection(-61, -44, 506, 44, true, -44, -44, 125, 125))
+        XCTAssertEqual(zeroLossFinishElection.kind, "calibrated-final")
+        XCTAssertEqual(zeroLossFinishElection.command, -52.5)
+        XCTAssertEqual(zeroLossFinishElection.prediction, -52.5)
+        let clippedCoarseElection = try XCTUnwrap(doublePreflightElection(-1017, -1000, 506, 44, false, nil, nil, nil, 1081))
+        XCTAssertEqual(clippedCoarseElection.kind, "coarse")
+        XCTAssertEqual(clippedCoarseElection.command, -506)
+        XCTAssertNil(clippedCoarseElection.prediction)
+        // A small receiver must not dispatch an unrecognized reserved command.
+        XCTAssertNil(doublePreflightElection(-78, -61, 50, 44, false, nil, nil, nil, 142))
+        // Original attempt2 is stranded; coarse history cannot qualify as a stage.
+        XCTAssertNil(doublePreflightElection(-83.512451171875, -66.512451171875, 506, 44, false, -501.012451171875, -478.5, 147.512451171875, 147.512451171875))
+        // Clipping that stage to -44 under zero loss still strands a recognized finish.
+        XCTAssertNil(doublePreflightElection(-39.512451171875, -22.512451171875, 506, 44, true, -44, -44, 103.512451171875, 103.512451171875))
+        // One point of hypothetical coarse overdelivery remains nonaccepting, without tolerance.
+        XCTAssertNil(doublePreflightElection(-104, -87, 506, 44, false, -457.012451171875, -458.012451171875, 168, 168))
         // This stage response is a model fixture, not retained pre-attempt-2 native evidence.
         let calibratedElection = try XCTUnwrap(doublePreflightElection(-78.012451171875, -61.012451171875, 506, 44, true, -149.512451171875, -132.5, 142.012451171875, 142.012451171875))
         XCTAssertEqual(calibratedElection.kind, "calibrated-final")
@@ -20524,10 +20562,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_048_565)
+        XCTAssertEqual(uiSource.utf8.count, 1_048_569)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "DED40705E07862F043F13C9F91AB3B536E869EC3855759FA4BEA6F77F6EC915B"
+            "45D4AD5CC22E57DB3597FB1A2F3FD85C84C3C91A37C4A2BEDBF34D96A2541170"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

@@ -2765,7 +2765,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             } else {
                                 let stagedDistance = max(
                                     -receiverCapacity,
-                                    maximumShift + minimumGestureDistance
+                                    maximumShift + 2 * minimumGestureDistance
                                 )
                                 guard stagedDistance
                                     <= -minimumGestureDistance else {
