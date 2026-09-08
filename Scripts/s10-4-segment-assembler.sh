@@ -99,7 +99,7 @@ def check_checksums(root):
     for line in (root/'SHA256SUMS.txt').read_text(encoding='utf-8').splitlines():
         match=re.fullmatch(r'([0-9A-Fa-f]{64})  (.+)',line)
         require(match is not None,'malformed checksum row')
-        name=safe_relative(match[2]); require(name not in rows,'duplicate checksum member')
+        name=safe_relative(match[2].removeprefix('./')); require(name not in rows,'duplicate checksum member')
         rows[name]=match[1].upper()
     require(rows==checksum_rows(root),'incomplete original checksum closure')
 def write_checksums(root):
@@ -324,9 +324,44 @@ def ui_rows(log,ctx,segment,matrix):
             require(resumes[0]==expected,'AX resume exact contract mismatch')
     return {'ax':ax,'contrast':contrast,'replay':replays,'resume':resumes,'journeys':journeys,'witnesses':witnesses,'start':starts,'result':results,'purchaseProofs':purchases,'pendingReceiptProofs':pending_receipts}
 
+def exception_catalog(ctx):
+    if ctx['minimum']:
+        require(ctx['plan']['minimumVerification']['exceptionAuthorities']==[],'minimum exception spread')
+        return []
+    signatures=ctx['plan']['sharedVerification']['axExceptionSignatures']; authorities=ctx['plan']['exceptionAuthorities']
+    keys={'shardID','stateID','taskID','exceptionIssueID','exceptionOwner','exceptionExpiresAt'}
+    require(type(signatures) is list and type(authorities) is list and len(signatures)==len(authorities) and signatures,'AX exception catalog cardinality mismatch')
+    require(all(type(a) is dict and set(a)==keys for a in authorities),'AX exception authority shape mismatch')
+    require(all(type(a) is dict and set(a)==keys|{'exceptionRationale','ignoredAuditIssues'} and type(a['ignoredAuditIssues']) is list and len(a['ignoredAuditIssues'])==1 for a in signatures),'AX exception signature shape mismatch')
+    for pool in [signatures,authorities]:
+        require(all(type(a[k]) is str and a[k] for a in pool for k in keys),'AX exception catalog value mismatch')
+        require(len({a['exceptionIssueID'] for a in pool})==len(pool),'AX exception catalog duplicate identity')
+        require(all(a['shardID']==ctx['shard']['shardID'] and a['exceptionOwner']=='palatis3' for a in pool),'AX exception catalog profile/owner mismatch')
+    require(sorted([{k:a[k] for k in keys} for a in signatures],key=lambda a:a['exceptionIssueID'])==sorted(authorities,key=lambda a:a['exceptionIssueID']),'AX full exception catalog authority mismatch')
+    # The immutable catalog retains this historical signature; native callbacks no longer admit it.
+    active=[a for a in signatures if a['exceptionIssueID']!='S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION']
+    for state in {a['stateID'] for a in active}:
+        limit=2 if state in {'state.check-preflight.ready','state.reports-index.ready'} else 1
+        require(sum(a['stateID']==state for a in active)<=limit,'AX active state exception eligibility exceeds native limit')
+    return active
+
+def observed_exceptions(contrast,catalog):
+    if contrast.get('result')=='PASS':
+        require(all(contrast.get(k)=='' for k in ['exceptionIssueID','exceptionOwner','exceptionExpiresAt','exceptionRationale']) and contrast.get('ignoredAuditIssues')==[],'PASS carries hidden exception')
+        return []
+    require(catalog and contrast.get('result')=='EXCEPTION','unapproved contrast exception')
+    value=contrast.get('exceptionIssueID'); require(type(value) is str and value,'AX observed exception IDs missing')
+    ids=value.split(' | '); require(ids==sorted(set(ids)),'AX observed exception IDs duplicate/reordered')
+    selected=sorted([a for a in catalog if a['stateID']==contrast['stateID'] and a['exceptionIssueID'] in ids],key=lambda a:a['exceptionIssueID'])
+    require([a['exceptionIssueID'] for a in selected]==ids,'AX observed exception IDs foreign to state')
+    require(contrast.get('ignoredAuditIssues')==[a['ignoredAuditIssues'][0] for a in selected],'AX exact observed public exception signature mismatch')
+    require(all(sum(a['ignoredAuditIssues']==[issue] for a in catalog if a['stateID']==contrast['stateID'])==1 for issue in contrast['ignoredAuditIssues']),'AX observed public exception signature ambiguous')
+    require(all(a['exceptionOwner']==contrast.get('exceptionOwner') and a['exceptionExpiresAt']==contrast.get('exceptionExpiresAt') and dt.datetime.now(dt.timezone.utc).date().isoformat()<=a['exceptionExpiresAt'] for a in selected),'AX observed exception authority/expiry mismatch')
+    require(contrast.get('exceptionRationale')==' | '.join(a['exceptionRationale'] for a in selected),'AX observed exception rationale mismatch')
+    return selected
+
 def verify_state_rows(rows,ctx):
-    shard=ctx['shard']; signatures=ctx['plan']['sharedVerification']['axExceptionSignatures']
-    authorities=ctx['plan']['exceptionAuthorities'] if not ctx['minimum'] else []
+    shard=ctx['shard']; catalog=exception_catalog(ctx)
     for ax,contrast in zip(rows['ax'],rows['contrast']):
         state=ax['stateID']
         for row in [ax,contrast]:
@@ -334,15 +369,7 @@ def verify_state_rows(rows,ctx):
             hash_value(row.get('axTreeSHA256'))
         require(ax.get('result')=='PASS' and ax.get('capture')=='XCUIApplication.debugDescription' and ax.get('evidenceID')=='s10.4-ax-'+shard['shardID']+'-'+state,'AX row invalid')
         require(contrast.get('axTreeSHA256')==ax['axTreeSHA256'] and contrast.get('audit')=='XCUIAccessibilityAuditType.contrast' and contrast.get('evidenceID')=='s10.4-contrast-'+shard['shardID']+'-'+state,'contrast binding mismatch')
-        if contrast.get('result')=='PASS':
-            require(all(contrast.get(k)=='' for k in ['exceptionIssueID','exceptionOwner','exceptionExpiresAt','exceptionRationale']) and contrast.get('ignoredAuditIssues')==[],'PASS carries hidden exception')
-        else:
-            require(not ctx['minimum'] and contrast.get('result')=='EXCEPTION','unapproved contrast exception')
-            eligible=sorted([a for a in signatures if a['stateID']==state],key=lambda a:a['exceptionIssueID'])
-            require(eligible and contrast.get('ignoredAuditIssues')==[a['ignoredAuditIssues'][0] for a in eligible],'AX exact public exception signature mismatch')
-            require(contrast.get('exceptionIssueID')==' | '.join(a['exceptionIssueID'] for a in eligible) and contrast.get('exceptionOwner')=='palatis3' and contrast.get('exceptionExpiresAt')==eligible[0]['exceptionExpiresAt'] and dt.datetime.now(dt.timezone.utc).date().isoformat()<=eligible[0]['exceptionExpiresAt'],'AX exception authority/expiry mismatch')
-            require(contrast.get('exceptionRationale')==' | '.join(a['exceptionRationale'] for a in eligible),'AX exception rationale mismatch')
-            require({a['exceptionIssueID'] for a in eligible}=={a['exceptionIssueID'] for a in authorities if a['stateID']==state},'AX exception plan identity mismatch')
+        observed_exceptions(contrast,catalog)
 
 def native_ui(root,consumer,ctx):
     tree=load(root/'ui-test-results.json'); executed=load(root/'ui-executed-tests.json'); cases=[]
@@ -634,16 +661,28 @@ def task_artifacts(stage,ctx,rows,head):
     tasks=contract['tasks']; require(len(tasks)==6 and len({t['task_id'] for t in tasks})==6,'six common tasks changed')
     shard=ctx['shard']; ax={r['stateID']:r for r in rows['ax']}; contrasts={r['stateID']:r for r in rows['contrast']}; output=[]
     require(len(shard['accessibilityFeatures'])==1,'ambiguous task feature')
+    catalog=exception_catalog(ctx)
+    observed=[a for row in rows['contrast'] for a in observed_exceptions(row,catalog)]
+    task_limits={} if ctx['minimum'] else {
+      'one_handed_start':(5,4,{'state.check-preflight.ready','state.new-sign.editing','state.paywall.purchase-complete','state.sign-selection.ready'}),
+      'report_comprehension':(4,3,{'state.report-correction.validation-error','state.report-history.ready','state.reports-index.ready'}),
+      'work_and_recheck':(5,5,{'state.issue.open','state.issue.recheck-due','state.issue.resolved','state.recheck-capture.wide-ready','state.recheck-preflight.ready'})}
     for task in tasks:
         ids=sorted(task['screen_state_ids']); require(ids and len(set(ids))==len(ids) and all(s in ax for s in ids),'missing common task native states')
         evidence=[{'stateID':s,'axTreeSHA256':ax[s]['axTreeSHA256']} for s in ids]
-        exceptional=[contrasts[s] for s in ids if contrasts[s]['result']=='EXCEPTION']
         taskid=task['task_id']; prefix='s10.4-'; sid=shard['shardID']
+        exceptional=sorted([a for a in observed if a['taskID']==taskid],key=lambda a:(a['stateID'],a['exceptionIssueID']))
+        require(all(a['stateID'] in ids for a in exceptional),'observed task exception missing task state')
+        require(len({a['exceptionIssueID'] for a in exceptional})==len(exceptional),'duplicate observed task exception')
+        require(len({(a['exceptionOwner'],a['exceptionExpiresAt']) for a in exceptional})==(1 if exceptional else 0),'ambiguous observed task exception metadata')
+        issue_limit,state_limit,permitted=task_limits.get(taskid,(0,0,set()))
+        exception_states={a['stateID'] for a in exceptional}
+        require(len(exceptional)<=issue_limit and len(exception_states)<=state_limit and exception_states<=permitted,'observed task exception exceeds native policy')
         record={'taskID':taskid,'shardID':sid,'deviceProfileID':shard['deviceProfileID'],'feature':shard['accessibilityFeatures'][0],
           'automatedStatus':'EXCEPTION' if exceptional else 'PASS','automatedReviewer':'FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests',
           'exceptionIssueID':' | '.join(r['exceptionIssueID'] for r in exceptional),'exceptionOwner':'palatis3' if exceptional else '',
           'exceptionExpiresAt':exceptional[0]['exceptionExpiresAt'] if exceptional else '',
-          'exceptionRationale':' | '.join(r['exceptionRationale'] for r in exceptional),'exceptionStateIDs':sorted(r['stateID'] for r in exceptional),
+          'exceptionRationale':' | '.join(r['exceptionRationale'] for r in exceptional),'exceptionStateIDs':sorted({r['stateID'] for r in exceptional}),
           'rationale':'Exact native task-state AX, focus-order, target-size and strict contrast evidence; source journeys remain bound to their complete native segments.',
           'evidenceID':prefix+'ax-'+sid+'-'+taskid,'focusOrderEvidenceID':prefix+'focus-order-'+sid+'-'+taskid,
           'targetSizeEvidenceID':prefix+'target-size-'+sid+'-'+taskid,'contrastEvidenceID':prefix+'contrast-'+sid+'-'+taskid,
@@ -661,9 +700,7 @@ def assemble_output(stage,ctx,matrix,sources):
     require(all(s['receipt']['sourceDependencySelections']==[] for s in sources[:2]),'unexpected earlier dependencies')
     rows={key:[r for source in sources for r in source['rows'][key]] for key in ['ax','contrast','journeys','purchaseProofs','pendingReceiptProofs']}
     require([r['stateID'] for r in rows['ax']]==ctx['plan']['orderedStateIDs'] and [r['stateID'] for r in rows['contrast']]==ctx['plan']['orderedStateIDs'],'assembled native ordered67 closure mismatch')
-    if not ctx['minimum']:
-        actual={r['stateID'] for r in rows['contrast'] if r['result']=='EXCEPTION'}
-        require(actual=={a['stateID'] for a in ctx['plan']['exceptionAuthorities']},'shared AX lost exact existing exception closure')
+    verify_state_rows(rows,ctx)
     dst=stage/'s10-4'/ctx['shard']['shardID']; candidates=[]; cell_sources=[]
     for source in sources:
         origin=source['directory']/'artifact'; segment=source['receipt']['segment']; sid=ctx['shard']['shardID']

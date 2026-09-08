@@ -3674,7 +3674,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     }
                                     cachedGeometry.append(record)
                                 }
-                                defer {
+                                let emitPositioningFailure: () -> Void = {
                                     if !positioned {
                                         self.printJSONLine(prefix: "S10_4_DOUBLE_POSITIONING_FAILURE", object: [
                                             "diagnosticOnly": true, "finalAcceptanceEligible": false,
@@ -3708,6 +3708,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                           (control.value as? String) == expectedValue,
                                           restoredKeyboard.exists,
                                           restoredDoneKey.exists else {
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight positioning route changed.")
                                         return false
                                     }
@@ -3720,6 +3721,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                           interactiveSwitch.exists,
                                           interactiveSwitch.elementType == .switch,
                                           interactiveSwitch.isEnabled else {
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight interactive switch changed.")
                                         return false
                                     }
@@ -3795,6 +3797,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                           interactiveSwitchFrame.height
                                             <= safeBottom - safeTop,
                                           minimumShift <= maximumShift else {
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight keyboard-safe geometry is invalid.")
                                         return false
                                     }
@@ -3806,6 +3809,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     }
                                     // Observe full containment after the last permitted drag before exhaustion.
                                     if let remainingGestureAllowance, remainingGestureAllowance == 0 {
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight geometry-derived gesture allowance was exhausted.")
                                         return false
                                     }
@@ -3824,6 +3828,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         } else if maximumShift < -receiverCapacity {
                                             dragDistance = -receiverCapacity
                                         } else {
+                                            emitPositioningFailure()
                                             XCTFail("The serial visible preflight upward shift is not recognizable.")
                                             return false
                                         }
@@ -3841,10 +3846,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         } else if minimumShift > receiverCapacity {
                                             dragDistance = receiverCapacity
                                         } else {
+                                            emitPositioningFailure()
                                             XCTFail("The serial visible preflight downward shift is not recognizable.")
                                             return false
                                         }
                                     } else {
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight control is contained but not hittable.")
                                         return false
                                     }
@@ -3854,6 +3861,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     if let serialPositioningDirection {
                                         guard dragDirection
                                             == serialPositioningDirection else {
+                                            emitPositioningFailure()
                                             XCTFail("The serial visible preflight correction would reverse direction.")
                                             return false
                                         }
@@ -3885,6 +3893,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                           receiverLeft < receiverRight,
                                           centerX >= receiverLeft, centerX <= receiverRight,
                                           segmentTop >= receiverTop, segmentBottom <= receiverBottom else {
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight focused-zone receiver geometry is invalid.")
                                         return false
                                     }
@@ -3900,6 +3909,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         let leftBandUpper = min(receiverRight, focusedZoneFrame.minX)
                                         guard leftBandLower.isFinite, leftBandUpper.isFinite,
                                               leftBandUpper > leftBandLower else {
+                                            emitPositioningFailure()
                                             XCTFail("The serial visible preflight has no unobstructed left receiver band.")
                                             return false
                                         }
@@ -3907,6 +3917,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         guard leftBandMidpoint.isFinite,
                                               leftBandMidpoint > leftBandLower,
                                               leftBandMidpoint < leftBandUpper else {
+                                            emitPositioningFailure()
                                             XCTFail("The serial visible preflight left receiver midpoint is not representable.")
                                             return false
                                         }
@@ -3922,6 +3933,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                           segmentTop >= liveApplicationFrame.minY, segmentBottom <= liveApplicationFrame.maxY,
                                           segmentAvoidsZoneVertically
                                             || dragX < focusedZoneFrame.minX || dragX > focusedZoneFrame.maxX else {
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight drag path intersects the focused zone or leaves the viewport.")
                                         return false
                                     }
@@ -4015,6 +4027,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                                 "treeTruncated": rawTree.count > retainedTree.count,
                                             ])
                                         }
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight positioning gesture did not make signed progress.")
                                         return false
                                     }
@@ -4023,6 +4036,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                           interactiveSwitchFrameAfterDrag.maxY.isFinite,
                                           !interactiveSwitchFrameAfterDrag.isNull,
                                           !interactiveSwitchFrameAfterDrag.isEmpty else {
+                                        emitPositioningFailure()
                                         XCTFail("The serial visible preflight observed movement geometry is invalid.")
                                         return false
                                     }
@@ -4041,6 +4055,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         guard remainingDistance.isFinite, planningGain.isFinite,
                                               plannedGestures.isFinite, plannedGestures >= 0,
                                               plannedGestures < CGFloat(Int.max) else {
+                                            emitPositioningFailure()
                                             XCTFail("The serial visible preflight gesture allowance is not representable.")
                                             return false
                                         }
