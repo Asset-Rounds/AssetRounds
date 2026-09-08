@@ -56,16 +56,38 @@ on:
         required: false
         default: false
         type: boolean
+      s10_4_shared_build_mode:
+        description: Closed H411 s10_4_shared_build_mode
+        required: false
+        default: "none"
+        type: string
+      s10_4_shared_payload_run_id:
+        description: Closed H411 s10_4_shared_payload_run_id
+        required: false
+        default: ""
+        type: string
+      s10_4_minimum_segment_id:
+        description: Closed H411 s10_4_minimum_segment_id
+        required: false
+        default: "none"
+        type: string
+      s10_4_shared_matrix_id:
+        description: Closed H411 s10_4_shared_matrix_id
+        required: false
+        default: ""
+        type: string
+      s10_4_segment_source_run_ids:
+        description: Closed H411 s10_4_segment_source_run_ids
+        required: false
+        default: ""
+        type: string
     secrets:
       BITRISE_BUILD_CACHE_AUTH_TOKEN:
         description: Bitrise Build Cache token used only by the closed Bitrise development lane
         required: false
 
-permissions:
-  contents: read
-
 concurrency:
-  group: ${{ inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}
+  group: ${{ inputs.s10_4_shared_build_mode }}-${{ inputs.s10_4_minimum_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-${{ inputs.s10_4_shared_matrix_id }}-${{ inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}
   cancel-in-progress: false
 
 jobs:
@@ -73,6 +95,11 @@ jobs:
     runs-on: ${{ inputs.runner_label }}
     timeout-minutes: 90
     env:
+      CI_S10_4_SHARED_BUILD_MODE: ${{ inputs.s10_4_shared_build_mode }}
+      CI_S10_4_SHARED_PAYLOAD_RUN_ID: ${{ inputs.s10_4_shared_payload_run_id }}
+      WORKER_S10_4_MINIMUM_SEGMENT_ID: ${{ inputs.s10_4_minimum_segment_id }}
+      WORKER_S10_4_SHARED_MATRIX_ID: ${{ inputs.s10_4_shared_matrix_id }}
+      WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS: ${{ inputs.s10_4_segment_source_run_ids }}
       CI_RUNNER_LABEL: ${{ inputs.runner_label }}
       CI_RUNNER_PROVIDER: ${{ inputs.runner_provider }}
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
@@ -147,15 +174,51 @@ jobs:
             test "$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" = \
               s10-4-focused-diagnostics-development-only
           fi
+          case "$CI_S10_4_SHARED_BUILD_MODE" in
+            none)
+              test -z "$CI_S10_4_SHARED_PAYLOAD_RUN_ID"
+              test "$WORKER_S10_4_MINIMUM_SEGMENT_ID" = none
+              test -z "$WORKER_S10_4_SHARED_MATRIX_ID"
+              test -z "$WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS"
+              ;;
+            producer | consumer)
+              test "$GITHUB_REF" = refs/heads/phase/s10-brand-refresh
+              test "$DISPATCH_S10_4_PILOT_MODE:$DISPATCH_S10_4_UNIT_ONLY" = false:false
+              test "$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID:$DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE" = none:none
+              test -z "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME"
+              if test "$CI_S10_4_SHARED_BUILD_MODE" = producer; then
+                test "$DISPATCH_S10_4_EXECUTION_ROLE:$DISPATCH_S10_4_SEGMENT_ID:$WORKER_S10_4_MINIMUM_SEGMENT_ID" = independent:none:none
+                test -z "$CI_S10_4_SHARED_PAYLOAD_RUN_ID"
+                test -z "$WORKER_S10_4_SHARED_MATRIX_ID"
+                test -z "$WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS"
+              else
+                test "$DISPATCH_S10_4_EXECUTION_ROLE:$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = payload-consumer:github:macos-26
+                [[ "$CI_S10_4_SHARED_PAYLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+                [[ "$WORKER_S10_4_SHARED_MATRIX_ID" =~ ^[0-9A-F]{64}$ ]]
+                case "$WORKER_S10_4_MINIMUM_SEGMENT_ID" in
+                  none) ;;
+                  minimum-segment-1 | minimum-segment-2 | minimum-segment-3)
+                    test "$DISPATCH_S10_4_SEGMENT_ID" = none
+                    ;;
+                  *) exit 1 ;;
+                esac
+              fi
+              ;;
+            *) exit 1 ;;
+          esac
           case "$DISPATCH_S10_4_EXECUTION_ROLE" in
             independent)
               test "$DISPATCH_S10_4_PILOT_MODE" = false
               test -z "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME"
               ;;
             payload-producer | payload-consumer)
-              test "$DISPATCH_S10_4_PILOT_MODE" = true
-              test "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME" != ""
-              [[ "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME" =~ ^ios-ci-s10-4-hybrid-payload-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
+              if test "$CI_S10_4_SHARED_BUILD_MODE" = none; then
+                test "$DISPATCH_S10_4_PILOT_MODE" = true
+                test "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME" != ""
+                [[ "$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME" =~ ^ios-ci-s10-4-hybrid-payload-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
+              else
+                test "$CI_S10_4_SHARED_BUILD_MODE:$DISPATCH_S10_4_EXECUTION_ROLE" = consumer:payload-consumer
+              fi
               ;;
           esac
 
@@ -231,7 +294,7 @@ jobs:
           ' Scripts/ci-selection.json > /dev/null
 
           selection_run_ui="$(jq -r '.runUISmoke | tostring' Scripts/ci-selection.json)"
-          if test "$DISPATCH_S10_4_UNIT_ONLY" = false; then
+          if test "$DISPATCH_S10_4_UNIT_ONLY" = false && test "$CI_S10_4_SHARED_BUILD_MODE" != producer; then
             test "$DISPATCH_RUN_UI_SMOKE" = "$selection_run_ui"
           fi
 
@@ -714,7 +777,7 @@ jobs:
               "$(jq -r '.evidenceKernelSHA256' Scripts/s10-4-segment-plan.json)"
           fi
 
-          if test "$DISPATCH_S10_4_EXECUTION_ROLE" != independent; then
+          if test "$DISPATCH_S10_4_EXECUTION_ROLE" != independent && test "$CI_S10_4_SHARED_BUILD_MODE" = none; then
             test "$CI_TASK_ID" = "S10.4"
             test "$CI_TIER" = "F25"
             test "$CI_RUN_UI_SMOKE" = true
@@ -757,6 +820,32 @@ jobs:
             test "$CI_S10_4_SEGMENT_ID" = none
             test "$GITHUB_REF" = "refs/heads/phase/s10-brand-refresh"
             [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          fi
+
+          if test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
+            test "$CI_TASK_ID:$CI_TIER:$CI_SELECTOR_RUN_UI_SMOKE" = S10.4:F25:true
+            if test "$CI_S10_4_SHARED_BUILD_MODE" = producer; then
+              test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL:$DISPATCH_RUN_UI_SMOKE" = bitrise:bitrise-m4-pro:false
+              test "$CI_S10_4_SHARD_ID:$CI_S10_4_DEVICE_PROFILE_ID" = s10.4.current.default-light:iphone-17-ios-26.2-current
+              CI_RUN_UI_SMOKE=false
+              printf 'CI_S10_4_SHARED_EXECUTION_LANE=s10-4-shared-build-producer\n' >> "$GITHUB_ENV"
+            else
+              test "$DISPATCH_RUN_UI_SMOKE" = true
+              if test "$WORKER_S10_4_MINIMUM_SEGMENT_ID" != none; then
+                test "$CI_S10_4_DEVICE_PROFILE_ID" = iphone-se-3-ios-18.0-minimum
+                CI_ARTIFACT_SUFFIX="-$CI_S10_4_SHARD_ID-$WORKER_S10_4_MINIMUM_SEGMENT_ID"
+                printf '%s\n' \
+                  "CI_S10_4_MINIMUM_SEGMENT_ID=$WORKER_S10_4_MINIMUM_SEGMENT_ID" \
+                  "CI_S10_4_MINIMUM_SEGMENT_HEAD=$GITHUB_SHA" \
+                  "CI_S10_4_MINIMUM_SEGMENT_REF=$GITHUB_REF" \
+                  "CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE=github-xcode-26.6-shared-build-acceptance" \
+                  "TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_ID=$WORKER_S10_4_MINIMUM_SEGMENT_ID" \
+                  "TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_HEAD=$GITHUB_SHA" \
+                  "TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_REF=$GITHUB_REF" \
+                  "TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE=github-xcode-26.6-shared-build-acceptance" \
+                  >> "$GITHUB_ENV"
+              fi
+            fi
           fi
 
           if test "$DISPATCH_S10_4_UNIT_ONLY" = true; then
@@ -871,6 +960,169 @@ jobs:
             "$CI_TASK_ID" "$CI_TIER" "$DISPATCH_RUN_UI_SMOKE" "$CI_S10_4_SHARD_ID" "$CI_S10_4_SEGMENT_ID" \
             "$DISPATCH_S10_4_EXECUTION_ROLE" "$DISPATCH_S10_4_PILOT_MODE" \
             | tee "$CI_ARTIFACT_DIR/ci-selection-validation.txt"
+
+      - name: Prepare S10.4 shared request driver
+        if: ${{ inputs.s10_4_shared_build_mode != 'none' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/s10-4-shared-driver.py" <<'PY'
+          """Finite workflow-owned request construction; all admission stays in the payload verifier."""
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import runpy
+          import shlex
+          import shutil
+          import subprocess
+          import sys
+          import uuid
+
+          root=Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          artifact=Path(os.environ['CI_ARTIFACT_DIR']).resolve()
+          temp=Path(os.environ['RUNNER_TEMP']).resolve()
+          kernel=runpy.run_path(str(root/'Scripts/s10-4-build-payload.py'))
+          mode=os.environ['CI_S10_4_SHARED_BUILD_MODE']
+          assert mode in ('producer','consumer')
+          operation=sys.argv[1]
+          prepared=temp/'FieldEvidenceSharedPrepared'
+          qualified=temp/'FieldEvidenceSharedQualified'
+          restored=temp/'FieldEvidenceSharedRestore'
+          requests=artifact/'shared-build-requests'
+          requests.mkdir(exist_ok=True)
+
+          def save(path,value):
+              assert not path.exists()
+              path.write_text(json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False)+'\n',encoding='utf-8')
+
+          def invoke(command,output,**fields):
+              request=dict(schemaVersion=1,contractID='s10.4.shared-build.v1',checkoutRoot=str(root),head=os.environ['GITHUB_SHA'],**fields)
+              path=requests/(command+'.json')
+              save(path,request)
+              result=subprocess.run([sys.executable,str(root/'Scripts/s10-4-build-payload.py'),command,'--request',str(path),'--output',str(output)],check=True,text=True,capture_output=True)
+              value=kernel['decode_bytes'](result.stdout.encode())
+              save(requests/(command+'-result.json'),value)
+              return value
+
+          def append_env(key,value):
+              assert isinstance(value,str) and not any(x in value for x in ['\n','\r','\x00'])
+              with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as stream:
+                  stream.write(key+'='+value+'\n')
+
+          def current_job():
+              rid=int(os.environ['GITHUB_RUN_ID']); attempt=int(os.environ['GITHUB_RUN_ATTEMPT'])
+              jobs=kernel['list_api'](f'actions/runs/{rid}/attempts/{attempt}/jobs','jobs')
+              found=[j for j in jobs if j.get('runner_name')==os.environ['RUNNER_NAME'] and j.get('status')=='in_progress'
+                     and any(s.get('name')=='Validate task selection and timeout tier' for s in j.get('steps',[]))]
+              assert len(found)==1
+              job=found[0]
+              assert job['run_id']==rid and job['run_attempt']==attempt and job['head_sha']==os.environ['GITHUB_SHA'] and job['head_branch']=='phase/s10-brand-refresh'
+              save(requests/(operation+'-job-api.json'),job)
+              return job
+
+          def runtime_identity():
+              job=current_job()
+              return dict(runID=int(os.environ['GITHUB_RUN_ID']),runAttempt=int(os.environ['GITHUB_RUN_ATTEMPT']),
+                          jobID=job['id'],runnerProvider=os.environ['CI_RUNNER_PROVIDER'],runnerName=os.environ['RUNNER_NAME'],
+                          simulatorUDID=os.environ['CI_SIMULATOR_UDID'])
+
+          if operation=='prepare':
+              assert mode=='producer'
+              identity=runtime_identity()
+              command=kernel['load'](artifact/'s10-4-shared-build-command.json')
+              # Actual shell invocation is captured immediately before the pinned cache wrapper.
+              # The untouched native log separately retains the wrapper's added build settings.
+              expected=['-project','FieldEvidenceApp.xcodeproj','-scheme','FieldEvidenceApp','-configuration','Debug',
+                        '-destination',os.environ['CI_DESTINATION'],'-derivedDataPath',str(temp/'FieldEvidenceDerivedData'),
+                        '-resultBundlePath',str(artifact/'Build.xcresult'),'CODE_SIGNING_ALLOWED=NO','build-for-testing']
+              assert command==['xcodebuild']+expected
+              result=invoke('prepare',prepared,producer=identity,toolchain=kernel['TOOLCHAIN'],
+                            derivedDataRoot=str(temp/'FieldEvidenceDerivedData'),buildCommand=command,
+                            buildResultBundle=str(artifact/'Build.xcresult'),buildLog=str(artifact/'build-smoke.log'))
+              append_env('CI_S10_4_SHARED_XCTESTRUN_PATH',result['xctestrunPath'])
+              append_env('CI_S10_4_SHARED_PRODUCTS_ROOT',str(prepared/'payload'/kernel['ROOT_LABEL']))
+              append_env('CI_S10_4_SHARED_EXECUTION_LANE','s10-4-shared-build-producer')
+          elif operation=='qualify':
+              assert mode=='producer'
+              unit=temp/'FieldEvidenceSharedUnitOriginal'
+              unit.mkdir()
+              for name in ['UnitTests.xcresult','test-smoke.log','s10-4-shared-unit-command.json','ci-selection.json',
+                           'ci-selection-validation.txt','simulator-selection.txt','simulator-boot-start.log','simulator-boot.log',
+                           'runner-provider.txt','simulator-runtimes.json','simulator-devices.json','xcode-version.txt','build-settings.txt']:
+                  source=artifact/name
+                  assert source.exists() and not source.is_symlink()
+                  if source.is_dir(): shutil.copytree(source,unit/name,symlinks=True)
+                  else: shutil.copy2(source,unit/name)
+              native=subprocess.run(['xcrun','xcresulttool','get','test-results','tests','--path',str(unit/'UnitTests.xcresult'),'--compact'],check=True,capture_output=True)
+              tree=kernel['decode_bytes'](native.stdout)
+              save(unit/'unit-test-results.json',tree)
+              cases=[]
+              def walk(node):
+                  if node.get('nodeType')=='Test Case':
+                      prefix='test://com.apple.xcode/FieldEvidenceApp/'
+                      url=node['nodeIdentifierURL']
+                      assert url.startswith(prefix)
+                      cases.append(dict(identifier=url[len(prefix):].removesuffix('()'),result=node['result']))
+                  for child in node.get('children',[]): walk(child)
+              for node in tree['testNodes']: walk(node)
+              save(unit/'unit-executed-tests.json',cases)
+              invoke('qualify',qualified,preparedRoot=str(prepared),unitEvidenceRoot=str(unit),
+                     unitCommand=kernel['load'](unit/'s10-4-shared-unit-command.json'),unitResultsRelativePath='unit-test-results.json',
+                     executedTestsRelativePath='unit-executed-tests.json',unitXCResultRelativePath='UnitTests.xcresult',
+                     unitLogRelativePath='test-smoke.log',unitDevice={'simulatorUDID':os.environ['CI_SIMULATOR_UDID']})
+          elif operation=='seal':
+              assert mode=='producer'
+              invoke('seal',temp/'FieldEvidenceSharedSeal',preparedRoot=str(prepared),qualificationRoot=str(qualified),
+                     payloadArtifactID=int(os.environ['SHARED_PAYLOAD_ARTIFACT_ID']),unitArtifactID=int(os.environ['SHARED_UNIT_ARTIFACT_ID']))
+          elif operation=='restore':
+              assert mode=='consumer'
+              c=runtime_identity()
+              isolation=str(uuid.uuid4()).upper()
+              segment=os.environ['WORKER_S10_4_MINIMUM_SEGMENT_ID']
+              if segment=='none': segment=os.environ['CI_S10_4_SEGMENT_ID']
+              c.update(shardID=os.environ['CI_S10_4_SHARD_ID'],segmentID=segment,purpose='acceptance',toolchain=kernel['TOOLCHAIN'],
+                       simulatorName=os.environ['SIMULATOR_NAME'],simulatorRuntime=os.environ['SIMULATOR_RUNTIME'],
+                       simulatorRuntimeBuild=os.environ['SIMULATOR_RUNTIME_BUILD'],isolationID=isolation)
+              assert os.environ['CI_S10_4_PILOT_CREATED_SIMULATOR_UDID']==c['simulatorUDID'] and os.environ['CI_SIMULATOR_INITIAL_STATE']=='Shutdown'
+              creation=kernel['load'](artifact/'s10-4-shared-simulator-creation-command.json')
+              save(artifact/'s10-4-shared-isolation.json',dict(schemaVersion=1,runID=c['runID'],jobID=c['jobID'],
+                   simulatorUDID=c['simulatorUDID'],isolationID=isolation,createdByThisJob=True,preexistingDevice=False,creationCommand=creation))
+              save(artifact/'s10-4-shared-consumer.json',c)
+              result=invoke('restore',restored,sourceRunID=os.environ['CI_S10_4_SHARED_PAYLOAD_RUN_ID'],consumer=c)
+              append_env('CI_S10_4_SHARED_XCTESTRUN_PATH',result['xctestrunPath'])
+              append_env('CI_S10_4_SHARED_PRODUCTS_ROOT',str(restored/'payload'/kernel['ROOT_LABEL']))
+              append_env('CI_S10_4_SHARED_EXECUTION_LANE','github-xcode-26.6-shared-build-acceptance')
+              # Original API, archives, checksums and qualification remain explicitly producer-owned.
+              proof=artifact/'shared-producer'
+              proof.mkdir()
+              for name in ['admission.json','shared-build-seal.json','producer-run.json','producer-job.json','artifact-metadata.json',
+                           'original-seal.zip','original-payload.zip','original-unit-evidence.zip','consumer-provenance.json','unit-proof']:
+                  source=restored/name
+                  if source.is_dir(): shutil.copytree(source,proof/name,symlinks=True)
+                  else: shutil.copy2(source,proof/name)
+              mapping_text=os.environ['WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS']
+              mapping=kernel['decode_bytes'](mapping_text.encode()) if mapping_text else {}
+              assert type(mapping) is dict
+              source_map=artifact/'s10-4-shared-source-map.json'
+              save(source_map,mapping)
+              admission_output=artifact/'shared-dependency-admission'
+              subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--admit-shared-selection',str(restored),
+                              c['shardID'],segment,str(source_map),str(admission_output)],cwd=root,check=True)
+              matrix=kernel['load'](admission_output/'matrix-binding.json')
+              assert matrix['matrixID']==os.environ['WORKER_S10_4_SHARED_MATRIX_ID']
+              append_env('CI_S10_4_MATRIX_BINDING',str(admission_output/'matrix-binding.json'))
+              append_env('CI_S10_4_CONSUMER_BUILD_REFERENCE',str(artifact/'shared-consumer/consumer-build-reference.json'))
+              append_env('CI_S10_4_PRODUCER_PROOF_ROOT',str(proof/'unit-proof'))
+          elif operation=='verify-consumer':
+              assert mode=='consumer'
+              invoke('verify-consumer',artifact/'shared-consumer',restoreRoot=str(restored),
+                     consumer=kernel['load'](artifact/'s10-4-shared-consumer.json'),
+                     uiCommand=kernel['load'](artifact/'s10-4-shared-ui-command.json'),
+                     isolationReceipt=str(artifact/'s10-4-shared-isolation.json'))
+          else:
+              raise AssertionError('Unknown shared operation')
+          PY
 
       - name: Install pinned Bitrise Build Cache command wrappers
         if: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' }}
@@ -1081,7 +1333,7 @@ jobs:
           if test "$CI_RUNNER_PROVIDER" = "github" \
             && test "${CI_TASK_ID:-}" = "S10.4" \
             && test "${CI_S10_4_PILOT_MODE:-false}" = "false" \
-            && test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "independent" \
+            && { test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "independent" || test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; } \
             && test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" = "none"; then
             test "${ImageOS:-}" = "macos26"
             test "${ImageVersion:-}" = "20260831.0337.3"
@@ -1293,12 +1545,17 @@ jobs:
             "$CI_ARTIFACT_DIR/simulator-runtimes.json" | head -n 1)"
           test -n "$runtime_id"
           simulator_udid=""
-          if test "${CI_S10_4_PILOT_MODE:-false}" = "true"; then
+          if test "${CI_S10_4_PILOT_MODE:-false}" = "true" || test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
             xcrun simctl list devicetypes -j > "$CI_ARTIFACT_DIR/simulator-device-types.json"
             simulator_device_type_id="$(jq -r --arg name "$SIMULATOR_NAME" \
               '.devicetypes[] | select(.name == $name) | .identifier' \
               "$CI_ARTIFACT_DIR/simulator-device-types.json" | head -n 1)"
             test -n "$simulator_device_type_id"
+            if test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
+              jq -n --arg name "$SIMULATOR_NAME" --arg device "$simulator_device_type_id" --arg runtime "$runtime_id" \
+                '["xcrun","simctl","create",$name,$device,$runtime]' \
+                > "$CI_ARTIFACT_DIR/s10-4-shared-simulator-creation-command.json"
+            fi
             simulator_udid="$(xcrun simctl create \
               "$SIMULATOR_NAME" "$simulator_device_type_id" "$runtime_id")"
             test -n "$simulator_udid"
@@ -1330,7 +1587,7 @@ jobs:
               else error("expected exactly one selected Simulator state")
               end
           ' "$CI_ARTIFACT_DIR/simulator-devices.json")"
-          if test "${CI_S10_4_PILOT_MODE:-false}" = "true"; then
+          if test "${CI_S10_4_PILOT_MODE:-false}" = "true" || test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
             test "$simulator_state" = "Shutdown"
           else
             case "$simulator_state" in
@@ -1374,655 +1631,19 @@ jobs:
         run: |
           set -euo pipefail
           verifier="$RUNNER_TEMP/s10-4-pilot-payload-verifier.py"
-          cat > "$verifier" <<'PY'
-          #!/usr/bin/env python3
-          import hashlib
-          import json
-          import os
-          import plistlib
-          import re
-          import stat
-          import subprocess
-          import sys
-          import tarfile
-          from pathlib import Path
-
-          ROOT_LABEL = "FieldEvidenceDerivedData/Build/Products"
-          ALLOWED_MACROS = {"__TESTROOT__", "__PLATFORMS__", "__TESTHOST__", "__TESTBUNDLE__"}
-          PILOT_UNIT_SOURCE_PARTS = ("FieldEvidenceAppTests", "S10_4AutomatedBrandLabTests.swift")
-          PILOT_UNIT_SOURCE_PATH = "/".join(PILOT_UNIT_SOURCE_PARTS)
-          CANONICAL_SYSTEM_DYLD_PAIRS = frozenset({
-              (
-                  ("FieldEvidenceAppTests", "EnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
-                  "/usr/lib/libRPAC.dylib",
-              ),
-              (
-                  ("FieldEvidenceAppTests", "TestingEnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
-                  "__TESTHOST__/Frameworks/libXCTestBundleInject.dylib:__SIMRUNTIMEROOT__/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib",
-              ),
-              (
-                  ("FieldEvidenceAppUITests", "EnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
-                  "/usr/lib/libRPAC.dylib",
-              ),
-              (
-                  ("FieldEvidenceAppUITests", "TestingEnvironmentVariables", "DYLD_INSERT_LIBRARIES"),
-                  "__SIMRUNTIMEROOT__/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib",
-              ),
-          })
-
-          def fail(message):
-              raise SystemExit("S10.4 pilot payload validation failed: " + message)
-
-          def sha256_file(path):
-              digest = hashlib.sha256()
-              with path.open("rb") as stream:
-                  for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                      digest.update(chunk)
-              return digest.hexdigest().upper()
-
-          def require_checkout_head(value):
-              if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
-                  fail("malformed checkout head")
-              return value
-
-          def require_checkout_sha256(value):
-              if not isinstance(value, str) or re.fullmatch(r"[0-9A-F]{64}", value) is None:
-                  fail("malformed checkout source digest")
-              return value
-
-          def checkout_directory(path):
-              try:
-                  mode = os.lstat(path).st_mode
-              except OSError:
-                  fail("unsafe checkout directory")
-              if not stat.S_ISDIR(mode) or stat.S_ISLNK(mode):
-                  fail("unsafe checkout directory")
-
-          def validate_checkout_root(root_text):
-              if not isinstance(root_text, str) or not root_text:
-                  fail("unsafe checkout root")
-              if any(ord(character) < 32 or ord(character) == 127 for character in root_text):
-                  fail("unsafe checkout root")
-              if not os.path.isabs(root_text) or os.path.normpath(root_text) != root_text:
-                  fail("unsafe checkout root")
-              try:
-                  physical_root = os.path.realpath(root_text)
-              except OSError:
-                  fail("unsafe checkout root")
-              if physical_root != root_text:
-                  fail("unsafe checkout root")
-              root = Path(root_text)
-              checkout_directory(root)
-              return root
-
-          def run_checkout_git(root, arguments, capture=False):
-              try:
-                  result = subprocess.run(
-                      ["git", "-C", os.fspath(root), *arguments],
-                      stdin=subprocess.DEVNULL,
-                      stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                      stderr=subprocess.DEVNULL,
-                      check=False,
-                      shell=False,
-                      text=capture,
-                      encoding="ascii" if capture else None,
-                      errors="strict" if capture else None,
-                      timeout=15,
-                  )
-              except (OSError, subprocess.SubprocessError, UnicodeError):
-                  fail("checkout git verification failed")
-              return result
-
-          def validate_checkout_source(root_text, expected_head, expected_sha256=None):
-              root = validate_checkout_root(root_text)
-              expected_head = require_checkout_head(expected_head)
-              if expected_sha256 is not None:
-                  expected_sha256 = require_checkout_sha256(expected_sha256)
-              source_directory = root
-              for component in PILOT_UNIT_SOURCE_PARTS[:-1]:
-                  source_directory = source_directory / component
-                  checkout_directory(source_directory)
-              source_path = source_directory / PILOT_UNIT_SOURCE_PARTS[-1]
-              try:
-                  source_mode = os.lstat(source_path).st_mode
-              except OSError:
-                  fail("unsafe checkout source")
-              if not stat.S_ISREG(source_mode) or stat.S_ISLNK(source_mode):
-                  fail("unsafe checkout source")
-              head_result = run_checkout_git(root, ["rev-parse", "--verify", "HEAD"], capture=True)
-              if head_result.returncode != 0 or head_result.stdout.strip() != expected_head:
-                  fail("checkout head mismatch")
-              tracked_result = run_checkout_git(
-                  root, ["ls-files", "--error-unmatch", "--", PILOT_UNIT_SOURCE_PATH]
-              )
-              if tracked_result.returncode != 0:
-                  fail("checkout source is not tracked")
-              clean_result = run_checkout_git(
-                  root, ["diff", "--quiet", "--exit-code", expected_head, "--", PILOT_UNIT_SOURCE_PATH]
-              )
-              if clean_result.returncode != 0:
-                  fail("checkout source is not clean")
-              try:
-                  source_sha256 = sha256_file(source_path)
-              except OSError:
-                  fail("checkout source unreadable")
-              if expected_sha256 is not None and source_sha256 != expected_sha256:
-                  fail("checkout source digest mismatch")
-              return source_sha256
-
-          def strict_pairs(pairs):
-              output = {}
-              for key, value in pairs:
-                  if key in output:
-                      fail("duplicate JSON key: " + key)
-                  output[key] = value
-              return output
-
-          def read_json(path):
-              try:
-                  with path.open("r", encoding="utf-8") as stream:
-                      return json.load(stream, object_pairs_hook=strict_pairs)
-              except (OSError, ValueError, UnicodeError) as error:
-                  fail(f"invalid JSON {path}: {error}")
-
-          def regular_file(path):
-              try:
-                  return stat.S_ISREG(os.lstat(path).st_mode)
-              except OSError:
-                  return False
-
-          def real_directory(path):
-              try:
-                  mode = os.lstat(path).st_mode
-              except OSError as error:
-                  fail(f"missing directory {path}: {error}")
-              if not stat.S_ISDIR(mode) or stat.S_ISLNK(mode):
-                  fail("unsafe directory ancestor: " + str(path))
-
-          def require_product_ancestors(products):
-              payload_root = products.parents[2]
-              real_directory(payload_root)
-              real_directory(payload_root / "FieldEvidenceDerivedData")
-              real_directory(payload_root / "FieldEvidenceDerivedData" / "Build")
-              real_directory(products)
-
-          def safe_relative(relative):
-              if not relative or relative.startswith("/") or "\\" in relative:
-                  fail("unsafe relative member path")
-              if any(part in ("", ".", "..") for part in relative.split("/")):
-                  fail("unsafe relative member component")
-              if any(char in relative for char in ("\x00", "\n", "\r")):
-                  fail("unsafe relative member character")
-
-          def read_xctestrun(path):
-              try:
-                  with path.open("rb") as stream:
-                      return plistlib.load(stream)
-              except (OSError, ValueError, plistlib.InvalidFileException) as error:
-                  fail("invalid xctestrun type=" + type(error).__name__)
-
-          def xctestrun_strings(value, field_path=()):
-              if isinstance(value, str):
-                  yield field_path, value
-              elif isinstance(value, dict):
-                  for key in sorted(value, key=str):
-                      yield from xctestrun_strings(value[key], field_path + (str(key),))
-              elif isinstance(value, list):
-                  for index, nested in enumerate(value):
-                      yield from xctestrun_strings(nested, field_path + (str(index),))
-
-          def normalize_xctestrun(root, source_root):
-              xctestruns = []
-              for directory, directories, files in os.walk(root, topdown=True, followlinks=False):
-                  directories.sort()
-                  files.sort()
-                  for name in files:
-                      path = Path(directory) / name
-                      if name.endswith(".xctestrun") and regular_file(path):
-                          xctestruns.append(path)
-              if len(xctestruns) != 1:
-                  fail("expected exactly one regular .xctestrun before normalization")
-              source_text = str(source_root)
-              if not source_root.is_absolute() or not source_text.endswith("/Build/Products"):
-                  fail("invalid source products root")
-              payload = read_xctestrun(xctestruns[0])
-              source_occurrence_count = sum(
-                  text.count(source_text) for _, text in xctestrun_strings(payload)
-              )
-              original_testroot_count = sum(
-                  text.count("__TESTROOT__") for _, text in xctestrun_strings(payload)
-              )
-              replacement_count = 0
-
-              def replace_source_root(text):
-                  nonlocal replacement_count
-                  output = []
-                  cursor = 0
-                  while True:
-                      index = text.find(source_text, cursor)
-                      if index < 0:
-                          output.append(text[cursor:])
-                          break
-                      end = index + len(source_text)
-                      before_is_boundary = index == 0 or text[index - 1] in "=:"
-                      after_is_boundary = end == len(text) or text[end] == "/"
-                      if not before_is_boundary or not after_is_boundary:
-                          fail("noncanonical source products root occurrence")
-                      output.append(text[cursor:index])
-                      output.append("__TESTROOT__")
-                      replacement_count += 1
-                      cursor = end
-                  rewritten = "".join(output)
-                  if source_text in rewritten:
-                      fail("incomplete source products root normalization")
-                  return rewritten
-
-              def rewrite(value):
-                  if isinstance(value, str):
-                      return replace_source_root(value)
-                  if isinstance(value, dict):
-                      return {key: rewrite(nested) for key, nested in value.items()}
-                  elif isinstance(value, list):
-                      return [rewrite(nested) for nested in value]
-                  return value
-
-              normalized = rewrite(payload)
-              if replacement_count != source_occurrence_count:
-                  fail("xctestrun source products root was not bound")
-              normalized_testroot_count = sum(
-                  text.count("__TESTROOT__") for _, text in xctestrun_strings(normalized)
-              )
-              if normalized_testroot_count != original_testroot_count + replacement_count:
-                  fail("xctestrun normalization count mismatch")
-              temporary = xctestruns[0].with_name(xctestruns[0].name + ".normalized")
-              if temporary.exists() or temporary.is_symlink():
-                  fail("xctestrun normalization temporary path exists")
-              try:
-                  with temporary.open("wb") as stream:
-                      plistlib.dump(normalized, stream, fmt=plistlib.FMT_XML, sort_keys=True)
-                      stream.flush()
-                      os.fsync(stream.fileno())
-                  os.chmod(temporary, stat.S_IMODE(os.lstat(xctestruns[0]).st_mode))
-                  os.replace(temporary, xctestruns[0])
-              finally:
-                  if temporary.exists() or temporary.is_symlink():
-                      temporary.unlink()
-
-          def value_classification(text):
-              runner_temp = os.environ.get("RUNNER_TEMP", "")
-              workspace = os.environ.get("GITHUB_WORKSPACE", "")
-              developer_dir = os.environ.get("DEVELOPER_DIR", "")
-              if runner_temp and runner_temp in text:
-                  return "runner-temp"
-              if workspace and workspace in text:
-                  return "workspace"
-              if developer_dir and developer_dir in text:
-                  return "developer-dir"
-              if text.startswith(("/Applications/", "/Library/", "/System/", "/usr/")):
-                  return "system"
-              if "file:" in text:
-                  return "file-url"
-              return "other"
-
-          def redacted_components(parts):
-              component_count = len(parts)
-              displayed = parts[:16]
-              return {
-                  "componentCount": component_count,
-                  "components": [
-                      {
-                          "bytes": len(component.encode("utf-8")),
-                          "class": value_classification(component),
-                          "sha256": hashlib.sha256(component.encode("utf-8")).hexdigest().upper(),
-                      }
-                      for component in displayed
-                  ],
-                  "truncated": component_count > len(displayed),
-              }
-
-          def validate_xctestrun(path, producer_root):
-              payload = read_xctestrun(path)
-              producer_text = str(producer_root)
-              violations = []
-              for field_path, text in xctestrun_strings(payload):
-                  text_bytes = text.encode("utf-8")
-                  field_bytes = "/".join(field_path).encode("utf-8")
-                  kinds = {}
-                  if producer_text in text:
-                      kinds["producer-specific-xctestrun-path"] = 1
-                  is_canonical_system_dyld = (field_path, text) in CANONICAL_SYSTEM_DYLD_PAIRS
-                  if re.search(r"(?:^|[=:])(?:/|~|file:)", text) and not is_canonical_system_dyld:
-                      kinds["absolute-xctestrun-path"] = 1
-                  if "/../" in text or text.startswith("../"):
-                      kinds["traversing-xctestrun-path"] = 1
-                  if "$" in text:
-                      kinds["unresolved-xctestrun-macro"] = 1
-                  unknown_macro_count = sum(
-                      1 for macro in re.findall(r"__[A-Za-z0-9_]+__", text)
-                      if macro not in ALLOWED_MACROS and not (
-                          is_canonical_system_dyld and macro == "__SIMRUNTIMEROOT__"
-                      )
-                  )
-                  if unknown_macro_count:
-                      kinds["unknown-xctestrun-macro"] = unknown_macro_count
-                  if kinds:
-                      field_components = redacted_components(list(field_path))
-                      value_components = redacted_components(text.split(":"))
-                      for component in field_components["components"]:
-                          component.pop("class")
-                      violations.append({
-                          "field": {
-                              "componentCount": field_components["componentCount"],
-                              "components": field_components["components"],
-                              "depth": len(field_path),
-                              "sha256": hashlib.sha256(field_bytes).hexdigest().upper(),
-                              "truncated": field_components["truncated"],
-                          },
-                          "kinds": kinds,
-                          "value": {
-                              "bytes": len(text_bytes),
-                              "class": value_classification(text),
-                              "componentCount": value_components["componentCount"],
-                              "components": value_components["components"],
-                              "sha256": hashlib.sha256(text_bytes).hexdigest().upper(),
-                              "truncated": value_components["truncated"],
-                          },
-                      })
-              if violations:
-                  violations.sort(key=lambda item: (
-                      item["field"]["sha256"], item["value"]["sha256"],
-                      tuple(sorted(item["kinds"].items())),
-                  ))
-                  displayed = violations[:64]
-                  diagnostic = {
-                      "recordCount": len(violations),
-                      "truncated": len(violations) > len(displayed),
-                      "violationCount": sum(sum(item["kinds"].values()) for item in violations),
-                      "violations": displayed,
-                  }
-                  fail("xctestrun residual violations " + json.dumps(
-                      diagnostic, sort_keys=True, separators=(",", ":")
-                  ))
-
-          def collect(root):
-              require_product_ancestors(root)
-              try:
-                  root_mode = os.lstat(root).st_mode
-              except OSError as error:
-                  fail(f"missing product tree: {error}")
-              if not stat.S_ISDIR(root_mode) or stat.S_ISLNK(root_mode):
-                  fail("product root is not a real directory")
-              entries = []
-              folded = set()
-              xctestruns = []
-              for directory, directories, files in os.walk(root, topdown=True, followlinks=False):
-                  directories.sort()
-                  files.sort()
-                  for name in directories + files:
-                      path = Path(directory) / name
-                      relative = path.relative_to(root).as_posix()
-                      safe_relative(relative)
-                      folded_relative = relative.casefold()
-                      if folded_relative in folded:
-                          fail("case-colliding product member: " + relative)
-                      folded.add(folded_relative)
-                      mode = os.lstat(path).st_mode
-                      if stat.S_ISLNK(mode):
-                          fail("symlink product member: " + relative)
-                      if stat.S_ISDIR(mode):
-                          entries.append({
-                              "mode": stat.S_IMODE(mode),
-                              "path": relative,
-                              "type": "directory",
-                          })
-                      elif stat.S_ISREG(mode):
-                          digest = sha256_file(path)
-                          entries.append({
-                              "mode": stat.S_IMODE(mode),
-                              "path": relative,
-                              "sha256": digest,
-                              "size": os.lstat(path).st_size,
-                              "type": "file",
-                          })
-                          if relative.endswith(".xctestrun"):
-                              xctestruns.append((relative, path))
-                      else:
-                          fail("nonregular product member: " + relative)
-              entries.sort(key=lambda entry: entry["path"])
-              if len(xctestruns) != 1:
-                  fail("expected exactly one regular .xctestrun")
-              validate_xctestrun(xctestruns[0][1], root)
-              return entries, xctestruns[0][0]
-
-          def canonical(value):
-              return json.dumps(value, sort_keys=True, separators=(",", ":"))
-
-          def create(root, source_root, tree_path, checksums_path):
-              normalize_xctestrun(root, source_root)
-              entries, xctestrun_path = collect(root)
-              tree = {"entries": entries, "root": ROOT_LABEL, "schemaVersion": 1}
-              tree_path.write_text(canonical(tree) + "\n", encoding="utf-8")
-              checksum_lines = [
-                  f'{entry["sha256"]}  {ROOT_LABEL}/{entry["path"]}'
-                  for entry in entries if entry["type"] == "file"
-              ]
-              checksums_path.write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
-              print(xctestrun_path)
-
-          def validate_payload_root(root):
-              expected_names = {
-                  "FieldEvidenceDerivedData",
-                  "s10-4-payload-metadata.json",
-                  "s10-4-payload-tree.json",
-                  "s10-4-payload-sha256sums.txt",
-                  "s10-4-pilot-receipt.json",
-              }
-              real_directory(root)
-              if {item.name for item in root.iterdir()} != expected_names:
-                  fail("unexpected payload root members")
-              for name in expected_names - {"FieldEvidenceDerivedData"}:
-                  if not regular_file(root / name):
-                      fail("unsafe payload metadata member: " + name)
-              require_product_ancestors(root / "FieldEvidenceDerivedData" / "Build" / "Products")
-
-          def archive_payload(payload_root, transport_root):
-              validate_payload_root(payload_root)
-              if transport_root.exists() or transport_root.is_symlink():
-                  fail("transport root already exists")
-              transport_root.mkdir(mode=0o700)
-              archive_path = transport_root / "FieldEvidencePayload.tar"
-              nodes = [payload_root]
-              for directory, directories, files in os.walk(payload_root, topdown=True, followlinks=False):
-                  directories.sort()
-                  files.sort()
-                  for name in directories + files:
-                      path = Path(directory) / name
-                      mode = os.lstat(path).st_mode
-                      if stat.S_ISLNK(mode) or not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
-                          fail("unsafe payload archive source member: " + str(path))
-                      nodes.append(path)
-              with tarfile.open(archive_path, "w", format=tarfile.GNU_FORMAT) as archive:
-                  for path in nodes:
-                      relative = "." if path == payload_root else path.relative_to(payload_root).as_posix()
-                      arcname = "FieldEvidencePayload" if relative == "." else "FieldEvidencePayload/" + relative
-                      mode = os.lstat(path).st_mode
-                      info = tarfile.TarInfo(arcname)
-                      info.mode = stat.S_IMODE(mode)
-                      info.mtime = 0
-                      info.uid = 0
-                      info.gid = 0
-                      info.uname = ""
-                      info.gname = ""
-                      if stat.S_ISDIR(mode):
-                          info.type = tarfile.DIRTYPE
-                          info.size = 0
-                          archive.addfile(info)
-                      else:
-                          info.type = tarfile.REGTYPE
-                          info.size = os.lstat(path).st_size
-                          with path.open("rb") as stream:
-                              archive.addfile(info, stream)
-              archive_size = os.lstat(archive_path).st_size
-              digest = sha256_file(archive_path)
-              (transport_root / "FieldEvidencePayload.tar.sha256").write_text(
-                  f"{digest} {archive_size} FieldEvidencePayload.tar\n", encoding="utf-8"
-              )
-
-          def extract_payload(transport_root, extraction_root, arguments):
-              if len(arguments) != 11:
-                  fail("wrong archive verifier argument count")
-              real_directory(transport_root)
-              expected_transport_names = {"FieldEvidencePayload.tar", "FieldEvidencePayload.tar.sha256"}
-              if {item.name for item in transport_root.iterdir()} != expected_transport_names:
-                  fail("unexpected transport members")
-              archive_path = transport_root / "FieldEvidencePayload.tar"
-              digest_path = transport_root / "FieldEvidencePayload.tar.sha256"
-              if not regular_file(archive_path) or not regular_file(digest_path):
-                  fail("unsafe transport member")
-              digest_record = digest_path.read_text(encoding="utf-8")
-              match = re.fullmatch(r"([0-9A-F]{64}) ([0-9]+) FieldEvidencePayload\.tar\n", digest_record)
-              if match is None:
-                  fail("invalid detached archive digest")
-              if match.group(1) != sha256_file(archive_path) or int(match.group(2)) != os.lstat(archive_path).st_size:
-                  fail("archive digest or size mismatch")
-              try:
-                  with tarfile.open(archive_path, "r:") as archive:
-                      members = archive.getmembers()
-                      seen = set()
-                      folded = set()
-                      for member in members:
-                          name = member.name.rstrip("/")
-                          if not name or name.startswith("/") or "\\" in name:
-                              fail("unsafe archive member name")
-                          parts = name.split("/")
-                          if parts[0] != "FieldEvidencePayload" or any(part in ("", ".", "..") for part in parts):
-                              fail("unsafe archive member path")
-                          if name in seen or name.casefold() in folded:
-                              fail("duplicate or case-colliding archive member")
-                          seen.add(name)
-                          folded.add(name.casefold())
-                          if member.issym() or member.islnk() or member.isdev() or member.isfifo() or not (member.isdir() or member.isreg()):
-                              fail("unsafe archive member type")
-                      if not members or members[0].name.rstrip("/") != "FieldEvidencePayload" or not members[0].isdir():
-                          fail("archive lacks a single safe root")
-                      if extraction_root.exists() or extraction_root.is_symlink():
-                          fail("extraction root already exists")
-                      extraction_root.mkdir(mode=0o700)
-                      for member in members:
-                          archive.extract(member, extraction_root, set_attrs=True, numeric_owner=False)
-              except (OSError, tarfile.TarError) as error:
-                  fail(f"unsafe archive extraction: {error}")
-              payload_root = extraction_root / "FieldEvidencePayload"
-              verify(payload_root, arguments)
-              return payload_root
-
-          def verify(root, arguments):
-              if len(arguments) != 11:
-                  fail("wrong verifier argument count")
-              head, ref, repository, artifact, xcode_version, xcode_build, sdk_name, sdk_build, architecture, configuration, selector_sha = arguments
-              validate_payload_root(root)
-              products = root / "FieldEvidenceDerivedData" / "Build" / "Products"
-              tree_path = root / "s10-4-payload-tree.json"
-              sums_path = root / "s10-4-payload-sha256sums.txt"
-              metadata_path = root / "s10-4-payload-metadata.json"
-              receipt_path = root / "s10-4-pilot-receipt.json"
-              metadata = read_json(metadata_path)
-              expected_keys = {
-                  "architecture", "checksumsSHA256", "configuration", "deviceProfileID", "head",
-                  "payloadArtifactName", "producerRunnerProvider", "producerSegmentID", "producerShardID",
-                  "productsRoot", "ref", "repository", "schemaVersion", "selectorSHA256",
-                  "simulatorName", "simulatorRuntime", "simulatorRuntimeBuild", "taskID",
-                  "sourceBinding", "toolchain", "treeManifestSHA256", "xctestrunPath"
-              }
-              if not isinstance(metadata, dict) or set(metadata) != expected_keys:
-                  fail("unexpected payload metadata keys")
-              expected = {
-                  "schemaVersion": 1, "payloadArtifactName": artifact, "head": head, "ref": ref,
-                  "repository": repository, "taskID": "S10.4", "producerRunnerProvider": "bitrise",
-                  "producerShardID": "s10.4.current.default-light", "producerSegmentID": "none",
-                  "deviceProfileID": "iphone-17-ios-26.2-current", "simulatorRuntime": "iOS 26.2",
-                  "simulatorRuntimeBuild": "23C54", "simulatorName": "iPhone 17",
-                  "productsRoot": ROOT_LABEL, "architecture": architecture, "configuration": configuration,
-                  "selectorSHA256": selector_sha,
-              }
-              for key, value in expected.items():
-                  if metadata.get(key) != value:
-                      fail("payload metadata mismatch: " + key)
-              source_binding = metadata.get("sourceBinding")
-              if not isinstance(source_binding, dict) or set(source_binding) != {"path", "sha256"} \
-                  or source_binding.get("path") != PILOT_UNIT_SOURCE_PATH:
-                  fail("payload source binding mismatch")
-              require_checkout_sha256(source_binding.get("sha256"))
-              expected_toolchain = {
-                  "sdkBuild": sdk_build, "sdkName": sdk_name, "xcodeBuild": xcode_build,
-                  "xcodeVersion": xcode_version,
-              }
-              if metadata.get("toolchain") != expected_toolchain:
-                  fail("payload toolchain mismatch")
-              if metadata["treeManifestSHA256"] != sha256_file(tree_path):
-                  fail("payload tree manifest digest mismatch")
-              if metadata["checksumsSHA256"] != sha256_file(sums_path):
-                  fail("payload checksum manifest digest mismatch")
-              entries, xctestrun_path = collect(products)
-              tree = read_json(tree_path)
-              if tree != {"entries": entries, "root": ROOT_LABEL, "schemaVersion": 1}:
-                  fail("payload tree manifest mismatch")
-              if metadata["xctestrunPath"] != xctestrun_path:
-                  fail("payload xctestrun identity mismatch")
-              expected_sums = "\n".join(
-                  f'{entry["sha256"]}  {ROOT_LABEL}/{entry["path"]}'
-                  for entry in entries if entry["type"] == "file"
-              ) + "\n"
-              if sums_path.read_text(encoding="utf-8") != expected_sums:
-                  fail("payload checksum manifest mismatch")
-              receipt = read_json(receipt_path)
-              if not isinstance(receipt, dict) or receipt.get("schemaVersion") != 1 \
-                  or receipt.get("head") != head or receipt.get("ref") != ref \
-                  or receipt.get("payloadArtifactName") != artifact \
-                  or receipt.get("executionRole") != "payload-producer" \
-                  or receipt.get("runnerProvider") != "bitrise" \
-                  or receipt.get("shardID") != "s10.4.current.default-light" \
-                  or receipt.get("finalAcceptanceEligible") is not False \
-                  or receipt.get("result") != "payload-produced":
-                  fail("payload producer receipt mismatch")
-              print(xctestrun_path)
-
-          def fingerprint(root):
-              entries, _ = collect(root)
-              print(hashlib.sha256(canonical(entries).encode("utf-8")).hexdigest().upper())
-
-          if len(sys.argv) < 2:
-              fail("missing command")
-          command = sys.argv[1]
-          if command == "create" and len(sys.argv) == 6:
-              create(Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]), Path(sys.argv[5]))
-          elif command == "archive" and len(sys.argv) == 4:
-              archive_payload(Path(sys.argv[2]), Path(sys.argv[3]))
-          elif command == "extract" and len(sys.argv) == 15:
-              extract_payload(Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4:])
-          elif command == "verify" and len(sys.argv) == 14:
-              verify(Path(sys.argv[2]), sys.argv[3:])
-          elif command == "checkout-source" and len(sys.argv) == 4:
-              print(validate_checkout_source(sys.argv[2], sys.argv[3]))
-          elif command == "verify-checkout" and len(sys.argv) == 5:
-              validate_checkout_source(sys.argv[2], sys.argv[3], sys.argv[4])
-          elif command == "fingerprint" and len(sys.argv) == 3:
-              fingerprint(Path(sys.argv[2]))
-          else:
-              fail("invalid command")
-          PY
+          python3 Scripts/s10-4-build-payload.py emit-legacy-pilot-verifier > "$verifier"
           chmod 700 "$verifier"
           printf 'CI_S10_4_PILOT_PAYLOAD_VERIFIER=%s\n' "$verifier" >> "$GITHUB_ENV"
 
       - name: Download immutable S10.4 pilot payload
-        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (inputs.s10_4_execution_role == 'payload-consumer') }}
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ${{ inputs.s10_4_payload_artifact_name }}
           path: ${{ runner.temp }}/FieldEvidencePayloadDownload
 
       - name: Verify and restore immutable S10.4 pilot payload
-        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (inputs.s10_4_execution_role == 'payload-consumer') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2089,7 +1710,7 @@ jobs:
             >> "$GITHUB_ENV"
 
       - name: Recheck setup budget after pilot payload restore
-        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (inputs.s10_4_execution_role == 'payload-consumer') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2098,6 +1719,26 @@ jobs:
           printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
 
       # INFRA_RECOVERY_BEGIN: simulator-readiness-scheduling
+      - name: Restore S10.4 qualified shared build
+        if: ${{ inputs.s10_4_shared_build_mode == 'consumer' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/s10-4-shared-driver.py" restore
+
+      - name: Recheck setup budget after shared payload restore
+        if: ${{ inputs.s10_4_shared_build_mode == 'consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+          test "$setup_elapsed_seconds" -ge 0
+          test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
+          printf 'shared_restore_setup_elapsed_seconds=%s\n' "$setup_elapsed_seconds" \
+            > "$CI_ARTIFACT_DIR/s10-4-shared-restore-budget.txt"
+
       - name: Boot selected Simulator
         id: simulator_boot
         background: true
@@ -2193,6 +1834,15 @@ jobs:
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
             bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"
+
+      - name: Prepare S10.4 shared build payload
+        if: ${{ inputs.s10_4_shared_build_mode == 'producer' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/s10-4-shared-driver.py" prepare
 
       - name: Seal immutable S10.4 pilot build payload
         if: ${{ inputs.s10_4_execution_role == 'payload-producer' }}
@@ -2340,7 +1990,7 @@ jobs:
       # INFRA_RECOVERY_END: simulator-readiness-scheduling
 
       - name: Hash pilot product tree before unit tests
-        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (inputs.s10_4_execution_role == 'payload-consumer') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2350,7 +2000,7 @@ jobs:
 
       - name: Run targeted tests
         id: run_targeted_tests
-        if: ${{ inputs.s10_4_execution_role != 'payload-producer' }}
+        if: ${{ inputs.s10_4_execution_role != 'payload-producer' && inputs.s10_4_shared_build_mode != 'consumer' }}
         shell: bash
         env:
           BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
@@ -2360,8 +2010,17 @@ jobs:
           bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS" \
             bash Scripts/test-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/test-smoke.log"
 
+      - name: Qualify S10.4 shared build payload
+        if: ${{ inputs.s10_4_shared_build_mode == 'producer' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/s10-4-shared-driver.py" qualify
+
       - name: Verify pilot product tree after unit tests
-        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_execution_role == 'payload-consumer') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2372,7 +2031,7 @@ jobs:
             "$CI_ARTIFACT_DIR/s10-4-pilot-product-tree-after-unit.sha256"
 
       - name: Hash pilot product tree before UI smoke
-        if: ${{ inputs.s10_4_execution_role == 'payload-consumer' && inputs.run_ui_smoke == true }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (inputs.s10_4_execution_role == 'payload-consumer' && inputs.run_ui_smoke == true) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2427,8 +2086,17 @@ jobs:
           bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
             bash Scripts/ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
 
+      - name: Verify S10.4 shared consumer products
+        if: ${{ always() && inputs.s10_4_shared_build_mode == 'consumer' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/s10-4-shared-driver.py" verify-consumer
+
       - name: Verify pilot product tree after UI smoke
-        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.run_ui_smoke == true }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.run_ui_smoke == true) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2551,8 +2219,67 @@ jobs:
             and .finalAcceptanceEligible == false
           ' "$development_path/development-segment-record.json" > /dev/null
 
+      - name: Validate S10.4 shared native UI and collect segments
+        if: ${{ inputs.s10_4_shared_build_mode == 'consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import runpy
+          import subprocess
+
+          root=Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          artifact=Path(os.environ['CI_ARTIFACT_DIR']).resolve()
+          k=runpy.run_path(str(root/'Scripts/s10-4-build-payload.py'))
+          assert os.environ['CI_S10_4_SHARED_BUILD_MODE']=='consumer'
+          reference=k['load'](artifact/'shared-consumer/consumer-build-reference.json')
+          assert reference['productsUnchanged'] is True and reference['diagnosticOnly'] is False
+          assert reference['unitTestCount']==0 and reference['producerUnitTestCount']==5
+          result=artifact/'UISmoke.xcresult'
+          assert result.is_dir() and not result.is_symlink()
+          native=subprocess.run(['xcrun','xcresulttool','get','test-results','tests','--path',str(result),'--compact'],check=True,capture_output=True)
+          tree=k['decode_bytes'](native.stdout)
+          cases=[]
+          def walk(node):
+              assert type(node) is dict
+              if node.get('nodeType')=='Test Case': cases.append(node)
+              children=node.get('children',[])
+              assert type(children) is list
+              for child in children: walk(child)
+          for node in tree['testNodes']: walk(node)
+          assert len(cases)==1
+          case=cases[0]
+          identifier='FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard'
+          assert case['nodeIdentifierURL'].removesuffix('()')=='test://com.apple.xcode/FieldEvidenceApp/'+identifier
+          assert case['nodeIdentifier']=='S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard()'
+          assert case['result']=='Passed' and not case.get('isExpectedFailure',False)
+          devices=tree['devices']
+          assert type(devices) is list and len(devices)==1
+          c=reference['consumer']
+          expected=dict(deviceId=c['simulatorUDID'],deviceName=c['simulatorName'],osVersion=c['simulatorRuntime'].removeprefix('iOS '),
+                        osBuildNumber=c['simulatorRuntimeBuild'],architecture='arm64',platform='iOS Simulator')
+          assert all(devices[0].get(key)==value for key,value in expected.items())
+          assert b'** TEST EXECUTE SUCCEEDED **' in (artifact/'ui-smoke.log').read_bytes()
+          def save(path,value):
+              assert not path.exists()
+              path.write_text(json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False)+'\n',encoding='utf-8')
+          save(artifact/'ui-test-results.json',tree)
+          save(artifact/'ui-executed-tests.json',[dict(identifier=identifier,result='Passed')])
+          save(artifact/'s10-4-shared-native-validation.json',dict(schemaVersion=1,validated=True,nativeUIResult='Passed',
+               executedUITestCount=1,uiTestIdentifier=identifier,uiResultsSHA256=k['sha256_file'](artifact/'ui-test-results.json'),
+               consumerBuildReferenceSHA256=k['sha256_file'](artifact/'shared-consumer/consumer-build-reference.json')))
+          segment=c['segmentID']
+          if segment!='none':
+              subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--collect-shared-segment',str(artifact),
+                              str(Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments'),c['shardID'],segment,
+                              os.environ['CI_S10_4_MATRIX_BINDING']],cwd=root,check=True)
+          PY
+
       - name: Retain S10.4 segment evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id != 'none' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (github.event_name == 'workflow_dispatch' && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id != 'none') }}
         shell: bash
         env:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -3052,7 +2779,7 @@ jobs:
           test ! -e "$shard_evidence_path/shard-receipt.json"
 
       - name: Retain S10.4 shard evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.s10_4_unit_only == false && inputs.s10_4_diagnostic_probe_id == 'none' && (inputs.s10_4_pilot_mode == false || inputs.s10_4_execution_role == 'payload-consumer') && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.s10_4_unit_only == false && inputs.s10_4_diagnostic_probe_id == 'none' && (inputs.s10_4_pilot_mode == false || inputs.s10_4_execution_role == 'payload-consumer') && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' && inputs.s10_4_minimum_segment_id == 'none' }}
         shell: bash
         env:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -4519,7 +4246,7 @@ jobs:
           github_environment_json='null'
           if test "$CI_RUNNER_PROVIDER" = "github" \
             && test "${CI_S10_4_PILOT_MODE:-false}" = "false" \
-            && test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "independent" \
+            && { test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "independent" || test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; } \
             && test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" = "none"; then
             github_environment_json="${CI_S10_4_GITHUB_ENVIRONMENT:?}"
             jq -e --argjson observed "$github_environment_json" \
@@ -4556,10 +4283,25 @@ jobs:
                 contrastRowCount: $contrastRowCount
               } + (if $githubEnvironment == null then {} else {github_environment: $githubEnvironment} end)
             ' > "$shard_evidence_path/shard-receipt.json"
+          if test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then
+            jq --slurpfile shared "$CI_ARTIFACT_DIR/shared-consumer/consumer-build-reference.json" \
+              --slurpfile matrix "$CI_S10_4_MATRIX_BINDING" '
+              . + {
+                executionModel: "shared-native-v1",
+                sharedExecution: $shared[0],
+                matrixID: $matrix[0].matrixID,
+                sharedBuildIdentitySHA256: $shared[0].sharedBuildIdentitySHA256,
+                producerQualificationSHA256: $shared[0].producerQualificationSHA256,
+                localUnitExecutedTestCount: 0,
+                producerUnitExecutedTestCount: 5,
+                unitEvidenceOrigin: "shared-producer"
+              }' "$shard_evidence_path/shard-receipt.json" > "$RUNNER_TEMP/s10-4-shared-full-receipt.json"
+            mv "$RUNNER_TEMP/s10-4-shared-full-receipt.json" "$shard_evidence_path/shard-receipt.json"
+          fi
 
       # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_BEGIN
       - name: Verify complete nonaccepting S10.4 pilot evidence
-        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -5188,7 +4930,7 @@ jobs:
       # S10_4_PILOT_FULL_EVIDENCE_VERIFIER_END
 
       - name: Remove ordinary S10.4 receipts after pilot evidence attempt
-        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -5609,22 +5351,42 @@ jobs:
           test -s "$CI_ARTIFACT_DIR/simulator-boot-start.log"
           test -s "$CI_ARTIFACT_DIR/simulator-boot.log"
           test -s "$CI_ARTIFACT_DIR/runner-provider.txt"
-          test -s "$CI_ARTIFACT_DIR/build-smoke.log"
-          test -s "$CI_ARTIFACT_DIR/test-smoke.log"
-          require_nonempty_directory "$CI_ARTIFACT_DIR/Build.xcresult"
-          require_nonempty_directory "$CI_ARTIFACT_DIR/UnitTests.xcresult"
-          verify_executed_selectors \
-            "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
-            unitTestSelectors "Unit test bundle" unit
+          if test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then
+            test ! -e "$CI_ARTIFACT_DIR/Build.xcresult"
+            test ! -e "$CI_ARTIFACT_DIR/UnitTests.xcresult"
+            test ! -e "$CI_ARTIFACT_DIR/build-smoke.log"
+            test ! -e "$CI_ARTIFACT_DIR/test-smoke.log"
+            jq -e '.recordType == "consumer-build-reference" and .unitTestCount == 0 and .producerUnitTestCount == 5 and .productsUnchanged == true and .diagnosticOnly == false' \
+              "$CI_ARTIFACT_DIR/shared-consumer/consumer-build-reference.json" > /dev/null
+            test -s "$CI_ARTIFACT_DIR/shared-producer/unit-proof/producer-qualification.json"
+          else
+            test -s "$CI_ARTIFACT_DIR/build-smoke.log"
+            test -s "$CI_ARTIFACT_DIR/test-smoke.log"
+            require_nonempty_directory "$CI_ARTIFACT_DIR/Build.xcresult"
+            require_nonempty_directory "$CI_ARTIFACT_DIR/UnitTests.xcresult"
+            verify_executed_selectors \
+              "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
+              unitTestSelectors "Unit test bundle" unit
+          fi
 
           if test "${CI_RUN_UI_SMOKE:-}" = "true"; then
             test -s "$CI_ARTIFACT_DIR/ui-smoke.log"
             require_nonempty_directory "$CI_ARTIFACT_DIR/UISmoke.xcresult"
             test -s "$CI_ARTIFACT_DIR/ui-final.png"
-            verify_executed_selectors \
-              "$CI_ARTIFACT_DIR/UISmoke.xcresult" \
-              uiTestSelectors "UI test bundle" ui
+            if test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then
+              jq -e '.validated == true and .nativeUIResult == "Passed" and .executedUITestCount == 1' \
+                "$CI_ARTIFACT_DIR/s10-4-shared-native-validation.json" > /dev/null
+            else
+              verify_executed_selectors \
+                "$CI_ARTIFACT_DIR/UISmoke.xcresult" \
+                uiTestSelectors "UI test bundle" ui
+            fi
             if test "${CI_TASK_ID:-}" = "S10.4"; then
+              if test "$CI_S10_4_SHARED_BUILD_MODE" = consumer && { test "$CI_S10_4_SEGMENT_ID" != none || test "$WORKER_S10_4_MINIMUM_SEGMENT_ID" != none; }; then
+                test -s "$CI_ARTIFACT_DIR/s10-4-shared-segment-validation.json"
+                jq -e '.validated == true and .nativeUIResult == "Passed"' "$CI_ARTIFACT_DIR/s10-4-shared-segment-validation.json" > /dev/null
+                exit 0
+              fi
               test -s "$CI_ARTIFACT_DIR/simulator-runtime-policy.txt"
               test "${CI_S10_4_SHARD_ID:-none}" != "none"
               shard_evidence_path="$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID"
@@ -6065,7 +5827,7 @@ jobs:
           ' "$CI_ARTIFACT_DIR/s10-4-segment-plan-development-binding-redacted.json" > /dev/null
 
       - name: Finalize Bitrise development-only shard evidence
-        if: ${{ always() && inputs.s10_4_unit_only == false && inputs.s10_4_pilot_mode == false && inputs.s10_4_execution_role != 'payload-consumer' && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id == 'none' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_unit_only == false && inputs.s10_4_pilot_mode == false && inputs.s10_4_execution_role != 'payload-consumer' && inputs.runner_provider == 'bitrise' && inputs.s10_4_segment_id == 'none') }}
         shell: bash
         env:
           BITRISE_DISPATCH_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -6178,7 +5940,7 @@ jobs:
             ' "$development_record_path" > /dev/null
 
       - name: Finalize successful S10.4 segment receipt
-        if: ${{ success() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (success() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -6355,6 +6117,15 @@ jobs:
           import sys
 
           root = pathlib.Path(sys.argv[1])
+          roots = [root]
+          if os.environ.get("CI_S10_4_SHARED_BUILD_MODE") == "producer":
+              qualified = pathlib.Path(os.environ["RUNNER_TEMP"]) / "FieldEvidenceSharedQualified"
+              for name in ("frozen-payload", "payload-transport", "unit-upload"):
+                  candidate = qualified / name
+                  if candidate.exists():
+                      if not candidate.is_dir() or candidate.is_symlink():
+                          raise ValueError("unsafe shared upload scan root")
+                      roots.append(candidate)
           needles = [
               value.encode()
               for name in ("BITRISE_BUILD_CACHE_AUTH_TOKEN", "BITRISE_BUILD_CACHE_WORKSPACE_ID")
@@ -6362,7 +6133,7 @@ jobs:
           ]
           contaminated = 0
           max_tail = max((len(needle) for needle in needles), default=1) - 1
-          for path in root.rglob("*"):
+          for path in (path for scan_root in roots for path in scan_root.rglob("*")):
               if not path.is_file():
                   continue
               matched = False
@@ -6391,8 +6162,72 @@ jobs:
             > "$CI_ARTIFACT_DIR/bitrise-credential-scan.txt"
           printf 'safe_to_upload=true\n' >> "$GITHUB_OUTPUT"
 
+      - name: Upload S10.4 shared build payload
+        id: shared_payload_upload
+        if: ${{ success() && inputs.s10_4_shared_build_mode == 'producer' && steps.bitrise_credential_scan.outputs.safe_to_upload == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: s10-4-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/FieldEvidenceSharedQualified/payload-transport
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+      - name: Upload S10.4 shared unit evidence
+        id: shared_unit_upload
+        if: ${{ success() && inputs.s10_4_shared_build_mode == 'producer' && steps.bitrise_credential_scan.outputs.safe_to_upload == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: s10-4-shared-units-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/FieldEvidenceSharedQualified/unit-upload
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
+      - name: Seal S10.4 shared build provenance
+        if: ${{ inputs.s10_4_shared_build_mode == 'producer' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHARED_PAYLOAD_ARTIFACT_ID: ${{ steps.shared_payload_upload.outputs.artifact-id }}
+          SHARED_UNIT_ARTIFACT_ID: ${{ steps.shared_unit_upload.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/s10-4-shared-driver.py" seal
+
+      - name: Verify S10.4 shared seal contains no cache credentials
+        if: ${{ inputs.s10_4_shared_build_mode == 'producer' }}
+        shell: bash
+        env:
+          BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}
+          BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "FieldEvidenceSharedSeal"
+          needles = [os.environ[name].encode() for name in ("BITRISE_BUILD_CACHE_AUTH_TOKEN", "BITRISE_BUILD_CACHE_WORKSPACE_ID")]
+          assert all(needles)
+          files = list(root.iterdir())
+          assert {p.name for p in files} == {"shared-build-seal.json", "payload-artifact-api.json", "unit-artifact-api.json", "SHA256SUMS.txt"}
+          assert all(p.is_file() and not p.is_symlink() and p.stat().st_size <= 16 * 1024 * 1024 for p in files)
+          assert all(not any(needle in p.read_bytes() for needle in needles) for p in files)
+          PY
+          printf 'shared_seal_credential_scan_passed=true\n' > "$CI_ARTIFACT_DIR/s10-4-shared-seal-credential-scan.txt"
+
+      - name: Upload S10.4 shared build seal
+        if: ${{ inputs.s10_4_shared_build_mode == 'producer' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: s10-4-shared-seal-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/FieldEvidenceSharedSeal
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+
       - name: Record S10.4 pilot consumer receipt
-        if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none') }}
         shell: bash
         env:
           PILOT_PRIOR_JOB_STATUS: ${{ job.status }}
@@ -6562,7 +6397,7 @@ jobs:
           ' "$CI_ARTIFACT_DIR/s10-4-pilot-receipt.json" > /dev/null
 
       - name: Remove isolated S10.4 pilot Simulator
-        if: ${{ always() && inputs.s10_4_pilot_mode == true }}
+        if: ${{ always() && (inputs.s10_4_pilot_mode == true || inputs.s10_4_shared_build_mode != 'none') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -6637,7 +6472,7 @@ jobs:
           test "$elapsed_seconds" -le "$CI_TOTAL_BUDGET_SECONDS"
 
       - name: Remove nonaccepting partial S10.4 segment receipt
-        if: ${{ always() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' && (failure() || cancelled()) }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' && (failure() || cancelled())) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -6655,13 +6490,13 @@ jobs:
         if: ${{ always() && inputs.s10_4_execution_role != 'payload-producer' && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)))))) }}
+          name: ${{ inputs.s10_4_shared_build_mode != 'none' && format('ios-ci-shared-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_minimum_segment_id != 'none' && inputs.s10_4_minimum_segment_id || inputs.s10_4_segment_id) || inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id)))))) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14
 
       - name: Fail closed after Bitrise development-only evidence
-        if: ${{ always() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'bitrise' && steps.upload_evidence.outcome == 'success' }}
+        if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'bitrise' && steps.upload_evidence.outcome == 'success') }}
         shell: bash
         run: |
           printf '%s\n' 'Bitrise Build Hub Xcode 26.6 development-only evidence is not eligible for S10.4 final acceptance.' >&2

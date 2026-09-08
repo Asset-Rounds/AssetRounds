@@ -11,6 +11,9 @@ on:
         type: choice
         options:
           - github-xcode-26.6-acceptance
+          - s10-4-shared-build-producer
+          - github-xcode-26.6-shared-build-acceptance
+          - s10-4-shared-segment-assembly
           - github-xcode-26.6-segmented-acceptance
           - getmac-xcode-26.6-development-only
           - warp-xcode-26.5-development-only
@@ -21,6 +24,29 @@ on:
           - s10-4-hybrid-equivalence-pilot
           - s10-4-minimum-diagnostic-pilot
           - s10-4-focused-diagnostics-development-only
+      s10_4_shared_payload_run_id:
+        description: Original qualified shared producer run ID
+        required: false
+        default: ""
+        type: string
+      s10_4_shared_segment_id:
+        description: Exact shared UI segment; none means all 67 states
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - segment-1
+          - segment-2
+          - segment-3
+          - minimum-segment-1
+          - minimum-segment-2
+          - minimum-segment-3
+      s10_4_segment_source_run_ids:
+        description: Exact JSON segment-ID to original successful consumer run-ID map
+        required: false
+        default: ""
+        type: string
       run_ui_smoke:
         description: Run the task-authorized XCUITest smoke after build and unit tests
         required: true
@@ -52,24 +78,141 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}
+  group: ${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}
   cancel-in-progress: false
 
 jobs:
+  shared-selection:
+    name: Validate shared build selection and dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      matrix_id: ${{ steps.selection.outputs.matrix_id }}
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate closed shared selection and original dependencies
+        id: selection
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHARED_LANE: ${{ inputs.execution_lane }}
+          SHARED_SHARD: ${{ inputs.s10_4_shard_id }}
+          SHARED_SEGMENT: ${{ inputs.s10_4_shared_segment_id }}
+          SHARED_SOURCE_RUN: ${{ inputs.s10_4_shared_payload_run_id }}
+          SHARED_SOURCE_MAP: ${{ inputs.s10_4_segment_source_run_ids }}
+          SHARED_UI: ${{ inputs.run_ui_smoke }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+
+          root=Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          lane=os.environ['SHARED_LANE']
+          shard=os.environ['SHARED_SHARD']
+          segment=os.environ['SHARED_SEGMENT']
+          source=os.environ['SHARED_SOURCE_RUN']
+          map_text=os.environ['SHARED_SOURCE_MAP']
+          ui=os.environ['SHARED_UI']
+          temp=Path(os.environ['RUNNER_TEMP'])
+          new_lanes=['s10-4-shared-build-producer','github-xcode-26.6-shared-build-acceptance','s10-4-shared-segment-assembly']
+          assert ui in ('true','false')
+          if lane not in new_lanes:
+              assert source=='' and segment=='none' and map_text==''
+              sys.exit(0)
+          assert os.environ['GITHUB_REPOSITORY']=='Asset-Rounds/AssetRounds'
+          assert os.environ['GITHUB_REF']=='refs/heads/phase/s10-brand-refresh'
+          head=os.environ['GITHUB_SHA']
+          assert re.fullmatch('[0-9a-f]{40}',head)
+          assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()==head
+          if lane=='s10-4-shared-build-producer':
+              assert ui=='false' and shard=='none' and source=='' and segment=='none' and map_text==''
+              sys.exit(0)
+          assert re.fullmatch('[1-9][0-9]*',source)
+          assert segment in ('none','segment-1','segment-2','segment-3','minimum-segment-1','minimum-segment-2','minimum-segment-3')
+          def pairs(values):
+              result={}
+              for k,v in values:
+                  assert k not in result
+                  result[k]=v
+              return result
+          mapping={} if map_text=='' else json.loads(map_text,object_pairs_hook=pairs)
+          assert isinstance(mapping,dict)
+          assert all(isinstance(v,str) and re.fullmatch('[1-9][0-9]*',v) for v in mapping.values())
+          if map_text:
+              assert map_text==json.dumps(mapping,sort_keys=True,separators=(',',':'),ensure_ascii=True)
+          if lane=='s10-4-shared-segment-assembly':
+              assert ui=='false' and segment=='none' and len(mapping)==3
+          else:
+              assert ui=='true'
+              assert (len(mapping)==2) if segment in ('segment-3','minimum-segment-3') else (mapping=={})
+          request=dict(schemaVersion=1,contractID='s10.4.shared-build.v1',checkoutRoot=str(root),head=head,
+                       sourceRunID=source,selection=dict(shardID=shard,segmentID=segment,purpose='acceptance'))
+          request_path=temp/'s10-4-shared-admission-request.json'
+          request_path.write_text(json.dumps(request,sort_keys=True,separators=(',',':'))+'\n',encoding='utf-8')
+          admission=temp/'FieldEvidenceSharedDispatchAdmission'
+          subprocess.run([sys.executable,str(root/'Scripts/s10-4-build-payload.py'),'admit','--request',str(request_path),'--output',str(admission)],check=True)
+          source_map=temp/'s10-4-shared-source-map.json'
+          source_map.write_text(json.dumps(mapping,sort_keys=True,separators=(',',':'))+'\n',encoding='utf-8')
+          if lane=='github-xcode-26.6-shared-build-acceptance':
+              output=temp/'FieldEvidenceSharedDispatchMatrix'
+              subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--admit-shared-selection',str(admission),shard,segment,str(source_map),str(output)],check=True,cwd=root)
+              matrix=json.loads((output/'matrix-binding.json').read_text())
+              assert re.fullmatch('[0-9A-F]{64}',matrix['matrixID'])
+              with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as stream:
+                  stream.write('matrix_id='+matrix['matrixID']+'\n')
+          else:
+              output=temp/'FieldEvidenceSharedAssembly'
+              subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--assemble-shared',str(admission),shard,str(source_map),str(output)],check=True,cwd=root)
+          PY
+      - name: Retain shared dispatch or assembled evidence
+        if: ${{ always() && (inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' || inputs.execution_lane == 's10-4-shared-segment-assembly') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ci-shared-admission-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.s10_4_shard_id }}
+          path: |
+            ${{ runner.temp }}/FieldEvidenceSharedDispatchAdmission
+            ${{ runner.temp }}/FieldEvidenceSharedDispatchMatrix
+            ${{ runner.temp }}/FieldEvidenceSharedAssembly
+            ${{ runner.temp }}/s10-4-shared-admission-request.json
+            ${{ runner.temp }}/s10-4-shared-source-map.json
+          if-no-files-found: error
+          retention-days: 14
+
   github-shard:
-    name: GitHub Xcode 26.6 acceptance · ${{ inputs.s10_4_shard_id }}
-    if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' }}
+    name: GitHub Xcode 26.6 acceptance · ${{ inputs.s10_4_shard_id }} · ${{ inputs.s10_4_shared_segment_id }}
+    needs: shared-selection
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance') }}
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
       s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
-      s10_4_segment_id: none
+      s10_4_segment_id: ${{ startsWith(inputs.s10_4_shared_segment_id, 'segment-') && inputs.s10_4_shared_segment_id || 'none' }}
+      s10_4_execution_role: ${{ inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' && 'payload-consumer' || 'independent' }}
+      s10_4_shared_build_mode: ${{ inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' && 'consumer' || 'none' }}
+      s10_4_shared_payload_run_id: ${{ inputs.s10_4_shared_payload_run_id }}
+      s10_4_minimum_segment_id: ${{ startsWith(inputs.s10_4_shared_segment_id, 'minimum-segment-') && inputs.s10_4_shared_segment_id || 'none' }}
+      s10_4_shared_matrix_id: ${{ needs.shared-selection.outputs.matrix_id }}
+      s10_4_segment_source_run_ids: ${{ inputs.s10_4_segment_source_run_ids }}
 
   getmac-shard:
     name: GetMac Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}
-    if: ${{ inputs.execution_lane == 'getmac-xcode-26.6-development-only' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'getmac-xcode-26.6-development-only') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: getmac-tahoe
@@ -80,20 +223,25 @@ jobs:
 
   bitrise-build-hub-cache-probe:
     name: Bitrise Build Hub cache probe development-only
-    if: ${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/bitrise-build-hub-probe.yml
     secrets: inherit
 
   bitrise-shard:
     name: Bitrise Build Hub Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}
-    if: ${{ (inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none') || (inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 's10.4.current.default-light') }}
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && ((inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none') || (inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 's10.4.current.default-light') || inputs.execution_lane == 's10-4-shared-build-producer') }}
+    needs: shared-selection
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: bitrise-m4-pro
       runner_provider: bitrise
-      run_ui_smoke: ${{ inputs.execution_lane != 'bitrise-build-hub-xcode-26.6-unit-development-only' }}
-      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
+      run_ui_smoke: ${{ inputs.run_ui_smoke }}
+      s10_4_shard_id: ${{ inputs.execution_lane == 's10-4-shared-build-producer' && 's10.4.current.default-light' || inputs.s10_4_shard_id }}
       s10_4_segment_id: none
+      s10_4_shared_build_mode: ${{ inputs.execution_lane == 's10-4-shared-build-producer' && 'producer' || 'none' }}
       s10_4_unit_only: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' }}
     secrets: inherit
 
@@ -135,7 +283,7 @@ jobs:
 
   s10-4-hybrid-payload-producer:
     name: S10.4 hybrid pilot payload producer · Bitrise M4
-    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: bitrise-m4-pro
@@ -152,7 +300,7 @@ jobs:
   s10-4-hybrid-bitrise-default-light:
     name: S10.4 hybrid pilot consumer · Bitrise current default-light
     needs: s10-4-hybrid-payload-producer
-    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: bitrise-m4-pro
@@ -168,7 +316,7 @@ jobs:
   s10-4-hybrid-bitrise-default-dark:
     name: S10.4 hybrid pilot consumer · Bitrise current default-dark
     needs: s10-4-hybrid-payload-producer
-    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: bitrise-m4-pro
@@ -184,7 +332,7 @@ jobs:
   s10-4-hybrid-github-default-light:
     name: S10.4 hybrid pilot consumer · GitHub current default-light
     needs: s10-4-hybrid-payload-producer
-    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
@@ -199,7 +347,7 @@ jobs:
   s10-4-hybrid-github-default-dark:
     name: S10.4 hybrid pilot consumer · GitHub current default-dark
     needs: s10-4-hybrid-payload-producer
-    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
@@ -214,7 +362,7 @@ jobs:
   s10-4-hybrid-github-minimum-os:
     name: S10.4 hybrid pilot consumer · GitHub minimum-OS portability
     needs: s10-4-hybrid-payload-producer
-    if: ${{ inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
@@ -656,7 +804,7 @@ jobs:
 
   s10-4-minimum-diagnostic-producer:
     name: S10.4 minimum diagnostic payload producer · Bitrise M4
-    if: ${{ inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: bitrise-m4-pro
@@ -672,7 +820,7 @@ jobs:
   s10-4-minimum-diagnostic-consumer:
     name: S10.4 minimum diagnostic consumer · GitHub iOS 18.0
     needs: s10-4-minimum-diagnostic-producer
-    if: ${{ inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
@@ -741,7 +889,7 @@ jobs:
 
   s10-4-focused-diagnostics-producer:
     name: S10.4 focused diagnostics payload producer · Bitrise M4
-    if: ${{ inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: bitrise-m4-pro
@@ -757,7 +905,7 @@ jobs:
   s10-4-focused-new-sign-probe:
     name: S10.4 New-sign query diagnostic · GitHub iOS 18.0
     needs: s10-4-focused-diagnostics-producer
-    if: ${{ inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
@@ -774,7 +922,7 @@ jobs:
   s10-4-focused-preflight-probe:
     name: S10.4 preflight audit diagnostic · GitHub iOS 18.0
     needs: s10-4-focused-diagnostics-producer
-    if: ${{ inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       runner_label: macos-26
@@ -841,7 +989,7 @@ jobs:
 
   github-segmented-shard:
     name: GitHub Xcode 26.6 segmented acceptance · ${{ matrix.segment_id }}
-    if: ${{ inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'github-xcode-26.6-segmented-acceptance' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text') }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -946,7 +1094,7 @@ jobs:
 
   bitrise-segmented-development-shard:
     name: Bitrise Build Hub Xcode 26.6 segmented development-only · ${{ matrix.segment_id }}
-    if: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 's10.4.current.ax-text') }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -966,7 +1114,7 @@ jobs:
 
   warpbuild-shard:
     name: WarpBuild Xcode 26.5 development-only · ${{ inputs.s10_4_shard_id }}
-    if: ${{ inputs.execution_lane == 'warp-xcode-26.5-development-only' }}
+    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'warp-xcode-26.5-development-only') }}
     runs-on: warp-macos-26-arm64-6x
     timeout-minutes: 90
     env:

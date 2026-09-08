@@ -22,6 +22,239 @@ done < <(jq -r '.unitTestSelectors[]' Scripts/ci-selection.json)
 
 test "${#only_testing_args[@]}" -gt 0
 
+# H411 shared execution admission. Original absent/none routes retain their commands.
+shared_build_mode="${CI_S10_4_SHARED_BUILD_MODE:-none}"
+case "$shared_build_mode" in
+  none)
+    test -z "${CI_S10_4_SHARED_XCTESTRUN_PATH:-}"
+    test -z "${CI_S10_4_SHARED_PRODUCTS_ROOT:-}"
+    test -z "${CI_S10_4_SHARED_PAYLOAD_RUN_ID:-}"
+    case "${CI_S10_4_SHARED_EXECUTION_LANE:-none}" in none | "") ;; *) exit 65 ;; esac
+    test "${WORKER_S10_4_MINIMUM_SEGMENT_ID:-none}" = none
+    for minimum_key in CI_S10_4_MINIMUM_SEGMENT_ID CI_S10_4_MINIMUM_SEGMENT_HEAD \
+      CI_S10_4_MINIMUM_SEGMENT_REF CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE; do
+      if env | LC_ALL=C grep -Eq "^(TEST_RUNNER_)?${minimum_key}="; then
+        printf 'minimum segment binding supplied outside shared consumer mode\n' >&2
+        exit 65
+      fi
+    done
+    ;;
+  producer | consumer)
+    python3 - producer <<'H411_SHARED_ADMISSION'
+import json
+import os
+from pathlib import Path
+import re
+import sys
+
+
+def require(value, message):
+    if not value:
+        raise SystemExit("invalid H411 shared execution: " + message)
+
+
+def unique_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, "duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def read_json(path):
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_pairs)
+
+
+def validate_shared(environment, script_role):
+    e = environment
+    mode = e.get("CI_S10_4_SHARED_BUILD_MODE")
+    require(mode == script_role and mode in ("producer", "consumer"), "script/mode mismatch")
+    require(e.get("GITHUB_REPOSITORY") == "Asset-Rounds/AssetRounds", "repository")
+    require(e.get("GITHUB_REF") == "refs/heads/phase/s10-brand-refresh", "ref")
+    require(re.fullmatch(r"[0-9a-f]{40}", e.get("GITHUB_SHA", "")), "head")
+    require(e.get("CI_TASK_ID") == "S10.4" and e.get("CI_TIER") == "F25", "task/tier")
+    require(e.get("PROJECT_PATH") == "FieldEvidenceApp.xcodeproj"
+            and e.get("SCHEME") == "FieldEvidenceApp" and e.get("CONFIGURATION") == "Debug", "project/scheme/configuration")
+    require(e.get("CODE_SIGNING_ALLOWED") == "NO", "unsigned execution")
+    require(e.get("EXPECTED_XCODE_VERSION") == "Xcode 26.6"
+            and e.get("EXPECTED_XCODE_BUILD") == "Build version 17F113", "pinned toolchain")
+    require(e.get("CI_S10_4_PILOT_MODE") == "false"
+            and e.get("CI_S10_4_UNIT_ONLY") == "false"
+            and e.get("CI_S10_4_PAYLOAD_ARTIFACT_NAME", "") == "", "old pilot/unit-only/payload mode")
+    require(not any(value for key, value in e.items()
+                    if key.startswith("CI_S10_4_PILOT_") and key not in (
+                        "CI_S10_4_PILOT_MODE", "CI_S10_4_PILOT_CREATED_SIMULATOR_UDID")), "old pilot provenance")
+    # The existing workflow stores its newly created shared Simulator in this legacy-named slot.
+    # It is isolation identity only, never a pilot payload or qualification admission.
+    require(e.get("CI_S10_4_PILOT_CREATED_SIMULATOR_UDID") == e.get("CI_SIMULATOR_UDID")
+            and e.get("CI_SIMULATOR_INITIAL_STATE") == "Shutdown", "fresh owned shared Simulator")
+    for key in ("CI_S10_4_DIAGNOSTIC_PROBE_ID", "CI_S10_4_DIAGNOSTIC_EXECUTION_LANE",
+                "WORKER_S10_4_DIAGNOSTIC_PROBE_ID", "WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE"):
+        require(e.get(key, "none") == "none", "diagnostic admission")
+    require(not e.get("CI_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS", ""), "diagnostic timeout")
+    for key in e:
+        require(not key.startswith(("TEST_RUNNER_CI_S10_4_SHARED_", "TEST_RUNNER_CI_S10_4_PILOT_",
+                                   "TEST_RUNNER_CI_S10_4_DIAGNOSTIC_")), "foreign test-runner mode key")
+        require(key not in ("TEST_RUNNER_CI_S10_4_EXECUTION_ROLE", "TEST_RUNNER_CI_S10_4_EXECUTION_LANE"), "foreign test-runner role/lane")
+    if mode == "producer":
+        require(bool(e.get("BITRISE_BUILD_CACHE_AUTH_TOKEN", ""))
+                and e.get("BITRISE_BUILD_CACHE_WORKSPACE_ID") == "c70b2962648b79fb"
+                and e.get("BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE") == "established", "producer cache wrapper binding")
+    else:
+        require(not e.get("BITRISE_BUILD_CACHE_AUTH_TOKEN", "")
+                and not e.get("BITRISE_BUILD_CACHE_WORKSPACE_ID", ""), "consumer cache credentials")
+
+    workspace = Path(e.get("GITHUB_WORKSPACE", ""))
+    require(workspace.is_absolute() and workspace.is_dir() and workspace.resolve() == workspace
+            and not workspace.is_symlink(), "physical checkout")
+    contract = read_json(workspace / "Scripts/s10-4-shards.json")
+    require(contract.get("schemaVersion") == 1 and contract.get("taskID") == "S10.4", "shard contract")
+    shards = contract.get("shards")
+    require(isinstance(shards, list) and len(shards) == 14
+            and len({row["shardID"] for row in shards}) == 14, "fourteen unique shards")
+    selected = [row for row in shards if row["shardID"] == e.get("CI_S10_4_SHARD_ID")]
+    require(len(selected) == 1, "frozen shard")
+    shard = selected[0]
+    require(isinstance(shard.get("accessibilityFeatures"), list) and len(shard["accessibilityFeatures"]) == 1, "single profile accessibility feature")
+    profiles = [row for row in contract["deviceProfiles"] if row["deviceProfileID"] == shard["deviceProfileID"]]
+    require(len(profiles) == 1, "frozen device profile")
+    profile = profiles[0]
+    expected = {
+        "CI_S10_4_SHARD_ID": shard["shardID"],
+        "CI_S10_4_SHARD_ORDINAL": str(shard["ordinal"]),
+        "CI_S10_4_REQUIREMENT_ID": shard["requirementID"],
+        "CI_S10_4_DEVICE_PROFILE_ID": shard["deviceProfileID"],
+        "CI_S10_4_ACCESSIBILITY_FEATURE": shard["accessibilityFeatures"][0],
+        "CI_S10_4_ACCESSIBILITY_FEATURES": ",".join(shard["accessibilityFeatures"]),
+        "CI_S10_4_PROVISION_RUNTIME": str(profile["provisionRuntime"]).lower(),
+        "CI_S10_4_RUNTIME_DOWNLOAD_VERSION": profile["runtimeDownloadVersion"],
+        "SIMULATOR_RUNTIME": profile["simulatorRuntime"],
+        "SIMULATOR_RUNTIME_BUILD": profile["simulatorRuntimeBuild"],
+        "SIMULATOR_NAME": profile["simulatorName"],
+    }
+    environment_fields = {
+        "APPEARANCE": "appearance", "CONTRAST": "contrast", "CONTENT_SIZE_CATEGORY": "contentSizeCategory",
+        "LOCALE": "locale", "LAYOUT_DIRECTION": "layoutDirection", "DIFFERENTIATE_WITHOUT_COLOR": "differentiateWithoutColor",
+        "REDUCE_MOTION": "reduceMotion", "REDUCE_TRANSPARENCY": "reduceTransparency",
+    }
+    for suffix, field in environment_fields.items():
+        value = shard["environment"][field]
+        expected["CI_S10_4_" + suffix] = str(value).lower() if isinstance(value, bool) else value
+    require(all(e.get(key) == value for key, value in expected.items()), "profile/runtime tuple")
+    require(re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", e.get("CI_SIMULATOR_UDID", "")), "Simulator UDID")
+    require(e.get("CI_DESTINATION") == "platform=iOS Simulator,id=" + e["CI_SIMULATOR_UDID"], "destination")
+    selection = read_json(workspace / "Scripts/ci-selection.json")
+    expected_selection = {
+        "schemaVersion": 1, "taskID": "S10.4", "tier": "F25", "runUISmoke": True,
+        "setupArtifactTimeoutSeconds": 420, "buildTimeoutSeconds": 900, "testTimeoutSeconds": 1200,
+        "uiTimeoutSeconds": 2520, "totalBudgetSeconds": 4500,
+        "unitTestSelectors": ["FieldEvidenceAppTests/S10_4AutomatedBrandLabTests"],
+        "uiTestSelectors": ["FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests"],
+    }
+    require(json.dumps(selection, sort_keys=True, allow_nan=False)
+            == json.dumps(expected_selection, sort_keys=True), "canonical selector/watchdogs")
+
+    minimum_keys = ["CI_S10_4_MINIMUM_SEGMENT_ID", "CI_S10_4_MINIMUM_SEGMENT_HEAD",
+                    "CI_S10_4_MINIMUM_SEGMENT_REF", "CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE"]
+    segment = e.get("CI_S10_4_SEGMENT_ID")
+    minimum_segment = e.get("WORKER_S10_4_MINIMUM_SEGMENT_ID", "none")
+    if mode == "producer":
+        require(e.get("CI_S10_4_SHARED_EXECUTION_LANE") == "s10-4-shared-build-producer", "producer lane")
+        require(e.get("CI_RUNNER_PROVIDER") == "bitrise" and e.get("CI_RUNNER_LABEL") == "bitrise-m4-pro", "producer provider")
+        require(e.get("CI_RUN_UI_SMOKE") == "false" and e.get("CI_S10_4_EXECUTION_ROLE") == "independent", "producer role")
+        require(shard["shardID"] == "s10.4.current.default-light" and segment == "none"
+                and minimum_segment == "none" and not e.get("CI_S10_4_SHARED_PAYLOAD_RUN_ID", ""), "producer tuple")
+        require(not any(key in e or "TEST_RUNNER_" + key in e for key in minimum_keys), "producer minimum keys")
+    else:
+        require(e.get("CI_S10_4_SHARED_EXECUTION_LANE") == "github-xcode-26.6-shared-build-acceptance", "consumer lane")
+        require(e.get("CI_RUNNER_PROVIDER") == "github" and e.get("CI_RUNNER_LABEL") == "macos-26", "consumer provider")
+        require(e.get("CI_RUN_UI_SMOKE") == "true" and e.get("CI_S10_4_EXECUTION_ROLE") == "payload-consumer", "consumer role")
+        require(re.fullmatch(r"[1-9][0-9]*", e.get("CI_S10_4_SHARED_PAYLOAD_RUN_ID", "")), "producer run ID")
+        require(segment in ("none", "segment-1", "segment-2", "segment-3"), "AX segment")
+        require(segment == "none" or shard["shardID"] == "s10.4.current.ax-text", "AX shard/segment")
+        require(minimum_segment in ("none", "minimum-segment-1", "minimum-segment-2", "minimum-segment-3"), "minimum segment")
+        if minimum_segment == "none":
+            require(not any(key in e or "TEST_RUNNER_" + key in e for key in minimum_keys), "minimum keys outside selected segment")
+        else:
+            require(8 <= shard["ordinal"] <= 14 and segment == "none", "minimum shard/segment")
+            minimum_expected = dict(zip(minimum_keys, [minimum_segment, e["GITHUB_SHA"], e["GITHUB_REF"],
+                                                      "github-xcode-26.6-shared-build-acceptance"]))
+            for key, value in minimum_expected.items():
+                require(e.get("TEST_RUNNER_" + key) == value, "minimum launch binding")
+                require(key not in e or e[key] == value, "conflicting host minimum binding")
+        expected["CI_S10_4_SEGMENT_ID"] = segment
+        expected["CI_TASK_ID"] = "S10.4"
+        expected["CI_SIMULATOR_UDID"] = e["CI_SIMULATOR_UDID"]
+        for key, value in expected.items():
+            require(e.get("TEST_RUNNER_" + key) == value, "test-runner profile/runtime binding")
+        expected_launch_keys = {"TEST_RUNNER_" + key for key in expected if key.startswith("CI_S10_4_")}
+        if minimum_segment != "none":
+            expected_launch_keys.update("TEST_RUNNER_" + key for key in minimum_keys)
+        require({key for key in e if key.startswith("TEST_RUNNER_CI_S10_4_")} == expected_launch_keys, "closed UI launch keys")
+
+    temporary_root = Path(e.get("RUNNER_TEMP", ""))
+    require(temporary_root.is_absolute() and temporary_root.is_dir() and temporary_root.resolve() == temporary_root, "physical runner temporary root")
+    root_name = "FieldEvidenceSharedPrepared" if mode == "producer" else "FieldEvidenceSharedRestore"
+    products = temporary_root / root_name / "payload/FieldEvidenceDerivedData/Build/Products"
+    require(products.is_dir() and not products.is_symlink() and products.resolve() == products, "prepared/restored products root")
+    require(e.get("CI_S10_4_SHARED_PRODUCTS_ROOT") == str(products), "workflow products binding")
+    xctestrun = Path(e.get("CI_S10_4_SHARED_XCTESTRUN_PATH", ""))
+    require(xctestrun.is_absolute() and xctestrun.is_file() and not xctestrun.is_symlink()
+            and xctestrun.resolve() == xctestrun and xctestrun.suffix == ".xctestrun"
+            and xctestrun.is_relative_to(products), "exact physical xctestrun")
+    require(list(products.rglob("*.xctestrun")) == [xctestrun], "single prepared/restored xctestrun")
+    artifact_root = Path(e.get("CI_ARTIFACT_DIR", ""))
+    require(artifact_root.is_absolute() and artifact_root.is_dir() and artifact_root.resolve() == artifact_root
+            and not artifact_root.is_symlink(), "physical evidence directory")
+    if mode == "consumer":
+        require(not any((artifact_root / name).exists() or (artifact_root / name).is_symlink()
+                        for name in ["Build.xcresult", "UnitTests.xcresult", "build-smoke.log", "test-smoke.log"]), "consumer local build/unit evidence")
+        derived = temporary_root / "FieldEvidenceDerivedData"
+        require(not (derived / "Logs/Build").exists() and not (derived / "Build/Intermediates.noindex").exists(), "consumer rebuild products")
+
+
+if __name__ == "__main__":
+    try:
+        validate_shared(os.environ, sys.argv[1])
+    except (KeyError, TypeError, ValueError, OSError) as error:
+        raise SystemExit("invalid H411 shared execution input: " + type(error).__name__)
+H411_SHARED_ADMISSION
+    test "$(git rev-parse HEAD)" = "${GITHUB_SHA:?}"
+    test "$(pwd -P)" = "${GITHUB_WORKSPACE:?}"
+    ;;
+  *) printf 'invalid H411 shared build mode\n' >&2; exit 65 ;;
+esac
+# End H411 shared execution admission.
+
+if [ "$shared_build_mode" = producer ]; then
+  shared_unit_command=(
+    xcodebuild
+    -xctestrun "$CI_S10_4_SHARED_XCTESTRUN_PATH"
+    -destination "$CI_DESTINATION"
+    -resultBundlePath "$result_bundle_path"
+    "${only_testing_args[@]}"
+    CODE_SIGNING_ALLOWED=NO
+    test-without-building
+  )
+  python3 - "$CI_ARTIFACT_DIR/s10-4-shared-unit-command.json" "${shared_unit_command[@]}" <<'H411_SHARED_COMMAND'
+import json
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+arguments = sys.argv[2:]
+if not arguments or any(not argument or any(c in argument for c in ("\n", "\r", "\0")) for argument in arguments):
+    raise SystemExit("invalid shared command argument vector")
+with path.open("x", encoding="utf-8", newline="\n") as stream:
+    json.dump(arguments, stream, ensure_ascii=True, separators=(",", ":"))
+    stream.write("\n")
+H411_SHARED_COMMAND
+  "${shared_unit_command[@]}"
+  test -d "$result_bundle_path"
+  test -n "$(find "$result_bundle_path" -mindepth 1 -print -quit)"
+  exit 0
+fi
+
 pilot_consumer=false
 pilot_execution_role="${CI_S10_4_EXECUTION_ROLE:-}"
 pilot_mode="${CI_S10_4_PILOT_MODE:-}"

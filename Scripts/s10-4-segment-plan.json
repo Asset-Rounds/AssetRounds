@@ -486,5 +486,1013 @@
         "state.sign-detail.open-issue"
       ]
     }
-  ]
+  ],
+  "minimumVerification": {
+    "schemaVersion": 1,
+    "segmentEnvironmentKey": "CI_S10_4_MINIMUM_SEGMENT_ID",
+    "executionLane": "github-xcode-26.6-shared-build-acceptance",
+    "device": {
+      "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
+      "simulatorRuntime": "iOS 18.0",
+      "simulatorRuntimeBuild": "22A3351",
+      "simulatorName": "iPhone SE (3rd generation)",
+      "provisionRuntime": true,
+      "runtimeDownloadVersion": "18.0"
+    },
+    "profiles": [
+      {
+        "ordinal": 8,
+        "shardID": "s10.4.minimum.minimum-os",
+        "requirementID": "minimum_os",
+        "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
+        "accessibilityFeatures": [
+          "voiceover"
+        ],
+        "environment": {
+          "appearance": "light",
+          "contrast": "standard",
+          "contentSizeCategory": "UICTContentSizeCategoryL",
+          "locale": "en-US-release",
+          "layoutDirection": "left_to_right",
+          "differentiateWithoutColor": false,
+          "reduceMotion": false,
+          "reduceTransparency": false
+        }
+      },
+      {
+        "ordinal": 9,
+        "shardID": "s10.4.minimum.double-length",
+        "requirementID": "double_length",
+        "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
+        "accessibilityFeatures": [
+          "larger_text"
+        ],
+        "environment": {
+          "appearance": "light",
+          "contrast": "standard",
+          "contentSizeCategory": "UICTContentSizeCategoryAccessibilityXXXL",
+          "locale": "en-US-double-length",
+          "layoutDirection": "left_to_right",
+          "differentiateWithoutColor": false,
+          "reduceMotion": false,
+          "reduceTransparency": false
+        }
+      },
+      {
+        "ordinal": 10,
+        "shardID": "s10.4.minimum.rtl",
+        "requirementID": "rtl",
+        "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
+        "accessibilityFeatures": [
+          "dark_interface"
+        ],
+        "environment": {
+          "appearance": "dark",
+          "contrast": "standard",
+          "contentSizeCategory": "UICTContentSizeCategoryL",
+          "locale": "ar-RTL",
+          "layoutDirection": "right_to_left",
+          "differentiateWithoutColor": false,
+          "reduceMotion": false,
+          "reduceTransparency": false
+        }
+      },
+      {
+        "ordinal": 11,
+        "shardID": "s10.4.minimum.rtl-string",
+        "requirementID": "rtl_string",
+        "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
+        "accessibilityFeatures": [
+          "voice_control"
+        ],
+        "environment": {
+          "appearance": "light",
+          "contrast": "standard",
+          "contentSizeCategory": "UICTContentSizeCategoryL",
+          "locale": "ar-RTL-string",
+          "layoutDirection": "right_to_left",
+          "differentiateWithoutColor": false,
+          "reduceMotion": false,
+          "reduceTransparency": false
+        }
+      },
+      {
+        "ordinal": 12,
+        "shardID": "s10.4.minimum.tall",
+        "requirementID": "tall",
+        "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
+        "accessibilityFeatures": [
+          "reduced_motion"
+        ],
+        "environment": {
+          "appearance": "light",
+          "contrast": "standard",
+          "contentSizeCategory": "UICTContentSizeCategoryL",
+          "locale": "en-US-tall",
+          "layoutDirection": "left_to_right",
+          "differentiateWithoutColor": false,
+          "reduceMotion": true,
+          "reduceTransparency": false
+        }
+      },
+      {
+        "ordinal": 13,
+        "shardID": "s10.4.minimum.accented",
+        "requirementID": "accented",
+        "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
+        "accessibilityFeatures": [
+          "sufficient_contrast"
+        ],
+        "environment": {
+          "appearance": "light",
+          "contrast": "increased",
+          "contentSizeCategory": "UICTContentSizeCategoryL",
+          "locale": "en-US-accented",
+          "layoutDirection": "left_to_right",
+          "differentiateWithoutColor": false,
+          "reduceMotion": false,
+          "reduceTransparency": false
+        }
+      },
+      {
+        "ordinal": 14,
+        "shardID": "s10.4.minimum.bounded",
+        "requirementID": "bounded",
+        "deviceProfileID": "iphone-se-3-ios-18.0-minimum",
+        "accessibilityFeatures": [
+          "differentiate_without_color"
+        ],
+        "environment": {
+          "appearance": "light",
+          "contrast": "standard",
+          "contentSizeCategory": "UICTContentSizeCategoryL",
+          "locale": "en-US-bounded",
+          "layoutDirection": "left_to_right",
+          "differentiateWithoutColor": true,
+          "reduceMotion": false,
+          "reduceTransparency": false
+        }
+      }
+    ],
+    "segments": [
+      {
+        "segmentID": "minimum-segment-1",
+        "ordinal": 1,
+        "startOrdinal": 1,
+        "endOrdinal": 22,
+        "stateCount": 22,
+        "replayCount": 0,
+        "resumeMode": "none",
+        "dependencySegmentIDs": [],
+        "dependencyOwnedStateCount": 0,
+        "dependencyOwnedStateSHA256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+        "dependencyOwnedStateIDs": [],
+        "resumeSetup": null,
+        "ownedStateSHA256": "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
+        "replayStateSHA256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+        "ownedStateIDs": [
+          "state.pack.unavailable",
+          "state.welcome.empty",
+          "state.reports-index.empty",
+          "state.sample-report.ready",
+          "state.new-sign.editing",
+          "state.new-sign.validation-error",
+          "state.sign-detail.ready",
+          "state.sign-detail.delete-confirmation",
+          "state.check-preflight.ready",
+          "state.capture.wide-ready",
+          "state.capture.camera-denied",
+          "state.capture.low-storage-error",
+          "state.capture.wide-preview",
+          "state.capture.close-ready",
+          "state.capture.close-preview",
+          "state.check-outcome.visible-issue",
+          "state.check-review.visible-issue",
+          "state.receipt.report-saved",
+          "state.report-detail.ready",
+          "state.report-history.ready",
+          "state.reports-index.ready",
+          "state.sign-detail.open-issue"
+        ],
+        "replayStateIDs": [],
+        "journeyIDs": [
+          "initial-draft-relaunch",
+          "initial-check-report-open-issue"
+        ],
+        "nativeProofs": {
+          "purchaseProofCount": 0,
+          "pendingReceiptProofCount": 0,
+          "setupOnly": false
+        }
+      },
+      {
+        "segmentID": "minimum-segment-2",
+        "ordinal": 2,
+        "startOrdinal": 23,
+        "endOrdinal": 50,
+        "stateCount": 28,
+        "replayCount": 22,
+        "resumeMode": "route-replay",
+        "dependencySegmentIDs": [],
+        "dependencyOwnedStateCount": 0,
+        "dependencyOwnedStateSHA256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+        "dependencyOwnedStateIDs": [],
+        "resumeSetup": null,
+        "ownedStateSHA256": "AE2041547A2B421AE0C2424FE8BB25B2FE2901C4385F0009E65E406CAE25392B",
+        "replayStateSHA256": "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
+        "ownedStateIDs": [
+          "state.work.validation-error",
+          "state.work.editing",
+          "state.work.saving",
+          "state.issue.recheck-due",
+          "state.recheck-preflight.ready",
+          "state.recheck-capture.wide-ready",
+          "state.recheck-capture.wide-preview",
+          "state.recheck-capture.close-ready",
+          "state.recheck-capture.close-preview",
+          "state.recheck-outcome.resolved",
+          "state.recheck-review.resolved",
+          "state.recheck-receipt.saved",
+          "state.recheck-report-detail.ready",
+          "state.issue.resolved",
+          "state.check-outcome.no-visible-issue",
+          "state.check-review.no-visible-issue",
+          "state.paywall.available",
+          "state.paywall.purchase-complete",
+          "state.check-outcome.could-not-verify",
+          "state.check-review.could-not-verify",
+          "state.recheck-outcome.could-not-verify",
+          "state.recheck-review.could-not-verify",
+          "state.recheck-outcome.issue-still-visible",
+          "state.recheck-review.issue-still-visible",
+          "state.issue.open",
+          "state.recheck-outcome.different-issue",
+          "state.recheck-review.different-issue",
+          "state.issue.different-open"
+        ],
+        "replayStateIDs": [
+          "state.pack.unavailable",
+          "state.welcome.empty",
+          "state.reports-index.empty",
+          "state.sample-report.ready",
+          "state.new-sign.editing",
+          "state.new-sign.validation-error",
+          "state.sign-detail.ready",
+          "state.sign-detail.delete-confirmation",
+          "state.check-preflight.ready",
+          "state.capture.wide-ready",
+          "state.capture.camera-denied",
+          "state.capture.low-storage-error",
+          "state.capture.wide-preview",
+          "state.capture.close-ready",
+          "state.capture.close-preview",
+          "state.check-outcome.visible-issue",
+          "state.check-review.visible-issue",
+          "state.receipt.report-saved",
+          "state.report-detail.ready",
+          "state.report-history.ready",
+          "state.reports-index.ready",
+          "state.sign-detail.open-issue"
+        ],
+        "journeyIDs": [
+          "work-confirmed-recheck-saved",
+          "evaluation-blocked-purchase-close-continuation",
+          "alternative-recheck-issue-relationships"
+        ],
+        "nativeProofs": {
+          "purchaseProofCount": 1,
+          "pendingReceiptProofCount": 1,
+          "setupOnly": false
+        }
+      },
+      {
+        "segmentID": "minimum-segment-3",
+        "ordinal": 3,
+        "startOrdinal": 51,
+        "endOrdinal": 67,
+        "stateCount": 17,
+        "replayCount": 22,
+        "resumeMode": "local-replay-plus-ui-prerequisite",
+        "dependencySegmentIDs": [
+          "minimum-segment-1",
+          "minimum-segment-2"
+        ],
+        "dependencyOwnedStateCount": 50,
+        "dependencyOwnedStateSHA256": "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4",
+        "dependencyOwnedStateIDs": [
+          "state.pack.unavailable",
+          "state.welcome.empty",
+          "state.reports-index.empty",
+          "state.sample-report.ready",
+          "state.new-sign.editing",
+          "state.new-sign.validation-error",
+          "state.sign-detail.ready",
+          "state.sign-detail.delete-confirmation",
+          "state.check-preflight.ready",
+          "state.capture.wide-ready",
+          "state.capture.camera-denied",
+          "state.capture.low-storage-error",
+          "state.capture.wide-preview",
+          "state.capture.close-ready",
+          "state.capture.close-preview",
+          "state.check-outcome.visible-issue",
+          "state.check-review.visible-issue",
+          "state.receipt.report-saved",
+          "state.report-detail.ready",
+          "state.report-history.ready",
+          "state.reports-index.ready",
+          "state.sign-detail.open-issue",
+          "state.work.validation-error",
+          "state.work.editing",
+          "state.work.saving",
+          "state.issue.recheck-due",
+          "state.recheck-preflight.ready",
+          "state.recheck-capture.wide-ready",
+          "state.recheck-capture.wide-preview",
+          "state.recheck-capture.close-ready",
+          "state.recheck-capture.close-preview",
+          "state.recheck-outcome.resolved",
+          "state.recheck-review.resolved",
+          "state.recheck-receipt.saved",
+          "state.recheck-report-detail.ready",
+          "state.issue.resolved",
+          "state.check-outcome.no-visible-issue",
+          "state.check-review.no-visible-issue",
+          "state.paywall.available",
+          "state.paywall.purchase-complete",
+          "state.check-outcome.could-not-verify",
+          "state.check-review.could-not-verify",
+          "state.recheck-outcome.could-not-verify",
+          "state.recheck-review.could-not-verify",
+          "state.recheck-outcome.issue-still-visible",
+          "state.recheck-review.issue-still-visible",
+          "state.issue.open",
+          "state.recheck-outcome.different-issue",
+          "state.recheck-review.different-issue",
+          "state.issue.different-open"
+        ],
+        "resumeSetup": {
+          "setupID": "minimum-report-pdf-failed-v1",
+          "rowCount": 1,
+          "localReplayCount": 22,
+          "sourceOrdinal": 22,
+          "sourceStateID": "state.sign-detail.open-issue",
+          "skippedStartOrdinal": 23,
+          "skippedEndOrdinal": 50,
+          "targetOrdinal": 51,
+          "targetStateID": "state.report-pdf.failed",
+          "cursorBeforeResume": 22,
+          "cursorAfterResume": 50,
+          "dependencyOwnedStateSHA256": "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4",
+          "applicationForeground": true,
+          "purchaseVerified": true,
+          "pendingDifferentIssueReceiptVerified": true,
+          "reportFailureRouteVerified": true,
+          "renderFailureArgumentCount": 1,
+          "confirmedPreflightBranchVerified": true
+        },
+        "ownedStateSHA256": "F8E0BBF45D626938CE13FCE3FEC9232AE83F22B4E3BD2635854382CEF3686F83",
+        "replayStateSHA256": "8BB0F12120AD78E23B90091E70E8B8C98418A111B2328CE2411981D1AB40F1C3",
+        "ownedStateIDs": [
+          "state.report-pdf.failed",
+          "state.report-comparison.ready",
+          "state.report-correction.editing",
+          "state.report-correction.validation-error",
+          "state.report-correction.saving",
+          "state.report-correction.completed",
+          "state.paywall.unavailable",
+          "state.feedback.review-ready",
+          "state.settings.hub",
+          "state.backup.ready",
+          "state.diagnostics.ready",
+          "state.feedback.blocked",
+          "state.erase.confirmation",
+          "state.restore.choose-backup",
+          "state.subscription.active",
+          "state.sign-selection.ready",
+          "state.subscription.no-entitlement"
+        ],
+        "replayStateIDs": [
+          "state.pack.unavailable",
+          "state.welcome.empty",
+          "state.reports-index.empty",
+          "state.sample-report.ready",
+          "state.new-sign.editing",
+          "state.new-sign.validation-error",
+          "state.sign-detail.ready",
+          "state.sign-detail.delete-confirmation",
+          "state.check-preflight.ready",
+          "state.capture.wide-ready",
+          "state.capture.camera-denied",
+          "state.capture.low-storage-error",
+          "state.capture.wide-preview",
+          "state.capture.close-ready",
+          "state.capture.close-preview",
+          "state.check-outcome.visible-issue",
+          "state.check-review.visible-issue",
+          "state.receipt.report-saved",
+          "state.report-detail.ready",
+          "state.report-history.ready",
+          "state.reports-index.ready",
+          "state.sign-detail.open-issue"
+        ],
+        "journeyIDs": [
+          "report-failure-retry-comparison-correction",
+          "settings-commerce-backup-restore-erase"
+        ],
+        "nativeProofs": {
+          "purchaseProofCount": 2,
+          "pendingReceiptProofCount": 1,
+          "setupOnly": true
+        }
+      }
+    ],
+    "journeys": [
+      {
+        "journeyID": "initial-draft-relaunch",
+        "entryStateID": "state.capture.camera-denied",
+        "exitStateID": "state.capture.wide-ready",
+        "assertionIDs": [
+          "camera-denied-open-settings",
+          "cannot-complete-selected",
+          "terminate-launch-capture-restored",
+          "restored-wide-heading"
+        ]
+      },
+      {
+        "journeyID": "initial-check-report-open-issue",
+        "entryStateID": "state.pack.unavailable",
+        "exitStateID": "state.sign-detail.open-issue",
+        "assertionIDs": [
+          "first-sign-validation-creation",
+          "visible-issue-review-saved",
+          "receipt-saved-report-preview",
+          "history-index-return",
+          "relaunch-sign-detail-foreground"
+        ]
+      },
+      {
+        "journeyID": "work-confirmed-recheck-saved",
+        "entryStateID": "state.sign-detail.open-issue",
+        "exitStateID": "state.issue.resolved",
+        "assertionIDs": [
+          "work-validation-edit-save",
+          "issue-recheck-due",
+          "confirmed-recheck-begin",
+          "two-recheck-photo-previews",
+          "resolved-review-saved-receipt",
+          "recheck-report-preview",
+          "resolved-status-no-start-recheck",
+          "returned-sign-detail"
+        ]
+      },
+      {
+        "journeyID": "evaluation-blocked-purchase-close-continuation",
+        "entryStateID": "state.check-review.no-visible-issue",
+        "exitStateID": "state.paywall.purchase-complete",
+        "assertionIDs": [
+          "start-check-opened-paywall",
+          "subscribe-action-returned",
+          "exact-purchase-verified-entitlement",
+          "custom-close-returned-sign-detail",
+          "fresh-check-begin-capture"
+        ]
+      },
+      {
+        "journeyID": "alternative-recheck-issue-relationships",
+        "entryStateID": "state.check-outcome.could-not-verify",
+        "exitStateID": "state.issue.different-open",
+        "assertionIDs": [
+          "incomplete-check-saved",
+          "could-not-verify-recheck-saved",
+          "issue-still-visible-recheck-saved",
+          "different-issue-pending-receipt",
+          "original-resolved-action-opened",
+          "fresh-physical-damage-header"
+        ]
+      },
+      {
+        "journeyID": "report-failure-retry-comparison-correction",
+        "entryStateID": "state.report-pdf.failed",
+        "exitStateID": "state.report-correction.completed",
+        "assertionIDs": [
+          "pdf-failure-retry-returned-sign",
+          "comparison-opened",
+          "correction-validation-edit-save",
+          "corrected-report-opened",
+          "history-returned-sign"
+        ]
+      },
+      {
+        "journeyID": "settings-commerce-backup-restore-erase",
+        "entryStateID": "state.paywall.unavailable",
+        "exitStateID": "state.subscription.no-entitlement",
+        "assertionIDs": [
+          "unavailable-paywall-feedback-review",
+          "settings-backup-diagnostics-feedback",
+          "restore-choose-backup-sign-selection",
+          "subscription-status-restored",
+          "erase-confirmed-welcome-relaunch",
+          "restore-purchases-no-entitlement"
+        ]
+      }
+    ],
+    "setupWitnessIDs": [
+      "work-recheck-due",
+      "settings-purchase-entitlement",
+      "confirmed-different-recheck-pending-receipt",
+      "persisted-pdf-failure"
+    ],
+    "exceptionAuthorities": []
+  },
+  "sharedVerification": {
+    "schemaVersion": 1,
+    "contractID": "s10.4-shared-segment-matrix-v1",
+    "executionLane": "github-xcode-26.6-shared-build-acceptance",
+    "assemblyLane": "s10-4-shared-segment-assembly",
+    "allowedShardIDs": [
+      "s10.4.current.ax-text",
+      "s10.4.minimum.minimum-os",
+      "s10.4.minimum.double-length",
+      "s10.4.minimum.rtl",
+      "s10.4.minimum.rtl-string",
+      "s10.4.minimum.tall",
+      "s10.4.minimum.accented",
+      "s10.4.minimum.bounded"
+    ],
+    "matrixIdentityExclusions": [
+      "matrixID",
+      "selectedConsumers"
+    ],
+    "buildMode": "shared-test-without-building",
+    "localUnitExecutedTestCount": 0,
+    "producerUnitExecutedTestCount": 5,
+    "axExceptionSignatures": [
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.paywall.purchase-complete",
+        "taskID": "one_handed_start",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PAYWALL-PURCHASE-COMPLETE-NO-SYNC",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified no-sync disclosure whose frozen public frame starts 526.66666666666629 points above the application, is 745.33333333333303 points tall, and therefore exceeds the 704-point paywall Store viewport; the audit-owned crop visibly binds the issue to black text clipped beneath native Subscription/status chrome, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "s7.2.paywall.no-sync",
+            "elementLabel": "Inspection data and photos stay on this device and do not sync with the subscription. Use a data backup to move them to another device.",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": -526.6666666666663,
+              "width": 338,
+              "height": 745.333333333333
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.check-preflight.ready",
+        "taskID": "one_handed_start",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-BEFORE-YOU-BEGIN",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Before you begin while the frozen public node frame is bottom-clipped outside the 402x874 application frame in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "Before you begin",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 844.3333333333334,
+              "width": 231,
+              "height": 125.33333333333326
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.new-sign.editing",
+        "taskID": "one_handed_start",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-CUSTOMER-SITE-NAME",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for Customer / site name even though the audit-owned crop visibly renders black text on white and the public node is bound to the top navigation-region frame; the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "Customer / site name",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 19,
+              "width": 251.66666666666663,
+              "height": 116.66666666666663
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.report-history.ready",
+        "taskID": "report_comprehension",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-HISTORY-LOWER-NORTH-CAMPUS",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the lower North Campus label whose frozen public node frame intersects native bottom chrome after bounded positioning makes the header safe and hittable and moves the Visit composite below the application; an exact remaining positive ScrollView drag is unrecognized with zero measured header, lower-label, and Visit movement, while ReportsRootView already renders the label with primaryText; the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "North Campus",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 823.6666666666666,
+              "width": 329.3333333333333,
+              "height": 63.33333333333337
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.reports-index.ready",
+        "taskID": "report_comprehension",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-NORTH-CAMPUS",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index North Campus label whose frozen public frame intersects native bottom tab chrome even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "North Campus",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 775.3333333333334,
+              "width": 329.3333333333333,
+              "height": 63.33333333333326
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.reports-index.ready",
+        "taskID": "report_comprehension",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORTS-INDEX-VISIT",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the Reports-index Visit label whose frozen public frame begins inside native bottom tab chrome, extends below the 402x874 application frame, and is not hittable even though ReportsRootView already renders it with primaryText; the audit-owned crop confirms the issue is limited to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "Visit",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 850.6666666666666,
+              "width": 85.33333333333333,
+              "height": 51.333333333333485
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.check-preflight.ready",
+        "taskID": "one_handed_start",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-PREFLIGHT-TIME-ZONE-CONFIRMATION",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the I confirm this is the site's time zone label even though the audit-owned crop contains only the iOS keyboard and the frozen public node frame is fully keyboard-occluded in the AX-text preflight state; the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "I confirm this is the site's time zone.",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 547,
+              "width": 238.33333333333331,
+              "height": 249.33333333333337
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.sign-selection.ready",
+        "taskID": "one_handed_start",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-SIGN-SELECTION-MONUMENT-SIGN",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Monument Sign label whose frozen public frame begins below the native tab-safe viewport and is not hittable; the live sign-selection context proves the first sign row remains visible and selectable while the second row is below native tab chrome, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "Monument Sign",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 803.3333333333334,
+              "width": 268,
+              "height": 125.33333333333326
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.work.validation-error",
+        "taskID": "work_and_recheck",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-WORK-VALIDATION-SHORT-DESCRIPTION",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Short description field label whose frozen public frame intersects native Record work navigation chrome and is not hittable, while the separate identified Short description validation node is fully visible, hittable, and rendered with primaryText; the audit-owned crop confirms the issue is limited to that chrome-overlapped composition, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "Short description",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 29.333333333333332,
+              "y": 36.666666666666686,
+              "width": 333.66666666666663,
+              "height": 51.333333333333314
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.issue.open",
+        "taskID": "work_and_recheck",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-OPEN-WORK-DESCRIPTION",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Replaced damaged component value whose frozen public frame begins inside native bottom tab chrome and extends below the 402x874 application frame in the AX-text issue-open state; the exact unfiltered audit callback and audit-owned crop bind the issue to that chrome-clipped composition, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "Replaced damaged component",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 813.6666666666666,
+              "width": 256.3333333333333,
+              "height": 187.33333333333337
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.issue.recheck-due",
+        "taskID": "work_and_recheck",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RECHECK-DUE-SECTION-APPEARS-DARK",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Section appears dark header whose frozen public frame intersects the native Recheck due navigation material in the AX-text issue-recheck-due state even though IssueDetailView renders it with primaryText; exact live geometry proves no rigid ScrollView shift can simultaneously place that header and the required Start recheck and saved-work composition clear of native top and bottom chrome, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "s5.1.issue.header",
+            "elementLabel": "Section appears dark",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 42.66666666666666,
+              "width": 330,
+              "height": 141.66666666666669
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.issue.resolved",
+        "taskID": "work_and_recheck",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-ISSUE-RESOLVED-WORK-DESCRIPTION",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier Replaced failed power supply value whose frozen public frame is wholly inside the application but overlaps 14.7375488281249 points of native bottom tab chrome in the AX-text issue-resolved state; the audit-owned crop and serialized tree bind the issue to that exact native-chrome composition, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "Replaced failed power supply",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 618.4042154947915,
+              "width": 284,
+              "height": 187.33333333333337
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.recheck-preflight.ready",
+        "taskID": "work_and_recheck",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-PREFLIGHT-SAFE-POSITION-CONFIRMATION",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the empty-identifier safe-position confirmation whose frozen public frame extends below the native tab-safe viewport in the AX-text recheck-preflight state; exact live geometry proves its ordered composition with Before you begin spans 896 points and cannot fit within the 643-point navigation/tab-safe interval, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "",
+            "elementLabel": "I am in a safe, authorized position to take these photos.",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 763,
+              "width": 249,
+              "height": 373.33333333333326
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.recheck-capture.wide-ready",
+        "taskID": "work_and_recheck",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-RECHECK-CAPTURE-WIDE-READY-CANNOT-COMPLETE",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified Cannot complete button whose frozen public frame begins in the final 4.33333333333337 points of the 874-point application viewport and extends almost entirely below it in the AX-text recheck-capture wide-ready state; the live capture composition already places Take photo and Choose from Photos above it while Import test photo continues below it, so the required ordered controls cannot fit simultaneously within the visible application composition under rigid translation, and the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "s3.capture.cannot-complete",
+            "elementLabel": "Cannot complete",
+            "elementType": "XCUIElementType(rawValue: 9)",
+            "elementFrame": {
+              "x": 28,
+              "y": 869.6666666666666,
+              "width": 254,
+              "height": 125.33333333333337
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      },
+      {
+        "shardID": "s10.4.current.ax-text",
+        "stateID": "state.report-correction.validation-error",
+        "taskID": "report_comprehension",
+        "exceptionIssueID": "S10.4-XCUI-CONTRAST-FP-AX-TEXT-REPORT-CORRECTION-COUNT",
+        "exceptionOwner": "palatis3",
+        "exceptionExpiresAt": "2026-11-20",
+        "exceptionRationale": "Xcode 26.6/iOS 26.2 reports a SwiftUI.AccessibilityNode contrast issue for the identified 0 of 1,000 characters count whose audit-owned crop visibly renders black primary text partially under blurred native Correct report navigation material at y 62 with height 54; exact live geometry requires a downward shift of at least 59.418619791666742 points to clear navigation maxY 116, while Save maxY 523 and inputView minY 539 leave only 16 points, so the simultaneous feasible interval is empty and no rigid ScrollView shift can preserve the validation, Save, keyboard, and inputView composition; the exception is limited to the frozen public issue signature.",
+        "ignoredAuditIssues": [
+          {
+            "auditTypeRawValue": "1",
+            "compactDescription": "Contrast failed",
+            "detailedDescription": "Contrast failed for SwiftUI.AccessibilityNode",
+            "elementIdentifier": "s4.5.correction.count",
+            "elementLabel": "0 of 1,000 characters",
+            "elementType": "XCUIElementType(rawValue: 48)",
+            "elementFrame": {
+              "x": 32,
+              "y": 56.58138020833326,
+              "width": 198,
+              "height": 102.33333333333326
+            },
+            "applicationFrame": {
+              "x": 0,
+              "y": 0,
+              "width": 402,
+              "height": 874
+            }
+          }
+        ]
+      }
+    ]
+  }
 }

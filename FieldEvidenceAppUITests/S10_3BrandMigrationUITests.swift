@@ -107,6 +107,239 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         AutomationShard(ordinal: 14, shardID: "s10.4.minimum.bounded", requirementID: "bounded", deviceProfileID: "iphone-se-3-ios-18.0-minimum", accessibilityFeature: "differentiate_without_color", appearance: "light", contrast: "standard", contentSizeCategory: "UICTContentSizeCategoryL", locale: "en-US-bounded", layoutDirection: "left_to_right", differentiateWithoutColor: true, reduceMotion: false, reduceTransparency: false),
     ]
 
+    private enum MinimumSegment: String {
+        case segment1 = "minimum-segment-1"
+        case segment2 = "minimum-segment-2"
+        case segment3 = "minimum-segment-3"
+
+        static let environmentKeys: Set<String> = [
+            "CI_S10_4_MINIMUM_SEGMENT_ID", "CI_S10_4_MINIMUM_SEGMENT_HEAD",
+            "CI_S10_4_MINIMUM_SEGMENT_REF", "CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE",
+        ]
+        var route: AutomationSegment {
+            switch self {
+            case .segment1: return .segment1
+            case .segment2: return .segment2
+            case .segment3: return .segment3
+            }
+        }
+        var journeyIDs: [String] {
+            switch self {
+            case .segment1: return ["initial-draft-relaunch", "initial-check-report-open-issue"]
+            case .segment2: return ["work-confirmed-recheck-saved", "evaluation-blocked-purchase-close-continuation", "alternative-recheck-issue-relationships"]
+            case .segment3: return ["report-failure-retry-comparison-correction", "settings-commerce-backup-restore-erase"]
+            }
+        }
+    }
+
+    private static let minimumJourneyContracts: [String: (entry: String, exit: String, assertions: [String])] = [
+        "initial-draft-relaunch": ("state.capture.camera-denied", "state.capture.wide-ready", [
+            "camera-denied-open-settings", "cannot-complete-selected", "terminate-launch-capture-restored", "restored-wide-heading",
+        ]),
+        "initial-check-report-open-issue": ("state.pack.unavailable", "state.sign-detail.open-issue", [
+            "first-sign-validation-creation", "visible-issue-review-saved", "receipt-saved-report-preview", "history-index-return", "relaunch-sign-detail-foreground",
+        ]),
+        "work-confirmed-recheck-saved": ("state.sign-detail.open-issue", "state.issue.resolved", [
+            "work-validation-edit-save", "issue-recheck-due", "confirmed-recheck-begin", "two-recheck-photo-previews", "resolved-review-saved-receipt", "recheck-report-preview", "resolved-status-no-start-recheck", "returned-sign-detail",
+        ]),
+        "evaluation-blocked-purchase-close-continuation": ("state.check-review.no-visible-issue", "state.paywall.purchase-complete", [
+            "start-check-opened-paywall", "subscribe-action-returned", "exact-purchase-verified-entitlement", "custom-close-returned-sign-detail", "fresh-check-begin-capture",
+        ]),
+        "alternative-recheck-issue-relationships": ("state.check-outcome.could-not-verify", "state.issue.different-open", [
+            "incomplete-check-saved", "could-not-verify-recheck-saved", "issue-still-visible-recheck-saved", "different-issue-pending-receipt", "original-resolved-action-opened", "fresh-physical-damage-header",
+        ]),
+        "report-failure-retry-comparison-correction": ("state.report-pdf.failed", "state.report-correction.completed", [
+            "pdf-failure-retry-returned-sign", "comparison-opened", "correction-validation-edit-save", "corrected-report-opened", "history-returned-sign",
+        ]),
+        "settings-commerce-backup-restore-erase": ("state.paywall.unavailable", "state.subscription.no-entitlement", [
+            "unavailable-paywall-feedback-review", "settings-backup-diagnostics-feedback", "restore-choose-backup-sign-selection", "subscription-status-restored", "erase-confirmed-welcome-relaunch", "restore-purchases-no-entitlement",
+        ]),
+    ]
+
+    private func minimumExpectedOwnedPrefix(_ count: Int) -> [String] {
+        guard let minimumSegment else { return Array(Self.segmentedRouteStateIDs.prefix(count)) }
+        let start = minimumSegment.route.ownedStartOrdinal - 1
+        return count > start ? Array(Self.segmentedRouteStateIDs[start..<count]) : []
+    }
+
+    private func minimumPreparationReplayIsValid(_ count: Int) -> Bool {
+        guard let minimumSegment else { return true }
+        return segmentedRouteStateCursor == count
+            && minimumReplayStateIDs == Array(Self.segmentedRouteStateIDs.prefix(min(count, minimumSegment.route.replayCount)))
+            && (count <= minimumSegment.route.replayCount || count >= minimumSegment.route.ownedStartOrdinal - 1)
+    }
+
+    private func emitMinimumRow(_ kind: String, fields: [String: Any]) {
+        guard let minimumSegment, let shard = automationShard else { return }
+        var row: [String: Any] = [
+            "schemaVersion": 1, "acceptanceEligible": false,
+            "shardID": shard.shardID, "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID, "segmentID": minimumSegment.rawValue,
+            "head": minimumSegmentHead, "ref": "refs/heads/phase/s10-brand-refresh",
+            "ownedStartOrdinal": minimumSegment.route.ownedStartOrdinal,
+            "ownedCount": minimumSegment.route.ownedCount,
+            "finalOrdinal": minimumSegment.route.finalOrdinal,
+            "replayCount": minimumSegment.route.replayCount,
+            "elapsedSeconds": Date().timeIntervalSince(minimumStartedAt),
+        ]
+        row.merge(fields) { _, incoming in incoming }
+        printJSONLine(prefix: "S10_4_MINIMUM_SEGMENT_" + kind, object: row)
+    }
+
+    private func recordMinimumJourney(_ journeyID: String) {
+        guard let minimumSegment else { return }
+        guard let contract = Self.minimumJourneyContracts[journeyID] else {
+            XCTFail("Unknown minimum native journey")
+            return
+        }
+        let setupOnly = !minimumSegment.journeyIDs.contains(journeyID)
+        if setupOnly {
+            guard minimumSegment != .segment1,
+                  MinimumSegment.segment1.journeyIDs.contains(journeyID),
+                  segmentedRouteStateCursor <= 22 else {
+                XCTFail("Unexpected minimum setup journey")
+                return
+            }
+        } else {
+            guard minimumJourneyIDs.count < minimumSegment.journeyIDs.count,
+                  minimumSegment.journeyIDs[minimumJourneyIDs.count] == journeyID else {
+                XCTFail("Minimum native journeys are duplicate or out of order")
+                return
+            }
+            minimumJourneyIDs.append(journeyID)
+        }
+        emitMinimumRow("JOURNEY", fields: [
+            "journeyID": journeyID, "entryStateID": contract.entry,
+            "exitStateID": contract.exit, "assertionIDs": contract.assertions,
+            "completed": true, "setupOnly": setupOnly,
+            "sequence": setupOnly ? MinimumSegment.segment1.journeyIDs.firstIndex(of: journeyID)! + 1 : minimumJourneyIDs.count,
+        ])
+    }
+
+    private func recordMinimumSetup(_ witnessID: String) {
+        guard minimumSegment == .segment3 else { return }
+        let expected = ["work-recheck-due", "settings-purchase-entitlement", "confirmed-different-recheck-pending-receipt", "persisted-pdf-failure"]
+        guard minimumSetupWitnessIDs.count < expected.count,
+              expected[minimumSetupWitnessIDs.count] == witnessID else {
+            XCTFail("Minimum resume witnesses are duplicate or out of order")
+            return
+        }
+        minimumSetupWitnessIDs.append(witnessID)
+        emitMinimumRow("SETUP_WITNESS", fields: [
+            "witnessID": witnessID, "sequence": minimumSetupWitnessIDs.count,
+            "setupOnly": true, "completed": true,
+        ])
+    }
+
+    @MainActor
+    private func captureMinimumPrefixIfNeeded(
+        _ stateID: String, in app: XCUIApplication,
+        file: StaticString, line: UInt
+    ) -> Bool {
+        guard let minimumSegment else { return false }
+        guard !automatedSegmentFinished, app.state == .runningForeground,
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              segmentedRouteStateCursor < minimumSegment.route.finalOrdinal,
+              Self.segmentedRouteStateIDs[segmentedRouteStateCursor] == stateID else {
+            XCTFail("Minimum segment capture is outside the exact ordered foreground route", file: file, line: line)
+            return true
+        }
+        segmentedRouteStateCursor += 1
+        if segmentedRouteStateCursor <= minimumSegment.route.replayCount {
+            guard migratedStateIDs.isEmpty, automationAXTreeDigests.isEmpty,
+                  automationContrastExceptions.isEmpty else {
+                XCTFail("Minimum setup contaminated owned evidence", file: file, line: line)
+                return true
+            }
+            minimumReplayStateIDs.append(stateID)
+            emitMinimumRow("REPLAY", fields: [
+                "ordinal": segmentedRouteStateCursor, "stateID": stateID,
+                "setupOnly": true,
+            ])
+            return true
+        }
+        guard segmentedRouteStateCursor >= minimumSegment.route.ownedStartOrdinal else {
+            XCTFail("Minimum segment entered the skipped historical interval", file: file, line: line)
+            return true
+        }
+        return false
+    }
+
+    @MainActor
+    private func finishMinimumSegmentIfNeeded(
+        after ordinal: Int, in app: XCUIApplication,
+        file: StaticString, line: UInt
+    ) -> Bool {
+        guard let minimumSegment, ordinal == minimumSegment.route.finalOrdinal else { return false }
+        automatedSegmentFinished = true
+        let owned = Array(Self.segmentedRouteStateIDs[(minimumSegment.route.ownedStartOrdinal - 1)..<ordinal])
+        let replay = Array(Self.segmentedRouteStateIDs.prefix(minimumSegment.route.replayCount))
+        let omitted = minimumSegment == .segment3 ? Array(Self.segmentedRouteStateIDs[22..<50]) : []
+        guard automationSegment == .none, diagnosticProbe == nil,
+              (!usesPseudolanguage || pseudoLabelSentinelValidated),
+              app.state == .runningForeground, segmentedRouteStateCursor == ordinal,
+              owned.count == minimumSegment.route.ownedCount,
+              migratedStateIDs == owned, Set(automationAXTreeDigests.keys) == Set(owned),
+              automationContrastExceptions.isEmpty,
+              minimumReplayStateIDs == replay,
+              minimumJourneyIDs == minimumSegment.journeyIDs,
+              (minimumSegment != .segment3 || (minimumConfirmedPreflight && minimumSetupWitnessIDs == ["work-recheck-due", "settings-purchase-entitlement", "confirmed-different-recheck-pending-receipt", "persisted-pdf-failure"])) else {
+            XCTFail("Minimum segment lacks exact owned, replay, native journey or resume evidence", file: file, line: line)
+            return true
+        }
+        emitMinimumRow("RESULT", fields: [
+            "result": "PASS", "ownedStateIDs": owned, "replayedStateIDs": replay,
+            "omittedHistoricalStateIDs": omitted, "completedJourneyWitnessIDs": minimumJourneyIDs,
+            "completedSetupWitnessIDs": minimumSetupWitnessIDs,
+        ])
+        let terminal = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        terminal.name = "S10.4 minimum segment terminal \(minimumSegment.rawValue)"
+        terminal.lifetime = .keepAlways
+        add(terminal)
+        return true
+    }
+
+    private func minimumSemanticLabel(_ observed: String, equals release: String) -> Bool {
+        guard minimumSegment != nil, let shard = automationShard,
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else { return false }
+        switch shard.locale {
+        case "en-US-release", "ar-RTL": return observed == release
+        case "en-US-double-length": return observed == release + " " + release
+        case "ar-RTL-string": return observed == "\u{202E}" + release + "\u{202C}"
+        case "en-US-bounded": return observed == "[# " + release + " #]"
+        case "en-US-tall":
+            let marker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
+            return observed == marker + release.components(separatedBy: " ").joined(separator: " " + marker + " ") + marker
+        case "en-US-accented":
+            let scalars = observed.decomposedStringWithCanonicalMapping.unicodeScalars.filter {
+                !CharacterSet.nonBaseCharacters.contains($0)
+            }
+            return String(String.UnicodeScalarView(scalars)) == release
+        default: return false
+        }
+    }
+
+    @MainActor
+    private func verifiedMinimumPurchaseState(in app: XCUIApplication) -> Bool {
+        let states = app.descendants(matching: .any).matching(identifier: "s7.2.paywall.purchase-state")
+        let state = states.firstMatch
+        let complete = "Complete: Purchase verified. Subscription access is ready."
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            state.exists && minimumSemanticLabel(state.label, equals: complete)
+        }, object: state)
+        guard XCTWaiter.wait(for: [expectation], timeout: 45) == .completed,
+              states.count == 1, state.exists,
+              minimumSemanticLabel(state.label, equals: complete),
+              (state.value as? String ?? "").isEmpty else { return false }
+        emitMinimumRow("PURCHASE_PROOF", fields: [
+            "setupOnly": minimumSegment == .segment3,
+            "identifier": state.identifier, "actualLabel": state.label,
+            "semanticReleaseLabel": complete, "completed": true,
+        ])
+        return true
+    }
+
     private enum AutomationSegment: String {
         case none
         case segment1 = "segment-1"
@@ -779,6 +1012,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var automationAXTreeDigests: [String: String] = [:]
     private var automationContrastExceptions: [String: [ContrastAuditExceptionSignature]] = [:]
     private var pseudoLabelSentinelValidated = false
+    private var minimumSegment: MinimumSegment?
+    private var minimumSegmentHead = ""
+    private var minimumReplayStateIDs: [String] = []
+    private var minimumJourneyIDs: [String] = []
+    private var minimumSetupWitnessIDs: [String] = []
+    private var minimumConfirmedPreflight = false
+    private var minimumStartedAt = Date()
     private var automationSegment = AutomationSegment.none
     private var segmentedRouteStateCursor = 0
     private var automatedSegmentFinished = false
@@ -788,6 +1028,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        if !(self is S10_4AutomatedBrandLabUITests) {
+            let environment = ProcessInfo.processInfo.environment
+            guard MinimumSegment.environmentKeys.allSatisfy({ environment[$0] == nil }) else {
+                throw AutomationConfigurationError.invalid("Minimum segment keys require the automated brand lab selector")
+            }
+        }
         if !(self is S10_4DevelopmentProbeUITests) {
             let environment = ProcessInfo.processInfo.environment
             guard DiagnosticProbe.environmentKeys.allSatisfy({ environment[$0] == nil }) else {
@@ -865,6 +1111,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "Focused diagnostics require the frozen minimum shard and no segment"
             )
         }
+        let minimumKeys = MinimumSegment.environmentKeys
+        let hasMinimumKeys = minimumKeys.contains { environment[$0] != nil }
+        var configuredMinimumSegment: MinimumSegment?
+        if hasMinimumKeys {
+            guard diagnosticProbe == nil, segment == .none,
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  (8...14).contains(shard.ordinal),
+                  let rawID = environment["CI_S10_4_MINIMUM_SEGMENT_ID"],
+                  let selected = MinimumSegment(rawValue: rawID),
+                  let head = environment["CI_S10_4_MINIMUM_SEGMENT_HEAD"],
+                  head.count == 40,
+                  head.allSatisfy({ ("0"..."9").contains($0) || ("a"..."f").contains($0) }),
+                  environment["CI_S10_4_MINIMUM_SEGMENT_REF"] == "refs/heads/phase/s10-brand-refresh",
+                  environment["CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE"] == "github-xcode-26.6-shared-build-acceptance" else {
+                throw AutomationConfigurationError.invalid("Minimum segments require the complete closed GitHub minimum tuple")
+            }
+            configuredMinimumSegment = selected
+        }
         var expectedEnvironment = shard.expectedEnvironment
         expectedEnvironment["CI_S10_4_SEGMENT_ID"] = segment.rawValue
         if let diagnosticProbe {
@@ -878,6 +1142,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             expectedEnvironment["CI_S10_4_HEAD"] = environment["CI_S10_4_HEAD"] ?? ""
             expectedEnvironment["CI_S10_4_REF"] =
                 "refs/heads/phase/s10-brand-refresh"
+        }
+        if let configuredMinimumSegment {
+            expectedEnvironment["CI_S10_4_MINIMUM_SEGMENT_ID"] = configuredMinimumSegment.rawValue
+            expectedEnvironment["CI_S10_4_MINIMUM_SEGMENT_HEAD"] = environment["CI_S10_4_MINIMUM_SEGMENT_HEAD"]!
+            expectedEnvironment["CI_S10_4_MINIMUM_SEGMENT_REF"] = "refs/heads/phase/s10-brand-refresh"
+            expectedEnvironment["CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE"] = "github-xcode-26.6-shared-build-acceptance"
         }
         let observed = Dictionary(uniqueKeysWithValues: environment
             .filter { $0.key.hasPrefix("CI_S10_4_") }
@@ -905,6 +1175,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "Resolved Simulator runtime/build/name/UDID does not match the shard profile"
             )
         }
+        minimumSegment = configuredMinimumSegment
+        minimumSegmentHead = environment["CI_S10_4_MINIMUM_SEGMENT_HEAD"] ?? ""
+        minimumReplayStateIDs.removeAll()
+        minimumJourneyIDs.removeAll()
+        minimumSetupWitnessIDs.removeAll()
+        minimumConfirmedPreflight = false
+        minimumStartedAt = Date()
         automationShard = shard
         automationSegment = segment
         self.diagnosticProbe = diagnosticProbe
@@ -934,6 +1211,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     func runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {
+        if minimumSegment != nil {
+            emitMinimumRow("START", fields: ["acceptanceEligible": false])
+        }
         let fixtureURL = try XCTUnwrap(Bundle(for: Self.self).url(
             forResource: "FieldEvidence",
             withExtension: "storekit"
@@ -6661,6 +6941,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
         }
         captureBaseline("state.sign-detail.open-issue", in: app)
+        recordMinimumJourney("initial-check-report-open-issue")
         if finishAutomatedSegmentIfNeeded(after: 22, in: app) { return }
         if try prepareSegment3ResumeAtReportFailureIfNeeded(in: app) {
             segment3ResumePrepared = true
@@ -8716,6 +8997,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 )
             }
         }
+        if minimumSegment == .segment2 {
+            guard app.descendants(matching: .any).matching(identifier: "s3.preflight.screen").count == 1,
+                  app.descendants(matching: .any).matching(identifier: "s3.preflight.time-zone").count == 0,
+                  app.descendants(matching: .any).matching(identifier: "s3.preflight.time-zone-confirmed").count == 0 else {
+                throw AutomationConfigurationError.invalid("Minimum work journey did not use the persisted confirmed preflight")
+            }
+        }
         captureBaseline("state.recheck-preflight.ready", in: app)
         setToggle("s3.preflight.after-dark", in: app)
         app.swipeUp()
@@ -8805,6 +9093,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         captureBaseline("state.issue.resolved", in: app)
         navigateBack(in: app)
         XCTAssertTrue(signDetail.waitForExistence(timeout: 20))
+        recordMinimumJourney("work-confirmed-recheck-saved")
     }
 
     @MainActor
@@ -8918,6 +9207,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 20))
         beginFreshCheck(in: app)
+        recordMinimumJourney("evaluation-blocked-purchase-close-continuation")
     }
 
     @MainActor
@@ -9018,7 +9308,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(description.waitForExistence(timeout: 20))
         scroll(description, in: app)
         description.tap()
+        if minimumSegment == .segment3 {
+            guard element("s5.1.work.screen", in: app).exists else {
+                XCTFail("Minimum resume Work input route is absent")
+                return
+            }
+        }
         description.typeText("Replaced damaged component")
+        if minimumSegment == .segment3 {
+            guard (description.value as? String) == "Replaced damaged component" else {
+                XCTFail("Minimum resume Work description did not retain its public input")
+                return
+            }
+        }
         dismissMultilineKeyboard(
             afterEditing: description,
             on: element("s5.1.work.screen", in: app),
@@ -9094,6 +9396,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private func prepareSegment3ResumeAtReportFailureIfNeeded(
         in app: XCUIApplication
     ) throws -> Bool {
+        if minimumSegment == .segment3 {
+            return try prepareMinimumSegment3Resume(in: app)
+        }
         guard automationSegment == .segment3 else { return false }
         guard let shard = automationShard,
               shard.shardID == "s10.4.current.ax-text",
@@ -9277,6 +9582,258 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     }
 
     @MainActor
+    private func purchaseMinimumSubscriptionWithoutBaseline(
+        in app: XCUIApplication
+    ) throws {
+        let settings = element("s1.settings.button", in: app)
+        assertControl(settings, label: "Settings")
+        settings.tap()
+        guard element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume could not open Settings for purchase setup"
+            )
+        }
+        let paywall = element("s7.2.settings.paywall", in: app)
+        scroll(paywall, in: app)
+        assertControl(paywall, label: "View subscription")
+        paywall.tap()
+        guard element("s7.2.paywall.screen", in: app)
+            .waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume could not open the purchase route"
+            )
+        }
+        _ = captureAvailablePaywallAndPurchase(
+            emitsEvidence: false,
+            in: app
+        )
+        guard verifiedMinimumPurchaseState(in: app) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not verify the purchase prerequisite"
+            )
+        }
+        let close = element("s7.2.paywall.close", in: app)
+        scrollDown(close, in: app)
+        assertControl(close, label: "Close")
+        close.tap()
+        guard element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not return to Settings after purchase"
+            )
+        }
+        navigateBack(in: app)
+        guard element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not return to Sign detail after purchase"
+            )
+        }
+    }
+
+    @MainActor
+    private func prepareMinimumSegment3Resume(
+        in app: XCUIApplication
+    ) throws -> Bool {
+        guard minimumSegment == .segment3 else { return false }
+        guard let shard = automationShard,
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+              (8...14).contains(shard.ordinal),
+              Self.segmentedRouteStateIDs.count == 67,
+              Set(Self.segmentedRouteStateIDs).count == 67,
+              minimumSegment!.route.replayCount == 22,
+              minimumSegment!.route.ownedStartOrdinal == 51,
+              minimumSegment!.route.ownedCount == 17,
+              minimumSegment!.route.finalOrdinal == 67,
+              segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              automationAXTreeDigests.isEmpty,
+              automationContrastExceptions.isEmpty,
+              !automatedSegmentFinished,
+              app.state == .runningForeground,
+              app.descendants(matching: .any)
+                .matching(identifier: "s2.sign-detail.screen").count == 1,
+              app.descendants(matching: .any)
+                .matching(identifier: "s5.1.sign-detail.record-work").count == 1,
+              !app.launchArguments.contains(
+                "--s4-2-ui-test-render-failure-once"
+              ) else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not begin at the exact state-22 boundary"
+            )
+        }
+
+        recordWorkWithoutBaseline(in: app)
+        guard segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              app.state == .runningForeground,
+              app.descendants(matching: .any)
+                .matching(identifier: "s2.sign-detail.screen").count == 1,
+              app.descendants(matching: .any)
+                .matching(identifier: "s5.1.sign-detail.recheck-due").count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not create the recheck-due prerequisite"
+            )
+        }
+
+        recordMinimumSetup("work-recheck-due")
+        try purchaseMinimumSubscriptionWithoutBaseline(in: app)
+        guard segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              app.state == .runningForeground,
+              app.descendants(matching: .any)
+                .matching(identifier: "s2.sign-detail.screen").count == 1,
+              app.descendants(matching: .any)
+                .matching(identifier: "s5.1.sign-detail.recheck-due").count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume purchase changed the recheck-due route"
+            )
+        }
+
+        recordMinimumSetup("settings-purchase-entitlement")
+        app.terminate()
+        app.launchArguments.append("--s4-2-ui-test-render-failure-once")
+        guard app.launchArguments.filter({
+            $0 == "--s4-2-ui-test-render-failure-once"
+        }).count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume render-failure argument is not unique"
+            )
+        }
+        app.launch()
+        guard element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 30),
+              app.state == .runningForeground,
+              segmentedRouteStateCursor == 22 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not relaunch the recheck-due route"
+            )
+        }
+        let pendingDifferentIssueReceiptVerified = try performAlternativeRecheck(
+            .differentIssue,
+            leavesPendingReceipt: true,
+            emitsEvidence: false,
+            in: app
+        )
+
+        let signDetailScreens = app.descendants(matching: .any)
+            .matching(identifier: "s2.sign-detail.screen")
+        let resolvedIssueActions = app.descendants(matching: .any)
+            .matching(identifier: "s5.2.sign-detail.resolved")
+        let recheckDueActions = app.descendants(matching: .any)
+            .matching(identifier: "s5.1.sign-detail.recheck-due")
+        guard segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              automationAXTreeDigests.isEmpty,
+              automationContrastExceptions.isEmpty,
+              pendingDifferentIssueReceiptVerified,
+              minimumConfirmedPreflight,
+              app.state == .runningForeground,
+              signDetailScreens.count == 1,
+              signDetailScreens.firstMatch.exists,
+              signDetailScreens.firstMatch.elementType == .scrollView,
+              signDetailScreens.firstMatch.identifier == "s2.sign-detail.screen",
+              resolvedIssueActions.count == 1,
+              resolvedIssueActions.firstMatch.exists,
+              resolvedIssueActions.firstMatch.isEnabled,
+              minimumSemanticLabel(resolvedIssueActions.firstMatch.label, equals: "Resolved"),
+              recheckDueActions.count == 0 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not prove the pending different-issue receipt route"
+            )
+        }
+
+        let resolvedActionActualLabel = resolvedIssueActions.firstMatch.label
+        recordMinimumSetup("confirmed-different-recheck-pending-receipt")
+        let resumedStateIDs = Array(Self.segmentedRouteStateIDs[22..<50])
+        let dependencyStateIDs = Array(Self.segmentedRouteStateIDs.prefix(50))
+        let dependencyOwnedStateSHA256 = SHA256.hash(
+            data: Data(dependencyStateIDs.joined(separator: "\n").utf8)
+        ).map { String(format: "%02X", $0) }.joined()
+        guard resumedStateIDs.count == 28,
+              Set(resumedStateIDs).count == 28,
+              resumedStateIDs.first == "state.work.validation-error",
+              resumedStateIDs.last == "state.issue.different-open",
+              dependencyStateIDs.count == 50,
+              Set(dependencyStateIDs).count == 50,
+              dependencyOwnedStateSHA256
+                == "80397ABF11A3622661E301900B7A23D0398FBF292CEEE29E1E9FA1E7A8EDA0A4" else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume state closure differs from the frozen inventory"
+            )
+        }
+        app.terminate()
+        app.launch()
+        let failureScreens = app.descendants(matching: .any)
+            .matching(identifier: "s4.pdf-failure.screen")
+        let failureHeadlines = app.descendants(matching: .any)
+            .matching(identifier: "s4.pdf-failure.headline")
+        let failureRetries = app.descendants(matching: .any)
+            .matching(identifier: "s4.pdf-failure.retry")
+        guard failureScreens.firstMatch.waitForExistence(timeout: 30),
+              failureScreens.count == 1,
+              failureScreens.firstMatch.identifier == "s4.pdf-failure.screen",
+              failureHeadlines.count == 1,
+              failureHeadlines.firstMatch.exists,
+              minimumSemanticLabel(failureHeadlines.firstMatch.label, equals: "This report was saved, but its PDF is not available."),
+              failureRetries.count == 1,
+              failureRetries.firstMatch.exists,
+              failureRetries.firstMatch.isEnabled,
+              minimumSemanticLabel(failureRetries.firstMatch.label, equals: "Retry report"),
+              segmentedRouteStateCursor == 22,
+              migratedStateIDs.isEmpty,
+              app.launchArguments.filter({
+                $0 == "--s4-2-ui-test-render-failure-once"
+              }).count == 1,
+              app.state == .runningForeground else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume did not reach the report-failure route"
+            )
+        }
+        recordMinimumSetup("persisted-pdf-failure")
+        printJSONLine(prefix: "S10_4_MINIMUM_SEGMENT_RESUME_SETUP", object: [
+            "schemaVersion": 1,
+            "acceptanceEligible": false,
+            "shardID": shard.shardID,
+            "segmentID": minimumSegment!.rawValue,
+            "head": minimumSegmentHead,
+            "ref": "refs/heads/phase/s10-brand-refresh",
+            "requirementID": shard.requirementID,
+            "deviceProfileID": shard.deviceProfileID,
+            "setupOnly": true,
+            "confirmedPreflightBranchVerified": minimumConfirmedPreflight,
+            "resolvedActionActualLabel": resolvedActionActualLabel,
+            "reportFailureHeadlineActualLabel": failureHeadlines.firstMatch.label,
+            "reportFailureRetryActualLabel": failureRetries.firstMatch.label,
+            "setupID": "minimum-report-pdf-failed-v1",
+            "sourceOrdinal": 22,
+            "sourceStateID": "state.sign-detail.open-issue",
+            "skippedStartOrdinal": 23,
+            "skippedEndOrdinal": 50,
+            "targetOrdinal": 51,
+            "targetStateID": "state.report-pdf.failed",
+            "cursorBeforeResume": segmentedRouteStateCursor,
+            "cursorAfterResume": 50,
+            "localReplayCount": minimumSegment!.route.replayCount,
+            "dependencyOwnedStateSHA256": dependencyOwnedStateSHA256,
+            "applicationForeground": true,
+            "purchaseVerified": true,
+            "pendingDifferentIssueReceiptVerified": true,
+            "reportFailureRouteVerified": true,
+            "renderFailureArgumentCount": 1,
+        ])
+        segmentedRouteStateCursor = 50
+        guard segmentedRouteStateCursor
+                == minimumSegment!.route.ownedStartOrdinal - 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Segment-3 resume cursor did not reach the state-51 frontier"
+            )
+        }
+        return true
+    }
+
+    @MainActor
     @discardableResult
     private func performAlternativeRecheck(
         _ outcome: AlternativeRecheckOutcome,
@@ -9296,6 +9853,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         start.tap()
         XCTAssertTrue(element("s3.preflight.screen", in: app)
             .waitForExistence(timeout: 20))
+        if minimumSegment == .segment3 {
+            let ready = app.descendants(matching: .any).matching(identifier: "s3.preflight.screen")
+            guard ready.count == 1,
+                  app.descendants(matching: .any).matching(identifier: "s3.preflight.time-zone").count == 0,
+                  app.descendants(matching: .any).matching(identifier: "s3.preflight.time-zone-confirmed").count == 0,
+                  element("s3.preflight.after-dark", in: app).exists,
+                  element("s3.preflight.safe-position", in: app).exists,
+                  element("s3.preflight.begin", in: app).exists else {
+                throw AutomationConfigurationError.invalid("Minimum resume did not enter the persisted confirmed-time-zone branch")
+            }
+            minimumConfirmedPreflight = true
+        }
         setToggle("s3.preflight.after-dark", in: app)
         app.swipeUp()
         setToggle("s3.preflight.safe-position", in: app)
@@ -9630,6 +10199,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return false
             }
             assertLocalizedLabel(saved, equals: "Report saved on this device.")
+            if minimumSegment != nil {
+                guard minimumSemanticLabel(saved.label, equals: "Report saved on this device.") else {
+                    throw AutomationConfigurationError.invalid("Minimum pending receipt saved text differs from the source-owned semantic label")
+                }
+                emitMinimumRow("PENDING_RECEIPT_PROOF", fields: [
+                    "setupOnly": minimumSegment == .segment3,
+                    "actualLabel": saved.label, "savedCount": savedValues.count,
+                    "preparingCount": preparingValues.count, "viewReportCount": viewReportValues.count,
+                    "completed": true,
+                ])
+            }
             let done = element("s3.receipt.done", in: app)
             scroll(done, in: app)
             assertControl(done, label: "Done")
@@ -10007,6 +10587,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             timeout: 20
         )
         captureBaseline("state.issue.different-open", in: app)
+        recordMinimumJourney("alternative-recheck-issue-relationships")
         if finishAutomatedSegmentIfNeeded(after: 50, in: app) { return }
         navigateBack(in: app)
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
@@ -10303,6 +10884,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         navigateBack(in: app)
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 20))
+        recordMinimumJourney("report-failure-retry-comparison-correction")
     }
 
     @MainActor
@@ -10947,6 +11529,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             containing: "Purchase verified. Subscription access is ready.",
             timeout: 45
         )
+        if minimumSegment != nil {
+            guard verifiedMinimumPurchaseState(in: app) else {
+                XCTFail("Minimum purchase did not reach the exact verified entitlement state")
+                return usedSettingsRetry
+            }
+        }
         if !emitsEvidence {
             return usedSettingsRetry
         }
@@ -12048,6 +12636,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             timeout: 20
         )
         captureBaseline("state.subscription.no-entitlement", in: app)
+        recordMinimumJourney("settings-commerce-backup-restore-erase")
         if finishAutomatedSegmentIfNeeded(after: 67, in: app) { return }
         assertMigrationStateCoverage()
         emitAutomatedLabAccessibilityRowsIfNeeded()
@@ -12550,6 +13139,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             equals: "1 of 2 · Wide view",
             timeout: 20
         )
+        recordMinimumJourney("initial-draft-relaunch")
     }
 
     @MainActor
@@ -13879,6 +14469,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             diagnosticVisitedSetupCaptureStateIDs.append(stateID)
             return
         }
+        if minimumSegment != nil && captureMinimumPrefixIfNeeded(stateID, in: app, file: file, line: line) {
+            return
+        }
         if replaySegmentPrefixIfNeeded(
             stateID,
             in: app,
@@ -14368,6 +14961,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> Bool {
+        if minimumSegment != nil {
+            return finishMinimumSegmentIfNeeded(after: ordinal, in: app, file: file, line: line)
+        }
         guard automationSegment != .none,
               ordinal == automationSegment.finalOrdinal else {
             return false
@@ -17274,9 +17870,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         in app: XCUIApplication
     ) -> Bool {
         let stateID = "state.reports-index.ready"
-        let expectedMigratedStateIDs = Array(
-            Self.segmentedRouteStateIDs.prefix(20)
-        )
+        let expectedMigratedStateIDs = minimumExpectedOwnedPrefix(20)
+        let expectedPreparationCursor = minimumSegment == nil ? 0 : 20
+        guard minimumPreparationReplayIsValid(20) else {
+            XCTFail("Minimum preparation replay provenance is invalid")
+            return false
+        }
         guard let shard = automationShard,
               shard.ordinal == 10,
               shard.shardID == "s10.4.minimum.rtl",
@@ -17286,7 +17885,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               Self.segmentedRouteStateIDs.count == 67,
               Set(Self.segmentedRouteStateIDs).count == 67,
               Self.segmentedRouteStateIDs[20] == stateID,
-              segmentedRouteStateCursor == 0,
+              segmentedRouteStateCursor == expectedPreparationCursor,
               migratedStateIDs == expectedMigratedStateIDs,
               automationAXTreeDigests.keys.sorted()
                 == expectedMigratedStateIDs.sorted(),
@@ -17516,9 +18115,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         in app: XCUIApplication
     ) throws {
         let stateID = "state.work.validation-error"
-        let expectedMigratedStateIDs = Array(
-            Self.segmentedRouteStateIDs.prefix(22)
-        )
+        let expectedMigratedStateIDs = minimumExpectedOwnedPrefix(22)
+        let expectedPreparationCursor = minimumSegment == nil ? 0 : 22
+        guard minimumPreparationReplayIsValid(22) else {
+            XCTFail("Minimum preparation replay provenance is invalid")
+            return
+        }
         guard let shard = automationShard,
               (shard.ordinal == 11 && shard.shardID == "s10.4.minimum.rtl-string"
                 && shard.requirementID == "rtl_string")
@@ -17536,7 +18138,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               Self.segmentedRouteStateIDs.count == 67,
               Set(Self.segmentedRouteStateIDs).count == 67,
               Self.segmentedRouteStateIDs[22] == stateID,
-              segmentedRouteStateCursor == 0,
+              segmentedRouteStateCursor == expectedPreparationCursor,
               migratedStateIDs == expectedMigratedStateIDs,
               automationAXTreeDigests.keys.sorted()
                 == expectedMigratedStateIDs.sorted(),
@@ -17917,7 +18519,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let postNoteFieldFrame = postNoteField.frame
         let firstFailedPostDismissSemanticLabel: String? = {
             if app.state != .runningForeground { return "post-app-foreground" }
-            if segmentedRouteStateCursor != 0 { return "post-route-cursor" }
+            if segmentedRouteStateCursor != expectedPreparationCursor { return "post-route-cursor" }
             if migratedStateIDs != expectedMigratedStateIDs {
                 return "post-migrated-state-ids"
             }
@@ -18054,7 +18656,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && self.migratedStateIDs == expectedMigratedStateIDs
                     && self.automationAXTreeDigests.keys.sorted() == expectedMigratedStateIDs.sorted()
                     && self.automationContrastExceptions.isEmpty && !self.automatedSegmentFinished
-                    && self.segmentedRouteStateCursor == 0
+                    && self.segmentedRouteStateCursor == expectedPreparationCursor
             }
             let dragInset: CGFloat = 24
             let minimumGestureDistance: CGFloat = 44
@@ -18109,9 +18711,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         in app: XCUIApplication
     ) throws {
         let stateID = "state.work.validation-error"
-        let expectedMigratedStateIDs = Array(
-            Self.segmentedRouteStateIDs.prefix(22)
-        )
+        let expectedMigratedStateIDs = minimumExpectedOwnedPrefix(22)
+        let expectedPreparationCursor = minimumSegment == nil ? 0 : 22
+        guard minimumPreparationReplayIsValid(22) else {
+            XCTFail("Minimum preparation replay provenance is invalid")
+            return
+        }
         guard let shard = automationShard,
               shard.ordinal == 8,
               shard.shardID == "s10.4.minimum.minimum-os",
@@ -18121,7 +18726,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               Self.segmentedRouteStateIDs.count == 67,
               Set(Self.segmentedRouteStateIDs).count == 67,
               Self.segmentedRouteStateIDs[22] == stateID,
-              segmentedRouteStateCursor == 0,
+              segmentedRouteStateCursor == expectedPreparationCursor,
               migratedStateIDs == expectedMigratedStateIDs,
               automationAXTreeDigests.keys.sorted()
                 == expectedMigratedStateIDs.sorted(),
@@ -18369,7 +18974,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let postNoteFieldFrame = postNoteField.frame
         let firstFailedPostDismissSemanticLabel: String? = {
             if app.state != .runningForeground { return "post-app-foreground" }
-            if segmentedRouteStateCursor != 0 { return "post-route-cursor" }
+            if segmentedRouteStateCursor != expectedPreparationCursor { return "post-route-cursor" }
             if migratedStateIDs != expectedMigratedStateIDs {
                 return "post-migrated-state-ids"
             }
@@ -19806,6 +20411,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
     @MainActor
     private func firstPurchaseButton(in app: XCUIApplication) -> XCUIElement? {
+        if minimumSegment == .segment3,
+           let shard = automationShard,
+           ["en-US-double-length", "en-US-accented"].contains(shard.locale) {
+            let store = element("s7.2.paywall.store", in: app)
+            guard store.waitForExistence(timeout: 30) else { return nil }
+            let matches = store.descendants(matching: .button).allElementsBoundByIndex.filter {
+                minimumSemanticLabel($0.label, equals: "Subscribe")
+            }
+            guard matches.count == 1, let purchase = matches.first,
+                  purchase.exists, purchase.identifier != "s7.2.paywall.close",
+                  purchase.elementType == .button, purchase.isEnabled, purchase.isHittable else { return nil }
+            return purchase
+        }
         if usesPseudolanguage {
             let store = element("s7.2.paywall.store", in: app)
             XCTAssertTrue(store.waitForExistence(timeout: 30))

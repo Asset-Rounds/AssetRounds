@@ -89,6 +89,311 @@ function Assert-Contains {
     }
 }
 
+# H411_SHARED_RELATIONAL_BEGIN
+# The frozen schema subset cannot express conditional required fields or cross-run
+# equality. These checks supplement it; neither replaces original hosted receipts.
+function Get-H411Field {
+    param($Value, [string]$Name)
+    if ($null -ne $Value -and $null -ne $Value.PSObject.Properties[$Name]) { return $Value.$Name }
+    return $null
+}
+function Assert-H411Ordered {
+    param($Actual, $Expected, [string]$Label)
+    Assert-Equal (ConvertTo-Json -InputObject @($Actual) -Compress -Depth 60) (ConvertTo-Json -InputObject @($Expected) -Compress -Depth 60) $Label
+}
+function Read-H411Evidence {
+    param($Reference, [string]$Label)
+    $relative = [string](Get-H411Field $Reference 'path')
+    if ($relative -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._/-]+$' -or @($relative.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count -ne 0) {
+        Add-ValidationError "$Label invalid evidence path"; return $null
+    }
+    $path = $RepositoryRoot
+    foreach ($part in $relative.Split('/')) {
+        $path = Join-Path $path $part
+        if (-not (Test-Path -LiteralPath $path) -or ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            Add-ValidationError "$Label missing or linked evidence"; return $null
+        }
+    }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Add-ValidationError "$Label is not a file"; return $null }
+    Assert-Equal (Get-Sha256 $path) $Reference.sha256 "$Label original bytes"
+    return Read-JsonFile $path
+}
+function Get-H411CanonicalSHA256 {
+    param($Value)
+    $json = ConvertTo-Json -InputObject $Value -Depth 100 -Compress
+    $result = $json | & $PythonCommand -c 'import sys,json,hashlib; o=json.load(sys.stdin); print(hashlib.sha256(json.dumps(o,sort_keys=True,separators=(",",":"),ensure_ascii=True,allow_nan=False).encode()).hexdigest().upper())'
+    if ($LASTEXITCODE -ne 0) { throw 'H411 canonical hashing failed' }
+    return [string]$result
+}
+function Get-H411OriginalCanonicalSHA256 {
+    param($Reference, [string]$Member = '', [string]$Exclude = '')
+    # Hash original JSON with the producer's Python canonicalizer. PowerShell's
+    # JSON date/number conversions must never rewrite an identity before hashing.
+    $path = Join-Path $RepositoryRoot $Reference.path
+    $result = & $PythonCommand -c 'import sys,json,hashlib; o=json.load(open(sys.argv[1],encoding="utf-8")); o=o[sys.argv[2]] if sys.argv[2] else o; o={k:v for k,v in o.items() if k not in sys.argv[3].split(",")} if sys.argv[3] else o; print(hashlib.sha256(json.dumps(o,sort_keys=True,separators=(",",":"),ensure_ascii=True,allow_nan=False).encode()).hexdigest().upper())' $path $Member $Exclude
+    if ($LASTEXITCODE -ne 0) { throw 'H411 original canonical hashing failed' }
+    return [string]$result
+}
+function Assert-H411API {
+    param($Run, $Artifact, $Identity, [string]$Label)
+    Assert-Equal $Run.id $Identity.run_id "$Label original run ID"
+    Assert-Equal $Run.run_attempt $Identity.run_attempt "$Label original attempt"
+    Assert-Equal $Run.head_sha $ProductHead "$Label original run head"
+    Assert-Equal $Run.head_branch 'phase/s10-brand-refresh' "$Label original ref"
+    Assert-Equal $Run.status 'completed' "$Label original terminal"
+    Assert-Equal $Run.conclusion 'success' "$Label original success"
+    Assert-Equal $Run.event 'workflow_dispatch' "$Label original event"
+    Assert-Equal $Artifact.id $Identity.artifact_id "$Label original artifact ID"
+    Assert-Equal $Artifact.name $Identity.artifact_name "$Label original artifact name"
+    Assert-Equal $Artifact.digest $Identity.artifact_digest "$Label original artifact digest"
+    Assert-Equal $Artifact.expired $false "$Label original artifact retained"
+    Assert-Equal $Artifact.workflow_run.id $Identity.run_id "$Label artifact source run"
+    Assert-Equal $Artifact.workflow_run.head_sha $ProductHead "$Label artifact source head"
+    if ([long]$Artifact.size_in_bytes -le 0) { Add-ValidationError "$Label empty original artifact" }
+    $created = [DateTimeOffset]::Parse($Artifact.created_at)
+    $expires = [DateTimeOffset]::Parse($Artifact.expires_at)
+    if ($expires -le $created -or $expires -le [DateTimeOffset]::UtcNow -or $created -gt [DateTimeOffset]::UtcNow) { Add-ValidationError "$Label invalid/expired artifact lifetime" }
+}
+function Assert-H411NativeReceipt {
+    param($Receipt, $Shard, [string]$Label)
+    foreach ($field in @('runner_label','runner_image','xcode_version','xcode_build','sdk_name','sdk_build','simulator_runtime','simulator_name','simulator_os_build','simulator_udid')) {
+        if ($null -eq (Get-H411Field $Receipt $field)) { Add-ValidationError "$Label missing native $field" }
+    }
+    Assert-Equal $Receipt.runner_label $activation.toolchain.runner_label "$Label runner label"
+    Assert-Equal $Receipt.runner_image "$($manifest.github_environment_contract.image_os)-$($manifest.github_environment_contract.image_version)" "$Label image"
+    Assert-GitHubReceiptEnvironment $Receipt $Label
+    foreach ($field in @('xcode_version','xcode_build','sdk_name','sdk_build')) { Assert-Equal $Receipt.$field $activation.toolchain.$field "$Label $field" }
+    Assert-Equal $Receipt.simulator_runtime $Shard.simulator_runtime "$Label runtime"
+    Assert-Equal $Receipt.simulator_name $Shard.simulator_name "$Label model"
+    Assert-Equal $Receipt.simulator_os_build $Shard.os_build "$Label OS build"
+}
+function Assert-H411SharedReceipt {
+    param($Receipt, $Shard)
+    $label = [string]$Receipt.shard_id
+    $shared = $Receipt.shared_execution
+    Assert-Equal $Receipt.runner_provider 'github_actions' "$label shared provider admission"
+    Assert-Equal $shared.source_product_head $ProductHead "$label shared source"
+    Assert-Equal $shared.local_unit_test_count 0 "$label no local units"
+    Assert-Equal $shared.producer_unit_test_count 5 "$label original producer units"
+    Assert-ExactSet @($shared.producer_unit_test_selectors) @($manifest.shared_execution_contract.producer_unit_test_selectors) "$label exact five producer methods"
+    Assert-Equal $shared.unit_evidence_origin 'shared-producer' "$label unit origin"
+    Assert-Equal $shared.consumer_execution_mode 'test-without-building' "$label execution mode"
+    foreach ($field in @('build_payload','same_shard_github_equivalence')) {
+        if ($null -ne (Get-H411Field $Receipt $field)) { Add-ValidationError "$label mixes legacy and shared provenance" }
+    }
+    $seal = Read-H411Evidence $shared.seal "$label seal"
+    $qualification = Read-H411Evidence $shared.qualification "$label qualification"
+    $producerAPI = Read-H411Evidence $shared.producer_api "$label producer API"
+    $producerArtifactAPI = Read-H411Evidence $shared.producer_artifact_api "$label producer artifact API"
+    $native = Read-H411Evidence $shared.producer_native_tests "$label original native unit tests"
+    $executed = Read-H411Evidence $shared.producer_executed_tests "$label original executed tests"
+    # Identity hashes are canonical producer hashes, not a re-serialized overlay hash.
+    Assert-Equal $seal.sharedBuildIdentitySHA256 $shared.shared_build_identity_sha256 "$label sealed payload identity"
+    Assert-Equal $seal.producerQualificationSHA256 $shared.producer_qualification_sha256 "$label sealed qualification identity"
+    Assert-Equal (Get-H411OriginalCanonicalSHA256 $shared.seal 'sharedBuildIdentity') $shared.shared_build_identity_sha256 "$label recomputed payload identity"
+    Assert-Equal (Get-H411OriginalCanonicalSHA256 $shared.qualification) $shared.producer_qualification_sha256 "$label recomputed qualification identity"
+    Assert-Equal $seal.contractID 's10.4.shared-build.v1' "$label typed seal contract"
+    Assert-Equal $seal.recordType 'shared-build-seal' "$label typed seal"
+    Assert-Equal $qualification.contractID 's10.4.shared-build.v1' "$label typed qualification contract"
+    Assert-Equal $qualification.recordType 'producer-qualification' "$label typed qualification"
+    Assert-Equal $qualification.source.head $ProductHead "$label original qualification head"
+    Assert-Equal $seal.sharedBuildIdentity.source.head $ProductHead "$label original sealed head"
+    Assert-Equal (Get-H411CanonicalSHA256 $qualification.source) (Get-H411CanonicalSHA256 $seal.sharedBuildIdentity.source) "$label exact source bindings"
+    Assert-Equal (Get-H411CanonicalSHA256 $qualification.products) (Get-H411CanonicalSHA256 $seal.sharedBuildIdentity.products) "$label exact product closure"
+    Assert-Equal (Get-H411CanonicalSHA256 $qualification.archive) (Get-H411CanonicalSHA256 $seal.sharedBuildIdentity.archive) "$label exact archive"
+    Assert-Equal (Get-H411CanonicalSHA256 $qualification.producer) (Get-H411CanonicalSHA256 $seal.sharedBuildIdentity.producer) "$label exact producer"
+    Assert-Equal $qualification.producer.runID $shared.producer_run_id "$label qualification run"
+    Assert-Equal $qualification.producer.runAttempt $shared.producer_run_attempt "$label qualification attempt"
+    Assert-Equal $qualification.producer.jobID $shared.producer_job_id "$label qualification job"
+    Assert-Equal $qualification.producer.runnerProvider 'bitrise' "$label actual producer provider"
+    Assert-Equal $seal.sharedBuildIdentity.payloadArtifact.id $producerArtifactAPI.id "$label sealed original artifact ID"
+    Assert-Equal $seal.sharedBuildIdentity.payloadArtifact.bytes $producerArtifactAPI.size_in_bytes "$label sealed original artifact size"
+    Assert-Equal $seal.sharedBuildIdentity.payloadArtifact.sha256 $producerArtifactAPI.digest.Replace('sha256:','').ToUpperInvariant() "$label sealed original artifact digest"
+    Assert-Equal $seal.sharedBuildIdentity.payloadArtifact.createdAtUTC $producerArtifactAPI.created_at "$label original creation"
+    Assert-Equal $seal.sharedBuildIdentity.payloadArtifact.expiresAtUTC $producerArtifactAPI.expires_at "$label original expiry"
+
+    Assert-Equal $producerAPI.id $shared.producer_run_id "$label producer run"
+    Assert-Equal $producerAPI.run_attempt $shared.producer_run_attempt "$label producer attempt"
+    Assert-Equal $producerAPI.head_sha $ProductHead "$label producer head"
+    Assert-Equal $producerAPI.head_branch 'phase/s10-brand-refresh' "$label producer ref"
+    Assert-Equal $producerAPI.conclusion 'success' "$label producer qualification success"
+    Assert-Equal $producerAPI.status 'completed' "$label producer terminal"
+    Assert-Equal $producerArtifactAPI.expired $false "$label producer artifact available"
+    Assert-Equal $producerArtifactAPI.workflow_run.id $shared.producer_run_id "$label producer artifact run"
+    Assert-Equal $producerArtifactAPI.workflow_run.head_sha $ProductHead "$label producer artifact head"
+    if ([DateTimeOffset]::Parse($producerArtifactAPI.expires_at) -le [DateTimeOffset]::UtcNow) { Add-ValidationError "$label producer artifact expired" }
+    $cases = [System.Collections.Generic.List[object]]::new()
+    function Visit-H411NativeNode($node) {
+        if ($node.nodeType -ceq 'Test Case') { $cases.Add($node) }
+        foreach ($child in @(Get-H411Field $node 'children')) { if ($null -ne $child) { Visit-H411NativeNode $child } }
+    }
+    foreach ($node in $native.testNodes) { Visit-H411NativeNode $node }
+    $nativeIDs = @($cases | ForEach-Object { ([string]$_.nodeIdentifierURL).Replace('test://com.apple.xcode/FieldEvidenceApp/','').Replace('()','') })
+    Assert-ExactSet $nativeIDs @($shared.producer_unit_test_selectors) "$label native five unit identities"
+    Assert-Equal $cases.Count 5 "$label native unit count"
+    foreach ($case in $cases) {
+        Assert-Equal $case.result 'Passed' "$label native unit pass"
+        if ((Get-H411Field $case 'isExpectedFailure') -eq $true) { Add-ValidationError "$label expected-failure unit forbidden" }
+    }
+    Assert-ExactSet @($executed | ForEach-Object { ([string]$_.identifier).Replace('()','') }) @($shared.producer_unit_test_selectors) "$label executed five unit identities"
+    foreach ($method in $executed) { Assert-Equal $method.result 'Passed' "$label executed unit pass" }
+    Assert-ExactSet @($qualification.nativeTests.identifier) @($shared.producer_unit_test_selectors) "$label qualified native identities"
+    foreach ($method in $qualification.nativeTests) { Assert-Equal $method.result 'Passed' "$label qualified native pass" }
+
+    if ($Receipt.execution_model -ceq 'shared-native-v1') {
+        if ($null -ne (Get-H411Field $Receipt 'segmented_execution')) { Add-ValidationError "$label native receipt contains assembly" }
+        $reference = Read-H411Evidence (Get-H411Field $Receipt 'consumer_build_reference') "$label consumer build reference"
+        Assert-Equal $reference.sharedBuildIdentitySHA256 $shared.shared_build_identity_sha256 "$label consumer payload"
+        Assert-Equal $reference.producerQualificationSHA256 $shared.producer_qualification_sha256 "$label consumer qualification"
+        Assert-Equal $reference.contractID 's10.4.shared-build.v1' "$label consumer reference type"
+        Assert-Equal $reference.recordType 'consumer-build-reference' "$label consumer reference record"
+        Assert-Equal $reference.source.head $ProductHead "$label consumer reference head"
+        Assert-Equal $reference.unitTestCount 0 "$label consumer original local units"
+        Assert-Equal $reference.producerUnitTestCount 5 "$label consumer original producer units"
+        Assert-Equal $reference.diagnosticOnly $false "$label diagnostic promotion forbidden"
+        Assert-Equal $reference.productsUnchanged $true "$label immutable consumer products"
+        Assert-Equal $reference.consumer.purpose 'acceptance' "$label original consumer purpose"
+        Assert-Equal $reference.consumer.runnerProvider 'github' "$label original consumer provider"
+        foreach ($pair in @(@('runID','run_id'),@('runAttempt','run_attempt'),@('jobID','job_id'),@('shardID','shard_id'),@('simulatorUDID','simulator_udid'))) { Assert-Equal $reference.consumer.($pair[0]) $Receipt.($pair[1]) "$label consumer $($pair[0])" }
+        Assert-Equal $reference.consumer.segmentID 'none' "$label full native segment mode"
+        Assert-Equal (Get-H411CanonicalSHA256 $reference.products) (Get-H411CanonicalSHA256 $qualification.products) "$label consumer product closure"
+        Assert-Equal @($reference.uiCommand | Where-Object { $_ -ceq 'test-without-building' }).Count 1 "$label consumer exact command"
+        if (@($reference.uiCommand | Where-Object { $_ -in @('test','build','build-for-testing') -or $_ -like '-skip-testing*' }).Count -ne 0) { Add-ValidationError "$label forbidden build/test fallback" }
+
+        return
+    }
+    if ($null -ne (Get-H411Field $Receipt 'consumer_build_reference')) { Add-ValidationError "$label assembly claims local consumer build" }
+    $assembly = $Receipt.segmented_execution
+    foreach ($field in @('runner_label','runner_image','xcode_version','xcode_build','sdk_name','sdk_build','simulator_runtime','simulator_name','simulator_os_build','simulator_udid','github_environment')) {
+        if ($null -ne (Get-H411Field $Receipt $field)) { Add-ValidationError "$label assembly falsely carries native $field" }
+    }
+    $minimum = $Receipt.device_profile_id -ceq 'iphone-se-3-ios-18.0-minimum'
+    if (-not $minimum -and $label -cne 's10.4.current.ax-text') { Add-ValidationError "$label unadmitted segmented profile" }
+    $expectedSegments = if ($minimum) { @($manifest.shared_execution_contract.minimum_segment_ids) } else { @($manifest.shared_execution_contract.current_ax_segment_ids) }
+    Assert-H411Ordered @($assembly.consumers.segment_id) $expectedSegments "$label ordered source segments"
+    Assert-Equal @($assembly.consumers).Count 3 "$label source consumer count"
+    Assert-ExactSet @($assembly.consumers | ForEach-Object { "$($_.run_id)|$($_.job_id)|$($_.simulator_udid)|$($_.ui_identity_sha256)" }) @($assembly.consumers | ForEach-Object { "$($_.run_id)|$($_.job_id)|$($_.simulator_udid)|$($_.ui_identity_sha256)" }) "$label unique native sessions"
+    Assert-ExactSet @($assembly.consumers.simulator_udid) @($assembly.consumers.simulator_udid) "$label fresh distinct simulators"
+    $plan = Read-H411Evidence $assembly.segment_plan "$label frozen segment plan"
+    Assert-Equal $assembly.segment_plan.sha256 (Get-Sha256 (Join-Path $RepositoryRoot 'Scripts/s10-4-segment-plan.json')) "$label committed segment plan"
+    $definitions = if ($minimum) { @($plan.minimumVerification.segments) } else { @($plan.segments) }
+    $matrix = Read-H411Evidence $assembly.matrix_binding "$label original matrix"
+    Assert-Equal $matrix.matrixID $assembly.matrix_id "$label matrix identity"
+    Assert-Equal $matrix.productHead $ProductHead "$label matrix head"
+    Assert-Equal $matrix.shardID $label "$label matrix shard"
+    Assert-Equal $matrix.deviceProfileID $Receipt.device_profile_id "$label matrix profile"
+    Assert-Equal $matrix.sharedBuildIdentitySHA256 $shared.shared_build_identity_sha256 "$label matrix payload"
+    Assert-Equal $matrix.producerQualificationSHA256 $shared.producer_qualification_sha256 "$label matrix qualification"
+    $aggregate = Read-H411Evidence $assembly.assembly_receipt "$label original assembly receipt"
+    Assert-Equal $aggregate.productHead $ProductHead "$label assembly head"
+    Assert-Equal $aggregate.shardID $label "$label assembly shard"
+    Assert-Equal $aggregate.matrixID $assembly.matrix_id "$label assembly matrix"
+    Assert-Equal $aggregate.sharedBuildIdentitySHA256 $shared.shared_build_identity_sha256 "$label assembly payload"
+    Assert-Equal $aggregate.producerQualificationSHA256 $shared.producer_qualification_sha256 "$label assembly qualification"
+    $logical = Read-H411Evidence $assembly.logical_shard_receipt "$label original logical shard receipt"
+    Assert-Equal $logical.candidateCount 67 "$label assembly states"
+    Assert-Equal $logical.accessibilityRowCount 6 "$label assembly tasks"
+    Assert-Equal $aggregate.complete $true "$label logical assembly complete"
+    Assert-Equal $aggregate.finalAcceptanceEligible $true "$label qualified assembly"
+    Assert-Equal $aggregate.assemblyIsNativeExecution $false "$label assembly does not claim native execution"
+    Assert-Equal $aggregate.assemblyRunID $Receipt.run_id "$label original assembly run"
+    Assert-Equal $aggregate.assemblyRunAttempt $Receipt.run_attempt "$label original assembly attempt"
+    Assert-Equal $aggregate.distinctSessionCount 3 "$label original distinct sessions"
+    Assert-H411Ordered @($aggregate.selectedConsumers) @($matrix.selectedConsumers) "$label aggregate original consumer selections"
+    Assert-Equal $aggregate.dependencyResolution.immutableSelectionsVerified $true "$label immutable predecessor resolution"
+    Assert-H411Ordered @($aggregate.dependencyResolution.selectedPredecessors) @($matrix.selectedConsumers | Select-Object -First 2) "$label exact predecessor resolution"
+    Assert-Equal $aggregate.journeyResolution.sourceNativeSuccessRequired $true "$label native journey requirement"
+    $expectedJourneyIDs = if ($minimum) { @($plan.minimumVerification.journeys.journeyID) } else { @() }
+    Assert-H411Ordered @($aggregate.journeyResolution.minimumJourneyIDs) $expectedJourneyIDs "$label complete source journeys"
+
+    Assert-Equal $aggregate.humanVisualReviewStatus 'NOT_RUN' "$label assembly cannot synthesize human review"
+    foreach ($pair in @(@('productHead',$ProductHead),@('shardID',$label),@('matrixID',$assembly.matrix_id),@('sharedBuildIdentitySHA256',$shared.shared_build_identity_sha256),@('producerQualificationSHA256',$shared.producer_qualification_sha256),@('localUnitExecutedTestCount',0),@('producerUnitExecutedTestCount',5))) { Assert-Equal (Get-H411Field $logical $pair[0]) $pair[1] "$label logical $($pair[0])" }
+    Assert-Equal $logical.complete $true "$label logical closure"
+    Assert-H411Ordered @($aggregate.sourceSegmentReceiptSHA256s) @($assembly.consumers | ForEach-Object { $_.receipt.sha256 }) "$label aggregate original receipt bytes"
+
+    Assert-Equal $logical.stateAXRowCount 67 "$label strict AX closure"
+    Assert-Equal $logical.contrastRowCount 67 "$label strict contrast closure"
+    $immutableMatrix = [ordered]@{}
+    foreach ($property in $matrix.PSObject.Properties) { if ($property.Name -cnotin @('matrixID','selectedConsumers')) { $immutableMatrix[$property.Name] = $property.Value } }
+    Assert-Equal (Get-H411OriginalCanonicalSHA256 $assembly.matrix_binding '' 'matrixID,selectedConsumers') $assembly.matrix_id "$label derived immutable matrix"
+
+    $allOwned = [System.Collections.Generic.List[string]]::new()
+    foreach ($consumer in $assembly.consumers) {
+        $clabel = "$label/$($consumer.segment_id)"
+        Assert-H411NativeReceipt $consumer $Shard $clabel
+        Assert-Equal $consumer.source_product_head $ProductHead "$clabel head"
+        Assert-Equal $consumer.shard_id $label "$clabel shard"
+        Assert-Equal $consumer.device_profile_id $Receipt.device_profile_id "$clabel profile"
+        Assert-Equal $consumer.shared_build_identity_sha256 $shared.shared_build_identity_sha256 "$clabel payload"
+        Assert-Equal $consumer.producer_qualification_sha256 $shared.producer_qualification_sha256 "$clabel qualification"
+        Assert-Equal $consumer.matrix_id $assembly.matrix_id "$clabel matrix"
+        $definition = @($definitions | Where-Object { $_.segmentID -ceq $consumer.segment_id })
+        Assert-Equal $definition.Count 1 "$clabel definition"
+        if ($definition.Count -ne 1) { continue }
+        $definition = $definition[0]
+        foreach ($pair in @(@('owned_state_ids','ownedStateIDs'),@('replay_state_ids','replayStateIDs'),@('dependency_segment_ids','dependencySegmentIDs'))) {
+            Assert-H411Ordered $consumer.($pair[0]) $definition.($pair[1]) "$clabel $($pair[0])"
+        }
+        foreach ($state in $consumer.owned_state_ids) { $allOwned.Add($state) }
+        $run = Read-H411Evidence $consumer.original_api "$clabel original run API"
+        $artifact = Read-H411Evidence $consumer.artifact_api "$clabel original artifact API"
+        Assert-H411API $run $artifact $consumer $clabel
+        $original = Read-H411Evidence $consumer.receipt "$clabel original receipt"
+        foreach ($pair in @(@('productHead',$ProductHead),@('shardID',$label),@('matrixID',$assembly.matrix_id),@('sharedBuildIdentitySHA256',$shared.shared_build_identity_sha256),@('producerQualificationSHA256',$shared.producer_qualification_sha256),@('localUnitExecutedTestCount',0),@('producerUnitExecutedTestCount',5),@('unitEvidenceOrigin','shared-producer'),@('buildMode','shared-test-without-building'),@('complete',$false),@('nativeEvidenceComplete',$true),@('terminalAPIRequired',$true))) {
+            Assert-Equal (Get-H411Field $original $pair[0]) $pair[1] "$clabel original $($pair[0])"
+        }
+        Assert-H411Ordered $original.segment.ownedStateIDs $consumer.owned_state_ids "$clabel original owned states"
+        Assert-Equal $original.segment.segmentID $consumer.segment_id "$clabel original segment"
+        Assert-Equal $original.uiIdentitySHA256 $consumer.ui_identity_sha256 "$clabel original native identity"
+        foreach ($pair in @(@('runID','run_id'),@('runAttempt','run_attempt'),@('jobID','job_id'),@('simulatorUDID','simulator_udid'),@('shardID','shard_id'),@('segmentID','segment_id'))) { Assert-Equal $original.consumer.($pair[0]) $consumer.($pair[1]) "$clabel original consumer $($pair[0])" }
+        Assert-Equal $original.uiExecutedTestCount 1 "$clabel one original native UI method"
+        Assert-H411Ordered @($original.uiTestSelectors) @('FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard()') "$clabel exact native UI method"
+        $jobs = @(Read-H411Evidence $consumer.original_jobs_api "$clabel original jobs API")
+        $job = @($jobs | Where-Object { [string]$_.id -ceq $consumer.job_id })
+        Assert-Equal $job.Count 1 "$clabel original job identity"
+        if ($job.Count -eq 1) {
+            foreach ($pair in @(@('run_id',$consumer.run_id),@('run_attempt',$consumer.run_attempt),@('head_sha',$ProductHead),@('head_branch','phase/s10-brand-refresh'),@('status','completed'),@('conclusion','success'),@('runner_name',$original.consumer.runnerName))) { Assert-Equal $job[0].($pair[0]) $pair[1] "$clabel original job $($pair[0])" }
+        }
+        $buildReference = Read-H411Evidence $consumer.consumer_build_reference "$clabel original consumer build reference"
+        Assert-Equal (Get-H411OriginalCanonicalSHA256 $consumer.consumer_build_reference) $original.consumerBuildReferenceSHA256 "$clabel original build reference hash"
+        Assert-Equal $buildReference.sharedBuildIdentitySHA256 $shared.shared_build_identity_sha256 "$clabel original build payload"
+        Assert-Equal $buildReference.producerQualificationSHA256 $shared.producer_qualification_sha256 "$clabel original build qualification"
+        Assert-Equal $buildReference.diagnosticOnly $false "$clabel original diagnostic rejection"
+        Assert-Equal $buildReference.productsUnchanged $true "$clabel original frozen closure"
+        Assert-Equal (Get-H411CanonicalSHA256 $buildReference.consumer) (Get-H411CanonicalSHA256 $original.consumer) "$clabel original consumer equality"
+
+        $selected = @($matrix.selectedConsumers | Where-Object { $_.segmentID -ceq $consumer.segment_id })
+        Assert-Equal $selected.Count 1 "$clabel selected original"
+        if ($selected.Count -eq 1) {
+            foreach ($pair in @(@('runID','run_id'),@('runAttempt','run_attempt'),@('jobID','job_id'),@('artifactID','artifact_id'),@('artifactName','artifact_name'))) { Assert-Equal $selected[0].($pair[0]) $consumer.($pair[1]) "$clabel selected $($pair[0])" }
+            Assert-Equal $selected[0].receiptSHA256 $consumer.receipt.sha256 "$clabel selected receipt bytes"
+            Assert-Equal $selected[0].sessionIdentitySHA256 $original.sessionIdentitySHA256 "$clabel selected native session"
+            Assert-Equal $selected[0].matrixID $assembly.matrix_id "$clabel selected matrix"
+
+            Assert-Equal $selected[0].artifactSHA256 $consumer.artifact_digest.Replace('sha256:','').ToUpperInvariant() "$clabel selected archive bytes"
+        }
+        $allJourneys = @(Read-H411Evidence $consumer.journey_rows "$clabel original native journeys")
+        $journeys = @($allJourneys | Where-Object { (Get-H411Field $_ 'setupOnly') -ne $true })
+        Assert-H411Ordered @($journeys.journeyID) @($consumer.journey_ids) "$clabel journey identity"
+        if ($minimum) {
+            Assert-H411Ordered @($consumer.journey_ids) @($definition.journeyIDs) "$clabel frozen journeys"
+            foreach ($journey in $journeys) {
+                $expected = @($plan.minimumVerification.journeys | Where-Object { $_.journeyID -ceq $journey.journeyID })
+                Assert-Equal $expected.Count 1 "$clabel frozen journey"
+                Assert-Equal $journey.completed $true "$clabel native journey complete"
+                Assert-Equal $journey.shardID $label "$clabel journey shard"
+                Assert-Equal $journey.segmentID $consumer.segment_id "$clabel journey segment"
+                if ($expected.Count -eq 1) {
+                    foreach ($field in @('entryStateID','exitStateID')) { Assert-Equal $journey.$field $expected[0].$field "$clabel journey $field" }
+                    Assert-H411Ordered @($journey.assertionIDs) @($expected[0].assertionIDs) "$clabel actual public assertions"
+                }
+            }
+        }
+    }
+    Assert-H411Ordered @($allOwned) @($stateIDs) "$label complete ordered state ownership"
+}
+# H411_SHARED_RELATIONAL_END
+
 function Assert-Commit {
     param([string]$Commit, [string]$Label)
     & git -C $RepositoryRoot cat-file -e "$Commit^{commit}" 2>$null
@@ -402,6 +707,22 @@ $expectedGitHubMinimumShards = @(
     "s10.4.minimum.bounded"
 )
 $expectedComparisonMethod = "Exact provider-local PNG-byte XCT attachment exported from UISmoke.xcresult and reconstructed byte-for-byte at evidence K; cross-provider equivalence is receipt-bound and does not require PNG byte equality"
+# H411_SHARED_AUTHORITY_BEGIN
+$sharedContract = $manifest.shared_execution_contract
+Assert-Equal $sharedContract.contract_version "s10.4-shared-logical-shards-v1" "shared logical shard version"
+Assert-ExactSet @($sharedContract.shard_ids) @($manifest.shards.shard_id) "shared fourteen shard identities"
+foreach ($pair in @(@('logical_shard_count',14),@('states_per_logical_shard',67),@('visual_cell_count',938),@('accessibility_row_count',84),@('common_task_count',6),@('local_unit_test_count',0),@('producer_unit_test_count',5))) {
+    Assert-Equal $sharedContract.($pair[0]) $pair[1] "shared $($pair[0])"
+}
+foreach ($field in @('one_exact_head_and_payload','human_visual_review_required','diagnostic_promotion_forbidden','legacy_hybrid_gate_unchanged')) { Assert-Equal $sharedContract.$field $true "shared $field" }
+Assert-Equal $sharedContract.initial_consumer_provider 'github_actions' 'shared initial provider'
+Assert-Equal $sharedContract.producer_provider 'bitrise_build_hub' 'shared producer provider'
+Assert-Equal $sharedContract.consumer_execution_mode 'test-without-building' 'shared command mode'
+Assert-Equal $sharedContract.unit_evidence_origin 'shared-producer' 'shared unit origin'
+Assert-H411Ordered @($sharedContract.minimum_segment_ids) @('minimum-segment-1','minimum-segment-2','minimum-segment-3') 'minimum segment IDs'
+Assert-H411Ordered @($sharedContract.current_ax_segment_ids) @('segment-1','segment-2','segment-3') 'current AX segment IDs'
+# H411_SHARED_AUTHORITY_END
+
 $hybrid = $manifest.hybrid_execution_contract
 Assert-Equal $hybrid.profile_id "s10.4-hybrid-exact-head-xctestrun-v1" "hybrid profile ID"
 Assert-Equal $hybrid.github_toolchain_baseline "docs/design/s10/s10-activation.json#toolchain" "hybrid GitHub baseline"
@@ -783,6 +1104,14 @@ foreach ($githubReceipt in $githubEquivalenceReceipts) {
     Assert-Equal $githubReceipt.watchdog_result "PASS" "$githubShardID GitHub equivalence watchdog result"
     Assert-Equal $githubReceipt.receipt_result "PASS" "$githubShardID GitHub equivalence receipt result"
 }
+# H411_SHARED_MATRIX_BEGIN
+$sharedReceipts = @($visual.shard_receipts | Where-Object { $null -ne (Get-H411Field $_ 'execution_model') })
+if ($sharedReceipts.Count -ne 0) {
+    Assert-Equal $sharedReceipts.Count 14 'complete shared logical matrix'
+    Assert-Equal @($sharedReceipts | ForEach-Object { "$($_.shared_execution.shared_build_identity_sha256)|$($_.shared_execution.producer_qualification_sha256)|$($_.source_product_head)" } | Sort-Object -Unique).Count 1 'one selected head/payload/qualification'
+}
+# H411_SHARED_MATRIX_END
+
 foreach ($receipt in $visual.shard_receipts) {
     $receiptByShard[$receipt.shard_id] = $receipt
     $shard = @($manifest.shards | Where-Object shard_id -CEQ $receipt.shard_id)[0]
@@ -790,11 +1119,28 @@ foreach ($receipt in $visual.shard_receipts) {
     Assert-Equal $receipt.device_profile_id $shard.device_profile_id "$($receipt.shard_id) receipt profile"
     Assert-Equal $receipt.accessibility_feature $shard.accessibility_feature "$($receipt.shard_id) receipt feature"
     Assert-Equal $receipt.source_product_head $ProductHead "$($receipt.shard_id) receipt E"
+    # H411_SHARED_RECEIPT_BEGIN
+    $model = Get-H411Field $receipt 'execution_model'
+    $isAssembly = $model -ceq 'shared-segment-assembly-v1'
+    if ($null -ne $model) {
+        if ($null -eq (Get-H411Field $receipt 'shared_execution')) { Add-ValidationError "$($receipt.shard_id) missing shared execution" }
+        else { Assert-H411SharedReceipt $receipt $shard }
+    } else {
+        foreach ($field in @('shared_execution','segmented_execution','consumer_build_reference')) {
+            if ($null -ne (Get-H411Field $receipt $field)) { Add-ValidationError "$($receipt.shard_id) orphan $field" }
+        }
+        foreach ($field in @('runner_label','runner_image','xcode_version','xcode_build','sdk_name','sdk_build','simulator_runtime','simulator_name','simulator_os_build','simulator_udid')) {
+            if ($null -eq (Get-H411Field $receipt $field)) { Add-ValidationError "$($receipt.shard_id) missing native $field" }
+        }
+    }
+    # H411_SHARED_RECEIPT_END
     $provider = if ($null -eq $receipt.PSObject.Properties["runner_provider"] -or [string]::IsNullOrWhiteSpace([string]$receipt.runner_provider)) { "github_actions" } else { [string]$receipt.runner_provider }
     if ($provider -ceq "github_actions") {
+        if (-not $isAssembly) {
         Assert-Equal $receipt.runner_label $activation.toolchain.runner_label "$($receipt.shard_id) GitHub runner label"
         Assert-Equal $receipt.runner_image "$($manifest.github_environment_contract.image_os)-$($manifest.github_environment_contract.image_version)" "$($receipt.shard_id) GitHub runner image"
         Assert-GitHubReceiptEnvironment $receipt "$($receipt.shard_id) GitHub receipt"
+        }
     }
     elseif ($provider -ceq "bitrise_build_hub") {
         if ($receipt.PSObject.Properties.Name -ccontains "github_environment") {
@@ -861,6 +1207,7 @@ foreach ($receipt in $visual.shard_receipts) {
     else {
         Add-ValidationError "$($receipt.shard_id) has unsupported runner provider '$provider'."
     }
+    if (-not $isAssembly) {
     Assert-Equal $receipt.xcode_version $activation.toolchain.xcode_version "$($receipt.shard_id) Xcode version"
     Assert-Equal $receipt.xcode_build $activation.toolchain.xcode_build "$($receipt.shard_id) Xcode build"
     Assert-Equal $receipt.sdk_name $activation.toolchain.sdk_name "$($receipt.shard_id) SDK"
@@ -868,6 +1215,7 @@ foreach ($receipt in $visual.shard_receipts) {
     Assert-Equal $receipt.simulator_runtime $shard.simulator_runtime "$($receipt.shard_id) runtime"
     Assert-Equal $receipt.simulator_name $shard.simulator_name "$($receipt.shard_id) simulator"
     Assert-Equal $receipt.simulator_os_build $shard.os_build "$($receipt.shard_id) OS build"
+    }
     Assert-Equal $receipt.selector "FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests" "$($receipt.shard_id) selector"
     Assert-Equal $receipt.conclusion "success" "$($receipt.shard_id) conclusion"
     Assert-Equal $receipt.state_count 67 "$($receipt.shard_id) state count"
@@ -924,9 +1272,18 @@ foreach ($cell in $visual.candidate_cells) {
     foreach ($field in @("device_profile_id", "os_build", "appearance", "contrast", "content_size_category", "locale_profile_id", "layout_direction", "differentiate_without_color", "reduce_motion", "reduce_transparency")) {
         Assert-Equal $cell.$field $shard.$field "$($cell.cell_id) $field"
     }
+    # H411_CELL_SOURCE_BEGIN
+    $cellReceipt = $receipt
+    if ((Get-H411Field $receipt 'execution_model') -ceq 'shared-segment-assembly-v1') {
+        $segmentID = Get-H411Field $cell 'source_segment_id'
+        $sources = @($receipt.segmented_execution.consumers | Where-Object { $_.segment_id -ceq $segmentID -and @($_.owned_state_ids) -ccontains $cell.screen_state_id })
+        Assert-Equal $sources.Count 1 "$($cell.cell_id) original owned consumer"
+        if ($sources.Count -eq 1) { $cellReceipt = $sources[0] }
+    } elseif ($null -ne (Get-H411Field $cell 'source_segment_id')) { Add-ValidationError "$($cell.cell_id) orphan source segment" }
     foreach ($field in @("run_id", "job_id", "artifact_id", "artifact_name", "artifact_digest")) {
-        Assert-Equal $cell.$field $receipt.$field "$($cell.cell_id) $field"
+        Assert-Equal $cell.$field $cellReceipt.$field "$($cell.cell_id) $field"
     }
+    # H411_CELL_SOURCE_END
     if ($receiptProvider -ceq "bitrise_build_hub" -and [string]::IsNullOrWhiteSpace([string]$cell.runner_provider)) {
         Add-ValidationError "$($cell.cell_id) Bitrise candidate lacks runner_provider."
     }

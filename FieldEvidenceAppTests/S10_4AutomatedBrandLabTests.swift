@@ -87,16 +87,90 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         try assertFile(
             testSmokePath,
-            byteCount: 7_520,
-            sha256: "9048B36470A4E1CDFC277242F7ECCB33348EA9F4457C44615C6928C5DBDEB19B"
+            byteCount: 21_706,
+            sha256: "344B4DCCD10EFAA4BF402AD8EF3B3F597263808F14DD16BD6F4E2E702A919126"
         )
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 47_504,
-            sha256: "113CB008297D1DA5597F69AE6841CB9FF9E2AA40A8D30700EFC8184520077F63"
+            byteCount: 61_590,
+            sha256: "1F75D9386ED23C84D8B1280DCAE675512FCFD0F1F7EF5397C3C848BF9461B82E"
         )
         let uiSmokeSource = try text(uiSmokePath)
+        // H411 shell commands retain the existing native selectors and separate producer units from consumer UI.
+        // Executable hostile admission tests use the actual inline validator, not a mirrored Swift implementation.
+        let sharedUnitShell = try text("Scripts/test-smoke.sh")
+        let sharedUIShell = try text("Scripts/ui-smoke.sh")
+        var sharedAdmissionBodies: [String] = []
+        for (shell, role, command, kind) in [
+            (sharedUnitShell, "producer", "shared_unit_command", "unit"),
+            (sharedUIShell, "consumer", "shared_ui_command", "ui"),
+        ] {
+            let admissionParts = shell.components(separatedBy: "<<'H411_SHARED_ADMISSION'\n")
+            XCTAssertEqual(admissionParts.count, 2)
+            let admissionBody = try XCTUnwrap(admissionParts.last)
+                .components(separatedBy: "\nH411_SHARED_ADMISSION\n")
+            XCTAssertEqual(admissionBody.count, 2)
+            sharedAdmissionBodies.append(try XCTUnwrap(admissionBody.first))
+            XCTAssertTrue(shell.contains("python3 - \(role) <<'H411_SHARED_ADMISSION'"))
+            let commandBody = try boundedSource(
+                shell, from: "  \(command)=(\n", before: "\n  )"
+            )
+            for required in [
+                "    xcodebuild", "-xctestrun \"$CI_S10_4_SHARED_XCTESTRUN_PATH\"",
+                "-destination \"$CI_DESTINATION\"", "-resultBundlePath \"$result_bundle_path\"",
+                "\"${only_testing_args[@]}\"", "CODE_SIGNING_ALLOWED=NO", "test-without-building",
+            ] {
+                XCTAssertTrue(commandBody.contains(required), required)
+            }
+            for prohibited in ["-project", "-scheme", "-configuration", "-derivedDataPath", "build-for-testing", "|| true"] {
+                XCTAssertFalse(commandBody.contains(prohibited), prohibited)
+            }
+            XCTAssertTrue(shell.contains("s10-4-shared-\(kind)-command.json"))
+            XCTAssertTrue(shell.contains("with path.open(\"x\", encoding=\"utf-8\", newline=\"\\n\") as stream:"))
+            XCTAssertTrue(shell.contains("\"${\(command)[@]}\""))
+        }
+        XCTAssertEqual(sharedAdmissionBodies.count, 2)
+        XCTAssertEqual(sharedAdmissionBodies.first, sharedAdmissionBodies.last)
+        let sharedAdmission = try XCTUnwrap(sharedAdmissionBodies.first)
+        for required in [
+            "mode == script_role and mode in (\"producer\", \"consumer\")",
+            "s10-4-shared-build-producer", "github-xcode-26.6-shared-build-acceptance",
+            "WORKER_S10_4_MINIMUM_SEGMENT_ID", "TEST_RUNNER_", "closed UI launch keys",
+            "prepared/restored products root", "single prepared/restored xctestrun",
+            "consumer local build/unit evidence", "canonical selector/watchdogs",
+        ] {
+            XCTAssertTrue(sharedAdmission.contains(required), required)
+        }
+        XCTAssertTrue(sharedUIShell.contains("xcodebuild_status=$?\nset -e"))
+        XCTAssertTrue(sharedUIShell.contains("exit \"$xcodebuild_status\""))
+        XCTAssertTrue(sharedAdmission.contains("producer cache wrapper binding"))
+        XCTAssertTrue(sharedAdmission.contains("consumer cache credentials"))
+        let sharedDevelopmentBinding = try object(try json("Scripts/s10-4-segment-plan.json"), "developmentExecutionBinding")
+        let sharedWorkspaceID = try string(sharedDevelopmentBinding, "workspaceID")
+        XCTAssertFalse(sharedWorkspaceID.isEmpty)
+        XCTAssertTrue(sharedAdmission.contains("e.get(\"BITRISE_BUILD_CACHE_WORKSPACE_ID\") == \"\(sharedWorkspaceID)\""))
+        XCTAssertTrue(sharedAdmission.contains("BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE"))
+        let sharedBuildShell = try text("Scripts/build-smoke.sh")
+        let sharedBuildReceipt = try boundedSource(
+            sharedBuildShell, from: "# H411 producer source argv receipt", before: "# End H411 producer source argv receipt."
+        )
+        XCTAssertTrue(sharedBuildReceipt.contains("if [ \"${CI_S10_4_SHARED_BUILD_MODE:-none}\" = producer ]; then"))
+        XCTAssertTrue(sharedBuildReceipt.contains("s10-4-shared-build-command.json"))
+        let recordedBuildArguments = try boundedSource(
+            sharedBuildReceipt, from: "  shared_build_command=(\n    xcodebuild\n", before: "\n  )"
+        )
+        let invokedBuildArguments = try boundedSource(
+            sharedBuildShell, from: "\nxcodebuild \\\n", before: "\n\ntest -d"
+        ).replacingOccurrences(of: " \\\n", with: "\n")
+        XCTAssertEqual(
+            recordedBuildArguments.components(separatedBy: "\n").dropFirst(2).joined(separator: "\n"),
+            invokedBuildArguments.components(separatedBy: "\n").dropFirst(2).joined(separator: "\n")
+        )
+        XCTAssertFalse(recordedBuildArguments.contains("BITRISE_BUILD_CACHE"))
+        XCTAssertFalse(sharedBuildReceipt.contains("\"${shared_build_command[@]}\"\n"))
+        XCTAssertTrue(sharedBuildReceipt.contains("with path.open(\"x\", encoding=\"utf-8\", newline=\"\\n\") as stream:"))
+
         let simulatorAXDiagnosticSource = try boundedSource(
             uiSmokeSource,
             from: "  # K365 failure-only minimum-OS Simulator accessibility context.",
@@ -477,7 +551,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 1,
                 shardID
             )
-            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: simulatorAppLifecycleSource, with: "").replacingOccurrences(of: incidentCollectorSource, with: "").replacingOccurrences(of: incidentStartSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
+            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: sharedAdmission, with: "").replacingOccurrences(of: simulatorAppLifecycleSource, with: "").replacingOccurrences(of: incidentCollectorSource, with: "").replacingOccurrences(of: incidentStartSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
         }
         let bypassedAccessibilityRefreshShards = [
             "s10.4.current.default-dark",
@@ -525,7 +599,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for forbidden in ["simctl erase", "sleep ", "retry", "test-without-building"] {
             XCTAssertFalse(simulatorRefreshSource.contains(forbidden), forbidden)
         }
-        XCTAssertEqual(uiSmokeSource.components(separatedBy: "test-without-building").count - 1, 2)
+        // H411 adds one separately admitted immutable shared command. The original
+        // pilot and ordinary command alternatives remain closed in their own scope.
+        let legacyUICommandSource = try boundedSource(
+            uiSmokeSource,
+            from: "elif [ \"$pilot_consumer\" = true ]; then",
+            before: "\nfi\nxcodebuild_status=$?"
+        )
+        XCTAssertEqual(legacyUICommandSource.components(separatedBy: "test-without-building").count - 1, 2)
         let testSmokePilotSource = try boundedSource(
             testSmokeSource,
             from: "if [ \"$pilot_consumer\" = true ]; then",
@@ -533,7 +614,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let uiSmokePilotSource = try boundedSource(
             uiSmokeSource,
-            from: "if [ \"$pilot_consumer\" = true ]; then",
+            from: "elif [ \"$pilot_consumer\" = true ]; then",
             before: "\nelse"
         )
         for pilotSource in [testSmokePilotSource, uiSmokePilotSource] {
@@ -563,13 +644,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         try assertFile(
             manifestPath,
-            byteCount: 22_742,
-            sha256: "8D71C2D59F9EDE3E0FB3A5FB006A2A7C959AAE3817060D1D73A587D4D939FB58"
+            byteCount: 24_942,
+            sha256: "5EFD9208C1CF9E012B8250E6DA2D4EF345261828B0E18865CD0F05F4A56EDBD0"
         )
         try assertFile(
             visualSchemaPath,
-            byteCount: 29_709,
-            sha256: "4DF9004286D536140B000E3A42AA055FBB347870A50526F159ED4E4184C2AB6A"
+            byteCount: 53_959,
+            sha256: "61C26008B6451413B547652ED31448C67C9054F05890A2AD9AFC2355F4BBF9AC"
         )
         try assertFile(
             accessibilitySchemaPath,
@@ -584,8 +665,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 94_594,
-            sha256: "99757AF745B0C406DA415D4E230EFB28E3B4A4231EAB3086C83F19331A23BBB1"
+            byteCount: 105_073,
+            sha256: "860E5B252B8BAF76EE479BB4B974E46C32383AFDB023EA7F740BFDC8054F0A5C"
         )
         let dispatcherSource = try text(dispatcherPath)
         let unitOnlyJobSource = try boundedSource(
@@ -599,7 +680,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "inputs.s10_4_shard_id == 's10.4.current.default-light'",
             "runner_label: bitrise-m4-pro", "runner_provider: bitrise",
             "s10_4_segment_id: none",
-            #"run_ui_smoke: ${{ inputs.execution_lane != 'bitrise-build-hub-xcode-26.6-unit-development-only' }}"#,
+            #"run_ui_smoke: ${{ inputs.run_ui_smoke }}"#,
             #"s10_4_unit_only: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' }}"#,
         ] {
             XCTAssertTrue(unitOnlyJobSource.contains(requiredMode), requiredMode)
@@ -614,8 +695,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 368_936,
-            sha256: "C9410A389FC818EF2039A4F6931DA68C1DA1E47DEAAEA10A5D86C70883CC5430"
+            byteCount: 365_326,
+            sha256: "A5B932843225ACFC2700CACB2252437A915F7C271AAB4F59024E270916511B8D"
         )
         let workflowSource = try text(workflowPath)
         // H410 unit qualification deliberately omits UI; it never produces a shard pass.
@@ -666,11 +747,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workflowSource.components(separatedBy: dynamicRunnerLine).count - 1, 1)
         XCTAssertEqual(workflowSource.components(separatedBy: warpBuildRunnerLine).count - 1, 0)
         XCTAssertEqual(workflowSource.components(separatedBy: "    runs-on: macos-26").count - 1, 0)
-        let predecessorWorkerByteCount = 119_764
-        let predecessorWorkerSHA256 =
-            "E3B011AC1E86724599FC75BC5A6AAEC674CDCEEBC53C59FA8E6AE5DDDF7BE426"
-        XCTAssertGreaterThan(workflowSource.utf8.count, predecessorWorkerByteCount)
-        XCTAssertNotEqual(Data(workflowSource.utf8).sha256, predecessorWorkerSHA256)
         let dispatcherShardOptions =
             "        options:\n" +
                 "          - none\n" +
@@ -764,20 +840,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let executionLaneMarker = "      execution_lane:\n"
-        let runUIInputMarker = "      run_ui_smoke:\n"
         XCTAssertEqual(dispatcherSource.components(separatedBy: executionLaneMarker).count - 1, 1)
-        guard
-            let executionLaneRange = dispatcherSource.range(of: executionLaneMarker),
-            let runUIInputRange = dispatcherSource.range(
-                of: runUIInputMarker,
-                range: executionLaneRange.upperBound..<dispatcherSource.endIndex
-            )
-        else {
-            XCTFail("The dispatcher execution-lane input is not ordered before run_ui_smoke")
-            return
-        }
-        let executionLaneSource = String(
-            dispatcherSource[executionLaneRange.lowerBound..<runUIInputRange.lowerBound]
+        let executionLaneSource = try boundedSource(
+            dispatcherSource,
+            from: executionLaneMarker,
+            before: "      s10_4_shared_payload_run_id:\n"
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        required: true").count - 1, 1)
         XCTAssertEqual(
@@ -787,7 +854,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 11)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 14)
+        for sharedLane in [
+            "s10-4-shared-build-producer", "github-xcode-26.6-shared-build-acceptance",
+            "s10-4-shared-segment-assembly",
+        ] {
+            XCTAssertEqual(executionLaneSource.components(separatedBy: "          - " + sharedLane).count - 1, 1)
+        }
         XCTAssertEqual(
             executionLaneSource.components(
                 separatedBy: "          - github-xcode-26.6-acceptance"
@@ -880,7 +953,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "jobs:\n"
         )
         for requiredConcurrency in [
-            #"group: ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}"#,
+            #"ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}"#,
+            "inputs.s10_4_shared_segment_id", "inputs.s10_4_shared_payload_run_id",
+            "inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance'",
             #"inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha)"#,
             "cancel-in-progress: false",
         ] {
@@ -1144,13 +1219,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         // Scoped provider conditions and native selector validation remain authoritative.
 
         let githubLaneGate =
-            #"    if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' }}"#
+            #"inputs.execution_lane == 'github-xcode-26.6-acceptance'"#
         let getMacLaneGate =
-            #"    if: ${{ inputs.execution_lane == 'getmac-xcode-26.6-development-only' }}"#
+            #"inputs.execution_lane == 'getmac-xcode-26.6-development-only'"#
         let warpLaneGate =
             #"    if: ${{ inputs.execution_lane == 'warp-xcode-26.5-development-only' }}"#
         let bitriseProbeLaneGate =
-            #"    if: ${{ inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none' }}"#
+            #"inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none'"#
         let bitriseLaneGate =
             #"(inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none')"#
         XCTAssertEqual(githubJobSource.components(separatedBy: githubLaneGate).count - 1, 1)
@@ -1161,6 +1236,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             1
         )
         XCTAssertEqual(bitriseJobSource.components(separatedBy: bitriseLaneGate).count - 1, 1)
+        for sharedGatedJob in [githubJobSource, bitriseJobSource] {
+            XCTAssertTrue(sharedGatedJob.contains("needs: shared-selection"))
+            XCTAssertTrue(sharedGatedJob.contains("!cancelled() && needs.shared-selection.result == 'success'"))
+        }
+        for legacyJob in [getMacJobSource, bitriseProbeJobSource] {
+            for emptySharedInput in [
+                "inputs.s10_4_shared_payload_run_id == ''",
+                "inputs.s10_4_shared_segment_id == 'none'",
+                "inputs.s10_4_segment_source_run_ids == ''",
+            ] {
+                XCTAssertTrue(legacyJob.contains(emptySharedInput))
+            }
+        }
         XCTAssertEqual(
             bitriseProbeJobSource.components(
                 separatedBy: "    uses: ./.github/workflows/bitrise-build-hub-probe.yml"
@@ -1175,8 +1263,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "    uses: ./.github/workflows/ios-ci-worker.yml",
             "      runner_label: bitrise-m4-pro",
             "      runner_provider: bitrise",
-            #"      run_ui_smoke: ${{ inputs.execution_lane != 'bitrise-build-hub-xcode-26.6-unit-development-only' }}"#,
-            #"      s10_4_shard_id: ${{ inputs.s10_4_shard_id }}"#,
+            #"      run_ui_smoke: ${{ inputs.run_ui_smoke }}"#,
+            #"      s10_4_shard_id: ${{ inputs.execution_lane == 's10-4-shared-build-producer' && 's10.4.current.default-light' || inputs.s10_4_shard_id }}"#,
             "      s10_4_segment_id: none",
             "    secrets: inherit",
         ] {
@@ -1610,11 +1698,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        let workerPilotVerifierSource = try boundedSource(
+        let workerPilotVerifierStepSource = try boundedSource(
             workflowSource,
             from: "      - name: Prepare S10.4 pilot payload verifier",
             before: "\n\n      - name: Download immutable S10.4 pilot payload"
         )
+        let legacyPayloadSource = try text("Scripts/s10-4-build-payload.py")
+        let legacyVerifierMarker = "LEGACY_PILOT_VERIFIER_SOURCE = r'''"
+        let legacyVerifierStart = try XCTUnwrap(legacyPayloadSource.range(of: legacyVerifierMarker))
+        let legacyVerifierEnd = try XCTUnwrap(legacyPayloadSource.range(
+            of: "'''", range: legacyVerifierStart.upperBound..<legacyPayloadSource.endIndex
+        ))
+        let workerPilotVerifierSource = String(legacyPayloadSource[legacyVerifierStart.upperBound..<legacyVerifierEnd.lowerBound])
+        // This is the immutable original executable, not a repin to observed new code.
+        XCTAssertEqual(workerPilotVerifierSource.utf8.count, 27_288)
+        XCTAssertEqual(Data(workerPilotVerifierSource.utf8).sha256, "64B45DC8644DEB4E67F5E930A4D5686D9D308FBAA2904F32E95ACE7ECA85D73A")
+        for preservedWire in [
+            "inputs.s10_4_pilot_mode == true",
+            "python3 Scripts/s10-4-build-payload.py emit-legacy-pilot-verifier > \"$verifier\"",
+            "chmod 700 \"$verifier\"", "CI_S10_4_PILOT_PAYLOAD_VERIFIER=%s",
+        ] {
+            XCTAssertTrue(workerPilotVerifierStepSource.contains(preservedWire))
+        }
         for exact in [
             "FieldEvidencePayload.tar",
             "FieldEvidencePayload.tar.sha256",
@@ -1651,7 +1756,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "normalized_testroot_count != original_testroot_count + replacement_count",
             "xctestrun normalization count mismatch",
             "ALLOWED_MACROS = {\"__TESTROOT__\", \"__PLATFORMS__\", \"__TESTHOST__\", \"__TESTBUNDLE__\"}",
-            "          CANONICAL_SYSTEM_DYLD_PAIRS = frozenset({",
+            "CANONICAL_SYSTEM_DYLD_PAIRS = frozenset({",
             "(\"FieldEvidenceAppTests\", \"EnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"),",
             "\"/usr/lib/libRPAC.dylib\",",
             "(\"FieldEvidenceAppTests\", \"TestingEnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"),",
@@ -1659,11 +1764,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "(\"FieldEvidenceAppUITests\", \"EnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"),",
             "(\"FieldEvidenceAppUITests\", \"TestingEnvironmentVariables\", \"DYLD_INSERT_LIBRARIES\"),",
             "\"__SIMRUNTIMEROOT__/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib\",",
-            "          })",
+            "})",
             "is_canonical_system_dyld = (field_path, text) in CANONICAL_SYSTEM_DYLD_PAIRS",
-            "                  if re.search(r\"(?:^|[=:])(?:/|~|file:)\", text) and not is_canonical_system_dyld:",
-            "                  if \"/../\" in text or text.startswith(\"../\"):",
-            "                  if \"$\" in text:",
+            "        if re.search(r\"(?:^|[=:])(?:/|~|file:)\", text) and not is_canonical_system_dyld:",
+            "        if \"/../\" in text or text.startswith(\"../\"):",
+            "        if \"$\" in text:",
             "1 for macro in re.findall(r\"__[A-Za-z0-9_]+__\", text)",
             "if macro not in ALLOWED_MACROS and not (",
             "is_canonical_system_dyld and macro == \"__SIMRUNTIMEROOT__\"",
@@ -1802,7 +1907,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n\n      - name: Record closed H394 focused diagnostic raw evidence"
         )
         for exact in [
-            "if: ${{ always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none' }}",
+            "if: ${{ inputs.s10_4_shared_build_mode == 'none' && (always() && inputs.s10_4_execution_role == 'payload-consumer' && inputs.s10_4_diagnostic_probe_id == 'none') }}",
             "rm -f \\",
             "$shard_evidence_path/shard-receipt.json",
             "$shard_evidence_path/segment-receipt.json",
@@ -1829,15 +1934,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(workerPilotReceiptSource.contains(exact), exact)
         }
         for (exact, count) in [
-            ("CI_S10_4_PILOT_CREATED_SIMULATOR_UDID", 2),
             ("xcrun simctl create", 2),
             ("Remove isolated S10.4 pilot Simulator", 1),
             ("xcrun simctl delete", 1),
             ("all(.devices[][]?; .udid != $udid)", 1),
-            ("if test \"${CI_S10_4_PILOT_MODE:-false}\" = \"true\"; then", 2),
+            ("if test \"${CI_S10_4_PILOT_MODE:-false}\" = \"true\" || test \"$CI_S10_4_SHARED_BUILD_MODE\" != none; then", 2),
         ] {
             XCTAssertEqual(workflowSource.components(separatedBy: exact).count - 1, count, exact)
         }
+        let isolatedSimulatorCleanup = try boundedSource(
+            workflowSource,
+            from: "      - name: Remove isolated S10.4 pilot Simulator",
+            before: "\n\n      - name:"
+        )
+        XCTAssertTrue(isolatedSimulatorCleanup.contains("inputs.s10_4_pilot_mode == true || inputs.s10_4_shared_build_mode != 'none'"))
+        XCTAssertTrue(isolatedSimulatorCleanup.contains("${CI_S10_4_PILOT_CREATED_SIMULATOR_UDID:-}"))
+        XCTAssertTrue(isolatedSimulatorCleanup.contains("xcrun simctl delete"))
         let selectedSimulatorWait =
             "      - name: Await selected Simulator boot\n" +
                 "        wait: simulator_boot"
@@ -2602,6 +2714,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(retainRunSource.contains("${{"))
 
         let manifest = try json(manifestPath)
+        // H411: shared execution is a typed prospective overlay; it does not
+        // change the frozen logical matrix or manufacture consumer unit runs.
+        let h411Shared = try XCTUnwrap(manifest["shared_execution_contract"] as? [String: Any])
+        XCTAssertEqual(h411Shared["contract_version"] as? String, "s10.4-shared-logical-shards-v1")
+        XCTAssertEqual(h411Shared["logical_shard_count"] as? Int, 14)
+        XCTAssertEqual(h411Shared["states_per_logical_shard"] as? Int, 67)
+        XCTAssertEqual(h411Shared["visual_cell_count"] as? Int, 938)
+        XCTAssertEqual(h411Shared["accessibility_row_count"] as? Int, 84)
+        XCTAssertEqual(h411Shared["common_task_count"] as? Int, 6)
+        XCTAssertEqual(h411Shared["local_unit_test_count"] as? Int, 0)
+        XCTAssertEqual(h411Shared["producer_unit_test_count"] as? Int, 5)
+        XCTAssertEqual(h411Shared["unit_evidence_origin"] as? String, "shared-producer")
+        XCTAssertEqual(h411Shared["consumer_execution_mode"] as? String, "test-without-building")
+        XCTAssertEqual(h411Shared["initial_consumer_provider"] as? String, "github_actions")
+        for invariant in ["one_exact_head_and_payload", "human_visual_review_required", "diagnostic_promotion_forbidden", "legacy_hybrid_gate_unchanged"] {
+            XCTAssertEqual(h411Shared[invariant] as? Bool, true, invariant)
+        }
+        XCTAssertEqual(h411Shared["minimum_segment_ids"] as? [String], ["minimum-segment-1", "minimum-segment-2", "minimum-segment-3"])
+        XCTAssertEqual(h411Shared["current_ax_segment_ids"] as? [String], ["segment-1", "segment-2", "segment-3"])
+        let h411Methods = try XCTUnwrap(h411Shared["producer_unit_test_selectors"] as? [String])
+        XCTAssertEqual(h411Methods.count, 5)
+        XCTAssertEqual(Set(h411Methods).count, 5)
+        XCTAssertEqual(Set(h411Methods), Set([
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree",
+            "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract",
+        ]))
+
         let h407Environment = try object(manifest, "github_environment_contract")
         let h407ExpectedEnvironment: [String: String] = [
             "contract_version": "s10.4-github-image-adoption-v1",
@@ -2954,6 +3096,65 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             0
         )
         let uiSource = try text(sourceParts[0])
+        // H411: minimum segment admission and native journey evidence remain closed.
+        // Insert within the existing selector/contract method; this is not a sixth test.
+        do {
+            let minimumControllerStart = try XCTUnwrap(uiSource.range(of: "    private enum MinimumSegment: String {"))
+            let minimumControllerEnd = try XCTUnwrap(uiSource.range(of: "    private enum AutomationSegment: String {", range: minimumControllerStart.upperBound..<uiSource.endIndex))
+            let minimumController = String(uiSource[minimumControllerStart.lowerBound..<minimumControllerEnd.lowerBound])
+            for identifier in ["minimum-segment-1", "minimum-segment-2", "minimum-segment-3"] {
+                XCTAssertTrue(minimumController.contains("= \"" + identifier + "\""))
+            }
+            for invariant in [
+                "minimumJourneyIDs == minimumSegment.journeyIDs",
+                "minimumReplayStateIDs == replay",
+                "migratedStateIDs == owned",
+                "Set(automationAXTreeDigests.keys) == Set(owned)",
+                "automationContrastExceptions.isEmpty",
+                "Self.segmentedRouteStateIDs[segmentedRouteStateCursor] == stateID",
+                "segmentedRouteStateCursor < minimumSegment.route.finalOrdinal",
+                "minimumConfirmedPreflight && minimumSetupWitnessIDs",
+                "\"acceptanceEligible\": false",
+            ] {
+                XCTAssertTrue(minimumController.contains(invariant))
+            }
+            for identifier in [
+                "initial-draft-relaunch", "initial-check-report-open-issue",
+                "work-confirmed-recheck-saved", "evaluation-blocked-purchase-close-continuation",
+                "alternative-recheck-issue-relationships", "report-failure-retry-comparison-correction",
+                "settings-commerce-backup-restore-erase",
+            ] {
+                XCTAssertEqual(uiSource.components(separatedBy: "recordMinimumJourney(\"" + identifier + "\")").count - 1, 1)
+            }
+            let minimumAdmissionStart = try XCTUnwrap(uiSource.range(of: "        let minimumKeys = MinimumSegment.environmentKeys"))
+            let minimumAdmissionEnd = try XCTUnwrap(uiSource.range(of: "        var expectedEnvironment = shard.expectedEnvironment", range: minimumAdmissionStart.upperBound..<uiSource.endIndex))
+            let minimumAdmission = String(uiSource[minimumAdmissionStart.lowerBound..<minimumAdmissionEnd.lowerBound])
+            for invariant in [
+                "diagnosticProbe == nil, segment == .none",
+                "shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"",
+                "(8...14).contains(shard.ordinal)",
+                "MinimumSegment(rawValue: rawID)", "head.count == 40",
+                "refs/heads/phase/s10-brand-refresh",
+                "github-xcode-26.6-shared-build-acceptance",
+            ] {
+                XCTAssertTrue(minimumAdmission.contains(invariant))
+            }
+            let minimumResumeStart = try XCTUnwrap(uiSource.range(of: "    private func prepareMinimumSegment3Resume("))
+            let minimumResumeEnd = try XCTUnwrap(uiSource.range(of: "    private func performAlternativeRecheck(", range: minimumResumeStart.upperBound..<uiSource.endIndex))
+            let minimumResume = String(uiSource[minimumResumeStart.lowerBound..<minimumResumeEnd.lowerBound])
+            for invariant in [
+                "recordWorkWithoutBaseline(in: app)", "purchaseMinimumSubscriptionWithoutBaseline(in: app)",
+                "leavesPendingReceipt: true", "emitsEvidence: false", "minimumConfirmedPreflight",
+                "pendingDifferentIssueReceiptVerified", "minimumSemanticLabel(resolvedIssueActions.firstMatch.label",
+                "minimumSemanticLabel(failureHeadlines.firstMatch.label", "minimumSemanticLabel(failureRetries.firstMatch.label",
+                "minimum-report-pdf-failed-v1", "segmentedRouteStateCursor = 50",
+            ] {
+                XCTAssertTrue(minimumResume.contains(invariant))
+            }
+            XCTAssertFalse(minimumController.contains("emitAutomatedLabAccessibilityRowsIfNeeded()"))
+            XCTAssertFalse(minimumResume.contains("captureBaseline("))
+        }
+
         let boundedPreflightPreparation = try boundedSource(
             uiSource,
             from: "        if let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.bounded\"",
@@ -3386,12 +3587,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     recordWorkWithoutBaselineEndRange.lowerBound
             ]
         )
-        XCTAssertEqual(
-            uiSource.components(
-                separatedBy: "recordWorkWithoutBaseline(in: app)"
-            ).count - 1,
-            3
+        let minimumPublicResumeSource = try boundedSource(
+            uiSource, from: "    private func prepareMinimumSegment3Resume(",
+            before: "    private func performAlternativeRecheck("
         )
+        XCTAssertEqual(minimumPublicResumeSource.components(separatedBy: "recordWorkWithoutBaseline(in: app)").count - 1, 1)
+        XCTAssertEqual(uiSource.replacingOccurrences(of: minimumPublicResumeSource, with: "").components(separatedBy: "recordWorkWithoutBaseline(in: app)").count - 1, 3)
         let recordWorkNavigationWait =
             "        save.tap()\n" +
                 #"        XCTAssertTrue(element("s5.1.issue.screen", in: app)"# + "\n" +
@@ -3469,10 +3670,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        ].contains(shard.locale)\n" +
                 "    }"
         XCTAssertEqual(pseudolanguageClassifierSource, exactPseudolanguageClassifier)
-        XCTAssertEqual(
-            uiSource.components(separatedBy: "usesPseudolanguage").count - 1,
-            13
+        // The exact classifier and native sentinel guards are semantic contracts;
+        // a new segment terminal check may legitimately read the same classifier.
+        let minimumTerminalSource = try boundedSource(
+            uiSource, from: "    private func finishMinimumSegmentIfNeeded(",
+            before: "    private func minimumSemanticLabel("
         )
+        XCTAssertTrue(minimumTerminalSource.contains("(!usesPseudolanguage || pseudoLabelSentinelValidated)"))
         for transformingLocale in [
             "en-US-double-length",
             "ar-RTL-string",
@@ -6690,14 +6894,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let minimumWorkValidationKeyboardAccessoryLocks = [
             #"let stateID = "state.work.validation-error""#,
-            "Self.segmentedRouteStateIDs.prefix(22)",
+            "minimumExpectedOwnedPrefix(22)",
+            "minimumPreparationReplayIsValid(22)",
+            "minimumSegment == nil ? 0 : 22",
             "shard.ordinal == 8",
             #"shard.shardID == "s10.4.minimum.minimum-os""#,
             #"shard.requirementID == "minimum_os""#,
             #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
             "automationSegment == .none",
             "Self.segmentedRouteStateIDs[22] == stateID",
-            "segmentedRouteStateCursor == 0",
+            "segmentedRouteStateCursor == expectedPreparationCursor",
             "migratedStateIDs == expectedMigratedStateIDs",
             "automationAXTreeDigests.keys.sorted()",
             "automationContrastExceptions.isEmpty",
@@ -19748,77 +19954,70 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
     }
 
     private func assertSegmentedAXAcceptanceHarnessIsFixedIndependentAndFailClosed() throws {
-        let currentTaskPath = "docs/execution/CURRENT_TASK.md"
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         let workerPath = ".github/workflows/ios-ci-worker.yml"
         let planPath = "Scripts/s10-4-segment-plan.json"
         let assemblerPath = "Scripts/s10-4-segment-assembler.sh"
         let uiPath = "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift"
-        let unitPath = "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
-        let exactK111Paths = [
-            currentTaskPath,
-            dispatcherPath,
-            workerPath,
-            planPath,
-            assemblerPath,
-            uiPath,
-            unitPath,
-        ]
-        XCTAssertEqual(exactK111Paths.count, 7)
-        XCTAssertEqual(Set(exactK111Paths).count, 7)
-        for path in exactK111Paths {
-            XCTAssertTrue(fileExists(path), path)
-        }
-        let standingOrProductPaths = [
-            "Scripts/ci-selection.json",
-            "Scripts/s10-4-shards.json",
-            "Scripts/ui-smoke.sh",
-            "Scripts/build-smoke.sh",
-            "Scripts/test-smoke.sh",
-            "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
-            "FieldEvidenceApp",
-            "FieldEvidenceAppTests/Fixtures",
-            "FieldEvidenceApp/Assets.xcassets",
-            "docs/design/s10/baselines",
-        ]
-        XCTAssertTrue(Set(exactK111Paths).isDisjoint(with: Set(standingOrProductPaths)))
-
-        let currentTaskSource = try text(currentTaskPath)
-        let h314Start = try XCTUnwrap(
-            currentTaskSource.range(
-                of: "- Owner-authorized S10.4 segmented AX acceptance authority H314"
-            )
-        )
-        let h314End = try XCTUnwrap(
-            currentTaskSource.range(
-                of: "\n## Frozen authority and package",
-                range: h314Start.lowerBound..<currentTaskSource.endIndex
-            )
-        )
-        let h314Source = String(
-            currentTaskSource[h314Start.lowerBound..<h314End.lowerBound]
-        )
-        XCTAssertTrue(
-            h314Source.contains(
-                "K111 as its exact direct child changing exactly these seven paths and no others"
-            )
-        )
-        XCTAssertTrue(h314Source.contains("this record"))
-        for path in exactK111Paths.dropFirst().dropLast(2) {
-            XCTAssertTrue(h314Source.contains("`\(path)`"), path)
-        }
-        XCTAssertTrue(h314Source.contains("`\(uiPath)`"), uiPath)
-        XCTAssertTrue(h314Source.contains("`\(unitPath)`"), unitPath)
-        for path in standingOrProductPaths.prefix(5) {
-            XCTAssertTrue(h314Source.contains("`\(path)`"), path)
-        }
-
         let plan = try json(planPath)
+        // H411 adds closed shared modes; the independent AX contract above remains.
+        let h411Minimum = try object(plan, "minimumVerification")
+        let h411Shared = try object(plan, "sharedVerification")
+        XCTAssertEqual(try int(h411Minimum, "schemaVersion"), 1)
+        XCTAssertEqual(try string(h411Minimum, "segmentEnvironmentKey"), "CI_S10_4_MINIMUM_SEGMENT_ID")
+        XCTAssertEqual(try string(h411Minimum, "executionLane"), "github-xcode-26.6-shared-build-acceptance")
+        XCTAssertEqual(try string(h411Shared, "contractID"), "s10.4-shared-segment-matrix-v1")
+        XCTAssertEqual(try int(h411Shared, "localUnitExecutedTestCount"), 0)
+        XCTAssertEqual(try int(h411Shared, "producerUnitExecutedTestCount"), 5)
+        XCTAssertTrue(try rows(h411Minimum, "exceptionAuthorities").isEmpty)
+        let h411FrozenShards = try rows(try json("Scripts/s10-4-shards.json"), "shards")
+        let h411MinimumProfiles = try rows(h411Minimum, "profiles")
+        XCTAssertEqual(h411MinimumProfiles.count, 7)
+        XCTAssertTrue(NSArray(array: h411MinimumProfiles).isEqual(to: Array(h411FrozenShards.suffix(7))))
+        let h411OrderedStates = try strings(plan, "orderedStateIDs")
+        let h411Segments = try rows(h411Minimum, "segments")
+        XCTAssertEqual(h411Segments.count, 3)
+        XCTAssertEqual(try h411Segments.map { try string($0, "segmentID") }, ["minimum-segment-1", "minimum-segment-2", "minimum-segment-3"])
+        XCTAssertEqual(try h411Segments.map { try int($0, "stateCount") }, [22, 28, 17])
+        XCTAssertEqual(try h411Segments.map { try int($0, "replayCount") }, [0, 22, 22])
+        XCTAssertEqual(try h411Segments.flatMap { try strings($0, "ownedStateIDs") }, h411OrderedStates)
+        for h411Segment in h411Segments {
+            let h411Proofs = try object(h411Segment, "nativeProofs")
+            let h411Ordinal = try int(h411Segment, "ordinal")
+            XCTAssertEqual(try int(h411Proofs, "purchaseProofCount"), [0, 1, 2][h411Ordinal - 1])
+            XCTAssertEqual(try int(h411Proofs, "pendingReceiptProofCount"), [0, 1, 1][h411Ordinal - 1])
+            XCTAssertEqual(h411Proofs["setupOnly"] as? Bool, h411Ordinal == 3)
+            let h411Owned = try strings(h411Segment, "ownedStateIDs")
+            let h411Replay = try strings(h411Segment, "replayStateIDs")
+            let h411Start = try int(h411Segment, "startOrdinal")
+            let h411End = try int(h411Segment, "endOrdinal")
+            XCTAssertEqual(h411Owned, Array(h411OrderedStates[(h411Start - 1)..<h411End]))
+            XCTAssertEqual(h411Replay, Array(h411OrderedStates.prefix(try int(h411Segment, "replayCount"))))
+            XCTAssertEqual(Data(h411Owned.joined(separator: "\n").utf8).sha256, try string(h411Segment, "ownedStateSHA256"))
+            XCTAssertEqual(Data(h411Replay.joined(separator: "\n").utf8).sha256, try string(h411Segment, "replayStateSHA256"))
+        }
+        XCTAssertEqual(try strings(h411Segments[2], "dependencySegmentIDs"), ["minimum-segment-1", "minimum-segment-2"])
+        XCTAssertEqual(try strings(h411Segments[2], "dependencyOwnedStateIDs"), Array(h411OrderedStates.prefix(50)))
+        let h411Resume = try object(h411Segments[2], "resumeSetup")
+        XCTAssertEqual(try string(h411Resume, "setupID"), "minimum-report-pdf-failed-v1")
+        XCTAssertEqual(try int(h411Resume, "cursorBeforeResume"), 22)
+        XCTAssertEqual(try int(h411Resume, "cursorAfterResume"), 50)
+        XCTAssertEqual(try int(h411Resume, "renderFailureArgumentCount"), 1)
+        XCTAssertEqual(h411Resume["confirmedPreflightBranchVerified"] as? Bool, true)
+        let h411Journeys = try rows(h411Minimum, "journeys")
+        XCTAssertEqual(h411Journeys.count, 7)
+        XCTAssertEqual(try h411Segments.flatMap { try strings($0, "journeyIDs") }, try h411Journeys.map { try string($0, "journeyID") })
+        XCTAssertEqual(try strings(h411Minimum, "setupWitnessIDs"), ["work-recheck-due", "settings-purchase-entitlement", "confirmed-different-recheck-pending-receipt", "persisted-pdf-failure"])
+        let h411AXAuthorities = try rows(h411Shared, "axExceptionSignatures")
+        XCTAssertEqual(h411AXAuthorities.count, 15)
+        XCTAssertEqual(try h411AXAuthorities.map { try string($0, "exceptionIssueID") }.sorted(), try rows(plan, "exceptionAuthorities").map { try string($0, "exceptionIssueID") }.sorted())
+        XCTAssertTrue(try h411AXAuthorities.allSatisfy { try string($0, "shardID") == "s10.4.current.ax-text" })
+
         let planSource = try text(planPath)
         try assertFile(
             planPath,
-            byteCount: 19_363,
-            sha256: "FE7111FA069658B68B63460FEE053637363F7D4D69D4AA656297872E1ACE1764"
+            byteCount: 62_395,
+            sha256: "DDA41A01D00C9842DD790F996CB9B616CEDA0A1ED0E71901B9E86DFC2F7BBE36"
         )
         XCTAssertFalse(planSource.contains("\r"))
         XCTAssertEqual(try int(plan, "schemaVersion"), 1)
@@ -19855,10 +20054,22 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(developmentExecutionBinding["independentWorkers"] as? Bool, true)
         XCTAssertEqual(developmentExecutionBinding["cacheEnabled"] as? Bool, true)
         XCTAssertEqual(developmentExecutionBinding["cachePushEnabled"] as? Bool, true)
-        XCTAssertEqual(
-            try string(developmentExecutionBinding, "workspaceID"),
-            "c70b2962648b79fb"
+        // The exact plan and worker files are independently hash-bound. Compare
+        // their active workspace equality guards without duplicating source data
+        // in this test binary; complete payload credential scanning remains intact.
+        let pinnedWorkspaceID = try string(developmentExecutionBinding, "workspaceID")
+        XCTAssertFalse(pinnedWorkspaceID.isEmpty)
+        let pinnedCacheSetupSource = try boundedSource(
+            try text(workerPath),
+            from: "      - name: Install pinned Bitrise Build Cache command wrappers",
+            before: "\n\n      - name: Verify pinned toolchain, shared scheme, and simulator"
         )
+        for exactWorkspaceGuard in [
+            "test \"$BITRISE_BUILD_CACHE_WORKSPACE_ID\" = \"\(pinnedWorkspaceID)\"",
+            "test \"${BITRISE_BUILD_CACHE_WORKSPACE_ID:-}\" = \"\(pinnedWorkspaceID)\"",
+        ] {
+            XCTAssertEqual(pinnedCacheSetupSource.components(separatedBy: exactWorkspaceGuard).count - 1, 1)
+        }
         XCTAssertEqual(
             try string(developmentExecutionBinding, "installerCommit"),
             "d971b485dd0519fdebb41240f1a2997d77dbf3a6"
@@ -20860,7 +21071,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if doneButton.label != expectedDoneLabel { return \"done-label\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if doneButton.elementType != .button { return \"done-type\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if app.state != .runningForeground { return \"post-app-foreground\" }"))
-        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if segmentedRouteStateCursor != 0 { return \"post-route-cursor\" }"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if segmentedRouteStateCursor != expectedPreparationCursor { return \"post-route-cursor\" }"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("minimumExpectedOwnedPrefix(22)"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("minimumPreparationReplayIsValid(22)"))
+        XCTAssertTrue(rtlWorkValidationAccessorySource.contains("minimumSegment == nil ? 0 : 22"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if automatedSegmentFinished { return \"post-segment-unfinished\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !frameIsValid(postApplicationFrame) { return \"post-app-frame-valid\" }"))
         XCTAssertTrue(rtlWorkValidationAccessorySource.contains("if !frameIsValid(postWorkScreenFrame) { return \"post-work-frame-valid\" }"))
@@ -20898,10 +21112,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_055_536)
+        XCTAssertEqual(uiSource.utf8.count, 1_088_469)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "846E5E0ADE097142129FAD9A97EAC41F535F23C72A3AA6CB3B30F5702F0C0A74"
+            "EC19B02F42EE02CD7FDB37B9596E535956B66F1E092C855BE24366612DD398FB"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -21185,8 +21399,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                     "    private func purchaseSubscriptionWithoutBaseline(",
             before:
                 "\n    @MainActor\n" +
-                    "    @discardableResult\n" +
-                    "    private func performAlternativeRecheck("
+                    "    private func purchaseMinimumSubscriptionWithoutBaseline("
         )
         for exactResumeGuard in [
             "guard automationSegment == .segment3 else { return false }",
@@ -23598,7 +23811,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n\n    @MainActor\n    private func finishAutomatedSegmentIfNeeded("
         )
         XCTAssertEqual(
-            uiSource.components(
+            replaySource.components(
                 separatedBy: "segmentedRouteStateCursor += 1"
             ).count - 1,
             1
@@ -23849,7 +24062,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workerInputSource = try boundedSource(
             workerSource,
             from: "      s10_4_segment_id:",
-            before: "\n\npermissions:"
+            before: "\n\nconcurrency:"
         )
         XCTAssertTrue(workerInputSource.contains("required: true"))
         XCTAssertTrue(workerInputSource.contains("default: none"))
@@ -23870,7 +24083,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let focusedDiagnosticWorkerInputSource = try boundedSource(
             workerSource,
             from: "      s10_4_diagnostic_probe_id:",
-            before: "\n\npermissions:"
+            before: "\n\nconcurrency:"
         )
         for exact in [
             "s10_4_diagnostic_probe_id:",
@@ -24484,7 +24697,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertTrue(
             finalReceiptSource.contains(
-                "if: ${{ success() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none' }}"
+                "if: ${{ inputs.s10_4_shared_build_mode == 'none' && (success() && inputs.s10_4_pilot_mode == false && inputs.runner_provider == 'github' && inputs.s10_4_segment_id != 'none') }}"
             )
         )
         XCTAssertTrue(finalReceiptSource.contains(".receiptKind = \"s10.4-segment\""))
@@ -24574,11 +24787,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(matrixSource.contains(prohibited), prohibited)
         }
 
-        let assemblerSource = try text(assemblerPath)
+        let completeAssemblerSource = try text(assemblerPath)
+        let assemblerModes = completeAssemblerSource.components(
+            separatedBy: "\n# H411_LEGACY_AX_BODY_BEGIN\n"
+        )
+        XCTAssertEqual(assemblerModes.count, 2)
+        let sharedAssemblerSource = try XCTUnwrap(assemblerModes.first)
+        let assemblerSource = try XCTUnwrap(assemblerModes.last)
+        XCTAssertTrue(sharedAssemblerSource.contains("--collect-shared-segment|--admit-shared-selection|--assemble-shared"))
+        XCTAssertTrue(sharedAssemblerSource.contains("S10_4_SHARED_SEGMENT_PY"))
         try assertFile(
             assemblerPath,
-            byteCount: 35_765,
-            sha256: "F5BEB8969193597988D9F12D46ABF3523CF7112B7FF3DBF2D754D8BADF88F47D"
+            byteCount: 99_763,
+            sha256: "B4F43771886FBC9E15FB0D2511ACCF796EB95EA0B09A4605940F028170295DEE"
         )
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(

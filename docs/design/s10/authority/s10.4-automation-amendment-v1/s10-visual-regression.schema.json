@@ -237,6 +237,16 @@
           "evidence_ids"
         ],
         "properties": {
+          "source_segment_id": {
+            "enum": [
+              "segment-1",
+              "segment-2",
+              "segment-3",
+              "minimum-segment-1",
+              "minimum-segment-2",
+              "minimum-segment-3"
+            ]
+          },
           "cell_id": { "type": "string", "pattern": "^cell\\.[a-z0-9._-]+\\.[a-z_]+$" },
           "baseline_id": { "type": "string", "minLength": 1 },
           "screen_state_id": { "type": "string", "pattern": "^state\\.[a-z0-9._-]+$" },
@@ -311,16 +321,6 @@
           "artifact_id",
           "artifact_name",
           "artifact_digest",
-          "runner_label",
-          "runner_image",
-          "xcode_version",
-          "xcode_build",
-          "sdk_name",
-          "sdk_build",
-          "simulator_runtime",
-          "simulator_name",
-          "simulator_os_build",
-          "simulator_udid",
           "selector",
           "conclusion",
           "state_count",
@@ -333,6 +333,691 @@
           "evidence_ids"
         ],
         "properties": {
+          "execution_model": {
+            "enum": [
+              "shared-native-v1",
+              "shared-segment-assembly-v1"
+            ]
+          },
+          "shared_execution": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "shared_build_identity_sha256",
+              "producer_qualification_sha256",
+              "source_product_head",
+              "local_unit_test_count",
+              "producer_unit_test_count",
+              "producer_unit_test_selectors",
+              "unit_evidence_origin",
+              "consumer_execution_mode",
+              "consumer_rebuild_forbidden",
+              "consumer_fallback_forbidden",
+              "producer_run_id",
+              "producer_job_id",
+              "producer_run_attempt",
+              "producer_provider",
+              "seal",
+              "qualification",
+              "producer_api",
+              "producer_artifact_api",
+              "producer_native_tests",
+              "producer_executed_tests"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "s10.4-shared-logical-shards-v1"
+              },
+              "shared_build_identity_sha256": {
+                "type": "string",
+                "pattern": "^[0-9A-F]{64}$"
+              },
+              "producer_qualification_sha256": {
+                "type": "string",
+                "pattern": "^[0-9A-F]{64}$"
+              },
+              "source_product_head": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "local_unit_test_count": {
+                "const": 0
+              },
+              "producer_unit_test_count": {
+                "const": 5
+              },
+              "producer_unit_test_selectors": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth",
+                    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices",
+                    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory",
+                    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree",
+                    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract"
+                  ]
+                },
+                "minItems": 5,
+                "uniqueItems": true,
+                "maxItems": 5
+              },
+              "unit_evidence_origin": {
+                "const": "shared-producer"
+              },
+              "consumer_execution_mode": {
+                "const": "test-without-building"
+              },
+              "consumer_rebuild_forbidden": {
+                "const": true
+              },
+              "consumer_fallback_forbidden": {
+                "const": true
+              },
+              "producer_run_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "producer_job_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "producer_run_attempt": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "producer_provider": {
+                "const": "bitrise_build_hub"
+              },
+              "seal": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "qualification": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "producer_api": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "producer_artifact_api": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "producer_native_tests": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "producer_executed_tests": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              }
+            }
+          },
+          "segmented_execution": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "matrix_id",
+              "matrix_binding",
+              "assembly_receipt",
+              "logical_shard_receipt",
+              "segment_plan",
+              "consumers",
+              "assembly_execution_role",
+              "native_execution_claimed"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "s10.4-shared-segment-assembly-v1"
+              },
+              "matrix_id": {
+                "type": "string",
+                "pattern": "^[0-9A-F]{64}$"
+              },
+              "matrix_binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "assembly_receipt": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "logical_shard_receipt": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "segment_plan": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-F]{64}$"
+                  }
+                }
+              },
+              "consumers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "run_id",
+                    "run_attempt",
+                    "job_id",
+                    "artifact_id",
+                    "artifact_name",
+                    "artifact_digest",
+                    "runner_label",
+                    "runner_image",
+                    "xcode_version",
+                    "xcode_build",
+                    "sdk_name",
+                    "sdk_build",
+                    "simulator_runtime",
+                    "simulator_name",
+                    "simulator_os_build",
+                    "simulator_udid",
+                    "github_environment",
+                    "segment_id",
+                    "source_product_head",
+                    "shard_id",
+                    "device_profile_id",
+                    "shared_build_identity_sha256",
+                    "producer_qualification_sha256",
+                    "matrix_id",
+                    "local_unit_test_count",
+                    "producer_unit_test_count",
+                    "receipt",
+                    "original_api",
+                    "artifact_api",
+                    "journey_rows",
+                    "owned_state_ids",
+                    "replay_state_ids",
+                    "dependency_segment_ids",
+                    "journey_ids",
+                    "ui_identity_sha256",
+                    "original_jobs_api",
+                    "consumer_build_reference"
+                  ],
+                  "properties": {
+                    "run_id": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "run_attempt": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "job_id": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "artifact_id": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "artifact_name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "artifact_digest": {
+                      "type": "string",
+                      "pattern": "^sha256:[0-9a-f]{64}$"
+                    },
+                    "runner_label": {
+                      "enum": [
+                        "macos-26",
+                        "bitrise-m4-pro"
+                      ]
+                    },
+                    "runner_image": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "xcode_version": {
+                      "const": "Xcode 26.6"
+                    },
+                    "xcode_build": {
+                      "const": "17F113"
+                    },
+                    "sdk_name": {
+                      "const": "iphonesimulator26.5"
+                    },
+                    "sdk_build": {
+                      "const": "23F81a"
+                    },
+                    "simulator_runtime": {
+                      "enum": [
+                        "iOS 26.2",
+                        "iOS 18.0"
+                      ]
+                    },
+                    "simulator_name": {
+                      "enum": [
+                        "iPhone 17",
+                        "iPhone SE (3rd generation)"
+                      ]
+                    },
+                    "simulator_os_build": {
+                      "enum": [
+                        "23C54",
+                        "22A3351"
+                      ]
+                    },
+                    "simulator_udid": {
+                      "type": "string",
+                      "pattern": "^[0-9A-Fa-f-]{36}$"
+                    },
+                    "github_environment": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "contract_version",
+                        "authority_head",
+                        "worker_source_sha256",
+                        "image_os",
+                        "image_version",
+                        "macos_product_name",
+                        "macos_product_version",
+                        "macos_build_version",
+                        "architecture"
+                      ],
+                      "properties": {
+                        "contract_version": {
+                          "const": "s10.4-github-image-adoption-v1"
+                        },
+                        "authority_head": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "worker_source_sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9A-F]{64}$"
+                        },
+                        "image_os": {
+                          "const": "macos26"
+                        },
+                        "image_version": {
+                          "const": "20260831.0337.3"
+                        },
+                        "macos_product_name": {
+                          "const": "macOS"
+                        },
+                        "macos_product_version": {
+                          "const": "26.6.2"
+                        },
+                        "macos_build_version": {
+                          "const": "25G83"
+                        },
+                        "architecture": {
+                          "const": "arm64"
+                        }
+                      }
+                    },
+                    "segment_id": {
+                      "enum": [
+                        "segment-1",
+                        "segment-2",
+                        "segment-3",
+                        "minimum-segment-1",
+                        "minimum-segment-2",
+                        "minimum-segment-3"
+                      ]
+                    },
+                    "source_product_head": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    },
+                    "shard_id": {
+                      "type": "string",
+                      "pattern": "^s10\\.4\\.(current|minimum)\\.[a-z0-9-]+$"
+                    },
+                    "device_profile_id": {
+                      "enum": [
+                        "iphone-17-ios-26.2-current",
+                        "iphone-se-3-ios-18.0-minimum"
+                      ]
+                    },
+                    "shared_build_identity_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9A-F]{64}$"
+                    },
+                    "producer_qualification_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9A-F]{64}$"
+                    },
+                    "matrix_id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-F]{64}$"
+                    },
+                    "local_unit_test_count": {
+                      "const": 0
+                    },
+                    "producer_unit_test_count": {
+                      "const": 5
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9A-F]{64}$"
+                        }
+                      }
+                    },
+                    "original_api": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9A-F]{64}$"
+                        }
+                      }
+                    },
+                    "artifact_api": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9A-F]{64}$"
+                        }
+                      }
+                    },
+                    "journey_rows": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9A-F]{64}$"
+                        }
+                      }
+                    },
+                    "owned_state_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "maxItems": 67
+                    },
+                    "replay_state_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 0,
+                      "uniqueItems": true,
+                      "maxItems": 67
+                    },
+                    "dependency_segment_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 0,
+                      "uniqueItems": true,
+                      "maxItems": 2
+                    },
+                    "journey_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 0,
+                      "uniqueItems": true,
+                      "maxItems": 7
+                    },
+                    "ui_identity_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9A-F]{64}$"
+                    },
+                    "original_jobs_api": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9A-F]{64}$"
+                        }
+                      }
+                    },
+                    "consumer_build_reference": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9A-F]{64}$"
+                        }
+                      }
+                    }
+                  }
+                },
+                "minItems": 3,
+                "uniqueItems": true,
+                "maxItems": 3
+              },
+              "assembly_execution_role": {
+                "const": "logical-shard-assembly"
+              },
+              "native_execution_claimed": {
+                "const": false
+              }
+            }
+          },
+          "consumer_build_reference": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]+$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9A-F]{64}$"
+              }
+            }
+          },
           "shard_id": { "type": "string", "pattern": "^s10\\.4\\.(current|minimum)\\.[a-z0-9-]+$" },
           "requirement_id": { "type": "string", "minLength": 1 },
           "device_profile_id": { "enum": ["iphone-17-ios-26.2-current", "iphone-se-3-ios-18.0-minimum"] },

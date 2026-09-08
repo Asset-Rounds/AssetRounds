@@ -56,7 +56,7 @@
   "github_environment_contract": {
     "contract_version": "s10.4-github-image-adoption-v1",
     "authority_head": "d5b2dd30e5552a8d836c941d914802206e15a9a6",
-    "worker_source_sha256": "C9410A389FC818EF2039A4F6931DA68C1DA1E47DEAAEA10A5D86C70883CC5430",
+    "worker_source_sha256": "A5B932843225ACFC2700CACB2252437A915F7C271AAB4F59024E270916511B8D",
     "image_os": "macos26",
     "image_version": "20260831.0337.3",
     "macos_product_name": "macOS",
@@ -502,11 +502,66 @@
       "reduce_transparency": false
     }
   ],
+  "shared_execution_contract": {
+    "contract_version": "s10.4-shared-logical-shards-v1",
+    "execution_models": [
+      "shared-native-v1",
+      "shared-segment-assembly-v1"
+    ],
+    "initial_consumer_provider": "github_actions",
+    "producer_provider": "bitrise_build_hub",
+    "shard_ids": [
+      "s10.4.current.default-light",
+      "s10.4.current.default-dark",
+      "s10.4.current.increased-contrast",
+      "s10.4.current.ax-text",
+      "s10.4.current.differentiate-without-color",
+      "s10.4.current.reduce-motion",
+      "s10.4.current.reduce-transparency",
+      "s10.4.minimum.minimum-os",
+      "s10.4.minimum.double-length",
+      "s10.4.minimum.rtl",
+      "s10.4.minimum.rtl-string",
+      "s10.4.minimum.tall",
+      "s10.4.minimum.accented",
+      "s10.4.minimum.bounded"
+    ],
+    "local_unit_test_count": 0,
+    "producer_unit_test_count": 5,
+    "producer_unit_test_selectors": [
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract"
+    ],
+    "unit_evidence_origin": "shared-producer",
+    "consumer_execution_mode": "test-without-building",
+    "one_exact_head_and_payload": true,
+    "logical_shard_count": 14,
+    "states_per_logical_shard": 67,
+    "visual_cell_count": 938,
+    "accessibility_row_count": 84,
+    "common_task_count": 6,
+    "human_visual_review_required": true,
+    "minimum_segment_ids": [
+      "minimum-segment-1",
+      "minimum-segment-2",
+      "minimum-segment-3"
+    ],
+    "current_ax_segment_ids": [
+      "segment-1",
+      "segment-2",
+      "segment-3"
+    ],
+    "diagnostic_promotion_forbidden": true,
+    "legacy_hybrid_gate_unchanged": true
+  },
   "overlay_files": [
     {
       "path": "s10-visual-regression.schema.json",
-      "byte_length": 29709,
-      "sha256": "4DF9004286D536140B000E3A42AA055FBB347870A50526F159ED4E4184C2AB6A"
+      "byte_length": 53959,
+      "sha256": "61C26008B6451413B547652ED31448C67C9054F05890A2AD9AFC2355F4BBF9AC"
     },
     {
       "path": "s10-accessibility-common-tasks.schema.json",
@@ -515,8 +570,8 @@
     },
     {
       "path": "validate-s10-contracts.ps1",
-      "byte_length": 76770,
-      "sha256": "ABDFB71A4AE5EAAB71EC02B0B6ECB157EFEA6B9A815386B852740E01F471D9A3"
+      "byte_length": 108200,
+      "sha256": "9BE2D7E56C83959821E4698D17834A0A700ED10D3AC0A9380377286EFE360CBC"
     }
   ],
   "manifest_excludes_self": true,
