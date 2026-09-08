@@ -4026,7 +4026,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let expectedDoubleJointMinimum = "let minimumShift = max(\n                                safeTop - confirmationFrame.minY,\n                                liveApplicationFrame.maxY - lowerHeadingFrame.minY\n                            )"
         XCTAssertTrue(doublePreflightViewportSource.contains(expectedDoubleJointMinimum))
         for geometry in ["lowerHeadingFrame.minY >= liveApplicationFrame.maxY",
-                         "lowerHeadingFrame.minY + selectedCommand\n                                            >= liveApplicationFrame.maxY",
+                         "lowerHeadingFrame.minY + predictedMovement",
                          "finalLowerHeadingFrame.minY >= finalApplicationFrame.maxY",
                          "let postGestureLowerHeadingFrame = lowerHeadingText.frame",
                          "[postGestureConfirmationFrame, postGestureLowerHeadingFrame]",
@@ -4101,30 +4101,23 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(doublePreflightViewportSource.contains(finalReadyInvariant), finalReadyInvariant)
         }
         for nativeViewportInvariant in [
-            "if maximumShift > -minimumGestureDistance",
-            "|| (previousObservedMovement != nil",
-            "&& abs(maximumShift) <= receiverCapacity) {",
             "let maximumShift = min(",
             "liveApplicationFrame.minY - headingFrame.maxY",
             "headingFrame.maxY <= liveApplicationFrame.minY",
-            "finalHeadingFrame.maxY <= finalApplicationFrame.minY",
-            "finalConfirmationFrame.minY >= finalSafeTop",
-            "finalConfirmationFrame.maxY <= finalSafeBottom",
+            "finalHeadingFrame.maxY <= finalApplicationFrame.minY,\n",
+            "finalLowerHeadingFrame.minY >= finalApplicationFrame.maxY else {",
+            "finalConfirmationFrame.minY >= finalSafeTop,\n",
+            "finalConfirmationFrame.maxY <= finalSafeBottom,\n",
             "let safeBottom = liveBottom - verticalInset",
             "let receiverInset: CGFloat = 24",
             "let minimumGestureDistance: CGFloat = 44",
-            "let minimumCommand = max(",
-            "-receiverCapacity,",
-            "let maximumCommand = min(",
-            "-minimumGestureDistance,",
-            "minimumCommand <= maximumCommand",
-            "let selectedCommand = minimumCommand",
-            "selectedCommand >= minimumShift",
-            "selectedCommand <= jointMaximumShift",
+            "guard receiverCapacity.isFinite,",
+            "for attemptIndex in 0..<4",
             "previousConfirmationMinYAfterDrag == confirmationFrame.minY",
             "previousCommandedDragDistance <= -minimumGestureDistance",
             "previousObservedMovement < 0",
             "confirmationMovement * dragDistance > 0",
+            "== preflightPositioningDirection",
         ] {
             XCTAssertTrue(doublePreflightViewportSource.contains(nativeViewportInvariant))
         }
@@ -4132,45 +4125,176 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(doublePreflightViewportSource.contains(
             "selectedResidualDistance = recognizedResidualDistance"
         ))
-        for retiredProportionalResponseToken in [
-            "measuredResponseGain",
-            "movement / command",
-            "minimumShift /",
-            "jointMaximumShift /",
-            "predictedSelectedMovement",
-            "(maximumCommand - minimumCommand) / 2",
+        for prohibitedProportionalResponse in [
+            "measuredResponseGain", "movement / command", "minimumShift /", "jointMaximumShift /",
         ] {
-            XCTAssertFalse(
-                doublePreflightViewportSource.contains(retiredProportionalResponseToken),
-                retiredProportionalResponseToken
-            )
+            XCTAssertFalse(doublePreflightViewportSource.contains(prohibitedProportionalResponse))
         }
 
-        let directResidualCommand: (
-            CGFloat, CGFloat, CGFloat, CGFloat
-        ) -> CGFloat? = { minimumShift, jointMaximumShift,
-                         receiverCapacity, minimumGestureDistance in
-            guard [minimumShift, jointMaximumShift, receiverCapacity,
-                   minimumGestureDistance].allSatisfy(\.isFinite),
-                  receiverCapacity >= minimumGestureDistance,
-                  minimumGestureDistance > 0,
-                  minimumShift <= jointMaximumShift else { return nil }
-            let minimumCommand = max(-receiverCapacity, minimumShift)
-            let maximumCommand = min(-minimumGestureDistance, jointMaximumShift)
-            guard minimumCommand.isFinite,
-                  maximumCommand.isFinite,
+        // Source obligations bind the model to this one native preparation controller.
+        let doubleElectionSource = try boundedSource(doublePreflightViewportSource,
+            from: "let dragDistance: CGFloat", before: "let dragDirection: CGFloat")
+        let doubleFreshStageSource = try boundedSource(doubleElectionSource,
+            from: "if previousGestureWasStaging {", before: "// Reserve a recognized final approach")
+        for freshStageObligation in [
+            "previousCommandedDragDistance.isFinite", "previousObservedMovement.isFinite",
+            "previousConfirmationMinYAfterDrag.isFinite",
+            "previousConfirmationMinYAfterDrag == confirmationFrame.minY",
+            "previousCommandedDragDistance <= -minimumGestureDistance", "previousObservedMovement < 0",
+            "previousCommandedDragDistance - previousObservedMovement", "stageResidual.isFinite",
+            "minimumShift + stageResidual", "jointMaximumShift + stageResidual",
+            "abs(maximumShift) <= receiverCapacity",
+            "adjustedMinimumShift.isFinite", "adjustedMaximumShift.isFinite",
+            "adjustedMinimumShift <= adjustedMaximumShift",
+            "max(-receiverCapacity, adjustedMinimumShift)", "min(-minimumGestureDistance, adjustedMaximumShift)",
+            "minimumCommand <= maximumCommand", "(maximumCommand - minimumCommand) / 2",
+            "selectedCommand - stageResidual", "selectedCommand.isFinite", "predictedMovement.isFinite",
+            "selectedCommand >= -receiverCapacity", "selectedCommand <= -minimumGestureDistance",
+            "predictedMovement >= minimumShift", "predictedMovement <= jointMaximumShift",
+            "lowerHeadingFrame.minY + predictedMovement", "selectedPrediction = predictedMovement",
+        ] {
+            XCTAssertTrue(doubleFreshStageSource.contains(freshStageObligation), freshStageObligation)
+        }
+        for stagingObligation in [
+            "if abs(maximumShift) <= receiverCapacity", "jointMaximumShift + minimumGestureDistance",
+            "|| previousGestureWasStaging",
+            "let remainingCommandReserve = stagingDistance - jointMaximumShift",
+            "stagingDistance.isFinite", "remainingCommandReserve.isFinite",
+            "stagingDistance >= -receiverCapacity", "stagingDistance <= -minimumGestureDistance",
+            "stagingDistance > jointMaximumShift", "remainingCommandReserve > 0",
+            "isExplicitStage = true", "selectedGestureIsStaging = isExplicitStage",
+            "gestureSelectionKind = isExplicitStage ? \"staging\" : \"calibrated-final\"",
+            "selectedStageResidual = eligibleStageResidual", "gestureSelectionKind = \"coarse\"",
+        ] {
+            XCTAssertTrue(doubleElectionSource.contains(stagingObligation), stagingObligation)
+        }
+        let doubleNativeProgress = try XCTUnwrap(doublePreflightViewportSource.range(of: "guard confirmationMovement * dragDistance > 0 else"))
+        let doubleStageHistoryUpdate = try XCTUnwrap(doublePreflightViewportSource.range(of: "previousGestureWasStaging = selectedGestureIsStaging"))
+        XCTAssertLessThan(doubleNativeProgress.lowerBound, doubleStageHistoryUpdate.lowerBound)
+        XCTAssertTrue(doublePreflightViewportSource.contains("var previousGestureWasStaging = false"))
+        XCTAssertTrue(doublePreflightViewportSource.contains("previousGestureWasStaging = selectedGestureIsStaging"))
+
+        // Only sampled operands enter the nonaccepting per-gesture observation.
+        let doubleGestureObservation = try boundedSource(doublePreflightViewportSource,
+            from: "prefix: \"S10_4_MINIMUM_DOUBLE_PREFLIGHT_GESTURE_OBSERVATION\"",
+            before: "guard confirmationMovement * dragDistance > 0 else")
+        for observationField in [
+            "\"acceptanceEligible\": false", "\"finalAcceptanceEligible\": false",
+            "\"selectionKind\": gestureSelectionKind", "\"commandedDragDistance\": Double(dragDistance)",
+            "\"predictedMovement\": predictedSelectedMovement", "\"observedConfirmationMovement\": confirmationMovement.isFinite",
+            "auditFrameObject(confirmationFrame)", "auditFrameObject(headingFrame)",
+            "auditFrameObject(lowerHeadingFrame)", "auditFrameObject(postGestureConfirmationFrame)",
+            "auditFrameObject(postGestureLowerHeadingFrame)",
+        ] {
+            XCTAssertTrue(doubleGestureObservation.contains(observationField), observationField)
+        }
+        for additionalNativeObservation in [
+            ".frame", ".exists", ".count", "app.state", ".snapshot(", ".screenshot(", ".debugDescription",
+        ] {
+            XCTAssertFalse(doubleGestureObservation.contains(additionalNativeObservation), additionalNativeObservation)
+        }
+
+        // Arithmetic predictions never stand in for the separately measured final geometry.
+        let doublePreflightElection: (
+            CGFloat, CGFloat, CGFloat, CGFloat, Bool, CGFloat?, CGFloat?, CGFloat?, CGFloat
+        ) -> (kind: String, command: CGFloat, prediction: CGFloat?)? = {
+            lower, upper, capacity, floor, wasStage, previousCommand, movement, previousAfter, currentY in
+            guard [lower, upper, capacity, floor, currentY].allSatisfy(\.isFinite),
+                  floor > 0, capacity >= floor, lower <= upper, upper < 0 else { return nil }
+            if abs(upper) > capacity {
+                guard !wasStage else { return nil }
+                let command = max(-capacity, upper + floor)
+                guard command <= -floor else { return nil }
+                return ("coarse", command, nil)
+            }
+            if !wasStage {
+                let command = max(-capacity, upper + floor)
+                guard command.isFinite, command >= -capacity, command <= -floor,
+                      command > upper, (command - upper).isFinite, command - upper > 0 else { return nil }
+                return ("staging", command, nil)
+            }
+            guard let previousCommand, let movement, let previousAfter,
+                  [previousCommand, movement, previousAfter].allSatisfy(\.isFinite),
+                  previousAfter == currentY, previousCommand <= -floor, movement < 0 else { return nil }
+            let residual = previousCommand - movement
+            guard residual.isFinite else { return nil }
+            let adjustedLower = lower + residual
+            let adjustedUpper = upper + residual
+            guard adjustedLower.isFinite, adjustedUpper.isFinite,
+                  adjustedLower <= adjustedUpper else { return nil }
+            let minimumCommand = max(-capacity, adjustedLower)
+            let maximumCommand = min(-floor, adjustedUpper)
+            guard minimumCommand.isFinite, maximumCommand.isFinite,
                   minimumCommand <= maximumCommand else { return nil }
-            return minimumCommand
+            let command = minimumCommand + (maximumCommand - minimumCommand) / 2
+            let prediction = command - residual
+            guard command.isFinite, prediction.isFinite,
+                  command >= -capacity, command <= -floor,
+                  prediction >= lower, prediction <= upper else { return nil }
+            return ("calibrated-final", command, prediction)
         }
-        XCTAssertEqual(directResidualCommand(-188, -171, 490, 44), -188)
-        XCTAssertEqual(directResidualCommand(-600, -100, 500, 44), -500)
-        XCTAssertEqual(directResidualCommand(-44, -44, 490, 44), -44)
-        XCTAssertNil(directResidualCommand(-40, -20, 490, 44))
-        XCTAssertNil(directResidualCommand(-70, -80, 490, 44))
-        XCTAssertNil(directResidualCommand(-188, -171, -490, 44))
-        XCTAssertNil(directResidualCommand(CGFloat.nan, -171, 490, 44))
-        XCTAssertNil(directResidualCommand(-188, -CGFloat.infinity, 490, 44))
+        let failedResidualLower: CGFloat = -17.012451171875
+        let failedResidualUpper: CGFloat = -0.012451171875
+        XCTAssertNil(doublePreflightElection(failedResidualLower, failedResidualUpper, 506, 44, false, -210.512451171875, -193.5, 81.012451171875, 81.012451171875))
+        XCTAssertNil(doublePreflightElection(failedResidualLower, failedResidualUpper, 506, 44, true, -210.512451171875, -193.5, 81.012451171875, 81.012451171875))
+        let reconstructedEarlierLower = failedResidualLower - 193.5
+        let reconstructedEarlierUpper = failedResidualUpper - 193.5
+        let stagingElection = try XCTUnwrap(doublePreflightElection(reconstructedEarlierLower, reconstructedEarlierUpper, 506, 44, false, nil, nil, nil, 274.512451171875))
+        XCTAssertEqual(stagingElection.kind, "staging")
+        XCTAssertEqual(stagingElection.command, -149.512451171875)
+        XCTAssertNil(stagingElection.prediction)
+        XCTAssertGreaterThan(stagingElection.command, reconstructedEarlierUpper)
+        XCTAssertGreaterThanOrEqual(594 + stagingElection.command, 88)
+        XCTAssertLessThanOrEqual(594 + stagingElection.command, 594)
+        let coarseElection = try XCTUnwrap(doublePreflightElection(-562, -545, 506, 44, false, nil, nil, nil, 626))
+        XCTAssertEqual(coarseElection.kind, "coarse")
+        XCTAssertEqual(coarseElection.command, -501)
+        XCTAssertNil(coarseElection.prediction)
+        // This stage response is a model fixture, not retained pre-attempt-2 native evidence.
+        let calibratedElection = try XCTUnwrap(doublePreflightElection(-78.012451171875, -61.012451171875, 506, 44, true, -149.512451171875, -132.5, 142.012451171875, 142.012451171875))
+        XCTAssertEqual(calibratedElection.kind, "calibrated-final")
+        XCTAssertEqual(calibratedElection.command, -86.52490234375)
+        XCTAssertEqual(calibratedElection.prediction, -69.512451171875)
+        XCTAssertNil(doublePreflightElection(-78.012451171875, -61.012451171875, 506, 44, false, -149.512451171875, -132.5, 142.012451171875, 142.012451171875))
+        XCTAssertNil(doublePreflightElection(-78.012451171875, -61.012451171875, 506, 44, true, -149.512451171875, -132.5, 142, 142.012451171875))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 44, true, nil, -132.5, 142, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 44, true, -149.5, nil, 142, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 44, true, -20, -10, 142, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 44, true, -149.5, 0, 142, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 44, true, -149.5, 132.5, 142, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 44, true, -CGFloat.infinity, -132.5, 142, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 44, true, -149.5, CGFloat.nan, 142, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 44, true, -149.5, -132.5, CGFloat.infinity, 142))
+        XCTAssertNil(doublePreflightElection(CGFloat.nan, -61, 506, 44, false, nil, nil, nil, 142))
+        XCTAssertNil(doublePreflightElection(-78, CGFloat.infinity, 506, 44, false, nil, nil, nil, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 43, 44, false, nil, nil, nil, 142))
+        XCTAssertNil(doublePreflightElection(-78, -61, 506, 0, false, nil, nil, nil, 142))
+        XCTAssertNil(doublePreflightElection(-60, -61, 506, 44, false, nil, nil, nil, 142))
+        XCTAssertNil(doublePreflightElection(-78, 0, 506, 44, false, nil, nil, nil, 142))
+        XCTAssertNil(doublePreflightElection(-600, -550, 506, 44, true, -149.5, -132.5, 142, 142))
+        XCTAssertNil(doublePreflightElection(-600, -550, 506, 44, true, -149.5, -132.5, 141, 142))
+        XCTAssertNil(doublePreflightElection(-1.7e308, -61, 506, 44, true, -1.7e308, -1, 142, 142))
+        XCTAssertNil(doublePreflightElection(-1.7e308, -1.6e308, 1.7e308, 44, true, -1.7e308, -1, 142, 142))
+        // Zero-width intervals preserve equality if a recognized predicted command exists.
+        let exactElection = try XCTUnwrap(doublePreflightElection(-44, -44, 506, 44, true, -44, -44, 100, 100))
+        XCTAssertEqual(exactElection.command, -44)
+        XCTAssertEqual(exactElection.prediction, -44)
+        let clampedElection = try XCTUnwrap(doublePreflightElection(-1000, -500, 506, 44, true, -44, -44, 100, 100))
+        XCTAssertEqual(clampedElection.command, -503)
+        XCTAssertEqual(clampedElection.prediction, -503)
 
+        let observedThreeRegionProof: (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat) -> Bool = {
+            confirmationTop, confirmationBottom, upperHeadingBottom, lowerHeadingTop, safeTop, safeBottom, appTop, appBottom in
+            [confirmationTop, confirmationBottom, upperHeadingBottom, lowerHeadingTop, safeTop, safeBottom, appTop, appBottom].allSatisfy(\.isFinite)
+                && confirmationTop >= safeTop && confirmationBottom <= safeBottom
+                && upperHeadingBottom <= appTop && lowerHeadingTop >= appBottom
+        }
+        XCTAssertFalse(observedThreeRegionProof(81.012451171875, 578.512451171875, 0.012451171875, 690.512451171875, 64, 602, 0, 667))
+        XCTAssertTrue(observedThreeRegionProof(72.5, 570, -8.5, 682, 64, 602, 0, 667))
+        XCTAssertFalse(observedThreeRegionProof(54, 551.5, -27, 663.5, 64, 602, 0, 667))
+        XCTAssertFalse(observedThreeRegionProof(72.5, 570, -8.5, 666.5, 64, 602, 0, 667))
+        XCTAssertFalse(observedThreeRegionProof(72.5, 603, -8.5, 682, 64, 602, 0, 667))
+        XCTAssertTrue(observedThreeRegionProof(64, 602, 0, 667, 64, 602, 0, 667))
         XCTAssertFalse(preflightMinimumSource.contains(
             #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#
         ))
@@ -20400,10 +20524,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_041_086)
+        XCTAssertEqual(uiSource.utf8.count, 1_048_448)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "7CC088BDE06F98A5C899A7E794C551EEE7E4C9C5FD941834505468469F49A1DE"
+            "50208CBB29E75745733038801FFB4773BDFC1BDF524336E53D780DB1C4A824EC"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

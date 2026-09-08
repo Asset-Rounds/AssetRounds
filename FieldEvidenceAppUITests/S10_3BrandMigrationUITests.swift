@@ -2337,6 +2337,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         var previousConfirmationMinYBeforeDrag: CGFloat?
                         var previousConfirmationMinYAfterDrag: CGFloat?
                         var previousObservedMovement: CGFloat?
+                        var previousGestureWasStaging = false
                         for attemptIndex in 0..<4 {
                             guard app.state == .runningForeground,
                                   preflightScrollViews.count == 1,
@@ -2468,16 +2469,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 return
                             }
                             let receiverCapacity = receiverBottom - receiverTop
-                            guard receiverCapacity >= minimumGestureDistance else {
+                            guard receiverCapacity.isFinite,
+                                  receiverCapacity >= minimumGestureDistance else {
                                 XCTFail(
                                     "The minimum double-length preflight confirmation has no recognized upward shift."
                                 )
                                 return
                             }
                             let dragDistance: CGFloat
-                            if maximumShift > -minimumGestureDistance
-                                || (previousObservedMovement != nil
-                                    && abs(maximumShift) <= receiverCapacity) {
+                            let selectedGestureIsStaging: Bool
+                            let gestureSelectionKind: String
+                            let predictedSelectedMovement: CGFloat?
+                            let selectedStageResidual: CGFloat?
+                            if abs(maximumShift) <= receiverCapacity
+                                || previousGestureWasStaging {
                                 let recognizedResidualDistance =
                                     -minimumGestureDistance
                                 let previousCommandMinusObservedResidual =
@@ -2487,46 +2492,77 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                             command - movement
                                         }
                                     }
-                                let predictedRecognizedMovement =
-                                    previousCommandMinusObservedResidual.map {
-                                        residual in
-                                        recognizedResidualDistance - residual
-                                    }
                                 let jointMaximumShift = min(
                                     maximumShift,
                                     liveApplicationFrame.minY - headingFrame.maxY
                                 )
                                 var selectedResidualDistance: CGFloat?
-                                if let previousCommandedDragDistance,
-                                   let previousObservedMovement,
-                                   let previousConfirmationMinYAfterDrag,
-                                   previousCommandedDragDistance.isFinite,
-                                   previousObservedMovement.isFinite,
-                                   previousConfirmationMinYAfterDrag == confirmationFrame.minY,
-                                   previousCommandedDragDistance <= -minimumGestureDistance,
-                                   previousObservedMovement < 0,
-                                   minimumShift <= jointMaximumShift {
-                                    let minimumCommand = max(
-                                        -receiverCapacity,
-                                        minimumShift
-                                    )
-                                    let maximumCommand = min(
-                                        -minimumGestureDistance,
-                                        jointMaximumShift
-                                    )
-                                    if minimumCommand.isFinite,
-                                       maximumCommand.isFinite,
-                                       minimumCommand <= maximumCommand {
-                                        let selectedCommand = minimumCommand
-                                        if selectedCommand.isFinite,
-                                           selectedCommand >= -receiverCapacity,
-                                           selectedCommand <= -minimumGestureDistance,
-                                           selectedCommand >= minimumShift,
-                                           selectedCommand <= jointMaximumShift,
-                                           lowerHeadingFrame.minY + selectedCommand
-                                            >= liveApplicationFrame.maxY {
-                                            selectedResidualDistance = selectedCommand
+                                var selectedPrediction: CGFloat?
+                                var eligibleStageResidual: CGFloat?
+                                var predictedRecognizedMovement: CGFloat?
+                                var isExplicitStage = false
+                                if previousGestureWasStaging {
+                                    if let previousCommandedDragDistance,
+                                       let previousObservedMovement,
+                                       let previousConfirmationMinYAfterDrag,
+                                       previousCommandedDragDistance.isFinite,
+                                       previousObservedMovement.isFinite,
+                                       previousConfirmationMinYAfterDrag.isFinite,
+                                       previousConfirmationMinYAfterDrag == confirmationFrame.minY,
+                                       previousCommandedDragDistance <= -minimumGestureDistance,
+                                       previousObservedMovement < 0,
+                                       abs(maximumShift) <= receiverCapacity,
+                                       minimumShift <= jointMaximumShift {
+                                        let stageResidual =
+                                            previousCommandedDragDistance - previousObservedMovement
+                                        if stageResidual.isFinite {
+                                            eligibleStageResidual = stageResidual
+                                            predictedRecognizedMovement =
+                                                recognizedResidualDistance - stageResidual
+                                            let adjustedMinimumShift = minimumShift + stageResidual
+                                            let adjustedMaximumShift = jointMaximumShift + stageResidual
+                                            if adjustedMinimumShift.isFinite,
+                                               adjustedMaximumShift.isFinite,
+                                               adjustedMinimumShift <= adjustedMaximumShift {
+                                                let minimumCommand = max(-receiverCapacity, adjustedMinimumShift)
+                                                let maximumCommand = min(-minimumGestureDistance, adjustedMaximumShift)
+                                                if minimumCommand.isFinite,
+                                                   maximumCommand.isFinite,
+                                                   minimumCommand <= maximumCommand {
+                                                    // Equality retains the original feasible zero-width interval.
+                                                    let selectedCommand = minimumCommand
+                                                        + (maximumCommand - minimumCommand) / 2
+                                                    let predictedMovement = selectedCommand - stageResidual
+                                                    if selectedCommand.isFinite,
+                                                       predictedMovement.isFinite,
+                                                       selectedCommand >= -receiverCapacity,
+                                                       selectedCommand <= -minimumGestureDistance,
+                                                       predictedMovement >= minimumShift,
+                                                       predictedMovement <= jointMaximumShift,
+                                                       lowerHeadingFrame.minY + predictedMovement
+                                                        >= liveApplicationFrame.maxY {
+                                                        selectedResidualDistance = selectedCommand
+                                                        selectedPrediction = predictedMovement
+                                                    }
+                                                }
+                                            }
                                         }
+                                    }
+                                } else {
+                                    // Reserve a recognized final approach before measuring its response.
+                                    let stagingDistance = max(
+                                        -receiverCapacity,
+                                        jointMaximumShift + minimumGestureDistance
+                                    )
+                                    let remainingCommandReserve = stagingDistance - jointMaximumShift
+                                    if stagingDistance.isFinite,
+                                       remainingCommandReserve.isFinite,
+                                       stagingDistance >= -receiverCapacity,
+                                       stagingDistance <= -minimumGestureDistance,
+                                       stagingDistance > jointMaximumShift,
+                                       remainingCommandReserve > 0 {
+                                        selectedResidualDistance = stagingDistance
+                                        isExplicitStage = true
                                     }
                                 }
                                 guard let selectedResidualDistance else {
@@ -2606,6 +2642,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                             optionalNumber(
                                                 previousCommandMinusObservedResidual
                                             ),
+                                        "previousGestureWasStaging": previousGestureWasStaging,
+                                        "eligibleStageResidual": optionalNumber(eligibleStageResidual),
                                         "predictedRecognizedMovement": optionalNumber(
                                             predictedRecognizedMovement
                                         ),
@@ -2713,11 +2751,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     "previousCommand": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
                                     "previousMovement": previousObservedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
                                     "priorResidual": previousCommandMinusObservedResidual.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousGestureWasStaging": previousGestureWasStaging,
+                                    "isExplicitStage": isExplicitStage,
+                                    "eligibleStageResidual": eligibleStageResidual.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "predictedMovement": selectedPrediction.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
                                     "selectedCommand": Double(selectedResidualDistance),
                                 ]
                                 dragDistance = selectedResidualDistance
-                            } else if abs(maximumShift) <= receiverCapacity {
-                                dragDistance = maximumShift
+                                selectedGestureIsStaging = isExplicitStage
+                                gestureSelectionKind = isExplicitStage ? "staging" : "calibrated-final"
+                                predictedSelectedMovement = selectedPrediction
+                                selectedStageResidual = eligibleStageResidual
                             } else {
                                 let stagedDistance = max(
                                     -receiverCapacity,
@@ -2731,6 +2775,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     return
                                 }
                                 dragDistance = stagedDistance
+                                selectedGestureIsStaging = false
+                                gestureSelectionKind = "coarse"
+                                predictedSelectedMovement = nil
+                                selectedStageResidual = nil
                             }
                             let dragDirection: CGFloat = dragDistance > 0
                                 ? 1
@@ -2821,6 +2869,41 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             let confirmationMovement =
                                 postGestureConfirmationFrame.minY
                                     - confirmationMinYBeforeDrag
+                            printJSONLine(
+                                prefix: "S10_4_MINIMUM_DOUBLE_PREFLIGHT_GESTURE_OBSERVATION",
+                                object: [
+                                    "schemaVersion": 1,
+                                    "acceptanceEligible": false,
+                                    "finalAcceptanceEligible": false,
+                                    "shardID": "s10.4.minimum.double-length",
+                                    "stateID": "state.check-preflight.ready",
+                                    "attemptOrdinal": attemptIndex + 1,
+                                    "selectionKind": gestureSelectionKind,
+                                    "previousGestureWasStaging": previousGestureWasStaging,
+                                    "selectedGestureIsStaging": selectedGestureIsStaging,
+                                    "applicationFrame": auditFrameObject(liveApplicationFrame),
+                                    "scrollFrame": auditFrameObject(scrollFrame),
+                                    "navigationFrame": auditFrameObject(navigationFrame),
+                                    "tabBarFrame": auditFrameObject(tabBarFrame),
+                                    "confirmationFrameBefore": auditFrameObject(confirmationFrame),
+                                    "headingFrameBefore": auditFrameObject(headingFrame),
+                                    "lowerHeadingFrameBefore": auditFrameObject(lowerHeadingFrame),
+                                    "minimumShift": Double(minimumShift),
+                                    "maximumShift": Double(maximumShift),
+                                    "receiverTop": Double(receiverTop),
+                                    "receiverBottom": Double(receiverBottom),
+                                    "receiverCapacity": Double(receiverCapacity),
+                                    "recognitionFloor": Double(minimumGestureDistance),
+                                    "previousCommand": previousCommandedDragDistance.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "previousObservedMovement": previousObservedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "selectedStageResidual": selectedStageResidual.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "commandedDragDistance": Double(dragDistance),
+                                    "predictedMovement": predictedSelectedMovement.map { $0.isFinite ? $0 as Any : NSNull() } ?? NSNull(),
+                                    "confirmationFrameAfter": auditFrameObject(postGestureConfirmationFrame),
+                                    "lowerHeadingFrameAfter": auditFrameObject(postGestureLowerHeadingFrame),
+                                    "observedConfirmationMovement": confirmationMovement.isFinite ? Double(confirmationMovement) as Any : NSNull(),
+                                ]
+                            )
                             guard confirmationMovement * dragDistance > 0 else {
                                 XCTFail(
                                     "The minimum double-length preflight positioning gesture did not make signed progress."
@@ -2833,6 +2916,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             previousConfirmationMinYAfterDrag =
                                 postGestureConfirmationFrame.minY
                             previousObservedMovement = confirmationMovement
+                            previousGestureWasStaging = selectedGestureIsStaging
                         }
                         let finalApplicationFrame = app.frame
                         let finalScrollFrame = preflightScrollView.frame.intersection(
