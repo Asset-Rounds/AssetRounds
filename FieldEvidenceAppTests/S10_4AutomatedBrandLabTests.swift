@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 37_427,
-            sha256: "71DC8B4533C127E92E0357AD267C0796532B63A90805C441145E9C9374062299"
+            byteCount: 47_504,
+            sha256: "113CB008297D1DA5597F69AE6841CB9FF9E2AA40A8D30700EFC8184520077F63"
         )
         let uiSmokeSource = try text(uiSmokePath)
         let simulatorAXDiagnosticSource = try boundedSource(
@@ -252,6 +252,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "  # H408 optional incident-correlated app log; originals remain unchanged.\n",
             before: "  # End H408 optional incident-correlated app log.\n"
         )
+        let incidentAdjacentSource = try boundedSource(
+            incidentCollectorSource,
+            from: "          # K479 conditional incident-window observation; primary collection is unchanged.\n",
+            before: "        else\n          printf 'ips_app_log=skip-temp-error\\n'"
+        )
+        let incidentPrimarySource = incidentCollectorSource.replacingOccurrences(of: incidentAdjacentSource, with: "")
         let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n    s10.4.minimum.rtl-string)\n      if [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; then\n        ips_test_started_epoch=\"$(date +%s)\"\n      fi ;;\n  esac\nfi\n\n"
         XCTAssertTrue(uiSmokeSource.contains(incidentStartSource))
         // K470: closed bounded admission joins the existing failure-only incident profiles.
@@ -370,13 +376,84 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(incidentLookbackMinutes(ordinaryRTL: false, capture: "", now: "", testStart: "", extra: "unexpected"), 10)
         XCTAssertTrue(incidentCollectorSource.contains("Scripts/run-with-timeout.sh 25"))
         XCTAssertTrue(incidentCollectorSource.contains("/usr/bin/head -c \"$ips_snapshot_bytes\" \"$ips_raw\" | /usr/bin/tail -c 1048576"))
-        XCTAssertEqual(incidentCollectorSource.components(separatedBy: "log show").count - 1, 1)
+        XCTAssertEqual(incidentPrimarySource.components(separatedBy: "log show").count - 1, 1)
         XCTAssertEqual(incidentCollectorSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl ]"#).count - 1, 2)
         XCTAssertEqual(incidentCollectorSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = s10.4.minimum.rtl-string ]"#).count - 1, 1)
-        XCTAssertFalse(incidentCollectorSource.contains("--start"))
-        XCTAssertFalse(incidentCollectorSource.contains("--end"))
+        XCTAssertFalse(incidentPrimarySource.contains("--start"))
+        XCTAssertFalse(incidentPrimarySource.contains("--end"))
         for prohibited in ["log stream", "OS_ACTIVITY_MODE", "simctl terminate", "simctl launch", "performAccessibilityAudit", "exit 0"] {
             XCTAssertFalse(incidentCollectorSource.contains(prohibited), prohibited)
+        }
+        // Conditional K479: preserve primary query policy; additional evidence is timeout-only, finite and nonaccepting.
+        XCTAssertEqual(incidentCollectorSource.components(separatedBy: "log show").count - 1, 2)
+        XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "log show").count - 1, 1)
+        XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "ips_adjacent_cohort=true").count - 1, 1)
+        XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "--start").count - 1, 1)
+        XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "--end").count - 1, 1)
+        for invariant in [
+            #"if [ "$ips_query_status" = 124 ]; then"#,
+            #"[ "${CI_RUNNER_PROVIDER:-}" = github ]"#,
+            #"[ "${CI_TASK_ID:-}" = S10.4 ]"#,
+            #"[ "${CI_S10_4_PILOT_MODE:-}" = false ]"#,
+            #"[ "${diagnostic_probe_id:-}" = none ]"#,
+            #"[ "${CI_S10_4_SEGMENT_ID:-}" = none ]"#,
+            #"[ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]"#,
+            #"[ "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum ]"#,
+            #"s10.4.minimum.minimum-os:8:minimum_os"#,
+            #"s10.4.minimum.bounded:14:bounded"#,
+            #"s10.4.minimum.tall:12:tall"#,
+            #"s10.4.minimum.rtl:10:rtl"#,
+            #"s10.4.minimum.rtl-string:11:rtl_string"#,
+            #"[[ "$ips_pid" =~ ^[1-9][0-9]{0,9}$ ]]"#,
+            #"[ "$ips_pid" -le 2147483647 ]"#,
+            #"[[ "$ips_capture_epoch" =~ ^[1-9][0-9]{0,9}$ ]]"#,
+            #"[ -z "${ips_extra:-}" ]"#,
+            #"[[ "$ips_test_started_epoch" =~ ^[1-9][0-9]{0,9}$ ]]"#,
+            #"[[ "$ips_adjacent_now" =~ ^[1-9][0-9]{0,9}$ ]]"#,
+            #"[[ "$ips_adjacent_origin" =~ ^[1-9][0-9]{0,9}$ ]]"#,
+            #"[[ "$ips_adjacent_total" =~ ^[1-9][0-9]{0,9}$ ]]"#,
+            #"[ "$ips_adjacent_origin" -le "$ips_test_started_epoch" ]"#,
+            #"[ "$ips_test_started_epoch" -le "$ips_capture_epoch" ]"#,
+            #"[ "$ips_capture_epoch" -le "$ips_adjacent_now" ]"#,
+            #"[ "$(( ips_adjacent_now - ips_capture_epoch ))" -le 600 ]"#,
+            #"[ "$(( ips_adjacent_total - (ips_adjacent_now - ips_adjacent_origin) ))" -ge 35 ]"#,
+            #"ips_adjacent_start="$(( ips_capture_epoch - 30 ))""#,
+            #"ips_adjacent_start="$ips_test_started_epoch""#,
+            #"ips_adjacent_end="$(( ips_capture_epoch + 2 ))""#,
+            #"[ "$ips_adjacent_start" -lt "$ips_adjacent_end" ]"#,
+            #"[ "$ips_adjacent_end" -le "$ips_adjacent_now" ]"#,
+            #"[ "$(( ips_adjacent_end - ips_adjacent_start ))" -le 32 ]"#,
+            #"Scripts/run-with-timeout.sh 5 python3"#,
+            #"dt.datetime.fromtimestamp(x, dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S%z')"#,
+            #"[ "$ips_adjacent_dates" = "$ips_adjacent_start_utc"$'\t'"$ips_adjacent_end_utc" ]"#,
+            #"[ "$ips_adjacent_now" -le "$ips_adjacent_query_now" ]"#,
+            #"[ "$(( ips_adjacent_query_now - ips_capture_epoch ))" -le 600 ]"#,
+            #"[ "$(( ips_adjacent_total - (ips_adjacent_query_now - ips_adjacent_origin) ))" -ge 35 ]"#,
+            #"run_diagnostic ips_adjacent_app_log Scripts/run-with-timeout.sh 25"#,
+            #"--start "$ips_adjacent_start_utc" --end "$ips_adjacent_end_utc" --style compact"#,
+            #"--predicate "process == \"FieldEvidenceApp\" AND processIdentifier == $ips_pid""#,
+            #"/usr/bin/head -c "$ips_adjacent_snapshot_bytes" "$ips_adjacent_raw" | /usr/bin/tail -c 1048576"#,
+            #"if [ "$ips_adjacent_prefix_limit" -gt 1048576 ]; then ips_adjacent_prefix_limit=1048576; fi"#,
+            #"ips_adjacent_overlap="$(( ips_adjacent_prefix_bytes - ips_adjacent_tail_start ))""#,
+            #"ips_adjacent_acceptance_eligible=false"#,
+            #"ips_adjacent_window_bound=requested_interval_not_confirmed_coverage"#,
+            #"ips_adjacent_capture=bounded_snapshot_not_completion_proof"#,
+            #"ips_adjacent_truncated=%s"#,
+            #"ips_adjacent_incomplete=%s"#,
+            #"skip-primary-query-not-timeout"#,
+            #"skip-ineligible-ordinary-tuple"#,
+            #"skip-invalid-window-or-budget"#,
+            #"skip-date-format-error"#,
+            #"skip-invalid-or-insufficient-rechecked-budget"#,
+            #"skip-temp-error"#,
+            #"simulator-incident-window-app.log"#,
+            #"simulator-incident-window-app-prefix.log"#,
+            #"rm -f "$ips_adjacent_raw""#,
+        ] {
+            XCTAssertTrue(incidentAdjacentSource.contains(invariant), invariant)
+        }
+        for prohibited in ["s10.4.minimum.accented", "s10.4.minimum.double-length", "s10.4.current.", "--last", "log stream", "OS_ACTIVITY_MODE", "simctl terminate", "simctl launch", "exit 0", "shard-receipt", "while "] {
+            XCTAssertFalse(incidentAdjacentSource.contains(prohibited), prohibited)
         }
         let uiSmokeOutsideAXDiagnostic = uiSmokeSource
             .replacingOccurrences(of: incidentCollectorSource, with: "")
@@ -14114,7 +14191,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(purchaseIntervalPreparationSource.components(separatedBy: " = close.frame").count - 1, 1)
         XCTAssertEqual(purchaseIntervalPreparationSource.components(separatedBy: " = purchase.frame").count - 1, 1)
         XCTAssertEqual(purchaseIntervalPreparationSource.components(separatedBy: " = support.frame").count - 1, 1)
-        let purchaseIntervalDiagnosticGate = "                if diagnosticProbe == nil, automationSegment == .none,\n                   let shard = automationShard,\n                   shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n                   (shard.shardID == \"s10.4.minimum.tall\" && shard.ordinal == 12 && shard.requirementID == \"tall\")\n                    || (shard.shardID == \"s10.4.minimum.rtl-string\" && shard.ordinal == 11 && shard.requirementID == \"rtl_string\") {\n"
+        let purchaseIntervalDiagnosticGate = "                if diagnosticProbe == nil, automationSegment == .none,\n                   let shard = automationShard,\n                   shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n                   (shard.shardID == \"s10.4.minimum.tall\" && shard.ordinal == 12 && shard.requirementID == \"tall\")\n                    || (shard.shardID == \"s10.4.minimum.rtl-string\" && shard.ordinal == 11 && shard.requirementID == \"rtl_string\")\n                    || (shard.shardID == \"s10.4.minimum.bounded\" && shard.ordinal == 14 && shard.requirementID == \"bounded\") {\n"
         XCTAssertEqual(purchaseIntervalFailureSource.components(separatedBy: purchaseIntervalDiagnosticGate).count - 1, 1)
         let purchaseIntervalDiagnosticLocks = [
             "let finite: (CGFloat) -> Any = { value in value.isFinite ? value as Any : NSNull() }",
@@ -20570,10 +20647,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_043_962)
+        XCTAssertEqual(uiSource.utf8.count, 1_044_087)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "6890712353D9C451F7B78316B59DF9DCF79DA358A343990BC2388A516B51206D"
+            "75F27B025A99B9F502D832671697E95ECB68B43F01D5C16F39FC2F7E7A2E6329"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

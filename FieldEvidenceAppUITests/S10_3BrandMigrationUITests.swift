@@ -10941,7 +10941,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                    let shard = automationShard,
                    shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
                    (shard.shardID == "s10.4.minimum.tall" && shard.ordinal == 12 && shard.requirementID == "tall")
-                    || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string") {
+                    || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string")
+                    || (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded") {
                     let finite: (CGFloat) -> Any = { value in value.isFinite ? value as Any : NSNull() }
                     let cachedFrame: (CGRect) -> [String: Any] = { frame in
                         ["x": finite(frame.origin.x), "y": finite(frame.origin.y),

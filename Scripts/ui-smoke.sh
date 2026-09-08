@@ -685,6 +685,141 @@ PY
             printf 'ips_prefix_incomplete=true\n' >> "$diagnostic_status_path"
           fi
           rm -f "$ips_raw"
+          # K479 conditional incident-window observation; primary collection is unchanged.
+          printf 'ips_adjacent_acceptance_eligible=false\n' >> "$diagnostic_status_path"
+          ips_adjacent_cohort=false
+          if [ "$ips_query_status" = 124 ]; then
+            if [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
+               [ "${CI_TASK_ID:-}" = S10.4 ] &&
+               [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+               [ "${diagnostic_probe_id:-}" = none ] &&
+               [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+               [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ] &&
+               [ "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum ]; then
+              case "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_SHARD_ORDINAL:-}:${CI_S10_4_REQUIREMENT_ID:-}" in
+                s10.4.minimum.minimum-os:8:minimum_os | s10.4.minimum.bounded:14:bounded | \
+                s10.4.minimum.tall:12:tall | s10.4.minimum.rtl:10:rtl | s10.4.minimum.rtl-string:11:rtl_string)
+                  ips_adjacent_cohort=true ;;
+              esac
+            fi
+            if [ "$ips_adjacent_cohort" != true ]; then
+              printf 'ips_adjacent_log=skip-ineligible-ordinary-tuple\n' >> "$diagnostic_status_path"
+            fi
+          else
+            printf 'ips_adjacent_log=skip-primary-query-not-timeout\n' >> "$diagnostic_status_path"
+          fi
+          if [ "$ips_adjacent_cohort" = true ]; then
+            ips_adjacent_now="$(date +%s)"
+            ips_adjacent_origin="${CI_BUDGET_START_EPOCH:-}"
+            ips_adjacent_total="${CI_TOTAL_BUDGET_SECONDS:-}"
+            ips_adjacent_valid=false
+            if [[ "$ips_pid" =~ ^[1-9][0-9]{0,9}$ ]] && [ "$ips_pid" -le 2147483647 ] &&
+               [[ "$ips_capture_epoch" =~ ^[1-9][0-9]{0,9}$ ]] && [ -z "${ips_extra:-}" ] &&
+               [[ "$ips_test_started_epoch" =~ ^[1-9][0-9]{0,9}$ ]] &&
+               [[ "$ips_adjacent_now" =~ ^[1-9][0-9]{0,9}$ ]] &&
+               [[ "$ips_adjacent_origin" =~ ^[1-9][0-9]{0,9}$ ]] &&
+               [[ "$ips_adjacent_total" =~ ^[1-9][0-9]{0,9}$ ]] &&
+               [ "$ips_adjacent_origin" -le "$ips_test_started_epoch" ] &&
+               [ "$ips_test_started_epoch" -le "$ips_capture_epoch" ] &&
+               [ "$ips_capture_epoch" -le "$ips_adjacent_now" ] &&
+               [ "$(( ips_adjacent_now - ips_capture_epoch ))" -le 600 ] &&
+               [ "$(( ips_adjacent_total - (ips_adjacent_now - ips_adjacent_origin) ))" -ge 35 ]; then
+              ips_adjacent_start="$(( ips_capture_epoch - 30 ))"
+              if [ "$ips_adjacent_start" -lt "$ips_test_started_epoch" ]; then
+                ips_adjacent_start="$ips_test_started_epoch"
+              fi
+              ips_adjacent_end="$(( ips_capture_epoch + 2 ))"
+              if [ "$ips_adjacent_start" -gt 0 ] && [ "$ips_adjacent_start" -lt "$ips_adjacent_end" ] &&
+                 [ "$ips_adjacent_end" -le "$ips_adjacent_now" ] &&
+                 [ "$(( ips_adjacent_end - ips_adjacent_start ))" -le 32 ]; then
+                ips_adjacent_valid=true
+              fi
+            fi
+            if [ "$ips_adjacent_valid" = true ]; then
+              ips_adjacent_dates="$(Scripts/run-with-timeout.sh 5 python3 - "$ips_adjacent_start" "$ips_adjacent_end" <<'PY'
+import datetime as dt, re, sys
+try:
+    if len(sys.argv) != 3 or any(re.fullmatch(r'[1-9][0-9]{0,9}', x) is None for x in sys.argv[1:]):
+        raise ValueError()
+    start, end = map(int, sys.argv[1:])
+    if not start < end or end - start > 32:
+        raise ValueError()
+    print('\t'.join(dt.datetime.fromtimestamp(x, dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S%z') for x in (start, end)))
+except (ValueError, OverflowError, OSError):
+    sys.exit(64)
+PY
+              )"
+              ips_adjacent_format_status="$?"
+              IFS=$'\t' read -r ips_adjacent_start_utc ips_adjacent_end_utc ips_adjacent_extra <<< "$ips_adjacent_dates"
+              printf 'ips_adjacent_format_status=%s\n' "$ips_adjacent_format_status" >> "$diagnostic_status_path"
+              if [ "$ips_adjacent_format_status" -eq 0 ] && [ -z "$ips_adjacent_extra" ] &&
+                 [[ "$ips_adjacent_start_utc" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}\+0000$ ]] &&
+                 [[ "$ips_adjacent_end_utc" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}\+0000$ ]] &&
+                 [ "$ips_adjacent_dates" = "$ips_adjacent_start_utc"$'\t'"$ips_adjacent_end_utc" ]; then
+                ips_adjacent_query_now="$(date +%s)"
+                if [[ "$ips_adjacent_query_now" =~ ^[1-9][0-9]{0,9}$ ]] &&
+                   [ "$ips_adjacent_now" -le "$ips_adjacent_query_now" ] &&
+                   [ "$ips_adjacent_end" -le "$ips_adjacent_query_now" ] &&
+                   [ "$(( ips_adjacent_query_now - ips_capture_epoch ))" -le 600 ] &&
+                   [ "$(( ips_adjacent_total - (ips_adjacent_query_now - ips_adjacent_origin) ))" -ge 35 ]; then
+                  ips_adjacent_raw="$(mktemp "${RUNNER_TEMP:?}/FieldEvidenceIncidentWindow.XXXXXX")"
+                  if [ "$?" -eq 0 ]; then
+                    printf 'ips_adjacent_pid=%s\nips_adjacent_capture_epoch=%s\nips_adjacent_test_start_epoch=%s\nips_adjacent_start_epoch=%s\nips_adjacent_end_epoch=%s\nips_adjacent_start_utc=%s\nips_adjacent_end_utc=%s\nips_adjacent_query_epoch=%s\nips_adjacent_window_bound=requested_interval_not_confirmed_coverage\n' \
+                      "$ips_pid" "$ips_capture_epoch" "$ips_test_started_epoch" "$ips_adjacent_start" "$ips_adjacent_end" \
+                      "$ips_adjacent_start_utc" "$ips_adjacent_end_utc" "$ips_adjacent_query_now" >> "$diagnostic_status_path"
+                    run_diagnostic ips_adjacent_app_log Scripts/run-with-timeout.sh 25 \
+                      xcrun simctl spawn "$CI_SIMULATOR_UDID" log show \
+                        --start "$ips_adjacent_start_utc" --end "$ips_adjacent_end_utc" --style compact \
+                        --predicate "process == \"FieldEvidenceApp\" AND processIdentifier == $ips_pid" \
+                      > "$ips_adjacent_raw" 2>&1
+                    ips_adjacent_query_status="$diagnostic_status"
+                    ips_adjacent_snapshot_bytes="$(LC_ALL=C wc -c < "$ips_adjacent_raw" | tr -d '[:space:]')"
+                    /usr/bin/head -c "$ips_adjacent_snapshot_bytes" "$ips_adjacent_raw" | /usr/bin/tail -c 1048576 \
+                      > "$failure_diagnostic_path/simulator-incident-window-app.log"
+                    ips_adjacent_snapshot_status="$?"
+                    ips_adjacent_retained_bytes="$(LC_ALL=C wc -c < "$failure_diagnostic_path/simulator-incident-window-app.log" | tr -d '[:space:]')"
+                    ips_adjacent_prefix_limit="$ips_adjacent_snapshot_bytes"
+                    if [ "$ips_adjacent_prefix_limit" -gt 1048576 ]; then ips_adjacent_prefix_limit=1048576; fi
+                    /usr/bin/head -c "$ips_adjacent_prefix_limit" "$ips_adjacent_raw" \
+                      > "$failure_diagnostic_path/simulator-incident-window-app-prefix.log"
+                    ips_adjacent_prefix_status="$?"
+                    ips_adjacent_prefix_bytes="$(LC_ALL=C wc -c < "$failure_diagnostic_path/simulator-incident-window-app-prefix.log" | tr -d '[:space:]')"
+                    ips_adjacent_tail_start=0
+                    if [ "$ips_adjacent_snapshot_bytes" -gt 1048576 ]; then
+                      ips_adjacent_tail_start="$(( ips_adjacent_snapshot_bytes - 1048576 ))"
+                    fi
+                    ips_adjacent_overlap=0
+                    if [ "$ips_adjacent_prefix_bytes" -gt "$ips_adjacent_tail_start" ]; then
+                      ips_adjacent_overlap="$(( ips_adjacent_prefix_bytes - ips_adjacent_tail_start ))"
+                    fi
+                    ips_adjacent_truncated=false
+                    if [ "$ips_adjacent_snapshot_bytes" -gt 1048576 ]; then ips_adjacent_truncated=true; fi
+                    ips_adjacent_incomplete=false
+                    if [ "$ips_adjacent_query_status" -ne 0 ] || [ "$ips_adjacent_snapshot_status" -ne 0 ] ||
+                       [ "$ips_adjacent_prefix_status" -ne 0 ] || [ "$ips_adjacent_retained_bytes" -eq 0 ] ||
+                       [ "$ips_adjacent_prefix_bytes" -ne "$ips_adjacent_prefix_limit" ]; then
+                      ips_adjacent_incomplete=true
+                    fi
+                    printf 'ips_adjacent_query_ended_utc=%s\nips_adjacent_query_status=%s\nips_adjacent_snapshot_status=%s\nips_adjacent_snapshot_bytes=%s\nips_adjacent_retained_bytes=%s\nips_adjacent_prefix_status=%s\nips_adjacent_prefix_bytes=%s\nips_adjacent_prefix_start_byte=0\nips_adjacent_prefix_end_byte=%s\nips_adjacent_tail_start_byte=%s\nips_adjacent_tail_end_byte=%s\nips_adjacent_prefix_tail_overlap_bytes=%s\nips_adjacent_truncated=%s\nips_adjacent_incomplete=%s\nips_adjacent_capture=bounded_snapshot_not_completion_proof\n' \
+                      "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$ips_adjacent_query_status" "$ips_adjacent_snapshot_status" \
+                      "$ips_adjacent_snapshot_bytes" "$ips_adjacent_retained_bytes" "$ips_adjacent_prefix_status" \
+                      "$ips_adjacent_prefix_bytes" "$ips_adjacent_prefix_bytes" "$ips_adjacent_tail_start" "$ips_adjacent_snapshot_bytes" \
+                      "$ips_adjacent_overlap" "$ips_adjacent_truncated" "$ips_adjacent_incomplete" >> "$diagnostic_status_path"
+                    rm -f "$ips_adjacent_raw"
+                  else
+                    printf 'ips_adjacent_log=skip-temp-error\n' >> "$diagnostic_status_path"
+                  fi
+                else
+                  printf 'ips_adjacent_log=skip-invalid-or-insufficient-rechecked-budget\n' >> "$diagnostic_status_path"
+                fi
+              else
+                printf 'ips_adjacent_log=skip-date-format-error\n' >> "$diagnostic_status_path"
+              fi
+            else
+              printf 'ips_adjacent_log=skip-invalid-window-or-budget\n' >> "$diagnostic_status_path"
+            fi
+          fi
+          # End K479 conditional incident-window observation.
         else
           printf 'ips_app_log=skip-temp-error\n' >> "$diagnostic_status_path"
         fi
