@@ -564,7 +564,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 22_742,
-            sha256: "1931761AF50D49D34ABB85AD0F4C104A7932D8246F54E8B49AA513BE48BC1F19"
+            sha256: "8D71C2D59F9EDE3E0FB3A5FB006A2A7C959AAE3817060D1D73A587D4D939FB58"
         )
         try assertFile(
             visualSchemaPath,

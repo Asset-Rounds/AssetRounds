@@ -1,6 +1,6 @@
 # S10.4 active CI operating brief
 
-Owner-authorized development streamlining, 2026-09-06. Read this brief first, then CURRENT_TASK's active reading map, Frozen authority/package, Outcome, Environment, H409 and H410. This is navigation and policy summary; pinned product/acceptance authorities remain controlling.
+Owner-authorized development streamlining, 2026-09-06; shared-build and minimum-segment amendment H411, 2026-09-08. Read this brief first, then CURRENT_TASK's active reading map, Frozen authority/package, Outcome, Environment, H409, H410 and H411. This is navigation and policy summary; pinned product/acceptance authorities remain controlling.
 
 ## Objective and current evidence
 
@@ -18,6 +18,14 @@ Maintain one timestamped working run ledger with run ID, exact head, profile, cu
 6. Use supported deterministic checks and explicitly assess affected unsupported cases once on the combined draft. Avoid repeating unchanged checks or optional diagnostics unless their result changes the next decision.
 7. For an isolated minimum-profile change, qualification may be compilation, all required unit methods, and the affected existing regression routes on that exact head, without an automatic67-state current-light prerequisite. Record changed behavior, affected/omitted coverage and review rationale. Broaden qualification for shared behavior changes or uncertain impact. Do not claim an unimplemented focused route exists or relabel accepting runs as diagnostics.
 8. Once ready, freeze candidate bytes and gather the complete same-head matrix. Inspect all terminal evidence before correction/retry. Never duplicate an active shard, retry a known deterministic failure unchanged, transfer old-head acceptance, or count cleanup/upload success as earlier-step success.
+
+## Shared builds and minimum-platform segments — H411
+
+The owner approved shared builds for all fourteen shards and shorter minimum-OS verification segments on 2026-09-08. Implement the finite H411 contracts before dispatch; do not mistake this authorization for an available route. Freeze one exact candidate, compile and pass the five required native units once in the qualified producer, then let eligible consumers independently verify the same immutable payload and unit evidence and run UI with test-without-building on fresh exact-profile Simulators. No consumer rebuild/fallback or invented local unit result. Preserve original producer/run/artifact and consumer identities, complete checksums and expiry.
+
+Each of the seven minimum logical shards may compose complete owned-state evidence from source-defined segments. All 67 states and six common tasks remain required, with explicit public prerequisites, entry/exit assertions and continuously executed critical journeys. Review localized resume and minimum-specific preparation; do not blindly port AX-text resume or bypass existing fixes. Keep replay/setup separate from owned state proof. The assembler must validate all segment, journey, profile and shared-payload dependencies. Report actual time to the changed code, branch execution, new states and full segment elapsed time; a smaller owned-state count alone does not demonstrate speed.
+
+GitHub remains the formal route for every minimum profile. Bitrise formal current-light/dark still requires its existing equivalence gate. Keep all previous efficiency rules: focused nonaccepting probes, immutable build reuse, a controlled shared-crash investigation, semantic test cleanup, compatible batches, deterministic prechecks and one continuing independent review. Preserve active work and all originals. Qualify the implemented producer and affected consumers, then keep the same head/payload frozen through final collection; never promote diagnostics or old-head progress.
 
 ## Bounded startup and unit feedback improvement
 
@@ -43,4 +51,4 @@ At integration boundaries, and approximately every8hours while S10.4 remains act
 
 Author on Windows; iOS compilation/Simulator execution uses only currently authorized hosted routes and exact pinned environments. Up to5GitHub macOS and3Bitrise M4 distinct useful jobs may run when dependency-ready. Bitrise development evidence remains nonaccepting; formal hybrid use still requires the exact existing equivalence gate. Use the maximum useful eligible subset, not duplicates or known-failing jobs. Preserve existing watchdogs and original complete artifact/checksum enforcement.
 
-Final S10.4 proof remains all14complete shards on one exact head,67states each,938visualcells,84accessibilityrows,six common tasks, exact commands/environment/source receipts, strict native AX/contrast with only existing eligible exceptions, complete checksummed original artifacts, and genuine human visual review. No historical source-lock retirement changes this bar. S10.5 physical proof and S10.6 release evidence remain separate subsequent cards; no release/signing/upload authority is added.
+Final S10.4 proof requires all14complete logical shards on one exact head and selected qualified payload identity,67states and critical journey closure each,938visualcells,84accessibilityrows,six common tasks, exact commands/environment/source receipts, strict native AX/contrast with only existing eligible exceptions, complete checksummed original artifacts, and genuine human visual review. No historical source-lock retirement changes this bar. S10.5 physical proof and S10.6 release evidence remain separate subsequent cards; no release/signing/upload authority is added.
