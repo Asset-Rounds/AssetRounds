@@ -7200,6 +7200,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     && automationShard?.ordinal == 12
                     && automationShard?.requirementID == "tall"
                     && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
+                || (diagnosticProbe == nil && automationSegment == .none
+                    && automationShard?.shardID == "s10.4.minimum.bounded"
+                    && automationShard?.ordinal == 14
+                    && automationShard?.requirementID == "bounded"
+                    && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum")
         let rtlStringWorkImportFixtureLabels: XCUIElementQuery? =
             rtlStringWorkHelperUsesOptionalNestedLabel
                 ? importPhoto.descendants(matching: .staticText).matching(

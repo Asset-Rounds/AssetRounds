@@ -8249,6 +8249,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             separatedBy: #"automationShard?.shardID == "s10.4.minimum.tall""#
         ).count - 1, 1)
         XCTAssertFalse(tallEditingOptionalNestedAdmission.contains("||"))
+        let boundedEditingOptionalNestedAdmission = try boundedSource(
+            workEditingPositioningSource,
+            from: "                || (diagnosticProbe == nil && automationSegment == .none\n"
+                + #"                    && automationShard?.shardID == "s10.4.minimum.bounded""#,
+            before: "        let rtlStringWorkImportFixtureLabels:"
+        )
+        for boundedEditingAdmissionTerm in [
+            "diagnosticProbe == nil", "automationSegment == .none",
+            #"automationShard?.shardID == "s10.4.minimum.bounded""#,
+            "automationShard?.ordinal == 14",
+            #"automationShard?.requirementID == "bounded""#,
+            #"automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+        ] {
+            XCTAssertTrue(boundedEditingOptionalNestedAdmission.contains(boundedEditingAdmissionTerm))
+        }
+        XCTAssertEqual(boundedEditingOptionalNestedAdmission.components(separatedBy: "&&").count - 1, 5)
+        XCTAssertEqual(boundedEditingOptionalNestedAdmission.components(separatedBy: "||").count - 1, 1)
+        XCTAssertFalse(boundedEditingOptionalNestedAdmission.contains("!"))
+        XCTAssertFalse(boundedEditingOptionalNestedAdmission.contains("true"))
         let minimumOSOptionalNestedRouteIsAdmitted: (
             String, Int, String, String, Bool, Bool
         ) -> Bool = { shardID, ordinal, requirementID, profileID,
@@ -20240,10 +20259,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_037_015)
+        XCTAssertEqual(uiSource.utf8.count, 1_037_375)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "33624D945DDF6D98451CA77F532A8608B419FD9E367E503B177C16F0793FD896"
+            "C03D203852C237BEE7301981BF83061A5DBE2C227414E594C2B0E54F0E1D3599"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
