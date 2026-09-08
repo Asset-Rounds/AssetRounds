@@ -7793,6 +7793,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {"#
         let newSignRouteStart =
             "        let prePositionSiteValue = site.value as? String"
+        let doubleNewSignFailureObservation =
+            "            if retainDoubleNewSignFailure {\n                printJSONLine(prefix: \"S10_4_PREPARATION_FAILURE_OBSERVATION\", object: [\n                    \"diagnosticOnly\": true, \"finalAcceptanceEligible\": false,\n                    \"seam\": \"double new-sign final validation\",\n                    \"observationsAreAtomic\": false,\n                    \"gestures\": doubleNewSignGestureOperands,\n                    \"finalFocusPreserved\": finalFocusPreserved,\n                    \"finalKeyboardExists\": finalKeyboardExists,\n                    \"finalErrorExists\": finalErrorExists,\n                    \"finalErrorContained\": finalErrorContained,\n                    \"finalContentPreserved\": finalContentPreserved,\n                    \"finalDetailRoutePreserved\": finalDetailRoutePreserved,\n                    \"foregroundGuardReached\": finalFocusPreserved && finalKeyboardExists\n                        && finalErrorContained && finalContentPreserved && finalDetailRoutePreserved,\n                    \"finalScrollFrame\": doubleNewSignJSONFrame(finalScrollFrame),\n                    \"navigationBottom\": doubleNewSignJSONNumber(navigationBottom),\n                    \"finalVisibleTop\": doubleNewSignJSONNumber(finalVisibleTop), \"finalVisibleBottom\": doubleNewSignJSONNumber(finalVisibleBottom),\n                    \"prePositionSiteValuePresent\": prePositionSiteValue != nil,\n                    \"prePositionSiteValue\": prePositionSiteValue ?? \"\",\n                    \"prePositionSignValuePresent\": prePositionSignValue != nil,\n                    \"prePositionSignValue\": prePositionSignValue ?? \"\",\n                    \"prePositionErrorLabel\": prePositionErrorLabel,\n                    \"prePositionErrorValuePresent\": prePositionErrorValue != nil,\n                    \"prePositionErrorValue\": prePositionErrorValue ?? \"\",\n                    \"prePositionDetailRouteExists\": prePositionDetailRouteExists,\n                ])\n                let screenshot = XCTAttachment(screenshot: app.screenshot())\n                screenshot.name = \"S10.4 double new-sign final validation later app\"\n                screenshot.lifetime = .keepAlways\n                add(screenshot)\n                let rawTree = Data(app.debugDescription.utf8)\n                let retainedTree = rawTree.prefix(262_144)\n                let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: \"public.plain-text\")\n                tree.name = \"S10.4 double new-sign final validation later tree\"\n                tree.lifetime = .keepAlways\n                add(tree)\n                printJSONLine(prefix: \"S10_4_PREPARATION_FAILURE_OBSERVATION\", object: [\n                    \"diagnosticOnly\": true, \"finalAcceptanceEligible\": false,\n                    \"seam\": \"double new-sign final validation later attachments\",\n                    \"observationsAreAtomic\": false,\n                    \"originalTreeBytes\": rawTree.count, \"retainedTreeBytes\": retainedTree.count,\n                    \"treeTruncated\": rawTree.count > retainedTree.count,\n                ])\n            }\n"
         let newSignFinalGuard =
             "        guard finalFocusPreserved,\n" +
                 "              finalKeyboardExists,\n" +
@@ -7800,6 +7802,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "              finalContentPreserved,\n" +
                 "              finalDetailRoutePreserved,\n" +
                 "              app.state == .runningForeground else {\n" +
+                doubleNewSignFailureObservation +
                 "            XCTFail(\"New-sign validation did not remain focused, unchanged, and fully visible above the keyboard.\")\n" +
                 "            return\n" +
                 "        }"
@@ -7855,6 +7858,55 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 newSignRouteStartRange.lowerBound..<newSignQuickPathProfileRange.lowerBound
             ]
         )
+        // Failure-only observation preserves the original native query/action transcript.
+        let doubleNewSignCachedOperands = "            if retainDoubleNewSignFailure {\n                doubleNewSignGestureOperands.append([\n                    \"iteration\": doubleNewSignGestureOperands.count + 1,\n                    \"scrollFrame\": doubleNewSignJSONFrame(liveScrollFrame),\n                    \"navigationBottom\": doubleNewSignJSONNumber(navigationBottom),\n                    \"visibleTop\": doubleNewSignJSONNumber(liveVisibleTop), \"visibleBottom\": doubleNewSignJSONNumber(liveVisibleBottom),\n                    \"errorFrame\": doubleNewSignJSONFrame(errorFrame),\n                    \"minimumShift\": doubleNewSignJSONNumber(minimumShift), \"maximumShift\": doubleNewSignJSONNumber(maximumShift),\n                    \"farFeasibleShift\": doubleNewSignJSONNumber(farFeasibleShift),\n                    \"maximumGestureDistance\": doubleNewSignJSONNumber(maximumGestureDistance),\n                    \"dragStartOffsetY\": doubleNewSignJSONNumber(dragStartOffsetY), \"dragDistance\": doubleNewSignJSONNumber(dragDistance),\n                    \"errorBeforeDragY\": doubleNewSignJSONNumber(errorBeforeDrag), \"observedShift\": doubleNewSignJSONNumber(observedShift),\n                ])\n            }\n"
+        let doubleNewSignFailureAdmission = "        func doubleNewSignJSONNumber(_ value: CGFloat) -> Any {\n            if value.isFinite { return Double(value) }\n            if value.isNaN { return \"NaN\" }\n            return value.sign == .minus ? \"-Inf\" : \"+Inf\"\n        }\n        func doubleNewSignJSONFrame(_ frame: CGRect) -> [String: Any] {\n            [\n                \"x\": doubleNewSignJSONNumber(frame.origin.x),\n                \"y\": doubleNewSignJSONNumber(frame.origin.y),\n                \"width\": doubleNewSignJSONNumber(frame.size.width),\n                \"height\": doubleNewSignJSONNumber(frame.size.height),\n            ]\n        }\n        let retainDoubleNewSignFailure = diagnosticProbe == nil\n            && automationSegment == .none && minimumSegment == .segment1\n            && automationShard?.shardID == \"s10.4.minimum.double-length\"\n            && automationShard?.ordinal == 9\n            && automationShard?.requirementID == \"double_length\"\n            && automationShard?.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"\n            && automationShard?.locale == \"en-US-double-length\"\n        var doubleNewSignGestureOperands: [[String: Any]] = []\n"
+        XCTAssertEqual(newSignRouteSource.components(separatedBy: doubleNewSignFailureAdmission).count - 1, 1)
+        XCTAssertEqual(newSignRouteSource.components(separatedBy: doubleNewSignCachedOperands).count - 1, 1)
+        XCTAssertEqual(newSignRouteSource.components(separatedBy: doubleNewSignFailureObservation).count - 1, 1)
+        XCTAssertFalse(doubleNewSignCachedOperands.contains("app."))
+        XCTAssertFalse(doubleNewSignCachedOperands.contains(".frame"))
+        XCTAssertFalse(doubleNewSignCachedOperands.contains(".tap("))
+        XCTAssertFalse(doubleNewSignCachedOperands.contains(".press("))
+        // This fixture uses the same exact numeric/frame helper bodies as the UI.
+        func doubleNewSignJSONNumber(_ value: CGFloat) -> Any {
+            if value.isFinite { return Double(value) }
+            if value.isNaN { return "NaN" }
+            return value.sign == .minus ? "-Inf" : "+Inf"
+        }
+        func doubleNewSignJSONFrame(_ frame: CGRect) -> [String: Any] {
+            [
+                "x": doubleNewSignJSONNumber(frame.origin.x),
+                "y": doubleNewSignJSONNumber(frame.origin.y),
+                "width": doubleNewSignJSONNumber(frame.size.width),
+                "height": doubleNewSignJSONNumber(frame.size.height),
+            ]
+        }
+        let doubleNewSignFiniteJSONValues: [CGFloat] = [
+            0, -0.0, 24, -256, 216.5,
+            .leastNonzeroMagnitude, .greatestFiniteMagnitude, -.greatestFiniteMagnitude,
+        ]
+        let doubleNewSignJSONFixture: [String: Any] = [
+            "finite": doubleNewSignFiniteJSONValues.map { doubleNewSignJSONNumber($0) },
+            "nonfinite": [CGFloat.nan, .infinity, -.infinity].map { doubleNewSignJSONNumber($0) },
+            "frame": doubleNewSignJSONFrame(CGRect(x: CGFloat.nan, y: CGFloat.infinity, width: -CGFloat.infinity, height: 44)),
+            "finalFocusPreserved": false, "finalContentPreserved": true,
+        ]
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(doubleNewSignJSONFixture))
+        let doubleNewSignJSONData = try JSONSerialization.data(withJSONObject: doubleNewSignJSONFixture)
+        let doubleNewSignJSONDecoded = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: doubleNewSignJSONData) as? [String: Any]
+        )
+        let doubleNewSignJSONFinite = try XCTUnwrap(doubleNewSignJSONDecoded["finite"] as? [NSNumber])
+        XCTAssertEqual(doubleNewSignJSONFinite.map { $0.doubleValue }, doubleNewSignFiniteJSONValues.map { Double($0) })
+        XCTAssertEqual(doubleNewSignJSONDecoded["nonfinite"] as? [String], ["NaN", "+Inf", "-Inf"])
+        XCTAssertEqual(doubleNewSignJSONDecoded["finalFocusPreserved"] as? Bool, false)
+        XCTAssertEqual(doubleNewSignJSONDecoded["finalContentPreserved"] as? Bool, true)
+        let doubleNewSignJSONFrameDecoded = try XCTUnwrap(doubleNewSignJSONDecoded["frame"] as? [String: Any])
+        XCTAssertEqual(doubleNewSignJSONFrameDecoded["x"] as? String, "NaN")
+        XCTAssertEqual(doubleNewSignJSONFrameDecoded["y"] as? String, "+Inf")
+        XCTAssertEqual(doubleNewSignJSONFrameDecoded["width"] as? String, "-Inf")
+        XCTAssertEqual((doubleNewSignJSONFrameDecoded["height"] as? NSNumber)?.doubleValue, 44)
         let newSignFinalStateLocks = [
             "        let finalFocusPreserved = wait(\n" +
                 "            for: site,\n" +
@@ -8727,8 +8779,51 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             let range = try XCTUnwrap(rtlObservationOrder.range(of: exact), exact)
             rtlObservationOrder = rtlObservationOrder[range.upperBound...]
         }
-        // Exact removal of the two observation blocks preserves all prior profile contracts.
+        let currentAXConfirmationObservation = try boundedSource(instrumentedToggleHelper,
+            from: "        // BEGIN current AX initial confirmation failure observation",
+            before: "        // END current AX initial confirmation failure observation\n")
+            + "        // END current AX initial confirmation failure observation\n"
+        XCTAssertTrue(currentAXConfirmationObservation.contains("        if isInitialPreflightConfirmation,\n           diagnosticProbe == nil, automationSegment == .segment1, minimumSegment == nil,\n           let shard = automationShard,\n           shard.shardID == \"s10.4.current.ax-text\", shard.ordinal == 4,\n           shard.requirementID == \"ax_text\",\n           shard.deviceProfileID == \"iphone-17-ios-26.2-current\",\n           shard.locale == \"en-US-release\",\n           identifier == \"s3.preflight.time-zone-confirmed\" {\n"))
+        var currentAXObservationOrder = currentAXConfirmationObservation[currentAXConfirmationObservation.startIndex...]
+        for exact in [
+            "let waitStartedAt = ProcessInfo.processInfo.systemUptime",
+            "let parentIsOn = wait(for: toggle, predicate: \"value == '1'\", timeout: 10)",
+            "let waitEndedAt = ProcessInfo.processInfo.systemUptime",
+            "if !parentIsOn {",
+            "\"event\": \"cached-wait-result\"",
+            "\"cachedPreActionValue\": cachedToggleValue.map",
+            "\"waitResult\": parentIsOn, \"perEvaluationOperandsRetained\": false",
+            "let laterReadsStartedAt = ProcessInfo.processInfo.systemUptime",
+            "let laterMatchCount = app.descendants(matching: .any).matching(identifier: identifier).count",
+            "let laterValue = toggle.value as? String",
+            "let laterFrame = toggle.frame",
+            "let laterDescription = Data(toggle.debugDescription.utf8)",
+            "let laterReadsEndedAt = ProcessInfo.processInfo.systemUptime",
+            "let retainedDescription = laterDescription.prefix(65_536)",
+            "attachment.lifetime = .keepAlways",
+            "add(attachment)",
+            "\"laterSnapshotIsPredicateOperand\": false",
+            "\"truncated\": laterDescription.count > retainedDescription.count",
+            "XCTAssertTrue(parentIsOn)",
+            "return",
+        ] {
+            let range = try XCTUnwrap(currentAXObservationOrder.range(of: exact), exact)
+            currentAXObservationOrder = currentAXObservationOrder[range.upperBound...]
+        }
+        XCTAssertEqual(currentAXConfirmationObservation.components(separatedBy: "wait(for: toggle,").count - 1, 1)
+        XCTAssertEqual(currentAXConfirmationObservation.components(separatedBy: "toggle.value as? String").count - 1, 1)
+        XCTAssertEqual(currentAXConfirmationObservation.components(separatedBy: "toggle.frame").count - 1, 1)
+        XCTAssertEqual(currentAXConfirmationObservation.components(separatedBy: "toggle.debugDescription").count - 1, 1)
+        XCTAssertEqual(currentAXConfirmationObservation.components(separatedBy: "if !parentIsOn {").count - 1, 1)
+        XCTAssertFalse(currentAXConfirmationObservation.contains("toggle.tap()"))
+        XCTAssertFalse(currentAXConfirmationObservation.contains("actuator.tap()"))
+        XCTAssertFalse(currentAXConfirmationObservation.contains("XCTFail("))
+        XCTAssertFalse(currentAXConfirmationObservation.contains("timeout: 20"))
+        XCTAssertFalse(currentAXConfirmationObservation.contains("try?"))
+        XCTAssertFalse(currentAXConfirmationObservation.contains("wait(for: app"))
+        // Removing failure-only observations preserves all prior profile contracts.
         let toggleHelper = instrumentedToggleHelper
+            .replacingOccurrences(of: currentAXConfirmationObservation, with: "")
             .replacingOccurrences(of: rtlPreObservation, with: "")
             .replacingOccurrences(of: rtlPostObservation, with: "")
         XCTAssertTrue(toggleHelper.contains("automationShard?.shardID == \"s10.4.minimum.rtl\""))
@@ -21729,10 +21824,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_116_261)
+        XCTAssertEqual(uiSource.utf8.count, 1_125_531)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "A77E6387613361B41B30191818D9E0CFC0DCD94DC2DAA4D0ADD6477949C8C562"
+            "D2A282A03032DD56608F7F54ABFA909964DCE3FE17F7D83762E9E9DA948653D5"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

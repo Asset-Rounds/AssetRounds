@@ -1595,6 +1595,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let prePositionErrorLabel = error.label
         let prePositionErrorValue = error.value as? String
         let prePositionDetailRouteExists = validationDetailRoute.exists
+        func doubleNewSignJSONNumber(_ value: CGFloat) -> Any {
+            if value.isFinite { return Double(value) }
+            if value.isNaN { return "NaN" }
+            return value.sign == .minus ? "-Inf" : "+Inf"
+        }
+        func doubleNewSignJSONFrame(_ frame: CGRect) -> [String: Any] {
+            [
+                "x": doubleNewSignJSONNumber(frame.origin.x),
+                "y": doubleNewSignJSONNumber(frame.origin.y),
+                "width": doubleNewSignJSONNumber(frame.size.width),
+                "height": doubleNewSignJSONNumber(frame.size.height),
+            ]
+        }
+        let retainDoubleNewSignFailure = diagnosticProbe == nil
+            && automationSegment == .none && minimumSegment == .segment1
+            && automationShard?.shardID == "s10.4.minimum.double-length"
+            && automationShard?.ordinal == 9
+            && automationShard?.requirementID == "double_length"
+            && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+            && automationShard?.locale == "en-US-double-length"
+        var doubleNewSignGestureOperands: [[String: Any]] = []
         let dragInset: CGFloat = 24
         let minimumGestureDistance: CGFloat = 44
         for _ in 0..<12 {
@@ -1662,6 +1683,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 XCTFail("New-sign validation positioning gesture was not recognized.")
                 return
             }
+            if retainDoubleNewSignFailure {
+                doubleNewSignGestureOperands.append([
+                    "iteration": doubleNewSignGestureOperands.count + 1,
+                    "scrollFrame": doubleNewSignJSONFrame(liveScrollFrame),
+                    "navigationBottom": doubleNewSignJSONNumber(navigationBottom),
+                    "visibleTop": doubleNewSignJSONNumber(liveVisibleTop), "visibleBottom": doubleNewSignJSONNumber(liveVisibleBottom),
+                    "errorFrame": doubleNewSignJSONFrame(errorFrame),
+                    "minimumShift": doubleNewSignJSONNumber(minimumShift), "maximumShift": doubleNewSignJSONNumber(maximumShift),
+                    "farFeasibleShift": doubleNewSignJSONNumber(farFeasibleShift),
+                    "maximumGestureDistance": doubleNewSignJSONNumber(maximumGestureDistance),
+                    "dragStartOffsetY": doubleNewSignJSONNumber(dragStartOffsetY), "dragDistance": doubleNewSignJSONNumber(dragDistance),
+                    "errorBeforeDragY": doubleNewSignJSONNumber(errorBeforeDrag), "observedShift": doubleNewSignJSONNumber(observedShift),
+                ])
+            }
         }
         let finalFocusPreserved = wait(
             for: site,
@@ -1691,6 +1726,50 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
               finalContentPreserved,
               finalDetailRoutePreserved,
               app.state == .runningForeground else {
+            if retainDoubleNewSignFailure {
+                printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "seam": "double new-sign final validation",
+                    "observationsAreAtomic": false,
+                    "gestures": doubleNewSignGestureOperands,
+                    "finalFocusPreserved": finalFocusPreserved,
+                    "finalKeyboardExists": finalKeyboardExists,
+                    "finalErrorExists": finalErrorExists,
+                    "finalErrorContained": finalErrorContained,
+                    "finalContentPreserved": finalContentPreserved,
+                    "finalDetailRoutePreserved": finalDetailRoutePreserved,
+                    "foregroundGuardReached": finalFocusPreserved && finalKeyboardExists
+                        && finalErrorContained && finalContentPreserved && finalDetailRoutePreserved,
+                    "finalScrollFrame": doubleNewSignJSONFrame(finalScrollFrame),
+                    "navigationBottom": doubleNewSignJSONNumber(navigationBottom),
+                    "finalVisibleTop": doubleNewSignJSONNumber(finalVisibleTop), "finalVisibleBottom": doubleNewSignJSONNumber(finalVisibleBottom),
+                    "prePositionSiteValuePresent": prePositionSiteValue != nil,
+                    "prePositionSiteValue": prePositionSiteValue ?? "",
+                    "prePositionSignValuePresent": prePositionSignValue != nil,
+                    "prePositionSignValue": prePositionSignValue ?? "",
+                    "prePositionErrorLabel": prePositionErrorLabel,
+                    "prePositionErrorValuePresent": prePositionErrorValue != nil,
+                    "prePositionErrorValue": prePositionErrorValue ?? "",
+                    "prePositionDetailRouteExists": prePositionDetailRouteExists,
+                ])
+                let screenshot = XCTAttachment(screenshot: app.screenshot())
+                screenshot.name = "S10.4 double new-sign final validation later app"
+                screenshot.lifetime = .keepAlways
+                add(screenshot)
+                let rawTree = Data(app.debugDescription.utf8)
+                let retainedTree = rawTree.prefix(262_144)
+                let tree = XCTAttachment(data: Data(retainedTree), uniformTypeIdentifier: "public.plain-text")
+                tree.name = "S10.4 double new-sign final validation later tree"
+                tree.lifetime = .keepAlways
+                add(tree)
+                printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: [
+                    "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                    "seam": "double new-sign final validation later attachments",
+                    "observationsAreAtomic": false,
+                    "originalTreeBytes": rawTree.count, "retainedTreeBytes": retainedTree.count,
+                    "treeTruncated": rawTree.count > retainedTree.count,
+                ])
+            }
             XCTFail("New-sign validation did not remain focused, unchanged, and fully visible above the keyboard.")
             return
         }
@@ -20588,6 +20667,62 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 toggle.tap()
             }
         }
+        // BEGIN current AX initial confirmation failure observation
+        if isInitialPreflightConfirmation,
+           diagnosticProbe == nil, automationSegment == .segment1, minimumSegment == nil,
+           let shard = automationShard,
+           shard.shardID == "s10.4.current.ax-text", shard.ordinal == 4,
+           shard.requirementID == "ax_text",
+           shard.deviceProfileID == "iphone-17-ios-26.2-current",
+           shard.locale == "en-US-release",
+           identifier == "s3.preflight.time-zone-confirmed" {
+            let waitStartedAt = ProcessInfo.processInfo.systemUptime
+            let parentIsOn = wait(for: toggle, predicate: "value == '1'", timeout: 10)
+            let waitEndedAt = ProcessInfo.processInfo.systemUptime
+            if !parentIsOn {
+                printJSONLine(prefix: "S10_4_CURRENT_AX_INITIAL_CONFIRMATION_FAILURE", object: [
+                    "event": "cached-wait-result", "diagnosticOnly": true,
+                    "finalAcceptanceEligible": false, "nativeReadsAreAtomic": false,
+                    "identifier": identifier, "shardID": shard.shardID,
+                    "ordinal": shard.ordinal, "requirementID": shard.requirementID,
+                    "deviceProfileID": shard.deviceProfileID, "locale": shard.locale,
+                    "automationSegment": "segment-1", "initialPreflightConfirmation": true,
+                    "cachedPreActionValue": cachedToggleValue.map { String($0.prefix(256)) as Any } ?? NSNull(),
+                    "predicate": "value == '1'", "timeoutSeconds": 10,
+                    "waitResult": parentIsOn, "perEvaluationOperandsRetained": false,
+                    "clock": "test-runner-systemUptime",
+                    "waitStartedAt": waitStartedAt.isFinite ? waitStartedAt as Any : NSNull(),
+                    "waitEndedAt": waitEndedAt.isFinite ? waitEndedAt as Any : NSNull(),
+                ])
+                let laterReadsStartedAt = ProcessInfo.processInfo.systemUptime
+                let laterMatchCount = app.descendants(matching: .any).matching(identifier: identifier).count
+                let laterValue = toggle.value as? String
+                let laterFrame = toggle.frame
+                let laterDescription = Data(toggle.debugDescription.utf8)
+                let laterReadsEndedAt = ProcessInfo.processInfo.systemUptime
+                let retainedDescription = laterDescription.prefix(65_536)
+                let attachment = XCTAttachment(data: Data(retainedDescription), uniformTypeIdentifier: "public.plain-text")
+                attachment.name = "S10.4 current AX confirmation later hierarchy"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                printJSONLine(prefix: "S10_4_CURRENT_AX_INITIAL_CONFIRMATION_FAILURE", object: [
+                    "event": "later-failure-snapshot", "diagnosticOnly": true,
+                    "finalAcceptanceEligible": false, "nativeReadsAreAtomic": false,
+                    "laterSnapshotIsPredicateOperand": false, "samplingMayPerturbTiming": true,
+                    "laterMatchCount": laterMatchCount,
+                    "laterValue": laterValue.map { String($0.prefix(256)) as Any } ?? NSNull(),
+                    "laterFrame": String(String(describing: laterFrame).prefix(256)),
+                    "clock": "test-runner-systemUptime",
+                    "laterReadsStartedAt": laterReadsStartedAt.isFinite ? laterReadsStartedAt as Any : NSNull(),
+                    "laterReadsEndedAt": laterReadsEndedAt.isFinite ? laterReadsEndedAt as Any : NSNull(),
+                    "originalBytes": laterDescription.count, "retainedBytes": retainedDescription.count,
+                    "truncated": laterDescription.count > retainedDescription.count,
+                ])
+            }
+            XCTAssertTrue(parentIsOn)
+            return
+        }
+        // END current AX initial confirmation failure observation
         XCTAssertTrue(wait(for: toggle, predicate: "value == '1'", timeout: 10))
     }
 
