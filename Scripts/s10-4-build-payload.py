@@ -2229,8 +2229,10 @@ save(artifact/'s10-4-shared-native-validation.json',dict(schemaVersion=1,validat
      consumerBuildReferenceSHA256=k['sha256_file'](artifact/'shared-consumer/consumer-build-reference.json')))
 segment=c['segmentID']
 if segment!='none':
+    retained=artifact/'s10-4-shared-raw-attachments'
+    k['copy_tree'](Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments',retained)
     subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--collect-shared-segment',str(artifact),
-                    str(Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments'),c['shardID'],segment,
+                    str(retained),c['shardID'],segment,
                     os.environ['CI_S10_4_MATRIX_BINDING']],cwd=root,check=True)
 '''
 

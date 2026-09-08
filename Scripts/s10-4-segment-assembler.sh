@@ -403,7 +403,10 @@ def attachment_rows(attachment_root,ctx,segment):
     for row in allrows:
         require(row.get('isAssociatedWithFailure') is False,'failure attachment in accepting segment')
         name=row.get('suggestedHumanReadableName','')
-        name=re.sub(r'_0_[0-9A-Fa-f-]{36}\.', '.',name)
+        if ctx['minimum'] and re.fullmatch(re.escape(terminal)+r'_0_[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\.png',name):
+            name=terminal
+        else:
+            name=re.sub(r'_0_[0-9A-Fa-f-]{36}\.', '.',name)
         filename=row.get('exportedFileName','')
         require(re.fullmatch('[A-Za-z0-9._-]+',filename) and filename not in seen,'unsafe/duplicate attachment file'); seen.add(filename)
         path=attachment_root/filename; require(path.is_file() and not path.is_symlink(),'missing/unsafe original attachment')
@@ -464,7 +467,8 @@ def collect(root,artifact_root,attachment_root,shard_id,segment_id,matrix_path):
         save(dst/'xcresult-attachment-manifest.json',manifest)
         save(dst/'candidate-files.json',candidates)
         save(dst/'candidate-exports.json',[{'stateID':r['stateID'],'exportedFileName':r['exportedFileName']} for r in candidates])
-        save(dst/'original-attachments/manifest.json',manifest)
+        (dst/'original-attachments').mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(attachment_root/'manifest.json',dst/'original-attachments/manifest.json')
         for test in manifest:
             for attachment in test['attachments']:
                 filename=attachment['exportedFileName']

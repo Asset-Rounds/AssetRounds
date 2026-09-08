@@ -801,8 +801,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             of: "'''", range: sharedExecutable1Start.upperBound..<sharedPayloadEmitterSource.endIndex
         ))
         let sharedExecutable1 = String(sharedPayloadEmitterSource[sharedExecutable1Start.upperBound..<sharedExecutable1End.lowerBound])
-        XCTAssertEqual(sharedExecutable1.utf8.count, 2_948)
-        XCTAssertEqual(Data(sharedExecutable1.utf8).sha256, "194514BECD0ABD96E1CD791EB780805FE45FABDB3C1BFB7E396081EC6427F85A")
+        // K486 retains raw shared exports before collection; all other native gates stay exact.
+        let sharedAttachmentRetention = "if segment!='none':\n    retained=artifact/'s10-4-shared-raw-attachments'\n    k['copy_tree'](Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments',retained)\n    subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--collect-shared-segment',str(artifact),\n                    str(retained),c['shardID'],segment,\n                    os.environ['CI_S10_4_MATRIX_BINDING']],cwd=root,check=True)\n"
+        let priorSharedAttachmentCollection = "if segment!='none':\n    subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--collect-shared-segment',str(artifact),\n                    str(Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments'),c['shardID'],segment,\n                    os.environ['CI_S10_4_MATRIX_BINDING']],cwd=root,check=True)\n"
+        XCTAssertEqual(sharedExecutable1.components(separatedBy: sharedAttachmentRetention).count - 1, 1)
+        let originalSharedExecutable1 = sharedExecutable1.replacingOccurrences(
+            of: sharedAttachmentRetention, with: priorSharedAttachmentCollection
+        )
+        XCTAssertEqual(originalSharedExecutable1.utf8.count, 2_948)
+        XCTAssertEqual(Data(originalSharedExecutable1.utf8).sha256, "194514BECD0ABD96E1CD791EB780805FE45FABDB3C1BFB7E396081EC6427F85A")
         XCTAssertTrue(sharedPayloadEmitterSource.contains("if arguments == [\"emit-shared-ui-evidence\"]:"))
         XCTAssertTrue(sharedPayloadEmitterSource.contains("sys.stdout.buffer.write(SHARED_UI_EVIDENCE_SOURCE.encode(\"utf-8\"))"))
         XCTAssertTrue(workflowSource.contains("python3 Scripts/s10-4-build-payload.py emit-shared-ui-evidence | python3 -"))
@@ -3533,7 +3540,67 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         // K481: the full vertical gesture must avoid the closed focused-field rectangle.
         let doubleVisibleReceiver = try boundedSource(uiSource,
             from: "                        let positionVisiblePreflightControl:",
-            before: "                                XCTFail(\"The serial visible preflight control was not positioned within four attempts.\")")
+            before: "                        let serialAfterDarkPositioned =")
+        XCTAssertFalse(doubleVisibleReceiver.contains("for _ in 0..<4"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("while true {"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("plannedGestures < CGFloat(Int.max)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let planningGain = max(minimumGestureDistance, observedSignedMovement)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("let plannedGestures = ceil(remainingDistance / planningGain)"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("remainingGestureAllowance = allowance - 1"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("guard observedSignedMovement.isFinite,"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("positioningScalars.allSatisfy({ $0.isFinite })"))
+        let doubleContainment = try XCTUnwrap(doubleVisibleReceiver.range(of: "interactiveSwitch.isHittable {"))
+        let doubleExhaustion = try XCTUnwrap(doubleVisibleReceiver.range(of: "if let remainingGestureAllowance, remainingGestureAllowance == 0 {"))
+        let doubleGesture = try XCTUnwrap(doubleVisibleReceiver.range(of: "dragStart.press("))
+        XCTAssertLessThan(doubleContainment.lowerBound, doubleExhaustion.lowerBound)
+        XCTAssertLessThan(doubleExhaustion.lowerBound, doubleGesture.lowerBound)
+        XCTAssertEqual(doubleVisibleReceiver.components(separatedBy: "remainingGestureAllowance = Int(plannedGestures)").count - 1, 1)
+        XCTAssertTrue(doubleVisibleReceiver.contains("if !positioned {"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("cachedGeometry.count == 32"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("omittedGeometryRecords += 1"))
+        XCTAssertTrue(doubleVisibleReceiver.contains("\"atomicWithCachedChecks\": false"))
+        // A frozen work estimate never certifies later movement or containment.
+        let doubleAllowanceModel: (CGFloat, CGFloat) -> Int? = { distance, gain in
+            guard distance.isFinite, distance >= 0, gain.isFinite, gain > 0 else { return nil }
+            let count = ceil(distance / max(44, gain))
+            guard count.isFinite, count >= 0, count < CGFloat(Int.max) else { return nil }
+            return Int(count)
+        }
+        XCTAssertEqual(doubleAllowanceModel(982.5, 295), 4)
+        XCTAssertEqual(doubleAllowanceModel(0, 44), 0)
+        XCTAssertEqual(doubleAllowanceModel(900, 300), 3)
+        XCTAssertEqual(doubleAllowanceModel(1200, 0.000001), 28)
+        XCTAssertNil(doubleAllowanceModel(1200, 0))
+        XCTAssertNil(doubleAllowanceModel(1200, -1))
+        XCTAssertNil(doubleAllowanceModel(.infinity, 295))
+        XCTAssertNil(doubleAllowanceModel(1200, .nan))
+        XCTAssertNil(doubleAllowanceModel(CGFloat.greatestFiniteMagnitude, 44))
+        let doubleRemainingModel: (CGFloat, [CGFloat]) -> (Bool, Int) = { initialDistance, gains in
+            var remaining = initialDistance
+            var allowance: Int?
+            var completed = 0
+            for gain in gains {
+                if remaining <= 0 { return (true, completed) }
+                if allowance == 0 { return (false, completed) }
+                guard gain.isFinite, gain > 0 else { return (false, completed) }
+                remaining -= gain
+                completed += 1
+                if let previous = allowance { allowance = previous - 1 }
+                else { allowance = doubleAllowanceModel(max(0, remaining), gain) }
+            }
+            return (remaining <= 0, completed)
+        }
+        let doubleLong = doubleRemainingModel(1277.5, [295, 295, 295, 295, 295])
+        XCTAssertTrue(doubleLong.0)
+        XCTAssertEqual(doubleLong.1, 5)
+        let doubleLast = doubleRemainingModel(1200, [300, 300, 300, 300])
+        XCTAssertTrue(doubleLast.0)
+        XCTAssertEqual(doubleLast.1, 4)
+        XCTAssertTrue(doubleRemainingModel(44, [44]).0)
+        XCTAssertFalse(doubleRemainingModel(1200, [300, 100, 100, 100, 1000]).0)
+        XCTAssertFalse(doubleRemainingModel(1200, [300, 0]).0)
+        XCTAssertFalse(doubleRemainingModel(1200, [300, -1]).0)
+        XCTAssertFalse(doubleRemainingModel(1200, [300, .nan]).0)
         XCTAssertTrue(doubleVisibleReceiver.contains("if centerAvoidsZone {\n                                        dragX = centerX\n                                    } else {"))
         XCTAssertTrue(doubleVisibleReceiver.contains("guard dragX.isFinite,\n                                          dragX >= receiverLeft, dragX <= receiverRight,"))
         XCTAssertTrue(doubleVisibleReceiver.contains("focusedZoneFrame.origin.x, focusedZoneFrame.origin.y,\n                                        focusedZoneFrame.size.width, focusedZoneFrame.size.height,"))
@@ -14983,11 +15050,100 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let postPurchaseAXHelperStart =
             "    @MainActor\n" +
                 "    private func positionAXTextPurchaseCompleteViewport("
-        let postPurchaseAXHelperSource = try boundedSource(
+        let instrumentedPostPurchaseAXHelperSource = try boundedSource(
             uiSource,
             from: postPurchaseAXHelperStart,
             before: "    @MainActor\n    private func assertMonthlyPaywallAtXXXL"
         )
+        let boundedProgressObservation = try boundedSource(
+            instrumentedPostPurchaseAXHelperSource,
+            from: "                    // BEGIN bounded purchase signed-progress failure observation", before: "                    // END bounded purchase signed-progress failure observation\n"
+        ) + "                    // END bounded purchase signed-progress failure observation\n"
+        XCTAssertEqual(instrumentedPostPurchaseAXHelperSource.components(separatedBy: "                    // BEGIN bounded purchase signed-progress failure observation").count - 1, 1)
+        XCTAssertEqual(instrumentedPostPurchaseAXHelperSource.components(separatedBy: "                    // END bounded purchase signed-progress failure observation\n").count - 1, 1)
+        XCTAssertTrue(boundedProgressObservation.contains("                    if usesBoundedPurchaseCompleteViewport,\n                       stage == \"verified viewport\",\n                       diagnosticProbe == nil, automationSegment == .none,\n                       let shard = automationShard,\n                       shard.shardID == \"s10.4.minimum.bounded\",\n                       shard.ordinal == 14, shard.requirementID == \"bounded\",\n                       shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n                       shard.locale == \"en-US-bounded\" {\n"))
+        XCTAssertTrue(instrumentedPostPurchaseAXHelperSource.contains(
+            "                guard purchaseStateShift * dragDistance > 0,\n                      supportShift * dragDistance > 0 else {\n" + boundedProgressObservation + "                    return fail(\n                        \"AX-text purchase-complete \\(stage) gesture made no signed progress.\"\n                    )\n"
+        ))
+        for required in [
+            "let progressScalar: (CGFloat) -> Any = { value in\n                            value.isFinite ? Double(value) as Any : NSNull()",
+            "var observation = tallCachedIntervalObservation\n                            ?? [\"cachedIntervalAvailable\": false]",
+            "observation[\"diagnosticOnly\"] = true",
+            "observation[\"finalAcceptanceEligible\"] = false",
+            "observation[\"atomicSnapshot\"] = false",
+            "observation[\"additionalNativeReads\"] = false",
+            "observation[\"event\"] = \"signed-progress-failure\"",
+            "observation[\"seam\"] = \"bounded purchase-complete positioning\"",
+            "observation[\"stage\"] = stage",
+            "observation[\"shardID\"] = shard.shardID",
+            "observation[\"ordinal\"] = shard.ordinal",
+            "observation[\"requirementID\"] = shard.requirementID",
+            "observation[\"deviceProfileID\"] = shard.deviceProfileID",
+            "observation[\"locale\"] = shard.locale",
+            "observation[\"minimumSegmentID\"] = minimumSegment?.rawValue ?? \"none\"",
+            "observation[\"minimumSegmentHead\"] = minimumSegmentHead",
+            "observation[\"intervalObservationPhase\"] = \"before-gesture\"",
+            "observation[\"progressObservationPhase\"] = \"before-after-gesture\"",
+            "observation[\"completedGestureCount\"] = completedGestureCount",
+            "printJSONLine(prefix: \"S10_4_BOUNDED_PURCHASE_PROGRESS_FAILURE\", object: observation)",
+            "\"purchaseStateBeforeDrag\": progressScalar(purchaseStateBeforeDrag)",
+            "\"purchaseStateAfterDrag\": progressScalar(purchaseStateAfterDrag)",
+            "\"supportBeforeDrag\": progressScalar(supportBeforeDrag)",
+            "\"supportAfterDrag\": progressScalar(supportAfterDrag)",
+            "\"dragDistance\": progressScalar(dragDistance)",
+            "\"purchaseStateShift\": progressScalar(purchaseStateShift)",
+            "\"supportShift\": progressScalar(supportShift)",
+            "\"purchaseStateSignedProgress\": progressScalar(purchaseStateShift * dragDistance)",
+            "\"supportSignedProgress\": progressScalar(supportShift * dragDistance)",
+            "\"viewportX\": progressScalar(geometry.storeFrame.minX)",
+            "\"viewportY\": progressScalar(geometry.storeFrame.minY)",
+            "\"viewportWidth\": progressScalar(geometry.storeFrame.width)",
+            "\"viewportHeight\": progressScalar(geometry.storeFrame.height)",
+            "\"applicationOriginX\": progressScalar(sampledApplicationOrigin.x)",
+            "\"applicationOriginY\": progressScalar(sampledApplicationOrigin.y)",
+            "\"startOffsetY\": progressScalar(dragStartOffsetY)",
+            "\"endOffsetY\": progressScalar(dragStartOffsetY + dragDistance)",
+        ] {
+            XCTAssertEqual(boundedProgressObservation.components(separatedBy: required).count - 1, 1, required)
+        }
+        XCTAssertEqual(boundedProgressObservation.components(separatedBy: "if ").count - 1, 1)
+        XCTAssertEqual(boundedProgressObservation.components(separatedBy: "printJSONLine(").count - 1, 1)
+        for forbidden in [
+            ".frame",
+            ".exists",
+            ".label",
+            ".value",
+            ".count",
+            ".isHittable",
+            ".isEnabled",
+            "screenshot",
+            "debugDescription",
+            ".tap(",
+            ".press(",
+            "coordinate(",
+            "wait(",
+            "sleep(",
+            "captureBaseline(",
+            "performAccessibilityAudit",
+            "return",
+            "XCTFail(",
+            "ProcessInfo",
+            "Date(",
+        ] {
+            XCTAssertFalse(boundedProgressObservation.contains(forbidden), forbidden)
+        }
+        // Remove only the separately checked failure observation before all existing helper contracts.
+        let postPurchaseAXHelperSource = instrumentedPostPurchaseAXHelperSource
+            .replacingOccurrences(of: boundedProgressObservation, with: "")
+        for originalOperandContract in [
+            "                let purchaseStateBeforeDrag = purchaseState.frame.minY\n                let supportBeforeDrag = support.frame.minY\n",
+            "                let purchaseStateAfterDrag = purchaseState.frame.minY\n                let supportAfterDrag = support.frame.minY\n",
+            "                let purchaseStateShift =\n                    purchaseStateAfterDrag - purchaseStateBeforeDrag\n                let supportShift = supportAfterDrag - supportBeforeDrag\n",
+            "                guard purchaseStateShift * dragDistance > 0,\n                      supportShift * dragDistance > 0 else {\n                    return fail(\n                        \"AX-text purchase-complete \\(stage) gesture made no signed progress.\"\n                    )\n",
+            "                dragStart.press(\n                    forDuration: 0.2,\n                    thenDragTo: dragEnd,\n                    withVelocity: .slow,\n                    thenHoldForDuration: 0.2\n                )\n                completedGestureCount += 1\n",
+        ] {
+            XCTAssertEqual(postPurchaseAXHelperSource.components(separatedBy: originalOperandContract).count - 1, 1, originalOperandContract)
+        }
         let postPurchaseAXRouteSource = try boundedSource(
             postPurchaseAXHelperSource,
             from: postPurchaseAXHelperStart,
@@ -21386,10 +21542,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_098_097)
+        XCTAssertEqual(uiSource.utf8.count, 1_110_682)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "D9674BF47E2091E816E188703CBB925CB127CB0EC801B5538EE08ACDDA87B706"
+            "F84ABC8A4A6391949EC1FF7769A3D98402F1BCE265A2F2AF4D13A8C6A1A0702B"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -25089,11 +25245,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let assemblerSource = try XCTUnwrap(assemblerModes.last)
         XCTAssertTrue(sharedAssemblerSource.contains("--collect-shared-segment|--admit-shared-selection|--assemble-shared"))
         XCTAssertTrue(sharedAssemblerSource.contains("S10_4_SHARED_SEGMENT_PY"))
-        try assertFile(
-            assemblerPath,
-            byteCount: 99_763,
-            sha256: "B4F43771886FBC9E15FB0D2511ACCF796EB95EA0B09A4605940F028170295DEE"
-        )
+        // K486 recognizes only the native minimum terminal PNG suffix and preserves raw manifest bytes.
+        let minimumTerminalExport = "        if ctx['minimum'] and re.fullmatch(re.escape(terminal)+r'_0_[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\\.png',name):\n            name=terminal\n        else:\n            name=re.sub(r'_0_[0-9A-Fa-f-]{36}\\.', '.',name)\n"
+        let originalAttachmentNameNormalization = "        name=re.sub(r'_0_[0-9A-Fa-f-]{36}\\.', '.',name)\n"
+        let originalManifestRetention = "        (dst/'original-attachments').mkdir(parents=True,exist_ok=True)\n        shutil.copyfile(attachment_root/'manifest.json',dst/'original-attachments/manifest.json')\n"
+        let previousManifestSerialization = "        save(dst/'original-attachments/manifest.json',manifest)\n"
+        XCTAssertEqual(completeAssemblerSource.components(separatedBy: minimumTerminalExport).count - 1, 1)
+        XCTAssertEqual(completeAssemblerSource.components(separatedBy: originalManifestRetention).count - 1, 1)
+        let originalCompleteAssembler = completeAssemblerSource
+            .replacingOccurrences(of: minimumTerminalExport, with: originalAttachmentNameNormalization)
+            .replacingOccurrences(of: originalManifestRetention, with: previousManifestSerialization)
+        XCTAssertEqual(originalCompleteAssembler.utf8.count, 99_763)
+        XCTAssertEqual(Data(originalCompleteAssembler.utf8).sha256, "B4F43771886FBC9E15FB0D2511ACCF796EB95EA0B09A4605940F028170295DEE")
         XCTAssertFalse(assemblerSource.contains("\r"))
         XCTAssertTrue(
             assemblerSource.hasPrefix("#" + "!/usr/bin/env bash\nset -euo pipefail\n")

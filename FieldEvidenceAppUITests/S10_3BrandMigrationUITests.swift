@@ -3656,7 +3656,42 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         let positionVisiblePreflightControl:
                             (XCUIElement, String, String?) -> Bool = {
                                 control, expectedLabel, expectedValue in
-                                for _ in 0..<4 {
+                                var completedGestures = 0
+                                var remainingGestureAllowance: Int?
+                                var positioned = false
+                                var cachedGeometry: [[String: Any]] = []
+                                var omittedGeometryRecords = 0
+                                let scalar: (CGFloat) -> Any = { value in
+                                    value.isFinite ? value as Any : NSNull()
+                                }
+                                let frameRecord: (CGRect) -> [Any] = { frame in
+                                    [frame.origin.x, frame.origin.y, frame.width, frame.height].map(scalar)
+                                }
+                                let retainGeometry: ([String: Any]) -> Void = { record in
+                                    if cachedGeometry.count == 32 {
+                                        cachedGeometry.removeFirst()
+                                        omittedGeometryRecords += 1
+                                    }
+                                    cachedGeometry.append(record)
+                                }
+                                defer {
+                                    if !positioned {
+                                        self.printJSONLine(prefix: "S10_4_DOUBLE_POSITIONING_FAILURE", object: [
+                                            "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                                            "atomicWithCachedChecks": false,
+                                            "shardID": self.automationShard?.shardID ?? "none",
+                                            "minimumSegmentID": self.minimumSegment?.rawValue ?? "none",
+                                            "expectedLabel": String(expectedLabel.prefix(256)),
+                                            "labelTruncated": expectedLabel.count > 256,
+                                            "completedGestures": completedGestures,
+                                            "remainingGestureAllowance": remainingGestureAllowance.map { $0 as Any } ?? NSNull(),
+                                            "retainedRecordLimit": 32,
+                                            "omittedGeometryRecords": omittedGeometryRecords,
+                                            "records": cachedGeometry,
+                                        ])
+                                    }
+                                }
+                                while true {
                                     guard app.state == .runningForeground,
                                           preflightScrollViews.count == 1,
                                           preflightNavigationBars.count == 1,
@@ -3719,7 +3754,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     let maximumShift =
                                         safeBottom - interactiveSwitchFrame.maxY
                                     let receiverCapacity = receiverBottom - receiverTop
-                                    guard !liveApplicationFrame.isNull,
+                                    retainGeometry([
+                                        "stage": "before-containment", "completedGestures": completedGestures,
+                                        "switch": frameRecord(interactiveSwitchFrame),
+                                        "app": frameRecord(liveApplicationFrame), "scroll": frameRecord(scrollFrame),
+                                        "navigation": frameRecord(navigationFrame), "assistant": frameRecord(assistantFrame),
+                                        "focusedZone": frameRecord(focusedZoneFrame),
+                                        "safeTop": scalar(safeTop), "safeBottom": scalar(safeBottom),
+                                        "receiverTop": scalar(receiverTop), "receiverBottom": scalar(receiverBottom),
+                                    ])
+                                    let positioningScalars = [
+                                        liveApplicationFrame.minX, liveApplicationFrame.maxX,
+                                        liveApplicationFrame.minY, liveApplicationFrame.maxY,
+                                        scrollFrame.minX, scrollFrame.maxX, scrollFrame.minY, scrollFrame.maxY,
+                                        navigationFrame.minY, navigationFrame.maxY,
+                                        assistantFrame.minY, assistantFrame.maxY,
+                                        interactiveSwitchFrame.minX, interactiveSwitchFrame.maxX,
+                                        interactiveSwitchFrame.minY, interactiveSwitchFrame.maxY,
+                                        safeTop, safeBottom, minimumShift, maximumShift, receiverCapacity,
+                                    ]
+                                    guard positioningScalars.allSatisfy({ $0.isFinite }),
+                                          !liveApplicationFrame.isNull,
                                           !liveApplicationFrame.isEmpty,
                                           !scrollFrame.isNull,
                                           !scrollFrame.isEmpty,
@@ -3746,7 +3801,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     if interactiveSwitchFrame.minY >= safeTop,
                                        interactiveSwitchFrame.maxY <= safeBottom,
                                        interactiveSwitch.isHittable {
+                                        positioned = true
                                         return true
+                                    }
+                                    // Observe full containment after the last permitted drag before exhaustion.
+                                    if let remainingGestureAllowance, remainingGestureAllowance == 0 {
+                                        XCTFail("The serial visible preflight geometry-derived gesture allowance was exhausted.")
+                                        return false
                                     }
                                     let dragDistance: CGFloat
                                     if maximumShift < 0 {
@@ -3885,6 +3946,17 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         thenHoldForDuration: 0.2
                                     )
                                     let interactiveSwitchFrameAfterDrag = interactiveSwitch.frame
+                                    let observedSignedMovement = (interactiveSwitchFrameAfterDrag.minY
+                                        - interactiveSwitchMinYBeforeDrag) * dragDirection
+                                    retainGeometry([
+                                        "stage": "after-drag", "gesture": completedGestures + 1,
+                                        "before": frameRecord(interactiveSwitchFrame),
+                                        "after": frameRecord(interactiveSwitchFrameAfterDrag),
+                                        "command": scalar(dragDistance), "direction": scalar(dragDirection),
+                                        "observedSignedMovement": scalar(observedSignedMovement),
+                                        "dragStart": [scalar(dragStartPoint.x), scalar(dragStartPoint.y)],
+                                        "dragEnd": [scalar(dragEndPoint.x), scalar(dragEndPoint.y)],
+                                    ])
                                     guard (interactiveSwitchFrameAfterDrag.minY
                                         - interactiveSwitchMinYBeforeDrag)
                                         * dragDistance > 0 else {
@@ -3946,9 +4018,42 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         XCTFail("The serial visible preflight positioning gesture did not make signed progress.")
                                         return false
                                     }
+                                    guard observedSignedMovement.isFinite,
+                                          interactiveSwitchFrameAfterDrag.minY.isFinite,
+                                          interactiveSwitchFrameAfterDrag.maxY.isFinite,
+                                          !interactiveSwitchFrameAfterDrag.isNull,
+                                          !interactiveSwitchFrameAfterDrag.isEmpty else {
+                                        XCTFail("The serial visible preflight observed movement geometry is invalid.")
+                                        return false
+                                    }
+                                    completedGestures += 1
+                                    if let allowance = remainingGestureAllowance {
+                                        remainingGestureAllowance = allowance - 1
+                                    } else {
+                                        let remainingDistance = max(0, dragDirection < 0
+                                            ? interactiveSwitchFrameAfterDrag.maxY - safeBottom
+                                            : safeTop - interactiveSwitchFrameAfterDrag.minY)
+                                        // Freeze a work allowance, not a promise of constant future gain.
+                                        // The existing recognizable-gesture scale bounds tiny-positive estimates.
+                                        // Every later drag must independently pass signed progress and containment.
+                                        let planningGain = max(minimumGestureDistance, observedSignedMovement)
+                                        let plannedGestures = ceil(remainingDistance / planningGain)
+                                        guard remainingDistance.isFinite, planningGain.isFinite,
+                                              plannedGestures.isFinite, plannedGestures >= 0,
+                                              plannedGestures < CGFloat(Int.max) else {
+                                            XCTFail("The serial visible preflight gesture allowance is not representable.")
+                                            return false
+                                        }
+                                        remainingGestureAllowance = Int(plannedGestures)
+                                        retainGeometry([
+                                            "stage": "frozen-allowance", "remainingDistance": scalar(remainingDistance),
+                                            "observedSignedMovement": scalar(observedSignedMovement),
+                                            "planningGain": scalar(planningGain),
+                                            "remainingGestureAllowance": Int(plannedGestures),
+                                            "constantFutureGainAssumed": false,
+                                        ])
+                                    }
                                 }
-                                XCTFail("The serial visible preflight control was not positioned within four attempts.")
-                                return false
                             }
                         let serialAfterDarkPositioned =
                             positionVisiblePreflightControl(
@@ -12235,6 +12340,61 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 let supportShift = supportAfterDrag - supportBeforeDrag
                 guard purchaseStateShift * dragDistance > 0,
                       supportShift * dragDistance > 0 else {
+                    // BEGIN bounded purchase signed-progress failure observation
+                    if usesBoundedPurchaseCompleteViewport,
+                       stage == "verified viewport",
+                       diagnosticProbe == nil, automationSegment == .none,
+                       let shard = automationShard,
+                       shard.shardID == "s10.4.minimum.bounded",
+                       shard.ordinal == 14, shard.requirementID == "bounded",
+                       shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                       shard.locale == "en-US-bounded" {
+                        let progressScalar: (CGFloat) -> Any = { value in
+                            value.isFinite ? Double(value) as Any : NSNull()
+                        }
+                        var observation = tallCachedIntervalObservation
+                            ?? ["cachedIntervalAvailable": false]
+                        observation["diagnosticOnly"] = true
+                        observation["finalAcceptanceEligible"] = false
+                        observation["atomicSnapshot"] = false
+                        observation["additionalNativeReads"] = false
+                        observation["event"] = "signed-progress-failure"
+                        observation["seam"] = "bounded purchase-complete positioning"
+                        observation["stage"] = stage
+                        observation["shardID"] = shard.shardID
+                        observation["ordinal"] = shard.ordinal
+                        observation["requirementID"] = shard.requirementID
+                        observation["deviceProfileID"] = shard.deviceProfileID
+                        observation["locale"] = shard.locale
+                        observation["minimumSegmentID"] = minimumSegment?.rawValue ?? "none"
+                        observation["minimumSegmentHead"] = minimumSegmentHead
+                        observation["intervalObservationPhase"] = "before-gesture"
+                        observation["progressObservationPhase"] = "before-after-gesture"
+                        observation["completedGestureCount"] = completedGestureCount
+                        observation["progressOperands"] = [
+                            "purchaseStateBeforeDrag": progressScalar(purchaseStateBeforeDrag),
+                            "purchaseStateAfterDrag": progressScalar(purchaseStateAfterDrag),
+                            "supportBeforeDrag": progressScalar(supportBeforeDrag),
+                            "supportAfterDrag": progressScalar(supportAfterDrag),
+                            "dragDistance": progressScalar(dragDistance),
+                            "purchaseStateShift": progressScalar(purchaseStateShift),
+                            "supportShift": progressScalar(supportShift),
+                            "purchaseStateSignedProgress": progressScalar(purchaseStateShift * dragDistance),
+                            "supportSignedProgress": progressScalar(supportShift * dragDistance),
+                        ]
+                        observation["cachedReceiver"] = [
+                            "viewportX": progressScalar(geometry.storeFrame.minX),
+                            "viewportY": progressScalar(geometry.storeFrame.minY),
+                            "viewportWidth": progressScalar(geometry.storeFrame.width),
+                            "viewportHeight": progressScalar(geometry.storeFrame.height),
+                            "applicationOriginX": progressScalar(sampledApplicationOrigin.x),
+                            "applicationOriginY": progressScalar(sampledApplicationOrigin.y),
+                            "startOffsetY": progressScalar(dragStartOffsetY),
+                            "endOffsetY": progressScalar(dragStartOffsetY + dragDistance),
+                        ]
+                        printJSONLine(prefix: "S10_4_BOUNDED_PURCHASE_PROGRESS_FAILURE", object: observation)
+                    }
+                    // END bounded purchase signed-progress failure observation
                     return fail(
                         "AX-text purchase-complete \(stage) gesture made no signed progress."
                     )
