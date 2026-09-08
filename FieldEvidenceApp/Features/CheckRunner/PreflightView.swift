@@ -19,6 +19,8 @@ struct PreflightView: View {
     let cannotComplete: () -> Void
     let cancel: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var timeZoneID: String
     @State private var isTimeZoneConfirmed: Bool
     @State private var confirmedTimeZoneID: String?
@@ -142,6 +144,12 @@ struct PreflightView: View {
                     detailRow(title: "Confirmed time zone", value: confirmedTimeZoneID)
                 }
             }
+            .padding(
+                .bottom,
+                dynamicTypeSize == .accessibility5 && confirmedTimeZoneID == nil
+                    ? DesignTokens.Spacing.space32 + DesignTokens.Spacing.space32
+                    : 0
+            )
 
             AssetRoundsEvidenceCard {
                 Text("Before you begin")

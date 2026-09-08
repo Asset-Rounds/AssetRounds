@@ -3918,6 +3918,160 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(doublePreflightProductSource.contains(productPreparationInvariant), productPreparationInvariant)
         }
+        // I293: responsive group separation replaces the obsolete whole-Preflight byte lock.
+        // Source admission binds the model cases to the actual product condition and margin.
+        let responsivePreflightMargin = """
+            .padding(
+                .bottom,
+                dynamicTypeSize == .accessibility5 && confirmedTimeZoneID == nil
+                    ? DesignTokens.Spacing.space32 + DesignTokens.Spacing.space32
+                    : 0
+            )
+        """
+        let responsivePreflightCard = try boundedSource(doublePreflightProductSource,
+            from: "    private var preflight: some View {",
+            before: "                Text(\"Before you begin\")")
+        let admitsResponsivePreflightMargin: (String) -> Bool = { source in
+            let normalized = source.filter { !$0.isWhitespace }
+            let expected = responsivePreflightMargin.filter { !$0.isWhitespace }
+            return normalized.components(separatedBy: expected).count - 1 == 1
+                && normalized.hasSuffix(expected + "AssetRoundsEvidenceCard{")
+                && normalized.contains("ifconfirmedTimeZoneID==nil{timeZoneConfirmation}")
+                && normalized.components(separatedBy: ".padding(").count - 1 == 1
+        }
+        XCTAssertTrue(admitsResponsivePreflightMargin(responsivePreflightCard))
+        XCTAssertTrue(doublePreflightProductSource.contains("@Environment(\\.dynamicTypeSize) private var dynamicTypeSize"))
+        XCTAssertTrue(doublePreflightProductSource.contains("Text(\"Before you begin\")"))
+        for hostile in [
+            responsivePreflightCard.replacingOccurrences(of: " && ", with: " || "),
+            responsivePreflightCard.replacingOccurrences(of: "== .accessibility5", with: ">= .accessibility1"),
+            responsivePreflightCard.replacingOccurrences(of: "confirmedTimeZoneID == nil", with: "!isTimeZoneConfirmed"),
+            responsivePreflightCard.replacingOccurrences(of: "space32 + DesignTokens.Spacing.space32", with: "space24"),
+            responsivePreflightCard.replacingOccurrences(of: ": 0", with: ": DesignTokens.Spacing.space16"),
+            responsivePreflightCard.replacingOccurrences(of: ".bottom,", with: ".top,"),
+            responsivePreflightCard.replacingOccurrences(of: "            .padding(", with: "            .padding(DesignTokens.Spacing.space16)\n            .padding("),
+        ] {
+            XCTAssertFalse(admitsResponsivePreflightMargin(hostile))
+        }
+        let responsiveMargin: (Bool, String?) -> CGFloat = { largestCategory, confirmedID in
+            largestCategory && confirmedID == nil
+                ? DesignTokens.Spacing.space32 + DesignTokens.Spacing.space32 : 0
+        }
+        XCTAssertEqual(responsiveMargin(true, nil), 64)
+        for confirmedID in ["America/New_York", "UTC", ""] {
+            XCTAssertEqual(responsiveMargin(true, confirmedID), 0)
+            XCTAssertEqual(responsiveMargin(false, confirmedID), 0)
+        }
+        // All lower categories are outside the exact equality, including accessibility1...4.
+        for category in ["xSmall", "small", "medium", "large", "xLarge", "xxLarge", "xxxLarge",
+                         "accessibility1", "accessibility2", "accessibility3", "accessibility4"] {
+            XCTAssertEqual(responsiveMargin(category == "accessibility5", nil), 0, category)
+        }
+        let evidenceCardSource = try text("FieldEvidenceApp/DesignSystem/WorklightComponents.swift")
+        let evidenceCardBody = try boundedSource(evidenceCardSource,
+            from: "struct AssetRoundsEvidenceCard", before: "struct AssetRounds")
+        XCTAssertTrue(evidenceCardBody.contains(".padding(DesignTokens.Spacing.space16)"))
+        for action in [
+            #"AssetRoundsPrimaryAction("Begin check", action: begin)"#,
+            "AssetRoundsSecondaryAction(\"Cancel — no check started\", action: cancel)\n" +
+                "                .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)\n" +
+                "                .accessibilityHidden(focusedField == .timeZone)",
+        ] {
+            XCTAssertEqual(doublePreflightProductSource.components(separatedBy: action).count - 1, 1)
+        }
+        for forbidden in [".buttonStyle(.bordered)", ".buttonStyle(.borderedProminent)",
+                          ".tint(DesignTokens.SemanticColors.primaryAction)"] {
+            XCTAssertFalse(doublePreflightProductSource.contains(forbidden))
+        }
+
+        // Each live decision uses a typed, unique lower heading and its own measured frame.
+        let lowerHeadingSourceLabel = "Before you begin"
+        let lowerHeadingDoubleLabel = lowerHeadingSourceLabel + " " + lowerHeadingSourceLabel
+        XCTAssertTrue(doublePreflightViewportSource.contains("let lowerHeadingLabel = \"\(lowerHeadingDoubleLabel)\""))
+        let lowerHeadingAdmission: (Int, Bool, String, String, String, CGRect) -> Bool = {
+            count, exists, identifier, type, label, frame in
+            count == 1 && exists && identifier.isEmpty && type == "staticText"
+                && label == lowerHeadingDoubleLabel
+                && !frame.isNull && !frame.isEmpty
+                && [frame.minX, frame.minY, frame.maxX, frame.maxY, frame.width, frame.height].allSatisfy(\.isFinite)
+        }
+        let validLowerFrame = CGRect(x: 32, y: 688, width: 311, height: 187.5)
+        XCTAssertTrue(lowerHeadingAdmission(1, true, "", "staticText", lowerHeadingDoubleLabel, validLowerFrame))
+        for count in [0, 2] {
+            XCTAssertFalse(lowerHeadingAdmission(count, true, "", "staticText", lowerHeadingDoubleLabel, validLowerFrame))
+        }
+        XCTAssertFalse(lowerHeadingAdmission(1, false, "", "staticText", lowerHeadingDoubleLabel, validLowerFrame))
+        XCTAssertFalse(lowerHeadingAdmission(1, true, "wrong", "staticText", lowerHeadingDoubleLabel, validLowerFrame))
+        XCTAssertFalse(lowerHeadingAdmission(1, true, "", "button", lowerHeadingDoubleLabel, validLowerFrame))
+        XCTAssertFalse(lowerHeadingAdmission(1, true, "", "staticText", "Site time zone Site time zone", validLowerFrame))
+        for frame in [CGRect.null, .zero, CGRect(x: 32, y: CGFloat.infinity, width: 311, height: 187.5)] {
+            XCTAssertFalse(lowerHeadingAdmission(1, true, "", "staticText", lowerHeadingDoubleLabel, frame))
+        }
+        let lowerInitialSource = try boundedSource(doublePreflightViewportSource,
+            from: "                        for attemptIndex in 0..<4 {",
+            before: "                            let liveApplicationFrame = app.frame")
+        let lowerRenewalSource = try boundedSource(doublePreflightViewportSource,
+            from: "                            dragStart.press(",
+            before: "                            let postGestureConfirmationFrame = confirmationText.frame")
+        let lowerFinalSource = try boundedSource(doublePreflightViewportSource,
+            from: "                        let finalApplicationFrame = app.frame",
+            before: "                        printJSONLine(")
+        for decision in [lowerInitialSource, lowerRenewalSource, lowerFinalSource] {
+            for binding in ["lowerHeadingTexts.count == 1", "lowerHeadingText.exists",
+                            "lowerHeadingText.identifier.isEmpty", "lowerHeadingText.elementType == .staticText",
+                            "lowerHeadingText.label == lowerHeadingLabel"] {
+                XCTAssertTrue(decision.contains(binding), binding)
+            }
+        }
+        let expectedDoubleJointMinimum = "let minimumShift = max(\n                                safeTop - confirmationFrame.minY,\n                                liveApplicationFrame.maxY - lowerHeadingFrame.minY\n                            )"
+        XCTAssertTrue(doublePreflightViewportSource.contains(expectedDoubleJointMinimum))
+        for geometry in ["lowerHeadingFrame.minY >= liveApplicationFrame.maxY",
+                         "lowerHeadingFrame.minY + selectedCommand\n                                            >= liveApplicationFrame.maxY",
+                         "finalLowerHeadingFrame.minY >= finalApplicationFrame.maxY",
+                         "let postGestureLowerHeadingFrame = lowerHeadingText.frame",
+                         "[postGestureConfirmationFrame, postGestureLowerHeadingFrame]",
+                         "headingFrame, lowerHeadingFrame].allSatisfy({ frame in",
+                         "finalLowerHeadingFrame].allSatisfy({ frame in",
+                         "let lowerHeadingFrame = lowerHeadingText.frame",
+                         "let finalLowerHeadingFrame = lowerHeadingText.frame",
+                         "confirmationMovement * dragDistance > 0"] {
+            XCTAssertTrue(doublePreflightViewportSource.contains(geometry), geometry)
+        }
+        let jointPreflightInterval: (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat) -> [CGFloat]? = {
+            safeTop, safeBottom, appTop, appBottom, confirmationTop, confirmationBottom, lowerTop in
+            // The upper heading's end remains fixed at -2.487548828125 in this observed fixture.
+            let upperEnd: CGFloat = -2.487548828125
+            guard [safeTop, safeBottom, appTop, appBottom, confirmationTop, confirmationBottom, lowerTop].allSatisfy(\.isFinite),
+                  safeBottom > safeTop, appBottom > appTop,
+                  confirmationBottom > confirmationTop,
+                  confirmationBottom - confirmationTop <= safeBottom - safeTop else { return nil }
+            let minimum = max(safeTop - confirmationTop, appBottom - lowerTop)
+            let maximum = min(safeBottom - confirmationBottom, appTop - upperEnd)
+            return minimum <= maximum ? [minimum, maximum] : nil
+        }
+        let observedTop: CGFloat = 78.512451171875
+        let observedBottom: CGFloat = 576.012451171875
+        let separatedLowerTop: CGFloat = 688.012451171875
+        let feasible = try XCTUnwrap(jointPreflightInterval(64, 602, 0, 667, observedTop, observedBottom, separatedLowerTop))
+        XCTAssertEqual(feasible, [-14.512451171875, 2.487548828125])
+        for shift in feasible {
+            XCTAssertGreaterThanOrEqual(observedTop + shift, 64)
+            XCTAssertLessThanOrEqual(observedBottom + shift, 602)
+            XCTAssertLessThanOrEqual(-2.487548828125 + shift, 0)
+            XCTAssertGreaterThanOrEqual(separatedLowerTop + shift, 667)
+        }
+        XCTAssertNil(jointPreflightInterval(64, 602, 0, 667, observedTop, observedBottom, 624.012451171875 + 32))
+        XCTAssertNil(jointPreflightInterval(64, 560, 0, 667, observedTop, observedBottom, separatedLowerTop))
+        XCTAssertNil(jointPreflightInterval(100, 602, 0, 667, observedTop, observedBottom, separatedLowerTop))
+        XCTAssertNil(jointPreflightInterval(64, 602, 0, 720, observedTop, observedBottom, separatedLowerTop))
+        XCTAssertNil(jointPreflightInterval(64, 602, 0, 667, .nan, observedBottom, separatedLowerTop))
+        XCTAssertNil(jointPreflightInterval(64, 602, 0, 667, observedTop, observedBottom, .infinity))
+        // A zero-width feasible interval is retained; inversion is rejected.
+        XCTAssertEqual(jointPreflightInterval(64, 602, 0, 667, 64, 602, 667), [0, 0])
+        XCTAssertNil(jointPreflightInterval(64, 602, 0, 667, 64, 602, 666))
+        // Confirmation progress cannot imply the separately measured lower heading is safe.
+        XCTAssertNotNil(jointPreflightInterval(64, 602, 0, 667, observedTop - 10, observedBottom - 10, separatedLowerTop - 10))
+        XCTAssertNil(jointPreflightInterval(64, 602, 0, 667, observedTop - 10, observedBottom - 10, 660))
         XCTAssertEqual(doublePreflightViewportSource.components(separatedBy: "!keyboard.exists").count - 1, 3)
         XCTAssertEqual(doublePreflightViewportSource.components(separatedBy: #"doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0"#).count - 1, 3)
         for retiredKeyboardInvariant in [
@@ -14736,19 +14890,6 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 0
             ),
             (
-                "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-                14_398,
-                "35FA0E666279EE3D8D4B50950860EB99446EAC0C2BC1270C01CEFEF94680F72B",
-                [
-                    #"AssetRoundsPrimaryAction("Begin check", action: begin)"#,
-                    "AssetRoundsSecondaryAction(\"Cancel — no check started\", action: cancel)\n" +
-                        "                .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)\n" +
-                        "                .accessibilityHidden(focusedField == .timeZone)",
-                ],
-                [1, 1, 0, 0, 0],
-                0
-            ),
-            (
                 "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
                 5_916,
                 "59B875E2FB89CAD9AF4BC02A9214686A95896E3E99FF7581BEACA600AF2CCB72",
@@ -20259,10 +20400,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_037_375)
+        XCTAssertEqual(uiSource.utf8.count, 1_041_086)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "C03D203852C237BEE7301981BF83061A5DBE2C227414E594C2B0E54F0E1D3599"
+            "7CC088BDE06F98A5C899A7E794C551EEE7E4C9C5FD941834505468469F49A1DE"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

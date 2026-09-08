@@ -2323,6 +2323,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             NSPredicate(format: "label == %@", headingLabel)
                         )
                         let headingText = headingTexts.firstMatch
+                        let lowerHeadingLabel = "Before you begin Before you begin"
+                        let lowerHeadingTexts = preflightScrollView.staticTexts.matching(
+                            NSPredicate(format: "label == %@", lowerHeadingLabel)
+                        )
+                        let lowerHeadingText = lowerHeadingTexts.firstMatch
                         var residualTargetContext: [String: Any]?
                         let verticalInset: CGFloat = 16
                         let receiverInset: CGFloat = 24
@@ -2350,6 +2355,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                   headingText.identifier.isEmpty,
                                   headingText.elementType == .staticText,
                                   headingText.label == headingLabel,
+                                  lowerHeadingTexts.count == 1,
+                                  lowerHeadingText.exists,
+                                  lowerHeadingText.identifier.isEmpty,
+                                  lowerHeadingText.elementType == .staticText,
+                                  lowerHeadingText.label == lowerHeadingLabel,
                                   !keyboard.exists,
                                   doubleZoneFields.count == 1,
                                   doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0 else {
@@ -2367,6 +2377,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             let tabBarFrame = preflightTabBar.frame
                             let confirmationFrame = confirmationText.frame
                             let headingFrame = headingText.frame
+                            let lowerHeadingFrame = lowerHeadingText.frame
                             let liveBottom = min(
                                 liveScrollFrame.maxY,
                                 min(
@@ -2384,8 +2395,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 navigationFrame.maxY
                             ) + receiverInset
                             let receiverBottom = liveBottom - receiverInset
-                            let minimumShift =
-                                safeTop - confirmationFrame.minY
+                            let minimumShift = max(
+                                safeTop - confirmationFrame.minY,
+                                liveApplicationFrame.maxY - lowerHeadingFrame.minY
+                            )
                             let maximumShift = min(
                                 safeBottom - confirmationFrame.maxY,
                                 liveApplicationFrame.minY - headingFrame.maxY
@@ -2404,9 +2417,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                   !confirmationFrame.isEmpty,
                                   !headingFrame.isNull,
                                   !headingFrame.isEmpty,
+                                  !lowerHeadingFrame.isNull,
+                                  !lowerHeadingFrame.isEmpty,
                                   [liveApplicationFrame, scrollFrame, liveScrollFrame,
                                    navigationFrame, tabBarFrame, confirmationFrame,
-                                   headingFrame].allSatisfy({ frame in
+                                   headingFrame, lowerHeadingFrame].allSatisfy({ frame in
                                       auditFrameObject(frame).values.allSatisfy { $0.isFinite }
                                           && frame.maxX.isFinite && frame.maxY.isFinite
                                   }),
@@ -2424,7 +2439,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             }
                             if confirmationFrame.minY >= safeTop,
                                confirmationFrame.maxY <= safeBottom,
-                               headingFrame.maxY <= liveApplicationFrame.minY {
+                               headingFrame.maxY <= liveApplicationFrame.minY,
+                               lowerHeadingFrame.minY >= liveApplicationFrame.maxY {
                                 break
                             }
                             guard maximumShift < 0 else {
@@ -2439,6 +2455,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         "observationPhase": "failed-non-upward-guard",
                                         "applicationFrame": auditFrameObject(liveApplicationFrame),
                                         "headingFrame": auditFrameObject(headingFrame),
+                                        "lowerHeadingFrame": auditFrameObject(lowerHeadingFrame),
                                         "confirmationFrame": auditFrameObject(confirmationFrame),
                                         "safeTop": Double(safeTop),
                                         "safeBottom": Double(safeBottom),
@@ -2505,7 +2522,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                            selectedCommand >= -receiverCapacity,
                                            selectedCommand <= -minimumGestureDistance,
                                            selectedCommand >= minimumShift,
-                                           selectedCommand <= jointMaximumShift {
+                                           selectedCommand <= jointMaximumShift,
+                                           lowerHeadingFrame.minY + selectedCommand
+                                            >= liveApplicationFrame.maxY {
                                             selectedResidualDistance = selectedCommand
                                         }
                                     }
@@ -2564,6 +2583,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                         "minimumShift": Double(minimumShift),
                                         "maximumShift": Double(maximumShift),
                                         "headingFrame": auditFrameObject(headingFrame),
+                                        "lowerHeadingFrame": auditFrameObject(lowerHeadingFrame),
                                         "jointMaximumShift": jointMaximumShift.isFinite ? jointMaximumShift as Any : NSNull(),
                                         "intervalWidth": Double(
                                             maximumShift - minimumShift
@@ -2686,6 +2706,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 residualTargetContext = [
                                     "attemptOrdinal": attemptIndex + 1,
                                     "headingFrame": auditFrameObject(headingFrame),
+                                    "lowerHeadingFrame": auditFrameObject(lowerHeadingFrame),
                                     "confirmationFrame": auditFrameObject(confirmationFrame),
                                     "minimumShift": Double(minimumShift),
                                     "jointMaximumShift": Double(jointMaximumShift),
@@ -2773,6 +2794,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                   headingText.identifier.isEmpty,
                                   headingText.elementType == .staticText,
                                   headingText.label == headingLabel,
+                                  lowerHeadingTexts.count == 1,
+                                  lowerHeadingText.exists,
+                                  lowerHeadingText.identifier.isEmpty,
+                                  lowerHeadingText.elementType == .staticText,
+                                  lowerHeadingText.label == lowerHeadingLabel,
                                   !keyboard.exists,
                                   doubleZoneFields.count == 1,
                                   doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0 else {
@@ -2781,8 +2807,19 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 )
                                 return
                             }
+                            let postGestureConfirmationFrame = confirmationText.frame
+                            let postGestureLowerHeadingFrame = lowerHeadingText.frame
+                            guard [postGestureConfirmationFrame, postGestureLowerHeadingFrame]
+                                .allSatisfy({ frame in
+                                    !frame.isNull && !frame.isEmpty
+                                        && auditFrameObject(frame).values.allSatisfy { $0.isFinite }
+                                        && frame.maxX.isFinite && frame.maxY.isFinite
+                                }) else {
+                                XCTFail("The minimum double-length preflight post-gesture frames are invalid.")
+                                return
+                            }
                             let confirmationMovement =
-                                confirmationText.frame.minY
+                                postGestureConfirmationFrame.minY
                                     - confirmationMinYBeforeDrag
                             guard confirmationMovement * dragDistance > 0 else {
                                 XCTFail(
@@ -2794,7 +2831,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             previousConfirmationMinYBeforeDrag =
                                 confirmationMinYBeforeDrag
                             previousConfirmationMinYAfterDrag =
-                                confirmationText.frame.minY
+                                postGestureConfirmationFrame.minY
                             previousObservedMovement = confirmationMovement
                         }
                         let finalApplicationFrame = app.frame
@@ -2805,6 +2842,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         let finalTabBarFrame = preflightTabBar.frame
                         let finalConfirmationFrame = confirmationText.frame
                         let finalHeadingFrame = headingText.frame
+                        let finalLowerHeadingFrame = lowerHeadingText.frame
                         let finalSafeTop = max(
                             finalScrollFrame.minY,
                             finalNavigationFrame.maxY
@@ -2833,6 +2871,11 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                               headingText.identifier.isEmpty,
                               headingText.elementType == .staticText,
                               headingText.label == headingLabel,
+                              lowerHeadingTexts.count == 1,
+                              lowerHeadingText.exists,
+                              lowerHeadingText.identifier.isEmpty,
+                              lowerHeadingText.elementType == .staticText,
+                              lowerHeadingText.label == lowerHeadingLabel,
                               !keyboard.exists,
                               doubleZoneFields.count == 1,
                               doubleZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0,
@@ -2874,9 +2917,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                               !finalConfirmationFrame.isEmpty,
                               !finalHeadingFrame.isNull,
                               !finalHeadingFrame.isEmpty,
+                              !finalLowerHeadingFrame.isNull,
+                              !finalLowerHeadingFrame.isEmpty,
                               [finalApplicationFrame, finalScrollFrame,
                                finalNavigationFrame, finalTabBarFrame,
-                               finalConfirmationFrame, finalHeadingFrame].allSatisfy({ frame in
+                               finalConfirmationFrame, finalHeadingFrame,
+                               finalLowerHeadingFrame].allSatisfy({ frame in
                                   auditFrameObject(frame).values.allSatisfy { $0.isFinite }
                                       && frame.maxX.isFinite && frame.maxY.isFinite
                               }),
@@ -2885,7 +2931,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                               finalSafeBottom > finalSafeTop,
                               finalConfirmationFrame.minY >= finalSafeTop,
                               finalConfirmationFrame.maxY <= finalSafeBottom,
-                              finalHeadingFrame.maxY <= finalApplicationFrame.minY else {
+                              finalHeadingFrame.maxY <= finalApplicationFrame.minY,
+                              finalLowerHeadingFrame.minY >= finalApplicationFrame.maxY else {
                             printJSONLine(
                                 prefix: "S10_4_MINIMUM_DOUBLE_CACHED_GEOMETRY",
                                 object: [
@@ -2901,6 +2948,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                     "tabFrame": auditFrameObject(finalTabBarFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                     "confirmationFrame": auditFrameObject(finalConfirmationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                     "headingFrame": auditFrameObject(finalHeadingFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                    "lowerHeadingFrame": auditFrameObject(finalLowerHeadingFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                     "residualTarget": residualTargetContext.map { $0 as Any } ?? NSNull(),
                                     "safeTop": finalSafeTop.isFinite ? finalSafeTop as Any : NSNull(),
                                     "safeBottom": finalSafeBottom.isFinite ? finalSafeBottom as Any : NSNull(),
@@ -2930,6 +2978,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                 "tabFrame": auditFrameObject(finalTabBarFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                 "confirmationFrame": auditFrameObject(finalConfirmationFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                 "headingFrame": auditFrameObject(finalHeadingFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
+                                "lowerHeadingFrame": auditFrameObject(finalLowerHeadingFrame).mapValues { $0.isFinite ? $0 as Any : NSNull() },
                                 "residualTarget": residualTargetContext.map { $0 as Any } ?? NSNull(),
                                 "safeTop": finalSafeTop.isFinite ? finalSafeTop as Any : NSNull(),
                                 "safeBottom": finalSafeBottom.isFinite ? finalSafeBottom as Any : NSNull(),
