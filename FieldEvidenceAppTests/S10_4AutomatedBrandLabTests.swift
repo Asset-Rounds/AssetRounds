@@ -645,7 +645,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 24_942,
-            sha256: "86D94D6CE163CDC40E2622C5CD36C48C53421EECB53A61100C0D64D97BCB2044"
+            sha256: "E969E05927E7D65C1CFBBBAADA251CBCA18EDAA332AA500197C949A0C527DBCF"
         )
         try assertFile(
             visualSchemaPath,
@@ -665,8 +665,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 105_073,
-            sha256: "860E5B252B8BAF76EE479BB4B974E46C32383AFDB023EA7F740BFDC8054F0A5C"
+            byteCount: 109_071,
+            sha256: "0DA5CD316AFE9016609B27F5F16C14C1CC4DF54E4397AB376430761760546BBE"
         )
         let dispatcherSource = try text(dispatcherPath)
         let unitOnlyJobSource = try boundedSource(
@@ -695,10 +695,93 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 351_005,
-            sha256: "2A829B3948DC4D7DE199DDA683BD48258C86D51EF6398A5593D8B1EA9995A896"
+            byteCount: 351_096,
+            sha256: "F6641310D3C4D0EFEA952235DE530A0E6000B51B01BFC39AFBA3217E10B9E23A"
         )
         let workflowSource = try text(workflowPath)
+        // K485 preserves full shared-restore accounting and exact dispatch retention closure.
+        let sharedSetupRecheck = try boundedSource(
+            workflowSource, from: "      - name: Recheck setup budget after shared payload restore\n",
+            before: "      - name: Boot selected Simulator\n"
+        )
+        let sharedSetupRequirements = [
+            "if: ${{ inputs.s10_4_shared_build_mode == 'consumer' }}",
+            "setup_elapsed_seconds=\"$(( $(date +%s) - CI_BUDGET_START_EPOCH ))\"",
+            "test \"$setup_elapsed_seconds\" -ge 0",
+            "test \"$setup_elapsed_seconds\" -le \"$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS\"",
+            "printf 'shared_restore_setup_elapsed_seconds=%s\\n'",
+            "> \"$CI_ARTIFACT_DIR/s10-4-shared-restore-budget.txt\"",
+            "printf 'CI_SETUP_ELAPSED_SECONDS=%s\\n' \"$setup_elapsed_seconds\" >> \"$GITHUB_ENV\"",
+        ]
+        func preservesSharedSetup(_ source: String) -> Bool {
+            sharedSetupRequirements.allSatisfy { source.components(separatedBy: $0).count == 2 }
+        }
+        XCTAssertTrue(preservesSharedSetup(sharedSetupRecheck))
+        for required in sharedSetupRequirements {
+            XCTAssertFalse(preservesSharedSetup(sharedSetupRecheck.replacingOccurrences(of: required, with: "")), required)
+        }
+        let sharedSetupExport = try XCTUnwrap(sharedSetupRecheck.range(of: sharedSetupRequirements[6]))
+        let sharedSetupBudgetCheck = try XCTUnwrap(sharedSetupRecheck.range(of: sharedSetupRequirements[3]))
+        XCTAssertLessThan(sharedSetupBudgetCheck.lowerBound, sharedSetupExport.lowerBound)
+        for (start, end) in [
+            ("      - name: Hash collected evidence\n", "      - name: Recheck evidence-finalization budget\n"),
+            ("      - name: Recheck evidence-finalization budget\n", "      - name: Verify selected total budget before upload\n"),
+        ] {
+            let finalization = try boundedSource(workflowSource, from: start, before: end)
+            XCTAssertTrue(finalization.contains(#"setup_artifact_elapsed_seconds="$(( CI_SETUP_ELAPSED_SECONDS + artifact_elapsed_seconds ))""#))
+            XCTAssertTrue(finalization.contains(#"test "$setup_artifact_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS""#))
+        }
+        let sharedDispatchSeal = try boundedSource(
+            dispatcherSource, from: "      - name: Seal shared dispatch or assembled evidence\n",
+            before: "      - name: Retain shared dispatch or assembled evidence\n"
+        )
+        let sharedSealRequirements = [
+            "id: shared_dispatch_seal",
+            "if: ${{ always() && (inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' || inputs.execution_lane == 's10-4-shared-segment-assembly') }}",
+            "destination=temp/'FieldEvidenceSharedDispatchUpload'",
+            "assert not destination.exists() and not destination.is_symlink()",
+            "names=('FieldEvidenceSharedDispatchAdmission','FieldEvidenceSharedDispatchMatrix',\n                 'FieldEvidenceSharedAssembly','s10-4-shared-admission-request.json','s10-4-shared-source-map.json')",
+            "assert not stat.S_ISLNK(mode)",
+            "assert stat.S_ISDIR(mode) or stat.S_ISREG(mode)",
+            "assert not stat.S_IMODE(mode)&0o7000",
+            "not part.startswith('.')",
+            "assert len({key.casefold() for key in rows})==len(rows)",
+            "if source.exists() or source.is_symlink(): original[name]=inventory(source)",
+            "assert any(value[0]=='file' for rows in original.values() for value in rows.values())",
+            "shutil.copytree(source,destination/name,copy_function=shutil.copy2)",
+            "else: shutil.copy2(source,destination/name)",
+            "assert inventory(destination/name)==before and inventory(source)==before",
+            "'nativeExecutionClaim':False,'originalBytesPreserved':True",
+            "copyPreparationElapsedSeconds",
+            "hashlib.sha256()",
+            "sorted(rows.items())",
+            "if value[0]=='file' and name!=prefix+'SHA256SUMS.txt'",
+            "(destination/'SHA256SUMS.txt').write_bytes(expected)",
+            "assert (destination/'SHA256SUMS.txt').read_bytes()==manifest()",
+            "assert inventory(temp/name)==before and inventory(destination/name)==before",
+            "shared_dispatch_retention_elapsed_seconds=",
+        ]
+        func preservesSharedDispatchSeal(_ source: String) -> Bool {
+            sharedSealRequirements.allSatisfy { source.contains($0) }
+        }
+        XCTAssertTrue(preservesSharedDispatchSeal(sharedDispatchSeal))
+        for required in sharedSealRequirements {
+            XCTAssertFalse(preservesSharedDispatchSeal(sharedDispatchSeal.replacingOccurrences(of: required, with: "")), required)
+        }
+        XCTAssertEqual(dispatcherSource.components(separatedBy: "      - name: Seal shared dispatch or assembled evidence\n").count - 1, 1)
+        XCTAssertFalse(sharedDispatchSeal.contains("inputs.execution_lane == 's10-4-shared-build-producer'"))
+        XCTAssertFalse(sharedDispatchSeal.contains("shutil.move"))
+        let sharedDispatchUpload = try boundedSource(
+            dispatcherSource, from: "      - name: Retain shared dispatch or assembled evidence\n",
+            before: "\n  github-shard:\n"
+        )
+        XCTAssertTrue(sharedDispatchUpload.contains("steps.shared_dispatch_seal.outcome == 'success'"))
+        XCTAssertTrue(sharedDispatchUpload.contains("always()"))
+        XCTAssertTrue(sharedDispatchUpload.contains("inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' || inputs.execution_lane == 's10-4-shared-segment-assembly'"))
+        XCTAssertTrue(sharedDispatchUpload.contains("path: ${{ runner.temp }}/FieldEvidenceSharedDispatchUpload"))
+        XCTAssertTrue(sharedDispatchUpload.contains("if-no-files-found: error"))
+        XCTAssertFalse(sharedDispatchUpload.contains("include-hidden-files: true"))
+        // End K485 shared harness contracts.
         // K483 moves only the two unchanged H411 Python bodies out of YAML.
         let sharedPayloadEmitterSource = try text("Scripts/s10-4-build-payload.py")
         let sharedExecutable0Marker = "SHARED_REQUEST_DRIVER_SOURCE = r'''"
@@ -8373,9 +8456,104 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(laterPreflightSource.contains(laterPreflightToggleSteps))
             XCTAssertFalse(laterPreflightSource.contains("positionInitialDoubleSafePosition"))
         }
-        let toggleHelper = try boundedSource(uiSource,
+        let instrumentedToggleHelper = try boundedSource(uiSource,
             from: "    private func setToggle(_ identifier: String, in app: XCUIApplication, isInitialPreflightConfirmation: Bool = false) {",
             before: "    @MainActor\n    private func assertText(")
+        let rtlPreObservation = try boundedSource(instrumentedToggleHelper,
+            from: "                // BEGIN RTL-string initial confirmation pre-action observation", before: "                // END RTL-string initial confirmation pre-action observation\n") + "                // END RTL-string initial confirmation pre-action observation\n"
+        let rtlPostObservation = try boundedSource(instrumentedToggleHelper,
+            from: "                // BEGIN RTL-string initial confirmation action-result observation", before: "                // END RTL-string initial confirmation action-result observation\n") + "                // END RTL-string initial confirmation action-result observation\n"
+        XCTAssertTrue(rtlPreObservation.contains("                if isInitialPreflightConfirmation,\n                   diagnosticProbe == nil, automationSegment == .none,\n                   shard.shardID == \"s10.4.minimum.rtl-string\",\n                   shard.ordinal == 11, shard.requirementID == \"rtl_string\",\n                   shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n                   shard.locale == \"ar-RTL-string\",\n                   identifier == \"s3.preflight.time-zone-confirmed\" {\n"))
+        for required in [
+            "var rtlActionObservation: [String: Any]?",
+            "\"nativeReadsAreAtomic\": false, \"samplingMayPerturbTiming\": true",
+            "\"diagnosticOnly\": true, \"finalAcceptanceEligible\": false",
+            "\"minimumSegmentID\": minimumSegment?.rawValue ?? \"none\"",
+            "\"sampledFramesDetermineTarget\": false",
+            "\"cachedOuterValue\": cachedToggleValue.map",
+            "\"descendantCount\": descendantCount.map",
+            "\"actuatorExists\": actuatorExists.map",
+            "\"actuatorEnabled\": actuatorEnabled.map",
+            "\"actuatorHittable\": actuatorHittable.map",
+            "\"actuatorValue\": actuatorValue.map",
+            "\"actuatorValueRead\": actuatorValueRead",
+        ] {
+            XCTAssertTrue(rtlPreObservation.contains(required), required)
+        }
+        for once in [
+            "toggle.elementType.rawValue",
+            "toggle.identifier",
+            "toggle.label",
+            "toggle.frame",
+            "actuator.elementType.rawValue",
+            "actuator.identifier",
+            "actuator.label",
+            "actuator.frame",
+        ] {
+            XCTAssertEqual(rtlPreObservation.components(separatedBy: once).count - 1, 1, once)
+        }
+        for required in [
+            "if var observation = rtlActionObservation {",
+            "let parentIsOn = wait(for: toggle, predicate: \"value == '1'\", timeout: 10)",
+            "if !parentIsOn {",
+            "S10_4_RTL_STRING_INITIAL_CONFIRMATION_ACTION_FAILURE",
+            "S10_4_RTL_STRING_INITIAL_CONFIRMATION_LATER_OBSERVATION",
+            "\"nativeReadsAreAtomic\": false, \"atomicWithCachedAction\": false",
+            "\"diagnosticOnly\": true, \"finalAcceptanceEligible\": false",
+            "\"minimumSegmentID\": minimumSegment?.rawValue ?? \"none\"",
+            "laterParentDescription.prefix(65_536)",
+            "laterActuatorDescription.prefix(65_536)",
+            "                    }\n                    XCTAssertTrue(parentIsOn)\n                    return",
+        ] {
+            XCTAssertTrue(rtlPostObservation.contains(required), required)
+        }
+        XCTAssertEqual(instrumentedToggleHelper.components(separatedBy: "actuator.tap()").count - 1, 1)
+        XCTAssertEqual(instrumentedToggleHelper.components(separatedBy: "toggle.tap()").count - 1, 1)
+        XCTAssertEqual(rtlPreObservation.components(separatedBy: "if ").count - 1, 1)
+        XCTAssertEqual(rtlPostObservation.components(separatedBy: "if ").count - 1, 2)
+        XCTAssertFalse(rtlPreObservation.contains("wait("))
+        XCTAssertFalse(rtlPreObservation.contains("return"))
+        XCTAssertEqual(rtlPostObservation.components(separatedBy: "wait(for: toggle,").count - 1, 1)
+        XCTAssertEqual(rtlPostObservation.components(separatedBy: "app.screenshot()").count - 1, 1)
+        XCTAssertEqual(rtlPostObservation.components(separatedBy: "toggle.debugDescription").count - 1, 1)
+        XCTAssertEqual(rtlPostObservation.components(separatedBy: "actuator.debugDescription").count - 1, 1)
+        for forbidden in [".tap(", "coordinate(", "sleep(", "waitForExistence", "captureBaseline(", "performAccessibilityAudit", "toggle.value", "actuator.value", ".isHittable", ".isEnabled"] {
+            XCTAssertFalse(rtlPreObservation.contains(forbidden), forbidden)
+            XCTAssertFalse(rtlPostObservation.contains(forbidden), forbidden)
+        }
+        var rtlObservationOrder = instrumentedToggleHelper[instrumentedToggleHelper.startIndex...]
+        for exact in [
+            "guard actuatorEnabled == true",
+            "                // BEGIN RTL-string initial confirmation pre-action observation",
+            "let samplingStartedAt",
+            "let sampledParentType",
+            "let sampledActuatorType",
+            "let samplingCompletedAt",
+            "let tapStartedAt",
+            "// END RTL-string initial confirmation pre-action observation",
+            "actuator.tap()",
+            "// BEGIN RTL-string initial confirmation action-result observation",
+            "let tapReturnedAt",
+            "let parentIsOn = wait(for: toggle, predicate: \"value == '1'\", timeout: 10)",
+            "let waitEndedAt",
+            "if !parentIsOn {",
+            "S10_4_RTL_STRING_INITIAL_CONFIRMATION_ACTION_FAILURE",
+            "let laterReadsStartedAt",
+            "toggle.debugDescription",
+            "actuator.debugDescription",
+            "app.screenshot()",
+            "let laterReadsEndedAt",
+            "XCTAssertTrue(parentIsOn)",
+            "return",
+            "// END RTL-string initial confirmation action-result observation",
+        ] {
+            let range = try XCTUnwrap(rtlObservationOrder.range(of: exact), exact)
+            rtlObservationOrder = rtlObservationOrder[range.upperBound...]
+        }
+        // Exact removal of the two observation blocks preserves all prior profile contracts.
+        let toggleHelper = instrumentedToggleHelper
+            .replacingOccurrences(of: rtlPreObservation, with: "")
+            .replacingOccurrences(of: rtlPostObservation, with: "")
         XCTAssertTrue(toggleHelper.contains("automationShard?.shardID == \"s10.4.minimum.rtl\""))
         XCTAssertTrue(toggleHelper.contains("identifier == \"s3.preflight.time-zone-confirmed\""))
         XCTAssertTrue(toggleHelper.contains("app.switches.matching(identifier: identifier)"))
@@ -8469,11 +8647,57 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTFail("Missing the dedicated multiline keyboard helper source slice")
             return
         }
-        let multilineHelperSource = String(
+        let multilineActualHelperSource = String(
             uiSource[
                 multilineHelperStartRange.lowerBound..<multilinePassiveKeyboardHelperStartRange.lowerBound
             ]
         )
+        // K485: preserve the legacy TextView specialization and narrowly admit
+        // the observed current Work TextField tutorial. Validation identity comes
+        // from its caller because its native element has already disappeared.
+        let currentWorkQuickPathAdmission = #"""
+        let quickPathFieldType = field.elementType
+        let preparesCurrentWorkTextFieldQuickPath =
+            quickPathFieldType == .textField
+            && diagnosticProbe == nil
+            && automationSegment == .none
+            && minimumSegment == nil
+            && automationShard?.shardID == "s10.4.current.default-light"
+            && automationShard?.ordinal == 1
+            && automationShard?.requirementID == "default_light"
+            && automationShard?.deviceProfileID == "iphone-17-ios-26.2-current"
+            && automationShard?.locale == "en-US-release"
+            && field.identifier == "s5.1.work.description"
+            && route.identifier == "s5.1.work.screen"
+            && clearedValidation != nil
+            && clearedValidationIdentifier == "s5.1.work.validation"
+        if quickPathFieldType == .textView || preparesCurrentWorkTextFieldQuickPath {
+"""#
+        XCTAssertEqual(multilineActualHelperSource.components(separatedBy: currentWorkQuickPathAdmission).count - 1, 1)
+        XCTAssertTrue(uiSource.contains(#"let validation = element("s5.1.work.validation", in: app)"#))
+        XCTAssertTrue(uiSource.contains(#"""
+        dismissMultilineKeyboard(
+            afterEditing: description,
+            on: element("s5.1.work.screen", in: app),
+            clearedValidation: validation,
+            clearedValidationIdentifier: "s5.1.work.validation",
+            in: app
+        )
+"""#))
+        let quickPathTypePreservation = #"""
+                      (quickPathFieldType == .textView
+                       || field.elementType == quickPathFieldType),
+"""#
+        var multilineHelperSource = multilineActualHelperSource
+        for (actual, legacy) in [
+            (currentWorkQuickPathAdmission, "        if field.elementType == .textView {"),
+            ("        clearedValidationIdentifier: String? = nil,\n", ""),
+            (quickPathTypePreservation + "\n", ""),
+            ("                      field.elementType == quickPathFieldType,\n", "                      field.elementType == .textView,\n"),
+        ] {
+            XCTAssertEqual(multilineHelperSource.components(separatedBy: actual).count - 1, 1, actual)
+            multilineHelperSource = multilineHelperSource.replacingOccurrences(of: actual, with: legacy)
+        }
         let multilineHelperLocks = [
             "afterEditing field: XCUIElement",
             "on route: XCUIElement",
@@ -21162,10 +21386,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_088_469)
+        XCTAssertEqual(uiSource.utf8.count, 1_098_097)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "EC19B02F42EE02CD7FDB37B9596E535956B66F1E092C855BE24366612DD398FB"
+            "D9674BF47E2091E816E188703CBB925CB127CB0EC801B5538EE08ACDDA87B706"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -23536,6 +23760,25 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertTrue(nativeContrastObservationSource.contains(exact), exact)
         }
+        let minimumSegment1ContrastAdmission =
+            "            ) || (\n" +
+            "                minimumSegment == .segment1\n" +
+            "                    && shard.shardID == \"s10.4.minimum.minimum-os\"\n" +
+            "                    && stateID == \"state.check-preflight.ready\"\n"
+        let minimumSegment1ContrastAdmissionSource = try boundedSource(
+            nativeContrastObservationSource,
+            from: "            ) || (\n                minimumSegment",
+            before: "            ) || (\n                shard.shardID == \"s10.4.minimum.rtl\""
+        )
+        XCTAssertEqual(minimumSegment1ContrastAdmissionSource, minimumSegment1ContrastAdmission)
+        XCTAssertEqual(
+            nativeContrastObservationSource.components(separatedBy: minimumSegment1ContrastAdmission).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            nativeContrastObservationSource.components(separatedBy: "minimumSegment").count - 1,
+            1
+        )
         let exactSingleStateAdmissions = [
             ("s10.4.minimum.minimum-os", "state.work.validation-error"),
             ("s10.4.minimum.rtl", "state.check-preflight.ready"),

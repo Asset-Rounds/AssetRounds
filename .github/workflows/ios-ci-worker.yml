@@ -1582,6 +1582,7 @@ jobs:
           test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
           printf 'shared_restore_setup_elapsed_seconds=%s\n' "$setup_elapsed_seconds" \
             > "$CI_ARTIFACT_DIR/s10-4-shared-restore-budget.txt"
+          printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
 
       - name: Boot selected Simulator
         id: simulator_boot

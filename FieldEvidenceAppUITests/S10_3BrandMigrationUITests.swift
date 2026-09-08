@@ -7650,6 +7650,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             afterEditing: description,
             on: element("s5.1.work.screen", in: app),
             clearedValidation: validation,
+            clearedValidationIdentifier: "s5.1.work.validation",
             in: app
         )
 
@@ -14687,6 +14688,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 shard.shardID == "s10.4.minimum.minimum-os"
                     && stateID == "state.work.validation-error"
             ) || (
+                minimumSegment == .segment1
+                    && shard.shardID == "s10.4.minimum.minimum-os"
+                    && stateID == "state.check-preflight.ready"
+            ) || (
                 shard.shardID == "s10.4.minimum.rtl"
                     && stateID == "state.check-preflight.ready"
             ) || (
@@ -20225,7 +20230,112 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     failActuatorBinding("Initial confirmation actuator is not eligible and off.")
                     return
                 }
+                // BEGIN RTL-string initial confirmation pre-action observation
+                var rtlActionObservation: [String: Any]?
+                if isInitialPreflightConfirmation,
+                   diagnosticProbe == nil, automationSegment == .none,
+                   shard.shardID == "s10.4.minimum.rtl-string",
+                   shard.ordinal == 11, shard.requirementID == "rtl_string",
+                   shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                   shard.locale == "ar-RTL-string",
+                   identifier == "s3.preflight.time-zone-confirmed" {
+                    let samplingStartedAt = ProcessInfo.processInfo.systemUptime
+                    let sampledParentType = toggle.elementType.rawValue
+                    let sampledParentIdentifier = toggle.identifier
+                    let sampledParentLabel = toggle.label
+                    let sampledParentFrame = toggle.frame
+                    let sampledActuatorType = actuator.elementType.rawValue
+                    let sampledActuatorIdentifier = actuator.identifier
+                    let sampledActuatorLabel = actuator.label
+                    let sampledActuatorFrame = actuator.frame
+                    let samplingCompletedAt = ProcessInfo.processInfo.systemUptime
+                    rtlActionObservation = [
+                        "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                        "nativeReadsAreAtomic": false, "samplingMayPerturbTiming": true,
+                        "initialPreflightConfirmation": true, "identifier": identifier,
+                        "shardID": shard.shardID, "ordinal": shard.ordinal,
+                        "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID,
+                        "locale": shard.locale, "diagnosticProbe": NSNull(),
+                        "automationSegment": "none",
+                        "minimumSegmentID": minimumSegment?.rawValue ?? "none",
+                        "clock": "test-runner-systemUptime",
+                        "bindingStartedAt": bindingStartedAt.isFinite ? bindingStartedAt as Any : NSNull(),
+                        "samplingStartedAt": samplingStartedAt.isFinite ? samplingStartedAt as Any : NSNull(),
+                        "samplingCompletedAt": samplingCompletedAt.isFinite ? samplingCompletedAt as Any : NSNull(),
+                        "cachedOuterValue": cachedToggleValue.map { String($0.prefix(256)) as Any } ?? NSNull(),
+                        "descendantCount": descendantCount.map { $0 as Any } ?? NSNull(),
+                        "actuatorExists": actuatorExists.map { $0 as Any } ?? NSNull(),
+                        "actuatorEnabled": actuatorEnabled.map { $0 as Any } ?? NSNull(),
+                        "actuatorHittable": actuatorHittable.map { $0 as Any } ?? NSNull(),
+                        "actuatorValueRead": actuatorValueRead,
+                        "actuatorValue": actuatorValue.map { String($0.prefix(256)) as Any } ?? NSNull(),
+                        "sampledParentType": sampledParentType,
+                        "sampledParentIdentifier": String(sampledParentIdentifier.prefix(256)),
+                        "sampledParentLabel": String(sampledParentLabel.prefix(256)),
+                        "sampledParentFrame": String(describing: sampledParentFrame),
+                        "sampledActuatorType": sampledActuatorType,
+                        "sampledActuatorIdentifier": String(sampledActuatorIdentifier.prefix(256)),
+                        "sampledActuatorLabel": String(sampledActuatorLabel.prefix(256)),
+                        "sampledActuatorFrame": String(describing: sampledActuatorFrame),
+                        "sampledFramesDetermineTarget": false,
+                    ]
+                    let tapStartedAt = ProcessInfo.processInfo.systemUptime
+                    rtlActionObservation?["tapStartedAt"] = tapStartedAt.isFinite ? tapStartedAt as Any : NSNull()
+                }
+                // END RTL-string initial confirmation pre-action observation
                 actuator.tap()
+                // BEGIN RTL-string initial confirmation action-result observation
+                if var observation = rtlActionObservation {
+                    let tapReturnedAt = ProcessInfo.processInfo.systemUptime
+                    let parentIsOn = wait(for: toggle, predicate: "value == '1'", timeout: 10)
+                    let waitEndedAt = ProcessInfo.processInfo.systemUptime
+                    if !parentIsOn {
+                        observation["tapReturnedAt"] = tapReturnedAt.isFinite ? tapReturnedAt as Any : NSNull()
+                        observation["waitEndedAt"] = waitEndedAt.isFinite ? waitEndedAt as Any : NSNull()
+                        observation["parentOnWaitResult"] = parentIsOn
+                        observation["event"] = "cached-action-result-failure"
+                        printJSONLine(prefix: "S10_4_RTL_STRING_INITIAL_CONFIRMATION_ACTION_FAILURE", object: observation)
+                        let laterReadsStartedAt = ProcessInfo.processInfo.systemUptime
+                        let laterParentDescription = Data(toggle.debugDescription.utf8)
+                        let laterActuatorDescription = Data(actuator.debugDescription.utf8)
+                        let retainedParentDescription = laterParentDescription.prefix(65_536)
+                        let retainedActuatorDescription = laterActuatorDescription.prefix(65_536)
+                        let parentAttachment = XCTAttachment(data: Data(retainedParentDescription), uniformTypeIdentifier: "public.plain-text")
+                        parentAttachment.name = "S10.4 RTL-string initial confirmation later parent"
+                        parentAttachment.lifetime = .keepAlways
+                        add(parentAttachment)
+                        let actuatorAttachment = XCTAttachment(data: Data(retainedActuatorDescription), uniformTypeIdentifier: "public.plain-text")
+                        actuatorAttachment.name = "S10.4 RTL-string initial confirmation later actuator"
+                        actuatorAttachment.lifetime = .keepAlways
+                        add(actuatorAttachment)
+                        let screenshot = XCTAttachment(screenshot: app.screenshot())
+                        screenshot.name = "S10.4 RTL-string initial confirmation later failure app"
+                        screenshot.lifetime = .keepAlways
+                        add(screenshot)
+                        let laterReadsEndedAt = ProcessInfo.processInfo.systemUptime
+                        printJSONLine(prefix: "S10_4_RTL_STRING_INITIAL_CONFIRMATION_LATER_OBSERVATION", object: [
+                            "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                            "nativeReadsAreAtomic": false, "atomicWithCachedAction": false,
+                            "samplingMayPerturbTiming": true,
+                            "shardID": shard.shardID, "ordinal": shard.ordinal,
+                            "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID,
+                            "locale": shard.locale, "identifier": identifier,
+                            "minimumSegmentID": minimumSegment?.rawValue ?? "none",
+                            "clock": "test-runner-systemUptime",
+                            "laterReadsStartedAt": laterReadsStartedAt.isFinite ? laterReadsStartedAt as Any : NSNull(),
+                            "laterReadsEndedAt": laterReadsEndedAt.isFinite ? laterReadsEndedAt as Any : NSNull(),
+                            "parentOriginalBytes": laterParentDescription.count,
+                            "parentRetainedBytes": retainedParentDescription.count,
+                            "parentTruncated": laterParentDescription.count > retainedParentDescription.count,
+                            "actuatorOriginalBytes": laterActuatorDescription.count,
+                            "actuatorRetainedBytes": retainedActuatorDescription.count,
+                            "actuatorTruncated": laterActuatorDescription.count > retainedActuatorDescription.count,
+                        ])
+                    }
+                    XCTAssertTrue(parentIsOn)
+                    return
+                }
+                // END RTL-string initial confirmation action-result observation
             } else {
                 toggle.tap()
             }
@@ -20573,6 +20683,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         afterEditing field: XCUIElement,
         on route: XCUIElement,
         clearedValidation: XCUIElement? = nil,
+        clearedValidationIdentifier: String? = nil,
         in app: XCUIApplication
     ) {
         if let clearedValidation {
@@ -20611,7 +20722,22 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail("The multiline field ScrollView is not actionable.")
             return
         }
-        if field.elementType == .textView {
+        let quickPathFieldType = field.elementType
+        let preparesCurrentWorkTextFieldQuickPath =
+            quickPathFieldType == .textField
+            && diagnosticProbe == nil
+            && automationSegment == .none
+            && minimumSegment == nil
+            && automationShard?.shardID == "s10.4.current.default-light"
+            && automationShard?.ordinal == 1
+            && automationShard?.requirementID == "default_light"
+            && automationShard?.deviceProfileID == "iphone-17-ios-26.2-current"
+            && automationShard?.locale == "en-US-release"
+            && field.identifier == "s5.1.work.description"
+            && route.identifier == "s5.1.work.screen"
+            && clearedValidation != nil
+            && clearedValidationIdentifier == "s5.1.work.validation"
+        if quickPathFieldType == .textView || preparesCurrentWorkTextFieldQuickPath {
             let quickPathIntroductionViews = app.descendants(
                 matching: .other
             ).matching(
@@ -20706,6 +20832,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                       quickPathCompletionKey.label.lowercased()
                         == quickPathCompletionKeyLabel,
                       !quickPathCompletionKey.isHittable,
+                      (quickPathFieldType == .textView
+                       || field.elementType == quickPathFieldType),
                       fieldFocusPredicate.evaluate(with: field),
                       String(describing: field.value ?? "")
                         == expectedValue,
@@ -20800,7 +20928,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         == quickPathCompletionKeyLabel,
                       quickPathCompletionKey.isHittable,
                       field.exists,
-                      field.elementType == .textView,
+                      field.elementType == quickPathFieldType,
                       !field.identifier.isEmpty,
                       fieldFocusPredicate.evaluate(with: field),
                       String(describing: field.value ?? "")

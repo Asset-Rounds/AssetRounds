@@ -175,17 +175,81 @@ jobs:
               output=temp/'FieldEvidenceSharedAssembly'
               subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--assemble-shared',str(admission),shard,str(source_map),str(output)],check=True,cwd=root)
           PY
-      - name: Retain shared dispatch or assembled evidence
+      - name: Seal shared dispatch or assembled evidence
+        id: shared_dispatch_seal
         if: ${{ always() && (inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' || inputs.execution_lane == 's10-4-shared-segment-assembly') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import stat
+          import time
+
+          started=time.monotonic()
+          temp=Path(os.environ['RUNNER_TEMP'])
+          destination=temp/'FieldEvidenceSharedDispatchUpload'
+          assert not destination.exists() and not destination.is_symlink()
+          names=('FieldEvidenceSharedDispatchAdmission','FieldEvidenceSharedDispatchMatrix',
+                 'FieldEvidenceSharedAssembly','s10-4-shared-admission-request.json','s10-4-shared-source-map.json')
+          def inventory(path):
+              rows={}
+              def visit(item,relative):
+                  mode=item.lstat().st_mode
+                  assert not stat.S_ISLNK(mode), 'symlink in dispatch evidence'
+                  assert stat.S_ISDIR(mode) or stat.S_ISREG(mode), 'nonregular dispatch evidence'
+                  assert not stat.S_IMODE(mode)&0o7000, 'special dispatch evidence permissions'
+                  assert all(part not in ('','.', '..') and not part.startswith('.') and
+                             all(ord(c)>=32 and ord(c)!=127 and c not in '\\:' for c in part)
+                             for part in relative.split('/')), 'unsafe or hidden dispatch evidence path'
+                  if stat.S_ISDIR(mode):
+                      rows[relative]=('directory',)
+                      for child in sorted(item.iterdir()): visit(child,relative+'/'+child.name)
+                  else:
+                      digest=hashlib.sha256()
+                      with item.open('rb') as stream:
+                          for block in iter(lambda:stream.read(1024*1024),b''): digest.update(block)
+                      rows[relative]=('file',item.stat().st_size,digest.hexdigest().upper())
+              visit(path,path.name)
+              assert len({key.casefold() for key in rows})==len(rows), 'case collision'
+              return rows
+          original={}
+          for name in names:
+              source=temp/name
+              if source.exists() or source.is_symlink(): original[name]=inventory(source)
+          assert any(value[0]=='file' for rows in original.values() for value in rows.values()), 'no dispatch evidence'
+          destination.mkdir()
+          for name,before in original.items():
+              source=temp/name
+              if source.is_dir(): shutil.copytree(source,destination/name,copy_function=shutil.copy2)
+              else: shutil.copy2(source,destination/name)
+              assert inventory(destination/name)==before and inventory(source)==before, 'dispatch evidence copy changed'
+          # Keep the exact retained closure and measured copy/seal preparation cost.
+          receipt={'schemaVersion':1,'originalPaths':list(original),'copyPreparationElapsedSeconds':time.monotonic()-started,
+                   'nativeExecutionClaim':False,'originalBytesPreserved':True}
+          (destination/'dispatch-retention.json').write_text(json.dumps(receipt,sort_keys=True,separators=(',',':'))+'\n',encoding='utf-8')
+          def manifest():
+              rows=inventory(destination)
+              prefix=destination.name+'/'
+              return ''.join(value[2]+'  '+name[len(prefix):]+'\n' for name,value in sorted(rows.items())
+                             if value[0]=='file' and name!=prefix+'SHA256SUMS.txt').encode('utf-8')
+          expected=manifest()
+          (destination/'SHA256SUMS.txt').write_bytes(expected)
+          assert (destination/'SHA256SUMS.txt').read_bytes()==manifest(), 'incomplete dispatch checksum closure'
+          for name,before in original.items():
+              assert inventory(temp/name)==before and inventory(destination/name)==before, 'dispatch original changed during seal'
+          print('shared_dispatch_retention_elapsed_seconds='+str(time.monotonic()-started))
+          PY
+      - name: Retain shared dispatch or assembled evidence
+        if: ${{ always() && steps.shared_dispatch_seal.outcome == 'success' && (inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' || inputs.execution_lane == 's10-4-shared-segment-assembly') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ios-ci-shared-admission-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.s10_4_shard_id }}
-          path: |
-            ${{ runner.temp }}/FieldEvidenceSharedDispatchAdmission
-            ${{ runner.temp }}/FieldEvidenceSharedDispatchMatrix
-            ${{ runner.temp }}/FieldEvidenceSharedAssembly
-            ${{ runner.temp }}/s10-4-shared-admission-request.json
-            ${{ runner.temp }}/s10-4-shared-source-map.json
+          path: ${{ runner.temp }}/FieldEvidenceSharedDispatchUpload
           if-no-files-found: error
           retention-days: 14
 
