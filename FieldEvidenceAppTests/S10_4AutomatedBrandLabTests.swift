@@ -3800,6 +3800,58 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(freshPreflightKeyboardDismissal.contains("predicate: \"exists == false\""))
         XCTAssertTrue(freshPreflightKeyboardDismissal.contains("timeout: 10"))
         XCTAssertEqual(freshPreflightKeyboardDismissal.components(separatedBy: preflightAXTextAfterDarkGate).count - 1, 1)
+        // Initial double preparation reuses the existing bounded public scroll helper.
+        let initialDoubleAfterDarkSource = try boundedSource(
+            freshPreflightKeyboardDismissal,
+            from: #"        if automationShard?.shardID == "s10.4.minimum.double-length" {"#,
+            before: #"        setToggle("s3.preflight.after-dark", in: app)"#
+        )
+        let initialDoubleAfterDarkAdmission = "            guard diagnosticProbe == nil, automationSegment == .none,\n                  let shard = automationShard,\n                  shard.ordinal == 9, shard.requirementID == \"double_length\",\n                  shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n                  shard.locale == \"en-US-double-length\" else {"
+        XCTAssertTrue(initialDoubleAfterDarkSource.contains(initialDoubleAfterDarkAdmission))
+        XCTAssertTrue(freshPreflightKeyboardDismissal.contains("        if automationShard?.shardID == \"s10.4.minimum.double-length\" {\n            guard diagnosticProbe == nil, automationSegment == .none,"))
+        XCTAssertTrue(initialDoubleAfterDarkSource.contains(
+            "                XCTFail(\"Initial double Preflight after-dark positioning has an invalid route.\")\n                return\n            }"
+        ))
+        XCTAssertTrue(initialDoubleAfterDarkSource.contains(
+            "            guard positionPreflightAfterDarkForAXText(in: app) else {\n                XCTFail(\"Initial double Preflight after-dark positioning failed.\")\n                return\n            }"
+        ))
+        XCTAssertEqual(uiSource.components(separatedBy: initialDoubleAfterDarkSource).count - 1, 1)
+        XCTAssertEqual(initialDoubleAfterDarkSource.components(separatedBy: "positionPreflightAfterDarkForAXText(in: app)").count - 1, 1)
+        XCTAssertTrue(freshPreflightKeyboardDismissal.contains("                XCTFail(\"Initial double Preflight after-dark positioning failed.\")\n                return\n            }\n        }\n        setToggle(\"s3.preflight.after-dark\", in: app)"))
+        XCTAssertTrue(freshPreflightKeyboardDismissal.contains(
+            #"        setToggle("s3.preflight.time-zone-confirmed", in: app, isInitialPreflightConfirmation: true)"# + "\n" +
+            preflightAXTextAfterDarkGate + initialDoubleAfterDarkSource +
+            #"        setToggle("s3.preflight.after-dark", in: app)"#
+        ))
+        for forbidden in [".tap()", "typeText(", "swipeUp(", "swipeDown(", "wait(",
+                          "captureBaseline(", "performAccessibilityAudit", "descendants(",
+                          "coordinate(", "withOffset(", "press(", "continue", "try?"] {
+            XCTAssertFalse(initialDoubleAfterDarkSource.contains(forbidden))
+        }
+        let initialDoubleAfterDarkHelper = try boundedSource(
+            uiSource,
+            from: "    @MainActor\n    private func positionPreflightAfterDarkForAXText(",
+            before: "    @MainActor\n    private func setToggle("
+        )
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains(#"let verticalInset: CGFloat = 16"#))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains(#"let receiverInset: CGFloat = 24"#))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains(#"let minimumGestureDistance: CGFloat = 44"#))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("for _ in 0..<4 {"))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("observedAfterDarkShift < 0,"))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("observedAfterDarkShift * dragDistance > 0"))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("&& exactInputComposition()"))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains(#"&& (zoneField.value as? String) == "America/New_York""#))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains(#"&& (confirmationSwitch.value as? String) == "1""#))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains(#""It is dark enough to observe the sign's visible illumination.""#))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("afterDarkSwitch.label == expectedAfterDarkLabel,"))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains(#"(afterDarkSwitch.value as? String) == "0" else {"#))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("&& finalAfterDarkFrame.minY >= finalSafeTop"))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("&& finalAfterDarkFrame.maxY <= finalSafeBottom"))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("&& afterDarkSwitch.isHittable"))
+        XCTAssertTrue(initialDoubleAfterDarkHelper.contains("guard finalCompositionIsSafe else {"))
+        XCTAssertFalse(initialDoubleAfterDarkHelper.contains(".tap()"))
+        XCTAssertFalse(initialDoubleAfterDarkHelper.contains("captureBaseline("))
+
         let preflightCompletionSteps = ["predicate: \"exists == false\"", "setToggle(\"s3.preflight.time-zone-confirmed\"", "setToggle(\"s3.preflight.after-dark\"", "app.swipeUp()", "setToggle(\"s3.preflight.safe-position\""]
         var preflightCompletionRemainder = freshPreflightKeyboardDismissal[...]
         for step in preflightCompletionSteps {
@@ -14393,7 +14445,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"identifier: "s7.2.paywall.terms""#,
             #"identifier: "s7.2.paywall.privacy""#,
             #"identifier: "s7.2.paywall.support""#,
-            "let purchaseButtons = usesTallPurchaseCompleteViewport",
+            "let purchaseButtons = usesPrimaryActionPurchaseCompleteViewport",
             "purchase.identifier.isEmpty",
             "let usesMinimumOSViewport =",
             #"automationShard?.shardID == "s10.4.minimum.minimum-os""#,
@@ -14429,7 +14481,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "receiverCapacity >= minimumGestureDistance",
             "let targetDistance = geometry.minimumShift > 0",
             "let dragDistance = targetDistance > 0",
-            "let storeOrigin = usesTallPurchaseCompleteViewport",
+            "let storeOrigin = usesPrimaryActionPurchaseCompleteViewport",
             "let dragStart = usesMinimumOSViewport",
             "withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)",
             "let dragEnd = usesMinimumOSViewport",
@@ -14519,6 +14571,72 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(lowercasedAXHelperSource.contains(prohibitedHelperSideEffect))
         }
+        let rtlStringPurchaseCaller = try boundedSource(
+            uiSource,
+            from: "        let usesRTLStringPurchaseCompleteViewport =",
+            before: "\n        }\n"
+        )
+        let rtlStringPurchaseCaptureGate = try boundedSource(
+            uiSource,
+            from: "        if automationShard?.shardID == \"s10.4.current.ax-text\" ||\n            automationShard?.shardID == \"s10.4.minimum.minimum-os\" ||",
+            before: "\n        var measuredUndertravel: CGFloat = 0"
+        )
+        let rtlStringPurchaseHelper = try boundedSource(
+            postPurchaseAXHelperSource,
+            from: "        let usesRTLStringPurchaseCompleteViewport =",
+            before: "        let usesPrimaryActionPurchaseCompleteViewport ="
+        )
+        for admission in [
+            #"automationShard?.shardID == "s10.4.minimum.rtl-string""#,
+            "if usesRTLStringPurchaseCompleteViewport",
+            "guard diagnosticProbe == nil, automationSegment == .none",
+            #"shard.ordinal == 11, shard.requirementID == "rtl_string""#,
+            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
+            #"shard.locale == "ar-RTL-string""#,
+        ] {
+            XCTAssertTrue(rtlStringPurchaseCaller.contains(admission), admission)
+            XCTAssertTrue(rtlStringPurchaseHelper.contains(admission), admission)
+        }
+        XCTAssertTrue(rtlStringPurchaseCaller.contains("RTL-string purchase-complete preparation has an invalid route."))
+        XCTAssertTrue(rtlStringPurchaseCaller.contains("return usedSettingsRetry"))
+        XCTAssertTrue(rtlStringPurchaseHelper.contains("RTL-string purchase-complete helper has an invalid route."))
+        XCTAssertTrue(rtlStringPurchaseHelper.contains("return false"))
+        XCTAssertFalse(rtlStringPurchaseCaller.contains("captureBaseline"))
+        XCTAssertFalse(rtlStringPurchaseHelper.contains("captureBaseline"))
+        XCTAssertEqual(uiSource.components(separatedBy: "        let usesRTLStringPurchaseCompleteViewport =").count - 1, 2)
+        XCTAssertTrue(rtlStringPurchaseCaptureGate.contains("usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport"))
+        XCTAssertTrue(rtlStringPurchaseCaptureGate.contains("guard positionAXTextPurchaseCompleteViewport(in: app) else"))
+        XCTAssertEqual(rtlStringPurchaseCaptureGate.components(separatedBy: "captureBaseline(\"state.paywall.purchase-complete\", in: app)").count - 1, 1)
+        XCTAssertTrue(postPurchaseAXRouteSource.contains("let usesPrimaryActionPurchaseCompleteViewport =\n            usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport"))
+        for binding in [
+            "let expectedReadyValue = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Ready\\u{202C}\"",
+            "let expectedCloseLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Close\\u{202C}\"",
+            "let expectedTermsLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Terms\\u{202C}\"",
+            "let expectedPrivacyLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Privacy\\u{202C}\"",
+            "let expectedSupportLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Support\\u{202C}\"",
+            "let expectedPurchaseLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Subscribe\\u{202C}\"",
+            "let expectedVerifiedLabel = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Complete: Purchase verified. Subscription access is ready.\\u{202C}\"",
+            "let expectedTallNavigationIdentifier = usesRTLStringPurchaseCompleteViewport\n            ? \"\\u{202E}Subscription\\u{202C}\"",
+            "let purchaseButtons = usesPrimaryActionPurchaseCompleteViewport\n            ? app.buttons.matching(NSPredicate(format: \"label == %@\", expectedPurchaseLabel))",
+            "&& (!usesPrimaryActionPurchaseCompleteViewport || (",
+        ] {
+            XCTAssertTrue(postPurchaseAXRouteSource.contains(binding), binding)
+        }
+        XCTAssertTrue(postPurchaseAXHelperSource.contains("guard usesPrimaryActionPurchaseCompleteViewport else { return }"))
+        for positioning in [
+            "if usesPrimaryActionPurchaseCompleteViewport { tallCachedIntervalObservation = nil }",
+            "observation[\"seam\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"RTL-string purchase-complete positioning\" : \"tall purchase-complete positioning\"",
+            "observation[\"shardID\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"s10.4.minimum.rtl-string\" : \"s10.4.minimum.tall\"",
+            "observation[\"ordinal\"] = usesRTLStringPurchaseCompleteViewport\n                            ? 11 : 12",
+            "observation[\"requirementID\"] = usesRTLStringPurchaseCompleteViewport\n                            ? \"rtl_string\" : \"tall\"",
+        ] {
+            XCTAssertTrue(postPurchaseAXPositioningSource.contains(positioning), positioning)
+        }
+        XCTAssertTrue(postPurchaseAXVerifiedSource.contains("if usesPrimaryActionPurchaseCompleteViewport {"))
+        XCTAssertEqual(postPurchaseAXHelperSource.components(separatedBy: "if usesMinimumOSViewport {").count - 1, 1)
+        XCTAssertTrue(postPurchaseAXLegalSource.contains("legalControlsMeetMinimumSize else {"))
+        XCTAssertFalse(postPurchaseAXHelperSource.contains("xmark"))
+        XCTAssertFalse(postPurchaseAXHelperSource.contains(".tap()"))
         let tallPurchaseHelperAdmission = try boundedSource(
             postPurchaseAXHelperSource,
             from: "        let usesTallPurchaseCompleteViewport =",
@@ -14560,7 +14678,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ".matching(identifier: expectedTallNavigationIdentifier)",
             "store.descendants(matching: .scrollView)",
             "tallNavigationBars.count == 1", "tallStoreScrollViews.count == 1",
-            "guard usesTallPurchaseCompleteViewport else { return store.frame }",
+            "guard usesPrimaryActionPurchaseCompleteViewport else { return store.frame }",
             "screenFrame.contains(navigationFrame)",
             "applicationFrame.intersection(screenFrame)",
             ".intersection(storeFrame).intersection(scrollFrame)",
@@ -14576,7 +14694,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "guard let applicationFrame = tallSampledApplicationFrame",
             "applicationFrame.contains(geometry.storeFrame)",
             "sampledApplicationOrigin = applicationFrame.origin",
-            "if usesTallPurchaseCompleteViewport",
+            "if usesPrimaryActionPurchaseCompleteViewport",
             "receiverStartY >= receiverTop", "receiverStartY <= receiverBottom",
             "receiverEndY >= receiverTop", "receiverEndY <= receiverBottom",
             "abs(dragDistance) >= minimumGestureDistance",
@@ -14585,8 +14703,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(postPurchaseAXPositioningSource.contains(receiver), receiver)
         }
         let tallFinalViewport = try boundedSource(
-            postPurchaseAXVerifiedSource,
-            from: "        if usesTallPurchaseCompleteViewport {\n            let tallInteractiveFrames",
+            postPurchaseAXHelperSource,
+            from: "        if usesPrimaryActionPurchaseCompleteViewport {\n            let tallInteractiveFrames",
             before: "\n        guard hasExactValues(),"
         )
         for obligation in [
@@ -14618,7 +14736,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertFalse(postPurchaseAXHelperSource.contains(".tap()"))
         let tallInfeasibleObservation = try boundedSource(
             postPurchaseAXPositioningSource,
-            from: "                    if usesTallPurchaseCompleteViewport {\n                        var observation = tallCachedIntervalObservation",
+            from: "                    if usesPrimaryActionPurchaseCompleteViewport {\n                        var observation = tallCachedIntervalObservation",
             before: "                    return fail("
         )
         for record in [
@@ -14638,7 +14756,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(postPurchaseAXHelperSource.components(separatedBy: "printJSONLine(").count - 1, 1)
         XCTAssertTrue(postPurchaseAXPositioningSource.contains(
-            "if usesTallPurchaseCompleteViewport { tallCachedIntervalObservation = nil }\n                guard let geometry = interval()"
+            "if usesPrimaryActionPurchaseCompleteViewport { tallCachedIntervalObservation = nil }\n                guard let geometry = interval()"
         ))
         XCTAssertTrue(postPurchaseAXPositioningSource.contains(
             "return fail(\n                        \"AX-text purchase-complete \\(stage) interval is infeasible.\""
@@ -20647,10 +20765,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_044_087)
+        XCTAssertEqual(uiSource.utf8.count, 1_047_532)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "75F27B025A99B9F502D832671697E95ECB68B43F01D5C16F39FC2F7E7A2E6329"
+            "5A69E44F74A7DEF461BE6C08B96C08B537A04F34B0E79D13D9423318B644A4A6"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

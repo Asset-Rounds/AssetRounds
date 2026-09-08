@@ -4622,6 +4622,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return
             }
         }
+        if automationShard?.shardID == "s10.4.minimum.double-length" {
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.ordinal == 9, shard.requirementID == "double_length",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  shard.locale == "en-US-double-length" else {
+                XCTFail("Initial double Preflight after-dark positioning has an invalid route.")
+                return
+            }
+            guard positionPreflightAfterDarkForAXText(in: app) else {
+                XCTFail("Initial double Preflight after-dark positioning failed.")
+                return
+            }
+        }
         setToggle("s3.preflight.after-dark", in: app)
         app.swipeUp()
         if diagnosticProbe == nil, automationSegment == .none,
@@ -10903,9 +10917,21 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return usedSettingsRetry
             }
         }
+        let usesRTLStringPurchaseCompleteViewport =
+            automationShard?.shardID == "s10.4.minimum.rtl-string"
+        if usesRTLStringPurchaseCompleteViewport {
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.ordinal == 11, shard.requirementID == "rtl_string",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  shard.locale == "ar-RTL-string" else {
+                XCTFail("RTL-string purchase-complete preparation has an invalid route.")
+                return usedSettingsRetry
+            }
+        }
         if automationShard?.shardID == "s10.4.current.ax-text" ||
             automationShard?.shardID == "s10.4.minimum.minimum-os" ||
-            usesTallPurchaseCompleteViewport {
+            usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport {
             if shouldPrepareNormalEvidence(
                 for: "state.paywall.purchase-complete",
                 in: app
@@ -11103,27 +11129,56 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 return false
             }
         }
+        let usesRTLStringPurchaseCompleteViewport =
+            automationShard?.shardID == "s10.4.minimum.rtl-string"
+        if usesRTLStringPurchaseCompleteViewport {
+            guard diagnosticProbe == nil, automationSegment == .none,
+                  let shard = automationShard,
+                  shard.ordinal == 11, shard.requirementID == "rtl_string",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  shard.locale == "ar-RTL-string" else {
+                XCTFail("RTL-string purchase-complete helper has an invalid route.")
+                return false
+            }
+        }
+        let usesPrimaryActionPurchaseCompleteViewport =
+            usesTallPurchaseCompleteViewport || usesRTLStringPurchaseCompleteViewport
         let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
-        let expectedReadyValue = usesTallPurchaseCompleteViewport
+        let expectedReadyValue = usesRTLStringPurchaseCompleteViewport
+            ? "\u{202E}Ready\u{202C}"
+            : usesTallPurchaseCompleteViewport
             ? tallMarker + "Ready" + tallMarker : "Ready"
-        let expectedCloseLabel = usesTallPurchaseCompleteViewport
+        let expectedCloseLabel = usesRTLStringPurchaseCompleteViewport
+            ? "\u{202E}Close\u{202C}"
+            : usesTallPurchaseCompleteViewport
             ? tallMarker + "Close" + tallMarker : "Close"
-        let expectedTermsLabel = usesTallPurchaseCompleteViewport
+        let expectedTermsLabel = usesRTLStringPurchaseCompleteViewport
+            ? "\u{202E}Terms\u{202C}"
+            : usesTallPurchaseCompleteViewport
             ? tallMarker + "Terms" + tallMarker : "Terms"
-        let expectedPrivacyLabel = usesTallPurchaseCompleteViewport
+        let expectedPrivacyLabel = usesRTLStringPurchaseCompleteViewport
+            ? "\u{202E}Privacy\u{202C}"
+            : usesTallPurchaseCompleteViewport
             ? tallMarker + "Privacy" + tallMarker : "Privacy"
-        let expectedSupportLabel = usesTallPurchaseCompleteViewport
+        let expectedSupportLabel = usesRTLStringPurchaseCompleteViewport
+            ? "\u{202E}Support\u{202C}"
+            : usesTallPurchaseCompleteViewport
             ? tallMarker + "Support" + tallMarker : "Support"
-        let expectedPurchaseLabel = usesTallPurchaseCompleteViewport
+        let expectedPurchaseLabel = usesRTLStringPurchaseCompleteViewport
+            ? "\u{202E}Subscribe\u{202C}"
+            : usesTallPurchaseCompleteViewport
             ? tallMarker + "Subscribe" + tallMarker : "Subscribe"
-        let expectedVerifiedLabel = usesTallPurchaseCompleteViewport
+        let expectedVerifiedLabel = usesRTLStringPurchaseCompleteViewport
+            ? "\u{202E}Complete: Purchase verified. Subscription access is ready.\u{202C}"
+            : usesTallPurchaseCompleteViewport
             ? tallMarker + "Complete: " + tallMarker + " Purchase "
                 + tallMarker + " verified. " + tallMarker + " Subscription "
                 + tallMarker + " access " + tallMarker + " is "
                 + tallMarker + " ready." + tallMarker
             : "Complete: Purchase verified. Subscription access is ready."
-        let expectedTallNavigationIdentifier =
-            tallMarker + "Subscription" + tallMarker
+        let expectedTallNavigationIdentifier = usesRTLStringPurchaseCompleteViewport
+            ? "\u{202E}Subscription\u{202C}"
+            : tallMarker + "Subscription" + tallMarker
         let purchasePredicate = NSPredicate(
             format: "label CONTAINS[c] 'Subscribe' OR " +
                 "label CONTAINS[c] 'Trial' OR label CONTAINS[c] '$59.99'"
@@ -11149,7 +11204,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         let supportButtons = app.buttons.matching(
             identifier: "s7.2.paywall.support"
         )
-        let purchaseButtons = usesTallPurchaseCompleteViewport
+        let purchaseButtons = usesPrimaryActionPurchaseCompleteViewport
             ? app.buttons.matching(NSPredicate(format: "label == %@", expectedPurchaseLabel))
             : app.buttons.matching(purchasePredicate)
         let screen = screens.firstMatch
@@ -11219,7 +11274,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 && support.identifier == "s7.2.paywall.support"
                 && purchase.elementType == .button
                 && purchase.identifier.isEmpty
-                && (!usesTallPurchaseCompleteViewport || (
+                && (!usesPrimaryActionPurchaseCompleteViewport || (
                     tallNavigationBars.count == 1
                         && tallStoreScrollViews.count == 1
                         && tallNavigationBar.exists
@@ -11260,7 +11315,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             automationShard?.shardID == "s10.4.minimum.minimum-os"
         var tallSampledApplicationFrame: CGRect?
         let sampledViewportFrame: () -> CGRect? = {
-            guard usesTallPurchaseCompleteViewport else { return store.frame }
+            guard usesPrimaryActionPurchaseCompleteViewport else { return store.frame }
             tallSampledApplicationFrame = nil
             let applicationFrame = app.frame
             let screenFrame = screen.frame
@@ -11294,7 +11349,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         func cacheTallInterval(
             frames: [String: CGRect], minimumShift: CGFloat, maximumShift: CGFloat
         ) {
-            guard usesTallPurchaseCompleteViewport else { return }
+            guard usesPrimaryActionPurchaseCompleteViewport else { return }
             let finite: (CGFloat) -> Any = { $0.isFinite ? $0 as Any : NSNull() }
             let cachedFrames = frames.mapValues { frame -> [String: Any] in
                 ["x": finite(frame.minX), "y": finite(frame.minY),
@@ -11323,23 +11378,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         "AX-text purchase-complete \(stage) route changed."
                     )
                 }
-                if usesTallPurchaseCompleteViewport { tallCachedIntervalObservation = nil }
+                if usesPrimaryActionPurchaseCompleteViewport { tallCachedIntervalObservation = nil }
                 guard let geometry = interval(),
                       geometry.minimumShift.isFinite,
                       geometry.maximumShift.isFinite,
                       geometry.minimumShift <= geometry.maximumShift else {
-                    if usesTallPurchaseCompleteViewport {
+                    if usesPrimaryActionPurchaseCompleteViewport {
                         var observation = tallCachedIntervalObservation
                             ?? ["cachedIntervalAvailable": false]
                         observation["diagnosticOnly"] = true
                         observation["finalAcceptanceEligible"] = false
                         observation["atomicSnapshot"] = false
                         observation["event"] = "infeasible-stage"
-                        observation["seam"] = "tall purchase-complete positioning"
+                        observation["seam"] = usesRTLStringPurchaseCompleteViewport
+                            ? "RTL-string purchase-complete positioning" : "tall purchase-complete positioning"
                         observation["stage"] = stage
-                        observation["shardID"] = "s10.4.minimum.tall"
-                        observation["ordinal"] = 12
-                        observation["requirementID"] = "tall"
+                        observation["shardID"] = usesRTLStringPurchaseCompleteViewport
+                            ? "s10.4.minimum.rtl-string" : "s10.4.minimum.tall"
+                        observation["ordinal"] = usesRTLStringPurchaseCompleteViewport
+                            ? 11 : 12
+                        observation["requirementID"] = usesRTLStringPurchaseCompleteViewport
+                            ? "rtl_string" : "tall"
                         printJSONLine(prefix: "S10_4_PREPARATION_FAILURE_OBSERVATION", object: observation)
                     }
                     return fail(
@@ -11386,7 +11445,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     : -clampedMagnitude
 
                 var sampledApplicationOrigin = CGPoint.zero
-                if usesTallPurchaseCompleteViewport {
+                if usesPrimaryActionPurchaseCompleteViewport {
                     guard let applicationFrame = tallSampledApplicationFrame,
                           isValidFrame(applicationFrame),
                           applicationFrame.contains(geometry.storeFrame) else {
@@ -11394,7 +11453,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     }
                     sampledApplicationOrigin = applicationFrame.origin
                 }
-                let storeOrigin = usesTallPurchaseCompleteViewport
+                let storeOrigin = usesPrimaryActionPurchaseCompleteViewport
                     ? app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
                         .withOffset(CGVector(
                             dx: geometry.storeFrame.minX - sampledApplicationOrigin.x,
@@ -11424,7 +11483,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                             dy: dragStartOffsetY + dragDistance
                         )
                     )
-                if usesTallPurchaseCompleteViewport {
+                if usesPrimaryActionPurchaseCompleteViewport {
                     let receiverX = geometry.storeFrame.midX
                     let receiverStartY = geometry.storeFrame.minY + dragStartOffsetY
                     let receiverEndY = receiverStartY + dragDistance
@@ -11621,7 +11680,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   storeFrame.minY <= storeFrame.maxY else {
                 return nil
             }
-            if usesTallPurchaseCompleteViewport {
+            if usesPrimaryActionPurchaseCompleteViewport {
                 let minimumShift = max(
                     storeFrame.minY - closeFrame.minY,
                     max(storeFrame.minY - purchaseStateFrame.minY,
@@ -11686,7 +11745,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             verifiedSupportFrame,
             verifiedPurchaseFrame,
         ]
-        if usesTallPurchaseCompleteViewport {
+        if usesPrimaryActionPurchaseCompleteViewport {
             let tallInteractiveFrames = [verifiedCloseFrame, verifiedTermsFrame,
                                          verifiedPrivacyFrame, verifiedSupportFrame]
             let tallOffscreenFrames = [verifiedTermsFrame, verifiedPrivacyFrame,
