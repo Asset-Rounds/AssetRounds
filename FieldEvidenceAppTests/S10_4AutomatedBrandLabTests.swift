@@ -3446,13 +3446,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "\n        let dueStatus = element(\"s5.1.issue.status\", in: app)"
         )
         let coherentIssueSource = try boundedSource(postSavingTransitionSource, from: "        if diagnosticProbe == nil, automationSegment == .none,", before: "        let issueTabBarCount =")
-        // Both exact minimum tuples wait for the same required issue and shell state.
-        let coherentIssueGate = "        if diagnosticProbe == nil, automationSegment == .none,\n           let shard = automationShard,\n           shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n           (shard.shardID == \"s10.4.minimum.minimum-os\" && shard.ordinal == 8 && shard.requirementID == \"minimum_os\")\n            || (shard.shardID == \"s10.4.minimum.accented\" && shard.ordinal == 13 && shard.requirementID == \"accented\") {\n"
+        // The exact minimum tuples retain one shared issue-and-shell postcondition.
+        let coherentIssueGate = "        if diagnosticProbe == nil, automationSegment == .none,\n           let shard = automationShard,\n           shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n           (shard.shardID == \"s10.4.minimum.minimum-os\" && shard.ordinal == 8 && shard.requirementID == \"minimum_os\")\n            || (shard.shardID == \"s10.4.minimum.accented\" && shard.ordinal == 13 && shard.requirementID == \"accented\")\n            || (shard.shardID == \"s10.4.minimum.bounded\" && shard.ordinal == 14 && shard.requirementID == \"bounded\") {\n"
         XCTAssertEqual(coherentIssueSource.components(separatedBy: coherentIssueGate).count - 1, 1)
         for clause in ["issueScreen.exists && app.tabBars.count == 1", "XCTWaiter.wait(for: [coherentIssueExpectation], timeout: 85)"] {
             XCTAssertEqual(coherentIssueSource.components(separatedBy: clause).count - 1, 1)
         }
-        XCTAssertEqual(coherentIssueSource.components(separatedBy: "||").count - 1, 1)
+        XCTAssertTrue(coherentIssueSource.contains("\n                .completed\n"))
         for forbidden in [".tap(", ".press(", ".swipe", "app.screenshot()", "app.debugDescription", "printJSONLine(", "Thread.sleep("] {
             XCTAssertFalse(coherentIssueSource.contains(forbidden), forbidden)
         }
@@ -20524,10 +20524,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_048_448)
+        XCTAssertEqual(uiSource.utf8.count, 1_048_565)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "50208CBB29E75745733038801FFB4773BDFC1BDF524336E53D780DB1C4A824EC"
+            "DED40705E07862F043F13C9F91AB3B536E869EC3855759FA4BEA6F77F6EC915B"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

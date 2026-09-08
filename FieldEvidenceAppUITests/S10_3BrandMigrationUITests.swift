@@ -8545,7 +8545,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
            let shard = automationShard,
            shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
            (shard.shardID == "s10.4.minimum.minimum-os" && shard.ordinal == 8 && shard.requirementID == "minimum_os")
-            || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented") {
+            || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented")
+            || (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded") {
             let coherentIssueExpectation = XCTNSPredicateExpectation(
                 predicate: NSPredicate { _, _ in
                     issueScreen.exists && app.tabBars.count == 1
