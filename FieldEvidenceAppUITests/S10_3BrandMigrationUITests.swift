@@ -3824,7 +3824,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                             -minimumGestureDistance
                                         )
                                         if recognizedMinimum <= recognizedMaximum {
-                                            dragDistance = recognizedMaximum
+                                            let midpoint = recognizedMinimum / 2 + recognizedMaximum / 2
+                                            guard midpoint.isFinite,
+                                                  midpoint >= recognizedMinimum,
+                                                  midpoint <= recognizedMaximum else {
+                                                emitPositioningFailure()
+                                                XCTFail("The serial visible preflight upward midpoint is outside its recognized interval.")
+                                                return false
+                                            }
+                                            dragDistance = midpoint
                                         } else if maximumShift < -receiverCapacity {
                                             dragDistance = -receiverCapacity
                                         } else {
@@ -3842,7 +3850,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                                             receiverCapacity
                                         )
                                         if recognizedMinimum <= recognizedMaximum {
-                                            dragDistance = recognizedMinimum
+                                            let midpoint = recognizedMinimum / 2 + recognizedMaximum / 2
+                                            guard midpoint.isFinite,
+                                                  midpoint >= recognizedMinimum,
+                                                  midpoint <= recognizedMaximum else {
+                                                emitPositioningFailure()
+                                                XCTFail("The serial visible preflight downward midpoint is outside its recognized interval.")
+                                                return false
+                                            }
+                                            dragDistance = midpoint
                                         } else if minimumShift > receiverCapacity {
                                             dragDistance = receiverCapacity
                                         } else {
@@ -4943,12 +4959,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         }
         if let shard = automationShard,
            shard.shardID == "s10.4.minimum.bounded" || shard.shardID == "s10.4.minimum.accented"
-            || shard.shardID == "s10.4.minimum.rtl-string" || shard.shardID == "s10.4.minimum.rtl" {
+            || shard.shardID == "s10.4.minimum.rtl-string" || shard.shardID == "s10.4.minimum.rtl"
+            || (shard.shardID == "s10.4.minimum.minimum-os" && minimumSegment == .segment1) {
             guard diagnosticProbe == nil, automationSegment == .none,
                   (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
                     || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented")
                     || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11 && shard.requirementID == "rtl_string")
-                    || (shard.shardID == "s10.4.minimum.rtl" && shard.ordinal == 10 && shard.requirementID == "rtl"),
+                    || (shard.shardID == "s10.4.minimum.rtl" && shard.ordinal == 10 && shard.requirementID == "rtl")
+                    || (shard.shardID == "s10.4.minimum.minimum-os" && shard.ordinal == 8
+                        && shard.requirementID == "minimum_os" && shard.locale == "en-US-release"
+                        && minimumSegment == .segment1),
                   shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" else {
                 throw AutomationConfigurationError.invalid("Bounded preflight preparation has an invalid route")
             }
@@ -9028,7 +9048,10 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
            shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
            (shard.shardID == "s10.4.minimum.minimum-os" && shard.ordinal == 8 && shard.requirementID == "minimum_os")
             || (shard.shardID == "s10.4.minimum.accented" && shard.ordinal == 13 && shard.requirementID == "accented")
-            || (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded") {
+            || (shard.shardID == "s10.4.minimum.bounded" && shard.ordinal == 14 && shard.requirementID == "bounded")
+            || (shard.shardID == "s10.4.minimum.rtl-string" && shard.ordinal == 11
+                && shard.requirementID == "rtl_string" && shard.locale == "ar-RTL-string"
+                && minimumSegment == .segment2) {
             let coherentIssueExpectation = XCTNSPredicateExpectation(
                 predicate: NSPredicate { _, _ in
                     issueScreen.exists && app.tabBars.count == 1
@@ -12554,6 +12577,25 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   storeFrame.minY <= storeFrame.maxY else {
                 return nil
             }
+            // BEGIN bounded primary-action verified interval
+            if usesBoundedPurchaseCompleteViewport {
+                let minimumShift = max(
+                    storeFrame.minY - closeFrame.minY,
+                    storeFrame.minY - purchaseStateFrame.minY
+                )
+                let maximumShift = min(
+                    storeFrame.maxY - closeFrame.maxY,
+                    storeFrame.maxY - purchaseStateFrame.maxY
+                )
+                cacheTallInterval(
+                    frames: ["viewport": storeFrame, "close": closeFrame,
+                             "verifiedStatus": purchaseStateFrame, "terms": termsFrame,
+                             "privacy": privacyFrame, "support": supportFrame, "subscribe": purchaseFrame],
+                    minimumShift: minimumShift, maximumShift: maximumShift
+                )
+                return (storeFrame, minimumShift, maximumShift)
+            }
+            // END bounded primary-action verified interval
             if usesPrimaryActionPurchaseCompleteViewport {
                 let minimumShift = max(
                     storeFrame.minY - closeFrame.minY,
@@ -12619,6 +12661,37 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             verifiedSupportFrame,
             verifiedPurchaseFrame,
         ]
+        // BEGIN bounded primary-action verified result
+        if usesBoundedPurchaseCompleteViewport {
+            let boundedInteractiveFrames = [
+                verifiedCloseFrame, verifiedTermsFrame,
+                verifiedPrivacyFrame, verifiedSupportFrame,
+            ]
+            let boundedHorizontalFrames = [
+                verifiedTermsFrame, verifiedPrivacyFrame,
+                verifiedSupportFrame, verifiedPurchaseFrame,
+            ]
+            guard hasExactValues(),
+                  verifiedFrames.allSatisfy(isValidFrame),
+                  boundedInteractiveFrames.allSatisfy({
+                      $0.width >= minimumGestureDistance && $0.height >= minimumGestureDistance
+                  }),
+                  boundedHorizontalFrames.allSatisfy({
+                      $0.minX >= verifiedStoreFrame.minX && $0.maxX <= verifiedStoreFrame.maxX
+                  }),
+                  verifiedStoreFrame.contains(verifiedCloseFrame),
+                  verifiedStoreFrame.contains(verifiedPurchaseStateFrame),
+                  close.isHittable, purchaseState.isHittable,
+                  verifiedCloseFrame.maxY <= verifiedPurchaseStateFrame.minY,
+                  verifiedPurchaseStateFrame.maxY <= verifiedTermsFrame.minY,
+                  verifiedTermsFrame.maxY <= verifiedPrivacyFrame.minY,
+                  verifiedPrivacyFrame.maxY <= verifiedSupportFrame.minY,
+                  verifiedSupportFrame.maxY <= verifiedPurchaseFrame.minY else {
+                return fail("Bounded purchase-complete primary-action viewport is unsafe.")
+            }
+            return true
+        }
+        // END bounded primary-action verified result
         if usesPrimaryActionPurchaseCompleteViewport {
             let tallInteractiveFrames = [verifiedCloseFrame, verifiedTermsFrame,
                                          verifiedPrivacyFrame, verifiedSupportFrame]

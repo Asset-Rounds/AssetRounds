@@ -3282,6 +3282,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.ordinal == 11 && shard.requirementID == \"rtl_string\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("|| shard.shardID == \"s10.4.minimum.rtl-string\""))
         XCTAssertTrue(boundedPreflightPreparation.contains("shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\""))
+        // The new admission is segment-1-only; public Done preserves input and zero acknowledgements.
+        let minimumOSReadyAdmission =
+            #"                    || (shard.shardID == "s10.4.minimum.minimum-os" && shard.ordinal == 8"# + "\n" +
+            #"                        && shard.requirementID == "minimum_os" && shard.locale == "en-US-release""# + "\n" +
+            #"                        && minimumSegment == .segment1)"#
+        XCTAssertTrue(boundedPreflightPreparation.contains(minimumOSReadyAdmission))
+        XCTAssertTrue(boundedPreflightPreparation.contains(#"|| (shard.shardID == "s10.4.minimum.minimum-os" && minimumSegment == .segment1) {"#))
+        XCTAssertEqual(boundedPreflightPreparation.components(separatedBy: #"shard.shardID == "s10.4.minimum.minimum-os""#).count - 1, 2)
+        XCTAssertEqual(boundedPreflightPreparation.components(separatedBy: "minimumSegment == .segment1").count - 1, 2)
+        XCTAssertTrue(boundedPreflightPreparation.contains(#"(boundedAfterDark.firstMatch.value as? String) == "0""#))
+        XCTAssertTrue(boundedPreflightPreparation.contains(#"(boundedSafePosition.firstMatch.value as? String) == "0""#))
         XCTAssertTrue(boundedPreflightPreparation.contains("boundedZone.typeText(\"\\n\")"))
         XCTAssertTrue(boundedPreflightPreparation.contains("guard boundedDone.exists, boundedDone.isEnabled else"))
         XCTAssertTrue(boundedPreflightPreparation.contains("hasKeyboardFocus == true"))
@@ -3556,6 +3567,82 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertLessThan(doubleExhaustion.lowerBound, doubleGesture.lowerBound)
         XCTAssertEqual(doubleVisibleReceiver.components(separatedBy: "remainingGestureAllowance = Int(plannedGestures)").count - 1, 1)
         XCTAssertTrue(doubleVisibleReceiver.contains("if !positioned {"))
+        // Reachable signed intervals use their finite midpoint, retaining far saturation.
+        let doubleUpwardSelection = try boundedSource(doubleVisibleReceiver,
+            from: "                                    if maximumShift < 0 {",
+            before: "                                    } else if minimumShift > 0 {")
+        let doubleDownwardSelection = try boundedSource(doubleVisibleReceiver,
+            from: "                                    } else if minimumShift > 0 {",
+            before: "                                    let dragDirection: CGFloat")
+        let doubleMidpointAssignment = "                                            let midpoint = recognizedMinimum / 2 + recognizedMaximum / 2\n                                            guard midpoint.isFinite,\n                                                  midpoint >= recognizedMinimum,\n                                                  midpoint <= recognizedMaximum else {"
+        for (selection, direction) in [(doubleUpwardSelection, "upward"), (doubleDownwardSelection, "downward")] {
+            XCTAssertEqual(selection.components(separatedBy: "if recognizedMinimum <= recognizedMaximum {").count - 1, 1)
+            XCTAssertEqual(selection.components(separatedBy: doubleMidpointAssignment).count - 1, 1)
+            XCTAssertEqual(selection.components(separatedBy: "dragDistance = midpoint").count - 1, 1)
+            let recognizedRange = try XCTUnwrap(selection.range(of: "if recognizedMinimum <= recognizedMaximum {"))
+            let midpointRange = try XCTUnwrap(selection.range(of: doubleMidpointAssignment))
+            let assignmentRange = try XCTUnwrap(selection.range(of: "dragDistance = midpoint"))
+            XCTAssertLessThan(recognizedRange.lowerBound, midpointRange.lowerBound)
+            XCTAssertLessThan(midpointRange.lowerBound, assignmentRange.lowerBound)
+            XCTAssertTrue(selection.contains("emitPositioningFailure()\n                                                XCTFail(\"The serial visible preflight \(direction) midpoint is outside its recognized interval.\")\n                                                return false"))
+            XCTAssertFalse(selection.contains("dragDistance = recognizedMinimum"))
+            XCTAssertFalse(selection.contains("dragDistance = recognizedMaximum"))
+        }
+        XCTAssertEqual(doubleUpwardSelection.components(separatedBy: "                                        let recognizedMinimum = max(\n                                            minimumShift,\n                                            -receiverCapacity\n                                        )").count - 1, 1)
+        XCTAssertEqual(doubleUpwardSelection.components(separatedBy: "                                        let recognizedMaximum = min(\n                                            maximumShift,\n                                            -minimumGestureDistance\n                                        )").count - 1, 1)
+        XCTAssertEqual(doubleUpwardSelection.components(separatedBy: "                                        } else if maximumShift < -receiverCapacity {\n                                            dragDistance = -receiverCapacity").count - 1, 1)
+        XCTAssertEqual(doubleDownwardSelection.components(separatedBy: "                                        let recognizedMinimum = max(\n                                            minimumShift,\n                                            minimumGestureDistance\n                                        )").count - 1, 1)
+        XCTAssertEqual(doubleDownwardSelection.components(separatedBy: "                                        let recognizedMaximum = min(\n                                            maximumShift,\n                                            receiverCapacity\n                                        )").count - 1, 1)
+        XCTAssertEqual(doubleDownwardSelection.components(separatedBy: "                                        } else if minimumShift > receiverCapacity {\n                                            dragDistance = receiverCapacity").count - 1, 1)
+        let doubleRecognizedMidpoint: (CGFloat, CGFloat) -> CGFloat? = { lower, upper in
+            guard lower.isFinite, upper.isFinite, lower <= upper else { return nil }
+            let midpoint = lower / 2 + upper / 2
+            guard midpoint.isFinite, midpoint >= lower, midpoint <= upper else { return nil }
+            return midpoint
+        }
+        XCTAssertEqual(doubleRecognizedMidpoint(-295, -137.5), -216.25)
+        XCTAssertEqual(doubleRecognizedMidpoint(137.5, 295), 216.25)
+        XCTAssertEqual(doubleRecognizedMidpoint(-44, -44), -44)
+        XCTAssertEqual(doubleRecognizedMidpoint(44, 44), 44)
+        XCTAssertNil(doubleRecognizedMidpoint(-44, -295))
+        XCTAssertNil(doubleRecognizedMidpoint(295, 44))
+        XCTAssertNil(doubleRecognizedMidpoint(-.infinity, -44))
+        XCTAssertNil(doubleRecognizedMidpoint(44, .infinity))
+        XCTAssertNil(doubleRecognizedMidpoint(.nan, 44))
+        XCTAssertEqual(doubleRecognizedMidpoint(CGFloat.greatestFiniteMagnitude, CGFloat.greatestFiniteMagnitude), CGFloat.greatestFiniteMagnitude)
+        XCTAssertEqual(doubleRecognizedMidpoint(-CGFloat.greatestFiniteMagnitude, -CGFloat.greatestFiniteMagnitude), -CGFloat.greatestFiniteMagnitude)
+        let doublePlannedGesture: (CGFloat, CGFloat, CGFloat, CGFloat) -> CGFloat? = { lower, upper, capacity, floor in
+            guard [lower, upper, capacity, floor].allSatisfy({ $0.isFinite }),
+                  lower <= upper, floor > 0, capacity >= floor else { return nil }
+            if upper < 0 {
+                let recognizedLower = max(lower, -capacity)
+                let recognizedUpper = min(upper, -floor)
+                if recognizedLower <= recognizedUpper {
+                    return doubleRecognizedMidpoint(recognizedLower, recognizedUpper)
+                }
+                return upper < -capacity ? -capacity : nil
+            }
+            if lower > 0 {
+                let recognizedLower = max(lower, floor)
+                let recognizedUpper = min(upper, capacity)
+                if recognizedLower <= recognizedUpper {
+                    return doubleRecognizedMidpoint(recognizedLower, recognizedUpper)
+                }
+                return lower > capacity ? capacity : nil
+            }
+            return nil
+        }
+        XCTAssertEqual(doublePlannedGesture(-417.5, -137.5, 295, 44), -216.25)
+        XCTAssertEqual(doublePlannedGesture(137.5, 417.5, 295, 44), 216.25)
+        XCTAssertEqual(doublePlannedGesture(-1588.5, -1277.5, 295, 44), -295)
+        XCTAssertEqual(doublePlannedGesture(1277.5, 1588.5, 295, 44), 295)
+        XCTAssertEqual(doublePlannedGesture(-44, -44, 295, 44), -44)
+        XCTAssertEqual(doublePlannedGesture(44, 44, 295, 44), 44)
+        XCTAssertNil(doublePlannedGesture(-20, -10, 295, 44))
+        XCTAssertNil(doublePlannedGesture(10, 20, 295, 44))
+        XCTAssertNil(doublePlannedGesture(-10, -20, 295, 44))
+        XCTAssertNil(doublePlannedGesture(-295, -44, .nan, 44))
+        XCTAssertNil(doublePlannedGesture(44, 295, 43, 44))
         // Failure evidence must execute before XCTest can terminate this helper.
         XCTAssertTrue(doubleVisibleReceiver.contains("let emitPositioningFailure: () -> Void = {"))
         XCTAssertFalse(doubleVisibleReceiver.contains("defer {"))
@@ -4016,7 +4103,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let coherentIssueSource = try boundedSource(postSavingTransitionSource, from: "        if diagnosticProbe == nil, automationSegment == .none,", before: "        let issueTabBarCount =")
         // The exact minimum tuples retain one shared issue-and-shell postcondition.
-        let coherentIssueGate = "        if diagnosticProbe == nil, automationSegment == .none,\n           let shard = automationShard,\n           shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n           (shard.shardID == \"s10.4.minimum.minimum-os\" && shard.ordinal == 8 && shard.requirementID == \"minimum_os\")\n            || (shard.shardID == \"s10.4.minimum.accented\" && shard.ordinal == 13 && shard.requirementID == \"accented\")\n            || (shard.shardID == \"s10.4.minimum.bounded\" && shard.ordinal == 14 && shard.requirementID == \"bounded\") {\n"
+        let coherentIssueGate = "        if diagnosticProbe == nil, automationSegment == .none,\n           let shard = automationShard,\n           shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n           (shard.shardID == \"s10.4.minimum.minimum-os\" && shard.ordinal == 8 && shard.requirementID == \"minimum_os\")\n            || (shard.shardID == \"s10.4.minimum.accented\" && shard.ordinal == 13 && shard.requirementID == \"accented\")\n            || (shard.shardID == \"s10.4.minimum.bounded\" && shard.ordinal == 14 && shard.requirementID == \"bounded\")\n            || (shard.shardID == \"s10.4.minimum.rtl-string\" && shard.ordinal == 11\n                && shard.requirementID == \"rtl_string\" && shard.locale == \"ar-RTL-string\"\n                && minimumSegment == .segment2) {\n"
         XCTAssertEqual(coherentIssueSource.components(separatedBy: coherentIssueGate).count - 1, 1)
         for clause in ["issueScreen.exists && app.tabBars.count == 1", "XCTWaiter.wait(for: [coherentIssueExpectation], timeout: 85)"] {
             XCTAssertEqual(coherentIssueSource.components(separatedBy: clause).count - 1, 1)
@@ -15525,6 +15612,83 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(tallFinalViewport.contains(obligation), obligation)
         }
         XCTAssertFalse(tallFinalViewport.contains("xmark"))
+        // Bounded final composition preserves primary Close/status, not legal exclusion.
+        let boundedVerifiedInterval = try boundedSource(postPurchaseAXVerifiedSource,
+            from: "            // BEGIN bounded primary-action verified interval",
+            before: "            // END bounded primary-action verified interval")
+        let boundedVerifiedResult = try boundedSource(postPurchaseAXVerifiedSource,
+            from: "        // BEGIN bounded primary-action verified result",
+            before: "        // END bounded primary-action verified result")
+        XCTAssertTrue(boundedVerifiedInterval.contains("if usesBoundedPurchaseCompleteViewport {"))
+        XCTAssertTrue(boundedVerifiedResult.contains("if usesBoundedPurchaseCompleteViewport {"))
+        for operand in ["storeFrame.minY - closeFrame.minY", "storeFrame.minY - purchaseStateFrame.minY",
+                        "storeFrame.maxY - closeFrame.maxY", "storeFrame.maxY - purchaseStateFrame.maxY"] {
+            XCTAssertTrue(boundedVerifiedInterval.contains(operand), operand)
+        }
+        for excluded in ["storeFrame.maxY - termsFrame", "storeFrame.maxY - privacyFrame",
+                         "storeFrame.maxY - supportFrame", "storeFrame.maxY - purchaseFrame"] {
+            XCTAssertFalse(boundedVerifiedInterval.contains(excluded), excluded)
+        }
+        for obligation in ["guard hasExactValues()", "verifiedFrames.allSatisfy(isValidFrame)",
+                           "verifiedStoreFrame.contains(verifiedCloseFrame)",
+                           "verifiedStoreFrame.contains(verifiedPurchaseStateFrame)",
+                           "close.isHittable, purchaseState.isHittable",
+                           "$0.width >= minimumGestureDistance && $0.height >= minimumGestureDistance",
+                           "$0.minX >= verifiedStoreFrame.minX && $0.maxX <= verifiedStoreFrame.maxX",
+                           "verifiedCloseFrame.maxY <= verifiedPurchaseStateFrame.minY",
+                           "verifiedPurchaseStateFrame.maxY <= verifiedTermsFrame.minY",
+                           "verifiedTermsFrame.maxY <= verifiedPrivacyFrame.minY",
+                           "verifiedPrivacyFrame.maxY <= verifiedSupportFrame.minY",
+                           "verifiedSupportFrame.maxY <= verifiedPurchaseFrame.minY"] {
+            XCTAssertTrue(boundedVerifiedResult.contains(obligation), obligation)
+        }
+        for retired in ["verifiedTermsFrame.minY >= verifiedStoreFrame.maxY",
+                        "verifiedPrivacyFrame.minY >= verifiedStoreFrame.maxY",
+                        "verifiedSupportFrame.minY >= verifiedStoreFrame.maxY",
+                        "verifiedPurchaseFrame.minY >= verifiedStoreFrame.maxY",
+                        "!terms.isHittable", "!privacy.isHittable", "!support.isHittable", "!purchase.isHittable"] {
+            XCTAssertFalse(boundedVerifiedResult.contains(retired), retired)
+        }
+        let boundedLowerExpression = "                let minimumShift = max(\n                    storeFrame.minY - closeFrame.minY,\n                    storeFrame.minY - purchaseStateFrame.minY\n                )"
+        XCTAssertEqual(boundedVerifiedInterval.components(separatedBy: boundedLowerExpression).count - 1, 1)
+        let boundedUpperExpression = "                let maximumShift = min(\n                    storeFrame.maxY - closeFrame.maxY,\n                    storeFrame.maxY - purchaseStateFrame.maxY\n                )"
+        XCTAssertEqual(boundedVerifiedInterval.components(separatedBy: boundedUpperExpression).count - 1, 1)
+        let boundedReturnExpression = "                return (storeFrame, minimumShift, maximumShift)"
+        XCTAssertEqual(boundedVerifiedInterval.components(separatedBy: boundedReturnExpression).count - 1, 1)
+        let boundedCacheExpression = "                cacheTallInterval(\n                    frames: [\"viewport\": storeFrame, \"close\": closeFrame,\n                             \"verifiedStatus\": purchaseStateFrame, \"terms\": termsFrame,\n                             \"privacy\": privacyFrame, \"support\": supportFrame, \"subscribe\": purchaseFrame],\n                    minimumShift: minimumShift, maximumShift: maximumShift\n                )"
+        XCTAssertEqual(boundedVerifiedInterval.components(separatedBy: boundedCacheExpression).count - 1, 1)
+        XCTAssertEqual(boundedVerifiedInterval.components(separatedBy: "if ").count - 1, 1)
+        XCTAssertEqual(boundedVerifiedInterval.components(separatedBy: "return ").count - 1, 1)
+        let boundedLowerRange = try XCTUnwrap(boundedVerifiedInterval.range(of: boundedLowerExpression))
+        let boundedUpperRange = try XCTUnwrap(boundedVerifiedInterval.range(of: boundedUpperExpression))
+        let boundedCacheRange = try XCTUnwrap(boundedVerifiedInterval.range(of: boundedCacheExpression))
+        let boundedReturnRange = try XCTUnwrap(boundedVerifiedInterval.range(of: boundedReturnExpression))
+        XCTAssertLessThan(boundedLowerRange.lowerBound, boundedUpperRange.lowerBound)
+        XCTAssertLessThan(boundedUpperRange.lowerBound, boundedCacheRange.lowerBound)
+        XCTAssertLessThan(boundedCacheRange.lowerBound, boundedReturnRange.lowerBound)
+        let boundedPrimaryInterval: (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat) -> (CGFloat, CGFloat)? = {
+            top, bottom, closeTop, closeBottom, statusTop, statusBottom in
+            guard [top, bottom, closeTop, closeBottom, statusTop, statusBottom].allSatisfy({ $0.isFinite }),
+                  top < bottom, closeTop < closeBottom, statusTop < statusBottom else { return nil }
+            let lower = max(top - closeTop, top - statusTop)
+            let upper = min(bottom - closeBottom, bottom - statusBottom)
+            return lower <= upper ? (lower, upper) : nil
+        }
+        let naturalTopBounded = try XCTUnwrap(boundedPrimaryInterval(96, 667, 112, 156, 557.5, 612.5))
+        XCTAssertEqual(naturalTopBounded.0, -16)
+        XCTAssertEqual(naturalTopBounded.1, 54.5)
+        XCTAssertTrue(naturalTopBounded.0 <= 0 && naturalTopBounded.1 >= 0)
+        XCTAssertNil(boundedPrimaryInterval(96, 667, 112, 156, 657.5, 712.5))
+        XCTAssertNil(boundedPrimaryInterval(96, .infinity, 112, 156, 557.5, 612.5))
+        let boundedCloseClipped = try XCTUnwrap(boundedPrimaryInterval(96, 667, 76, 120, 557.5, 612.5))
+        XCTAssertEqual(boundedCloseClipped.0, 20)
+        XCTAssertEqual(boundedCloseClipped.1, 54.5)
+        let boundedStatusClipped = try XCTUnwrap(boundedPrimaryInterval(96, 667, 162, 206, 640, 695))
+        XCTAssertEqual(boundedStatusClipped.0, -66)
+        XCTAssertEqual(boundedStatusClipped.1, -28)
+        XCTAssertNil(boundedPrimaryInterval(667, 96, 112, 156, 557.5, 612.5))
+        XCTAssertNil(boundedPrimaryInterval(96, 667, 156, 112, 557.5, 612.5))
+        XCTAssertNil(boundedPrimaryInterval(96, 667, 112, 156, .nan, 612.5))
         XCTAssertFalse(postPurchaseAXHelperSource.contains(".tap()"))
         let tallInfeasibleObservation = try boundedSource(
             postPurchaseAXPositioningSource,
@@ -21565,10 +21729,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_111_716)
+        XCTAssertEqual(uiSource.utf8.count, 1_116_261)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "516FC611FCEE9DE64521494F6CA897BFFBDD8305F8773183FDB52E206B2D3A26"
+            "A77E6387613361B41B30191818D9E0CFC0DCD94DC2DAA4D0ADD6477949C8C562"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
