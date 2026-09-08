@@ -12636,10 +12636,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(purchaseSelectorSource.contains(#"shard.ordinal == 11 && shard.requirementID == "rtl_string""#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"expectedPurchaseLabel = "\u{202E}Subscribe\u{202C}""#))
-        let purchasePairAdmission = try boundedSource(purchaseSelectorSource, from: "            if diagnosticProbe == nil, automationSegment == .none,", before: "                let expectedPurchaseLabel:")
-        XCTAssertTrue(purchasePairAdmission.contains(#"shard.shardID == "s10.4.minimum.tall""#))
-        XCTAssertTrue(purchasePairAdmission.contains(#"shard.ordinal == 12 && shard.requirementID == "tall""#))
-        XCTAssertEqual(purchasePairAdmission.components(separatedBy: "||").count - 1, 1)
+        let purchaseLabelAdmission = try boundedSource(purchaseSelectorSource, from: "            if diagnosticProbe == nil, automationSegment == .none,", before: "                let expectedPurchaseLabel:")
+        XCTAssertTrue(purchaseLabelAdmission.contains(#"shard.shardID == "s10.4.minimum.tall""#))
+        XCTAssertTrue(purchaseLabelAdmission.contains(#"shard.ordinal == 12 && shard.requirementID == "tall""#))
+        XCTAssertTrue(purchaseLabelAdmission.contains(#"shard.shardID == "s10.4.minimum.bounded""#))
+        XCTAssertTrue(purchaseLabelAdmission.contains(#"shard.ordinal == 14 && shard.requirementID == "bounded""#))
+        XCTAssertEqual(purchaseLabelAdmission.components(separatedBy: "||").count - 1, 2)
+        XCTAssertTrue(purchaseLabelAdmission.contains(#"diagnosticProbe == nil, automationSegment == .none"#))
+        XCTAssertTrue(purchaseLabelAdmission.contains(#"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"if shard.shardID == "s10.4.minimum.tall""#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"expectedPurchaseLabel = tallMarker + "Subscribe" + tallMarker"#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}""#))
@@ -12647,51 +12651,30 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.elementType == .button"#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.label == expectedPurchaseLabel"#))
         XCTAssertTrue(purchaseSelectorSource.contains(#"purchase.isEnabled, purchase.isHittable else { return nil }"#))
-        let boundedWrongPurchaseDiagnostic = try boundedSource(purchaseSelectorSource,
-            from: "                    if diagnosticProbe == nil, automationSegment == .none,",
-            before: "                    return candidate")
-        for exact in [
-            #"shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14"#,
-            #"shard.requirementID == "bounded""#,
-            #"shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum""#,
-            #"selectedIdentifier == "xmark" || selectedLabel == "xmark""#,
-            "for scalar in value.unicodeScalars",
-            "guard retainedBytes + scalarBytes <= limit else { break }",
-            "boundedWrongTargetText(selectedIdentifier, limit: 1024)",
-            "boundedWrongTargetText(selectedLabel, limit: 1024)",
-            #""acceptanceEligible": false"#,
-            #""snapshotAtomic": false"#,
-            #""passedExistingEnabledAndHittableFilters": true"#,
-            "identifier.text.unicodeScalars.map",
-            "label.text.unicodeScalars.map",
-            "identifierTruncated", "labelTruncated",
-            "originalUTF8Bytes", "retainedUTF8Bytes", "truncated",
-            "return nil",
+        // H409: consumed bounded wrong-target capture locks are replaced by exact purchase identity and fail-closed admission.
+        XCTAssertTrue(purchaseSelectorSource.contains(#"else if shard.shardID == "s10.4.minimum.bounded" {"# + "\n" +
+            #"                    expectedPurchaseLabel = "[# Subscribe #]""#))
+        XCTAssertTrue(purchaseSelectorSource.contains(#"expectedPurchaseLabel = "[# Subscribe #]""#))
+        let exactPurchaseSelection = try boundedSource(purchaseSelectorSource,
+            from: "                let purchaseButtons = scopedButtons.matching(",
+            before: "            for index in 0..<scopedButtons.count {")
+        for invariant in [
+            #"NSPredicate(format: "label == %@", expectedPurchaseLabel)"#,
+            "guard purchaseButtons.count == 1 else { return nil }",
+            "let purchase = purchaseButtons.element(boundBy: 0)",
+            "guard purchase.exists, purchase.elementType == .button,",
+            #"purchase.identifier != "s7.2.paywall.close""#,
+            "purchase.label == expectedPurchaseLabel,",
+            "purchase.isEnabled, purchase.isHittable else { return nil }",
+            "return purchase",
         ] {
-            XCTAssertTrue(boundedWrongPurchaseDiagnostic.contains(exact), exact)
+            XCTAssertTrue(exactPurchaseSelection.contains(invariant), invariant)
         }
-        var boundedWrongPurchaseOrder = boundedWrongPurchaseDiagnostic[...]
-        for exact in [
-            "let selectedIdentifier = candidate.identifier",
-            "let selectedLabel = candidate.label",
-            "if selectedIdentifier ==",
-            "let selectedObservation:",
-            "print(\"S10_4_BOUNDED_WRONG_PURCHASE_TARGET ",
-            "let screenshot = XCTAttachment(screenshot: app.screenshot())",
-            "add(screenshot)",
-            "let hierarchy = boundedWrongTargetText(store.debugDescription, limit: 65536)",
-            "let tree = XCTAttachment(string: hierarchyMetadata +",
-            "add(tree)",
-            "XCTFail(\"Bounded purchase selection resolved native xmark; purchase target evidence is required.\")",
-            "return nil",
-        ] {
-            let found = try XCTUnwrap(boundedWrongPurchaseOrder.range(of: exact), exact)
-            boundedWrongPurchaseOrder = boundedWrongPurchaseOrder[found.upperBound...]
-        }
-        XCTAssertEqual(boundedWrongPurchaseDiagnostic.components(separatedBy: "app.screenshot()").count - 1, 1)
-        XCTAssertEqual(boundedWrongPurchaseDiagnostic.components(separatedBy: "boundedWrongTargetText(store.debugDescription,").count - 1, 1)
-        for prohibited in [".tap()", "continue", "waitForExistence", "captureBaseline", "performAccessibilityAudit", "Subscribe", "scopedButtons."] {
-            XCTAssertFalse(boundedWrongPurchaseDiagnostic.contains(prohibited), prohibited)
+        XCTAssertTrue(purchaseSelectorSource.contains(#"let store = element("s7.2.paywall.store", in: app)"#))
+        XCTAssertTrue(purchaseSelectorSource.contains("let scopedButtons = store.descendants(matching: .button)"))
+        XCTAssertTrue(exactPurchaseSelection.hasSuffix("                return purchase\n            }\n"))
+        for prohibited in [".tap()", "continue", "waitForExistence", "firstMatch", "xmark"] {
+            XCTAssertFalse(exactPurchaseSelection.contains(prohibited), prohibited)
         }
         XCTAssertTrue(purchaseRecoveryStart.contains(#"XCTFail("The purchase control is missing or ambiguous")"#))
         XCTAssertTrue(purchaseRecoveryStart.contains(#"return usedSettingsRetry"#))
@@ -20562,10 +20545,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_048_569)
+        XCTAssertEqual(uiSource.utf8.count, 1_043_729)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "45D4AD5CC22E57DB3597FB1A2F3FD85C84C3C91A37C4A2BEDBF34D96A2541170"
+            "8AD0D73F676296082A1BAD824EF04AC7BD139B76D6DC55F30DFB5FDAB06E8CDD"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

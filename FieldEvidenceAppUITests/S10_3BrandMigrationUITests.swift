@@ -19645,12 +19645,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                ((shard.shardID == "s10.4.minimum.rtl-string"
                     && shard.ordinal == 11 && shard.requirementID == "rtl_string")
                 || (shard.shardID == "s10.4.minimum.tall"
-                    && shard.ordinal == 12 && shard.requirementID == "tall")),
+                    && shard.ordinal == 12 && shard.requirementID == "tall")
+                || (shard.shardID == "s10.4.minimum.bounded"
+                    && shard.ordinal == 14 && shard.requirementID == "bounded")),
                shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
                 let expectedPurchaseLabel: String
                 if shard.shardID == "s10.4.minimum.tall" {
                     let tallMarker = "\u{0921}\u{094D}\u{0921}\u{0942}\u{0E01}\u{0E36}\u{0E4A}"
                     expectedPurchaseLabel = tallMarker + "Subscribe" + tallMarker
+                } else if shard.shardID == "s10.4.minimum.bounded" {
+                    expectedPurchaseLabel = "[# Subscribe #]"
                 } else {
                     expectedPurchaseLabel = "\u{202E}Subscribe\u{202C}"
                 }
@@ -19671,71 +19675,6 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                    candidate.isEnabled,
                    candidate.isHittable,
                    !candidate.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    if diagnosticProbe == nil, automationSegment == .none,
-                       let shard = automationShard,
-                       shard.shardID == "s10.4.minimum.bounded", shard.ordinal == 14,
-                       shard.requirementID == "bounded",
-                       shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
-                        let selectedIdentifier = candidate.identifier
-                        let selectedLabel = candidate.label
-                        if selectedIdentifier == "xmark" || selectedLabel == "xmark" {
-                            func boundedWrongTargetText(_ value: String, limit: Int) -> (text: String, originalBytes: Int, retainedBytes: Int, truncated: Bool) {
-                                var retained = ""
-                                var retainedBytes = 0
-                                for scalar in value.unicodeScalars {
-                                    let scalarText = String(scalar)
-                                    let scalarBytes = scalarText.utf8.count
-                                    guard retainedBytes + scalarBytes <= limit else { break }
-                                    retained += scalarText
-                                    retainedBytes += scalarBytes
-                                }
-                                let originalBytes = value.utf8.count
-                                return (retained, originalBytes, retainedBytes, retainedBytes < originalBytes)
-                            }
-                            let identifier = boundedWrongTargetText(selectedIdentifier, limit: 1024)
-                            let label = boundedWrongTargetText(selectedLabel, limit: 1024)
-                            let selectedObservation: [String: Any] = [
-                                "schemaVersion": 1,
-                                "acceptanceEligible": false,
-                                "shardID": shard.shardID,
-                                "observationPhase": "selected-xmark-before-screenshot-and-hierarchy",
-                                "candidateIndex": index,
-                                "elementType": "button",
-                                "elementTypeBasis": "store.descendants(matching: .button)",
-                                "passedExistingEnabledAndHittableFilters": true,
-                                "identifier": identifier.text,
-                                "identifierScalars": identifier.text.unicodeScalars.map { String(format: "U+%04X", $0.value) },
-                                "identifierOriginalUTF8Bytes": identifier.originalBytes,
-                                "identifierRetainedUTF8Bytes": identifier.retainedBytes,
-                                "identifierTruncated": identifier.truncated,
-                                "label": label.text,
-                                "labelScalars": label.text.unicodeScalars.map { String(format: "U+%04X", $0.value) },
-                                "labelOriginalUTF8Bytes": label.originalBytes,
-                                "labelRetainedUTF8Bytes": label.retainedBytes,
-                                "labelTruncated": label.truncated,
-                                "snapshotAtomic": false,
-                            ]
-                            if let data = try? JSONSerialization.data(withJSONObject: selectedObservation, options: [.sortedKeys]),
-                               let text = String(data: data, encoding: .utf8) {
-                                print("S10_4_BOUNDED_WRONG_PURCHASE_TARGET \(text)")
-                            } else {
-                                print("S10_4_BOUNDED_WRONG_PURCHASE_TARGET serialization-unavailable")
-                            }
-                            let screenshot = XCTAttachment(screenshot: app.screenshot())
-                            screenshot.name = "S10.4 bounded wrong purchase target before dismissal"
-                            screenshot.lifetime = .keepAlways
-                            add(screenshot)
-                            let hierarchy = boundedWrongTargetText(store.debugDescription, limit: 65536)
-                            let hierarchyMetadata = "capture=store.debugDescription\noriginalUTF8Bytes=\(hierarchy.originalBytes)\nretainedUTF8Bytes=\(hierarchy.retainedBytes)\ntruncated=\(hierarchy.truncated)\nsnapshotAtomic=false\nacceptanceEligible=false\n"
-                            print("S10_4_BOUNDED_WRONG_PURCHASE_HIERARCHY originalUTF8Bytes=\(hierarchy.originalBytes) retainedUTF8Bytes=\(hierarchy.retainedBytes) truncated=\(hierarchy.truncated)")
-                            let tree = XCTAttachment(string: hierarchyMetadata + "\n" + hierarchy.text)
-                            tree.name = "S10.4 bounded wrong purchase target store hierarchy before dismissal"
-                            tree.lifetime = .keepAlways
-                            add(tree)
-                            XCTFail("Bounded purchase selection resolved native xmark; purchase target evidence is required.")
-                            return nil
-                        }
-                    }
                     return candidate
                 }
             }
