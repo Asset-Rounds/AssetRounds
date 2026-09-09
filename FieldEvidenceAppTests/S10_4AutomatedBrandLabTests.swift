@@ -93,8 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 61_590,
-            sha256: "1F75D9386ED23C84D8B1280DCAE675512FCFD0F1F7EF5397C3C848BF9461B82E"
+            byteCount: 79_473,
+            sha256: "72896D9EEF11311D4DDE05CB4457D81E3D47EA1BC0623007D10E2AF5C949D68E"
         )
         let uiSmokeSource = try text(uiSmokePath)
         // H411 shell commands retain the existing native selectors and separate producer units from consumer UI.
@@ -321,6 +321,65 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertFalse(missingIncidentReportInputSource.contains(prohibited), prohibited)
         }
+        // H412 finite shared diagnostics retain ordinary behavior and native failure/acceptance boundaries.
+        let h412AdmissionSource = try boundedSource(
+            uiSmokeSource,
+            from: "# H412 finite shared middle-segment diagnostic admission; no native query or action.\n",
+            before: "# End H412 finite shared middle-segment diagnostic admission.\n"
+        )
+        for required in [
+            #"[ "${CI_RUNNER_PROVIDER:-}" = github ]"#,
+            #"[ "${CI_TASK_ID:-}" = S10.4 ]"#,
+            #"[ "${CI_S10_4_PILOT_MODE:-}" = false ]"#,
+            #"[ "${diagnostic_probe_id:-}" = none ]"#,
+            #"[ "${CI_S10_4_SEGMENT_ID:-}" = none ]"#,
+            #"[ "${CI_S10_4_EXECUTION_ROLE:-}" = payload-consumer ]"#,
+            #"[ "${CI_S10_4_SHARED_BUILD_MODE:-}" = consumer ]"#,
+            #"[ "${CI_S10_4_SHARED_EXECUTION_LANE:-}" = github-xcode-26.6-shared-build-acceptance ]"#,
+            #"[ "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum ]"#,
+            #"[ "${WORKER_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ]"#,
+            #"[ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ]"#,
+            #"[ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE:-}" = github-xcode-26.6-shared-build-acceptance ]"#,
+            #"[ -n "${GITHUB_SHA:-}" ] && [ -n "${GITHUB_REF:-}" ]"#,
+            #"[ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_HEAD:-}" = "$GITHUB_SHA" ]"#,
+            #"[ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_REF:-}" = "$GITHUB_REF" ]"#,
+            "s10.4.minimum.bounded:14:bounded)", "s10.4.minimum.rtl-string:11:rtl_string)",
+        ] { XCTAssertTrue(h412AdmissionSource.contains(required), required) }
+        XCTAssertEqual(h412AdmissionSource.components(separatedBy: "h412_shared_incident_profile=").count - 1, 3)
+        for forbidden in ["log show", "xcrun", "xcodebuild", "sleep", "exit", "s10.4.current."] {
+            XCTAssertFalse(h412AdmissionSource.contains(forbidden), forbidden)
+        }
+        let h412NativeExportSource = try boundedSource(
+            uiSmokeSource,
+            from: "  # H412 native container diagnostics: separate originals, failure-only and nonaccepting.\n",
+            before: "  # End H412 native container diagnostics.\n"
+        )
+        XCTAssertTrue(uiFailureDiagnosticSource.contains(h412NativeExportSource))
+        for required in [
+            #"[ "$h412_shared_incident_profile" = bounded ] || [ "$h412_shared_incident_profile" = rtl-string ]"#,
+            "xcrun xcresulttool help export diagnostics", "native_diagnostics_help Scripts/run-with-timeout.sh 5",
+            "native_diagnostics_export Scripts/run-with-timeout.sh 20", "xcrun xcresulttool export diagnostics --path",
+            "native_diagnostics_index Scripts/run-with-timeout.sh 5", "native_diagnostics_acceptance_eligible=false",
+            "native_diagnostics_original_layout=xcresulttool_export_diagnostics", "-ge 100", "-ge 90",
+            "root.resolve() != root", "entries > 4096", "len(relative.parts) > 8", "info.st_size > 67108864",
+            "total > 268435456", "stat.S_ISREG(info.st_mode)", "info.st_nlink != 1", "native-diagnostics-index.json",
+        ] { XCTAssertTrue(h412NativeExportSource.contains(required), required) }
+        for forbidden in ["export attachments", "zstandard", "exit 0", "xcodebuild_status=", "test-without-building"] {
+            XCTAssertFalse(h412NativeExportSource.contains(forbidden), forbidden)
+        }
+        let h412HostTailSource = try boundedSource(
+            uiSmokeSource,
+            from: "  # H412 same-query RTL host tail; the original two-MiB prefix is preserved.\n",
+            before: "  # End H412 same-query RTL host tail.\n"
+        )
+        XCTAssertTrue(uiFailureDiagnosticSource.contains(h412HostTailSource))
+        for required in [
+            #"[ "$h412_shared_incident_profile" = rtl-string ]"#,
+            #"/usr/bin/head -c "$host_unified_log_original_bytes" "$host_unified_log_raw" | /usr/bin/tail -c 1048576"#,
+            "host_prefix_tail_overlap_bytes=%s", "host_prefix_tail_gap=%s", "host_tail_incomplete=%s",
+            "host_tail_acceptance_eligible=false", "bounded_same_query_snapshot_not_completion_proof",
+        ] { XCTAssertTrue(h412HostTailSource.contains(required), required) }
+        XCTAssertFalse(h412HostTailSource.contains("log show"))
         let incidentCollectorSource = try boundedSource(
             uiSmokeSource,
             from: "  # H408 optional incident-correlated app log; originals remain unchanged.\n",
@@ -332,7 +391,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "        else\n          printf 'ips_app_log=skip-temp-error\\n'"
         )
         let incidentPrimarySource = incidentCollectorSource.replacingOccurrences(of: incidentAdjacentSource, with: "")
-        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n    s10.4.minimum.rtl-string)\n      if [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; then\n        ips_test_started_epoch=\"$(date +%s)\"\n      fi ;;\n  esac\nfi\n\n"
+        let incidentStartSource = "ips_test_started_epoch=\"\"\nif [ \"${CI_RUNNER_PROVIDER:-}\" = github ] && [ \"${CI_TASK_ID:-}\" = S10.4 ]; then\n  case \"${CI_S10_4_SHARD_ID:-}\" in\n    s10.4.minimum.minimum-os|s10.4.minimum.accented|s10.4.minimum.bounded|s10.4.minimum.tall|s10.4.minimum.rtl)\n      ips_test_started_epoch=\"$(date +%s)\" ;;\n    s10.4.minimum.rtl-string)\n      if [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; then\n        ips_test_started_epoch=\"$(date +%s)\"\n      elif [ \"$h412_shared_incident_profile\" = rtl-string ]; then\n        ips_test_started_epoch=\"$(date +%s)\"\n      fi ;;\n  esac\nfi\n\n"
         XCTAssertTrue(uiSmokeSource.contains(incidentStartSource))
         // K470: closed bounded admission joins the existing failure-only incident profiles.
         let incidentAdmissionSource = try boundedSource(
@@ -358,14 +417,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(uiSmokeSource.components(separatedBy: #"[ "$diagnostic_probe_id" = none ]"#).count - 1, 3)
         XCTAssertFalse(uiSmokeSource.contains("${CI_S10_4_DIAGNOSTIC_PROBE_ID:-}"))
         // K471: exact ordinary RTL-string joins three diagnostic input gates only.
-        XCTAssertTrue(simulatorAppLifecycleSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = \"s10.4.minimum.rtl\" ] || \\\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] && \\\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] && \\\n         [ \"$diagnostic_probe_id\" = none ] && \\\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] && \\\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
-        XCTAssertTrue(incidentAdmissionSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
+        XCTAssertTrue(simulatorAppLifecycleSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = \"s10.4.minimum.rtl\" ] || \\\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] && \\\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] && \\\n         [ \"$diagnostic_probe_id\" = none ] && \\\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] && \\\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; } || [ \"$h412_shared_incident_profile\" = rtl-string ]; }; then"))
+        XCTAssertTrue(incidentAdmissionSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; } || [ \"$h412_shared_incident_profile\" = rtl-string ]; }; then"))
         XCTAssertEqual(incidentAdmissionSource.components(separatedBy: #"[ "${CI_S10_4_SHARD_ID:-}" = "#).count - 1, 6)
         for excluded in ["s10.4.minimum.double-length", "s10.4.current."] {
             XCTAssertFalse(incidentAdmissionSource.contains(excluded), excluded)
         }
         // Preserve K417 incident admission and bounded same-snapshot prefix.
-        XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; }; }; then"))
+        XCTAssertTrue(incidentCollectorSource.contains("       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.tall ] ||\n       [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl ] ||\n       { [ \"${CI_S10_4_SHARD_ID:-}\" = s10.4.minimum.rtl-string ] &&\n         [ \"${CI_S10_4_PILOT_MODE:-}\" = false ] &&\n         [ \"$diagnostic_probe_id\" = none ] &&\n         [ \"${CI_S10_4_SEGMENT_ID:-}\" = none ] &&\n         [ \"${CI_S10_4_EXECUTION_ROLE:-}\" = independent ]; } || [ \"$h412_shared_incident_profile\" = rtl-string ]; }; then"))
         XCTAssertTrue(incidentCollectorSource.contains("          ips_prefix_limit=\"$ips_snapshot_bytes\"\n          if [ \"$ips_prefix_limit\" -gt 1048576 ]; then ips_prefix_limit=1048576; fi\n          /usr/bin/head -c \"$ips_prefix_limit\" \"$ips_raw\" \\\n            > \"$failure_diagnostic_path/simulator-incident-app-prefix.log\"\n          ips_prefix_status=\"$?\"\n          ips_prefix_bytes=\"$(LC_ALL=C wc -c < \"$failure_diagnostic_path/simulator-incident-app-prefix.log\" | tr -d '[:space:]')\"\n          ips_tail_snapshot_start=0\n          if [ \"$ips_snapshot_bytes\" -gt 1048576 ]; then\n            ips_tail_snapshot_start=\"$(( ips_snapshot_bytes - 1048576 ))\"\n          fi\n          ips_prefix_tail_overlap=0\n          if [ \"$ips_prefix_bytes\" -gt \"$ips_tail_snapshot_start\" ]; then\n            ips_prefix_tail_overlap=\"$(( ips_prefix_bytes - ips_tail_snapshot_start ))\"\n          fi\n          printf 'ips_prefix_status=%s\\nips_prefix_bytes=%s\\nips_prefix_start_byte=0\\nips_prefix_end_byte=%s\\nips_tail_snapshot_start_byte=%s\\nips_tail_snapshot_end_byte=%s\\nips_prefix_tail_overlap_bytes=%s\\nips_prefix_capture=bounded_snapshot_not_completion_proof\\n' \\\n            \"$ips_prefix_status\" \"$ips_prefix_bytes\" \"$ips_prefix_bytes\" \\\n            \"$ips_tail_snapshot_start\" \"$ips_snapshot_bytes\" \"$ips_prefix_tail_overlap\" \\\n            >> \"$diagnostic_status_path\"\n          if [ \"$ips_query_status\" -ne 0 ] || [ \"$ips_prefix_status\" -ne 0 ] || \\\n             [ \"$ips_prefix_bytes\" -ne \"$ips_prefix_limit\" ] || [ \"$ips_prefix_bytes\" -eq 0 ]; then\n            printf 'ips_prefix_incomplete=true\\n' >> \"$diagnostic_status_path\"\n          fi\n"))
         for exact in [
             "int(capture)", "capture_epoch=candidates[0]",
@@ -404,6 +463,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "            if not int(start)<=launch<=capture<=int(end): continue\n",
             before: "        except (ValueError,TypeError,AttributeError,UnicodeError,OSError,RecursionError):"
         )
+        for required in [
+            "if len(roots) not in (2,5)", "native_root.resolve()!=native_root", "entry_count>4096",
+            "len(relative.parts)>8", "native_bytes>268435456", "info.st_size>67108864", "info.st_nlink!=1",
+            "skip-native-index-mismatch", "skip-native-report-hash-mismatch", "skip-invalid-native-simulator",
+            "if len(files)>20", "p.stat().st_size>1048576", "process_components=process_path.split('/')",
+            "len(process_components)!=15", "component in ('','.','..')", "process_components[1]!='Users'",
+            "process_components[3:7]!=['Library','Developer','CoreSimulator','Devices']",
+            "process_components[8:12]!=['data','Containers','Bundle','Application']",
+            "process_components[13:]!=['FieldEvidenceApp.app','FieldEvidenceApp']",
+            "re.fullmatch(native_path_uuid,process_components[7])", "re.fullmatch(native_path_uuid,process_components[12])",
+            "process_components[7].upper()!=native_simulator", "ord(c)<32 or ord(c)==127",
+        ] { XCTAssertTrue(incidentParserSource.contains(required), required) }
         XCTAssertTrue(incidentParserSource.contains("    candidates=[]\n    canonical_reports=set()\n"))
         XCTAssertTrue(validatedIncidentRecordSource.contains("            canonical=json.dumps([header,body],sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False)\n            if canonical not in canonical_reports:\n"))
         XCTAssertTrue(validatedIncidentRecordSource.contains("            if canonical not in canonical_reports:\n                canonical_reports.add(canonical)\n                candidates.append((pid,incident,body['procLaunch'],body['captureTime'],int(capture)))\n"))
@@ -461,7 +532,28 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         // Conditional K479: preserve primary query policy; additional evidence is timeout-only, finite and nonaccepting.
         XCTAssertEqual(incidentCollectorSource.components(separatedBy: "log show").count - 1, 2)
         XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "log show").count - 1, 1)
-        XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "ips_adjacent_cohort=true").count - 1, 1)
+        XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "ips_adjacent_cohort=true").count - 1, 3)
+        // K492 admits only the already-qualified shared bounded middle segment.
+        let sharedBoundedIncidentAdmission = #"""
+                    elif [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
+                         [ "${CI_TASK_ID:-}" = S10.4 ] &&
+                         [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+                         [ "${diagnostic_probe_id:-}" = none ] &&
+                         [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+                         [ "${CI_S10_4_EXECUTION_ROLE:-}" = payload-consumer ] &&
+                         [ "${CI_S10_4_SHARED_BUILD_MODE:-}" = consumer ] &&
+                         [ "${CI_S10_4_SHARED_EXECUTION_LANE:-}" = github-xcode-26.6-shared-build-acceptance ] &&
+                         [ "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum ] &&
+                         [ "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_SHARD_ORDINAL:-}:${CI_S10_4_REQUIREMENT_ID:-}" = s10.4.minimum.bounded:14:bounded ] &&
+                         [ "${WORKER_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ] &&
+                         [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ] &&
+                         [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE:-}" = github-xcode-26.6-shared-build-acceptance ] &&
+                         [ -n "${GITHUB_SHA:-}" ] && [ -n "${GITHUB_REF:-}" ] &&
+                         [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_HEAD:-}" = "$GITHUB_SHA" ] &&
+                         [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_REF:-}" = "$GITHUB_REF" ]; then
+                      ips_adjacent_cohort=true
+        """#
+        XCTAssertTrue(incidentAdjacentSource.contains(sharedBoundedIncidentAdmission))
         XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "--start").count - 1, 1)
         XCTAssertEqual(incidentAdjacentSource.components(separatedBy: "--end").count - 1, 1)
         for invariant in [
@@ -530,6 +622,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(incidentAdjacentSource.contains(prohibited), prohibited)
         }
         let uiSmokeOutsideAXDiagnostic = uiSmokeSource
+            .replacingOccurrences(of: h412AdmissionSource, with: "")
             .replacingOccurrences(of: incidentCollectorSource, with: "")
             .replacingOccurrences(of: incidentStartSource, with: "")
             .replacingOccurrences(of: simulatorAXDiagnosticSource, with: "")
@@ -551,7 +644,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 1,
                 shardID
             )
-            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: sharedAdmission, with: "").replacingOccurrences(of: simulatorAppLifecycleSource, with: "").replacingOccurrences(of: incidentCollectorSource, with: "").replacingOccurrences(of: incidentStartSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
+            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: h412AdmissionSource, with: "").replacingOccurrences(of: sharedAdmission, with: "").replacingOccurrences(of: simulatorAppLifecycleSource, with: "").replacingOccurrences(of: incidentCollectorSource, with: "").replacingOccurrences(of: incidentStartSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
         }
         let bypassedAccessibilityRefreshShards = [
             "s10.4.current.default-dark",
@@ -644,8 +737,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         try assertFile(
             manifestPath,
-            byteCount: 24_942,
-            sha256: "E969E05927E7D65C1CFBBBAADA251CBCA18EDAA332AA500197C949A0C527DBCF"
+            byteCount: 25_437,
+            sha256: "344800CEBBE69E00DDE164E72F92A25911194F5AFC412B1B1CAAE349A9830D72"
         )
         try assertFile(
             visualSchemaPath,
@@ -695,10 +788,91 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 351_096,
-            sha256: "F6641310D3C4D0EFEA952235DE530A0E6000B51B01BFC39AFBA3217E10B9E23A"
+            byteCount: 355_569,
+            sha256: "2DE0C328CF8ACC4E74FDD2942E3EEF21AC9D9610FBB623A68E0D4C1015C692BA"
         )
         let workflowSource = try text(workflowPath)
+        // H412 retains a failed setup's original files, without accepting missing accounting.
+        XCTAssertTrue(workflowSource.contains("id: runtime_setup"))
+        XCTAssertTrue(workflowSource.contains("RUNTIME_SETUP_OUTCOME: ${{ steps.runtime_setup.outcome }}"))
+        let setupFailureChecksumSource = #"""
+                  # H412 closes original setup-failure evidence without fabricating elapsed time.
+                  if [ "${RUNTIME_SETUP_OUTCOME:-}" = failure ] &&
+                     [ -z "${CI_SETUP_ELAPSED_SECONDS:-}" ] &&
+                     [ "${CI_TASK_ID:-}" = S10.4 ] &&
+                     [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
+                     [ "${CI_RUNNER_LABEL:-}" = macos-26 ] &&
+                     [ "${CI_S10_4_SHARED_BUILD_MODE:-}" = consumer ] &&
+                     [ "${CI_S10_4_EXECUTION_ROLE:-}" = payload-consumer ] &&
+                     [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+                     [ "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] &&
+                     [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+                     [ "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_SHARD_ORDINAL:-}:${CI_S10_4_REQUIREMENT_ID:-}" = s10.4.minimum.minimum-os:8:minimum_os ] &&
+                     [ "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum ] &&
+                     [ "${WORKER_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ]; then
+                    printf 'setup_elapsed_seconds=unavailable\nsetup_artifact_elapsed_seconds=unavailable\nacceptance_eligible=false\nreason=setup-failed-before-accounting\n' \
+                      > "$CI_ARTIFACT_DIR/s10-4-setup-failure-evidence.txt"
+                    (
+                      cd "$CI_ARTIFACT_DIR"
+                      find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+                        shasum -a 256 "$file"
+                      done
+                    ) > "$checksum_file"
+                    mv "$checksum_file" "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+                    (
+                      cd "$CI_ARTIFACT_DIR"
+                      shasum -a 256 -c SHA256SUMS.txt
+                    )
+                    exit 1
+                  fi
+        """#
+        XCTAssertTrue(workflowSource.contains(setupFailureChecksumSource))
+        // H412 warm admission is exact and leaves cold provisioning unchanged.
+        let githubWarmRuntimeSource = #"""
+                  # H412 skips only a positively verified exact GitHub minimum runtime.
+                  github_exact_runtime_preinstalled=false
+                  if test "${CI_TASK_ID:-}" = S10.4 &&
+                     test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = github:macos-26 &&
+                     test "${CI_S10_4_PILOT_MODE:-}" = false &&
+                     test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none &&
+                     test "${CI_S10_4_SHARED_BUILD_MODE:-}" = consumer &&
+                     test "${CI_S10_4_EXECUTION_ROLE:-}" = payload-consumer &&
+                     test "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum &&
+                     test "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" = 'iOS 18.0:22A3351:18.0' &&
+                     test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = true &&
+                     test "$RUNNER_ARCH" = ARM64 &&
+                     test "$DEVELOPER_DIR" = /Applications/Xcode_26.6.app/Contents/Developer &&
+                     test "$EXPECTED_XCODE_VERSION:$EXPECTED_XCODE_BUILD" = 'Xcode 26.6:Build version 17F113'; then
+                    runtime_presence_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+                    runtime_presence_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - runtime_presence_elapsed_seconds ))"
+                    test "$runtime_presence_budget_seconds" -gt 0
+                    if bash Scripts/run-with-timeout.sh "$runtime_presence_budget_seconds" \
+                      xcrun simctl list runtimes -j \
+                        > "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.json" \
+                        2> "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.stderr" &&
+                      jq -e '
+                        .runtimes | select(type == "array")
+                        | map(select(.name == "iOS 18.0" or .identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-0"))
+                        | length == 1 and (.[0]
+                          | .name == "iOS 18.0" and .version == "18.0" and .buildversion == "22A3351"
+                            and .identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-0"
+                            and .isAvailable == true
+                            and (.supportedArchitectures | type == "array" and index("arm64") != null)
+                            and (.supportedDeviceTypes | type == "array"
+                              and any(.[]; .identifier == "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation")))
+                      ' "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.json" > /dev/null; then
+                      github_exact_runtime_preinstalled=true
+                      printf 'exact_runtime_preinstalled=true\n' \
+                        > "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+                    fi
+                  fi
+
+                  if test "${CI_TASK_ID:-}" = "S10.4" && \
+                     test "$CI_RUNNER_PROVIDER" != "bitrise" && \
+                     test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true" && \
+                     test "$github_exact_runtime_preinstalled" != true; then
+        """#
+        XCTAssertTrue(workflowSource.contains(githubWarmRuntimeSource))
         // K485 preserves full shared-restore accounting and exact dispatch retention closure.
         let sharedSetupRecheck = try boundedSource(
             workflowSource, from: "      - name: Recheck setup budget after shared payload restore\n",
@@ -2215,12 +2389,20 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         ] {
             XCTAssertEqual(workflowSource.components(separatedBy: fragment).count - 1, 3, fragment)
         }
+        // Two original guards remain; only GitHub cold provisioning adds the not-warm condition.
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy: #"test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then"#
             ).count - 1,
-            3
+            2
         )
+        let githubColdProvisionGuard = #"""
+                  if test "${CI_TASK_ID:-}" = "S10.4" && \
+                     test "$CI_RUNNER_PROVIDER" != "bitrise" && \
+                     test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true" && \
+                     test "$github_exact_runtime_preinstalled" != true; then
+        """#
+        XCTAssertEqual(workflowSource.components(separatedBy: githubColdProvisionGuard).count - 1, 1)
         XCTAssertEqual(
             workflowSource.components(
                 separatedBy:
@@ -2489,6 +2671,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let getMacHashAndBudgetSource = String(
             workflowSource[workerHashRange.lowerBound..<workerUploadRange.lowerBound]
         )
+        // The exact D7 block above is GitHub-only; preserve ordinary GetMac hashing once.
+        XCTAssertEqual(
+            getMacHashAndBudgetSource.components(separatedBy: setupFailureChecksumSource).count - 1,
+            1
+        )
+        let getMacOrdinaryHashAndBudgetSource = getMacHashAndBudgetSource
+            .replacingOccurrences(of: setupFailureChecksumSource, with: "")
         let getMacUploadSource = String(
             workflowSource[workerUploadRange.lowerBound..<getMacFailRange.lowerBound]
         )
@@ -2606,13 +2795,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             2
         )
         XCTAssertEqual(
-            getMacHashAndBudgetSource.components(
+            getMacOrdinaryHashAndBudgetSource.components(
                 separatedBy: #"find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do"#
             ).count - 1,
             1
         )
         XCTAssertEqual(
-            getMacHashAndBudgetSource.components(separatedBy: "shasum -a 256 -c SHA256SUMS.txt").count - 1,
+            getMacOrdinaryHashAndBudgetSource.components(separatedBy: "shasum -a 256 -c SHA256SUMS.txt").count - 1,
             1
         )
         XCTAssertEqual(
@@ -5108,6 +5297,36 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertNil(doubleFocusCommandModel(lowerShift: Double.nan, upperShift: 100, capacity: 474))
         XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: Double.infinity, capacity: 474))
         XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: 100, capacity: Double.infinity))
+        let doubleReadyObservedBlock = "        var readyObservationOrdinal = 0\n        func observe() throws -> (application: CGRect, scroll: CGRect, navigation: CGRect, tab: CGRect, field: CGRect, controls: [CGRect]) {\n            readyObservationOrdinal += 1\n            let retainReadyOperands = minimumSegment == .segment1\n                && shard.locale == \"en-US-double-length\" && readyObservationOrdinal == 1\n            var readyOperands: [String: Any] = [:]\n            let readyOperandKeys = [\"screensCount\", \"zoneCount\", \"navigationCount\", \"tabCount\", \"beginCount\", \"applicationState\", \"preflightExists\", \"detailExists\", \"zoneExists\", \"zoneEnabled\", \"zoneType\", \"zoneIdentifier\", \"keyboardExists\", \"focusedZoneCount\", \"zoneLabel\", \"zoneValue\", \"zonePlaceholder\", \"beginExists\", \"beginEnabled\", \"ackCount0\", \"ackCount1\", \"ackCount2\", \"ackValue0\", \"ackValue1\", \"ackValue2\"]\n            if retainReadyOperands {\n                for key in readyOperandKeys { readyOperands[key] = [\"status\": \"not-reached\"] }\n            }\n            func observed<T>(_ key: String, _ value: T) -> T {\n                if retainReadyOperands {\n                    let description = String(reflecting: value)\n                    readyOperands[key] = [\"status\": \"reached\", \"encoding\": \"swift-reflecting\",\n                        \"value\": String(description.prefix(256)), \"truncated\": description.count > 256]\n                }\n                return value\n            }\n            guard observed(\"screensCount\", screens.count) == 1, observed(\"zoneCount\", zoneFields.count) == 1,\n                  observed(\"navigationCount\", navigationBars.count) == 1, observed(\"tabCount\", tabBars.count) == 1,\n                  acknowledgements.enumerated().allSatisfy({ observed(\"ackCount\\($0.offset)\", $0.element.count) == 1 }), observed(\"beginCount\", beginButtons.count) == 1,\n                  observed(\"applicationState\", app.state) == .runningForeground, observed(\"preflightExists\", preflight.exists), !observed(\"detailExists\", detail.exists),\n                  observed(\"zoneExists\", zone.exists), observed(\"zoneEnabled\", zone.isEnabled),\n                  observed(\"zoneType\", zone.elementType) == .textField,\n                  observed(\"zoneIdentifier\", zone.identifier) == \"s3.preflight.time-zone\",\n                  !observed(\"keyboardExists\", app.keyboards.firstMatch.exists),\n                  observed(\"focusedZoneCount\", zoneFields.matching(NSPredicate(format: \"hasKeyboardFocus == true\")).count) == 0,\n                  observed(\"zoneLabel\", zone.label) == identity.label, observed(\"zoneValue\", (zone.value as? String)) == identity.value,\n                  observed(\"zonePlaceholder\", zone.placeholderValue) == identity.placeholder,\n                  acknowledgements.enumerated().allSatisfy({ observed(\"ackValue\\($0.offset)\", ($0.element.firstMatch.value as? String)) == \"0\" }),\n                  observed(\"beginExists\", beginButtons.firstMatch.exists), !observed(\"beginEnabled\", beginButtons.firstMatch.isEnabled) else {\n                if retainReadyOperands {\n                    printJSONLine(prefix: \"S10_4_PREPARATION_CACHED_FAILURE\", object: [\n                        \"diagnosticOnly\": true, \"feedsAcceptanceAssembler\": false,\n                        \"finalAcceptanceEligible\": false, \"atomicSnapshot\": false,\n                        \"scope\": \"double-initial-ready-first-observation\",\n                        \"shardID\": shard.shardID, \"segmentID\": \"minimum-segment-1\",\n                        \"operands\": readyOperands, \"observationOrdinal\": readyObservationOrdinal,\n                        \"observationMeaning\": \"original lazy getter order; not-reached values were not queried\",\n                    ])\n                }\n                throw AutomationConfigurationError.invalid(\"Double preflight focus preparation changed the ready state\")\n            }\n"
+        XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: doubleReadyObservedBlock).count - 1, 1)
+        let h412NewSignFailure = "        if diagnosticProbe == nil, automationSegment == .none, minimumSegment == .segment2,\n           let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.minimum-os\", shard.ordinal == 8,\n           shard.requirementID == \"minimum_os\",\n           shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n           shard.locale == \"en-US-release\",\n           !signHasKeyboardFocus || !keyboardIsVisible {\n            printJSONLine(prefix: \"S10_4_PREPARATION_CACHED_FAILURE\", object: [\n                \"diagnosticOnly\": true, \"feedsAcceptanceAssembler\": false,\n                \"finalAcceptanceEligible\": false, \"atomicSnapshot\": false,\n                \"scope\": \"minimum-middle-new-sign-post-tap\",\n                \"shardID\": shard.shardID, \"segmentID\": \"minimum-segment-2\",\n                \"focusWait\": [\"status\": \"reached\", \"value\": signHasKeyboardFocus],\n                \"keyboardWait\": [\"status\": \"reached\", \"value\": keyboardIsVisible],\n                \"observationOrder\": [\"focusWait\", \"keyboardWait\"],\n                \"observationMeaning\": \"separate completed original waits; no new native reads\",\n            ])\n        }\n"
+
+        XCTAssertEqual(uiSource.components(separatedBy: h412NewSignFailure).count - 1, 1)
+        for block in [doubleReadyObservedBlock, h412NewSignFailure] {
+            XCTAssertTrue(block.contains("\"diagnosticOnly\": true"))
+            XCTAssertTrue(block.contains("\"finalAcceptanceEligible\": false"))
+            XCTAssertTrue(block.contains("\"feedsAcceptanceAssembler\": false"))
+            for forbidden in [".tap(", ".typeText(", "wait(for:", "waitForExistence(", "screenshot", "debugDescription", "sleep("] {
+                XCTAssertFalse(block.contains(forbidden), forbidden)
+            }
+        }
+        let h412FocusPayload: [String: Any] = [
+            "focus": ["status": "reached", "value": false],
+            "keyboard": ["status": "reached", "value": true],
+            "later": ["status": "not-reached"],
+        ]
+        let h412FocusJSON = try JSONSerialization.data(withJSONObject: h412FocusPayload, options: [.sortedKeys])
+        let h412FocusDecoded = try XCTUnwrap(JSONSerialization.jsonObject(with: h412FocusJSON) as? [String: [String: Any]])
+        XCTAssertEqual(h412FocusDecoded["focus"]?["value"] as? Bool, false)
+        XCTAssertEqual(h412FocusDecoded["keyboard"]?["value"] as? Bool, true)
+        XCTAssertNil(h412FocusDecoded["later"]?["value"])
+        // Getter-domain operands contain no geometry. Nonfinite textual values also remain JSON-safe.
+        for description in ["nan", "inf", "-inf", "nil", String(repeating: "x", count: 300)] {
+            let record: [String: Any] = ["status": "reached", "encoding": "swift-reflecting",
+                "value": String(description.prefix(256)), "truncated": description.count > 256]
+            XCTAssertTrue(JSONSerialization.isValidJSONObject(record))
+            XCTAssertNoThrow(try JSONSerialization.data(withJSONObject: record))
+        }
         let doubleFocusActionSource = try boundedSource(
             preflightInputToBeginSource,
             from: "        let doublePreflightFocusIdentity:",
@@ -5120,19 +5339,19 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"",
             "app.scrollViews.matching(identifier: \"s3.preflight.screen\").containing(",
             ".textField, identifier: \"s3.preflight.time-zone\"",
-            "zoneFields.count == 1",
-            "zone.elementType == .textField",
-            "zone.identifier == \"s3.preflight.time-zone\"",
+            "observed(\"zoneCount\", zoneFields.count) == 1",
+            "observed(\"zoneType\", zone.elementType) == .textField",
+            "observed(\"zoneIdentifier\", zone.identifier) == \"s3.preflight.time-zone\"",
             "identity.value == \"\" || (identity.placeholder != nil && identity.value == identity.placeholder)",
-            "!app.keyboards.firstMatch.exists",
+            "!observed(\"keyboardExists\", app.keyboards.firstMatch.exists)",
             "hasKeyboardFocus == true",
             "== 0",
-            "zone.label == identity.label, (zone.value as? String) == identity.value",
-            "zone.placeholderValue == identity.placeholder",
-            "acknowledgements.allSatisfy({ $0.count == 1 })",
-            "acknowledgements.allSatisfy({ ($0.firstMatch.value as? String) == \"0\" })",
-            "beginButtons.firstMatch.exists, !beginButtons.firstMatch.isEnabled",
-            "!detail.exists",
+            "observed(\"zoneLabel\", zone.label) == identity.label, observed(\"zoneValue\", (zone.value as? String)) == identity.value",
+            "observed(\"zonePlaceholder\", zone.placeholderValue) == identity.placeholder",
+            "acknowledgements.enumerated().allSatisfy({ observed(\"ackCount\\($0.offset)\", $0.element.count) == 1 })",
+            "acknowledgements.enumerated().allSatisfy({ observed(\"ackValue\\($0.offset)\", ($0.element.firstMatch.value as? String)) == \"0\" })",
+            "observed(\"beginExists\", beginButtons.firstMatch.exists), !observed(\"beginEnabled\", beginButtons.firstMatch.isEnabled)",
+            "!observed(\"detailExists\", detail.exists)",
             "!frame.isNull && !frame.isEmpty && !frame.isInfinite",
             ".allSatisfy(validFrame)",
             "let live = scroll.intersection(application)",
@@ -5184,13 +5403,55 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: ".press(").count - 1, 1)
         XCTAssertEqual(doubleFocusActionSource.components(separatedBy: "zone.tap()").count - 1, 1)
-        XCTAssertEqual(doubleFocusActionSource.components(separatedBy: "wait(for: zone").count - 1, 1)
+        let doubleReadySubmissionSource = try boundedSource(
+            doubleFocusActionSource,
+            from: "            if app.keyboards.firstMatch.exists {",
+            before: "            doublePreflightFocusIdentity = try prepareInitialDoublePreflightFocus("
+        )
+        // One public empty submission normalizes the post-capture focus state.
+        XCTAssertEqual(doubleReadySubmissionSource.components(separatedBy: ".typeText(").count - 1, 1)
+        XCTAssertTrue(doubleReadySubmissionSource.contains("zone.typeText(\"\\n\")"))
+        for invariant in [
+            "diagnosticProbe == nil, automationSegment == .none",
+            "let shard = automationShard, shard.ordinal == 9",
+            "shard.requirementID == \"double_length\"",
+            "shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"",
+            "submittedZoneFields.count == 1, submittedKeyboards.count == 1",
+            "submittedZoneFields.matching(NSPredicate(format: \"hasKeyboardFocus == true\")).count == 1",
+            "submittedIdentity.value == \"\" || (submittedIdentity.placeholder != nil && submittedIdentity.value == submittedIdentity.placeholder)",
+            "submittedBeginButtons.count == 0",
+            "submittedDoneButtons.count == 1",
+            "submittedDoneButtons.firstMatch.exists, submittedDoneButtons.firstMatch.isEnabled",
+            "submittedKeyboards.firstMatch.waitForNonExistence(timeout: 10)",
+            "wait(for: zone, predicate: \"hasKeyboardFocus == false\", timeout: 10)",
+            "submittedZoneFields.matching(NSPredicate(format: \"hasKeyboardFocus == true\")).count == 0",
+            "zone.label == submittedIdentity.label",
+            "(zone.value as? String) == submittedIdentity.value",
+            "zone.placeholderValue == submittedIdentity.placeholder",
+            "submittedBeginButtons.count == 1",
+            "submittedBeginButtons.firstMatch.exists, !submittedBeginButtons.firstMatch.isEnabled",
+            "assertLocalizedLabel(submittedBeginButtons.firstMatch, equals: \"Begin check\")",
+        ] {
+            XCTAssertTrue(doubleReadySubmissionSource.contains(invariant), invariant)
+        }
+        for invariant in [
+            "zone.exists, zone.isEnabled, zone.elementType == .textField",
+            "zone.identifier == \"s3.preflight.time-zone\"",
+            "submittedAcknowledgements.allSatisfy({ $0.count == 1 && ($0.firstMatch.value as? String) == \"0\" })",
+            "preflight.exists, app.state == .runningForeground else {",
+        ] {
+            XCTAssertEqual(doubleReadySubmissionSource.components(separatedBy: invariant).count - 1, 2, invariant)
+        }
+        for prohibited in [".tap(", ".press(", ".swipe", "setToggle", "catch", "screenshot", "debugDescription", "captureBaseline("] {
+            XCTAssertFalse(doubleReadySubmissionSource.contains(prohibited), prohibited)
+        }
         for prohibited in [".tap(", ".typeText(", ".swipe", "while ", "for attempt", "setToggle", "catch", "screenshot", "debugDescription"] {
             XCTAssertFalse(doubleFocusPreparationSource.contains(prohibited), prohibited)
         }
-        for prohibited in ["beginButtons", "s3.preflight.begin", "coordinate(", "catch", ".typeText("] {
+        for prohibited in ["coordinate(", "catch"] {
             XCTAssertFalse(doubleFocusActionSource.contains(prohibited), prohibited)
         }
+        XCTAssertEqual(doubleFocusActionSource.components(separatedBy: ".typeText(").count - 1, 1)
         XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: "S10_4_DOUBLE_PREFLIGHT_FOCUS_FAILURE").count - 1, 3)
         XCTAssertTrue(doubleFocusPreparationSource.contains("\"observedMovement\": diagnosticScalar(after.field.minY - before.field.minY)"))
         XCTAssertTrue(doubleFocusPreparationSource.contains("\"diagnosticOnly\": true"))
@@ -7789,6 +8050,40 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         // Native profile tests own this preparation geometry; keep its route binding.
         XCTAssertTrue(uiSource.contains("                    let minimumPreflightQuickPathIntroductionViews ="))
 
+        let rtlMiddleValidationReplaySource = try boundedSource(
+            uiSource,
+            from: "        let usesRTLStringMiddleValidationReplay =",
+            before: "        let navigationBottom ="
+        )
+        for invariant in [
+            "diagnosticProbe == nil",
+            "automationSegment == .none && minimumSegment == .segment2",
+            "automationShard?.shardID == \"s10.4.minimum.rtl-string\"",
+            "automationShard?.ordinal == 11",
+            "automationShard?.requirementID == \"rtl_string\"",
+            "automationShard?.locale == \"ar-RTL-string\"",
+            "automationShard?.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"",
+            "if usesRTLStringMiddleValidationReplay {",
+            "guard !automatedSegmentFinished,",
+            "minimumSegment?.route.replayCount == 22",
+            "minimumSegment?.route.ownedStartOrdinal == 23",
+            "minimumSegment?.route.ownedCount == 28",
+            "minimumSegment?.route.finalOrdinal == 50",
+            "segmentedRouteStateCursor == 5",
+            "Self.segmentedRouteStateIDs[5] == \"state.new-sign.validation-error\"",
+            "minimumReplayStateIDs == Array(Self.segmentedRouteStateIDs.prefix(5))",
+            "migratedStateIDs.isEmpty, automationAXTreeDigests.isEmpty",
+            "automationContrastExceptions.isEmpty",
+            "siteHasKeyboardFocus, site.exists, site.isEnabled",
+            "keyboard.exists, error.exists, !validationDetailRoute.exists",
+            "app.state == .runningForeground else {",
+            "} else {",
+        ] {
+            XCTAssertTrue(rtlMiddleValidationReplaySource.contains(invariant), invariant)
+        }
+        for prohibited in [".tap(", ".typeText(", ".press(", ".swipe", "captureBaseline(", "emitMinimumRow(", "catch", "coordinate("] {
+            XCTAssertFalse(rtlMiddleValidationReplaySource.contains(prohibited), prohibited)
+        }
         let newSignQuickPathProfileGuard =
             #"        if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {"#
         let newSignRouteStart =
@@ -7939,7 +8234,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             )
         }
         let newSignFinalGuardBeforeH135 =
-            newSignFinalGuard + "\n" + newSignQuickPathProfileGuard
+            newSignFinalGuard + "\n        }\n" + newSignQuickPathProfileGuard
         XCTAssertEqual(
             uiSource.components(separatedBy: newSignFinalGuardBeforeH135).count - 1,
             1
@@ -15407,7 +15702,45 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertFalse(boundedProgressObservation.contains(forbidden), forbidden)
         }
         // Remove only the separately checked failure observation before all existing helper contracts.
-        let postPurchaseAXHelperSource = instrumentedPostPurchaseAXHelperSource
+        var d5NormalizedHelper = instrumentedPostPurchaseAXHelperSource
+        let d5Block0 = try boundedSource(d5NormalizedHelper,
+            from: "        // BEGIN H412 D5 0", before: "        // END H412 D5 0\n") + "        // END H412 D5 0\n"
+        for forbidden in [".exists", ".isHittable", ".isEnabled", ".elementType", ".frame", ".press(", ".tap(", "waitForExistence", "XCTFail("] {
+            XCTAssertFalse(d5Block0.contains(forbidden), forbidden)
+        }
+        d5NormalizedHelper = d5NormalizedHelper.replacingOccurrences(of: d5Block0, with: "")
+        let d5Block1 = try boundedSource(d5NormalizedHelper,
+            from: "        // BEGIN H412 D5 1", before: "        // END H412 D5 1\n") + "        // END H412 D5 1\n"
+        for forbidden in [".exists", ".isHittable", ".isEnabled", ".elementType", ".frame", ".press(", ".tap(", "waitForExistence", "XCTFail("] {
+            XCTAssertFalse(d5Block1.contains(forbidden), forbidden)
+        }
+        d5NormalizedHelper = d5NormalizedHelper.replacingOccurrences(of: d5Block1, with: "")
+        let d5Block2 = try boundedSource(d5NormalizedHelper,
+            from: "        // BEGIN H412 D5 2", before: "        // END H412 D5 2\n") + "        // END H412 D5 2\n"
+        for forbidden in [".exists", ".isHittable", ".isEnabled", ".elementType", ".frame", ".press(", ".tap(", "waitForExistence", "XCTFail("] {
+            XCTAssertFalse(d5Block2.contains(forbidden), forbidden)
+        }
+        d5NormalizedHelper = d5NormalizedHelper.replacingOccurrences(of: d5Block2, with: "")
+        let d5Block3 = try boundedSource(d5NormalizedHelper,
+            from: "        // BEGIN H412 D5 3", before: "        // END H412 D5 3\n") + "        // END H412 D5 3\n"
+        for forbidden in [".exists", ".isHittable", ".isEnabled", ".elementType", ".frame", ".press(", ".tap(", "waitForExistence", "XCTFail("] {
+            XCTAssertFalse(d5Block3.contains(forbidden), forbidden)
+        }
+        d5NormalizedHelper = d5NormalizedHelper.replacingOccurrences(of: d5Block3, with: "")
+        let d5Block4 = try boundedSource(d5NormalizedHelper,
+            from: "        // BEGIN H412 D5 4", before: "        // END H412 D5 4\n") + "        // END H412 D5 4\n"
+        for forbidden in [".exists", ".isHittable", ".isEnabled", ".elementType", ".frame", ".press(", ".tap(", "waitForExistence", "XCTFail("] {
+            XCTAssertFalse(d5Block4.contains(forbidden), forbidden)
+        }
+        d5NormalizedHelper = d5NormalizedHelper.replacingOccurrences(of: d5Block4, with: "")
+        let d5OriginalRoute = "        let hasStableRoute: () -> Bool = {\n            app.state == .runningForeground\n                && routeQueries.allSatisfy { $0.count == 1 }\n                && routeElements.allSatisfy(\\.exists)\n                && screen.elementType == .other\n                && screen.identifier == \"s7.2.paywall.screen\"\n                && store.elementType == .other\n                && store.identifier == \"s7.2.paywall.store\"\n                && store.isEnabled\n                && close.elementType == .button\n                && close.identifier == \"s7.2.paywall.close\"\n                && purchaseState.elementType == .other\n                && purchaseState.identifier == \"s7.2.paywall.purchase-state\"\n                && terms.elementType == .button\n                && terms.identifier == \"s7.2.paywall.terms\"\n                && privacy.elementType == .button\n                && privacy.identifier == \"s7.2.paywall.privacy\"\n                && support.elementType == .button\n                && support.identifier == \"s7.2.paywall.support\"\n                && purchase.elementType == .button\n                && purchase.identifier.isEmpty\n                && (!usesPrimaryActionPurchaseCompleteViewport || (\n                    tallNavigationBars.count == 1\n                        && tallStoreScrollViews.count == 1\n                        && tallNavigationBar.exists\n                        && tallStoreScrollView.exists\n                        && tallNavigationBar.elementType == .navigationBar\n                        && tallNavigationBar.identifier == expectedTallNavigationIdentifier\n                        && tallStoreScrollView.elementType == .scrollView\n                ))\n        }"
+        let d5ObservedRoute = "        // BEGIN H412 D5 route observation\n        let retainPurchasePhases = diagnosticProbe == nil\n            && automationSegment == .none && minimumSegment == .segment2\n            && automationShard?.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"\n            && ((usesBoundedPurchaseCompleteViewport\n                && automationShard?.ordinal == 14\n                && automationShard?.requirementID == \"bounded\"\n                && automationShard?.locale == \"en-US-bounded\")\n                || (usesRTLStringPurchaseCompleteViewport\n                    && automationShard?.ordinal == 11\n                    && automationShard?.requirementID == \"rtl_string\"\n                    && automationShard?.locale == \"ar-RTL-string\"))\n        var purchaseRouteOperands: [String: Any] = [:]\n        var purchaseRouteOrdinal = 0\n        func retainedRouteValue<T>(_ key: String, _ value: T) -> T {\n            if retainPurchasePhases {\n                let text = String(reflecting: value)\n                purchaseRouteOperands[key] = [\"status\": \"returned\", \"encoding\": \"swift-reflecting\",\n                    \"value\": String(text.prefix(256)), \"truncated\": text.count > 256]\n            }\n            return value\n        }\n        // END H412 D5 route observation\n        let hasStableRoute: () -> Bool = {\n            if !retainPurchasePhases {\n                return app.state == .runningForeground\n                && routeQueries.allSatisfy { $0.count == 1 }\n                && routeElements.allSatisfy(\\.exists)\n                && screen.elementType == .other\n                && screen.identifier == \"s7.2.paywall.screen\"\n                && store.elementType == .other\n                && store.identifier == \"s7.2.paywall.store\"\n                && store.isEnabled\n                && close.elementType == .button\n                && close.identifier == \"s7.2.paywall.close\"\n                && purchaseState.elementType == .other\n                && purchaseState.identifier == \"s7.2.paywall.purchase-state\"\n                && terms.elementType == .button\n                && terms.identifier == \"s7.2.paywall.terms\"\n                && privacy.elementType == .button\n                && privacy.identifier == \"s7.2.paywall.privacy\"\n                && support.elementType == .button\n                && support.identifier == \"s7.2.paywall.support\"\n                && purchase.elementType == .button\n                && purchase.identifier.isEmpty\n                && (!usesPrimaryActionPurchaseCompleteViewport || (\n                    tallNavigationBars.count == 1\n                        && tallStoreScrollViews.count == 1\n                        && tallNavigationBar.exists\n                        && tallStoreScrollView.exists\n                        && tallNavigationBar.elementType == .navigationBar\n                        && tallNavigationBar.identifier == expectedTallNavigationIdentifier\n                        && tallStoreScrollView.elementType == .scrollView\n                ))\n            }\n            if retainPurchasePhases {\n                purchaseRouteOrdinal += 1\n                purchaseRouteOperands = [:]\n                for key in [\"count0\", \"count1\", \"count2\", \"count3\", \"count4\", \"count5\", \"count6\", \"count7\", \"exists0\", \"exists1\", \"exists2\", \"exists3\", \"exists4\", \"exists5\", \"exists6\", \"exists7\", \"app.state\", \"screen.elementType\", \"screen.identifier\", \"store.elementType\", \"store.identifier\", \"store.isEnabled\", \"close.elementType\", \"close.identifier\", \"purchaseState.elementType\", \"purchaseState.identifier\", \"terms.elementType\", \"terms.identifier\", \"privacy.elementType\", \"privacy.identifier\", \"support.elementType\", \"support.identifier\", \"purchase.elementType\", \"purchase.identifier\", \"tallNavigationBars.count\", \"tallStoreScrollViews.count\", \"tallNavigationBar.exists\", \"tallStoreScrollView.exists\", \"tallNavigationBar.elementType\", \"tallNavigationBar.identifier\", \"tallStoreScrollView.elementType\"] {\n                    purchaseRouteOperands[key] = [\"status\": \"not-reached\"]\n                }\n            }\n            return retainedRouteValue(\"app.state\", app.state) == .runningForeground\n                && routeQueries.enumerated().allSatisfy { retainedRouteValue(\"count\\($0.offset)\", $0.element.count) == 1 }\n                && routeElements.enumerated().allSatisfy { retainedRouteValue(\"exists\\($0.offset)\", $0.element.exists) }\n                && retainedRouteValue(\"screen.elementType\", screen.elementType) == .other\n                && retainedRouteValue(\"screen.identifier\", screen.identifier) == \"s7.2.paywall.screen\"\n                && retainedRouteValue(\"store.elementType\", store.elementType) == .other\n                && retainedRouteValue(\"store.identifier\", store.identifier) == \"s7.2.paywall.store\"\n                && retainedRouteValue(\"store.isEnabled\", store.isEnabled)\n                && retainedRouteValue(\"close.elementType\", close.elementType) == .button\n                && retainedRouteValue(\"close.identifier\", close.identifier) == \"s7.2.paywall.close\"\n                && retainedRouteValue(\"purchaseState.elementType\", purchaseState.elementType) == .other\n                && retainedRouteValue(\"purchaseState.identifier\", purchaseState.identifier) == \"s7.2.paywall.purchase-state\"\n                && retainedRouteValue(\"terms.elementType\", terms.elementType) == .button\n                && retainedRouteValue(\"terms.identifier\", terms.identifier) == \"s7.2.paywall.terms\"\n                && retainedRouteValue(\"privacy.elementType\", privacy.elementType) == .button\n                && retainedRouteValue(\"privacy.identifier\", privacy.identifier) == \"s7.2.paywall.privacy\"\n                && retainedRouteValue(\"support.elementType\", support.elementType) == .button\n                && retainedRouteValue(\"support.identifier\", support.identifier) == \"s7.2.paywall.support\"\n                && retainedRouteValue(\"purchase.elementType\", purchase.elementType) == .button\n                && retainedRouteValue(\"purchase.identifier\", purchase.identifier).isEmpty\n                && (!usesPrimaryActionPurchaseCompleteViewport || (\n                    retainedRouteValue(\"tallNavigationBars.count\", tallNavigationBars.count) == 1\n                        && retainedRouteValue(\"tallStoreScrollViews.count\", tallStoreScrollViews.count) == 1\n                        && retainedRouteValue(\"tallNavigationBar.exists\", tallNavigationBar.exists)\n                        && retainedRouteValue(\"tallStoreScrollView.exists\", tallStoreScrollView.exists)\n                        && retainedRouteValue(\"tallNavigationBar.elementType\", tallNavigationBar.elementType) == .navigationBar\n                        && retainedRouteValue(\"tallNavigationBar.identifier\", tallNavigationBar.identifier) == expectedTallNavigationIdentifier\n                        && retainedRouteValue(\"tallStoreScrollView.elementType\", tallStoreScrollView.elementType) == .scrollView\n                ))\n        }"
+        XCTAssertEqual(d5NormalizedHelper.components(separatedBy: d5ObservedRoute).count - 1, 1)
+        XCTAssertTrue(d5ObservedRoute.contains("routeQueries.enumerated().allSatisfy"))
+        XCTAssertTrue(d5ObservedRoute.contains("routeElements.enumerated().allSatisfy"))
+        XCTAssertFalse(d5ObservedRoute.contains("printJSONLine"))
+        d5NormalizedHelper = d5NormalizedHelper.replacingOccurrences(of: d5ObservedRoute, with: d5OriginalRoute)
+        let postPurchaseAXHelperSource = d5NormalizedHelper
             .replacingOccurrences(of: boundedProgressObservation, with: "")
         for originalOperandContract in [
             "                let purchaseStateBeforeDrag = purchaseState.frame.minY\n                let supportBeforeDrag = support.frame.minY\n",
@@ -21893,10 +22226,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_134_370)
+        XCTAssertEqual(uiSource.utf8.count, 1_152_855)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "398915E7A1C982F7CE81C2C94F6135713BC9AE1B46465C72270C3BC833B65EB1"
+            "CC587E205AD2956E309250B29DD9206FC513D16869B75B8346A4570728069BFF"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,

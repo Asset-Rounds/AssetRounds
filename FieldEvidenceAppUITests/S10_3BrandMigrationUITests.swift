@@ -1522,6 +1522,24 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             )
             throw FocusedDiagnosticProbeStop.completed
         }
+        if diagnosticProbe == nil, automationSegment == .none, minimumSegment == .segment2,
+           let shard = automationShard,
+           shard.shardID == "s10.4.minimum.minimum-os", shard.ordinal == 8,
+           shard.requirementID == "minimum_os",
+           shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+           shard.locale == "en-US-release",
+           !signHasKeyboardFocus || !keyboardIsVisible {
+            printJSONLine(prefix: "S10_4_PREPARATION_CACHED_FAILURE", object: [
+                "diagnosticOnly": true, "feedsAcceptanceAssembler": false,
+                "finalAcceptanceEligible": false, "atomicSnapshot": false,
+                "scope": "minimum-middle-new-sign-post-tap",
+                "shardID": shard.shardID, "segmentID": "minimum-segment-2",
+                "focusWait": ["status": "reached", "value": signHasKeyboardFocus],
+                "keyboardWait": ["status": "reached", "value": keyboardIsVisible],
+                "observationOrder": ["focusWait", "keyboardWait"],
+                "observationMeaning": "separate completed original waits; no new native reads",
+            ])
+        }
         XCTAssertTrue(signHasKeyboardFocus)
         XCTAssertTrue(keyboardIsVisible)
         sign.typeText("Monument Sign")
@@ -1582,6 +1600,30 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             in: app
         ) {
         let keyboard = app.keyboards.firstMatch
+        let usesRTLStringMiddleValidationReplay = diagnosticProbe == nil
+            && automationSegment == .none && minimumSegment == .segment2
+            && automationShard?.shardID == "s10.4.minimum.rtl-string"
+            && automationShard?.ordinal == 11
+            && automationShard?.requirementID == "rtl_string"
+            && automationShard?.locale == "ar-RTL-string"
+            && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+        if usesRTLStringMiddleValidationReplay {
+            guard !automatedSegmentFinished,
+                  minimumSegment?.route.replayCount == 22,
+                  minimumSegment?.route.ownedStartOrdinal == 23,
+                  minimumSegment?.route.ownedCount == 28,
+                  minimumSegment?.route.finalOrdinal == 50,
+                  segmentedRouteStateCursor == 5,
+                  Self.segmentedRouteStateIDs[5] == "state.new-sign.validation-error",
+                  minimumReplayStateIDs == Array(Self.segmentedRouteStateIDs.prefix(5)),
+                  migratedStateIDs.isEmpty, automationAXTreeDigests.isEmpty,
+                  automationContrastExceptions.isEmpty,
+                  siteHasKeyboardFocus, site.exists, site.isEnabled,
+                  keyboard.exists, error.exists, !validationDetailRoute.exists,
+                  app.state == .runningForeground else {
+                throw AutomationConfigurationError.invalid("RTL-string middle validation replay lost its public empty-site entry")
+            }
+        } else {
         let navigationBottom = app.navigationBars.firstMatch.frame.maxY
         let newSignScrollViews = app.scrollViews.containing(
             .textField,
@@ -1772,6 +1814,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             XCTFail("New-sign validation did not remain focused, unchanged, and fully visible above the keyboard.")
             return
+        }
         }
         if automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum" {
             let preActionSiteValue = site.value as? String
@@ -5106,6 +5149,50 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
 
         let doublePreflightFocusIdentity: (label: String, value: String?, placeholder: String?)?
         if automationShard?.shardID == "s10.4.minimum.double-length" {
+            // The audited ready composition may retain the empty time-zone keyboard.
+            if app.keyboards.firstMatch.exists {
+                let submittedZoneFields = app.textFields.matching(identifier: "s3.preflight.time-zone")
+                let submittedKeyboards = app.keyboards
+                let submittedDoneButtons = submittedKeyboards.firstMatch.buttons.matching(identifier: "Done")
+                let submittedAcknowledgements = ["s3.preflight.time-zone-confirmed", "s3.preflight.after-dark", "s3.preflight.safe-position"].map {
+                    app.switches.matching(identifier: $0)
+                }
+                let submittedBeginButtons = app.buttons.matching(identifier: "s3.preflight.begin")
+                let submittedIdentity = (label: zone.label, value: zone.value as? String, placeholder: zone.placeholderValue)
+                guard diagnosticProbe == nil, automationSegment == .none,
+                      let shard = automationShard, shard.ordinal == 9,
+                      shard.requirementID == "double_length",
+                      shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                      submittedZoneFields.count == 1, submittedKeyboards.count == 1,
+                      submittedZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 1,
+                      zone.exists, zone.isEnabled, zone.elementType == .textField,
+                      zone.identifier == "s3.preflight.time-zone",
+                      submittedIdentity.value == "" || (submittedIdentity.placeholder != nil && submittedIdentity.value == submittedIdentity.placeholder),
+                      submittedAcknowledgements.allSatisfy({ $0.count == 1 && ($0.firstMatch.value as? String) == "0" }),
+                      submittedBeginButtons.count == 0,
+                      submittedDoneButtons.count == 1,
+                      submittedDoneButtons.firstMatch.exists, submittedDoneButtons.firstMatch.isEnabled,
+                      preflight.exists, app.state == .runningForeground else {
+                    throw AutomationConfigurationError.invalid("Double preflight post-capture submission requires the focused empty ready state")
+                }
+                zone.typeText("\n")
+                guard submittedKeyboards.firstMatch.waitForNonExistence(timeout: 10),
+                      wait(for: zone, predicate: "hasKeyboardFocus == false", timeout: 10),
+                      submittedZoneFields.count == 1,
+                      submittedZoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0,
+                      zone.exists, zone.isEnabled, zone.elementType == .textField,
+                      zone.identifier == "s3.preflight.time-zone",
+                      zone.label == submittedIdentity.label,
+                      (zone.value as? String) == submittedIdentity.value,
+                      zone.placeholderValue == submittedIdentity.placeholder,
+                      submittedAcknowledgements.allSatisfy({ $0.count == 1 && ($0.firstMatch.value as? String) == "0" }),
+                      submittedBeginButtons.count == 1,
+                      submittedBeginButtons.firstMatch.exists, !submittedBeginButtons.firstMatch.isEnabled,
+                      preflight.exists, app.state == .runningForeground else {
+                    throw AutomationConfigurationError.invalid("Double preflight post-capture submission did not preserve the empty ready state")
+                }
+                assertLocalizedLabel(submittedBeginButtons.firstMatch, equals: "Begin check")
+            }
             doublePreflightFocusIdentity = try prepareInitialDoublePreflightFocus(
                 zone: zone, preflight: preflight, in: app
             )
@@ -12170,8 +12257,32 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             XCTFail(message)
             return false
         }
+        // BEGIN H412 D5 route observation
+        let retainPurchasePhases = diagnosticProbe == nil
+            && automationSegment == .none && minimumSegment == .segment2
+            && automationShard?.deviceProfileID == "iphone-se-3-ios-18.0-minimum"
+            && ((usesBoundedPurchaseCompleteViewport
+                && automationShard?.ordinal == 14
+                && automationShard?.requirementID == "bounded"
+                && automationShard?.locale == "en-US-bounded")
+                || (usesRTLStringPurchaseCompleteViewport
+                    && automationShard?.ordinal == 11
+                    && automationShard?.requirementID == "rtl_string"
+                    && automationShard?.locale == "ar-RTL-string"))
+        var purchaseRouteOperands: [String: Any] = [:]
+        var purchaseRouteOrdinal = 0
+        func retainedRouteValue<T>(_ key: String, _ value: T) -> T {
+            if retainPurchasePhases {
+                let text = String(reflecting: value)
+                purchaseRouteOperands[key] = ["status": "returned", "encoding": "swift-reflecting",
+                    "value": String(text.prefix(256)), "truncated": text.count > 256]
+            }
+            return value
+        }
+        // END H412 D5 route observation
         let hasStableRoute: () -> Bool = {
-            app.state == .runningForeground
+            if !retainPurchasePhases {
+                return app.state == .runningForeground
                 && routeQueries.allSatisfy { $0.count == 1 }
                 && routeElements.allSatisfy(\.exists)
                 && screen.elementType == .other
@@ -12199,6 +12310,43 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         && tallNavigationBar.elementType == .navigationBar
                         && tallNavigationBar.identifier == expectedTallNavigationIdentifier
                         && tallStoreScrollView.elementType == .scrollView
+                ))
+            }
+            if retainPurchasePhases {
+                purchaseRouteOrdinal += 1
+                purchaseRouteOperands = [:]
+                for key in ["count0", "count1", "count2", "count3", "count4", "count5", "count6", "count7", "exists0", "exists1", "exists2", "exists3", "exists4", "exists5", "exists6", "exists7", "app.state", "screen.elementType", "screen.identifier", "store.elementType", "store.identifier", "store.isEnabled", "close.elementType", "close.identifier", "purchaseState.elementType", "purchaseState.identifier", "terms.elementType", "terms.identifier", "privacy.elementType", "privacy.identifier", "support.elementType", "support.identifier", "purchase.elementType", "purchase.identifier", "tallNavigationBars.count", "tallStoreScrollViews.count", "tallNavigationBar.exists", "tallStoreScrollView.exists", "tallNavigationBar.elementType", "tallNavigationBar.identifier", "tallStoreScrollView.elementType"] {
+                    purchaseRouteOperands[key] = ["status": "not-reached"]
+                }
+            }
+            return retainedRouteValue("app.state", app.state) == .runningForeground
+                && routeQueries.enumerated().allSatisfy { retainedRouteValue("count\($0.offset)", $0.element.count) == 1 }
+                && routeElements.enumerated().allSatisfy { retainedRouteValue("exists\($0.offset)", $0.element.exists) }
+                && retainedRouteValue("screen.elementType", screen.elementType) == .other
+                && retainedRouteValue("screen.identifier", screen.identifier) == "s7.2.paywall.screen"
+                && retainedRouteValue("store.elementType", store.elementType) == .other
+                && retainedRouteValue("store.identifier", store.identifier) == "s7.2.paywall.store"
+                && retainedRouteValue("store.isEnabled", store.isEnabled)
+                && retainedRouteValue("close.elementType", close.elementType) == .button
+                && retainedRouteValue("close.identifier", close.identifier) == "s7.2.paywall.close"
+                && retainedRouteValue("purchaseState.elementType", purchaseState.elementType) == .other
+                && retainedRouteValue("purchaseState.identifier", purchaseState.identifier) == "s7.2.paywall.purchase-state"
+                && retainedRouteValue("terms.elementType", terms.elementType) == .button
+                && retainedRouteValue("terms.identifier", terms.identifier) == "s7.2.paywall.terms"
+                && retainedRouteValue("privacy.elementType", privacy.elementType) == .button
+                && retainedRouteValue("privacy.identifier", privacy.identifier) == "s7.2.paywall.privacy"
+                && retainedRouteValue("support.elementType", support.elementType) == .button
+                && retainedRouteValue("support.identifier", support.identifier) == "s7.2.paywall.support"
+                && retainedRouteValue("purchase.elementType", purchase.elementType) == .button
+                && retainedRouteValue("purchase.identifier", purchase.identifier).isEmpty
+                && (!usesPrimaryActionPurchaseCompleteViewport || (
+                    retainedRouteValue("tallNavigationBars.count", tallNavigationBars.count) == 1
+                        && retainedRouteValue("tallStoreScrollViews.count", tallStoreScrollViews.count) == 1
+                        && retainedRouteValue("tallNavigationBar.exists", tallNavigationBar.exists)
+                        && retainedRouteValue("tallStoreScrollView.exists", tallStoreScrollView.exists)
+                        && retainedRouteValue("tallNavigationBar.elementType", tallNavigationBar.elementType) == .navigationBar
+                        && retainedRouteValue("tallNavigationBar.identifier", tallNavigationBar.identifier) == expectedTallNavigationIdentifier
+                        && retainedRouteValue("tallStoreScrollView.elementType", tallStoreScrollView.elementType) == .scrollView
                 ))
         }
         let hasExactValues: () -> Bool = {
@@ -12281,6 +12429,29 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             ]
         }
 
+        // BEGIN H412 D5 0
+        func purchasePhaseScalar(_ value: CGFloat) -> Any {
+            if value.isNaN { return "nan" }
+            if value == .infinity { return "+infinity" }
+            if value == -CGFloat.infinity { return "-infinity" }
+            return Double(value)
+        }
+        func retainedPurchasePhase(_ event: String, _ values: [String: Any]) {
+            guard retainPurchasePhases else { return }
+            printJSONLine(prefix: "S10_4_PURCHASE_COMPLETED_PHASE", object: [
+                "diagnosticOnly": true, "finalAcceptanceEligible": false,
+                "feedsAcceptanceAssembler": false, "additionalNativeReads": false,
+                "atomicSnapshot": false, "event": event,
+                "shardID": automationShard?.shardID ?? "", "segmentID": "minimum-segment-2",
+                "lastCompletedRouteOrdinal": purchaseRouteOrdinal,
+                "lastCompletedRouteOperands": purchaseRouteOperands,
+                "laterGetterOutcome": "unknown-not-sampled",
+                "completedGestureCount": completedGestureCount,
+                "cachedInterval": tallCachedIntervalObservation ?? ["cachedIntervalAvailable": false],
+                "values": values,
+            ])
+        }
+        // END H412 D5 0
         func positionViewport(
             named stage: String,
             interval: () -> (
@@ -12326,6 +12497,15 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                         "AX-text purchase-complete \(stage) interval is infeasible."
                     )
                 }
+        // BEGIN H412 D5 1
+                if retainPurchasePhases, stage == "verified viewport" {
+                    retainedPurchasePhase("verified-interval-complete", [
+                        "minimumShift": purchasePhaseScalar(geometry.minimumShift),
+                        "maximumShift": purchasePhaseScalar(geometry.maximumShift),
+                        "measuredUndertravel": purchasePhaseScalar(measuredUndertravel),
+                    ])
+                }
+        // END H412 D5 1
                 if geometry.minimumShift <= 0,
                    geometry.maximumShift >= 0 {
                     return true
@@ -12438,6 +12618,22 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     thenHoldForDuration: 0.2
                 )
                 completedGestureCount += 1
+        // BEGIN H412 D5 2
+                if retainPurchasePhases, stage == "verified viewport" {
+                    retainedPurchasePhase("verified-gesture-returned", [
+                        "purchaseStateBeforeDrag": purchasePhaseScalar(purchaseStateBeforeDrag),
+                        "supportBeforeDrag": purchasePhaseScalar(supportBeforeDrag),
+                        "dragDistance": purchasePhaseScalar(dragDistance),
+                        "targetDistance": purchasePhaseScalar(targetDistance),
+                        "requestedMagnitude": purchasePhaseScalar(requestedMagnitude),
+                        "clampedMagnitude": purchasePhaseScalar(clampedMagnitude),
+                        "receiverCapacity": purchasePhaseScalar(receiverCapacity),
+                        "startOffsetY": purchasePhaseScalar(dragStartOffsetY),
+                        "applicationOriginX": purchasePhaseScalar(sampledApplicationOrigin.x),
+                        "applicationOriginY": purchasePhaseScalar(sampledApplicationOrigin.y),
+                    ])
+                }
+        // END H412 D5 2
 
                 guard hasStableRoute() else {
                     return fail(
@@ -12520,6 +12716,20 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                     0,
                     abs(dragDistance) - abs(purchaseStateShift)
                 )
+        // BEGIN H412 D5 3
+                if retainPurchasePhases, stage == "verified viewport" {
+                    retainedPurchasePhase("verified-progress-complete", [
+                        "purchaseStateBeforeDrag": purchasePhaseScalar(purchaseStateBeforeDrag),
+                        "purchaseStateAfterDrag": purchasePhaseScalar(purchaseStateAfterDrag),
+                        "supportBeforeDrag": purchasePhaseScalar(supportBeforeDrag),
+                        "supportAfterDrag": purchasePhaseScalar(supportAfterDrag),
+                        "purchaseStateShift": purchasePhaseScalar(purchaseStateShift),
+                        "supportShift": purchasePhaseScalar(supportShift),
+                        "dragDistance": purchasePhaseScalar(dragDistance),
+                        "measuredUndertravel": purchasePhaseScalar(measuredUndertravel),
+                    ])
+                }
+        // END H412 D5 3
             }
         }
 
@@ -12621,6 +12831,18 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                 "AX-text purchase-complete legal viewport is unsafe."
             )
         }
+        // BEGIN H412 D5 4
+        if retainPurchasePhases {
+            retainedPurchasePhase("legal-proof-complete", [
+                "legalGuardPassed": true,
+                "legalControlsMeetMinimumSize": legalControlsMeetMinimumSize,
+                "legalFrames": legalFrames.map { frame -> [String: Any] in
+                    ["x": purchasePhaseScalar(frame.origin.x), "y": purchasePhaseScalar(frame.origin.y),
+                     "width": purchasePhaseScalar(frame.width), "height": purchasePhaseScalar(frame.height)]
+                },
+            ])
+        }
+        // END H412 D5 4
         if usesMinimumOSViewport {
             let minimumPurchaseStateFrame = purchaseState.frame
             guard isValidFrame(minimumPurchaseStateFrame),
@@ -21853,20 +22075,47 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             !frame.isNull && !frame.isEmpty && !frame.isInfinite
                 && [frame.minX, frame.minY, frame.maxX, frame.maxY, frame.width, frame.height].allSatisfy { $0.isFinite }
         }
+        var readyObservationOrdinal = 0
         func observe() throws -> (application: CGRect, scroll: CGRect, navigation: CGRect, tab: CGRect, field: CGRect, controls: [CGRect]) {
-            guard screens.count == 1, zoneFields.count == 1,
-                  navigationBars.count == 1, tabBars.count == 1,
-                  acknowledgements.allSatisfy({ $0.count == 1 }), beginButtons.count == 1,
-                  app.state == .runningForeground, preflight.exists, !detail.exists,
-                  zone.exists, zone.isEnabled,
-                  zone.elementType == .textField,
-                  zone.identifier == "s3.preflight.time-zone",
-                  !app.keyboards.firstMatch.exists,
-                  zoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count == 0,
-                  zone.label == identity.label, (zone.value as? String) == identity.value,
-                  zone.placeholderValue == identity.placeholder,
-                  acknowledgements.allSatisfy({ ($0.firstMatch.value as? String) == "0" }),
-                  beginButtons.firstMatch.exists, !beginButtons.firstMatch.isEnabled else {
+            readyObservationOrdinal += 1
+            let retainReadyOperands = minimumSegment == .segment1
+                && shard.locale == "en-US-double-length" && readyObservationOrdinal == 1
+            var readyOperands: [String: Any] = [:]
+            let readyOperandKeys = ["screensCount", "zoneCount", "navigationCount", "tabCount", "beginCount", "applicationState", "preflightExists", "detailExists", "zoneExists", "zoneEnabled", "zoneType", "zoneIdentifier", "keyboardExists", "focusedZoneCount", "zoneLabel", "zoneValue", "zonePlaceholder", "beginExists", "beginEnabled", "ackCount0", "ackCount1", "ackCount2", "ackValue0", "ackValue1", "ackValue2"]
+            if retainReadyOperands {
+                for key in readyOperandKeys { readyOperands[key] = ["status": "not-reached"] }
+            }
+            func observed<T>(_ key: String, _ value: T) -> T {
+                if retainReadyOperands {
+                    let description = String(reflecting: value)
+                    readyOperands[key] = ["status": "reached", "encoding": "swift-reflecting",
+                        "value": String(description.prefix(256)), "truncated": description.count > 256]
+                }
+                return value
+            }
+            guard observed("screensCount", screens.count) == 1, observed("zoneCount", zoneFields.count) == 1,
+                  observed("navigationCount", navigationBars.count) == 1, observed("tabCount", tabBars.count) == 1,
+                  acknowledgements.enumerated().allSatisfy({ observed("ackCount\($0.offset)", $0.element.count) == 1 }), observed("beginCount", beginButtons.count) == 1,
+                  observed("applicationState", app.state) == .runningForeground, observed("preflightExists", preflight.exists), !observed("detailExists", detail.exists),
+                  observed("zoneExists", zone.exists), observed("zoneEnabled", zone.isEnabled),
+                  observed("zoneType", zone.elementType) == .textField,
+                  observed("zoneIdentifier", zone.identifier) == "s3.preflight.time-zone",
+                  !observed("keyboardExists", app.keyboards.firstMatch.exists),
+                  observed("focusedZoneCount", zoneFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).count) == 0,
+                  observed("zoneLabel", zone.label) == identity.label, observed("zoneValue", (zone.value as? String)) == identity.value,
+                  observed("zonePlaceholder", zone.placeholderValue) == identity.placeholder,
+                  acknowledgements.enumerated().allSatisfy({ observed("ackValue\($0.offset)", ($0.element.firstMatch.value as? String)) == "0" }),
+                  observed("beginExists", beginButtons.firstMatch.exists), !observed("beginEnabled", beginButtons.firstMatch.isEnabled) else {
+                if retainReadyOperands {
+                    printJSONLine(prefix: "S10_4_PREPARATION_CACHED_FAILURE", object: [
+                        "diagnosticOnly": true, "feedsAcceptanceAssembler": false,
+                        "finalAcceptanceEligible": false, "atomicSnapshot": false,
+                        "scope": "double-initial-ready-first-observation",
+                        "shardID": shard.shardID, "segmentID": "minimum-segment-1",
+                        "operands": readyOperands, "observationOrdinal": readyObservationOrdinal,
+                        "observationMeaning": "original lazy getter order; not-reached values were not queried",
+                    ])
+                }
                 throw AutomationConfigurationError.invalid("Double preflight focus preparation changed the ready state")
             }
             let result = (application: app.frame, scroll: screen.frame,

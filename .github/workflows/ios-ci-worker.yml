@@ -1108,6 +1108,7 @@ jobs:
             > "$CI_ARTIFACT_DIR/bitrise-build-cache-wrapper-paths.txt"
 
       - name: Verify pinned toolchain, shared scheme, and simulator
+        id: runtime_setup
         shell: bash
         env:
           BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
@@ -1296,9 +1297,48 @@ jobs:
             fi
           fi
 
+          # H412 skips only a positively verified exact GitHub minimum runtime.
+          github_exact_runtime_preinstalled=false
+          if test "${CI_TASK_ID:-}" = S10.4 &&
+             test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = github:macos-26 &&
+             test "${CI_S10_4_PILOT_MODE:-}" = false &&
+             test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none &&
+             test "${CI_S10_4_SHARED_BUILD_MODE:-}" = consumer &&
+             test "${CI_S10_4_EXECUTION_ROLE:-}" = payload-consumer &&
+             test "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum &&
+             test "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" = 'iOS 18.0:22A3351:18.0' &&
+             test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = true &&
+             test "$RUNNER_ARCH" = ARM64 &&
+             test "$DEVELOPER_DIR" = /Applications/Xcode_26.6.app/Contents/Developer &&
+             test "$EXPECTED_XCODE_VERSION:$EXPECTED_XCODE_BUILD" = 'Xcode 26.6:Build version 17F113'; then
+            runtime_presence_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+            runtime_presence_budget_seconds="$(( CI_SETUP_ARTIFACT_TIMEOUT_SECONDS - runtime_presence_elapsed_seconds ))"
+            test "$runtime_presence_budget_seconds" -gt 0
+            if bash Scripts/run-with-timeout.sh "$runtime_presence_budget_seconds" \
+              xcrun simctl list runtimes -j \
+                > "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.json" \
+                2> "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.stderr" &&
+              jq -e '
+                .runtimes | select(type == "array")
+                | map(select(.name == "iOS 18.0" or .identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-0"))
+                | length == 1 and (.[0]
+                  | .name == "iOS 18.0" and .version == "18.0" and .buildversion == "22A3351"
+                    and .identifier == "com.apple.CoreSimulator.SimRuntime.iOS-18-0"
+                    and .isAvailable == true
+                    and (.supportedArchitectures | type == "array" and index("arm64") != null)
+                    and (.supportedDeviceTypes | type == "array"
+                      and any(.[]; .identifier == "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation")))
+              ' "$CI_ARTIFACT_DIR/simulator-runtimes-before-provision.json" > /dev/null; then
+              github_exact_runtime_preinstalled=true
+              printf 'exact_runtime_preinstalled=true\n' \
+                > "$CI_ARTIFACT_DIR/simulator-runtime-provision.log"
+            fi
+          fi
+
           if test "${CI_TASK_ID:-}" = "S10.4" && \
              test "$CI_RUNNER_PROVIDER" != "bitrise" && \
-             test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true"; then
+             test "${CI_S10_4_EFFECTIVE_PROVISION_RUNTIME:-}" = "true" && \
+             test "$github_exact_runtime_preinstalled" != true; then
             case "$SIMULATOR_RUNTIME:$SIMULATOR_RUNTIME_BUILD:$CI_S10_4_EFFECTIVE_RUNTIME_DOWNLOAD_VERSION" in
               "iOS 18.0:22A3351:18.0" | "iOS 26.2:23C54:26.2") ;;
               *) exit 1 ;;
@@ -6210,11 +6250,42 @@ jobs:
       - name: Hash collected evidence
         if: ${{ always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         shell: bash
+        env:
+          RUNTIME_SETUP_OUTCOME: ${{ steps.runtime_setup.outcome }}
         run: |
           set -euo pipefail
           mkdir -p "$CI_ARTIFACT_DIR"
           checksum_file="$RUNNER_TEMP/FieldEvidenceCI-checksums.txt"
           rm -f "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+          # H412 closes original setup-failure evidence without fabricating elapsed time.
+          if [ "${RUNTIME_SETUP_OUTCOME:-}" = failure ] &&
+             [ -z "${CI_SETUP_ELAPSED_SECONDS:-}" ] &&
+             [ "${CI_TASK_ID:-}" = S10.4 ] &&
+             [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
+             [ "${CI_RUNNER_LABEL:-}" = macos-26 ] &&
+             [ "${CI_S10_4_SHARED_BUILD_MODE:-}" = consumer ] &&
+             [ "${CI_S10_4_EXECUTION_ROLE:-}" = payload-consumer ] &&
+             [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+             [ "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-}" = none ] &&
+             [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+             [ "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_SHARD_ORDINAL:-}:${CI_S10_4_REQUIREMENT_ID:-}" = s10.4.minimum.minimum-os:8:minimum_os ] &&
+             [ "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum ] &&
+             [ "${WORKER_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ]; then
+            printf 'setup_elapsed_seconds=unavailable\nsetup_artifact_elapsed_seconds=unavailable\nacceptance_eligible=false\nreason=setup-failed-before-accounting\n' \
+              > "$CI_ARTIFACT_DIR/s10-4-setup-failure-evidence.txt"
+            (
+              cd "$CI_ARTIFACT_DIR"
+              find . -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+                shasum -a 256 "$file"
+              done
+            ) > "$checksum_file"
+            mv "$checksum_file" "$CI_ARTIFACT_DIR/SHA256SUMS.txt"
+            (
+              cd "$CI_ARTIFACT_DIR"
+              shasum -a 256 -c SHA256SUMS.txt
+            )
+            exit 1
+          fi
           test -n "${CI_ARTIFACT_START_EPOCH:-}"
           test -n "${CI_SETUP_ARTIFACT_TIMEOUT_SECONDS:-}"
           test -n "${CI_SETUP_ELAPSED_SECONDS:-}"

@@ -321,6 +321,30 @@ if [ "${CI_S10_4_EXECUTION_ROLE:-}" = "payload-consumer" ] && \
   pilot_consumer=true
 fi
 
+# H412 finite shared middle-segment diagnostic admission; no native query or action.
+h412_shared_incident_profile=none
+if [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
+   [ "${CI_TASK_ID:-}" = S10.4 ] &&
+   [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+   [ "${diagnostic_probe_id:-}" = none ] &&
+   [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+   [ "${CI_S10_4_EXECUTION_ROLE:-}" = payload-consumer ] &&
+   [ "${CI_S10_4_SHARED_BUILD_MODE:-}" = consumer ] &&
+   [ "${CI_S10_4_SHARED_EXECUTION_LANE:-}" = github-xcode-26.6-shared-build-acceptance ] &&
+   [ "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum ] &&
+   [ "${WORKER_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ] &&
+   [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ] &&
+   [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE:-}" = github-xcode-26.6-shared-build-acceptance ] &&
+   [ -n "${GITHUB_SHA:-}" ] && [ -n "${GITHUB_REF:-}" ] &&
+   [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_HEAD:-}" = "$GITHUB_SHA" ] &&
+   [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_REF:-}" = "$GITHUB_REF" ]; then
+  case "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_SHARD_ORDINAL:-}:${CI_S10_4_REQUIREMENT_ID:-}" in
+    s10.4.minimum.bounded:14:bounded) h412_shared_incident_profile=bounded ;;
+    s10.4.minimum.rtl-string:11:rtl_string) h412_shared_incident_profile=rtl-string ;;
+  esac
+fi
+# End H412 finite shared middle-segment diagnostic admission.
+
 ips_test_started_epoch=""
 if [ "${CI_RUNNER_PROVIDER:-}" = github ] && [ "${CI_TASK_ID:-}" = S10.4 ]; then
   case "${CI_S10_4_SHARD_ID:-}" in
@@ -331,6 +355,8 @@ if [ "${CI_RUNNER_PROVIDER:-}" = github ] && [ "${CI_TASK_ID:-}" = S10.4 ]; then
          [ "$diagnostic_probe_id" = none ] &&
          [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
          [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; then
+        ips_test_started_epoch="$(date +%s)"
+      elif [ "$h412_shared_incident_profile" = rtl-string ]; then
         ips_test_started_epoch="$(date +%s)"
       fi ;;
   esac
@@ -493,7 +519,7 @@ if [ "$xcodebuild_status" -ne 0 ]; then
          [ "${CI_S10_4_PILOT_MODE:-}" = false ] && \
          [ "$diagnostic_probe_id" = none ] && \
          [ "${CI_S10_4_SEGMENT_ID:-}" = none ] && \
-         [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; }; }; then
+         [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; } || [ "$h412_shared_incident_profile" = rtl-string ]; }; then
     diagnostic_report_app_patterns=(-o -iname 'FieldEvidenceApp*')
     simulator_lifecycle_raw="$(mktemp "${RUNNER_TEMP:?}/FieldEvidenceSimulatorLifecycle.XXXXXX")"
     simulator_lifecycle_temp_status="$?"
@@ -587,7 +613,8 @@ if [ "$xcodebuild_status" -ne 0 ]; then
     )"
     /usr/bin/head -c 2097152 "$host_unified_log_raw" \
       > "$failure_diagnostic_path/host-unified.log"
-    printf 'host_unified_log_bound=%s\n' "$?" >> "$diagnostic_status_path"
+    h412_host_prefix_status="$?"
+    printf 'host_unified_log_bound=%s\n' "$h412_host_prefix_status" >> "$diagnostic_status_path"
     host_unified_log_retained_bytes="$(
       LC_ALL=C wc -c < "$failure_diagnostic_path/host-unified.log" \
         | tr -d '[:space:]'
@@ -597,6 +624,43 @@ if [ "$xcodebuild_status" -ne 0 ]; then
     "$host_unified_log_original_bytes" >> "$diagnostic_status_path"
   printf 'host_unified_log_retained_bytes=%s\n' \
     "$host_unified_log_retained_bytes" >> "$diagnostic_status_path"
+  # H412 same-query RTL host tail; the original two-MiB prefix is preserved.
+  if [ "$h412_shared_incident_profile" = rtl-string ] && [ -f "$host_unified_log_raw" ]; then
+    /usr/bin/head -c "$host_unified_log_original_bytes" "$host_unified_log_raw" | /usr/bin/tail -c 1048576 \
+      > "$failure_diagnostic_path/host-unified-tail.log"
+    h412_host_tail_status="$?"
+    h412_host_tail_bytes="$(LC_ALL=C wc -c < "$failure_diagnostic_path/host-unified-tail.log" | tr -d '[:space:]')"
+    h412_host_tail_start=0
+    if [ "$host_unified_log_original_bytes" -gt 1048576 ]; then
+      h412_host_tail_start="$(( host_unified_log_original_bytes - 1048576 ))"
+    fi
+    h412_host_overlap=0
+    if [ "$host_unified_log_retained_bytes" -gt "$h412_host_tail_start" ]; then
+      h412_host_overlap="$(( host_unified_log_retained_bytes - h412_host_tail_start ))"
+    fi
+    h412_host_gap=false
+    if [ "$host_unified_log_retained_bytes" -lt "$h412_host_tail_start" ]; then h412_host_gap=true; fi
+    h412_host_tail_expected="$(( host_unified_log_original_bytes - h412_host_tail_start ))"
+    h412_host_prefix_expected="$host_unified_log_original_bytes"
+    if [ "$h412_host_prefix_expected" -gt 2097152 ]; then h412_host_prefix_expected=2097152; fi
+    h412_host_prefix_truncated=false
+    if [ "$host_unified_log_original_bytes" -gt 2097152 ]; then h412_host_prefix_truncated=true; fi
+    h412_host_tail_truncated=false
+    if [ "$host_unified_log_original_bytes" -gt 1048576 ]; then h412_host_tail_truncated=true; fi
+    h412_host_incomplete=false
+    if [ "$diagnostic_status" -ne 0 ] || [ "$h412_host_tail_status" -ne 0 ] || [ "$h412_host_prefix_status" -ne 0 ] ||
+       [ "$host_unified_log_retained_bytes" -ne "$h412_host_prefix_expected" ] ||
+       [ "$h412_host_tail_bytes" -ne "$h412_host_tail_expected" ] || [ "$h412_host_tail_bytes" -eq 0 ]; then
+      h412_host_incomplete=true
+    fi
+    printf 'host_prefix_truncated=%s\nhost_tail_truncated=%s\nhost_prefix_snapshot_status=%s\n' \
+      "$h412_host_prefix_truncated" "$h412_host_tail_truncated" "$h412_host_prefix_status" >> "$diagnostic_status_path"
+    printf 'host_tail_query_status=%s\nhost_tail_snapshot_status=%s\nhost_tail_original_bytes=%s\nhost_tail_retained_bytes=%s\nhost_prefix_start_byte=0\nhost_prefix_end_byte=%s\nhost_tail_start_byte=%s\nhost_tail_end_byte=%s\nhost_prefix_tail_overlap_bytes=%s\nhost_prefix_tail_gap=%s\nhost_tail_incomplete=%s\nhost_tail_capture=bounded_same_query_snapshot_not_completion_proof\nhost_tail_acceptance_eligible=false\n' \
+      "$diagnostic_status" "$h412_host_tail_status" "$host_unified_log_original_bytes" "$h412_host_tail_bytes" \
+      "$host_unified_log_retained_bytes" "$h412_host_tail_start" "$host_unified_log_original_bytes" \
+      "$h412_host_overlap" "$h412_host_gap" "$h412_host_incomplete" >> "$diagnostic_status_path"
+  fi
+  # End H412 same-query RTL host tail.
   rm -f "$host_unified_log_raw"
 
   # K365 failure-only minimum-OS Simulator accessibility context.
@@ -734,6 +798,109 @@ if [ "$xcodebuild_status" -ne 0 ]; then
   printf 'diagnostic_report_count=%s\n' "$diagnostic_report_count" \
     >> "$diagnostic_status_path"
 
+  # H412 native container diagnostics: separate originals, failure-only and nonaccepting.
+  h412_native_incident_root=""
+  if [ "$h412_shared_incident_profile" = bounded ] || [ "$h412_shared_incident_profile" = rtl-string ]; then
+    h412_native_export_path="$failure_diagnostic_path/native-container-diagnostics"
+    h412_native_now="$(date +%s)"
+    h412_native_origin="${CI_BUDGET_START_EPOCH:-}"
+    h412_native_total="${CI_TOTAL_BUDGET_SECONDS:-}"
+    printf 'native_diagnostics_acceptance_eligible=false\nnative_diagnostics_original_layout=xcresulttool_export_diagnostics\n' >> "$diagnostic_status_path"
+    if [[ "$h412_native_now" =~ ^[1-9][0-9]{0,9}$ ]] &&
+       [[ "$h412_native_origin" =~ ^[1-9][0-9]{0,9}$ ]] &&
+       [[ "$h412_native_total" =~ ^[1-9][0-9]{0,9}$ ]] &&
+       [ "$h412_native_origin" -le "$h412_native_now" ] &&
+       [ "$(( h412_native_total - (h412_native_now - h412_native_origin) ))" -ge 100 ] &&
+       [ -d "$result_bundle_path" ] && [ ! -L "$result_bundle_path" ] &&
+       [ -n "$(find "$result_bundle_path" -mindepth 1 -print -quit)" ] &&
+       [ ! -e "$h412_native_export_path" ] && [ ! -L "$h412_native_export_path" ]; then
+      run_diagnostic native_diagnostics_help Scripts/run-with-timeout.sh 5 \
+        xcrun xcresulttool help export diagnostics \
+        > "$failure_diagnostic_path/native-diagnostics-help.txt" 2>&1
+      h412_native_help_status="$diagnostic_status"
+      if [ "$h412_native_help_status" -eq 0 ]; then
+        run_diagnostic native_diagnostics_capability Scripts/run-with-timeout.sh 5 python3 - \
+          "$failure_diagnostic_path/native-diagnostics-help.txt" "$CI_ARTIFACT_DIR" "$result_bundle_path" \
+          "$failure_diagnostic_path" "$h412_native_export_path" <<'H412_NATIVE_CAPABILITY'
+import pathlib, sys
+try:
+    help_path, artifact, result, diagnostic, output = map(pathlib.Path, sys.argv[1:])
+    if not all(p.is_absolute() and p.resolve() == p for p in (artifact, result, diagnostic, output)):
+        raise ValueError('unsafe root')
+    if result != artifact / 'UISmoke.xcresult' or diagnostic != artifact / 'ui-failure-diagnostics' or output != diagnostic / 'native-container-diagnostics':
+        raise ValueError('unexpected root')
+    if output.exists() or output.is_symlink() or help_path.stat().st_size > 65536:
+        raise ValueError('existing output or oversized help')
+    text = help_path.read_text(encoding='utf-8')
+    if not all(token in text for token in ('export diagnostics', '--path', '--output-path')):
+        raise ValueError('installed capability unavailable')
+except (OSError, ValueError, UnicodeError):
+    sys.exit(64)
+H412_NATIVE_CAPABILITY
+        h412_native_capability_status="$diagnostic_status"
+        h412_native_query_now="$(date +%s)"
+        if [ "$h412_native_capability_status" -eq 0 ] &&
+           [[ "$h412_native_query_now" =~ ^[1-9][0-9]{0,9}$ ]] &&
+           [ "$h412_native_now" -le "$h412_native_query_now" ] &&
+           [ "$(( h412_native_total - (h412_native_query_now - h412_native_origin) ))" -ge 90 ]; then
+          run_diagnostic native_diagnostics_export Scripts/run-with-timeout.sh 20 \
+            xcrun xcresulttool export diagnostics --path "$result_bundle_path" --output-path "$h412_native_export_path" \
+            > "$failure_diagnostic_path/native-diagnostics-export.log" 2>&1
+          h412_native_export_status="$diagnostic_status"
+          if [ "$h412_native_export_status" -eq 0 ]; then
+            run_diagnostic native_diagnostics_index Scripts/run-with-timeout.sh 5 python3 - \
+              "$h412_native_export_path" <<'H412_NATIVE_INDEX' > "$failure_diagnostic_path/native-diagnostics-index.json"
+import hashlib, json, os, pathlib, stat, sys
+try:
+    root = pathlib.Path(sys.argv[1])
+    if not root.is_absolute() or root.resolve() != root or not root.is_dir() or root.is_symlink():
+        raise ValueError('unsafe export root')
+    rows = []
+    entries = 0
+    total = 0
+    def walk_error(error): raise error
+    for current, dirs, files in os.walk(root, followlinks=False, onerror=walk_error):
+        for name in sorted(dirs + files):
+            p = pathlib.Path(current) / name
+            relative = p.relative_to(root)
+            entries += 1
+            info = p.lstat()
+            if entries > 4096 or len(relative.parts) > 8 or p.resolve() != p:
+                raise ValueError('export entry/path bound')
+            if stat.S_ISDIR(info.st_mode):
+                continue
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 67108864:
+                raise ValueError('export file type/size')
+            total += info.st_size
+            if total > 268435456:
+                raise ValueError('export total bound')
+            digest_state = hashlib.sha256()
+            with p.open('rb') as stream:
+                for chunk in iter(lambda: stream.read(1048576), b''):
+                    digest_state.update(chunk)
+            digest = digest_state.hexdigest().upper()
+            after = p.lstat()
+            if (after.st_dev, after.st_ino, after.st_mode, after.st_size, after.st_mtime_ns) != (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns):
+                raise ValueError('export changed during index')
+            rows.append(dict(path=relative.as_posix(), bytes=info.st_size, sha256=digest))
+    if not rows:
+        raise ValueError('empty native export')
+    print(json.dumps(dict(originalLayout=True, acceptanceEligible=False, entries=entries, bytes=total, files=rows), sort_keys=True))
+except (OSError, ValueError):
+    sys.exit(64)
+H412_NATIVE_INDEX
+            if [ "$diagnostic_status" -eq 0 ]; then h412_native_incident_root="$h412_native_export_path"; fi
+          fi
+        else
+          printf 'native_diagnostics_export=skip-capability-or-rechecked-budget\n' >> "$diagnostic_status_path"
+        fi
+      fi
+    else
+      printf 'native_diagnostics_export=skip-input-root-or-budget\n' >> "$diagnostic_status_path"
+    fi
+  fi
+  # End H412 native container diagnostics.
+
   # H408 optional incident-correlated app log; originals remain unchanged.
   if [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
      [ "${CI_TASK_ID:-}" = S10.4 ] &&
@@ -747,7 +914,7 @@ if [ "$xcodebuild_status" -ne 0 ]; then
          [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
          [ "$diagnostic_probe_id" = none ] &&
          [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
-         [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; }; }; then
+         [ "${CI_S10_4_EXECUTION_ROLE:-}" = independent ]; } || [ "$h412_shared_incident_profile" = rtl-string ]; }; then
     ips_now="$(date +%s)"
     ips_origin="${CI_BUDGET_START_EPOCH:-}"
     ips_total="${CI_TOTAL_BUDGET_SECONDS:-}"
@@ -760,14 +927,22 @@ if [ "$xcodebuild_status" -ne 0 ]; then
       ips_budget=true
     fi
     if [ "$ips_budget" = true ]; then
+      h412_native_incident_args=()
+      if [ "$h412_shared_incident_profile" != none ]; then
+        h412_native_incident_args=("$h412_native_incident_root" "$failure_diagnostic_path/native-diagnostics-index.json" "$CI_SIMULATOR_UDID")
+      fi
       ips_binding="$(Scripts/run-with-timeout.sh 5 python3 - \
-        "$failure_attachment_export_path" "$diagnostic_reports_path" "${ips_test_started_epoch:-}" "$ips_now" <<'PY'
+        "$failure_attachment_export_path" "$diagnostic_reports_path" \
+        ${h412_native_incident_args[@]+"${h412_native_incident_args[@]}"} "${ips_test_started_epoch:-}" "$ips_now" <<'PY'
 import datetime as dt, json, pathlib, re, sys
+import hashlib, os, stat
 
 def select(roots, start, end):
     if not re.fullmatch(r'[1-9][0-9]{0,9}',start) or not re.fullmatch(r'[1-9][0-9]{0,9}',end) or int(start)>int(end):
         return 'skip-invalid-interval'
-    if len(roots)!=2: return 'skip-missing-exports'
+    if len(roots) not in (2,5): return 'skip-missing-exports'
+    native_roots=roots[2:]
+    roots=roots[:2]
     files=[]
     entry_count=0
     for root_name in roots:
@@ -779,6 +954,69 @@ def select(roots, start, end):
             if p.suffix.lower()=='.ips':
                 files.append(p)
                 if len(files)>20: return 'skip-too-many-reports'
+    # H412 accepts only a complete bounded native export index; two-root legacy behavior is unchanged.
+    native_digests={}
+    native_simulator=''
+    if native_roots:
+        native_name,index_name,native_simulator=native_roots
+        if not re.fullmatch(r'[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}',native_simulator):
+            return 'skip-invalid-native-simulator'
+        if native_name:
+            native_root=pathlib.Path(native_name)
+            index_path=pathlib.Path(index_name)
+            if not native_root.is_absolute() or native_root.resolve()!=native_root or not native_root.is_dir() or native_root.is_symlink():
+                return 'skip-invalid-native-root'
+            if native_root.name!='native-container-diagnostics' or index_path!=native_root.parent/'native-diagnostics-index.json':
+                return 'skip-invalid-native-index-path'
+            if index_path.is_symlink() or not index_path.is_file() or index_path.stat().st_size>4194304:
+                return 'skip-invalid-native-index'
+            def native_unique(pairs):
+                result={}
+                for key,value in pairs:
+                    if key in result: raise ValueError('duplicate native index key')
+                    result[key]=value
+                return result
+            index=json.loads(index_path.read_text(encoding='utf-8'),object_pairs_hook=native_unique)
+            if set(index)!=set(('originalLayout','acceptanceEligible','entries','bytes','files')) or index['originalLayout'] is not True or index['acceptanceEligible'] is not False or not isinstance(index['files'],list):
+                return 'skip-invalid-native-index'
+            expected={}
+            for row in index['files']:
+                if not isinstance(row,dict) or set(row)!=set(('path','bytes','sha256')):
+                    return 'skip-invalid-native-index'
+                name=row['path']
+                if not isinstance(name,str) or name in expected or not name or '\\' in name or pathlib.PurePosixPath(name).is_absolute() or any(part in ('','.','..') for part in name.split('/')):
+                    return 'skip-invalid-native-index-path'
+                if type(row['bytes']) is not int or not 0<=row['bytes']<=67108864 or not isinstance(row['sha256'],str) or not re.fullmatch(r'[0-9A-F]{64}',row['sha256']):
+                    return 'skip-invalid-native-index'
+                expected[name]=row
+            observed={}
+            native_count=0
+            native_bytes=0
+            def walk_error(error): raise error
+            for current,dirs,names in os.walk(native_root,followlinks=False,onerror=walk_error):
+                for name in sorted(dirs+names):
+                    p=pathlib.Path(current)/name
+                    relative=p.relative_to(native_root)
+                    native_count+=1
+                    entry_count+=1
+                    if entry_count>4096 or len(relative.parts)>8 or p.resolve()!=p:
+                        return 'skip-native-entry-bound'
+                    info=p.lstat()
+                    if stat.S_ISDIR(info.st_mode): continue
+                    if not stat.S_ISREG(info.st_mode) or info.st_nlink!=1 or info.st_size>67108864:
+                        return 'skip-invalid-native-file'
+                    native_bytes+=info.st_size
+                    if native_bytes>268435456: return 'skip-native-byte-bound'
+                    key=relative.as_posix()
+                    if key not in expected or expected[key]['bytes']!=info.st_size:
+                        return 'skip-native-index-mismatch'
+                    observed[key]=info.st_size
+                    if p.suffix.lower()=='.ips':
+                        files.append(p)
+                        native_digests[p]=expected[key]['sha256']
+                        if len(files)>20: return 'skip-too-many-reports'
+            if not observed or set(observed)!=set(expected) or type(index['entries']) is not int or type(index['bytes']) is not int or native_count!=index['entries'] or native_bytes!=index['bytes']:
+                return 'skip-native-index-mismatch'
     candidates=[]
     canonical_reports=set()
     def unique_object(pairs):
@@ -796,6 +1034,8 @@ def select(roots, start, end):
         try:
             with p.open('rb') as stream: raw=stream.read(1048577)
             if len(raw)>1048576: return 'skip-invalid-report'
+            if p in native_digests and hashlib.sha256(raw).hexdigest().upper()!=native_digests[p]:
+                return 'skip-native-report-hash-mismatch'
             text=raw.decode('utf-8-sig')
             header,offset=decoder.raw_decode(text)
             tail=text[offset:].lstrip(); body,offset=decoder.raw_decode(tail)
@@ -806,6 +1046,19 @@ def select(roots, start, end):
             incident=body.get('incident',''); pid=body.get('pid')
             if not re.fullmatch(r'[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}',incident) or header.get('incident_id')!=incident: raise ValueError()
             if type(pid) is not int or not 0<pid<=2147483647: raise ValueError()
+            if native_roots:
+                process_path=body.get('procPath')
+                if not isinstance(process_path,str) or len(process_path)>4096: raise ValueError()
+                process_components=process_path.split('/')
+                if len(process_components)!=15 or process_components[0]!='' or '\\' in process_path or any(ord(c)<32 or ord(c)==127 for c in process_path):
+                    continue
+                if any(component in ('','.','..') for component in process_components[1:]):
+                    continue
+                if process_components[1]!='Users' or process_components[3:7]!=['Library','Developer','CoreSimulator','Devices'] or process_components[8:12]!=['data','Containers','Bundle','Application'] or process_components[13:]!=['FieldEvidenceApp.app','FieldEvidenceApp']:
+                    continue
+                native_path_uuid=r'[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}'
+                if re.fullmatch(native_path_uuid,process_components[7]) is None or re.fullmatch(native_path_uuid,process_components[12]) is None or process_components[7].upper()!=native_simulator:
+                    continue
             launch=stamp(body.get('procLaunch')); capture=stamp(body.get('captureTime'))
             if not int(start)<=launch<=capture<=int(end): continue
             # Collapse only complete validated parsed records, preserving scalar types.
@@ -931,6 +1184,25 @@ PY
                 s10.4.minimum.tall:12:tall | s10.4.minimum.rtl:10:rtl | s10.4.minimum.rtl-string:11:rtl_string)
                   ips_adjacent_cohort=true ;;
               esac
+            elif [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
+                 [ "${CI_TASK_ID:-}" = S10.4 ] &&
+                 [ "${CI_S10_4_PILOT_MODE:-}" = false ] &&
+                 [ "${diagnostic_probe_id:-}" = none ] &&
+                 [ "${CI_S10_4_SEGMENT_ID:-}" = none ] &&
+                 [ "${CI_S10_4_EXECUTION_ROLE:-}" = payload-consumer ] &&
+                 [ "${CI_S10_4_SHARED_BUILD_MODE:-}" = consumer ] &&
+                 [ "${CI_S10_4_SHARED_EXECUTION_LANE:-}" = github-xcode-26.6-shared-build-acceptance ] &&
+                 [ "${CI_S10_4_DEVICE_PROFILE_ID:-}" = iphone-se-3-ios-18.0-minimum ] &&
+                 [ "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_SHARD_ORDINAL:-}:${CI_S10_4_REQUIREMENT_ID:-}" = s10.4.minimum.bounded:14:bounded ] &&
+                 [ "${WORKER_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ] &&
+                 [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_ID:-}" = minimum-segment-2 ] &&
+                 [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE:-}" = github-xcode-26.6-shared-build-acceptance ] &&
+                 [ -n "${GITHUB_SHA:-}" ] && [ -n "${GITHUB_REF:-}" ] &&
+                 [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_HEAD:-}" = "$GITHUB_SHA" ] &&
+                 [ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_REF:-}" = "$GITHUB_REF" ]; then
+              ips_adjacent_cohort=true
+            elif [ "$h412_shared_incident_profile" = rtl-string ]; then
+              ips_adjacent_cohort=true
             fi
             if [ "$ips_adjacent_cohort" != true ]; then
               printf 'ips_adjacent_log=skip-ineligible-ordinary-tuple\n' >> "$diagnostic_status_path"
