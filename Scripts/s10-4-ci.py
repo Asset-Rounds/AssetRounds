@@ -1447,6 +1447,36 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
     return result
 
 
+def verify_github_environment(environment, contract, worker_sha256, provider):
+    # Historical source contracts retain their original exact receipt equality.
+    require(type(contract) is dict and type(contract.get('contract_version')) is str and
+            contract['contract_version'] in ('s10.4-github-image-adoption-v1',
+                                            's10.4-github-image-adoption-v2',
+                                            's10.4-github-image-adoption-v3'),
+            'unsupported GitHub environment contract version')
+    if contract['contract_version'] in ('s10.4-github-image-adoption-v1', 's10.4-github-image-adoption-v2'):
+        require(environment == contract, 'full shard pinned GitHub environment mismatch')
+        return
+    fixed = {'contract_version': 's10.4-github-image-adoption-v3', 'image_os': 'macos26',
+             'macos_product_name': 'macOS', 'macos_product_version': '26.6.2',
+             'macos_build_version': '25G83', 'architecture': 'arm64'}
+    common = set(fixed) | {'authority_head', 'worker_source_sha256'}
+    require(set(contract) == common | {'image_versions'} and
+            all(type(contract[k]) is str for k in common), 'v3 GitHub config fields/types mismatch')
+    require(all(contract[k] == value for k, value in fixed.items()), 'v3 GitHub config invariant mismatch')
+    head(contract['authority_head']); hash_value(contract['worker_source_sha256'])
+    require(type(contract['image_versions']) is list and
+            all(type(v) is str for v in contract['image_versions']) and
+            contract['image_versions'] == ['20260831.0337.3', '20260907.0351.1'],
+            'v3 GitHub exact ordered images mismatch')
+    require(type(provider) is str and provider == 'github', 'v3 GitHub consumer provider mismatch')
+    require(contract['worker_source_sha256'] == hash_value(worker_sha256), 'v3 GitHub source worker mismatch')
+    require(type(environment) is dict and set(environment) == common | {'image_version'} and
+            all(type(v) is str for v in environment.values()), 'v3 GitHub receipt fields/types mismatch')
+    require(all(environment[k] == contract[k] for k in common) and
+            environment['image_version'] in contract['image_versions'], 'v3 GitHub actual environment mismatch')
+
+
 def full_shard_proof(source, root, intent, facts):
     root = wide(root); shard = intent['shardID']; ctx = source.context(shard)
     stored = root / 's10-4' / shard; receipt = load(stored / 'shard-receipt.json')
@@ -1464,7 +1494,9 @@ def full_shard_proof(source, root, intent, facts):
     require(receipt['sharedExecution'] == load(root / 'shared-consumer/consumer-build-reference.json') and
             all(receipt[k] == facts[k] for k in ('sharedBuildIdentitySHA256', 'producerQualificationSHA256')), 'full shard payload binding')
     manifest = load(source.root / 'docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json')
-    require(receipt['github_environment'] == manifest['github_environment_contract'], 'full shard pinned GitHub environment mismatch')
+    verify_github_environment(receipt['github_environment'], manifest['github_environment_contract'],
+                              source.identity['files']['.github/workflows/ios-ci-worker.yml'],
+                              facts['consumer']['runnerProvider'])
     ax = facts['nativeEvents']['S10_4_AX_STATE']; contrast = facts['nativeEvents']['S10_4_CONTRAST']
     require(load(stored / 'state-ax.json') == ax and load(stored / 'contrast.json') == contrast, 'full retained rows differ from native stdout')
     require({r['stateID'] for r in ax} == set(source.plan['orderedStateIDs']), 'full67state identity mismatch')

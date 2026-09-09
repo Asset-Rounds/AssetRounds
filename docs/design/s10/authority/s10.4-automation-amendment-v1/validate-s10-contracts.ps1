@@ -160,7 +160,6 @@ function Assert-H411NativeReceipt {
         if ($null -eq (Get-H411Field $Receipt $field)) { Add-ValidationError "$Label missing native $field" }
     }
     Assert-Equal $Receipt.runner_label $activation.toolchain.runner_label "$Label runner label"
-    Assert-Equal $Receipt.runner_image "$($manifest.github_environment_contract.image_os)-$($manifest.github_environment_contract.image_version)" "$Label image"
     Assert-GitHubReceiptEnvironment $Receipt $Label
     foreach ($field in @('xcode_version','xcode_build','sdk_name','sdk_build')) { Assert-Equal $Receipt.$field $activation.toolchain.$field "$Label $field" }
     Assert-Equal $Receipt.simulator_runtime $Shard.simulator_runtime "$Label runtime"
@@ -436,22 +435,30 @@ function Assert-GitHubEnvironmentContract {
         return
     }
     $expected = [ordered]@{
-        contract_version = "s10.4-github-image-adoption-v2"
-        authority_head = "de6ec602b60be275b6a881f7be8cb619b5e8c925"
+        contract_version = "s10.4-github-image-adoption-v3"
+        authority_head = "af107f2edf76202e2f1764efdab01fd973043e04"
         image_os = "macos26"
-        image_version = "20260907.0351.1"
         macos_product_name = "macOS"
         macos_product_version = "26.6.2"
         macos_build_version = "25G83"
         architecture = "arm64"
     }
-    Assert-ExactSet @($Contract.PSObject.Properties.Name) @(@($expected.Keys) + "worker_source_sha256") "GitHub environment contract fields"
-    foreach ($field in @(@($expected.Keys) + "worker_source_sha256")) {
+    $stringFields = @(@($expected.Keys) + "worker_source_sha256")
+    Assert-ExactSet @($Contract.PSObject.Properties.Name) @($stringFields + "image_versions") "GitHub environment contract fields"
+    foreach ($field in $stringFields) {
         if (-not ($Contract.PSObject.Properties.Name -ccontains $field) -or $Contract.$field -isnot [string]) {
             Add-ValidationError "GitHub environment contract $field must be a string."
             return
         }
     }
+    if (-not ($Contract.PSObject.Properties.Name -ccontains "image_versions") -or
+        $Contract.image_versions -isnot [System.Array] -or
+        @($Contract.image_versions).Count -ne 2 -or
+        @($Contract.image_versions | Where-Object { $_ -isnot [string] }).Count -ne 0) {
+        Add-ValidationError "GitHub environment image_versions must be exactly two strings."
+        return
+    }
+    Assert-H411Ordered $Contract.image_versions @("20260831.0337.3", "20260907.0351.1") "GitHub exact ordered image allowlist"
     foreach ($field in $expected.Keys) {
         Assert-Equal $Contract.$field $expected[$field] "GitHub environment contract $field"
     }
@@ -462,7 +469,7 @@ function Assert-GitHubEnvironmentContract {
     Assert-Commit $Contract.authority_head "GitHub image authority"
     $parents = @(& git -C $RepositoryRoot rev-list --parents -n 1 $Contract.authority_head 2>$null)
     if ($LASTEXITCODE -ne 0) { throw "Cannot resolve GitHub image authority parent." }
-    Assert-Equal ($parents -join "") "$($Contract.authority_head) 2ce166c2196d90b9d7fdd255e2453bcbed3af1cc" "GitHub image rollover authority direct parent"
+    Assert-Equal ($parents -join "") "$($Contract.authority_head) f838d508f1aa4630f299b937d4db775b12824c91" "GitHub image allowlist authority direct parent"
     $paths = @(& git -C $RepositoryRoot diff-tree --no-commit-id --name-only -r $Contract.authority_head 2>$null)
     if ($LASTEXITCODE -ne 0) { throw "Cannot resolve GitHub image authority paths." }
     Assert-ExactSet $paths @("docs/execution/CURRENT_TASK.md", "docs/execution/S10_4_CI_OPERATING_BRIEF.md") "GitHub image authority-only paths"
@@ -482,13 +489,27 @@ function Assert-GitHubReceiptEnvironment {
         Add-ValidationError "$Label GitHub environment must be an object."
         return
     }
-    Assert-ExactSet @($environment.PSObject.Properties.Name) @($contract.PSObject.Properties.Name) "$Label GitHub environment fields"
-    foreach ($field in $contract.PSObject.Properties.Name) {
+    $invariantFields = @($contract.PSObject.Properties.Name | Where-Object { $_ -cne "image_versions" })
+    $receiptFields = @($invariantFields + "image_version")
+    Assert-ExactSet @($environment.PSObject.Properties.Name) $receiptFields "$Label GitHub environment fields"
+    foreach ($field in $receiptFields) {
         if (-not ($environment.PSObject.Properties.Name -ccontains $field) -or $environment.$field -isnot [string]) {
             Add-ValidationError "$Label GitHub environment $field must be a string."
             return
         }
-        Assert-Equal $environment.$field $contract.$field "$Label GitHub environment $field"
+        if ($field -cne "image_version") {
+            Assert-Equal $environment.$field $contract.$field "$Label GitHub environment $field"
+        }
+    }
+    Assert-Contains @($contract.image_versions) $environment.image_version "$Label actual approved GitHub image"
+    # Native receipt callers/schema require runner_image; the existing equivalence
+    # receipt shape records the actual image only inside github_environment.
+    if ($Receipt.PSObject.Properties.Name -ccontains "runner_image") {
+        if ($Receipt.runner_image -isnot [string]) {
+            Add-ValidationError "$Label runner_image must be a string."
+            return
+        }
+        Assert-Equal $Receipt.runner_image "$($environment.image_os)-$($environment.image_version)" "$Label actual GitHub runner image"
     }
     Assert-Equal $Receipt.source_product_head $ProductHead "$Label GitHub source head"
     if ($Receipt.source_product_head -ceq $contract.authority_head) {
@@ -506,13 +527,22 @@ function Assert-GitHubReceiptEnvironment {
         return
     }
     Assert-ExactSet @($sourceManifest.github_environment_contract.PSObject.Properties.Name) @($contract.PSObject.Properties.Name) "$Label source contract fields"
-    foreach ($field in $contract.PSObject.Properties.Name) {
+    foreach ($field in $invariantFields) {
         if (-not ($sourceManifest.github_environment_contract.PSObject.Properties.Name -ccontains $field) -or $sourceManifest.github_environment_contract.$field -isnot [string]) {
             Add-ValidationError "$Label source contract $field must be a string."
             return
         }
         Assert-Equal $sourceManifest.github_environment_contract.$field $contract.$field "$Label source contract $field"
     }
+    $sourceContract = $sourceManifest.github_environment_contract
+    if (-not ($sourceContract.PSObject.Properties.Name -ccontains "image_versions") -or
+        $sourceContract.image_versions -isnot [System.Array] -or
+        @($sourceContract.image_versions).Count -ne 2 -or
+        @($sourceContract.image_versions | Where-Object { $_ -isnot [string] }).Count -ne 0) {
+        Add-ValidationError "$Label source image_versions must be exactly two strings."
+        return
+    }
+    Assert-H411Ordered $sourceContract.image_versions $contract.image_versions "$Label source image allowlist"
 }
 
 function Get-ZipEntryText {
@@ -1138,7 +1168,6 @@ foreach ($receipt in $visual.shard_receipts) {
     if ($provider -ceq "github_actions") {
         if (-not $isAssembly) {
         Assert-Equal $receipt.runner_label $activation.toolchain.runner_label "$($receipt.shard_id) GitHub runner label"
-        Assert-Equal $receipt.runner_image "$($manifest.github_environment_contract.image_os)-$($manifest.github_environment_contract.image_version)" "$($receipt.shard_id) GitHub runner image"
         Assert-GitHubReceiptEnvironment $receipt "$($receipt.shard_id) GitHub receipt"
         }
     }

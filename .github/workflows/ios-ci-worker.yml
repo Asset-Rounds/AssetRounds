@@ -1181,7 +1181,10 @@ jobs:
             && { test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "independent" || test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; } \
             && test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" = "none"; then
             test "${ImageOS:-}" = "macos26"
-            test "${ImageVersion:-}" = "20260907.0351.1"
+            case "${ImageVersion:-}" in
+              "20260831.0337.3"|"20260907.0351.1") ;;
+              *) exit 1 ;;
+            esac
             test "$RUNNER_ARCH" = "ARM64"
             test "$(uname -m)" = "arm64"
             test "$(sw_vers -productName)" = "macOS"
@@ -1198,8 +1201,8 @@ jobs:
               --arg buildVersion "$(sw_vers -buildVersion)" \
               --arg architecture "$(uname -m)" '
                 {
-                  contract_version: "s10.4-github-image-adoption-v2",
-                  authority_head: "de6ec602b60be275b6a881f7be8cb619b5e8c925",
+                  contract_version: "s10.4-github-image-adoption-v3",
+                  authority_head: "af107f2edf76202e2f1764efdab01fd973043e04",
                   worker_source_sha256: $workerHash,
                   image_os: $imageOS,
                   image_version: $imageVersion,
@@ -1210,7 +1213,11 @@ jobs:
                 }
               ')"
             jq -e --argjson observed "$github_environment_json" \
-              '.github_environment_contract == $observed' \
+              '.github_environment_contract as $contract
+                | ($contract.image_versions == ["20260831.0337.3", "20260907.0351.1"])
+                and ($observed.image_version | type == "string")
+                and (($contract.image_versions | index($observed.image_version)) != null)
+                and (($contract | del(.image_versions)) == ($observed | del(.image_version)))' \
               "$github_environment_manifest" > /dev/null
             printf 'CI_S10_4_GITHUB_ENVIRONMENT=%s\n' "$github_environment_json" >> "$GITHUB_ENV"
           fi
@@ -4083,7 +4090,11 @@ jobs:
             && test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" = "none"; then
             github_environment_json="${CI_S10_4_GITHUB_ENVIRONMENT:?}"
             jq -e --argjson observed "$github_environment_json" \
-              '.github_environment_contract == $observed' \
+              '.github_environment_contract as $contract
+                | ($contract.image_versions == ["20260831.0337.3", "20260907.0351.1"])
+                and ($observed.image_version | type == "string")
+                and (($contract.image_versions | index($observed.image_version)) != null)
+                and (($contract | del(.image_versions)) == ($observed | del(.image_version)))' \
               docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json > /dev/null
           fi
           jq -n \

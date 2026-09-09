@@ -62,6 +62,104 @@ class Protocol(unittest.TestCase):
         self.assertTrue(self.path.is_relative_to(root.resolve()))
         self.addCleanup(self.temp.cleanup)
 
+    def github_v3_fixture(self, image='20260831.0337.3'):
+        contract = {'contract_version': 's10.4-github-image-adoption-v3', 'authority_head': 'a' * 40,
+                    'worker_source_sha256': 'B' * 64, 'image_os': 'macos26', 'macos_product_name': 'macOS',
+                    'macos_product_version': '26.6.2', 'macos_build_version': '25G83', 'architecture': 'arm64',
+                    'image_versions': ['20260831.0337.3', '20260907.0351.1']}
+        environment = {k: v for k, v in contract.items() if k != 'image_versions'}
+        return {'environment': dict(environment, image_version=image), 'contract': contract,
+                'worker_sha256': 'B' * 64, 'provider': 'github'}
+
+    def test_github_v3_both_exact_actual_images(self):
+        # Receipt projection only: these fixtures do not establish native/full-shard evidence.
+        for image in ('20260831.0337.3', '20260907.0351.1'):
+            with self.subTest(image=image):
+                args = self.github_v3_fixture(image); before = copy.deepcopy(args)
+                self.assertIsNone(ci.verify_github_environment(**args))
+                self.assertEqual(args, before)
+                self.assertNotIn('image_versions', args['environment'])
+
+    def test_github_v3_rejects_malformed_config(self):
+        mutations = {
+            'missing image list': lambda a: a['contract'].pop('image_versions'),
+            'scalar image list': lambda a: a['contract'].update(image_versions='20260831.0337.3'),
+            'tuple image list': lambda a: a['contract'].update(image_versions=('20260831.0337.3', '20260907.0351.1')),
+            'reversed image list': lambda a: a['contract']['image_versions'].reverse(),
+            'duplicate image': lambda a: a['contract'].update(image_versions=['20260831.0337.3'] * 2),
+            'third image': lambda a: a['contract']['image_versions'].append('20260728.0273.1'),
+            'single image': lambda a: a['contract']['image_versions'].pop(),
+            'nonstring image': lambda a: a['contract'].update(image_versions=[True, '20260907.0351.1']),
+            'extra scalar': lambda a: a['contract'].update(image_version='20260831.0337.3'),
+            'malformed anchor': lambda a: a['contract'].update(authority_head='A' * 40),
+            'malformed worker': lambda a: a['contract'].update(worker_source_sha256='b' * 64),
+        }
+        for field in self.github_v3_fixture()['contract']:
+            if field not in ('contract_version', 'image_versions'):
+                mutations['missing ' + field] = lambda a, key=field: a['contract'].pop(key)
+                mutations['wrong type ' + field] = lambda a, key=field: a['contract'].update({key: []})
+        for field in ('image_os', 'macos_product_name', 'macos_product_version', 'macos_build_version', 'architecture'):
+            mutations['crossed invariant ' + field] = lambda a, key=field: (
+                a['contract'].update({key: 'unapproved'}), a['environment'].update({key: 'unapproved'}))
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                args = self.github_v3_fixture(); mutate(args)
+                with self.assertRaises(ci.Rejected): ci.verify_github_environment(**args)
+
+    def test_github_v3_rejects_receipt_substitution_and_wrong_types(self):
+        for field in self.github_v3_fixture()['environment']:
+            for kind in ('missing', 'wrong', 'null', 'bool', 'list', 'object'):
+                with self.subTest(field=field, kind=kind):
+                    args = self.github_v3_fixture()
+                    if kind == 'missing': args['environment'].pop(field)
+                    else: args['environment'][field] = {'wrong': 'unapproved', 'null': None, 'bool': True,
+                                                       'list': [args['environment'][field]], 'object': {}}[kind]
+                    with self.assertRaises(ci.Rejected): ci.verify_github_environment(**args)
+        for value in (None, [], 'receipt', True):
+            args = self.github_v3_fixture(); args['environment'] = value
+            with self.subTest(receipt=value), self.assertRaises(ci.Rejected): ci.verify_github_environment(**args)
+        for key, value in (('image_versions', ['20260831.0337.3', '20260907.0351.1']), ('extra', 'value')):
+            args = self.github_v3_fixture(); args['environment'][key] = value
+            with self.subTest(extra=key), self.assertRaises(ci.Rejected): ci.verify_github_environment(**args)
+        for image in ('20260728.0273.1', '20260907.0351.1 ', 'macos26-20260907.0351.1'):
+            args = self.github_v3_fixture(image)
+            with self.subTest(image=image), self.assertRaises(ci.Rejected): ci.verify_github_environment(**args)
+        for field, values in {'provider': (None, True, 'bitrise', 'github_actions', 'getmac'),
+                              'worker_sha256': ('C' * 64, 'b' * 64, None)}.items():
+            for value in values:
+                args = self.github_v3_fixture(); args[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(ci.Rejected):
+                    ci.verify_github_environment(**args)
+
+    def test_github_historical_contract_equality_is_unchanged(self):
+        for version in ('s10.4-github-image-adoption-v1', 's10.4-github-image-adoption-v2'):
+            args = self.github_v3_fixture(); legacy = args['environment']
+            legacy['contract_version'] = version
+            args.update(contract=copy.deepcopy(legacy), worker_sha256=None, provider=None)
+            self.assertIsNone(ci.verify_github_environment(**args))
+            for field in legacy:
+                changed = copy.deepcopy(args); changed['environment'][field] = 'different'
+                with self.subTest(version=version, field=field), self.assertRaises(ci.Rejected):
+                    ci.verify_github_environment(**changed)
+
+    def test_github_rejects_unknown_or_malformed_contract_versions(self):
+        for contract in (None, [], 'contract', True, {}, {'contract_version': None},
+                         {'contract_version': True}, {'contract_version': []},
+                         {'contract_version': 's10.4-github-image-adoption-v0'},
+                         {'contract_version': 's10.4-github-image-adoption-v4'}):
+            # Equality must never admit an unsupported or malformed source contract.
+            args = self.github_v3_fixture()
+            args.update(contract=contract, environment=copy.deepcopy(contract))
+            with self.subTest(contract=contract), self.assertRaises(ci.Rejected):
+                ci.verify_github_environment(**args)
+        for source_version, receipt_version in (('v1', 'v2'), ('v2', 'v1'), ('v1', 'v3'), ('v2', 'v3')):
+            args = self.github_v3_fixture(); legacy = args['environment']
+            legacy['contract_version'] = 's10.4-github-image-adoption-' + source_version
+            args.update(contract=copy.deepcopy(legacy), worker_sha256=None, provider=None)
+            args['environment']['contract_version'] = 's10.4-github-image-adoption-' + receipt_version
+            with self.subTest(source=source_version, receipt=receipt_version), self.assertRaises(ci.Rejected):
+                ci.verify_github_environment(**args)
+
     def unavailable_export_fixture(self):
         root = self.path / ('native-' + str(len(list(self.path.iterdir()))))
         diagnostic = root / 'ui-failure-diagnostics'; diagnostic.mkdir(parents=True)

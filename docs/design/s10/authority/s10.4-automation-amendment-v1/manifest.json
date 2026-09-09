@@ -54,15 +54,18 @@
     "minimum_simulator_name": "iPhone SE (3rd generation)"
   },
   "github_environment_contract": {
-    "contract_version": "s10.4-github-image-adoption-v2",
-    "authority_head": "de6ec602b60be275b6a881f7be8cb619b5e8c925",
-    "worker_source_sha256": "4E2470CA7698926B46614E234D178167B91B684ADB75FC976C86F1F817BC8B1B",
+    "contract_version": "s10.4-github-image-adoption-v3",
+    "authority_head": "af107f2edf76202e2f1764efdab01fd973043e04",
+    "worker_source_sha256": "752DFCB991A1352491D957D8184E99F6FF3B8DE83D87607F04F9B611F77A5692",
     "image_os": "macos26",
-    "image_version": "20260907.0351.1",
     "macos_product_name": "macOS",
     "macos_product_version": "26.6.2",
     "macos_build_version": "25G83",
-    "architecture": "arm64"
+    "architecture": "arm64",
+    "image_versions": [
+      "20260831.0337.3",
+      "20260907.0351.1"
+    ]
   },
   "hybrid_execution_contract": {
     "profile_id": "s10.4-hybrid-exact-head-xctestrun-v1",
@@ -560,8 +563,8 @@
   "overlay_files": [
     {
       "path": "s10-visual-regression.schema.json",
-      "byte_length": 53989,
-      "sha256": "76A569D8C128581F96338C8E355EA8A5A9ECD93506FEEC98028FF1C09285DA4F"
+      "byte_length": 54103,
+      "sha256": "46C2DE3BE87CCA26CDFFA4F952E248732C7827134828B4BB9E5EE36943DC9B0A"
     },
     {
       "path": "s10-accessibility-common-tasks.schema.json",
@@ -570,8 +573,8 @@
     },
     {
       "path": "validate-s10-contracts.ps1",
-      "byte_length": 108224,
-      "sha256": "930375A63BEE9A391749F1852E3EDC5A74265CAE61883AAA6A1599791BAC2036"
+      "byte_length": 109768,
+      "sha256": "9C8F3ED23CCE2A8C2517A9B3E46DAE5AFD40DC5EF4857FF5164AD84228043678"
     }
   ],
   "manifest_excludes_self": true,
