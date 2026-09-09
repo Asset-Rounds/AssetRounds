@@ -573,7 +573,10 @@ def check_history(matrix, transport, proposed, registry):
         active.extend(transport.pages('actions/runs?status=' + status + '&per_page=100', 'workflow_runs'))
     result = capacity(history, active, registry, proposed)
     old_ids = {r['id'] for r in active if r['head_sha'] != matrix.head}
-    commit_time = utc(git(matrix.root, 'show', '-s', '--format=%cI', matrix.head).decode().strip())
+    commit_epoch = git(matrix.root, 'show', '-s', '--format=%ct', matrix.head).decode().strip()
+    require(re.fullmatch(r'0|[1-9][0-9]{0,11}', commit_epoch) is not None and
+            int(commit_epoch) <= 253402300799, 'valid Git commit epoch required')
+    commit_time = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc) + dt.timedelta(seconds=int(commit_epoch))
     for rid in old_ids:
         record = next(r for r in registry if r['resolution']['runID'] == rid)
         require(record['intent']['provider'] == 'github', 'old Bitrise checkout not independently established')

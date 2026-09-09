@@ -62,6 +62,45 @@ class Protocol(unittest.TestCase):
         self.assertTrue(self.path.is_relative_to(root.resolve()))
         self.addCleanup(self.temp.cleanup)
 
+    def test_history_git_offset_and_checkout_instant_boundaries(self):
+        ci.git(self.path, 'init')
+        with patch.dict(os.environ, {'GIT_AUTHOR_DATE': '2026-09-08T22:44:26-04:00',
+                                    'GIT_COMMITTER_DATE': '2026-09-08T22:44:26-04:00'}):
+            ci.git(self.path, '-c', 'user.name=Protocol Test', '-c', 'user.email=protocol@example.invalid',
+                   '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'Timezone fixture')
+        head = ci.git(self.path, 'rev-parse', 'HEAD').decode().strip()
+        self.assertEqual(ci.git(self.path, 'show', '-s', '--format=%cI', head).decode().strip(),
+                         '2026-09-08T22:44:26-04:00')
+        matrix = types.SimpleNamespace(root=self.path, head=head)
+        proposed = intent(kind='producer'); proposed['head'] = head
+        empty = types.SimpleNamespace(pages=lambda *args: [])
+        self.assertEqual(ci.check_history(matrix, empty, proposed, [])[1]['oldCheckoutRunIDs'], [])
+        previous = intent(); previous['head'] = H
+        active = run(value=previous, status='in_progress', conclusion=None)
+        for when, allowed in [('2026-09-09T02:44:25Z', True), ('2026-09-09T02:44:26Z', True),
+                              ('2026-09-09T02:44:27Z', False), ('2026-09-08T22:44:26-04:00', False)]:
+            def pages(endpoint, key):
+                if endpoint.startswith('actions/runs?status=in_progress&'): return [active]
+                if endpoint.startswith('actions/runs/3/jobs?'):
+                    return [{'name': 'acceptance · fixture', 'conclusion': None, 'head_sha': H,
+                             'steps': [{'name': 'Check out the exact revision', 'conclusion': 'success',
+                                        'completed_at': when}]}]
+                return []
+            with self.subTest(when=when):
+                transport = types.SimpleNamespace(pages=pages)
+                if allowed:
+                    self.assertEqual(ci.check_history(matrix, transport, proposed, [registered(3, previous)])[1]['oldCheckoutRunIDs'], [3])
+                else:
+                    with self.assertRaises(ci.Rejected): ci.check_history(matrix, transport, proposed, [registered(3, previous)])
+
+    def test_history_rejects_malformed_git_epoch(self):
+        matrix = types.SimpleNamespace(root=self.path, head=H)
+        transport = types.SimpleNamespace(pages=lambda *args: [])
+        for raw in (b'', b'2026-09-08T22:44:26-04:00', b'-1', b'+1', b'01', b'1.0',
+                    b'1\n2', b'253402300800', b'999999999999999999999'):
+            with self.subTest(raw=raw), patch.object(ci, 'git', return_value=raw), self.assertRaises(ci.Rejected):
+                ci.check_history(matrix, transport, intent(kind='producer'), [])
+
     def test_duplicate_nonfinite_json_rejected(self):
         for raw in ('{"x":1,"x":2}', '{"x":NaN}', '{"x":Infinity}'):
             with self.subTest(raw=raw), self.assertRaises(ci.Rejected): ci.decode(raw)
@@ -268,7 +307,13 @@ class OriginalFixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.root = Path(os.environ['S10_4_FIXTURE_ROOT']).resolve()
-        cls.source = ci.Source(cls.root, 'ca8f18bc2d1b0fdb796e405efb29e52fccae0258')
+        work = Path(__file__).resolve().parents[1] / 'Temp/S10_4_ci_protocol_tests'
+        work.mkdir(parents=True, exist_ok=True)
+        cls.snapshot = tempfile.TemporaryDirectory(dir=work)
+        cls.addClassCleanup(cls.snapshot.cleanup)
+        snapshot = Path(cls.snapshot.name).resolve()
+        ci.require(snapshot.is_relative_to(work.resolve()), 'fixture snapshot must stay inside test Temp')
+        cls.source = ci.Source(cls.root, 'ca8f18bc2d1b0fdb796e405efb29e52fccae0258', snapshot / 'source')
 
     def test_exact_source_inventory_and_full_catalog(self):
         self.assertEqual(len(self.source.tuples), 39)
