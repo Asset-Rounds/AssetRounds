@@ -1225,6 +1225,56 @@ def candidate_state(name, prefix, owned, seen):
     return state
 
 
+def native_events(log):
+    events = {}
+    for line in log.splitlines():
+        if line.startswith(('S10_4_SEGMENT_', 'S10_4_MINIMUM_SEGMENT_')):
+            match = re.fullmatch(r'(S10_4_[A-Z_]+) (.*)', line)
+            require(match is not None, 'malformed segmented marker line')
+            try:
+                value = decode(match[2])
+            except ValueError as error:
+                raise Rejected('malformed segmented marker JSON') from error
+            require(type(value) is dict, 'segmented marker must be an object')
+            events.setdefault(match[1], []).append(value)
+        else:
+            match = re.fullmatch(r'(S10_4_[A-Z_]+) (\{.*\})', line)
+            if match:
+                events.setdefault(match[1], []).append(decode(match[2]))
+    return events
+
+
+def replay_rows(source, ctx, row, events):
+    prefix = 'S10_4_MINIMUM_SEGMENT_' if ctx['minimum'] else 'S10_4_SEGMENT_'
+    foreign = 'S10_4_SEGMENT_' if ctx['minimum'] else 'S10_4_MINIMUM_SEGMENT_'
+    require(not any(key.startswith(foreign) for key in events), 'foreign replay marker family')
+    kinds = {'START', 'REPLAY', 'JOURNEY', 'SETUP_WITNESS', 'RESUME_SETUP', 'RESULT',
+             'PURCHASE_PROOF', 'PENDING_RECEIPT_PROOF'} if ctx['minimum'] else {'REPLAY', 'RESUME_SETUP'}
+    names = [key for key in events if key.startswith(prefix)]
+    if names:
+        require(row['segmentID'] != 'none' and (ctx['minimum'] or row['shardID'] == 's10.4.current.ax-text'),
+                'segmented markers outside source segmented profile')
+        require(all(key in {prefix + kind for kind in kinds} for key in names), 'unknown segmented marker kind')
+    replay = events.get(prefix + 'REPLAY', [])
+    require(type(replay) is list and all(type(r) is dict for r in replay), 'malformed replay rows')
+    if not replay:
+        return replay
+    require(row['segmentID'] != 'none' and (ctx['minimum'] or row['shardID'] == 's10.4.current.ax-text'),
+            'replay markers outside source segmented profile')
+    selected = next(s for s in ctx['segments'] if s['segmentID'] == row['segmentID'])
+    require([r.get('stateID') for r in replay] == selected['replayStateIDs'][:len(replay)] and
+            all(type(r.get('ordinal')) is int and r['ordinal'] == index and
+                r.get('segmentID') == row['segmentID'] and r.get('shardID') == row['shardID']
+                for index, r in enumerate(replay, 1)), 'replay state/order/profile differs')
+    if ctx['minimum']:
+        require(all(r.get('setupOnly') is True and r.get('acceptanceEligible') is False and
+                    r.get('head') == source.head for r in replay), 'minimum replay provenance differs')
+    else:
+        require(all(set(r) == {'ordinal', 'segmentID', 'shardID', 'stateID'} for r in replay),
+                'current AX replay schema differs')
+    return replay
+
+
 def consumer_facts(source, root, intent, rid, jobs):
     root = wide(root)
     result = {'localUnitCount': 0, 'producerUnitCount': 0, 'consumerReferenceVerified': False,
@@ -1234,11 +1284,8 @@ def consumer_facts(source, root, intent, rid, jobs):
     ctx = source.context(intent['shardID']); kernel = source.assembler; payload = source.payload
     reference_path = root / 'shared-consumer/consumer-build-reference.json'
     log = (root / 'ui-smoke.log').read_text(encoding='utf-8') if (root / 'ui-smoke.log').exists() else ''
-    events = {}
-    for line in log.splitlines():
-        match = re.fullmatch(r'(S10_4_[A-Z_]+) (\{.*\})', line)
-        if match:
-            events.setdefault(match[1], []).append(decode(match[2]))
+    events = native_events(log)
+    replay = replay_rows(source, ctx, intent, events)
     result['nativeEvents'] = events
     result['Code56Observed'] = 'Code=56' in log
     if not reference_path.exists():
@@ -1305,13 +1352,6 @@ def consumer_facts(source, root, intent, rid, jobs):
     row = source.tuple('consumer', intent['shardID'], intent['segmentID'])
     owned = source.plan['orderedStateIDs'] if row['segmentID'] == 'none' else next(s['ownedStateIDs'] for s in ctx['segments'] if s['segmentID'] == row['segmentID'])
     require([r['stateID'] for r in ax] == owned[:len(ax)], 'strict owned states not source prefix')
-    replay = events.get('S10_4_MINIMUM_SEGMENT_REPLAY', events.get('S10_4_SEGMENT_REPLAY', []))
-    if replay:
-        require(row['segmentID'] != 'none', 'full route has foreign replay markers')
-        selected = next(s for s in ctx['segments'] if s['segmentID'] == row['segmentID'])
-        require([r['stateID'] for r in replay] == selected['replayStateIDs'][:len(replay)] and
-                all(r['setupOnly'] is True and r['acceptanceEligible'] is False and r['head'] == source.head and
-                    r['segmentID'] == row['segmentID'] and r['shardID'] == row['shardID'] for r in replay), 'replay provenance differs')
     journeys = events.get('S10_4_MINIMUM_SEGMENT_JOURNEY', [])
     result.update(strictStateRowCount=len(ax), replayCount=len(replay),
                   ownedJourneyCount=sum(r.get('setupOnly') is False for r in journeys),

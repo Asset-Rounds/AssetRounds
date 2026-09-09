@@ -120,6 +120,82 @@ class Protocol(unittest.TestCase):
         with self.assertRaises(ci.Rejected):
             ci.candidate_state(prefix.replace('default-light', 'default-dark') + state, prefix, [state], [])
 
+    def test_replay_source_families_and_hostiles(self):
+        source = types.SimpleNamespace(head=H)
+        for minimum in (False, True):
+            shard = SHARD if minimum else 's10.4.current.ax-text'
+            segment = 'minimum-segment-2' if minimum else 'segment-2'
+            ctx = {'minimum': minimum, 'segments': [{'segmentID': segment, 'replayStateIDs': ['state.a', 'state.b']}]}
+            selected = {'shardID': shard, 'segmentID': segment}
+            prefix = 'S10_4_MINIMUM_SEGMENT_' if minimum else 'S10_4_SEGMENT_'
+            foreign = 'S10_4_SEGMENT_' if minimum else 'S10_4_MINIMUM_SEGMENT_'
+            rows = [{'ordinal': i, 'stateID': state, 'segmentID': segment, 'shardID': shard}
+                    for i, state in enumerate(['state.a', 'state.b'], 1)]
+            if minimum:
+                for value in rows: value.update(setupOnly=True, acceptanceEligible=False, head=H)
+            self.assertEqual(ci.replay_rows(source, ctx, selected, {prefix + 'REPLAY': rows}), rows)
+            self.assertEqual(ci.replay_rows(source, ctx, selected, {prefix + 'REPLAY': rows[:1]}), rows[:1])
+            hostile = [list(reversed(rows)), rows + [rows[0]], [rows[0], rows[0]], ['invalid'], None]
+            for key, value in [('ordinal', True), ('ordinal', 2), ('stateID', 'state.foreign'),
+                               ('segmentID', 'segment-3'), ('shardID', 's10.4.current.default-light')]:
+                changed = copy.deepcopy(rows); changed[0][key] = value; hostile.append(changed)
+            changed = copy.deepcopy(rows); del changed[0]['ordinal']; hostile.append(changed)
+            if minimum:
+                for key, value in [('setupOnly', False), ('acceptanceEligible', True), ('head', '3' * 40)]:
+                    changed = copy.deepcopy(rows); changed[0][key] = value; hostile.append(changed)
+                    changed = copy.deepcopy(rows); del changed[0][key]; hostile.append(changed)
+            else:
+                changed = copy.deepcopy(rows); changed[0]['head'] = H; hostile.append(changed)
+            for changed in hostile:
+                with self.subTest(minimum=minimum, rows=changed), self.assertRaises(ci.Rejected):
+                    ci.replay_rows(source, ctx, selected, {prefix + 'REPLAY': changed})
+            for events in ({foreign + 'REPLAY': rows}, {prefix + 'REPLAY': rows, foreign + 'REPLAY': rows},
+                           {foreign + 'JOURNEY': []}):
+                with self.subTest(events=events), self.assertRaises(ci.Rejected):
+                    ci.replay_rows(source, ctx, selected, events)
+            with self.assertRaises(ci.Rejected):
+                ci.replay_rows(source, ctx, dict(selected, segmentID='none'), {prefix + 'REPLAY': rows})
+
+    def test_malformed_segment_lines_reject_before_missing_reference(self):
+        ctx = {'minimum': False, 'segments': []}
+        source = types.SimpleNamespace(head=H, assembler=object(), payload=object(), context=lambda _: ctx)
+        selected = {'shardID': 's10.4.current.ax-text', 'segmentID': 'segment-2'}
+        for suffix in ('[]', 'null', '1', '"text"', '{', '{} trailing', ''):
+            for prefix in ('S10_4_SEGMENT_REPLAY', 'S10_4_MINIMUM_SEGMENT_REPLAY'):
+                with self.subTest(prefix=prefix, suffix=suffix):
+                    (self.path / 'ui-smoke.log').write_text(prefix + ' ' + suffix + '\n', encoding='utf-8')
+                    with self.assertRaises(ci.Rejected): ci.consumer_facts(source, self.path, selected, 3, [])
+        (self.path / 'ui-smoke.log').write_text('S10_4_SEGMENT_REPLAY\n', encoding='utf-8')
+        with self.assertRaises(ci.Rejected): ci.consumer_facts(source, self.path, selected, 3, [])
+
+    def test_segment_kind_inventory_and_unsegmented_rejection(self):
+        source = types.SimpleNamespace(head=H)
+        for minimum in (False, True):
+            prefix = 'S10_4_MINIMUM_SEGMENT_' if minimum else 'S10_4_SEGMENT_'
+            kinds = ['START', 'REPLAY', 'JOURNEY', 'SETUP_WITNESS', 'RESUME_SETUP', 'RESULT',
+                     'PURCHASE_PROOF', 'PENDING_RECEIPT_PROOF'] if minimum else ['REPLAY', 'RESUME_SETUP']
+            shard = SHARD if minimum else 's10.4.current.ax-text'
+            segment = 'minimum-segment-2' if minimum else 'segment-2'
+            selected = {'shardID': shard, 'segmentID': segment}
+            ctx = {'minimum': minimum, 'segments': [{'segmentID': segment, 'replayStateIDs': ['state.a']}]}
+            replay = {'ordinal': 1, 'stateID': 'state.a', 'segmentID': segment, 'shardID': shard}
+            if minimum: replay.update(head=H, setupOnly=True, acceptanceEligible=False)
+            for kind in kinds:
+                value = replay if kind == 'REPLAY' else {}
+                events = ci.native_events(prefix + kind + ' ' + json.dumps(value))
+                self.assertEqual(ci.replay_rows(source, ctx, selected, events), [replay] if kind == 'REPLAY' else [])
+                with self.subTest(minimum=minimum, kind=kind), self.assertRaises(ci.Rejected):
+                    ci.replay_rows(source, ctx, dict(selected, segmentID='none'), events)
+            events = ci.native_events(prefix + 'REPLAY ' + json.dumps(replay) + '\n' + prefix + 'FOREIGN {}')
+            with self.assertRaises(ci.Rejected): ci.replay_rows(source, ctx, selected, events)
+        with self.assertRaises(ci.Rejected):
+            ci.replay_rows(source, {'minimum': False}, {'shardID': 's10.4.current.default-light', 'segmentID': 'segment-2'},
+                           ci.native_events('S10_4_SEGMENT_RESUME_SETUP {}'))
+
+    def test_nonsegment_native_event_parser_is_unchanged(self):
+        self.assertEqual(ci.native_events('noise\nS10_4_AX_STATE {"stateID":"state.a"}\nS10_4_OTHER []'),
+                         {'S10_4_AX_STATE': [{'stateID': 'state.a'}]})
+
     def test_duplicate_nonfinite_json_rejected(self):
         for raw in ('{"x":1,"x":2}', '{"x":NaN}', '{"x":Infinity}'):
             with self.subTest(raw=raw), self.assertRaises(ci.Rejected): ci.decode(raw)
@@ -350,6 +426,42 @@ class OriginalFixtures(unittest.TestCase):
         proof = ci.full_shard_proof(source, artifact, selected, facts)
         self.assertTrue(proof['fullShardComplete']); self.assertEqual(proof['commonTaskCount'], 6)
         self.assertFalse(proof['formalAcceptance']); self.assertFalse(proof['humanReviewGranted'])
+
+    def test_current_ax_middle_and_final_original_replay_contracts(self):
+        fixtures = [
+            (34308325400, self.root / 'Temp/S10_4_CI/registry/requests/fbcf5c3f3e574d1a83e465109ca044b8/originals', 25),
+            (34296504060, self.root / 'Temp/S10_4_K491_s10-4-current-ax-text_segment-2_34296504060', 28),
+            (34300018458, self.root / 'Temp/S10_4_K491_s10-4-current-ax-text_segment-3_34300018458', 17),
+        ]
+        for rid, originals, owned in fixtures:
+            with self.subTest(runID=rid):
+                raw_run = ci.load(originals / 'run.json')
+                self.assertEqual(raw_run['id'], rid)
+                source = ci.Source(self.root, raw_run['head_sha'], Path(self.snapshot.name) / ('source-' + str(rid)))
+                meta = next(a for a in ci.load(originals / 'artifacts.json')['artifacts'] if a['name'].startswith('ios-ci-shared-'))
+                artifact = ci.wide(originals / str(meta['id']) / 'artifact')
+                consumer = ci.load(artifact / 'shared-consumer/consumer-build-reference.json')['consumer']
+                selected = {'kind': 'consumer', 'head': source.head, 'shardID': consumer['shardID'], 'segmentID': consumer['segmentID']}
+                facts = ci.consumer_facts(source, artifact, selected, rid, ci.load(originals / 'jobs.json')['jobs'])
+                self.assertEqual(facts['replayCount'], 22); self.assertEqual(facts['strictOwnedCount'], owned)
+                self.assertEqual(facts['ownedJourneyCount'], 0)
+                if rid == 34308325400:
+                    self.assertEqual(raw_run['conclusion'], 'failure')
+                    self.assertEqual(facts['nativeTests'][0]['result'], 'Failed')
+                    self.assertEqual(facts['gaps'], ['Native UI failed; no complete segment or full shard.'])
+                    self.assertFalse(facts['fullSegmentComplete'])
+                    self.assertTrue(any('Audit failed to complete in time' in failure for failure in facts['nativeFailures']))
+                    continue
+                self.assertEqual(facts['nativeTests'][0]['result'], 'Passed'); self.assertEqual(facts['gaps'], [])
+                producer = artifact / 'shared-producer'; ctx = source.context(consumer['shardID'])
+                ctx['producerSeal'] = ci.load(producer / 'shared-build-seal.json')
+                ctx['producerQualification'] = ci.load(producer / 'unit-proof/producer-qualification.json')
+                binding = source.assembler.new_matrix(ctx, source.head, producer)
+                source.assembler.verify_matrix(binding, ctx)
+                segment = next(s for s in ctx['segments'] if s['segmentID'] == consumer['segmentID'])
+                receipt, rows, candidates = source.assembler.revalidate_original(source.root, artifact, ctx, segment, binding)
+                self.assertEqual(receipt['journeyCount'], 0); self.assertEqual(len(candidates), owned)
+                self.assertTrue(receipt['nativeEvidenceComplete'])
 
     def test_exact_source_inventory_and_full_catalog(self):
         self.assertEqual(len(self.source.tuples), 39)
