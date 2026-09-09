@@ -15762,6 +15762,135 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
                   observedDescriptionShift * dragDistance > 0,
                   observedValueShift * dragDistance > 0,
                   observedPhotoShift * dragDistance > 0 else {
+                if diagnosticProbe == nil,
+                   minimumSegment == nil,
+                   automationSegment == .segment2,
+                   automationShard?.shardID == "s10.4.current.ax-text",
+                   automationShard?.ordinal == 4,
+                   automationShard?.requirementID == "ax_text",
+                   automationShard?.deviceProfileID == "iphone-17-ios-26.2-current",
+                   automationShard?.locale == "en-US-release" {
+                    // Failure-only pure reevaluation of cached values, preserving short-circuit absence.
+                    func axProgressJSONNumber(_ value: CGFloat) -> Any {
+                        if value.isFinite { return Double(value) }
+                        if value.isNaN { return "NaN" }
+                        return value.sign == .minus ? "-Inf" : "+Inf"
+                    }
+                    func axProgressJSONFrame(_ frame: CGRect) -> [String: Any] {
+                        [
+                            "x": axProgressJSONNumber(frame.origin.x),
+                            "y": axProgressJSONNumber(frame.origin.y),
+                            "width": axProgressJSONNumber(frame.size.width),
+                            "height": axProgressJSONNumber(frame.size.height),
+                        ]
+                    }
+                    let cachedAfterFrames = [startRecheckAfterDrag, dateAfterDrag,
+                        descriptionAfterDrag, valueAfterDrag, photoAfterDrag]
+                    let cachedShifts = [observedStartRecheckShift, observedDateShift,
+                        observedDescriptionShift, observedValueShift, observedPhotoShift]
+                    var validityReached = true
+                    var validityTrace: [Any] = []
+                    for frame in cachedAfterFrames {
+                        if validityReached {
+                            let valid = isValidFrame(frame)
+                            validityTrace.append(valid)
+                            validityReached = valid
+                        } else {
+                            validityTrace.append(NSNull())
+                        }
+                    }
+                    // The original guard binds all optionals before evaluating any signed comparison.
+                    var signedReached = cachedShifts.allSatisfy { $0 != nil }
+                    var signedTrace: [Any] = []
+                    for shift in cachedShifts {
+                        if signedReached, let shift {
+                            let signedResult = shift * dragDistance > 0
+                            signedTrace.append(signedResult)
+                            signedReached = signedResult
+                        } else {
+                            signedTrace.append(NSNull())
+                        }
+                    }
+                    let beforeFrames: [String: CGRect] = [
+                        "application": applicationFrame, "screen": screenFrame,
+                        "scroll": scrollFrame, "navigation": navigationFrame, "tab": tabFrame,
+                        "startRecheck": startRecheckFrame, "record": recordFrame,
+                        "date": dateFrame, "description": descriptionFrame,
+                        "value": valueFrame, "photo": photoFrame,
+                        "liveScroll": liveScrollFrame, "receiver": receiverFrame,
+                    ]
+                    let intervalOperands: [String: CGFloat] = [
+                        "liveTop": liveTop, "liveBottom": liveBottom,
+                        "safeTop": safeTop, "safeBottom": safeBottom,
+                        "receiverTop": receiverTop, "receiverBottom": receiverBottom,
+                        "receiverLeft": receiverLeft, "receiverRight": receiverRight,
+                        "receiverCapacity": receiverCapacity, "minimumShift": minimumShift,
+                        "maximumShift": maximumShift, "dragDistance": dragDistance,
+                        "verticalInset": verticalInset, "receiverInset": receiverInset,
+                        "minimumGestureDistance": minimumGestureDistance,
+                    ]
+                    let geometry: [String: Any] = [
+                        "beforeFrames": beforeFrames.mapValues { axProgressJSONFrame($0) },
+                        "afterFramesInOrder": cachedAfterFrames.map { axProgressJSONFrame($0) },
+                        "beforeMinYInOrder": [startRecheckBeforeDrag, dateBeforeDrag,
+                            descriptionBeforeDrag, valueBeforeDrag, photoBeforeDrag].map { axProgressJSONNumber($0) },
+                        "shiftsInOrder": cachedShifts.map { value -> Any in
+                            if let value { return axProgressJSONNumber(value) }
+                            return NSNull()
+                        },
+                        "previousAfterMinYInOrder": [previousStartRecheckMinYAfterDrag,
+                            previousDateMinYAfterDrag, previousDescriptionMinYAfterDrag,
+                            previousValueMinYAfterDrag, previousPhotoMinYAfterDrag].map { value -> Any in
+                                if let value { return axProgressJSONNumber(value) }
+                                return NSNull()
+                            },
+                        "interval": intervalOperands.mapValues { axProgressJSONNumber($0) },
+                        "startPoint": ["x": axProgressJSONNumber(startPoint.x), "y": axProgressJSONNumber(startPoint.y)],
+                        "endPoint": ["x": axProgressJSONNumber(endPoint.x), "y": axProgressJSONNumber(endPoint.y)],
+                        "coordinateOffsetRule": "start/endPoint minus cached scrollFrame origin; normalized origin(0,0)",
+                        "frameOrder": ["startRecheck", "date", "description", "value", "photo"],
+                    ]
+                    let guardTruth: [String: Any] = [
+                        "liveFramesAreValid": liveFramesAreValid,
+                        "movedFramesAreValid": movedFramesAreValid,
+                        "startRecheckIsContained": startRecheckIsContained,
+                        "dateIsContained": dateIsContained,
+                        "descriptionIsContained": descriptionIsContained,
+                        "valueIsContained": valueIsContained,
+                        "targetCompositionIsSafe": targetCompositionIsSafe,
+                        "afterFrameValidityShortCircuit": validityTrace,
+                        "signedProgressShortCircuit": signedTrace,
+                        "traceProvenance": "failure-only pure reevaluation from cached frames/shifts; null means not evaluated by original short-circuit order",
+                        "unretainedOperands": "per-property isHittable outcomes and gesture timing were not cached; no new success-route queries or clocks",
+                    ]
+                    printJSONLine(prefix: "S10_4_AX_RECHECK_PROGRESS_FAILURE", object: [
+                        "schemaVersion": 1, "acceptanceEligible": false,
+                        "shardID": "s10.4.current.ax-text", "segmentID": "segment-2",
+                        "stateID": "state.issue.recheck-due", "ownedStateOrdinal": 26,
+                        "phase": "cached-operands-before-later-native-observations",
+                        "geometry": geometry, "guardTruth": guardTruth,
+                        "failureUnchanged": true,
+                    ])
+                    let laterStartedAt = ProcessInfo.processInfo.systemUptime
+                    let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                    screenshot.name = "S10.4 AX segment2 recheck-due progress failure later screenshot"
+                    screenshot.lifetime = .keepAlways
+                    add(screenshot)
+                    let rawTree = app.debugDescription
+                    let laterCompletedAt = ProcessInfo.processInfo.systemUptime
+                    printJSONLine(prefix: "S10_4_AX_RECHECK_PROGRESS_LATER", object: [
+                        "schemaVersion": 1, "acceptanceEligible": false,
+                        "shardID": "s10.4.current.ax-text", "segmentID": "segment-2",
+                        "phase": "after-cached-failure-metadata",
+                        "observation": "later sequential screenshot then native hierarchy; non-atomic, timing-perturbing, not cached guard truth",
+                        "startedAtSystemUptime": axProgressJSONNumber(CGFloat(laterStartedAt)),
+                        "completedAtSystemUptime": axProgressJSONNumber(CGFloat(laterCompletedAt)),
+                        "hierarchy": String(rawTree.prefix(262_144)),
+                        "originalCharacterCount": rawTree.count,
+                        "retainedCharacterLimit": 262_144,
+                        "truncated": rawTree.count > 262_144,
+                    ])
+                }
                 XCTFail("AX-text issue recheck-due gesture made no signed progress.")
                 return false
             }

@@ -20,6 +20,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
+import sqlite3
 import struct
 import subprocess
 import sys
@@ -417,16 +418,90 @@ def png(path,minimum):
     for size in scanlines: require(pixels[cursor]<=4,'PNG filter invalid'); cursor+=size
     return {'sha256':digest(raw),'bytes':len(raw),'width':dimensions[0],'height':dimensions[1]}
 
-def attachment_rows(attachment_root,ctx,segment):
+def springboard_diagnostic(path,row,artifact_root,consumer,ctx,segment):
+    # Additional retained system evidence, never a PNG, AX exception or native pass.
+    require(not ctx['minimum'] and ctx['shard']['shardID']=='s10.4.current.ax-text' and ctx['shard']['ordinal']==4 and ctx['shard']['requirementID']=='ax_text' and ctx['shard']['deviceProfileID']=='iphone-17-ios-26.2-current' and segment['segmentID']=='segment-1','system diagnostic outside admitted tuple')
+    require(consumer['shardID']==ctx['shard']['shardID'] and consumer['segmentID']==segment['segmentID'] and consumer['runnerProvider']=='github','system diagnostic consumer mismatch')
+    uuid_pattern=r'[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}'
+    filename=row['exportedFileName']; require(re.fullmatch(uuid_pattern+r'\.ips',filename),'system diagnostic filename identity')
+    native_uuid=filename[:-4]
+    require(row.get('deviceId')==consumer['simulatorUDID'] and row.get('deviceName')==consumer['simulatorName'] and row.get('isAssociatedWithFailure') is False,'system diagnostic export device/failure mismatch')
+    require(path.is_file() and not path.is_symlink() and 0<path.stat().st_size<=1024*1024,'missing/unsafe/oversized system report')
+    raw=path.read_bytes(); require(len(raw)<=1024*1024,'oversized system report')
+    def finite_float(value):
+        number=float(value); require(math.isfinite(number),'nonfinite system report'); return number
+    decoder=json.JSONDecoder(object_pairs_hook=strict_pairs,parse_float=finite_float,parse_constant=lambda x: (_ for _ in ()).throw(Rejected('nonfinite system report')))
+    text=raw.decode('utf-8'); cursor=0; documents=[]
+    for _ in range(2):
+        while cursor<len(text) and text[cursor] in ' \t\r\n': cursor+=1
+        value,cursor=decoder.raw_decode(text,cursor); require(type(value) is dict,'system report document not object'); documents.append(value)
+    require(not text[cursor:].strip(' \t\r\n'),'system report trailing document/data')
+    header,body=documents
+    require(header.get('app_name')==header.get('name')==body.get('procName')=='SpringBoard' and header.get('bundleID')==body.get('bundleInfo',{}).get('CFBundleIdentifier')=='com.apple.springboard','unknown/application/test-runner system report')
+    process_path=body.get('procPath')
+    require(type(process_path) is str and 0<len(process_path)<=4096 and process_path.startswith('/') and '\\' not in process_path and not any(ord(c)<32 or ord(c)==127 for c in process_path),'system report executable path missing/unsafe')
+    process_parts=process_path.split('/')[1:]
+    require(len(process_parts)>=2 and all(p not in ['','.','..'] for p in process_parts) and process_parts[-2:]==['SpringBoard.app','SpringBoard'],'contradictory system report executable identity')
+    incident=header.get('incident_id'); require(type(incident) is str and re.fullmatch(uuid_pattern,incident) and body.get('incident')==incident,'system report incident mismatch')
+    require(body.get('coalitionName')=='com.apple.CoreSimulator.SimDevice.'+consumer['simulatorUDID'],'foreign system report Simulator')
+    for value in [header.get('timestamp'),body.get('captureTime')]: require(type(value) is str and 0<len(value)<=128,'system report timestamp missing')
+    exported_time=row.get('timestamp'); require(type(exported_time) in [int,float] and math.isfinite(exported_time),'system report export timestamp invalid')
+    database=artifact_root/'UISmoke.xcresult/database.sqlite3'
+    require(database.is_file() and not database.is_symlink(),'system report native database missing/unsafe')
+    database_hash=sha(database)
+    connection=sqlite3.connect(database.resolve().as_uri()+'?mode=ro&immutable=1',uri=True)
+    connection.row_factory=sqlite3.Row
+    try:
+        connection.execute('PRAGMA query_only=ON')
+        matches=[dict(r) for r in connection.execute('SELECT rowid,* FROM Attachments WHERE uuid=?',(native_uuid,))]
+        require(len(matches)==1,'system report native UUID missing/ambiguous'); attachment=matches[0]
+        require(attachment['name']=='kXCTAttachmentLegacyDiagnosticReportData' and attachment['uniformTypeIdentifier']=='public.data' and attachment['testIssue_fk'] is None,'system report native type/failure association')
+        test_runs=[dict(r) for r in connection.execute('SELECT rowid,* FROM TestCaseRuns')]
+        tests=[dict(r) for r in connection.execute('SELECT rowid,* FROM TestCases')]
+        require(len(test_runs)==len(tests)==1 and test_runs[0]['result']=='Success' and test_runs[0]['testCase_fk']==tests[0]['rowid'] and tests[0]['identifier'].removesuffix('()')==UI_ID,'system report native test ownership/result')
+        run_id=test_runs[0]['rowid']; activity_id=attachment['activity_fk']; visited=set(); activities=[]
+        while activity_id is not None:
+            require(type(activity_id) is int and activity_id not in visited and len(visited)<1000,'system report activity cycle/limit'); visited.add(activity_id)
+            found=[dict(r) for r in connection.execute('SELECT rowid,* FROM Activities WHERE rowid=?',(activity_id,))]
+            require(len(found)==1,'system report native activity missing'); activity=found[0]
+            require(activity['testCaseRun_fk']==run_id and all(activity[k]=='' for k in ['failureIDs','warningIDs','expectedFailureIDs']),'system report activity foreign/failure association')
+            activities.append(activity); activity_id=activity['parent_fk']
+        require(activities and activities[0]['activityType']=='com.apple.dt.xctest.activity-type.internal' and 'SpringBoard' in activities[0]['title'],'system report native activity identity')
+        require(connection.execute('SELECT count(*) FROM TestIssues').fetchone()[0]==0 and connection.execute('SELECT count(*) FROM TestErrors').fetchone()[0]==0,'system report native test issues present')
+        require(connection.execute('SELECT count(*) FROM ExpectedFailures').fetchone()[0]==0,'system report native expected failures present')
+    finally: connection.close()
+    require(sha(database)==database_hash,'system report native database changed')
+    native_time=attachment['timestamp']; require(type(native_time) in [int,float] and math.isfinite(native_time) and abs(native_time+978307200-exported_time)<0.01,'system report native/export timestamp mismatch')
+    payload_ref=attachment['xcResultKitPayloadRefId']; require(type(payload_ref) is str and re.fullmatch(r'[A-Za-z0-9_~=-]{1,200}',payload_ref),'system report unsafe payload reference')
+    payload=artifact_root/'UISmoke.xcresult/Data'/('data.'+payload_ref)
+    require(payload.is_file() and not payload.is_symlink() and 0<payload.stat().st_size<=2*1024*1024,'system report raw payload missing/unsafe/oversized')
+    display=row.get('suggestedHumanReadableName'); native_display=attachment['filenameOverride']
+    require(all(type(v) is str and 0<len(v)<=1024 and '\n' not in v and '\r' not in v for v in [display,native_display]),'system report display metadata invalid')
+    export_line='File: '+filename+', suggested name: "'+display+'"'
+    require((artifact_root/'ui-smoke.log').read_text(encoding='utf-8').splitlines().count(export_line)==1,'system report original exporter provenance missing/ambiguous')
+    return {'exportedFileName':filename,'sha256':digest(raw),'bytes':len(raw),'nativeUUID':native_uuid,'incidentID':incident,'processName':'SpringBoard','bundleID':'com.apple.springboard','simulatorUDID':consumer['simulatorUDID'],
+      'nativeDatabaseSHA256':database_hash,'nativePayloadReference':payload_ref,'rawPayloadSHA256':sha(payload),'rawPayloadBytes':payload.stat().st_size,
+      'binding':'xcresulttool-export-and-native-sqlite-ownership','rawPayloadDecompressionEqualityVerified':False,
+      'nativeDisplayName':native_display,'exportDisplayName':display,'nativeTimestamp':native_time,'exportTimestamp':exported_time,'headerTimestamp':header['timestamp'],'captureTime':body['captureTime'],
+      'nativeActivityUUIDs':[a['uuid'] for a in activities],'nativeTestIdentifier':tests[0]['identifier'],'acceptanceEvidence':False}
+
+def retain_diagnostic_index(shard_root,diagnostics,write=False):
+    path=shard_root/'native-diagnostic-attachments.json'
+    if write:
+        if diagnostics: save(path,diagnostics)
+    elif diagnostics: require(load(path)==diagnostics,'original system diagnostic index mismatch')
+    else: require(not path.exists() and not path.is_symlink(),'unexpected system diagnostic index')
+
+def attachment_rows(attachment_root,ctx,segment,artifact_root,consumer):
     manifest=load(attachment_root/'manifest.json'); allrows=[]
     require(type(manifest) is list and manifest,'missing attachment manifest')
     for test in manifest:
         require(type(test) is dict and test.get('testIdentifier','').removesuffix('()')==UI_ID and type(test.get('attachments')) is list,'foreign attachment test')
         allrows+=test['attachments']
-    require(len(allrows)==segment['stateCount']+1,'attachment cardinality mismatch')
+    require(len(allrows) in [segment['stateCount']+1,segment['stateCount']+2],'attachment cardinality mismatch')
     prefix='S10.4 candidate '+ctx['shard']['shardID']+' '
     terminal=('S10.4 minimum segment terminal '+segment['segmentID']) if ctx['minimum'] else ('S10.4 segment terminal '+segment['segmentID']+' s10.4.current.ax-text')
-    candidates=[]; terminal_rows=[]; seen=set()
+    candidates=[]; terminal_rows=[]; diagnostics=[]; seen=set()
     for row in allrows:
         require(row.get('isAssociatedWithFailure') is False,'failure attachment in accepting segment')
         name=row.get('suggestedHumanReadableName','')
@@ -437,6 +512,9 @@ def attachment_rows(attachment_root,ctx,segment):
         filename=row.get('exportedFileName','')
         require(re.fullmatch('[A-Za-z0-9._-]+',filename) and filename not in seen,'unsafe/duplicate attachment file'); seen.add(filename)
         path=attachment_root/filename; require(path.is_file() and not path.is_symlink(),'missing/unsafe original attachment')
+        if filename.endswith('.ips'):
+            require(len(allrows)==segment['stateCount']+2 and not diagnostics,'unexpected/duplicate system diagnostic')
+            diagnostics.append(springboard_diagnostic(path,row,artifact_root,consumer,ctx,segment)); continue
         info=png(path,ctx['minimum'])
         if name.startswith(prefix):
             state=name[len(prefix):]; require(state in segment['ownedStateIDs'],'foreign candidate state')
@@ -445,7 +523,8 @@ def attachment_rows(attachment_root,ctx,segment):
             require(name==terminal,'unexpected diagnostic/terminal attachment'); terminal_rows.append(row)
     require(len(terminal_rows)==1 and len({r['stateID'] for r in candidates})==segment['stateCount'],'duplicate/missing candidate or terminal')
     candidates.sort(key=lambda r:segment['ownedStateIDs'].index(r['stateID']))
-    return manifest,candidates
+    require(len(candidates)==segment['stateCount'] and len(allrows)==segment['stateCount']+1+len(diagnostics),'PNG/system diagnostic accounting mismatch')
+    return manifest,candidates,diagnostics
 
 def build_reference(path,matrix,ctx,segment):
     reference=load(path)
@@ -481,7 +560,7 @@ def collect(root,artifact_root,attachment_root,shard_id,segment_id,matrix_path):
     require(not (artifact_root/'Build.xcresult').exists() and not (artifact_root/'UnitTests.xcresult').exists(),'shared consumer has falsely local build/unit bundle')
     ui_identity=native_ui(artifact_root,consumer,ctx)
     rows=ui_rows(artifact_root/'ui-smoke.log',ctx,segment,matrix); verify_state_rows(rows,ctx)
-    manifest,candidates=attachment_rows(attachment_root,ctx,segment)
+    manifest,candidates,diagnostics=attachment_rows(attachment_root,ctx,segment,artifact_root,consumer)
     if segment['ordinal']==3:
         require([x.get('segmentID') for x in matrix['selectedConsumers']]==segment['dependencySegmentIDs'],'segment3 missing admitted predecessor selection')
     else: require(matrix['selectedConsumers']==[],'unexpected consumer dependency')
@@ -493,6 +572,7 @@ def collect(root,artifact_root,attachment_root,shard_id,segment_id,matrix_path):
         dst=staged/'s10-4'/shard_id
         save(dst/'xcresult-attachment-manifest.json',manifest)
         save(dst/'candidate-files.json',candidates)
+        retain_diagnostic_index(dst,diagnostics,write=True)
         save(dst/'candidate-exports.json',[{'stateID':r['stateID'],'exportedFileName':r['exportedFileName']} for r in candidates])
         (dst/'original-attachments').mkdir(parents=True,exist_ok=True)
         shutil.copyfile(attachment_root/'manifest.json',dst/'original-attachments/manifest.json')
@@ -516,7 +596,7 @@ def collect(root,artifact_root,attachment_root,shard_id,segment_id,matrix_path):
           'localUnitExecutedTestCount':0,'producerUnitExecutedTestCount':5,'unitEvidenceOrigin':'shared-producer','uiExecutedTestCount':1,'uiTestSelectors':[UI_ID+'()'],
           'candidateCount':segment['stateCount'],'stateAXRowCount':segment['stateCount'],'contrastRowCount':segment['stateCount'],'accessibilityRowCount':0,
           'sourceDependencySelections':matrix['selectedConsumers'],'sourceDependencySelectionsSHA256':identity(matrix['selectedConsumers']),
-          'consumerBuildReferenceSHA256':identity(reference),'attachmentCount':segment['stateCount']+1,'journeyCount':len([r for r in rows['journeys'] if r['setupOnly'] is False])}
+          'consumerBuildReferenceSHA256':identity(reference),'attachmentCount':sum(len(t['attachments']) for t in manifest),'journeyCount':len([r for r in rows['journeys'] if r['setupOnly'] is False])}
         save(dst/'segment-receipt.pending.json',receipt)
         save(staged/'s10-4-shared-segment-validation.json',{'schemaVersion':1,'validated':True,'nativeUIResult':'Passed','segmentID':segment_id,'matrixID':matrix['matrixID'],'terminalAPIRequired':True})
         # Stage all new paths; no receipt is published if validation above failed.
@@ -617,12 +697,13 @@ def revalidate_original(root,artifact_root,ctx,segment,matrix):
         require(row.get('artifactPath')=='candidates/'+row['stateID']+'.png','candidate path mismatch')
         info=png(shard_root/row['artifactPath'],ctx['minimum'])
         require(all(row.get(k)==v for k,v in info.items()),'original candidate PNG size/digest/dimensions mismatch')
-    manifest,original_candidates=attachment_rows(shard_root/'original-attachments',ctx,segment)
+    manifest,original_candidates,diagnostics=attachment_rows(shard_root/'original-attachments',ctx,segment,artifact_root,consumer)
+    retain_diagnostic_index(shard_root,diagnostics)
     require(load(shard_root/'xcresult-attachment-manifest.json')==manifest and original_candidates==candidates,'original native attachment/candidate binding mismatch')
     original_names={'manifest.json'}|{r['exportedFileName'] for t in manifest for r in t['attachments']}
     require(set(files(shard_root/'original-attachments'))==original_names,'original attachment closure mismatch')
     flattened=[r for t in manifest for r in t.get('attachments',[])]
-    require(len(flattened)==segment['stateCount']+1 and all(r.get('isAssociatedWithFailure') is False for r in flattened),'original attachment closure/failure mismatch')
+    require(len(flattened)==segment['stateCount']+1+len(diagnostics) and all(r.get('isAssociatedWithFailure') is False for r in flattened),'original attachment closure/failure mismatch')
     require(receipt.get('attachmentCount')==len(flattened),'original attachment receipt mismatch')
     require(all(receipt.get(k)==segment['stateCount'] for k in ['candidateCount','stateAXRowCount','contrastRowCount']) and receipt.get('accessibilityRowCount')==0,'segment fabricated full-shard counts')
     for category,key in [('ax','ax'),('contrast','contrast')]:
