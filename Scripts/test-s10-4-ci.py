@@ -62,6 +62,87 @@ class Protocol(unittest.TestCase):
         self.assertTrue(self.path.is_relative_to(root.resolve()))
         self.addCleanup(self.temp.cleanup)
 
+    def unavailable_export_fixture(self):
+        root = self.path / ('native-' + str(len(list(self.path.iterdir()))))
+        diagnostic = root / 'ui-failure-diagnostics'; diagnostic.mkdir(parents=True)
+        native = diagnostic / 'xcresult-test-results.json'; native.write_bytes(b'')
+        (diagnostic / 'status.txt').write_text('xcresult_test_results=64\nprocess_snapshot=0\n')
+        (diagnostic / 'xcresult-test-results.stderr.txt').write_text(
+            'Error: Failed to create a new result bundle reader, underlying error: Info.plist at '
+            '/runner/UISmoke.xcresult/Info.plist does not exist, the result bundle might be corrupted or the provided path is not a result bundle\n'
+            "Usage: xcresulttool <subcommand>\n  See 'xcresulttool --help' for more information.\n")
+        for name in ('Data', 'Staging'): (root / 'UISmoke.xcresult' / name).mkdir(parents=True)
+        return {'root': root, 'native_path': native, 'log': '** TEST EXECUTE FAILED **\n', 'events': {},
+                'command': ['xcodebuild', '-resultBundlePath', '/runner/UISmoke.xcresult'],
+                'job': {'conclusion': 'failure'}, 'run_conclusion': 'failure'}
+
+    def test_unavailable_native_export_preserves_unknown_counts(self):
+        args = self.unavailable_export_fixture(); result = ci.unavailable_native_export(**args)
+        for key in ('nativeUIExecuted', 'nativeTests', 'nativeFailures', 'strictOwnedCount', 'replayCount',
+                    'ownedJourneyCount', 'candidatePNGCount', 'nativeAttachmentRows'):
+            self.assertIsNone(result[key])
+        self.assertTrue(result['nativeResultUnavailable']); self.assertTrue(result['nativeDatabaseMissing'])
+        self.assertEqual(result['observedTestBodyMarkerCount'], 0)
+        self.assertEqual(result['nativeExportFailure']['sha256'], ci.digest(b''))
+        self.assertEqual(result['nativeExportFailure']['status'], 64)
+
+    def test_unavailable_native_export_rejects_contradictory_evidence(self):
+        mutations = {
+            'successful run': lambda a: a.update(run_conclusion='success'),
+            'unknown run': lambda a: a.update(run_conclusion=None),
+            'canceled run': lambda a: a.update(run_conclusion='cancelled'),
+            'successful worker': lambda a: a['job'].update(conclusion='success'),
+            'nonempty malformed export': lambda a: a['native_path'].write_text('{'),
+            'competing export': lambda a: (a['root'] / 'ui-test-results.json').write_text('{}'),
+            'missing export status': lambda a: (a['native_path'].parent / 'status.txt').write_text('process_snapshot=0\n'),
+            'duplicate export status': lambda a: (a['native_path'].parent / 'status.txt').write_text('xcresult_test_results=64\nxcresult_test_results=64\n'),
+            'successful export status': lambda a: (a['native_path'].parent / 'status.txt').write_text('xcresult_test_results=0\n'),
+            'conflicting export status': lambda a: (a['native_path'].parent / 'status.txt').write_text('xcresult_test_results=64\nxcresult_test_results=0\n'),
+            'malformed status': lambda a: (a['native_path'].parent / 'status.txt').write_text(' xcresult_test_results=64\n'),
+            'foreign result path': lambda a: a.update(command=['xcodebuild', '-resultBundlePath', '/foreign/UISmoke.xcresult']),
+            'different export error': lambda a: (a['native_path'].parent / 'xcresult-test-results.stderr.txt').write_text('other failure'),
+            'present plist': lambda a: (a['root'] / 'UISmoke.xcresult/Info.plist').write_text('present'),
+            'present database': lambda a: (a['root'] / 'UISmoke.xcresult/database.sqlite3').write_bytes(b'present'),
+            'state event': lambda a: a.update(events={'S10_4_AX_STATE': [{}]}),
+            'test body': lambda a: a.update(log="Test Case 'selected' started.\n** TEST EXECUTE FAILED **\n"),
+            'migration state': lambda a: a.update(log='S10_MIGRATION_STATE state=state.a\n** TEST EXECUTE FAILED **\n'),
+            'malformed native marker': lambda a: a.update(log='S10_4_AX_STATE {broken\n** TEST EXECUTE FAILED **\n'),
+            'missing failure outcome': lambda a: a.update(log='incomplete log'),
+            'receipt directory': lambda a: (a['root'] / 's10-4').mkdir(),
+            'raw attachment directory': lambda a: (a['root'] / 's10-4-shared-raw-attachments').mkdir(),
+            'attachment directory': lambda a: (a['root'] / 'ui-failure-attachments').mkdir(),
+            'candidate image': lambda a: (a['root'] / 'ui-final.png').write_bytes(b'candidate'),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                args = self.unavailable_export_fixture(); mutate(args)
+                with self.assertRaises(ci.Rejected): ci.unavailable_native_export(**args)
+
+    def test_audit_keeps_unknown_native_execution_and_nonaccepting_gap(self):
+        selected = intent(); folder = self.path / 'registry/requests' / selected['requestID']; folder.mkdir(parents=True)
+        record = {'path': folder, 'intent': selected, 'resolution': {'runID': 3}}
+        originals = folder / 'originals'; originals.mkdir()
+        job = {'id': 4, 'name': 'worker', 'conclusion': 'failure', 'started_at': '2026-09-01T00:00:00Z',
+               'completed_at': '2026-09-01T00:00:01Z', 'steps': []}
+        ci.save(originals / 'jobs.json', {'jobs': [job]})
+        ci.save(originals / 'artifacts.json', {'artifacts': [{'id': 5,
+            'name': 'ios-ci-shared-3-1-' + SHARD + '-minimum-segment-1'}]})
+        (originals / 'job-4.log').write_text('original failed worker log')
+        source = types.SimpleNamespace(identity={'files': []}, payload=types.SimpleNamespace(PayloadError=RuntimeError),
+                                       assembler=types.SimpleNamespace(Rejected=RuntimeError))
+        matrix = types.SimpleNamespace(root=self.path, registry=self.path / 'registry', source=lambda head: source)
+        original = {'runID': 3, 'head': H, 'conclusion': 'failure', 'originalFilesSHA256': 'A' * 64, 'gaps': []}
+        native = ci.unavailable_native_export(**self.unavailable_export_fixture())
+        native.update(gaps=['Native result unavailable.'], fullSegmentComplete=False, fullShardComplete=False)
+        with patch.object(ci, 'records', return_value=[record]), patch.object(ci, 'collection_proof', return_value=original), \
+             patch.object(ci, 'Transport'), patch.object(ci, 'consumer_facts', return_value=native) as consumer:
+            result = ci.audit(matrix, selected['requestID'])
+        self.assertEqual(consumer.call_args.args[-1], 'failure')
+        self.assertTrue(result['completeOriginalAudit']); self.assertIsNone(result['nativeUIExecuted'])
+        self.assertEqual(result['gaps'], ['Native result unavailable.'])
+        for key in ('fullSegmentComplete', 'fullShardComplete', 'formalAcceptance', 'humanReviewGranted'):
+            self.assertIs(result[key], False)
+
     def test_history_git_offset_and_checkout_instant_boundaries(self):
         ci.git(self.path, 'init')
         with patch.dict(os.environ, {'GIT_AUTHOR_DATE': '2026-09-08T22:44:26-04:00',
@@ -514,6 +595,45 @@ class OriginalFixtures(unittest.TestCase):
             self.assertEqual(result['nativeTests'], []); self.assertFalse(result['nativeUIExecuted'])
             self.assertTrue(result['nativeBootstrapFailure']); self.assertEqual(result['strictOwnedCount'], 0)
             self.assertFalse(result['fullSegmentComplete']); self.assertEqual(result['producerUnitCount'], 5)
+
+    def test_real_incomplete_native_export_keeps_source_gates_and_unknown_results(self):
+        original = self.root / 'Temp/S10_4_CI/registry/requests/fedc0d09dcc1404dab66abb04d425472/originals'
+        run_value = ci.load(original / 'run.json')
+        self.assertEqual(run_value['id'], 34341891637)
+        source = ci.Source(self.root, run_value['head_sha'], Path(self.snapshot.name) / 'incomplete-native-source')
+        artifact = ci.wide(original / '10101221753/artifact')
+        reference_path = artifact / 'shared-consumer/consumer-build-reference.json'
+        reference = ci.load(reference_path); consumer = reference['consumer']
+        selected = {'kind': 'consumer', 'head': source.head, 'shardID': consumer['shardID'], 'segmentID': consumer['segmentID']}
+        jobs = ci.load(original / 'jobs.json')['jobs']
+        observed = [reference_path, artifact / 's10-4-shared-ui-command.json', artifact / 'ui-smoke.log',
+                    artifact / 'ui-failure-diagnostics/xcresult-test-results.json',
+                    artifact / 'ui-failure-diagnostics/xcresult-test-results.stderr.txt']
+        before = {str(p): ci.sha(p) for p in observed}
+        facts = ci.consumer_facts(source, artifact, selected, run_value['id'], jobs, run_value['conclusion'])
+        self.assertTrue(facts['consumerReferenceVerified']); self.assertEqual(facts['producerUnitCount'], 5)
+        self.assertEqual(facts['localUnitCount'], 0); self.assertTrue(facts['nativeResultUnavailable'])
+        self.assertIsNone(facts['nativeUIExecuted']); self.assertIsNone(facts['nativeTests'])
+        self.assertIsNone(facts['strictOwnedCount']); self.assertIsNone(facts['candidatePNGCount'])
+        self.assertEqual(facts['observedTestBodyMarkerCount'], 0)
+        self.assertFalse(facts['fullSegmentComplete']); self.assertFalse(facts['fullShardComplete'])
+        self.assertEqual(facts['nativeExportFailure']['status'], 64); self.assertTrue(facts['gaps'])
+        with self.assertRaises(ci.Rejected):
+            ci.consumer_facts(source, artifact, selected, run_value['id'], jobs, 'success')
+        original_load = ci.load
+        for changed in ('source', 'command'):
+            def mutated_load(path):
+                value = original_load(path)
+                if changed == 'source' and str(path) == str(reference_path):
+                    value = copy.deepcopy(value); value['source']['head'] = '0' * 40
+                if changed == 'command' and str(path) == str(artifact / 's10-4-shared-ui-command.json'):
+                    value = value.copy(); value[-1] = 'build'
+                return value
+            with self.subTest(changed=changed), patch.object(ci, 'load', side_effect=mutated_load), \
+                 patch.object(ci, 'unavailable_native_export') as unavailable, self.assertRaises(ci.Rejected):
+                ci.consumer_facts(source, artifact, selected, run_value['id'], jobs, 'failure')
+            unavailable.assert_not_called()
+        self.assertEqual(before, {str(p): ci.sha(p) for p in observed})
 
 
 if __name__ == '__main__':

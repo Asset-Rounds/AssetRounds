@@ -1275,7 +1275,40 @@ def replay_rows(source, ctx, row, events):
     return replay
 
 
-def consumer_facts(source, root, intent, rid, jobs):
+def unavailable_native_export(root, native_path, log, events, command, job, run_conclusion):
+    """Inspect one failed export without inventing its missing native results."""
+    diagnostic = root / 'ui-failure-diagnostics'
+    require(run_conclusion == job['conclusion'] == 'failure', 'unavailable native export requires failed run and worker')
+    require(native_path == diagnostic / 'xcresult-test-results.json' and native_path.read_bytes() == b'' and
+            not (root / 'ui-test-results.json').exists(), 'unavailable native export is not the sole empty failure export')
+    status_path = diagnostic / 'status.txt'; status = status_path.read_text(encoding='utf-8')
+    export_status = [line for line in status.splitlines() if line.strip().startswith('xcresult_test_results=')]
+    require(export_status == ['xcresult_test_results=64'], 'native export status missing, duplicated or contradictory')
+    stderr_path = diagnostic / 'xcresult-test-results.stderr.txt'
+    stderr = stderr_path.read_text(encoding='utf-8')
+    bundle_path = command[command.index('-resultBundlePath') + 1]
+    expected_error = ('Error: Failed to create a new result bundle reader, underlying error: Info.plist at '
+                      + bundle_path + '/Info.plist does not exist, the result bundle might be corrupted or the provided path is not a result bundle')
+    require(stderr.splitlines() == [expected_error, 'Usage: xcresulttool <subcommand>',
+                                   "  See 'xcresulttool --help' for more information."], 'native export error does not bind the missing result bundle')
+    bundle = root / 'UISmoke.xcresult'
+    require(bundle.is_dir() and {p.name for p in bundle.iterdir()} == {'Data', 'Staging'} and
+            (bundle / 'Data').is_dir() and (bundle / 'Staging').is_dir(), 'unavailable native container is not the retained incomplete layout')
+    require(not events and not re.search(r'(?m)^\s*(?:Test Case |Test Suite |S10_MIGRATION_STATE\b|S10_4_)', log) and
+            '** TEST EXECUTE FAILED **' in log, 'unavailable native export conflicts with test-body evidence')
+    require(not any((root / name).exists() for name in ('s10-4', 's10-4-shared-raw-attachments', 'ui-failure-attachments', 'ui-final.png')),
+            'unavailable native export conflicts with native candidate or receipt evidence')
+    return {'nativeResultUnavailable': True, 'nativeUIExecuted': None, 'nativeTests': None, 'nativeFailures': None,
+            'strictOwnedCount': None, 'replayCount': None, 'ownedJourneyCount': None, 'candidatePNGCount': None,
+            'nativeAttachmentRows': None, 'nativeDatabaseMissing': True, 'observedTestBodyMarkerCount': 0,
+            'nativeExportFailure': {'path': native_path.relative_to(root).as_posix(), 'bytes': 0,
+                'sha256': sha(native_path), 'status': 64, 'statusPath': status_path.relative_to(root).as_posix(),
+                'statusSHA256': sha(status_path), 'stderrPath': stderr_path.relative_to(root).as_posix(),
+                'stderrSHA256': sha(stderr_path), 'stderr': stderr, 'resultBundlePath': bundle_path,
+                'infoPlistPresent': False, 'databasePresent': False, 'retainedContainerEntries': ['Data', 'Staging']}}
+
+
+def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
     root = wide(root)
     result = {'localUnitCount': 0, 'producerUnitCount': 0, 'consumerReferenceVerified': False,
               'nativeTests': [], 'nativeFailures': [], 'strictOwnedCount': 0, 'replayCount': 0,
@@ -1326,6 +1359,10 @@ def consumer_facts(source, root, intent, rid, jobs):
         native_path = root / 'ui-failure-diagnostics/xcresult-test-results.json'
     if not native_path.exists():
         result['gaps'].append('Native UI result export missing.')
+        return result
+    if native_path.stat().st_size == 0:
+        result.update(unavailable_native_export(root, native_path, log, events, command_value, job, run_conclusion))
+        result['gaps'].append('Native result bundle/export unavailable after failed finalization; native execution and coverage counts remain unknown.')
         return result
     native = load(native_path)
     cases = [r for r in nodes(native) if r.get('nodeType') == 'Test Case']
@@ -1502,9 +1539,10 @@ def audit(matrix, request_id, known_deterministic=False):
             if found:
                 require(len(found) == 1, 'ambiguous consumer original artifact')
                 root = originals / str(found[0]['id']) / 'artifact'
-                native = consumer_facts(source, root, intent, rid, jobs)
+                native = consumer_facts(source, root, intent, rid, jobs, original['conclusion'])
                 gaps = result['gaps'] + native.pop('gaps'); result.update(native); result['gaps'] = gaps
-                result['nativeUIExecuted'] = bool(result.get('nativeTests'))
+                if result.get('nativeResultUnavailable') is not True:
+                    result['nativeUIExecuted'] = bool(result.get('nativeTests'))
                 if original['conclusion'] == 'success' and not original['gaps']:
                     if intent['segmentID'] != 'none':
                         producer_id = int(intent['inputs']['s10_4_shared_payload_run_id'])
