@@ -436,10 +436,10 @@ function Assert-GitHubEnvironmentContract {
         return
     }
     $expected = [ordered]@{
-        contract_version = "s10.4-github-image-adoption-v1"
-        authority_head = "d5b2dd30e5552a8d836c941d914802206e15a9a6"
+        contract_version = "s10.4-github-image-adoption-v2"
+        authority_head = "de6ec602b60be275b6a881f7be8cb619b5e8c925"
         image_os = "macos26"
-        image_version = "20260831.0337.3"
+        image_version = "20260907.0351.1"
         macos_product_name = "macOS"
         macos_product_version = "26.6.2"
         macos_build_version = "25G83"
@@ -462,7 +462,7 @@ function Assert-GitHubEnvironmentContract {
     Assert-Commit $Contract.authority_head "GitHub image authority"
     $parents = @(& git -C $RepositoryRoot rev-list --parents -n 1 $Contract.authority_head 2>$null)
     if ($LASTEXITCODE -ne 0) { throw "Cannot resolve GitHub image authority parent." }
-    Assert-Equal ($parents -join "") "$($Contract.authority_head) bcc23ef9fb8690986014fbe5df434a18fa0a979d" "GitHub image authority direct parent"
+    Assert-Equal ($parents -join "") "$($Contract.authority_head) 2ce166c2196d90b9d7fdd255e2453bcbed3af1cc" "GitHub image rollover authority direct parent"
     $paths = @(& git -C $RepositoryRoot diff-tree --no-commit-id --name-only -r $Contract.authority_head 2>$null)
     if ($LASTEXITCODE -ne 0) { throw "Cannot resolve GitHub image authority paths." }
     Assert-ExactSet $paths @("docs/execution/CURRENT_TASK.md", "docs/execution/S10_4_CI_OPERATING_BRIEF.md") "GitHub image authority-only paths"

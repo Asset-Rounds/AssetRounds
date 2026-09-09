@@ -762,7 +762,7 @@
                       ],
                       "properties": {
                         "contract_version": {
-                          "const": "s10.4-github-image-adoption-v1"
+                          "const": "s10.4-github-image-adoption-v2"
                         },
                         "authority_head": {
                           "type": "string",
@@ -776,7 +776,7 @@
                           "const": "macos26"
                         },
                         "image_version": {
-                          "const": "20260831.0337.3"
+                          "const": "20260907.0351.1"
                         },
                         "macos_product_name": {
                           "const": "macOS"
@@ -1054,11 +1054,11 @@
             "additionalProperties": false,
             "required": ["contract_version", "authority_head", "worker_source_sha256", "image_os", "image_version", "macos_product_name", "macos_product_version", "macos_build_version", "architecture"],
             "properties": {
-              "contract_version": { "const": "s10.4-github-image-adoption-v1" },
+              "contract_version": { "const": "s10.4-github-image-adoption-v2" },
               "authority_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
               "worker_source_sha256": { "type": "string", "pattern": "^[0-9A-F]{64}$" },
               "image_os": { "const": "macos26" },
-              "image_version": { "const": "20260831.0337.3" },
+              "image_version": { "const": "20260907.0351.1" },
               "macos_product_name": { "const": "macOS" },
               "macos_product_version": { "const": "26.6.2" },
               "macos_build_version": { "const": "25G83" },
@@ -1155,11 +1155,11 @@
             "additionalProperties": false,
             "required": ["contract_version", "authority_head", "worker_source_sha256", "image_os", "image_version", "macos_product_name", "macos_product_version", "macos_build_version", "architecture"],
             "properties": {
-              "contract_version": { "const": "s10.4-github-image-adoption-v1" },
+              "contract_version": { "const": "s10.4-github-image-adoption-v2" },
               "authority_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
               "worker_source_sha256": { "type": "string", "pattern": "^[0-9A-F]{64}$" },
               "image_os": { "const": "macos26" },
-              "image_version": { "const": "20260831.0337.3" },
+              "image_version": { "const": "20260907.0351.1" },
               "macos_product_name": { "const": "macOS" },
               "macos_product_version": { "const": "26.6.2" },
               "macos_build_version": { "const": "25G83" },

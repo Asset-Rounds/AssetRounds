@@ -740,12 +740,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 26_219,
-            sha256: "76D93B8EA5EB6FB71F15F93A8D6085A1845261E74E4A2A8374CA38591B37C443"
+            sha256: "EBA232A756D0B3DA98E65B8A438506BF24836FC3B705AE545AC2C5E24878D200"
         )
         try assertFile(
             visualSchemaPath,
             byteCount: 53_959,
-            sha256: "61C26008B6451413B547652ED31448C67C9054F05890A2AD9AFC2355F4BBF9AC"
+            sha256: "86FD6D1EFF7E2CDCB196C4F4CA498DF3561E89741C808DB7A03F4332A64241A5"
         )
         try assertFile(
             accessibilitySchemaPath,
@@ -791,7 +791,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             workflowPath,
             byteCount: 355_569,
-            sha256: "2DE0C328CF8ACC4E74FDD2942E3EEF21AC9D9610FBB623A68E0D4C1015C692BA"
+            sha256: "AA349864850707098871D2A08F9B53EFF12AE84474423085DADB95DC9F506841"
         )
         let workflowSource = try text(workflowPath)
         // H412 retains a failed setup's original files, without accepting missing accounting.
@@ -3051,11 +3051,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let h407Environment = try object(manifest, "github_environment_contract")
         let h407ExpectedEnvironment: [String: String] = [
-            "contract_version": "s10.4-github-image-adoption-v1",
-            "authority_head": "d5b2dd30e5552a8d836c941d914802206e15a9a6",
+            "contract_version": "s10.4-github-image-adoption-v2",
+            "authority_head": "de6ec602b60be275b6a881f7be8cb619b5e8c925",
             "worker_source_sha256": try data(workflowPath).sha256,
             "image_os": "macos26",
-            "image_version": "20260831.0337.3",
+            "image_version": "20260907.0351.1",
             "macos_product_name": "macOS",
             "macos_product_version": "26.6.2",
             "macos_build_version": "25G83",
@@ -3092,6 +3092,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         var h407OldImage = h407Environment
         h407OldImage["image_version"] = "20260728.0273.1"
         XCTAssertFalse(h407EnvironmentMatches(h407OldImage))
+        var h407RetiredImage = h407Environment
+        h407RetiredImage["image_version"] = "20260831.0337.3"
+        XCTAssertFalse(h407EnvironmentMatches(h407RetiredImage))
         let h407ProviderMatches: (String?, [String: Any]?) -> Bool = { provider, value in
             switch provider {
             case nil, .some(""), .some("github_actions"):

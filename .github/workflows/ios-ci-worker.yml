@@ -1181,7 +1181,7 @@ jobs:
             && { test "${CI_S10_4_EXECUTION_ROLE:-independent}" = "independent" || test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; } \
             && test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" = "none"; then
             test "${ImageOS:-}" = "macos26"
-            test "${ImageVersion:-}" = "20260831.0337.3"
+            test "${ImageVersion:-}" = "20260907.0351.1"
             test "$RUNNER_ARCH" = "ARM64"
             test "$(uname -m)" = "arm64"
             test "$(sw_vers -productName)" = "macOS"
@@ -1198,8 +1198,8 @@ jobs:
               --arg buildVersion "$(sw_vers -buildVersion)" \
               --arg architecture "$(uname -m)" '
                 {
-                  contract_version: "s10.4-github-image-adoption-v1",
-                  authority_head: "d5b2dd30e5552a8d836c941d914802206e15a9a6",
+                  contract_version: "s10.4-github-image-adoption-v2",
+                  authority_head: "de6ec602b60be275b6a881f7be8cb619b5e8c925",
                   worker_source_sha256: $workerHash,
                   image_os: $imageOS,
                   image_version: $imageVersion,
