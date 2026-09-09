@@ -20135,6 +20135,26 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             appearanceFlag: appearanceFlag,
             usesAccessibilityXXXL: usesAccessibilityXXXL
         )
+        if diagnosticProbe == nil,
+           minimumSegment == nil,
+           automationSegment == .none,
+           let shard = automationShard,
+           shard.ordinal == 7,
+           shard.shardID == "s10.4.current.reduce-transparency",
+           shard.requirementID == "reduce_transparency",
+           shard.deviceProfileID == "iphone-17-ios-26.2-current",
+           shard.accessibilityFeature == "voice_control",
+           shard.appearance == "light",
+           shard.contrast == "standard",
+           shard.contentSizeCategory == "UICTContentSizeCategoryL",
+           shard.locale == "en-US-release",
+           shard.layoutDirection == "left_to_right",
+           !shard.differentiateWithoutColor,
+           !shard.reduceMotion,
+           shard.reduceTransparency {
+            app.launchEnvironment["S10_4_RECHECK_NAV_OBSERVATION"] =
+                "current-rt-v1"
+        }
         return app
     }
 

@@ -20,6 +20,22 @@ struct SignsRootView: View {
     private static let welcomeMessageText =
         "Add the first sign you inspect, or look through the bundled sample before you begin."
 
+#if DEBUG
+    private static let recheckNavigationObservationEnvironmentKey =
+        "S10_4_RECHECK_NAV_OBSERVATION"
+    private static let recheckNavigationObservationToken = "current-rt-v1"
+    private static let recheckNavigationObservationProfile =
+        "iphone-17-ios-26.2-current"
+    private static let recheckNavigationObservationSeam =
+        "s10.4.current.reduce-transparency/recheck-due-native-back"
+
+    private enum RecheckNavigationObservationEvent: String {
+        case issueAppear = "issue_appear"
+        case issueDisappear = "issue_disappear"
+        case pathChanged = "path_changed"
+    }
+#endif
+
     private struct LifecyclePresentation: Identifiable {
         let id = UUID()
     }
@@ -277,7 +293,15 @@ struct SignsRootView: View {
                             recordWork: beginRecordWork,
                             startRecheck: beginRecheck
                         )
+#if DEBUG
+                        .onAppear {
+                            observeRecheckNavigation(event: .issueAppear)
+                        }
+#endif
                         .onDisappear {
+#if DEBUG
+                            observeRecheckNavigation(event: .issueDisappear)
+#endif
                             guard activeIssue.status == .resolved else { return }
                             self.activeIssue = nil
                             refreshActiveIssue(
@@ -308,6 +332,15 @@ struct SignsRootView: View {
                 }
             }
         }
+#if DEBUG
+        .onChange(of: path) { oldPath, newPath in
+            observeRecheckNavigation(
+                event: .pathChanged,
+                oldCount: oldPath.count,
+                newCount: newPath.count
+            )
+        }
+#endif
         .task {
             guard !didLoad else { return }
             didLoad = true
@@ -344,6 +377,49 @@ struct SignsRootView: View {
             )
         }
     }
+
+#if DEBUG
+    private func observeRecheckNavigation(
+        event: RecheckNavigationObservationEvent,
+        oldCount: Int? = nil,
+        newCount: Int? = nil
+    ) {
+        let processInfo = ProcessInfo.processInfo
+        guard processInfo.environment[
+            Self.recheckNavigationObservationEnvironmentKey
+        ] == Self.recheckNavigationObservationToken,
+              let activeIssue,
+              activeIssue.status == .recheckDue else {
+            return
+        }
+
+        let record: [String: Any] = [
+            "activeIssuePresent": true,
+            "activeIssueRecheckDue": true,
+            "currentCount": path.count,
+            "diagnosticOnly": true,
+            "event": event.rawValue,
+            "finalAcceptanceEligible": false,
+            "newCount": newCount.map { $0 as Any } ?? NSNull(),
+            "oldCount": oldCount.map { $0 as Any } ?? NSNull(),
+            "pid": processInfo.processIdentifier,
+            "profile": Self.recheckNavigationObservationProfile,
+            "seam": Self.recheckNavigationObservationSeam,
+            "timestampUnixSeconds": Date().timeIntervalSince1970,
+            "token": Self.recheckNavigationObservationToken,
+            "uptimeSeconds": processInfo.systemUptime,
+            "version": 1,
+        ]
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: record,
+            options: [.sortedKeys]
+        ),
+              let line = String(data: data, encoding: .utf8) else {
+            return
+        }
+        print("S10_4_RECHECK_NAV_OBSERVATION \(line)")
+    }
+#endif
 
     private func refreshReadyReport() {
         guard let assetID = snapshot?.assetID,

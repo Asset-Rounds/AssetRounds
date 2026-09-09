@@ -33,6 +33,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
     private let overlayRoot =
         "docs/design/s10/authority/s10.4-automation-amendment-v1"
+    private let signsRootPath =
+        "FieldEvidenceApp/Features/Signs/SignsRootView.swift"
     private let acceptedMigrationHead =
         "e1004c9cfeff932e904046e0ad1aa31d2bb2c139"
     private let currentProfile = "iphone-17-ios-26.2-current"
@@ -737,8 +739,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         try assertFile(
             manifestPath,
-            byteCount: 25_437,
-            sha256: "344800CEBBE69E00DDE164E72F92A25911194F5AFC412B1B1CAAE349A9830D72"
+            byteCount: 26_219,
+            sha256: "76D93B8EA5EB6FB71F15F93A8D6085A1845261E74E4A2A8374CA38591B37C443"
         )
         try assertFile(
             visualSchemaPath,
@@ -22226,10 +22228,161 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_152_940)
+        XCTAssertEqual(uiSource.utf8.count, 1_153_837)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
+            "DC2A0C7D738C60BD28495BBE07C17E586FE4519935C2C44A50A5663492BF1BF2"
+        )
+        let signsRootSource = try text(signsRootPath)
+        let observerProjection = try recheckNavigationObserverProjection(
+            in: signsRootSource
+        )
+        let signsRootWithoutObserver = observerProjection.source
+        let observerBlocks = observerProjection.blocks
+
+        let observerConstants = observerBlocks[0]
+        for exact in [
+            "S10_4_RECHECK_NAV_OBSERVATION", "current-rt-v1",
+            "iphone-17-ios-26.2-current",
+            "s10.4.current.reduce-transparency/recheck-due-native-back",
+            "case issueAppear = \"issue_appear\"",
+            "case issueDisappear = \"issue_disappear\"",
+            "case pathChanged = \"path_changed\"",
+        ] {
+            XCTAssertEqual(observerConstants.components(separatedBy: exact).count - 1, 1, exact)
+        }
+        let issueLifecycleSource = try boundedSource(
+            signsRootSource,
+            from: "                        IssueDetailView(\n",
+            before: "                    } else {\n                        issueUnavailable"
+        )
+        let issueLifecycleOrder =
+            "                        .onAppear {\n" +
+            "                            observeRecheckNavigation(event: .issueAppear)\n" +
+            "                        }\n" +
+            "#endif\n" +
+            "                        .onDisappear {\n" +
+            "#if DEBUG\n" +
+            "                            observeRecheckNavigation(event: .issueDisappear)\n" +
+            "#endif\n" +
+            "                            guard activeIssue.status == .resolved else { return }\n" +
+            "                            self.activeIssue = nil"
+        XCTAssertEqual(
+            issueLifecycleSource.components(separatedBy: issueLifecycleOrder).count - 1,
+            1
+        )
+        let pathObserver = observerBlocks[3]
+        for exact in [
+            ".onChange(of: path) { oldPath, newPath in",
+            "event: .pathChanged",
+            "oldCount: oldPath.count",
+            "newCount: newPath.count",
+        ] {
+            XCTAssertEqual(pathObserver.components(separatedBy: exact).count - 1, 1, exact)
+        }
+        let observerLogger = observerBlocks[4]
+        let recordKeys = [
+            "activeIssuePresent", "activeIssueRecheckDue", "currentCount",
+            "diagnosticOnly", "event", "finalAcceptanceEligible", "newCount",
+            "oldCount", "pid", "profile", "seam", "timestampUnixSeconds",
+            "token", "uptimeSeconds", "version",
+        ]
+        for key in recordKeys {
+            XCTAssertEqual(
+                observerLogger.components(separatedBy: "\"\(key)\":").count - 1,
+                1,
+                key
+            )
+        }
+        for exact in [
+            "Self.recheckNavigationObservationEnvironmentKey\n        ] == Self.recheckNavigationObservationToken",
+            "let activeIssue",
+            "activeIssue.status == .recheckDue",
+            "\"activeIssuePresent\": true",
+            "\"activeIssueRecheckDue\": true",
+            "\"diagnosticOnly\": true",
+            "\"finalAcceptanceEligible\": false",
+            "\"newCount\": newCount.map { $0 as Any } ?? NSNull()",
+            "\"oldCount\": oldCount.map { $0 as Any } ?? NSNull()",
+            "\"currentCount\": path.count",
+            "options: [.sortedKeys]",
+            "print(\"S10_4_RECHECK_NAV_OBSERVATION \\(line)\")",
+        ] {
+            XCTAssertEqual(observerLogger.components(separatedBy: exact).count - 1, 1, exact)
+        }
+        let observerSource = observerBlocks.joined(separator: "\n")
+        for prohibited in [
+            "@State", "Binding", "NavigationStack(path: $path)", "path.append(",
+            "path.removeLast(", "path = NavigationPath", "Task {", ".tap(",
+            "swipe", "press(forDuration", "sleep(", "performAccessibilityAudit",
+            "XCUIElement", "UUID", "Mirror(",
+        ] {
+            XCTAssertFalse(observerSource.contains(prohibited), prohibited)
+        }
+
+        let configuredApplicationSource = try boundedSource(
+            uiSource,
+            from: "    private func configuredApplication(\n",
+            before: "    @MainActor\n    private func configure("
+        )
+        let observerOptIn = try boundedSource(
+            configuredApplicationSource,
+            from: "        if diagnosticProbe == nil,\n",
+            before: "        return app\n"
+        )
+        for exact in [
+            "diagnosticProbe == nil", "minimumSegment == nil",
+            "automationSegment == .none", "shard.ordinal == 7",
+            "shard.shardID == \"s10.4.current.reduce-transparency\"",
+            "shard.requirementID == \"reduce_transparency\"",
+            "shard.deviceProfileID == \"iphone-17-ios-26.2-current\"",
+            "shard.accessibilityFeature == \"voice_control\"",
+            "shard.appearance == \"light\"", "shard.contrast == \"standard\"",
+            "shard.contentSizeCategory == \"UICTContentSizeCategoryL\"",
+            "shard.locale == \"en-US-release\"",
+            "shard.layoutDirection == \"left_to_right\"",
+            "!shard.differentiateWithoutColor", "!shard.reduceMotion",
+            "shard.reduceTransparency",
+            "app.launchEnvironment[\"S10_4_RECHECK_NAV_OBSERVATION\"] =\n                \"current-rt-v1\"",
+        ] {
+            XCTAssertEqual(observerOptIn.components(separatedBy: exact).count - 1, 1, exact)
+        }
+        XCTAssertEqual(
+            uiSource.components(
+                separatedBy: "app.launchEnvironment[\"S10_4_RECHECK_NAV_OBSERVATION\"]"
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            configuredApplicationSource.components(separatedBy: "let app = XCUIApplication()").count - 1,
+            1
+        )
+        let configureSource = try boundedSource(
+            uiSource,
+            from: "    private func configure(\n",
+            before: "    private func localizationArguments("
+        )
+        XCTAssertFalse(configureSource.contains("S10_4_RECHECK_NAV_OBSERVATION"))
+        var uiSourceWithoutObserverOptIn = uiSource
+        XCTAssertEqual(
+            uiSourceWithoutObserverOptIn.components(separatedBy: observerOptIn).count - 1,
+            1
+        )
+        uiSourceWithoutObserverOptIn = uiSourceWithoutObserverOptIn.replacingOccurrences(
+            of: observerOptIn,
+            with: ""
+        )
+        XCTAssertEqual(
+            Data(uiSourceWithoutObserverOptIn.utf8).sha256,
             "89CDD2B0B1A2750C4D84F19C2650F716D80A8193555CE16E807704D2FACFEFCB"
+        )
+        let unchangedCurrentRTNavigationSeam =
+            "        captureBaseline(\"state.issue.recheck-due\", in: app)\n" +
+            "        navigateBack(in: app)\n\n" +
+            "        XCTAssertTrue(signDetail.waitForExistence(timeout: 20))"
+        XCTAssertEqual(
+            uiSource.components(separatedBy: unchangedCurrentRTNavigationSeam).count - 1,
+            1
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
@@ -27035,7 +27188,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let literalPattern = try NSRegularExpression(pattern: #""(?:\\.|[^"\\])*""#)
         var canonical = ""
         for path in migratedSources {
-            let source = try text(path)
+            let source: String
+            if path == signsRootPath {
+                source = try recheckNavigationObserverProjection(
+                    in: text(path)
+                ).source
+            } else {
+                source = try text(path)
+            }
             let range = NSRange(source.startIndex..<source.endIndex, in: source)
             let literals = literalPattern.matches(in: source, range: range).compactMap {
                 Range($0.range, in: source).map { String(source[$0]) }
@@ -27523,6 +27683,75 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             line: line
         )
         return String(source[startRange.lowerBound..<endRange.lowerBound])
+    }
+
+    private func recheckNavigationObserverProjection(
+        in source: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> (source: String, blocks: [String]) {
+        var projected = source
+        let starts: [(value: String, includesTrailingBlankLine: Bool)] = [
+            (
+                "#if DEBUG\n    private static let recheckNavigationObservationEnvironmentKey =",
+                true
+            ),
+            ("#if DEBUG\n                        .onAppear {", false),
+            (
+                "#if DEBUG\n                            observeRecheckNavigation(event: .issueDisappear)",
+                false
+            ),
+            (
+                "#if DEBUG\n        .onChange(of: path) { oldPath, newPath in",
+                false
+            ),
+            ("#if DEBUG\n    private func observeRecheckNavigation(", true),
+        ]
+        var blocks = [String]()
+        for start in starts {
+            XCTAssertEqual(
+                projected.components(separatedBy: start.value).count - 1,
+                1,
+                start.value,
+                file: file,
+                line: line
+            )
+            let startRange = try XCTUnwrap(
+                projected.range(of: start.value),
+                start.value,
+                file: file,
+                line: line
+            )
+            let end = start.includesTrailingBlankLine
+                ? "#endif\n\n"
+                : "#endif\n"
+            let endRange = try XCTUnwrap(
+                projected.range(
+                    of: end,
+                    range: startRange.upperBound..<projected.endIndex
+                ),
+                start.value,
+                file: file,
+                line: line
+            )
+            let range = startRange.lowerBound..<endRange.upperBound
+            blocks.append(String(projected[range]))
+            projected.removeSubrange(range)
+        }
+        XCTAssertEqual(blocks.count, 5, file: file, line: line)
+        XCTAssertEqual(
+            Data(blocks.joined().utf8).sha256,
+            "B48ED929C473AC7E2C19C1873F5F6957943D22AA3CA146D6960E915E075C287E",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            Data(projected.utf8).sha256,
+            "A70196AB513C3F7B4C461E811DA7555718458E6038FA5D03A24A889D7AF952A6",
+            file: file,
+            line: line
+        )
+        return (projected, blocks)
     }
 
     private func json(_ relativePath: String) throws -> [String: Any] {

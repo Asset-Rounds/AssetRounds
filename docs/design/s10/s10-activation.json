@@ -41,7 +41,7 @@
     "pinned_plan_path": "docs/product/BUILD_PLAN_V4.md",
     "pinned_plan_sha256": "8A3212BE7710AC24DE8EA4F5FDF6C7A7543B737F277D94FD181331F6DA251BDF",
     "pinned_runbook_path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
-    "pinned_runbook_sha256": "5150E09244778A0A6295AFB51850C69C06028BD5E850ABCBAA85F7AFF3047771",
+    "pinned_runbook_sha256": "4AEB0D438DCF1D3F82C25F2D343D3D5A69FBEB66F056AB5762BF010AB634DB69",
     "allowed_remote_operations": [
       "fetch",
       "read_refs",

@@ -1,6 +1,6 @@
 # S10.4 active CI operating brief
 
-Owner-authorized development policy H409, shared-build/segment amendment H411 and efficiency/diagnostic amendment H412. Start here, then verify CURRENT_TASK's active reading map, Frozen authority/package, Outcome, Environment and latest applicable recovery record. This brief is navigation; CURRENT_TASK and the pinned plan/runbook remain acceptance authority. Read historical details only when they resolve a current decision.
+Owner-authorized development policy H409, shared-build/segment amendment H411, efficiency/diagnostic amendment H412 and finite app-observation amendment H414. Start here, then verify CURRENT_TASK's active reading map, Frozen authority/package, Outcome, Environment and latest applicable recovery record. This brief is navigation; CURRENT_TASK and the pinned plan/runbook remain acceptance authority. Read historical details only when they resolve a current decision.
 
 ## Current task and evidence
 
@@ -36,6 +36,8 @@ Reuse verified originals and hashes after that audit while rechecking mutable AP
 Inspect every terminal result's complete evidence before an evidence-based correction or retry. Refill distinct dependency-ready capacity in parallel with independent inspection. Never dispatch an unchanged known deterministic failure, duplicate an active shard or accept missing logs, xcresult, screenshot, accounting or checksum proof. Transient failures use the authorized fresh-runner recovery loop; source changes use reviewed causal corrections.
 
 ## Public preparation and bounded diagnostics
+
+H414 permits only the reviewed DEBUG SignsRootView path/lifecycle observer and exact current Reduce Transparency launch opt-in. Records require the exact token and a current recheck-due issue; they contain fixed scalar fields and no route contents or user data. Preserve the original NavigationStack binding, writes, public actions and strict waits. Callback timing, coalescing, incomplete output and the separately read fields limit interpretation; a missing line does not prove the native Back handler did not run. All DEBUG profiles incur observation/guard overhead, and enabled logging can occur before success or failure is known. This is not a demonstrated repair. Requalify the actual new native head and retain every old original and human decision at its original head. H413's approved nine required profiles and five explicit deferrals remain a separate evidence-policy transaction, rebased onto that new native head before formal acceptance.
 
 Shorten preparation only after an explicit public entry/exit/replay/dependency map proves unchanged durable state and continuous journeys. Preserve required states/assertions, localization and minimum-specific fixes. No copied Simulator/database, injected entitlement/data, fabricated receipt or lost owned journey. Reuse a getter only within the same stable observation; discard it across actions, waits or transitions. Measure the new native path honestly.
 
