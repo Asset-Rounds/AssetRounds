@@ -13499,6 +13499,9 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             } else {
                 downwardUndertravel = observedUndertravel
             }
+            if !isStaging {
+                stagedFinalDirection = nil
+            }
             // S10_4_DIAGNOSTICS_POSITIONING_TRACE_GESTURE_RESULT_BEGIN
             diagnosticsPositioningTrace[diagnosticsPositioningTraceIndex] +=
                 " requestedDistance=\(dragDistance) actualDistance=\(actualDistance)"

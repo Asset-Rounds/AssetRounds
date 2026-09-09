@@ -22226,10 +22226,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_152_855)
+        XCTAssertEqual(uiSource.utf8.count, 1_152_940)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "CC587E205AD2956E309250B29DD9206FC513D16869B75B8346A4570728069BFF"
+            "89CDD2B0B1A2750C4D84F19C2650F716D80A8193555CE16E807704D2FACFEFCB"
         )
         let focusedNewSignKeyboardSource = try boundedSource(
             uiSource,
