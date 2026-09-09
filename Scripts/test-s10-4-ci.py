@@ -101,6 +101,25 @@ class Protocol(unittest.TestCase):
             with self.subTest(raw=raw), patch.object(ci, 'git', return_value=raw), self.assertRaises(ci.Rejected):
                 ci.check_history(matrix, transport, intent(kind='producer'), [])
 
+    def test_candidate_native_name_decorations_and_hostiles(self):
+        prefix = 'S10.4 candidate s10.4.current.default-light '
+        state = 'state.subscription.no-entitlement'
+        uuid = 'B5ADB6F6-8CF8-48AC-A80E-AB2BCB28707B'
+        for name in (state, state + '.png', state + '_0_' + uuid + '.png',
+                     'state.subscription_0_' + uuid + '.no-entitlement'):
+            with self.subTest(name=name):
+                self.assertEqual(ci.candidate_state(prefix + name, prefix, [state], []), state)
+                with self.assertRaises(ci.Rejected): ci.candidate_state(prefix + name, prefix, [state], [state])
+        for name in ('state.foreign', state + '_0_' + uuid, state + '_1_' + uuid + '.png',
+                     state + '_0_' + '-' * 36 + '.png', state + '_0_' + uuid[:-1] + '.png',
+                     state + '_0_' + uuid.replace('B', 'G') + '.png',
+                     'state.subscription_0_' + uuid + '.no-entitlement_0_' + uuid + '.png',
+                     'state_0_' + uuid + '.subscription.no-entitlement', state + '.png.png'):
+            with self.subTest(name=name), self.assertRaises(ci.Rejected):
+                ci.candidate_state(prefix + name, prefix, [state], [])
+        with self.assertRaises(ci.Rejected):
+            ci.candidate_state(prefix.replace('default-light', 'default-dark') + state, prefix, [state], [])
+
     def test_duplicate_nonfinite_json_rejected(self):
         for raw in ('{"x":1,"x":2}', '{"x":NaN}', '{"x":Infinity}'):
             with self.subTest(raw=raw), self.assertRaises(ci.Rejected): ci.decode(raw)
@@ -314,6 +333,23 @@ class OriginalFixtures(unittest.TestCase):
         snapshot = Path(cls.snapshot.name).resolve()
         ci.require(snapshot.is_relative_to(work.resolve()), 'fixture snapshot must stay inside test Temp')
         cls.source = ci.Source(cls.root, 'ca8f18bc2d1b0fdb796e405efb29e52fccae0258', snapshot / 'source')
+
+    def test_current_light_original_midstate_candidate_names_and_full_closure(self):
+        originals = self.root / 'Temp/S10_4_CI/registry/requests/fd56ec96ad88492e916f2b18935fbc06/originals'
+        run_value = ci.load(originals / 'run.json')
+        self.assertEqual(run_value['head_sha'], '4f41a4fcee5ebec5adb238f8a6ca80b8bb634dc8')
+        source = ci.Source(self.root, run_value['head_sha'], Path(self.snapshot.name) / 'current-light-source')
+        artifact = originals / '10087431839/artifact'
+        consumer = ci.load(artifact / 'shared-consumer/consumer-build-reference.json')['consumer']
+        selected = {'kind': 'consumer', 'head': source.head, 'shardID': consumer['shardID'], 'segmentID': consumer['segmentID']}
+        facts = ci.consumer_facts(source, artifact, selected, run_value['id'], ci.load(originals / 'jobs.json')['jobs'])
+        self.assertEqual(facts['strictOwnedCount'], 67)
+        self.assertEqual(facts['candidatePNGCount'], 67)
+        self.assertEqual(facts['nativeTests'][0]['result'], 'Passed')
+        self.assertEqual(facts['gaps'], [])
+        proof = ci.full_shard_proof(source, artifact, selected, facts)
+        self.assertTrue(proof['fullShardComplete']); self.assertEqual(proof['commonTaskCount'], 6)
+        self.assertFalse(proof['formalAcceptance']); self.assertFalse(proof['humanReviewGranted'])
 
     def test_exact_source_inventory_and_full_catalog(self):
         self.assertEqual(len(self.source.tuples), 39)

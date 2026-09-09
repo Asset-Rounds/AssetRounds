@@ -1217,6 +1217,14 @@ def verify_state_pairs(source, ctx, ax, contrast):
             kernel.exception_catalog = original
 
 
+def candidate_state(name, prefix, owned, seen):
+    require(name.startswith(prefix), 'candidate profile prefix mismatch')
+    state = re.sub(r'_0_[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}(?=\.[^.]+$)',
+                   '', name[len(prefix):], count=1).removesuffix('.png')
+    require(state in owned and state not in seen, 'candidate state foreign or duplicate')
+    return state
+
+
 def consumer_facts(source, root, intent, rid, jobs):
     root = wide(root)
     result = {'localUnitCount': 0, 'producerUnitCount': 0, 'consumerReferenceVerified': False,
@@ -1344,9 +1352,7 @@ def consumer_facts(source, root, intent, rid, jobs):
                        export['exportedFileName'] in (a['uuid'], a['uuid'] + '.png')]
             require(len(matches) == 1 and matches[0]['testIssue_fk'] is None and export['isAssociatedWithFailure'] is False and
                     export['deviceId'] == consumer['simulatorUDID'], 'candidate native attachment identity/failure mismatch')
-            state = re.sub(r'_0_[0-9A-Fa-f-]{36}\.png$', '', name[len(prefix):])
-            state = state.removesuffix('.png')
-            require(state in owned and state not in [p['stateID'] for p in candidates], 'candidate state foreign or duplicate')
+            state = candidate_state(name, prefix, owned, [p['stateID'] for p in candidates])
             candidate_path = attachment_dir / relative(export['exportedFileName'])
             if full_exports is not None:
                 require({'stateID': state, 'exportedFileName': export['exportedFileName']} in full_exports, 'full candidate export mapping mismatch')
