@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   probe:
-    runs-on: bitrise-m4-pro
+    runs-on: 'bitrise-runner-Asset Roundddd'
     timeout-minutes: 90
     env:
       EXPECTED_XCODE_VERSION: Xcode 26.6
@@ -377,7 +377,7 @@ jobs:
             --arg head "$GITHUB_SHA" \
             --arg runID "$GITHUB_RUN_ID" \
             --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
-            --arg runnerLabel bitrise-m4-pro \
+            --arg runnerLabel "bitrise-runner-Asset Roundddd" \
             --arg installerCommit d971b485dd0519fdebb41240f1a2997d77dbf3a6 \
             --arg installerSHA256 8B4C6BF5F75F064B2F95B7E8A7CFA47FD2FD48FBF7DE16464713BE3A317FB5D4 \
             --arg cliRelease v3.6.2 \
@@ -403,7 +403,7 @@ jobs:
             and .finalAcceptanceEligible == false
             and .developmentOnly == true
             and (.credentialScanPassed == true or .credentialScanPassed == false)
-            and .runnerLabel == "bitrise-m4-pro"
+            and .runnerLabel == "bitrise-runner-Asset Roundddd"
           ' "$CI_ARTIFACT_DIR/probe-receipt.json" > /dev/null
 
       - name: Hash development-only probe evidence

@@ -705,7 +705,7 @@
                     "runner_label": {
                       "enum": [
                         "macos-26",
-                        "bitrise-m4-pro"
+                        "bitrise-runner-Asset Roundddd"
                       ]
                     },
                     "runner_image": {
@@ -1029,7 +1029,7 @@
           "artifact_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },
           "artifact_name": { "type": "string", "minLength": 1 },
           "artifact_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-          "runner_label": { "enum": ["macos-26", "bitrise-m4-pro"] },
+          "runner_label": { "enum": ["macos-26", "bitrise-runner-Asset Roundddd"] },
           "runner_image": { "type": "string", "minLength": 1 },
           "xcode_version": { "const": "Xcode 26.6" },
           "xcode_build": { "const": "17F113" },

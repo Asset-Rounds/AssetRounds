@@ -1148,7 +1148,7 @@ foreach ($receipt in $visual.shard_receipts) {
         }
         $bitriseReceiptCount++
         Assert-Contains $expectedBitriseShards $receipt.shard_id "$($receipt.shard_id) Bitrise eligibility"
-        Assert-Equal $receipt.runner_label "bitrise-m4-pro" "$($receipt.shard_id) Bitrise runner label"
+        Assert-Equal $receipt.runner_label "bitrise-runner-Asset Roundddd" "$($receipt.shard_id) Bitrise runner label"
         Assert-Equal $receipt.simulator_runtime $hybrid.bitrise_current_device_profile.simulator_runtime "$($receipt.shard_id) Bitrise runtime"
         Assert-Equal $receipt.simulator_name $hybrid.bitrise_current_device_profile.simulator_name "$($receipt.shard_id) Bitrise simulator"
         Assert-Equal $receipt.simulator_os_build $hybrid.bitrise_current_device_profile.simulator_os_build "$($receipt.shard_id) Bitrise OS build"

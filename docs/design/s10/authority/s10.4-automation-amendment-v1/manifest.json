@@ -56,7 +56,7 @@
   "github_environment_contract": {
     "contract_version": "s10.4-github-image-adoption-v2",
     "authority_head": "de6ec602b60be275b6a881f7be8cb619b5e8c925",
-    "worker_source_sha256": "AA349864850707098871D2A08F9B53EFF12AE84474423085DADB95DC9F506841",
+    "worker_source_sha256": "4E2470CA7698926B46614E234D178167B91B684ADB75FC976C86F1F817BC8B1B",
     "image_os": "macos26",
     "image_version": "20260907.0351.1",
     "macos_product_name": "macOS",
@@ -560,8 +560,8 @@
   "overlay_files": [
     {
       "path": "s10-visual-regression.schema.json",
-      "byte_length": 53959,
-      "sha256": "86FD6D1EFF7E2CDCB196C4F4CA498DF3561E89741C808DB7A03F4332A64241A5"
+      "byte_length": 53989,
+      "sha256": "76A569D8C128581F96338C8E355EA8A5A9ECD93506FEEC98028FF1C09285DA4F"
     },
     {
       "path": "s10-accessibility-common-tasks.schema.json",
@@ -570,8 +570,8 @@
     },
     {
       "path": "validate-s10-contracts.ps1",
-      "byte_length": 108209,
-      "sha256": "3FD46F2A1815F32B3C3BB66805E2961464076F2CC5BC4C028F72A2CB0C75498B"
+      "byte_length": 108224,
+      "sha256": "930375A63BEE9A391749F1852E3EDC5A74265CAE61883AAA6A1599791BAC2036"
     }
   ],
   "manifest_excludes_self": true,

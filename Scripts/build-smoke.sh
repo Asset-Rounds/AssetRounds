@@ -14,10 +14,10 @@ mkdir -p "$CI_ARTIFACT_DIR" "$derived_data_path"
 # H411 producer source argv receipt precedes the preserved cache wrapper.
 if [ "${CI_S10_4_SHARED_BUILD_MODE:-none}" = producer ]; then
   test "${CI_RUNNER_PROVIDER:-}" = bitrise
-  test "${CI_RUNNER_LABEL:-}" = bitrise-m4-pro
+  test "${CI_RUNNER_LABEL:-}" = "bitrise-runner-Asset Roundddd"
   test "${CI_S10_4_SHARED_EXECUTION_LANE:-}" = s10-4-shared-build-producer
   test -n "${BITRISE_BUILD_CACHE_AUTH_TOKEN:-}"
-  test "${BITRISE_BUILD_CACHE_WORKSPACE_ID:-}" = c70b2962648b79fb
+  test "${BITRISE_BUILD_CACHE_WORKSPACE_ID:-}" = b8052f5a8394f80a
   test "${BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE:-}" = established
   shared_build_command=(
     xcodebuild

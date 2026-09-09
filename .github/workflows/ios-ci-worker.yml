@@ -146,7 +146,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in
-            github:macos-26 | getmac:getmac-tahoe | bitrise:bitrise-m4-pro) ;;
+            github:macos-26 | getmac:getmac-tahoe | "bitrise:bitrise-runner-Asset Roundddd") ;;
             *) exit 1 ;;
           esac
           test -f Scripts/ci-selection.json
@@ -573,7 +573,7 @@ jobs:
               esac
             fi
             if test "$CI_RUNNER_PROVIDER" = "bitrise"; then
-              test "$CI_RUNNER_LABEL" = "bitrise-m4-pro"
+              test "$CI_RUNNER_LABEL" = "bitrise-runner-Asset Roundddd"
               case "$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID" in
                 none:iphone-17-ios-26.2-current)
                   test "$CI_S10_4_PROVISION_RUNTIME" = "false"
@@ -623,12 +623,12 @@ jobs:
                 and .developmentExecutionBinding == {
                   executionLane: "bitrise-build-hub-xcode-26.6-segmented-development-only",
                   runnerProvider: "bitrise",
-                  runnerLabel: "bitrise-m4-pro",
+                  runnerLabel: "bitrise-runner-Asset Roundddd",
                   maximumParallelWorkers: 3,
                   independentWorkers: true,
                   cacheEnabled: true,
                   cachePushEnabled: true,
-                  workspaceID: "c70b2962648b79fb",
+                  workspaceID: "b8052f5a8394f80a",
                   installerCommit: "d971b485dd0519fdebb41240f1a2997d77dbf3a6",
                   installerBytes: 14322,
                   installerSHA256: "8B4C6BF5F75F064B2F95B7E8A7CFA47FD2FD48FBF7DE16464713BE3A317FB5D4",
@@ -784,14 +784,14 @@ jobs:
             test "$CI_S10_4_SEGMENT_ID" = none
             case "$DISPATCH_S10_4_EXECUTION_ROLE" in
               payload-producer)
-                test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+                test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-runner-Asset Roundddd"
                 test "$CI_S10_4_SHARD_ID" = "s10.4.current.default-light"
                 test "$CI_S10_4_DEVICE_PROFILE_ID" = "iphone-17-ios-26.2-current"
                 ;;
               payload-consumer)
                 case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL:$CI_S10_4_SHARD_ID:$CI_S10_4_DEVICE_PROFILE_ID" in
-                  bitrise:bitrise-m4-pro:s10.4.current.default-light:iphone-17-ios-26.2-current | \
-                  bitrise:bitrise-m4-pro:s10.4.current.default-dark:iphone-17-ios-26.2-current | \
+                  "bitrise:bitrise-runner-Asset Roundddd:s10.4.current.default-light:iphone-17-ios-26.2-current" | \
+                  "bitrise:bitrise-runner-Asset Roundddd:s10.4.current.default-dark:iphone-17-ios-26.2-current" | \
                   github:macos-26:s10.4.current.default-light:iphone-17-ios-26.2-current | \
                   github:macos-26:s10.4.current.default-dark:iphone-17-ios-26.2-current | \
                   github:macos-26:s10.4.minimum.minimum-os:iphone-se-3-ios-18.0-minimum) ;;
@@ -825,7 +825,7 @@ jobs:
           if test "$CI_S10_4_SHARED_BUILD_MODE" != none; then
             test "$CI_TASK_ID:$CI_TIER:$CI_SELECTOR_RUN_UI_SMOKE" = S10.4:F25:true
             if test "$CI_S10_4_SHARED_BUILD_MODE" = producer; then
-              test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL:$DISPATCH_RUN_UI_SMOKE" = bitrise:bitrise-m4-pro:false
+              test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL:$DISPATCH_RUN_UI_SMOKE" = "bitrise:bitrise-runner-Asset Roundddd:false"
               test "$CI_S10_4_SHARD_ID:$CI_S10_4_DEVICE_PROFILE_ID" = s10.4.current.default-light:iphone-17-ios-26.2-current
               CI_RUN_UI_SMOKE=false
               printf 'CI_S10_4_SHARED_EXECUTION_LANE=s10-4-shared-build-producer\n' >> "$GITHUB_ENV"
@@ -849,7 +849,7 @@ jobs:
           fi
 
           if test "$DISPATCH_S10_4_UNIT_ONLY" = true; then
-            test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = bitrise:bitrise-m4-pro
+            test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-runner-Asset Roundddd"
             test "$CI_TASK_ID:$CI_TIER:$CI_SELECTOR_RUN_UI_SMOKE:$DISPATCH_RUN_UI_SMOKE" = S10.4:F25:true:false
             test "$CI_S10_4_SHARD_ID:$CI_S10_4_DEVICE_PROFILE_ID:$CI_S10_4_SEGMENT_ID" = \
               s10.4.current.default-light:iphone-17-ios-26.2-current:none
@@ -977,7 +977,7 @@ jobs:
           BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE: established
         run: |
           set -euo pipefail
-          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-runner-Asset Roundddd"
           case "$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID" in
             none:iphone-17-ios-26.2-current | none:iphone-se-3-ios-18.0-minimum) ;;
             segment-1:iphone-17-ios-26.2-current | segment-2:iphone-17-ios-26.2-current | segment-3:iphone-17-ios-26.2-current)
@@ -986,7 +986,7 @@ jobs:
             *) exit 1 ;;
           esac
           test -n "$BITRISE_BUILD_CACHE_AUTH_TOKEN"
-          test "$BITRISE_BUILD_CACHE_WORKSPACE_ID" = "c70b2962648b79fb"
+          test "$BITRISE_BUILD_CACHE_WORKSPACE_ID" = "b8052f5a8394f80a"
           test "${RUNNER_ARCH:-}" = "ARM64"
           test "$(uname -m)" = "arm64"
           test "$(sw_vers -productVersion)" = "26.6.1"
@@ -1039,7 +1039,7 @@ jobs:
           mkdir -p "$command_dir"
           printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
             'test -n "${BITRISE_BUILD_CACHE_AUTH_TOKEN:-}"' \
-            'test "${BITRISE_BUILD_CACHE_WORKSPACE_ID:-}" = "c70b2962648b79fb"' \
+            'test "${BITRISE_BUILD_CACHE_WORKSPACE_ID:-}" = "b8052f5a8394f80a"' \
             'test "${BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE:-}" = "established"' \
             'counter_file="$RUNNER_TEMP/bitrise-build-cache-activation-counter.txt"' \
             'activation_raw="$RUNNER_TEMP/bitrise-build-cache-activation.raw.log"' \
@@ -1133,7 +1133,7 @@ jobs:
               export DEVELOPER_DIR
               printf 'DEVELOPER_DIR=%s\n' "$DEVELOPER_DIR" >> "$GITHUB_ENV"
               ;;
-            bitrise:bitrise-m4-pro)
+            "bitrise:bitrise-runner-Asset Roundddd")
               test "$RUNNER_ARCH" = "ARM64"
               test "$(uname -m)" = "arm64"
               test "$(sw_vers -productVersion)" = "26.6.1"
@@ -1998,7 +1998,7 @@ jobs:
           BITRISE_PRIOR_JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
-          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-runner-Asset Roundddd"
           test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
           case "$CI_S10_4_SEGMENT_ID" in segment-1 | segment-2 | segment-3) ;; *) exit 1 ;; esac
           development_path="$CI_ARTIFACT_DIR/bitrise-development/$CI_S10_4_SEGMENT_ID"
@@ -2084,7 +2084,7 @@ jobs:
             .schemaVersion == 1
             and .laneID == "bitrise-build-hub-xcode-26.6-segmented-development-only"
             and .provider == "bitrise"
-            and .runnerLabel == "bitrise-m4-pro"
+            and .runnerLabel == "bitrise-runner-Asset Roundddd"
             and .shardID == "s10.4.current.ax-text"
             and (.segmentID | IN("segment-1", "segment-2", "segment-3"))
             and .cacheEnabled == true
@@ -5552,7 +5552,7 @@ jobs:
 
           mode_valid=false
           test "${CI_S10_4_UNIT_ONLY:-}:${CI_RUNNER_PROVIDER:-}:$CI_RUNNER_LABEL:${CI_TASK_ID:-}:${CI_TIER:-}" = \
-            true:bitrise:bitrise-m4-pro:S10.4:F25 \
+            "true:bitrise:bitrise-runner-Asset Roundddd:S10.4:F25" \
             && test "${CI_SELECTOR_RUN_UI_SMOKE:-}:${CI_RUN_UI_SMOKE:-}:$REQUESTED_UI" = true:false:false \
             && test "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_DEVICE_PROFILE_ID:-}:$REQUESTED_SHARD" = \
               s10.4.current.default-light:iphone-17-ios-26.2-current:s10.4.current.default-light \
@@ -5610,7 +5610,7 @@ jobs:
             test -n "$(find "$1" -mindepth 1 -print -quit)"
           }
           development_path="$CI_ARTIFACT_DIR/bitrise-development/$CI_S10_4_SEGMENT_ID"
-          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-runner-Asset Roundddd"
           test "$CI_S10_4_SHARD_ID" = "s10.4.current.ax-text"
           case "$CI_S10_4_SEGMENT_ID" in segment-1 | segment-2 | segment-3) ;; *) exit 1 ;; esac
           test -s "$CI_ARTIFACT_DIR/runner-provider.txt"
@@ -5642,7 +5642,7 @@ jobs:
           jq -e '
             .laneID == "bitrise-build-hub-xcode-26.6-segmented-development-only"
             and .provider == "bitrise"
-            and .runnerLabel == "bitrise-m4-pro"
+            and .runnerLabel == "bitrise-runner-Asset Roundddd"
             and .benchmarkPhase == "established"
             and .cacheOperational == true
             and .acceptingSegmentReceipt == false
@@ -5653,7 +5653,7 @@ jobs:
           jq -e '
             .executionLane == "bitrise-build-hub-xcode-26.6-segmented-development-only"
             and .runnerProvider == "bitrise"
-            and .runnerLabel == "bitrise-m4-pro"
+            and .runnerLabel == "bitrise-runner-Asset Roundddd"
             and .workspaceID == "[REDACTED]"
             and .feedsAcceptanceAssembler == false
             and .finalAcceptanceEligible == false
@@ -5673,7 +5673,7 @@ jobs:
           shard_evidence_path="$artifact_dir/s10-4/$BITRISE_DISPATCH_SHARD_ID"
           development_record_path="$artifact_dir/bitrise-development/$BITRISE_DISPATCH_SHARD_ID/development-shard-record.json"
           mkdir -p "$(dirname "$development_record_path")"
-          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-m4-pro"
+          test "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = "bitrise:bitrise-runner-Asset Roundddd"
           test "$CI_S10_4_SHARD_ID" = "$BITRISE_DISPATCH_SHARD_ID"
           test "$CI_S10_4_SEGMENT_ID" = "none"
           test -s "$artifact_dir/bitrise-build-cache-activation.log"
@@ -5752,7 +5752,7 @@ jobs:
               .schemaVersion == 1
               and .laneID == "bitrise-build-hub-xcode-26.6-development-only"
               and .provider == "bitrise"
-              and .runnerLabel == "bitrise-m4-pro"
+              and .runnerLabel == "bitrise-runner-Asset Roundddd"
               and .runnerArchitecture == "ARM64"
               and .repository == env.GITHUB_REPOSITORY
               and .ref == env.GITHUB_REF
@@ -5941,7 +5941,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$BITRISE_BUILD_CACHE_AUTH_TOKEN"
-          test "$BITRISE_BUILD_CACHE_WORKSPACE_ID" = "c70b2962648b79fb"
+          test "$BITRISE_BUILD_CACHE_WORKSPACE_ID" = "b8052f5a8394f80a"
           mkdir -p "$CI_ARTIFACT_DIR"
           set +e
           contaminated_file_count="$(python3 - "$CI_ARTIFACT_DIR" <<'PY'

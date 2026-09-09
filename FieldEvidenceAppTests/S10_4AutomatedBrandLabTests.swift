@@ -89,14 +89,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         try assertFile(
             testSmokePath,
-            byteCount: 21_706,
-            sha256: "344B4DCCD10EFAA4BF402AD8EF3B3F597263808F14DD16BD6F4E2E702A919126"
+            byteCount: 21_721,
+            sha256: "B867B89806AD6864E2F7569226C3DD0FF00A5559B75DB7ECECAE46198BEDECD7"
         )
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 79_473,
-            sha256: "72896D9EEF11311D4DDE05CB4457D81E3D47EA1BC0623007D10E2AF5C949D68E"
+            byteCount: 79_488,
+            sha256: "501B0F848A69B8D409F55AF098C1ADFE1BB8D10C66DEC5BA236D3C2F5F0FBE39"
         )
         let uiSmokeSource = try text(uiSmokePath)
         // H411 shell commands retain the existing native selectors and separate producer units from consumer UI.
@@ -740,12 +740,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 26_219,
-            sha256: "EBA232A756D0B3DA98E65B8A438506BF24836FC3B705AE545AC2C5E24878D200"
+            sha256: "A5D54420FEBCAB0F6A29580E4C3F48E4C7B5AEC650E595E6AD4E7F7D5D8A7CAD"
         )
         try assertFile(
             visualSchemaPath,
-            byteCount: 53_959,
-            sha256: "86FD6D1EFF7E2CDCB196C4F4CA498DF3561E89741C808DB7A03F4332A64241A5"
+            byteCount: 53_989,
+            sha256: "76A569D8C128581F96338C8E355EA8A5A9ECD93506FEEC98028FF1C09285DA4F"
         )
         try assertFile(
             accessibilitySchemaPath,
@@ -760,8 +760,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 109_071,
-            sha256: "0DA5CD316AFE9016609B27F5F16C14C1CC4DF54E4397AB376430761760546BBE"
+            byteCount: 109_190,
+            sha256: "C4FE0A028B034B00493E4A1E8BB0FE19D44E75F2F06478E390AFF90267D9F04C"
         )
         let dispatcherSource = try text(dispatcherPath)
         let unitOnlyJobSource = try boundedSource(
@@ -773,7 +773,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only'",
             "inputs.run_ui_smoke == false",
             "inputs.s10_4_shard_id == 's10.4.current.default-light'",
-            "runner_label: bitrise-m4-pro", "runner_provider: bitrise",
+            "runner_label: 'bitrise-runner-Asset Roundddd'", "runner_provider: bitrise",
             "s10_4_segment_id: none",
             #"run_ui_smoke: ${{ inputs.run_ui_smoke }}"#,
             #"s10_4_unit_only: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' }}"#,
@@ -783,15 +783,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let bitriseProbePath = ".github/workflows/bitrise-build-hub-probe.yml"
         try assertFile(
             bitriseProbePath,
-            byteCount: 20_714,
-            sha256: "A0064EE27D79ECE5974CAB913AF5C1D9237A4F2FE726C4666BB2F6353279A83C"
+            byteCount: 20_763,
+            sha256: "12CAD82A7A5627D367C5AD6619C855E19FEE14784AA5845B4EF6C6075334C14A"
         )
         let bitriseProbeSource = try text(bitriseProbePath)
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 355_569,
-            sha256: "AA349864850707098871D2A08F9B53EFF12AE84474423085DADB95DC9F506841"
+            byteCount: 355_853,
+            sha256: "4E2470CA7698926B46614E234D178167B91B684ADB75FC976C86F1F817BC8B1B"
         )
         let workflowSource = try text(workflowPath)
         // H412 retains a failed setup's original files, without accepting missing accounting.
@@ -1551,7 +1551,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         for exact in [
             "    uses: ./.github/workflows/ios-ci-worker.yml",
-            "      runner_label: bitrise-m4-pro",
+            "      runner_label: 'bitrise-runner-Asset Roundddd'",
             "      runner_provider: bitrise",
             #"      run_ui_smoke: ${{ inputs.run_ui_smoke }}"#,
             #"      s10_4_shard_id: ${{ inputs.execution_lane == 's10-4-shared-build-producer' && 's10.4.current.default-light' || inputs.s10_4_shard_id }}"#,
@@ -1631,7 +1631,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             6
         )
         for exact in [
-            "runner_label: bitrise-m4-pro",
+            "runner_label: 'bitrise-runner-Asset Roundddd'",
             "runner_label: macos-26",
             "runner_provider: bitrise",
             "runner_provider: github",
@@ -1664,7 +1664,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "s10-4-minimum-diagnostic-producer:",
             "s10-4-minimum-diagnostic-consumer:",
             "summarize-s10-4-minimum-diagnostic-pilot:",
-            "runner_label: bitrise-m4-pro",
+            "runner_label: 'bitrise-runner-Asset Roundddd'",
             "runner_label: macos-26",
             "runner_provider: bitrise",
             "runner_provider: github",
@@ -1738,7 +1738,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "s10-4-focused-new-sign-probe:",
             "s10-4-focused-preflight-probe:",
             "summarize-s10-4-focused-diagnostics:",
-            "runner_label: bitrise-m4-pro",
+            "runner_label: 'bitrise-runner-Asset Roundddd'",
             "runner_provider: bitrise",
             "runner_label: macos-26",
             "runner_provider: github",
@@ -2304,7 +2304,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let exactProviderPolicyFragments = [
-            "            github:macos-26 | getmac:getmac-tahoe | bitrise:bitrise-m4-pro) ;;",
+            "            github:macos-26 | getmac:getmac-tahoe | \"bitrise:bitrise-runner-Asset Roundddd\") ;;",
             "            github:macos-26)",
             "            getmac:getmac-tahoe)",
             #"test "$DEVELOPER_DIR" = "/Applications/Xcode_26.6.app/Contents/Developer""#,
@@ -21135,8 +21135,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let planSource = try text(planPath)
         try assertFile(
             planPath,
-            byteCount: 62_395,
-            sha256: "DDA41A01D00C9842DD790F996CB9B616CEDA0A1ED0E71901B9E86DFC2F7BBE36"
+            byteCount: 62_410,
+            sha256: "349468A270CD88F614BF64F17D47B310F968DAF6C9F5ECCE729D6F40F4398004"
         )
         XCTAssertFalse(planSource.contains("\r"))
         XCTAssertEqual(try int(plan, "schemaVersion"), 1)
@@ -21168,7 +21168,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "bitrise-build-hub-xcode-26.6-segmented-development-only"
         )
         XCTAssertEqual(try string(developmentExecutionBinding, "runnerProvider"), "bitrise")
-        XCTAssertEqual(try string(developmentExecutionBinding, "runnerLabel"), "bitrise-m4-pro")
+        XCTAssertEqual(try string(developmentExecutionBinding, "runnerLabel"), "bitrise-runner-Asset Roundddd")
         XCTAssertEqual(try int(developmentExecutionBinding, "maximumParallelWorkers"), 3)
         XCTAssertEqual(developmentExecutionBinding["independentWorkers"] as? Bool, true)
         XCTAssertEqual(developmentExecutionBinding["cacheEnabled"] as? Bool, true)
@@ -25317,7 +25317,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "max-parallel: 3",
             "segment_id:\n          - segment-1\n          - segment-2\n          - segment-3",
             "uses: ./.github/workflows/ios-ci-worker.yml",
-            "runner_label: bitrise-m4-pro",
+            "runner_label: 'bitrise-runner-Asset Roundddd'",
             "runner_provider: bitrise",
             "run_ui_smoke: true",
             "s10_4_shard_id: s10.4.current.ax-text",
@@ -25527,7 +25527,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "test -z \"$DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME\"",
             "test \"$DISPATCH_S10_4_PILOT_MODE\" = true",
             "payload-producer)",
-            "bitrise:bitrise-m4-pro",
+            "bitrise:bitrise-runner-Asset Roundddd",
             "s10.4.current.default-light",
             "payload-consumer)",
             "github:macos-26:s10.4.minimum.minimum-os:iphone-se-3-ios-18.0-minimum",
@@ -25562,12 +25562,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             workerTaskSelectionSource,
             from:
                 "            if test \"$CI_RUNNER_PROVIDER\" = \"bitrise\"; then\n" +
-                "              test \"$CI_RUNNER_LABEL\" = \"bitrise-m4-pro\"\n" +
+                "              test \"$CI_RUNNER_LABEL\" = \"bitrise-runner-Asset Roundddd\"\n" +
                 "              case \"$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID\" in",
             before: "          else\n            test \"$DISPATCH_S10_4_SHARD_ID\" = \"none\""
         )
         for exact in [
-            "test \"$CI_RUNNER_LABEL\" = \"bitrise-m4-pro\"",
+            "test \"$CI_RUNNER_LABEL\" = \"bitrise-runner-Asset Roundddd\"",
             "none:iphone-17-ios-26.2-current)",
             "none:iphone-se-3-ios-18.0-minimum)",
             "segment-1:iphone-17-ios-26.2-current | segment-2:iphone-17-ios-26.2-current | segment-3:iphone-17-ios-26.2-current)",
@@ -25600,7 +25600,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN }}",
             "BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ vars.BITRISE_BUILD_CACHE_WORKSPACE_ID }}",
             "BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE: established",
-            "bitrise:bitrise-m4-pro",
+            "bitrise:bitrise-runner-Asset Roundddd",
             "case \"$CI_S10_4_SEGMENT_ID:$CI_S10_4_DEVICE_PROFILE_ID\" in",
             "none:iphone-17-ios-26.2-current | none:iphone-se-3-ios-18.0-minimum) ;;",
             "segment-1:iphone-17-ios-26.2-current | segment-2:iphone-17-ios-26.2-current | segment-3:iphone-17-ios-26.2-current)",

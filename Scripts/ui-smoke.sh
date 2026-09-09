@@ -150,7 +150,7 @@ def validate_shared(environment, script_role):
         require(key not in ("TEST_RUNNER_CI_S10_4_EXECUTION_ROLE", "TEST_RUNNER_CI_S10_4_EXECUTION_LANE"), "foreign test-runner role/lane")
     if mode == "producer":
         require(bool(e.get("BITRISE_BUILD_CACHE_AUTH_TOKEN", ""))
-                and e.get("BITRISE_BUILD_CACHE_WORKSPACE_ID") == "c70b2962648b79fb"
+                and e.get("BITRISE_BUILD_CACHE_WORKSPACE_ID") == "b8052f5a8394f80a"
                 and e.get("BITRISE_BUILD_CACHE_BENCHMARK_PHASE_XCODE") == "established", "producer cache wrapper binding")
     else:
         require(not e.get("BITRISE_BUILD_CACHE_AUTH_TOKEN", "")
@@ -212,7 +212,7 @@ def validate_shared(environment, script_role):
     minimum_segment = e.get("WORKER_S10_4_MINIMUM_SEGMENT_ID", "none")
     if mode == "producer":
         require(e.get("CI_S10_4_SHARED_EXECUTION_LANE") == "s10-4-shared-build-producer", "producer lane")
-        require(e.get("CI_RUNNER_PROVIDER") == "bitrise" and e.get("CI_RUNNER_LABEL") == "bitrise-m4-pro", "producer provider")
+        require(e.get("CI_RUNNER_PROVIDER") == "bitrise" and e.get("CI_RUNNER_LABEL") == "bitrise-runner-Asset Roundddd", "producer provider")
         require(e.get("CI_RUN_UI_SMOKE") == "false" and e.get("CI_S10_4_EXECUTION_ROLE") == "independent", "producer role")
         require(shard["shardID"] == "s10.4.current.default-light" and segment == "none"
                 and minimum_segment == "none" and not e.get("CI_S10_4_SHARED_PAYLOAD_RUN_ID", ""), "producer tuple")

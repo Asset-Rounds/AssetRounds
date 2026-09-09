@@ -300,7 +300,7 @@ jobs:
       actions: read
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
-      runner_label: bitrise-m4-pro
+      runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
       s10_4_shard_id: ${{ inputs.execution_lane == 's10-4-shared-build-producer' && 's10.4.current.default-light' || inputs.s10_4_shard_id }}
@@ -350,7 +350,7 @@ jobs:
     if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
-      runner_label: bitrise-m4-pro
+      runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       # The fixed S10.4 selector requires UI=true. The producer role gates test execution.
       run_ui_smoke: true
@@ -367,7 +367,7 @@ jobs:
     if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
-      runner_label: bitrise-m4-pro
+      runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
       s10_4_shard_id: s10.4.current.default-light
@@ -383,7 +383,7 @@ jobs:
     if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
-      runner_label: bitrise-m4-pro
+      runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
       s10_4_shard_id: s10.4.current.default-dark
@@ -871,7 +871,7 @@ jobs:
     if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
-      runner_label: bitrise-m4-pro
+      runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
       s10_4_shard_id: s10.4.current.default-light
@@ -956,7 +956,7 @@ jobs:
     if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
-      runner_label: bitrise-m4-pro
+      runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
       s10_4_shard_id: s10.4.current.default-light
@@ -1169,7 +1169,7 @@ jobs:
           - segment-3
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
-      runner_label: bitrise-m4-pro
+      runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
       s10_4_shard_id: s10.4.current.ax-text
