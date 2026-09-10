@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "mixed-arabic-identifiers",
+      "source": "\u0645\u0648\u0642\u0639 AR-42 \u00b7 2026-09-10 \u00b7 12.5 m \u00b7 https://example.test/A-42 \u00b7 +1 212 555 0199",
+      "utf8SHA256": "7b81b763d5baf6623d1fb3205957b71eae9ec0a2eb1a21061cb4db144ba3fc0b",
+      "utf8ByteCount": 86,
+      "visibleControls": "\u0645\u0648\u0642\u0639 AR-42 \u00b7 2026-09-10 \u00b7 12.5 m \u00b7 https://example.test/A-42 \u00b7 +1 212 555 0199",
+      "naturalText": "\u2068\u0645\u0648\u0642\u0639 AR-42 \u00b7 2026-09-10 \u00b7 12.5 m \u00b7 https://example.test/A-42 \u00b7 +1 212 555 0199\u2069",
+      "opaqueToken": "\u2066\u0645\u0648\u0642\u0639 AR-42 \u00b7 2026-09-10 \u00b7 12.5 m \u00b7 https://example.test/A-42 \u00b7 +1 212 555 0199\u2069"
+    },
+    {
+      "id": "all-bidi-controls",
+      "source": "\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069",
+      "utf8SHA256": "514f01f4de96fdc880d550b80137c6e3bbd79bffebcd10de845302dbb7c281dc",
+      "utf8ByteCount": 35,
+      "visibleControls": "[U+061C][U+200E][U+200F][U+202A][U+202B][U+202C][U+202D][U+202E][U+2066][U+2067][U+2068][U+2069]",
+      "naturalText": "\u2068[U+061C][U+200E][U+200F][U+202A][U+202B][U+202C][U+202D][U+202E][U+2066][U+2067][U+2068][U+2069]\u2069",
+      "opaqueToken": "\u2066[U+061C][U+200E][U+200F][U+202A][U+202B][U+202C][U+202D][U+202E][U+2066][U+2067][U+2068][U+2069]\u2069"
+    },
+    {
+      "id": "c0-c1-controls",
+      "source": "A\u0000B\u0007C\u007fD\u0081E\tF",
+      "utf8SHA256": "86ecf6417eb604e8ea603088acd12674e24398bbba42a84edbf0fcd197ba5dd2",
+      "utf8ByteCount": 12,
+      "visibleControls": "A[U+0000]B[U+0007]C[U+007F]D[U+0081]E\tF",
+      "naturalText": "\u2068A[U+0000]B[U+0007]C[U+007F]D[U+0081]E\tF\u2069",
+      "opaqueToken": "\u2066A[U+0000]B[U+0007]C[U+007F]D[U+0081]E\tF\u2069"
+    },
+    {
+      "id": "paragraph-separators",
+      "source": "A\r\nB\u000bC\fD\u0085E\u2028F\u2029G",
+      "utf8SHA256": "dd676bb4f636dc995c93f37444617efe8a49c7f4255f6ebf6e2d3423ab4899f1",
+      "utf8ByteCount": 19,
+      "visibleControls": "A\r\nB\u000bC\fD\u0085E\u2028F\u2029G",
+      "naturalText": "\u2068A\u2069\r\n\u2068B\u2069\u000b\u2068C\u2069\f\u2068D\u2069\u0085\u2068E\u2069\u2028\u2068F\u2069\u2029\u2068G\u2069",
+      "opaqueToken": "\u2066A\u2069\r\n\u2066B\u2069\u000b\u2066C\u2069\f\u2066D\u2069\u0085\u2066E\u2069\u2028\u2066F\u2069\u2029\u2066G\u2069"
+    },
+    {
+      "id": "zwj-emoji",
+      "source": "\ud83d\udc69\u200d\ud83d\udd27",
+      "utf8SHA256": "2fe7275de2703ba989b604560d9b525c665d364126f0590f9d8c1ce8804ae008",
+      "utf8ByteCount": 11,
+      "visibleControls": "\ud83d\udc69\u200d\ud83d\udd27",
+      "naturalText": "\u2068\ud83d\udc69\u200d\ud83d\udd27\u2069",
+      "opaqueToken": "\u2066\ud83d\udc69[U+200D]\ud83d\udd27\u2069"
+    },
+    {
+      "id": "nfd-accent",
+      "source": "Cafe\u0301",
+      "utf8SHA256": "c42cc7a1ca08364b6fd859fa50d2454730a8236290a423373cc630da77c6d711",
+      "utf8ByteCount": 6,
+      "visibleControls": "Cafe\u0301",
+      "naturalText": "\u2068Cafe\u0301\u2069",
+      "opaqueToken": "\u2066Cafe\u0301\u2069"
+    }
+  ]
+}

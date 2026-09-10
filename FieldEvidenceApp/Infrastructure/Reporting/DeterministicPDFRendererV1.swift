@@ -5,7 +5,17 @@ extension DeterministicPDFRendererV1{
 }
 
 private enum C18LightingNightPDFPayloadV1 {
- static func data(projectionSHA256:String,lines:[String])throws->Data{let content=lines.map(asciiVisible).enumerated().map{index,line in let escaped=line.replacingOccurrences(of:"\\",with:"\\\\").replacingOccurrences(of:"(",with:"\\(").replacingOccurrences(of:")",with:"\\)");return index==0 ? "(\(escaped)) Tj\n" : "0 -14 Td\n(\(escaped)) Tj\n"}.joined();let stream="BT\n/F1 10 Tf\n42 750 Td\n"+content+"ET\n";let objects=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>","<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>","<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>","<< /Length \(stream.utf8.count) >>\nstream\n\(stream)endstream"];var document="%PDF-1.4\n%C18-DERIVED\n";var offsets=[0];for(index,object)in objects.enumerated(){offsets.append(document.utf8.count);document+="\(index+1) 0 obj\n\(object)\nendobj\n"};let xrefOffset=document.utf8.count;document+="xref\n0 \(objects.count+1)\n0000000000 65535 f \n";for offset in offsets.dropFirst(){let value=String(offset);document+=String(repeating:"0",count:max(0,10-value.count))+value+" 00000 n \n"};document+="trailer\n<< /Size \(objects.count+1) /Root 1 0 R /Info << /Title (C18 Lighting Night) /Subject (\(projectionSHA256)) >> >>\nstartxref\n\(xrefOffset)\n%%EOF\n";guard let data=document.data(using:.utf8)else{throw SnapshotProjectionFailureV1.invalidValue};return data}
+ static func data(projectionSHA256:String,lines:[String])throws->Data{
+    guard lines.allSatisfy(BidirectionalTextSafetyV1.isPrintableASCII) else {
+        return try DeterministicPDFUnicodeRasterV1.document(
+            prefix: Data("%PDF-1.4\n%C18-DERIVED\n%AR-PROJECTION-SHA256 \(projectionSHA256)\n".utf8),
+            pageWidth: 612,
+            pageHeight: 792,
+            preparedLines: lines.map(BidirectionalTextSafetyV1.naturalText)
+        )
+    }
+    let content=lines.map(asciiVisible).enumerated().map{index,line in let escaped=line.replacingOccurrences(of:"\\",with:"\\\\").replacingOccurrences(of:"(",with:"\\(").replacingOccurrences(of:")",with:"\\)");return index==0 ? "(\(escaped)) Tj\n" : "0 -14 Td\n(\(escaped)) Tj\n"}.joined();let stream="BT\n/F1 10 Tf\n42 750 Td\n"+content+"ET\n";let objects=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>","<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>","<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>","<< /Length \(stream.utf8.count) >>\nstream\n\(stream)endstream"];var document="%PDF-1.4\n%C18-DERIVED\n";var offsets=[0];for(index,object)in objects.enumerated(){offsets.append(document.utf8.count);document+="\(index+1) 0 obj\n\(object)\nendobj\n"};let xrefOffset=document.utf8.count;document+="xref\n0 \(objects.count+1)\n0000000000 65535 f \n";for offset in offsets.dropFirst(){let value=String(offset);document+=String(repeating:"0",count:max(0,10-value.count))+value+" 00000 n \n"};document+="trailer\n<< /Size \(objects.count+1) /Root 1 0 R /Info << /Title (C18 Lighting Night) /Subject (\(projectionSHA256)) >> >>\nstartxref\n\(xrefOffset)\n%%EOF\n";guard let data=document.data(using:.utf8)else{throw SnapshotProjectionFailureV1.invalidValue};return data
+ }
  private static func asciiVisible(_ value:String)->String{String(decoding:value.unicodeScalars.map{($0.value>=0x20 && $0.value<=0x7e) ? UInt8($0.value):UInt8(0x3f)},as:UTF8.self)}
 }
 import CryptoKit
@@ -15,8 +25,314 @@ import CoreGraphics
 import CoreImage
 #endif
 #if canImport(CoreText)
+import CoreGraphics
 import CoreText
 #endif
+
+/// The legacy deterministic PDF payload is deliberately ASCII-only.  When a
+/// display value needs Unicode shaping, this private writer keeps every PDF
+/// byte ASCII by emitting a deterministic grayscale image XObject.  The
+/// canonical semantic payload remains the existing Open JSON inventory; this
+/// only changes visible presentation for a non-ASCII report.
+private enum DeterministicPDFUnicodeRasterV1 {
+    private static let visibleWidth = 528
+    private static let visibleHeight = 15
+    private static let fontSize: CGFloat = 9
+
+    private struct RasterLine {
+        let pixels: [UInt8]
+        let width: Int
+        let height: Int
+    }
+
+    static func document(
+        prefix: Data,
+        pageWidth: Int,
+        pageHeight: Int,
+        preparedLines: [String],
+        maximumPageCount: Int = 64
+    ) throws -> Data {
+        #if canImport(CoreText)
+        let pageLineCount = max(1, (pageHeight - 88) / visibleHeight)
+        let maximumLineCount = pageLineCount * maximumPageCount
+        var rendered: [RasterLine] = []
+        for prepared in preparedLines {
+            rendered.append(contentsOf: try wrappedRasterLines(
+                prepared, remainingLineCount: maximumLineCount - rendered.count
+            ))
+        }
+        let lines = rendered.isEmpty ? [try rasterLine("")] : rendered
+        let pages = stride(from: 0, to: lines.count, by: pageLineCount).map {
+            Array(lines[$0..<min($0 + pageLineCount, lines.count)])
+        }
+        guard !pages.isEmpty, pages.count <= maximumPageCount else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+
+        var objects: [Data] = [
+            Data("<< /Type /Catalog /Pages 2 0 R >>".utf8),
+            Data()
+        ]
+        var pageIDs: [Int] = []
+        for page in pages {
+            var imageIDs: [Int] = []
+            for line in page {
+                imageIDs.append(objects.count + 1)
+                objects.append(imageObject(line))
+            }
+            let streamID = objects.count + 1
+            let pageID = streamID + 1
+            let commands = page.indices.map { index in
+                let y = pageHeight - 44 - index * visibleHeight
+                return "q \(visibleWidth) 0 0 \(visibleHeight) 42 \(y) cm /Im\(index) Do Q"
+            }.joined(separator: "\n")
+            let stream = Data(commands.utf8)
+            objects.append(Data("<< /Length \(stream.count) >>\nstream\n".utf8) + stream + Data("\nendstream".utf8))
+            let xObjects = imageIDs.enumerated().map { "/Im\($0.offset) \($0.element) 0 R" }.joined(separator: " ")
+            objects.append(Data("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 \(pageWidth) \(pageHeight)] /Resources << /XObject << \(xObjects) >> >> /Contents \(streamID) 0 R >>".utf8))
+            pageIDs.append(pageID)
+        }
+        objects[1] = Data("<< /Type /Pages /Count \(pageIDs.count) /Kids [\(pageIDs.map { "\($0) 0 R" }.joined(separator: " "))] >>".utf8)
+
+        var pdf = prefix
+        var offsets = Array(repeating: 0, count: objects.count + 1)
+        for (index, object) in objects.enumerated() {
+            let objectID = index + 1
+            offsets[objectID] = pdf.count
+            pdf.append(Data("\(objectID) 0 obj\n".utf8))
+            pdf.append(object)
+            pdf.append(Data("\nendobj\n".utf8))
+        }
+        let xrefOffset = pdf.count
+        pdf.append(Data("xref\n0 \(objects.count + 1)\n0000000000 65535 f \n".utf8))
+        for offset in offsets.dropFirst() {
+            pdf.append(Data(String(format: "%010d 00000 n \n", offset).utf8))
+        }
+        pdf.append(Data("trailer\n<< /Size \(objects.count + 1) /Root 1 0 R >>\nstartxref\n\(xrefOffset)\n%%EOF\n".utf8))
+        guard pdf.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes,
+              String(data: pdf, encoding: .ascii) != nil else {
+            throw SnapshotProjectionFailureV1.limitExceeded
+        }
+        return pdf
+        #else
+        throw SnapshotProjectionFailureV1.invalidValue
+        #endif
+    }
+
+    #if canImport(CoreText)
+    private static func wrappedRasterLines(_ prepared: String, remainingLineCount: Int) throws -> [RasterLine] {
+        let paragraphs = prepared.split(
+            omittingEmptySubsequences: false,
+            whereSeparator: { $0.isNewline }
+        )
+        var result: [RasterLine] = []
+        func appendLine(_ value: String) throws {
+            guard result.count < remainingLineCount else {
+                throw SnapshotProjectionFailureV1.limitExceeded
+            }
+            result.append(try rasterLine(value))
+        }
+        for paragraph in paragraphs {
+            let value = String(paragraph)
+            if value.isEmpty {
+                try appendLine("")
+                continue
+            }
+            var line = ""
+            var isolations: [UInt32] = []
+            for character in value {
+                let candidate = line + String(character)
+                if try lineFits(candidate) {
+                    line = candidate
+                    try applyIsolations(in: character, to: &isolations)
+                    continue
+                }
+                guard !line.isEmpty else {
+                    throw SnapshotProjectionFailureV1.invalidValue
+                }
+                let closers = String(repeating: "\u{2069}", count: isolations.count)
+                guard try lineFits(line + closers) else {
+                    throw SnapshotProjectionFailureV1.invalidValue
+                }
+                try appendLine(line + closers)
+                let continuation = isolations.compactMap { Unicode.Scalar($0) }.map(String.init).joined()
+                line = continuation + String(character)
+                try applyIsolations(in: character, to: &isolations)
+                guard try lineFits(line) else {
+                    throw SnapshotProjectionFailureV1.invalidValue
+                }
+            }
+            guard !line.isEmpty, isolations.isEmpty else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+            try appendLine(line)
+        }
+        return result
+    }
+
+    private static func lineFits(_ value: String) throws -> Bool {
+        let line = try coreTextLine(value)
+        return CTLineGetTypographicBounds(line, nil, nil, nil) <= Double(visibleWidth - 4)
+    }
+
+    private static func applyIsolations(
+        in character: Character,
+        to active: inout [UInt32]
+    ) throws {
+        for scalar in character.unicodeScalars {
+            switch scalar.value {
+            case 0x2066, 0x2067, 0x2068:
+                active.append(scalar.value)
+            case 0x2069:
+                guard !active.isEmpty else { throw SnapshotProjectionFailureV1.invalidValue }
+                active.removeLast()
+            default:
+                break
+            }
+        }
+    }
+
+    private static func rasterLine(_ value: String) throws -> RasterLine {
+        var pixels = [UInt8](repeating: 255, count: visibleWidth * visibleHeight)
+        guard let context = CGContext(
+            data: &pixels,
+            width: visibleWidth,
+            height: visibleHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: visibleWidth,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: 0
+        ) else { throw SnapshotProjectionFailureV1.invalidValue }
+        context.setShouldAntialias(false)
+        context.setAllowsAntialiasing(false)
+        context.setShouldSmoothFonts(false)
+        context.setAllowsFontSmoothing(false)
+        context.setShouldSubpixelPositionFonts(false)
+        context.setAllowsFontSubpixelPositioning(false)
+        let line = try coreTextLine(value)
+        var ascent: CGFloat = 0
+        var descent: CGFloat = 0
+        _ = CTLineGetTypographicBounds(line, &ascent, &descent, nil)
+        guard ascent + descent <= CGFloat(visibleHeight - 3) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        context.textMatrix = .identity
+        context.setFillColor(gray: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: visibleWidth, height: visibleHeight))
+        context.setFillColor(gray: 0, alpha: 1)
+        context.textPosition = CGPoint(x: 2, y: descent + 3)
+        CTLineDraw(line, context)
+        return RasterLine(pixels: pixels, width: visibleWidth, height: visibleHeight)
+    }
+
+    private static func coreTextLine(_ value: String) throws -> CTLine {
+        let base = CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
+        let range = CFRange(location: 0, length: (value as NSString).length)
+        let selected = CTFontCreateForString(base, value as CFString, range)
+        var direction = CTWritingDirection.natural
+        let settings = [
+            CTParagraphStyleSetting(
+                spec: .baseWritingDirection,
+                valueSize: MemoryLayout<CTWritingDirection>.size,
+                value: &direction
+            )
+        ]
+        let paragraph = CTParagraphStyleCreate(settings, settings.count)
+        let attributed = NSAttributedString(string: value, attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): selected,
+            NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraph,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(gray: 0, alpha: 1),
+        ])
+        let line = CTLineCreateWithAttributedString(attributed)
+        if value.isEmpty { return line }
+        guard try hasShapedGlyphCoverage(line, source: value) else {
+            throw SnapshotProjectionFailureV1.invalidValue
+        }
+        return line
+    }
+
+    /// Inspect the glyph runs that CoreText actually shaped. A run made only
+    /// of FSI/PDI, joiners, or variation selectors may have zero glyphs; a
+    /// zero glyph associated with a visible scalar is rejected.
+    private static func hasShapedGlyphCoverage(_ line: CTLine, source: String) throws -> Bool {
+        guard let runs = CTLineGetGlyphRuns(line) as? [CTRun], !runs.isEmpty else {
+            return source.unicodeScalars.allSatisfy(defaultIgnorable)
+        }
+        let bridge = source as NSString
+        for run in runs {
+            let attributes = CTRunGetAttributes(run) as NSDictionary
+            if let font = attributes[kCTFontAttributeName] as? CTFont,
+               (CTFontCopyPostScriptName(font) as String).lowercased().contains("lastresort") {
+                return false
+            }
+            let range = CTRunGetStringRange(run)
+            guard range.location != kCFNotFound, range.length >= 0 else { return false }
+            let sourceRange = NSRange(location: range.location, length: range.length)
+            guard NSMaxRange(sourceRange) <= bridge.length else { return false }
+            let visible = bridge.substring(with: sourceRange).unicodeScalars.contains {
+                !defaultIgnorable($0)
+            }
+            let count = CTRunGetGlyphCount(run)
+            if visible, count == 0 { return false }
+            guard count == 0 || visible else { continue }
+            var glyphs = [CGGlyph](repeating: 0, count: count)
+            CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
+            var indices = [CFIndex](repeating: kCFNotFound, count: count)
+            CTRunGetStringIndices(run, CFRange(location: 0, length: 0), &indices)
+            for (glyph, index) in zip(glyphs, indices) where glyph == 0 {
+                guard index != kCFNotFound, index >= 0, index < bridge.length else { return false }
+                // Joiners may share their composed character with emoji.
+                // Check the scalar actually associated with this glyph.
+                guard let scalar = bridge.substring(from: index).unicodeScalars.first,
+                      defaultIgnorable(scalar) || CharacterSet.whitespaces.contains(scalar) else {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private static func defaultIgnorable(_ scalar: Unicode.Scalar) -> Bool {
+        let value = scalar.value
+        return scalar.properties.generalCategory == .format
+            || (0xFE00...0xFE0F).contains(value)
+            || (0xE0100...0xE01EF).contains(value)
+    }
+
+    private static func imageObject(_ line: RasterLine) -> Data {
+        let encoded = runLength(line.pixels)
+        let hex = encoded.map { String(format: "%02X", $0) }.joined() + ">"
+        return Data("<< /Type /XObject /Subtype /Image /Width \(line.width) /Height \(line.height) /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter [/ASCIIHexDecode /RunLengthDecode] /Length \(hex.utf8.count) >>\nstream\n\(hex)\nendstream".utf8)
+    }
+
+    private static func runLength(_ source: [UInt8]) -> [UInt8] {
+        var result: [UInt8] = []
+        var index = 0
+        while index < source.count {
+            var repeated = 1
+            while index + repeated < source.count, repeated < 128, source[index + repeated] == source[index] { repeated += 1 }
+            if repeated >= 2 {
+                result.append(UInt8(257 - repeated))
+                result.append(source[index])
+                index += repeated
+                continue
+            }
+            let start = index
+            index += 1
+            while index < source.count, index - start < 128 {
+                var nextRun = 1
+                while index + nextRun < source.count, nextRun < 128, source[index + nextRun] == source[index] { nextRun += 1 }
+                if nextRun >= 2 { break }
+                index += 1
+            }
+            result.append(UInt8(index - start - 1))
+            result.append(contentsOf: source[start..<index])
+        }
+        result.append(128)
+        return result
+    }
+    #endif
+}
 
 enum GuidedSurveyDeterministicPDFBoundaryV1 {
     static func validate(_ projection: SurveyPublicationReportProjectionV1) throws {
@@ -211,6 +527,30 @@ enum DeterministicPDFRendererV1 {
             "[\($0.semanticID)|\($0.sectionID)|\($0.role)] \($0.label): \($0.value)" +
             ($0.outputReferenceID.map { " [\($0)]" } ?? "")
         }
+        if !sourceLines.allSatisfy(BidirectionalTextSafetyV1.isPrintableASCII) {
+            let displayLines = try DeterministicOpenJSONRendererV1
+                .bidiSafeDisplayLines(validated)
+            let headers = sourceLines.prefix(7).map(BidirectionalTextSafetyV1.naturalText)
+            var prefix = Data("%PDF-1.4\n%AssetRounds-V23\n".utf8)
+            appendSemanticInventory(semanticData, to: &prefix)
+            let pdf = try DeterministicPDFUnicodeRasterV1.document(
+                prefix: prefix,
+                pageWidth: pageWidth,
+                pageHeight: pageHeight,
+                preparedLines: headers + displayLines
+            )
+            guard try reopen(pdf) == validated else {
+                throw SnapshotProjectionFailureV1.projectionDisagreement
+            }
+            return ReportProjectionOutputV1(
+                format: .pdf,
+                data: pdf,
+                sha256: KernelCanonicalHashV1.sha256(pdf),
+                semanticSHA256: projection.semanticSHA256,
+                orderedSemanticIDs: projection.nodes.map(\.semanticID),
+                taggedPDFAccessibilityEvidence: false
+            )
+        }
         let lines = sourceLines.flatMap { wrap(asciiVisible($0), columns: maximumVisibleColumns) }
         let pages = stride(from: 0, to: lines.count, by: pageLineCount).map {
             Array(lines[$0..<min($0 + pageLineCount, lines.count)])
@@ -375,7 +715,7 @@ extension DeterministicPDFRendererV1 {
         try projection.validateIntrinsic()
         let semanticData = try DeterministicOpenJSONRendererV1
             .renderReviewedEvidence(projection).data
-        let lines = ([
+        let sourceLines = [
             "AssetRounds reviewed evidence",
             "Snapshot SHA-256: \(projection.snapshotSHA256)",
             "Sequence: \(projection.sequenceFrontier.sequenceID.uuidString.lowercased()) revision \(projection.sequenceFrontier.revision)",
@@ -383,7 +723,31 @@ extension DeterministicPDFRendererV1 {
         ] + projection.orderedItems.map {
             "[\($0.item.ordinal)] \($0.item.role.rawValue): \($0.item.caption.text)"
                 + ($0.item.accessibilityDescription.map { " | Accessibility: \($0.text)" } ?? "")
-        }).flatMap { wrap(asciiVisible($0), columns: 88) }
+        }
+        if !sourceLines.allSatisfy(BidirectionalTextSafetyV1.isPrintableASCII) {
+            var prefix = Data("%PDF-1.4\n%AssetRounds-V23\n".utf8)
+            appendSemanticInventory(semanticData, to: &prefix)
+            let pdf = try DeterministicPDFUnicodeRasterV1.document(
+                prefix: prefix,
+                pageWidth: 612,
+                pageHeight: 792,
+                preparedLines: sourceLines.map(BidirectionalTextSafetyV1.naturalText)
+            )
+            guard try reopenReviewedEvidence(pdf).projection == projection else {
+                throw SnapshotProjectionFailureV1.projectionDisagreement
+            }
+            return ReportProjectionOutputV1(
+                format: .pdf,
+                data: pdf,
+                sha256: KernelCanonicalHashV1.sha256(pdf),
+                semanticSHA256: projection.semanticSHA256,
+                orderedSemanticIDs: projection.orderedItems.map {
+                    "evidence.reviewed.\($0.item.evidenceID)"
+                },
+                taggedPDFAccessibilityEvidence: false
+            )
+        }
+        let lines = sourceLines.flatMap { wrap(asciiVisible($0), columns: 88) }
         let pages = stride(from: 0, to: lines.count, by: 48).map {
             Array(lines[$0..<min($0 + 48, lines.count)])
         }
@@ -1817,6 +2181,14 @@ extension DeterministicPDFRendererV1 {
 
 private enum C49WorkResourcePDFPayloadV1 {
     static func data(projectionSHA256: String, lines: [String]) throws -> Data {
+        guard lines.allSatisfy(BidirectionalTextSafetyV1.isPrintableASCII) else {
+            return try DeterministicPDFUnicodeRasterV1.document(
+                prefix: Data("%PDF-1.4\n%C49-WORK-RESOURCE\n%AR-PROJECTION-SHA256 \(projectionSHA256)\n".utf8),
+                pageWidth: 612,
+                pageHeight: 792,
+                preparedLines: lines.map(BidirectionalTextSafetyV1.naturalText)
+            )
+        }
         let safeLines = lines.map(asciiVisible)
         let content = (safeLines.isEmpty ? ["C49 work-resource report"] : safeLines)
             .enumerated()

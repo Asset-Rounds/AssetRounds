@@ -134,6 +134,9 @@ private extension WorklightPDFRendererV1 {
     }
 
     struct TextFragment {
+        /// Logical report text is retained for inspection. `text` is only the
+        /// grapheme-safe visual line segmentation used by CoreText.
+        let sourceText: String
         let text: String
         let style: Style
         let lineCount: Int
@@ -184,7 +187,7 @@ private extension WorklightPDFRendererV1 {
                     kind: .text,
                     role: block.role,
                     rect: rect,
-                    text: value.text,
+                    text: value.sourceText,
                     fontName: value.style.fontName,
                     fontSize: value.style.fontSize,
                     lineHeight: value.style.lineHeight,
@@ -203,7 +206,7 @@ private extension WorklightPDFRendererV1 {
                             width: rect.width,
                             height: text.height
                         ),
-                        text: text.text,
+                        text: text.sourceText,
                         fontName: text.style.fontName,
                         fontSize: text.style.fontSize,
                         lineHeight: text.style.lineHeight,
@@ -247,20 +250,20 @@ private extension WorklightPDFRendererV1 {
     func makeBlocks(_ validated: ValidatedReportSnapshotV1) throws -> [Block] {
         let snapshot = validated.snapshot
         var blocks: [Block] = []
-        func text(_ value: String, style: Style, role: String, before: CGFloat = 0, after: CGFloat = 6, keep: Int = 0) {
-            let fragment = makeText(value, style: style, width: Self.contentRect.width)
+        func text(_ value: String, style: Style, role: String, before: CGFloat = 0, after: CGFloat = 6, keep: Int = 0) throws {
+            let fragment = try makeText(value, style: style, width: Self.contentRect.width)
             blocks.append(Block(role: role, content: .text(fragment), spacingBefore: before, spacingAfter: after, keepWithFollowingBodyLines: keep))
         }
-        func section(_ value: String, role: String) { text(value, style: .section, role: role, before: 12, after: 6, keep: 2) }
+        func section(_ value: String, role: String) throws { try text(value, style: .section, role: role, before: 12, after: 6, keep: 2) }
 
-        text("\(posixTitle(snapshot.display.checkSingular)) report", style: .title, role: "title", after: 18)
+        try text("\(posixTitle(snapshot.display.checkSingular)) report", style: .title, role: "title", after: 18)
         if let practice = snapshot.practiceWorkspace, practice.kind == .practice {
             guard practice.watermark == PracticeWorkspaceReportProjectionV1.mandatoryWatermark else {
                 throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
             }
-            text(practice.watermark!, style: .section, role: "practice.watermark", after: 12)
+            try text(practice.watermark!, style: .section, role: "practice.watermark", after: 12)
         }
-        section("Identity and time", role: "identity.heading")
+        try section("Identity and time", role: "identity.heading")
         let address = snapshot.site.address.map { "\nAddress: \($0)" } ?? ""
         var identity = "Site: \(snapshot.site.label)\(address)\n\(posixTitle(snapshot.display.assetSingular)): \(snapshot.asset.label)"
         if snapshot.snapshotSchemaVersion == 1 {
@@ -271,12 +274,12 @@ private extension WorklightPDFRendererV1 {
         } else {
             throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
         }
-        text(identity, style: .body, role: "identity.body")
+        try text(identity, style: .body, role: "identity.body")
 
         let current = snapshot.evidence.filter { $0.recordID == snapshot.evidenceSourceRecordID }
         for purpose in validated.currentEvidencePurposes {
             let role = "current.\(purpose.key)"
-            section(purpose.display, role: role + ".heading")
+            try section(purpose.display, role: role + ".heading")
             if let evidence = current.first(where: { $0.purposeKey == purpose.key }),
                let bytes = validated.originalJPEG(for: evidence.evidenceID) {
                 let image = try decode(bytes)
@@ -289,27 +292,27 @@ private extension WorklightPDFRendererV1 {
                 )
                 blocks.append(Block(role: role, content: .currentImage(fragment), spacingBefore: 0, spacingAfter: 6, keepWithFollowingBodyLines: 0))
             } else if snapshot.couldNotVerify != nil {
-                text("Not captured — Could not verify", style: .body, role: role + ".missing")
+                try text("Not captured — Could not verify", style: .body, role: role + ".missing")
             } else {
                 throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
             }
         }
 
-        section("Result", role: "result.heading")
+        try section("Result", role: "result.heading")
         var result = "Stage: \(snapshot.display.stage)\nOutcome: \(snapshot.display.outcome)"
         if let reason = snapshot.couldNotVerify { result += "\nCould not verify: \(reason.display)" }
         if let note = snapshot.note { result += "\nNote: \(note)" }
-        text(result, style: .body, role: "result.body")
+        try text(result, style: .body, role: "result.body")
 
         if !snapshot.issues.isEmpty {
-            section(posixTitle(snapshot.display.issueSingular) + (snapshot.issues.count == 1 ? "" : "s"), role: "issues.heading")
+            try section(posixTitle(snapshot.display.issueSingular) + (snapshot.issues.count == 1 ? "" : "s"), role: "issues.heading")
             for issue in snapshot.issues {
-                text("\(issue.display) — \(statusDisplay(issue.status))", style: .body, role: "issue.\(issue.issueID.uuidString.lowercased())")
+                try text("\(issue.display) — \(statusDisplay(issue.status))", style: .body, role: "issue.\(issue.issueID.uuidString.lowercased())")
             }
         }
 
         if !snapshot.history.isEmpty {
-            section("History", role: "history.heading")
+            try section("History", role: "history.heading")
             let evidenceByID = Dictionary(uniqueKeysWithValues: snapshot.evidence.map { ($0.evidenceID, $0) })
             for entry in snapshot.history {
                 let images: [ImageFragment] = try entry.evidenceIDs.prefix(3).map { id in
@@ -344,7 +347,7 @@ private extension WorklightPDFRendererV1 {
                 }
                 if let work = entry.workDescription { summary += "\n\(work)" }
                 if let note = entry.note { summary += "\nNote: \(note)" }
-                let summaryFragment = makeText(summary, style: .caption, width: 528)
+                let summaryFragment = try makeText(summary, style: .caption, width: 528)
                 blocks.append(Block(role: "history.\(entry.recordID.uuidString.lowercased())", content: .historyRow(images, summaryFragment), spacingBefore: 0, spacingAfter: 6, keepWithFollowingBodyLines: 0))
             }
         }
@@ -355,11 +358,11 @@ private extension WorklightPDFRendererV1 {
             } catch {
                 throw WorklightPDFRendererErrorV1.invalidValidatedSnapshot
             }
-            section("Completion assurance", role: "assurance.heading")
+            try section("Completion assurance", role: "assurance.heading")
             let decision = "Decision: \(assurance.decision.disposition.rawValue)"
                 + "\nEvaluation revision: \(assurance.evaluatedRevision)"
                 + "\nPolicy set: \(assurance.policySetSHA256)"
-            text(decision, style: .body, role: "assurance.decision")
+            try text(decision, style: .body, role: "assurance.decision")
 
             for explanation in validated.requirementExplanations {
                 var value = "Requirement \(explanation.requirementID): "
@@ -374,7 +377,7 @@ private extension WorklightPDFRendererV1 {
                     value += "\nEvidence references: "
                         + explanation.referenceIDs.joined(separator: ", ")
                 }
-                text(
+                try text(
                     value,
                     style: .body,
                     role: "assurance.requirement.\(explanation.requirementID)"
@@ -393,7 +396,7 @@ private extension WorklightPDFRendererV1 {
                     }
                     return value
                 }.joined(separator: "\n")
-                text(
+                try text(
                     "Integrity findings:\n" + findings,
                     style: .body,
                     role: "assurance.findings"
@@ -401,8 +404,8 @@ private extension WorklightPDFRendererV1 {
             }
         }
 
-        section("About this report", role: "disclaimer.heading")
-        text(snapshot.disclaimer, style: .body, role: "disclaimer.body", after: 0)
+        try section("About this report", role: "disclaimer.heading")
+        try text(snapshot.disclaimer, style: .body, role: "disclaimer.body", after: 0)
         return blocks
     }
 
@@ -485,14 +488,14 @@ private extension WorklightPDFRendererV1 {
                    value.lineCount >= 4,
                    value.style != .title,
                    value.style != .section {
-                    let lines = wrappedLines(value.text, style: value.style, width: Self.contentRect.width)
+                    let lines = try wrappedLines(value.text, style: value.style, width: Self.contentRect.width)
                     let firstCount = min(lines.count - 2, max(2, Int(floor(available / value.style.lineHeight))))
                     guard firstCount >= 2, lines.count - firstCount >= 2 else { throw WorklightPDFRendererErrorV1.paginationFailed }
                     let split = [lines.prefix(firstCount).joined(separator: "\n"), lines.dropFirst(firstCount).joined(separator: "\n")]
                     var expanded = blocks
                     expanded.remove(at: index)
-                    let replacements = split.map { piece in
-                        Block(role: block.role, content: .text(makeText(piece, style: value.style, width: Self.contentRect.width)), spacingBefore: block.spacingBefore, spacingAfter: block.spacingAfter, keepWithFollowingBodyLines: 0)
+                    let replacements = try split.map { piece in
+                        Block(role: block.role, content: .text(try makeText(piece, style: value.style, width: Self.contentRect.width)), spacingBefore: block.spacingBefore, spacingAfter: block.spacingAfter, keepWithFollowingBodyLines: 0)
                     }
                     expanded.insert(contentsOf: replacements, at: index)
                     return try paginate(expanded)
@@ -526,7 +529,7 @@ private extension WorklightPDFRendererV1 {
             context.beginPDFPage(nil)
             context.setFillColor(Self.white)
             context.fill(Self.pageRect)
-            for placed in page { draw(placed, in: context) }
+            for placed in page { try draw(placed, in: context) }
             try drawFooter(snapshot: snapshot, digest: digest, page: pageIndex + 1, count: pages.count, in: context)
             context.endPDFPage()
         }
@@ -535,13 +538,13 @@ private extension WorklightPDFRendererV1 {
         return output as Data
     }
 
-    func draw(_ placed: PlacedBlock, in context: CGContext) {
+    func draw(_ placed: PlacedBlock, in context: CGContext) throws {
         switch placed.block.content {
-        case .text(let value): drawText(value.text, style: value.style, rect: placed.rect, in: context)
-        case .currentImage(let value): drawImage(value, x: placed.rect.minX, top: placed.rect.maxY, in: context)
+        case .text(let value): try drawText(value.text, style: value.style, rect: placed.rect, in: context)
+        case .currentImage(let value): try drawImage(value, x: placed.rect.minX, top: placed.rect.maxY, in: context)
         case .historyRow(let values, let summary):
-            for (index, value) in values.enumerated() { drawImage(value, x: placed.rect.minX + CGFloat(index) * 172, top: placed.rect.maxY, in: context) }
-            drawText(
+            for (index, value) in values.enumerated() { try drawImage(value, x: placed.rect.minX + CGFloat(index) * 172, top: placed.rect.maxY, in: context) }
+            try drawText(
                 summary.text,
                 style: summary.style,
                 rect: CGRect(
@@ -555,10 +558,10 @@ private extension WorklightPDFRendererV1 {
         }
     }
 
-    func drawImage(_ value: ImageFragment, x: CGFloat, top: CGFloat, in context: CGContext) {
+    func drawImage(_ value: ImageFragment, x: CGFloat, top: CGFloat, in context: CGContext) throws {
         let rect = CGRect(x: x, y: top - value.box.height, width: value.box.width, height: value.box.height)
         context.draw(value.image, in: rect)
-        drawText(value.caption, style: .caption, rect: CGRect(x: x, y: rect.minY - 15, width: value.box.width, height: 11), in: context)
+        try drawText(value.caption, style: .caption, rect: CGRect(x: x, y: rect.minY - 15, width: value.box.width, height: 11), in: context)
     }
 
     func drawFooter(snapshot: ReportSnapshotV1, digest: String, page: Int, count: Int, in context: CGContext) throws {
@@ -570,17 +573,23 @@ private extension WorklightPDFRendererV1 {
               singleLineWidth(pageLabel, fontName: "Courier", size: 7) <= 60 else {
             throw WorklightPDFRendererErrorV1.paginationFailed
         }
-        drawText(first, fontName: "Courier", fontSize: 7, lineHeight: 9, color: Self.black, rect: CGRect(x: 42, y: 51, width: 468, height: 9), alignment: .left, in: context)
-        drawText(second, fontName: "Courier", fontSize: 7, lineHeight: 9, color: Self.black, rect: CGRect(x: 42, y: 42, width: 468, height: 9), alignment: .left, in: context)
-        drawText(pageLabel, fontName: "Courier", fontSize: 7, lineHeight: 9, color: Self.black, rect: CGRect(x: 510, y: 42, width: 60, height: 18), alignment: .right, in: context)
+        try drawText(first, fontName: "Courier", fontSize: 7, lineHeight: 9, color: Self.black, rect: CGRect(x: 42, y: 51, width: 468, height: 9), alignment: .left, in: context)
+        try drawText(second, fontName: "Courier", fontSize: 7, lineHeight: 9, color: Self.black, rect: CGRect(x: 42, y: 42, width: 468, height: 9), alignment: .left, in: context)
+        try drawText(pageLabel, fontName: "Courier", fontSize: 7, lineHeight: 9, color: Self.black, rect: CGRect(x: 510, y: 42, width: 60, height: 18), alignment: .right, in: context)
     }
 
-    func drawText(_ text: String, style: Style, rect: CGRect, in context: CGContext) {
-        drawText(text, fontName: style.fontName, fontSize: style.fontSize, lineHeight: style.lineHeight, color: style.color, rect: rect, alignment: .left, in: context)
+    func drawText(_ text: String, style: Style, rect: CGRect, in context: CGContext) throws {
+        try drawText(text, fontName: style.fontName, fontSize: style.fontSize, lineHeight: style.lineHeight, color: style.color, rect: rect, alignment: .left, in: context)
     }
 
     func singleLineWidth(_ text: String, fontName: String, size: CGFloat) -> CGFloat {
         let font = CTFontCreateWithName(fontName as CFString, size, nil)
+        if !usesLegacyASCII(text) {
+            let attributed = attributedText(text, font: font)
+            let line = CTLineCreateWithAttributedString(attributed)
+            return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+        }
+        // Preserve the historic ASCII footer byte path exactly.
         let attributed = NSAttributedString(
             string: text,
             attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]
@@ -589,7 +598,41 @@ private extension WorklightPDFRendererV1 {
         return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
     }
 
-    func drawText(_ text: String, fontName: String, fontSize: CGFloat, lineHeight: CGFloat, color: CGColor, rect: CGRect, alignment: CTTextAlignment, in context: CGContext) {
+    func drawText(_ text: String, fontName: String, fontSize: CGFloat, lineHeight: CGFloat, color: CGColor, rect: CGRect, alignment: CTTextAlignment, in context: CGContext) throws {
+        if usesLegacyASCII(text) {
+            drawLegacyText(text, fontName: fontName, fontSize: fontSize, lineHeight: lineHeight, color: color, rect: rect, alignment: alignment, in: context)
+            return
+        }
+        let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
+        var minimum = lineHeight
+        var maximum = lineHeight
+        var alignment = alignment
+        var direction = CTWritingDirection.natural
+        let settings: [CTParagraphStyleSetting] = [
+            CTParagraphStyleSetting(spec: .minimumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: &minimum),
+            CTParagraphStyleSetting(spec: .maximumLineHeight, valueSize: MemoryLayout<CGFloat>.size, value: &maximum),
+            CTParagraphStyleSetting(spec: .alignment, valueSize: MemoryLayout<CTTextAlignment>.size, value: &alignment),
+            CTParagraphStyleSetting(spec: .baseWritingDirection, valueSize: MemoryLayout<CTWritingDirection>.size, value: &direction),
+        ]
+        let paragraph = CTParagraphStyleCreate(settings, settings.count)
+        let display = displayText(text)
+        let selected = CTFontCreateForString(font, display as CFString, CFRange(location: 0, length: (display as NSString).length))
+        let attributed = NSAttributedString(string: display, attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): selected,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
+            NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraph,
+        ])
+        let framesetter = CTFramesetterCreateWithAttributedString(attributed)
+        let path = CGPath(rect: rect, transform: nil)
+        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: attributed.length), path, nil)
+        try validateUnicodeFrame(frame, attributed: attributed)
+        context.saveGState()
+        context.textMatrix = .identity
+        CTFrameDraw(frame, context)
+        context.restoreGState()
+    }
+
+    private func drawLegacyText(_ text: String, fontName: String, fontSize: CGFloat, lineHeight: CGFloat, color: CGColor, rect: CGRect, alignment: CTTextAlignment, in context: CGContext) {
         let font = CTFontCreateWithName(fontName as CFString, fontSize, nil)
         var minimum = lineHeight
         var maximum = lineHeight
@@ -600,43 +643,165 @@ private extension WorklightPDFRendererV1 {
             CTParagraphStyleSetting(spec: .alignment, valueSize: MemoryLayout<CTTextAlignment>.size, value: &alignment),
         ]
         let paragraph = CTParagraphStyleCreate(settings, settings.count)
-        let attributed = NSAttributedString(string: text, attributes: [
+        let legacy = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
             NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraph,
         ])
-        let framesetter = CTFramesetterCreateWithAttributedString(attributed)
+        let framesetter = CTFramesetterCreateWithAttributedString(legacy)
         let path = CGPath(rect: rect, transform: nil)
-        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: attributed.length), path, nil)
+        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: legacy.length), path, nil)
         context.saveGState()
         context.textMatrix = .identity
         CTFrameDraw(frame, context)
         context.restoreGState()
     }
 
-    func makeText(_ text: String, style: Style, width: CGFloat) -> TextFragment {
-        let lines = wrappedLines(text, style: style, width: width)
-        return TextFragment(text: lines.joined(separator: "\n"), style: style, lineCount: lines.count, height: CGFloat(lines.count) * style.lineHeight)
+    func makeText(_ text: String, style: Style, width: CGFloat) throws -> TextFragment {
+        let lines = try wrappedLines(text, style: style, width: width)
+        let visualText = lines.joined(separator: "\n")
+        return TextFragment(sourceText: usesLegacyASCII(text) ? visualText : text, text: visualText, style: style, lineCount: lines.count, height: CGFloat(lines.count) * style.lineHeight)
     }
 
-    func wrappedLines(_ text: String, style: Style, width: CGFloat) -> [String] {
+    func wrappedLines(_ text: String, style: Style, width: CGFloat) throws -> [String] {
         let font = CTFontCreateWithName(style.fontName as CFString, style.fontSize, nil)
-        return text.split(separator: "\n", omittingEmptySubsequences: false).flatMap { paragraph -> [String] in
+        guard !usesLegacyASCII(text) else {
+            return text.split(separator: "\n", omittingEmptySubsequences: false).flatMap { paragraph -> [String] in
+                let value = String(paragraph)
+                if value.isEmpty { return [""] }
+                let attributed = NSAttributedString(string: value, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
+                let typesetter = CTTypesetterCreateWithAttributedString(attributed)
+                var position = 0
+                var result: [String] = []
+                while position < attributed.length {
+                    var count = CTTypesetterSuggestLineBreak(typesetter, position, Double(width))
+                    if count <= 0 { count = 1 }
+                    let range = NSRange(location: position, length: count)
+                    result.append((value as NSString).substring(with: range).trimmingCharacters(in: .whitespaces))
+                    position += count
+                }
+                return result
+            }
+        }
+        return try text.split(omittingEmptySubsequences: false, whereSeparator: { $0.isNewline }).flatMap { paragraph -> [String] in
             let value = String(paragraph)
             if value.isEmpty { return [""] }
-            let attributed = NSAttributedString(string: value, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
-            let typesetter = CTTypesetterCreateWithAttributedString(attributed)
-            var position = 0
+            var line = ""
             var result: [String] = []
-            while position < attributed.length {
-                var count = CTTypesetterSuggestLineBreak(typesetter, position, Double(width))
-                if count <= 0 { count = 1 }
-                let range = NSRange(location: position, length: count)
-                result.append((value as NSString).substring(with: range).trimmingCharacters(in: .whitespaces))
-                position += count
+            for character in value {
+                let candidate = line + String(character)
+                let candidateLine = CTLineCreateWithAttributedString(attributedText(candidate, font: font))
+                if CTLineGetTypographicBounds(candidateLine, nil, nil, nil) <= Double(width) {
+                    line = candidate
+                    continue
+                }
+                guard !line.isEmpty else { throw WorklightPDFRendererErrorV1.paginationFailed }
+                result.append(line)
+                line = String(character)
+                let single = CTLineCreateWithAttributedString(attributedText(line, font: font))
+                guard CTLineGetTypographicBounds(single, nil, nil, nil) <= Double(width) else { throw WorklightPDFRendererErrorV1.paginationFailed }
             }
+            guard !line.isEmpty else { throw WorklightPDFRendererErrorV1.paginationFailed }
+            result.append(line)
             return result
         }
+    }
+
+    /// The existing ASCII path must stay byte-for-byte stable. Only strings
+    /// containing non-ASCII scalars receive display-only isolation; source
+    /// text remains unchanged in the snapshot and inspection structures.
+    func displayText(_ source: String) -> String {
+        usesLegacyASCII(source)
+            ? source
+            : BidirectionalTextSafetyV1.naturalText(source)
+    }
+
+    /// Preserve the previous ASCII renderer for its existing paragraph
+    /// separators; every other control remains display-prepared.
+    func usesLegacyASCII(_ source: String) -> Bool {
+        source.unicodeScalars.allSatisfy {
+            (0x20...0x7E).contains($0.value)
+                || $0.value == 0x0A
+                || $0.value == 0x0D
+                || $0.value == 0x0B
+                || $0.value == 0x0C
+        }
+    }
+
+    func attributedText(_ source: String, font: CTFont) -> NSAttributedString {
+        var direction = CTWritingDirection.natural
+        let settings = [
+            CTParagraphStyleSetting(
+                spec: .baseWritingDirection,
+                valueSize: MemoryLayout<CTWritingDirection>.size,
+                value: &direction
+            )
+        ]
+        let paragraph = CTParagraphStyleCreate(settings, settings.count)
+        let display = displayText(source)
+        let selected = CTFontCreateForString(font, display as CFString, CFRange(location: 0, length: (display as NSString).length))
+        return NSAttributedString(string: display, attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): selected,
+            NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraph,
+        ])
+    }
+
+    /// Validate the actual frame used for drawing, including image captions.
+    /// A separate measurement frame cannot establish visible text coverage.
+    func validateUnicodeFrame(_ frame: CTFrame, attributed: NSAttributedString) throws {
+        let visible = CTFrameGetVisibleStringRange(frame)
+        guard visible.location == 0, visible.length == attributed.length,
+              let lines = CTFrameGetLines(frame) as? [CTLine], !lines.isEmpty else {
+            throw WorklightPDFRendererErrorV1.paginationFailed
+        }
+        let bridge = attributed.string as NSString
+        for line in lines {
+          guard let runs = CTLineGetGlyphRuns(line) as? [CTRun] else {
+              throw WorklightPDFRendererErrorV1.paginationFailed
+          }
+          for run in runs {
+            let attributes = CTRunGetAttributes(run) as NSDictionary
+            if let font = attributes[kCTFontAttributeName] as? CTFont,
+               (CTFontCopyPostScriptName(font) as String).lowercased().contains("lastresort") {
+                throw WorklightPDFRendererErrorV1.paginationFailed
+            }
+            let count = CTRunGetGlyphCount(run)
+            let range = CTRunGetStringRange(run)
+            guard range.location >= 0, range.length >= 0,
+                  range.location + range.length <= bridge.length else {
+                throw WorklightPDFRendererErrorV1.paginationFailed
+            }
+            if count == 0 {
+                let source = bridge.substring(with: NSRange(location: range.location, length: range.length))
+                guard source.unicodeScalars.allSatisfy({ defaultIgnorable($0) || CharacterSet.whitespacesAndNewlines.contains($0) }) else {
+                    throw WorklightPDFRendererErrorV1.paginationFailed
+                }
+                continue
+            }
+            var glyphs = [CGGlyph](repeating: 0, count: count)
+            var indices = [CFIndex](repeating: kCFNotFound, count: count)
+            CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
+            CTRunGetStringIndices(run, CFRange(location: 0, length: 0), &indices)
+            for (glyph, index) in zip(glyphs, indices) where glyph == 0 {
+                guard index != kCFNotFound, index >= 0, index < bridge.length else {
+                    throw WorklightPDFRendererErrorV1.paginationFailed
+                }
+                // A ZWJ may share a grapheme with visible emoji. Test the
+                // scalar at the glyph's string index, not the whole cluster.
+                guard let scalar = bridge.substring(from: index).unicodeScalars.first,
+                      defaultIgnorable(scalar) || CharacterSet.whitespacesAndNewlines.contains(scalar) else {
+                    throw WorklightPDFRendererErrorV1.paginationFailed
+                }
+            }
+          }
+        }
+    }
+
+    func defaultIgnorable(_ scalar: Unicode.Scalar) -> Bool {
+        let value = scalar.value
+        return scalar.properties.generalCategory == .format
+            || (0xFE00...0xFE0F).contains(value)
+            || (0xE0100...0xE01EF).contains(value)
     }
 
     func decode(_ data: Data) throws -> CGImage {

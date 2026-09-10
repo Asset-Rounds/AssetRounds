@@ -87,7 +87,7 @@ struct WorklightStatusBadge: View {
         .accessibilityLabel(
             BundledLocalizationCatalogV1.v30WorklightStatusBadgeAccessibilityLabel(
                 status: kind.accessibilityName,
-                detail: text
+                detail: GlobalizationRTLSemanticsV1.accessibilityDetail(text)
             )
         )
     }

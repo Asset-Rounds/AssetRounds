@@ -1570,6 +1570,22 @@ enum DeterministicOpenJSONRendererV1 {
         return validated
     }
 
+    /// Creates display-only PDF lines without changing canonical Open JSON or exports.
+    static func bidiSafeDisplayLines(
+        _ projection: ReportSemanticProjectionV1
+    ) throws -> [String] {
+        let validated = try projection.recursivelyValidated()
+        return validated.nodes.map { node in
+            "[\(BidirectionalTextSafetyV1.opaqueToken(node.semanticID))|" +
+                "\(BidirectionalTextSafetyV1.opaqueToken(node.sectionID))|" +
+                "\(BidirectionalTextSafetyV1.opaqueToken(node.role))] " +
+                "\(BidirectionalTextSafetyV1.naturalText(node.label)): " +
+                "\(BidirectionalTextSafetyV1.naturalText(node.value))" +
+                (node.outputReferenceID.map {
+                    " [\(BidirectionalTextSafetyV1.opaqueToken($0))]"
+                } ?? "")
+        }
+    }
     static func render(_ projection: ReportSemanticProjectionV1) throws -> ReportProjectionOutputV1 {
         let validated = try projection.recursivelyValidated()
         let encoder = canonicalEncoder()

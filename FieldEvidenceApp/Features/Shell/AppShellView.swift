@@ -418,12 +418,18 @@ struct SettingsPlaceholderView: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
                     Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageAndRegionHeading))
                         .font(.headline)
-                    Text(Locale.autoupdatingCurrent.localizedString(
-                        forLanguageCode: effectiveLanguage.effectiveLanguage.rawValue
-                    ) ?? effectiveLanguage.effectiveLanguage.rawValue)
-                    Text(Locale.autoupdatingCurrent.localizedString(
-                        forIdentifier: Locale.autoupdatingCurrent.identifier
-                    ) ?? Locale.autoupdatingCurrent.identifier)
+                    Text(GlobalizationRTLSemanticsV1.opaqueFallback(
+                        Locale.autoupdatingCurrent.localizedString(
+                            forLanguageCode: effectiveLanguage.effectiveLanguage.rawValue
+                        ),
+                        identifier: effectiveLanguage.effectiveLanguage.rawValue
+                    ))
+                    Text(GlobalizationRTLSemanticsV1.opaqueFallback(
+                        Locale.autoupdatingCurrent.localizedString(
+                            forIdentifier: Locale.autoupdatingCurrent.identifier
+                        ),
+                        identifier: Locale.autoupdatingCurrent.identifier
+                    ))
                     Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageAndRegionJurisdictionNotice))
                         .font(.footnote)
                     DisclosureGroup(BundledLocalizationCatalogV1.v30Text(.shellLanguageSupportDetails)) {
