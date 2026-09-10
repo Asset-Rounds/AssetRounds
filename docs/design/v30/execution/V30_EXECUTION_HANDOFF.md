@@ -4323,3 +4323,38 @@ Implementation paths (9, all inside the 14-path fence):
 - `FieldEvidenceAppTests/V30_P02_C03RTLSemanticsTests.swift`
 
 Boundary state: isolated provisional branch only; no main or Phase 10 access/mutation. Carry both exact shared-path tuples into post-S replay/reimplementation, preserve accepted Phase 10 design, and rerun invalidated evidence in graph order; never merge wholesale. Next unstarted card: V30-P02-C04 - Expansion, Dynamic Type, accessibility, and font policy. This entry does not self-record its containing handoff commit.
+
+
+## Card 18 of 55 - V30-P02-C04 - Expansion, Dynamic Type, accessibility, and font policy
+
+State: PROVISIONAL_CHECKPOINTED. Graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `0a7a4d9d82683a4b2aab06508623fc0a1f910586`, tree `551a18514c114181227dcaf8010c0f1f55f1217a` (C03 checkpoint 37). Direct prerequisite C01 remains `86eabf98abee15c8bd14ff5bfb61a149ab09f103`, tree `ab8211eed89a7980d4f38246026800b72226afe3`, checkpoint 33.
+- Observed G0 authority A: `6dbe781e34b57df0b9b02e1f66f4930681553bc6`; M..A is exactly four V30 execution documents. All 21 fence entries and eight shared-path tuples match the immutable authority and B content hashes. Five shared UI paths changed under `V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR`; all carry S10_SHARED_RECONCILIATION_REQUIRED and REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT.
+- Product implementation E: `d804f60308bcfdcaadf01780d429132e4bcbd77d`, tree `0cde23d9cf27616f10d4465ef4ee5a9ac387791e`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 39: head `c4faa21169a2c8e1121a52bfaf3407f3e3e396d5`, ledger digest `0e2d5f157b886d90b5a56a5070280f49959550d74c26e2efab49a4f9be0e9990`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P02-C04/CHECKPOINT/1`. Receipt preserves candidate history, raw committed hashes, all declared/used overlaps, font inventory, review corrections and invalidated evidence.
+
+A concrete shared modifier permits vertical label expansion and removes inherited line limits. Worklight primary/secondary buttons preserve existing semantic system fonts, colors, radii and 44-point minimum while adding existing small vertical padding. Status text expands. Capture actions, Recovery rows and Round progress/reorder/navigation use accessibility-size vertical layouts while retaining normal composition. Outcome and Preflight labels wrap. Round controls put their minimum hit region on actual label content. Settings exposes header semantics and focuses its existing localized system-settings error when displayed; no action, identifier, catalog string or canonical source changes.
+
+The exact-A bounded font inventory finds semantic system fonts and no bundled custom font files, UIAppFonts, custom UI fonts or project/package font references. This does not qualify runtime fallback or licensing. Native tests are authored for whole-string CoreText shaping at AX5, rejecting LastResort or unexpected missing visible glyphs while permitting real default-ignorable/whitespace runs. No font-license or native linguistic evidence is fabricated.
+
+Generated fixtures cover en/es/zh-Hans/zh-Hant/vi/ko, nonshipping ar-XB, long controls/errors and NFD/ZWJ text with exact UTF-8 hashes. Authored hosting tests inspect actual Worklight Text labels and child geometry at 320 points/AX5, inherited lineLimit(1), and a 568-point ScrollView whose final action must become reachable after scrolling. Fixture metadata includes Large and AX5; current hosting probes exercise AX5. These tests have not been compiled or executed. VoiceOver, keyboard, physical-device, runtime font and full accessibility qualification remain mandatory after reconciliation.
+
+Static validation PASS: immutable package 55 cards/107 edges; typed CI contract WINDOWS_STATIC/selector null; exact fence/B pins and M..A authority-only proof; ten implementation paths; five actual shared overlaps; preserved normal color tokens, IDs, action callbacks and C01 raw-literal dispositions; fixture identities; git diff --check. Independent final product and test audits PASS_STATIC after correcting padding-inflated assertions, actual label/child geometry, normal layout preservation and genuine label hit regions. No iOS build or hosted workflow dispatched. Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots are unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT.
+
+Historical evidence invalidation: seven current UI hashes differ from C01's immutable source audit (two already changed by C03, five newly changed by C04). The C01 test would fail at this head; its old test/fixture/checkpoint remain preserved. This is recorded with before/after hashes in the receipt, requires later authorized requalification or correction, and is not claimed as a whole-suite pass. Both Backup views, ValueReceipt, existing semantic accessibility contracts, DesignTokens and older tests are unchanged. No unused policy seam, custom font, schema, project or asset was added. KNOWN_BUGS was read and remains its template; no defect was accepted. All diagnosed precommit static blockers were corrected; native and invalidated evidence remain pending.
+
+Implementation paths (10 within the 21-path fence):
+- `FieldEvidenceApp/DesignSystem/GlobalizationAdaptiveLayoutPolicyV1.swift`
+- `FieldEvidenceApp/DesignSystem/WorklightComponents.swift`
+- `FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift`
+- `FieldEvidenceApp/Features/CheckRunner/PreflightView.swift`
+- `FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift`
+- `FieldEvidenceApp/Features/Rounds/RoundSessionView.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/Accessibility/expansion-and-type-cases-v1.json`
+- `FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift`
+
+Boundary: isolated provisional branch only, no main or Phase 10 access/mutation. Replay/reimplement after S in graph order, preserve accepted Phase 10 design and requalify every invalidated result; never merge wholesale. Next unstarted card: V30-P02-C05 - Locale-aware search, sorting, and normalization. This entry does not self-record its containing commit.
