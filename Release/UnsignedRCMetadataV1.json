@@ -50,7 +50,6 @@
     "releaseReady": false,
     "pendingGates": [
       "final_f25_evidence",
-      "store_creative_review",
       "required_6_5_or_6_9_screenshot_set",
       "dated_trademark_name_claim_url_clearance",
       "owner_release_version_build_and_live_inputs",
@@ -138,9 +137,84 @@
         "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
         "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
       },
-      "humanVisualReview": "PENDING",
+      "humanVisualReview": "APPROVED",
       "formalReleaseAcceptance": false,
-      "physicalPass": false
+      "physicalPass": false,
+      "humanVisualReviewEvidenceID": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+      "humanVisualReviewScope": "exact_five_frozen_6_3_store_candidates_and_exact_i2_terminal_screenshot"
+    },
+    "phaseEvidence": {
+      "schemaVersion": 1,
+      "contractID": "s10.6-post-release-physical-deferral-v1",
+      "contentStatus": "PENDING",
+      "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "candidateHead": null,
+      "predecessorCheckpointSHA256": [
+        "0C7489E55D2546C82047126BB89F5B1A1F1BBA2E0530247E0A75DF510587225F",
+        "D15638ADFEA577D7074F17430BF6DB66FB6C55B82D70850FB5BE8B64CF8F506C",
+        "6FC9246A187661CB961C55412A8BD99913FE33E033C1FCC70A06D67D16FD09E2",
+        "1B468EE4D30F01EFE90E57A46D08DED8A010881243B704B802655C8F03A4E83D"
+      ],
+      "requiredNonSelfDocuments": [
+        {
+          "role": "launch_smoke",
+          "path": "Release/LaunchSmokeEvidenceIndexV1.json",
+          "sha256": "5ED570642B7D62CCCED2A8240B09EE3DC566D9B542B858E76E27AEF6DFF02BEA"
+        },
+        {
+          "role": "privacy_narrative",
+          "path": "Release/PrivacyReviewV1.md",
+          "sha256": "8CBB1FECB64190583C681EBBC2AECBC1FFF0D6E1D4D2DEC4B63A806D9CF40E32"
+        },
+        {
+          "role": "store_readiness",
+          "path": "docs/design/s10/s10-store-readiness.json",
+          "sha256": "8C3870D7744074F1356F176F970DAFAB4FB7F0933D304287BC0559B04DC1ECCC"
+        },
+        {
+          "role": "evidence_lock",
+          "path": "docs/design/s10/s10-evidence-lock.json",
+          "sha256": "51ED9C2A5CC99DE23F6018AC01D1F6FFEE2BE32A92BEFA8F144EA548FA3BD864"
+        },
+        {
+          "role": "store_manifest",
+          "path": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
+          "sha256": "439F793F99B367042F7A8CF7BCD3F902B33C0CC779684B2E1F89D3B2877789EB"
+        },
+        {
+          "role": "privacy_supply_chain",
+          "path": "docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json",
+          "sha256": "B8BFAAA8FD478BB7270DAC4712BF34A4FE067EE21D2CC30947F17DA053B158A6"
+        }
+      ],
+      "f25": {
+        "status": "NOT_RUN",
+        "evidenceID": null
+      },
+      "humanStoreReview": {
+        "status": "APPROVED",
+        "reviewer": "palatis3",
+        "evidenceID": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+        "reviewedDate": "2026-09-10"
+      },
+      "datedClearance": {
+        "status": "PENDING",
+        "evidenceID": null,
+        "date": null,
+        "scope": "trademark_name_five_claims_and_urls"
+      },
+      "sealedDeferral": {
+        "policyID": "owner-s10-5-nonblocking-post-release-20260910",
+        "evidenceID": "owner-s10-5-nonblocking-post-release-20260910",
+        "sha256": "2C2F440BDB4EB999DF9DF93793F843AABF382681E85690A01761A8254BE7FE7A"
+      },
+      "laterOwnerGates": {
+        "largerDisplayScreenshotSet": "MISSING",
+        "archive": "NOT_RUN",
+        "releaseVersionBuildLiveInputs": "PENDING",
+        "appPrivacy": "PENDING"
+      },
+      "releaseReady": false
     }
   }
 }

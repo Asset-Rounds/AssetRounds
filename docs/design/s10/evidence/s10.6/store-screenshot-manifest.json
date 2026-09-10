@@ -1,6 +1,6 @@
 {
   "schema_version": "s10.6.store-screenshot-manifest.v1",
-  "document_status": "prepared_not_approved",
+  "document_status": "prepared_human_review_approved_pending_clearance_and_larger_upload",
   "source_product_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
   "accepted_automated_evidence_head": "e2189af36a89caf815cf078756341c1f1542f7df",
   "accepted_automated_receipt_head": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
@@ -39,11 +39,12 @@
       ],
       "s10_4_visual_review_status": "APPROVED",
       "s10_4_visual_reviewer": "palatis3",
-      "store_review_status": "NOT_RUN",
-      "store_approved": false,
-      "store_reviewer": null,
-      "store_review_evidence_id": null,
-      "creative_limitation": "Unedited test-fixture screenshot; store-specific content, copy, privacy and imagery approval remains pending."
+      "store_review_status": "APPROVED",
+      "store_approved": true,
+      "store_reviewer": "palatis3",
+      "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "store_review_date": "2026-09-10"
     },
     {
       "gate_id": "store-screenshots-en-US-iphone-6.3",
@@ -76,11 +77,12 @@
       ],
       "s10_4_visual_review_status": "APPROVED",
       "s10_4_visual_reviewer": "palatis3",
-      "store_review_status": "NOT_RUN",
-      "store_approved": false,
-      "store_reviewer": null,
-      "store_review_evidence_id": null,
-      "creative_limitation": "Unedited test-fixture screenshot; store-specific content, copy, privacy and imagery approval remains pending."
+      "store_review_status": "APPROVED",
+      "store_approved": true,
+      "store_reviewer": "palatis3",
+      "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "store_review_date": "2026-09-10"
     },
     {
       "gate_id": "store-screenshots-en-US-iphone-6.3",
@@ -113,11 +115,12 @@
       ],
       "s10_4_visual_review_status": "APPROVED",
       "s10_4_visual_reviewer": "palatis3",
-      "store_review_status": "NOT_RUN",
-      "store_approved": false,
-      "store_reviewer": null,
-      "store_review_evidence_id": null,
-      "creative_limitation": "Unedited test-fixture screenshot; store-specific content, copy, privacy and imagery approval remains pending."
+      "store_review_status": "APPROVED",
+      "store_approved": true,
+      "store_reviewer": "palatis3",
+      "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "store_review_date": "2026-09-10"
     },
     {
       "gate_id": "store-screenshots-en-US-iphone-6.3",
@@ -150,11 +153,12 @@
       ],
       "s10_4_visual_review_status": "APPROVED",
       "s10_4_visual_reviewer": "palatis3",
-      "store_review_status": "NOT_RUN",
-      "store_approved": false,
-      "store_reviewer": null,
-      "store_review_evidence_id": null,
-      "creative_limitation": "Unedited test-fixture screenshot; store-specific content, copy, privacy and imagery approval remains pending."
+      "store_review_status": "APPROVED",
+      "store_approved": true,
+      "store_reviewer": "palatis3",
+      "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "store_review_date": "2026-09-10"
     },
     {
       "gate_id": "store-screenshots-en-US-iphone-6.3",
@@ -187,11 +191,12 @@
       ],
       "s10_4_visual_review_status": "APPROVED",
       "s10_4_visual_reviewer": "palatis3",
-      "store_review_status": "NOT_RUN",
-      "store_approved": false,
-      "store_reviewer": null,
-      "store_review_evidence_id": null,
-      "creative_limitation": "Unedited test-fixture screenshot; store-specific content, copy, privacy and imagery approval remains pending."
+      "store_review_status": "APPROVED",
+      "store_approved": true,
+      "store_reviewer": "palatis3",
+      "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "store_review_date": "2026-09-10"
     }
   ],
   "claims": [
@@ -245,7 +250,6 @@
   ],
   "pending_gates": [
     "final_f25_evidence",
-    "store_creative_review",
     "required_6_5_or_6_9_screenshot_set",
     "dated_trademark_name_claim_url_clearance",
     "owner_release_version_build_and_live_inputs",
@@ -285,6 +289,21 @@
       "live_urls_provided": false,
       "separate_trademark_clearance_evidence": null,
       "separate_five_claim_review_evidence": null
+    },
+    "owner_website_llc_attestation": {
+      "evidence_id": "owner-website-llc-attestation-20260910",
+      "date": "2026-09-10",
+      "owner": "palatis3",
+      "website_ownership": "OWNER_ATTESTED",
+      "website_or_domain_url": null,
+      "llc_formation": "IN_PROGRESS_OWNER_ATTESTED",
+      "registered_entity_name": null,
+      "registration_identifier": null,
+      "separate_clearance_reviewer": null,
+      "separate_clearance_result": null,
+      "source_path": "Temp/S10_6_ReleasePreparation/final-phase-contract/OWNER_WEBSITE_LLC_ATTESTATION_20260910.json",
+      "source_sha256": "837164D7E626B3A743A44E5C3BFB553444DB05A42444DE8EAC8A1180685A1AA5",
+      "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-website-llc-attestation-20260910\",\n  \"source\": \"direct owner response in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I owj the website and working on getting llc. Confirm it as if today\",\n  \"websiteOwnership\": \"OWNER_ATTESTED\",\n  \"websiteOrDomainURL\": null,\n  \"llcFormation\": \"IN_PROGRESS_OWNER_ATTESTED\",\n  \"registeredEntityName\": null,\n  \"registrationIdentifier\": null,\n  \"separateClearanceReviewer\": null,\n  \"separateClearanceResult\": null,\n  \"interpretation\": \"Record the owner's website-ownership statement and in-progress LLC formation as dated September 10, 2026. No domain, completed LLC registration, separate clearance reviewer/result, or five-claim review was supplied.\"\n}\n"
     }
   },
   "physical_verification_blocking": false,

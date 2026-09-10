@@ -80,9 +80,11 @@
           "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
           "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
         },
-        "humanVisualReview": "PENDING",
+        "humanVisualReview": "APPROVED",
         "formalReleaseAcceptance": false,
-        "physicalPass": false
+        "physicalPass": false,
+        "humanVisualReviewEvidenceID": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+        "humanVisualReviewScope": "exact_five_frozen_6_3_store_candidates_and_exact_i2_terminal_screenshot"
       }
     }
   },

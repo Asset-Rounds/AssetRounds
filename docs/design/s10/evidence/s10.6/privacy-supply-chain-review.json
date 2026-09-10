@@ -1,6 +1,6 @@
 {
   "schema_version": "s10.6.privacy-supply-chain-review.v1",
-  "document_status": "PREPARED_SOURCE_REVIEW",
+  "document_status": "PREPARED_SOURCE_AND_SCOPED_HUMAN_REVIEW",
   "review_scope": "source_only_no_archive_no_signing_no_runtime_network_capture",
   "source_product_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
   "accepted_s10_4_evidence_head": "e2189af36a89caf815cf078756341c1f1542f7df",
@@ -601,9 +601,11 @@
       "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
       "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
     },
-    "humanVisualReview": "PENDING",
+    "humanVisualReview": "APPROVED",
     "formalReleaseAcceptance": false,
-    "physicalPass": false
+    "physicalPass": false,
+    "humanVisualReviewEvidenceID": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+    "humanVisualReviewScope": "exact_five_frozen_6_3_store_candidates_and_exact_i2_terminal_screenshot"
   },
   "physical_deferral_owner_request": {
     "policy_id": "owner-s10-5-nonblocking-post-release-20260910",
@@ -627,5 +629,91 @@
     "live_urls_provided": false,
     "separate_trademark_clearance_evidence": null,
     "separate_five_claim_review_evidence": null
+  },
+  "owner_human_review_record": {
+    "evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+    "status": "APPROVED",
+    "reviewer": "palatis3",
+    "review_date": "2026-09-10",
+    "exact_owner_message": "Yes i approve of what you sent me",
+    "source_visual_review_path": "Temp/S10_6_ReleasePreparation/remaining-inputs/VISUAL_REVIEW.md",
+    "source_visual_review_sha256": "DF28C927FD3243770F0E3A6674165D9C5F723D721EFD968AF0AEAFF129B56247",
+    "sealed_receipt_path": "Temp/S10_6_ReleasePreparation/final-phase-contract/human-review/OWNER_VISUAL_APPROVAL_20260910.json",
+    "sealed_receipt_sha256": "8247DC6DBB69DF93F31AE2D785C778BC9A4A36487177EF83DE968A26945EC645",
+    "sealed_receipt_utf8": "{\n  \"schema_version\": \"s10.6.owner-visual-approval.v1\",\n  \"evidence_id\": \"owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910\",\n  \"status\": \"SEALED_OWNER_APPROVAL\",\n  \"source\": \"direct owner response in the active S10 task\",\n  \"owner\": \"palatis3\",\n  \"date\": \"2026-09-10\",\n  \"owner_message\": \"Yes i approve of what you sent me\",\n  \"review_request\": {\n    \"path\": \"Temp/S10_6_ReleasePreparation/remaining-inputs/VISUAL_REVIEW.md\",\n    \"sha256\": \"DF28C927FD3243770F0E3A6674165D9C5F723D721EFD968AF0AEAFF129B56247\",\n    \"presented_image_count\": 6,\n    \"requested_review_dimensions\": [\n      \"layout\",\n      \"text\",\n      \"imagery\",\n      \"privacy\",\n      \"truthful_claim_presentation\"\n    ]\n  },\n  \"interpretation\": \"Approve exactly the six images presented in the bound visual-review document: the five frozen 6.3-inch store candidates and the exact I2 terminal Settings screenshot.\",\n  \"image_bindings\": [\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-01-find-asset\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.sign-detail.ready.png\",\n      \"sha256\": \"6EB56317ACBDA532BBDB776B2DB039AF4FC5E78768A1FECBF1C0A2CB7B817710\"\n    },\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-02-capture-evidence\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.capture.wide-preview.png\",\n      \"sha256\": \"B5B769433EA13A40CC27990CCCF9F8184B4E6AF41BE5C467A5E7D877CDD36CA3\"\n    },\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-03-share-report\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.report-detail.ready.png\",\n      \"sha256\": \"2DE26DE0F2AD595CE3B4EB8923E23EA77FB828AFD119327DD977B4C783AF1870\"\n    },\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-04-work-recheck\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.issue.recheck-due.png\",\n      \"sha256\": \"92E98827528E725D217078DA2CFA4027D165350D734A5D64D5F5C26D4A14DB41\"\n    },\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-05-local-data\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.backup.ready.png\",\n      \"sha256\": \"7FE07225143F72EC32D4EADD6349125D2B77A9305C0B0983CA1539F2B7721086\"\n    },\n    {\n      \"kind\": \"i2_terminal_screenshot\",\n      \"source_head\": \"0a48504502994fdb8a5d73c9e8cc307aba210821\",\n      \"source_run_id\": \"34527590250\",\n      \"source_artifact_id\": \"10172675373\",\n      \"entry\": \"ui-final.png\",\n      \"sha256\": \"2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C\"\n    }\n  ],\n  \"approved_scope\": {\n    \"five_frozen_6_3_store_candidates\": true,\n    \"exact_i2_terminal_screenshot\": true,\n    \"human_visual_review_result\": \"APPROVED\"\n  },\n  \"not_approved_or_inferred\": [\n    \"separate trademark, name, five-claim, or URL clearance\",\n    \"a 6.5-inch or 6.9-inch upload screenshot set\",\n    \"any screenshot from a future changed test or candidate head\",\n    \"physical S10.5 evidence\",\n    \"archive, live URL, App Privacy, signing, upload, submission, or release readiness\"\n  ]\n}\n",
+    "reviewed_image_count": 6,
+    "image_bindings": [
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-01-find-asset",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.sign-detail.ready.png",
+        "sha256": "6EB56317ACBDA532BBDB776B2DB039AF4FC5E78768A1FECBF1C0A2CB7B817710"
+      },
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-02-capture-evidence",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.capture.wide-preview.png",
+        "sha256": "B5B769433EA13A40CC27990CCCF9F8184B4E6AF41BE5C467A5E7D877CDD36CA3"
+      },
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-03-share-report",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.report-detail.ready.png",
+        "sha256": "2DE26DE0F2AD595CE3B4EB8923E23EA77FB828AFD119327DD977B4C783AF1870"
+      },
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-04-work-recheck",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.issue.recheck-due.png",
+        "sha256": "92E98827528E725D217078DA2CFA4027D165350D734A5D64D5F5C26D4A14DB41"
+      },
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-05-local-data",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.backup.ready.png",
+        "sha256": "7FE07225143F72EC32D4EADD6349125D2B77A9305C0B0983CA1539F2B7721086"
+      },
+      {
+        "kind": "i2_terminal_screenshot",
+        "source_head": "0a48504502994fdb8a5d73c9e8cc307aba210821",
+        "source_run_id": "34527590250",
+        "source_artifact_id": "10172675373",
+        "entry": "ui-final.png",
+        "sha256": "2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C"
+      }
+    ],
+    "scope": "Approve exactly the six images presented in the bound visual-review document: the five frozen 6.3-inch store candidates and the exact I2 terminal Settings screenshot.",
+    "not_approved_or_inferred": [
+      "separate trademark, name, five-claim, or URL clearance",
+      "a 6.5-inch or 6.9-inch upload screenshot set",
+      "any screenshot from a future changed test or candidate head",
+      "physical S10.5 evidence",
+      "archive, live URL, App Privacy, signing, upload, submission, or release readiness"
+    ]
+  },
+  "owner_website_llc_attestation": {
+    "evidence_id": "owner-website-llc-attestation-20260910",
+    "date": "2026-09-10",
+    "owner": "palatis3",
+    "website_ownership": "OWNER_ATTESTED",
+    "website_or_domain_url": null,
+    "llc_formation": "IN_PROGRESS_OWNER_ATTESTED",
+    "registered_entity_name": null,
+    "registration_identifier": null,
+    "separate_clearance_reviewer": null,
+    "separate_clearance_result": null,
+    "source_path": "Temp/S10_6_ReleasePreparation/final-phase-contract/OWNER_WEBSITE_LLC_ATTESTATION_20260910.json",
+    "source_sha256": "837164D7E626B3A743A44E5C3BFB553444DB05A42444DE8EAC8A1180685A1AA5",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-website-llc-attestation-20260910\",\n  \"source\": \"direct owner response in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I owj the website and working on getting llc. Confirm it as if today\",\n  \"websiteOwnership\": \"OWNER_ATTESTED\",\n  \"websiteOrDomainURL\": null,\n  \"llcFormation\": \"IN_PROGRESS_OWNER_ATTESTED\",\n  \"registeredEntityName\": null,\n  \"registrationIdentifier\": null,\n  \"separateClearanceReviewer\": null,\n  \"separateClearanceResult\": null,\n  \"interpretation\": \"Record the owner's website-ownership statement and in-progress LLC formation as dated September 10, 2026. No domain, completed LLC registration, separate clearance reviewer/result, or five-claim review was supplied.\"\n}\n"
   }
 }

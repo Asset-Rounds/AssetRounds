@@ -454,9 +454,11 @@
       ],
       "source_build_id": "github-actions-run-34481147676",
       "path": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34481147676/artifacts/10155130147 :: entry=s10-4/s10.4.current.default-light/candidates/state.sign-detail.ready.png",
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "palatis3",
+      "evidence_ids": [
+        "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910"
+      ]
     },
     {
       "gate_id": "store-screenshots-en-US-iphone-6.3",
@@ -482,9 +484,11 @@
       ],
       "source_build_id": "github-actions-run-34481147676",
       "path": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34481147676/artifacts/10155130147 :: entry=s10-4/s10.4.current.default-light/candidates/state.capture.wide-preview.png",
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "palatis3",
+      "evidence_ids": [
+        "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910"
+      ]
     },
     {
       "gate_id": "store-screenshots-en-US-iphone-6.3",
@@ -510,9 +514,11 @@
       ],
       "source_build_id": "github-actions-run-34481147676",
       "path": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34481147676/artifacts/10155130147 :: entry=s10-4/s10.4.current.default-light/candidates/state.report-detail.ready.png",
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "palatis3",
+      "evidence_ids": [
+        "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910"
+      ]
     },
     {
       "gate_id": "store-screenshots-en-US-iphone-6.3",
@@ -538,9 +544,11 @@
       ],
       "source_build_id": "github-actions-run-34481147676",
       "path": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34481147676/artifacts/10155130147 :: entry=s10-4/s10.4.current.default-light/candidates/state.issue.recheck-due.png",
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "palatis3",
+      "evidence_ids": [
+        "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910"
+      ]
     },
     {
       "gate_id": "store-screenshots-en-US-iphone-6.3",
@@ -566,9 +574,11 @@
       ],
       "source_build_id": "github-actions-run-34481147676",
       "path": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34481147676/artifacts/10155130147 :: entry=s10-4/s10.4.current.default-light/candidates/state.backup.ready.png",
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "palatis3",
+      "evidence_ids": [
+        "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910"
+      ]
     }
   ],
   "claims": [
