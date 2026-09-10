@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "empty",
+      "source": "",
+      "utf8SHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "utf8ByteCount": 0,
+      "scalarCount": 0,
+      "graphemeCount": 0,
+      "directionalControls": []
+    },
+    {
+      "id": "nfc-accent",
+      "source": "é",
+      "utf8SHA256": "4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c",
+      "utf8ByteCount": 2,
+      "scalarCount": 1,
+      "graphemeCount": 1,
+      "directionalControls": []
+    },
+    {
+      "id": "nfd-accent",
+      "source": "é",
+      "utf8SHA256": "bf12767b0f2a56b2190075bae8169f656e3ce8d6357d4aff184bc6c7ea48f9f6",
+      "utf8ByteCount": 3,
+      "scalarCount": 2,
+      "graphemeCount": 1,
+      "directionalControls": []
+    },
+    {
+      "id": "stacked-combining",
+      "source": "ạ̈",
+      "utf8SHA256": "60e227a7d1805e7c364c8567154753f2ddb1ddbef2de628415127b1c0e246328",
+      "utf8ByteCount": 5,
+      "scalarCount": 3,
+      "graphemeCount": 1,
+      "directionalControls": []
+    },
+    {
+      "id": "emoji-family",
+      "source": "👩‍👩‍👧‍👦",
+      "utf8SHA256": "efcb81a853e87f8c2e689cbe757df559119496737e809af4fe4c5574c9ca4c85",
+      "utf8ByteCount": 25,
+      "scalarCount": 7,
+      "graphemeCount": 1,
+      "directionalControls": []
+    },
+    {
+      "id": "emoji-skin-tone",
+      "source": "👍🏽",
+      "utf8SHA256": "01a5f86b6044eee022d2ee109e38bd9d845e7a650fb9f4a413e60aeb858ecae4",
+      "utf8ByteCount": 8,
+      "scalarCount": 2,
+      "graphemeCount": 1,
+      "directionalControls": []
+    },
+    {
+      "id": "emoji-flag",
+      "source": "🇺🇸",
+      "utf8SHA256": "c2a36180553b709503286972dd4c024fbf36279c8e145c8ef1fa057a2d250928",
+      "utf8ByteCount": 8,
+      "scalarCount": 2,
+      "graphemeCount": 1,
+      "directionalControls": []
+    },
+    {
+      "id": "emoji-keycap",
+      "source": "1️⃣",
+      "utf8SHA256": "3a54154ed9521ac47fb973d028932325fa75f99fea9a0d50958bb32878f5cd0b",
+      "utf8ByteCount": 7,
+      "scalarCount": 3,
+      "graphemeCount": 1,
+      "directionalControls": []
+    },
+    {
+      "id": "simplified-chinese",
+      "source": "现场证据",
+      "utf8SHA256": "388496423776f3254c5ec57afade7be9ae6d420fba00059ee69e4e0e793724b7",
+      "utf8ByteCount": 12,
+      "scalarCount": 4,
+      "graphemeCount": 4,
+      "directionalControls": []
+    },
+    {
+      "id": "traditional-chinese",
+      "source": "現場證據",
+      "utf8SHA256": "2bf8fc4ece0a6d838a9b337c44e9b5263dc33290134e327902627d20ef5083a5",
+      "utf8ByteCount": 12,
+      "scalarCount": 4,
+      "graphemeCount": 4,
+      "directionalControls": []
+    },
+    {
+      "id": "korean-jamo",
+      "source": "한글",
+      "utf8SHA256": "cf0273800fe12c2b4d3fd3c95d0bc94b6c64718221fb6d6e785153070f8decd9",
+      "utf8ByteCount": 18,
+      "scalarCount": 6,
+      "graphemeCount": 2,
+      "directionalControls": []
+    },
+    {
+      "id": "vietnamese",
+      "source": "Tiếng Việt",
+      "utf8SHA256": "f056f5f768d2fca4b5e50a44300c1745fa5d41ab062de1abb7a87b37a681c0f0",
+      "utf8ByteCount": 18,
+      "scalarCount": 14,
+      "graphemeCount": 10,
+      "directionalControls": []
+    },
+    {
+      "id": "arabic-marks",
+      "source": "مُعَدَّة",
+      "utf8SHA256": "2b31f21a75d4fe09dd019177bbef5dc898a03a64ed5799a65ba2a955aecc1e31",
+      "utf8ByteCount": 16,
+      "scalarCount": 8,
+      "graphemeCount": 4,
+      "directionalControls": []
+    },
+    {
+      "id": "bidi-isolate",
+      "source": "ID ⁧صورة⁩ 42",
+      "utf8SHA256": "e5ea0039d451790f857267f58d4cfa653be457ce79a211c927c430b7b432237a",
+      "utf8ByteCount": 20,
+      "scalarCount": 12,
+      "graphemeCount": 12,
+      "directionalControls": [
+        {
+          "scalarOffset": 3,
+          "scalarValue": 8295
+        },
+        {
+          "scalarOffset": 8,
+          "scalarValue": 8297
+        }
+      ]
+    },
+    {
+      "id": "all-bidi-controls",
+      "source": "؜‎‏‪‫‬‭‮⁦⁧⁨⁩",
+      "utf8SHA256": "514f01f4de96fdc880d550b80137c6e3bbd79bffebcd10de845302dbb7c281dc",
+      "utf8ByteCount": 35,
+      "scalarCount": 12,
+      "graphemeCount": 12,
+      "directionalControls": [
+        {
+          "scalarOffset": 0,
+          "scalarValue": 1564
+        },
+        {
+          "scalarOffset": 1,
+          "scalarValue": 8206
+        },
+        {
+          "scalarOffset": 2,
+          "scalarValue": 8207
+        },
+        {
+          "scalarOffset": 3,
+          "scalarValue": 8234
+        },
+        {
+          "scalarOffset": 4,
+          "scalarValue": 8235
+        },
+        {
+          "scalarOffset": 5,
+          "scalarValue": 8236
+        },
+        {
+          "scalarOffset": 6,
+          "scalarValue": 8237
+        },
+        {
+          "scalarOffset": 7,
+          "scalarValue": 8238
+        },
+        {
+          "scalarOffset": 8,
+          "scalarValue": 8294
+        },
+        {
+          "scalarOffset": 9,
+          "scalarValue": 8295
+        },
+        {
+          "scalarOffset": 10,
+          "scalarValue": 8296
+        },
+        {
+          "scalarOffset": 11,
+          "scalarValue": 8297
+        }
+      ]
+    },
+    {
+      "id": "filename",
+      "source": "现场-é-👩‍🔧.pdf",
+      "utf8SHA256": "622c9115fcc3a18571de668115445e764196f3f77c50b9b868b8d1cd2d29c3c3",
+      "utf8ByteCount": 26,
+      "scalarCount": 13,
+      "graphemeCount": 10,
+      "directionalControls": []
+    },
+    {
+      "id": "source-newlines",
+      "source": " A\r\nB\n\tC ",
+      "utf8SHA256": "42668417aafe21319cf01c6ea968cbb0ad4550365c427996932fbe1dd52f5e4a",
+      "utf8ByteCount": 9,
+      "scalarCount": 9,
+      "graphemeCount": 8,
+      "directionalControls": []
+    },
+    {
+      "id": "json-literal-punctuation",
+      "source": "\"\\ / <tag> %1$@ %#@count@",
+      "utf8SHA256": "9e73f1295e6b0f2c05991b03d964fc2de8ea92b171cdc8bb234bce0bfccc8dcd",
+      "utf8ByteCount": 25,
+      "scalarCount": 25,
+      "graphemeCount": 25,
+      "directionalControls": []
+    },
+    {
+      "id": "authored-feff-and-null",
+      "source": "﻿authored\u0000tail",
+      "utf8SHA256": "3fec364e9286f31aadbaf136a368d30415a81ae572e4ba050a0d68c1be359c0e",
+      "utf8ByteCount": 16,
+      "scalarCount": 14,
+      "graphemeCount": 14,
+      "directionalControls": []
+    }
+  ]
+}

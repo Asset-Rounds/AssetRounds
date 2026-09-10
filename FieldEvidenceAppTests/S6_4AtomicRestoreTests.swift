@@ -1855,3 +1855,64 @@ private final class V30P01C05BackupCanonicalIdentityRestoreTests: XCTestCase {
         XCTAssertTrue(GlobalizationCanonicalIdentityBoundaryV1.rawEnumValuesLocalized == false)
     }
 }
+
+
+extension S6_4AtomicRestoreTests {
+    @MainActor
+    func testV30UnicodeAtomicRestorePreservesExactUTF8ForAuthoredLabelsAndAddress() async throws {
+        let siteLabel = "Cafe\u{301} café 👩🏽‍🔧 漢字 한 مرحبا\u{200F}"
+        let siteAddress = "الشارع \u{202B}漢字👨‍👩‍👧‍👦\u{202C}"
+        let assetLabel = "Pylon 👩🏽‍🔧 / 東京 / 가 / café"
+        let harness = try makeHarness("v30-unicode-restore")
+        defer { try? fileManager.removeItem(at: harness.root) }
+
+        let package = try makeSourcePackage(
+            in: harness.root,
+            name: "unicode-source",
+            siteAddress: siteAddress
+        ) { source in
+            let site = try XCTUnwrap(
+                try source.modelContext.fetch(FetchDescriptor<Site>()).first
+            )
+            let asset = try XCTUnwrap(
+                try source.modelContext.fetch(FetchDescriptor<Asset>()).first
+            )
+            site.label = siteLabel
+            asset.label = assetLabel
+        }
+        let recordsData = try Data(contentsOf: package.appendingPathComponent("records.json"))
+        for value in [siteLabel, siteAddress, assetLabel] {
+            XCTAssertNotNil(recordsData.range(of: Data(value.utf8)))
+        }
+
+        let validated = try importPackage(package, into: harness.session)
+        let validatedSite = try XCTUnwrap(validated.records.sites.first)
+        let validatedAsset = try XCTUnwrap(validated.records.assets.first)
+        XCTAssertEqual(Array(validatedSite.label.utf8), Array(siteLabel.utf8))
+        XCTAssertEqual(Array(try XCTUnwrap(validatedSite.address).utf8), Array(siteAddress.utf8))
+        XCTAssertEqual(Array(validatedAsset.label.utf8), Array(assetLabel.utf8))
+
+        let restored = try await BackupRestoreService(
+            applicationSupportURL: harness.support,
+            makeUUID: sequence([
+                uuid("64000000-0000-0000-0000-00000000c201"),
+                uuid("64000000-0000-0000-0000-00000000c202")
+            ])
+        ).restore(
+            validatedPackage: validated,
+            currentModelContext: harness.session.modelContext,
+            currentGenerationID: harness.session.generationID,
+            currentGenerationRootURL: harness.session.generationRootURL
+        )
+
+        let restoredSite = try XCTUnwrap(
+            try restored.modelContext.fetch(FetchDescriptor<Site>()).first
+        )
+        let restoredAsset = try XCTUnwrap(
+            try restored.modelContext.fetch(FetchDescriptor<Asset>()).first
+        )
+        XCTAssertEqual(Array(restoredSite.label.utf8), Array(siteLabel.utf8))
+        XCTAssertEqual(Array(try XCTUnwrap(restoredSite.address).utf8), Array(siteAddress.utf8))
+        XCTAssertEqual(Array(restoredAsset.label.utf8), Array(assetLabel.utf8))
+    }
+}

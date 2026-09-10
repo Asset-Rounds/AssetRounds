@@ -161,7 +161,7 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         guard C50IncumbentFileExchangeWriterAdapterBoundaryV1.validate() else {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
-        try V30P01C05WorkspaceWriterCanonicalIdentityBoundaryV1.validateCanonicalCommand(command)
+        try UnicodeEvidenceSafetyCoordinatorV1.validateWriterCommand(command)
         guard !modelContext.hasChanges else {
             throw WorkspaceMutationFailureV1.persistenceFailed
         }

@@ -513,7 +513,7 @@ final class LocalChangeJournalV1 {
 
     func replayResult(_ batch: ChangeBatchV1) throws -> ReplayResultV1 {
         try batch.validate(limits: limits)
-        try V30P01C05LocalChangeJournalCanonicalIdentityBoundaryV1.validateCanonicalBatch(
+        try UnicodeEvidenceSafetyCoordinatorV1.validateJournalBatch(
             batch,
             limits: limits
         )

@@ -1465,3 +1465,198 @@ extension V9_ChangeJournalCheckpointReplayTests {
         XCTAssertTrue(V30P01C05LocalChangeJournalCanonicalIdentityBoundaryV1.validate())
     }
 }
+
+
+// C02_BOUNDARY_ANCHOR: unicode-writer-journal-checkpoint-replay
+extension V9_ChangeJournalCheckpointReplayTests {
+    func testV30P02C02UnicodeWriterJournalCheckpointReplayAndColdReopenPreserveUTF8() throws {
+        let decomposed = "Cafe\u{0301}"
+        let emoji = "👩🏽‍🔧"
+        let cjkAndJamo = "東京 한"
+        let arabic = "موقع الشرق"
+        let siteLabel = "\(decomposed) \(emoji)"
+        let assetLabel = "\(cjkAndJamo) · \(arabic) · \(decomposed)"
+        let sourceFileName = "\(decomposed)-\(emoji)-\(cjkAndJamo)-\(arabic).jpeg"
+        let siteAddress = "Imported note: \(sourceFileName)"
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V30-C02-unicode-journal-\(UUID().uuidString)", isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "c0200000-0000-4000-8000-000000000001")!
+        )
+        let sourceIdentity = try WorkspaceReplicaIdentityV1(
+            workspaceID: workspaceID,
+            replicaID: ReplicaID(rawValue: UUID(uuidString: "c0200000-0000-4000-8000-000000000002")!)
+        )
+        let destinationIdentity = try WorkspaceReplicaIdentityV1(
+            workspaceID: workspaceID,
+            replicaID: ReplicaID(rawValue: UUID(uuidString: "c0200000-0000-4000-8000-000000000003")!)
+        )
+        let limits = try ChangeJournalLimitsV1(
+            maximumChangesPerBatch: 4,
+            maximumBatchBytes: 4_194_304,
+            maximumEntitiesPerCheckpoint: 10_000,
+            maximumContentEntriesPerCheckpoint: 10_000,
+            maximumReplicaFrontiers: 4,
+            maximumConflicts: 64
+        )
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let destinationRoot = root.appendingPathComponent("destination", isDirectory: true)
+
+        let identifiers = try { () -> (siteID: UUID, assetID: UUID) in
+            let sourceSession = try StoreGenerationFactory(
+                applicationSupportURL: root.appendingPathComponent("source", isDirectory: true),
+                pointerEnrichmentIdentity: sourceIdentity
+            ).openOrBootstrapCurrent()
+            let sourceCoordinator = try StoreSessionCoordinator(validatingSession: sourceSession)
+            let sourceDependencies = try sourceCoordinator.packageLifecycleDependencies(
+                profileRegistry: registry
+            )
+            let sourceBackup = BackupExportService(
+                modelContext: sourceSession.modelContext,
+                generationRootURL: sourceSession.generationRootURL,
+                lifecycleDependencies: sourceDependencies,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max })
+            )
+            let sourceJournal = try sourceCoordinator.localChangeJournal(
+                backupExport: sourceBackup,
+                limits: limits,
+                policyResolver: { _, _ in
+                    try ConflictPolicyV1(
+                        policyID: "v30.c02.unicode.append-union", rule: .stableIDAppendUnion
+                    )
+                },
+                contentReferenceResolver: { _ in throw ContentContractFailureV1.missingContent },
+                contentEntryResolver: { _ in throw ContentContractFailureV1.missingContent }
+            )
+            let destinationSession = try StoreGenerationFactory(
+                applicationSupportURL: destinationRoot,
+                pointerEnrichmentIdentity: destinationIdentity
+            ).openOrBootstrapCurrent()
+            let destinationCoordinator = try StoreSessionCoordinator(validatingSession: destinationSession)
+            let destinationDependencies = try destinationCoordinator.packageLifecycleDependencies(
+                profileRegistry: registry
+            )
+            let destinationBackup = BackupExportService(
+                modelContext: destinationSession.modelContext,
+                generationRootURL: destinationSession.generationRootURL,
+                lifecycleDependencies: destinationDependencies,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max })
+            )
+            let destinationJournal = try destinationCoordinator.localChangeJournal(
+                backupExport: destinationBackup,
+                limits: limits,
+                policyResolver: { _, _ in
+                    try ConflictPolicyV1(
+                        policyID: "v30.c02.unicode.append-union", rule: .stableIDAppendUnion
+                    )
+                },
+                contentReferenceResolver: { _ in throw ContentContractFailureV1.missingContent },
+                contentEntryResolver: { _ in throw ContentContractFailureV1.missingContent }
+            )
+
+            let checkpoint = try sourceJournal.prepareCheckpoint(
+                supplement: .init(contentEntries: [], reversalEligibility: [])
+            )
+            let transported = try sourceJournal.exportPreparedCheckpoint(
+                checkpoint,
+                packageRelativePath: "v30/unicode-checkpoint.fecp"
+            )
+            _ = try sourceJournal.activatePreparedCheckpoint(checkpoint)
+            _ = try destinationJournal.installImportedCheckpoint(
+                export: transported.export,
+                packageData: transported.packageData
+            )
+
+            let siteID = UUID(uuidString: "c0200000-0000-4000-8000-000000000010")!
+            let assetID = UUID(uuidString: "c0200000-0000-4000-8000-000000000011")!
+            _ = try sourceCoordinator.workspaceWriter.execute(
+                .createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(
+                        id: siteID,
+                        label: siteLabel,
+                        address: siteAddress,
+                        timeZoneID: "UTC"
+                    ),
+                    assetID: assetID,
+                    assetLabel: assetLabel,
+                    packID: SignPack.illuminatedSignV1.packID,
+                    packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                    packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                    createdAt: Date(timeIntervalSince1970: 1_788_134_400),
+                    initialPlacementMutationID: try MutationIDV1(
+                        rawValue: UUID(uuidString: "c0200000-0000-4000-8000-000000000013")!
+                    ),
+                    initialPlacementEventID: UUID(
+                        uuidString: "c0200000-0000-4000-8000-000000000014"
+                    )!,
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                        rawValue: UUID(uuidString: "c0200000-0000-4000-8000-000000000015")!
+                    )
+                )),
+                mutationID: try MutationIDV1(
+                    rawValue: UUID(uuidString: "c0200000-0000-4000-8000-000000000012")!
+                )
+            )
+            let cursor = try sourceJournal.initialCursor(
+                consumerReplicaID: destinationIdentity.replicaID,
+                checkpointID: checkpoint.manifest.checkpointID
+            )
+            let batch = try sourceJournal.page(after: cursor)
+            XCTAssertEqual(batch.changes.count, 1)
+            let encodedBatch = try batch.canonicalData(limits: limits)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            let decodedBatch = try decoder.decode(ChangeBatchV1.self, from: encodedBatch)
+            XCTAssertEqual(decodedBatch, batch)
+            guard case let .createFirstSign(imported) = decodedBatch.changes[0].envelope.command else {
+                XCTFail("checkpoint delivery must retain the canonical imported command")
+                throw ChangeJournalFailureV1.tamperedBatch
+            }
+            let importedSite = try XCTUnwrap(imported.newSite)
+            let importedAddress = try XCTUnwrap(importedSite.address)
+            XCTAssertEqual(Array(importedSite.label.utf8), Array(siteLabel.utf8))
+            XCTAssertEqual(Array(importedAddress.utf8), Array(siteAddress.utf8))
+            XCTAssertEqual(Array(imported.assetLabel.utf8), Array(assetLabel.utf8))
+
+            let replayed = try destinationJournal.replay(batch)
+            XCTAssertEqual(try destinationJournal.replay(batch), replayed)
+            let checkpointBasis = try destinationBackup.canonicalCheckpointBasis()
+            let records = try BackupCanonicalDecoderV1().decodeRecords(checkpointBasis.recordsData)
+            let restoredSite = try XCTUnwrap(records.sites.first { $0.id == siteID })
+            let restoredAsset = try XCTUnwrap(records.assets.first { $0.id == assetID })
+            let restoredAddress = try XCTUnwrap(restoredSite.address)
+            XCTAssertEqual(Array(restoredSite.label.utf8), Array(siteLabel.utf8))
+            XCTAssertEqual(Array(restoredAddress.utf8), Array(siteAddress.utf8))
+            XCTAssertEqual(Array(restoredAsset.label.utf8), Array(assetLabel.utf8))
+            return (siteID, assetID)
+        }()
+
+        let reopenedSession = try StoreGenerationFactory(
+            applicationSupportURL: destinationRoot,
+            pointerEnrichmentIdentity: destinationIdentity
+        ).openOrBootstrapCurrent()
+        let reopenedCoordinator = try StoreSessionCoordinator(validatingSession: reopenedSession)
+        let reopenedDependencies = try reopenedCoordinator.packageLifecycleDependencies(
+            profileRegistry: registry
+        )
+        let reopenedBackup = BackupExportService(
+            modelContext: reopenedSession.modelContext,
+            generationRootURL: reopenedSession.generationRootURL,
+            lifecycleDependencies: reopenedDependencies,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max })
+        )
+        let reopenedRecords = try BackupCanonicalDecoderV1().decodeRecords(
+            reopenedBackup.canonicalCheckpointBasis().recordsData
+        )
+        let reopenedSite = try XCTUnwrap(reopenedRecords.sites.first { $0.id == identifiers.siteID })
+        let reopenedAsset = try XCTUnwrap(reopenedRecords.assets.first { $0.id == identifiers.assetID })
+        XCTAssertEqual(Array(reopenedSite.label.utf8), Array(siteLabel.utf8))
+        XCTAssertEqual(Array(reopenedAsset.label.utf8), Array(assetLabel.utf8))
+    }
+}

@@ -536,7 +536,9 @@ private extension S6_3BackupValidationTests {
     func makeHarness(
         _ name: String,
         stopAfterWorkDraft: Bool = false,
-        siteAddress: String? = nil
+        siteAddress: String? = nil,
+        workDescription: String = "Replaced failed power supply",
+        recheckNote: String = "Illumination remained steady."
     ) async throws -> Harness {
         let support = fileManager.temporaryDirectory.appendingPathComponent("S6_3BackupValidationTests-\(name)-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
@@ -589,7 +591,7 @@ private extension S6_3BackupValidationTests {
             draftID: workDraft.recordID,
             submission: .init(
                 performedLocalDate: "2026-08-14",
-                description: "Replaced failed power supply",
+                description: workDescription,
                 note: "Fixture work authority",
                 photos: [.init(purposeKey: "work_context", sourceData: try makePNG(seed: 91), createdAt: workDraft.startedAt.addingTimeInterval(10))],
                 completedAt: workCompleted
@@ -610,7 +612,7 @@ private extension S6_3BackupValidationTests {
         try await acceptPair(coordinator, assetID: assetID, observedAt: recheckObserved, seeds: (41, 81))
         let recheck = try await coordinator.finalize(
             assetID: assetID,
-            selection: .resolved(note: "Illumination remained steady."),
+            selection: .resolved(note: recheckNote),
             completedAt: recheckObserved.addingTimeInterval(30),
             snapshotCreatedAt: recheckObserved.addingTimeInterval(31),
             sourceApp: .init(build: "42", version: "4.0"),
@@ -2499,5 +2501,71 @@ private final class V30P01C05BackupCanonicalIdentityValidationTests: XCTestCase 
         XCTAssertTrue(V30P01C05BackupEncoderCanonicalIdentityBoundaryV1.validate())
         XCTAssertTrue(V30P01C05BackupDecoderCanonicalIdentityBoundaryV1.validate())
         XCTAssertTrue(V30P01C05BackupPackageCanonicalIdentityBoundaryV1.validate())
+    }
+}
+
+
+extension S6_3BackupValidationTests {
+    @MainActor
+    func testV30UnicodeBackupValidationPreservesExactUTF8AcrossPackageValidation() async throws {
+        let authoredAddress = "Cafe\u{301} / café / 👩🏽‍🔧 / 漢字 / 한 / مرحبا\u{200F}"
+        let authoredWorkDescription = "Replaced cafe\u{301} driver — 👩🏽‍🔧 漢字 مرحبا\u{200F}"
+        let authoredRecheckNote = "確認済み — café / 한 / 👩🏽‍🔧"
+        let harness = try await makeHarness(
+            "v30-unicode-validation",
+            siteAddress: authoredAddress,
+            workDescription: authoredWorkDescription,
+            recheckNote: authoredRecheckNote
+        )
+        defer { try? fileManager.removeItem(at: harness.supportURL) }
+
+        let package = try exportPackage(harness, name: "unicode-source")
+        let importer = try makeImporter(
+            harness,
+            capacity: .max,
+            scopedAccess: .alreadyAuthorized
+        )
+        let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        defer { try? importer.discard(validated) }
+
+        let validatedAddress = try XCTUnwrap(validated.records.sites.first?.address)
+        XCTAssertEqual(Array(validatedAddress.utf8), Array(authoredAddress.utf8))
+
+        let recordsData = try XCTUnwrap(validated.members["records.json"])
+        XCTAssertNotNil(recordsData.range(of: Data(authoredAddress.utf8)))
+        let decoded = try BackupCanonicalDecoderV1().decodeRecords(recordsData)
+        let decodedAddress = try XCTUnwrap(decoded.sites.first?.address)
+        XCTAssertEqual(Array(decodedAddress.utf8), Array(authoredAddress.utf8))
+
+        let recheckRecord = try XCTUnwrap(validated.records.workflowRecords.first {
+            $0.stage == WorkflowStage.recheck.rawValue
+                && $0.revisionKind == WorkflowRevisionKind.original.rawValue
+        })
+        let recheckReport = try XCTUnwrap(validated.records.reports.first {
+            $0.sourceRecordID == recheckRecord.id
+        })
+        let snapshotData = try XCTUnwrap(
+            validated.members[recheckReport.snapshotRelativePath]
+        )
+        for authoredValue in [
+            authoredAddress,
+            authoredWorkDescription,
+            authoredRecheckNote,
+        ] {
+            XCTAssertNotNil(snapshotData.range(of: Data(authoredValue.utf8)))
+        }
+        let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
+        XCTAssertEqual(
+            Array(try XCTUnwrap(snapshot.site.address).utf8),
+            Array(authoredAddress.utf8)
+        )
+        XCTAssertEqual(Array(try XCTUnwrap(snapshot.note).utf8), Array(authoredRecheckNote.utf8))
+        let workHistory = try XCTUnwrap(snapshot.history.first {
+            $0.stage == WorkflowStage.work.rawValue
+        })
+        XCTAssertEqual(
+            Array(try XCTUnwrap(workHistory.workDescription).utf8),
+            Array(authoredWorkDescription.utf8)
+        )
     }
 }

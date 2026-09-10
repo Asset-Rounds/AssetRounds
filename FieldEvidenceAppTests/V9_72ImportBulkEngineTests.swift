@@ -27,12 +27,21 @@ private enum C08 {
         ], budget: budget)
     }
 
-    static func plan(workspaceID: WorkspaceID = workspace(), rowCount: Int = 1) throws -> (ImportPlanV1, BulkCommandPlanV1) {
+    static func plan(
+        workspaceID: WorkspaceID = workspace(),
+        rowCount: Int = 1,
+        assetName: String? = nil
+    ) throws -> (ImportPlanV1, BulkCommandPlanV1) {
         let schema = try schema()
         let source = try ImportSourceV1(sourceID: id(980_002), workspaceID: workspaceID, kind: .userSelectedFile, sourceSHA256: sourceSHA256, byteCount: 32, leaseID: id(980_003), importedAt: time)
         let rows = try (1...rowCount).map { ordinal -> ImportPlanRowV1 in
             let identity = try ImportRowIdentityV1(workspaceID: workspaceID, sourceSHA256: sourceSHA256, sourceOrdinal: UInt64(ordinal), canonicalRowSHA256: String(format: "%064x", ordinal), stableExternalKey: String(format: "asset_%03d", ordinal), schemaReleaseID: schema.releaseID, schemaRelease: schema.release)
-            let mappedFields = [try ImportMappedFieldV1(key: "asset_key", value: String(format: "asset_%03d", ordinal))]
+            var mappedFields = [
+                try ImportMappedFieldV1(key: "asset_key", value: String(format: "asset_%03d", ordinal))
+            ]
+            if let assetName {
+                mappedFields.append(try ImportMappedFieldV1(key: "asset_name", value: assetName))
+            }
             let commandID = String(format: "create_asset_%03d", ordinal)
             let payloadSHA256 = try ImportProposedCommandV1.canonicalPayloadSHA256(commandID: commandID, kind: .createAsset, targetStableID: nil, expectedRevision: nil, dependencyCommandIDs: [], rowIdentity: identity, schemaRelease: schema, mappedFields: mappedFields)
             let command = try ImportProposedCommandV1(commandID: commandID, kind: .createAsset, targetStableID: nil, expectedRevision: nil, dependencyCommandIDs: [], payloadSHA256: payloadSHA256)
@@ -71,9 +80,11 @@ private enum C08 {
 
 @MainActor private final class C08WriterAdapter: WorkspaceWriterAdapterPortV1 {
     private(set) var applyCount = 0
+    private(set) var lastTemporaryRelativePath: String?
     func apply(_ command: WorkspaceCommandV1, occurredAt: Date, temporaryRelativePath: String) throws -> WorkspaceMutationEffectV1 {
         guard case let .createFirstSign(value) = command else { throw WorkspaceMutationFailureV1.unsupportedCommand }
         applyCount += 1
+        lastTemporaryRelativePath = temporaryRelativePath
         var identities = [try WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID)]
         if let site = value.newSite { identities.append(try WorkspaceEntityIdentityV1(kind: .site, id: site.id)) }
         return try WorkspaceMutationEffectV1(affectedEntities: identities, temporaryRelativePath: temporaryRelativePath)
@@ -83,8 +94,14 @@ private enum C08 {
 private struct C08Clock: ApplicationClock { func now() -> Date { C08.time } }
 private struct C08IDSource: ApplicationIDSource { let value: UUID; func makeID() -> UUID { value } }
 private struct C08FileAuthority: ApplicationFileAuthorityV1 {
+    let fileName: String?
+
+    init(fileName: String? = nil) {
+        self.fileName = fileName
+    }
+
     func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
-        "c08/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+        "c08/\(mutationID.rawValue.uuidString.lowercased())/\(fileName ?? component)"
     }
 }
 
@@ -95,8 +112,14 @@ private struct C08RejectingMaterializer: ImportWorkspaceCommandMaterializingV1 {
 }
 
 private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1 {
+    let assetLabel: String
+
+    init(assetLabel: String = "C08 imported asset") {
+        self.assetLabel = assetLabel
+    }
+
     func materialize(_ context: ImportCommandMaterializationContextV1) throws -> WorkspaceMutationRequestV1 {
-        try WorkspaceMutationRequestV1(mutationID: context.mutationID, expectedRevision: context.expectedRevision, command: .createFirstSign(.init(siteID: C08.id(980_110), newSite: .init(id: C08.id(980_110), label: "C08 site", address: nil, timeZoneID: "UTC"), assetID: C08.id(980_111), assetLabel: "C08 imported asset", packID: "c08.pack", packSchemaVersion: 1, packContentVersion: 1, createdAt: C08.time)))
+        try WorkspaceMutationRequestV1(mutationID: context.mutationID, expectedRevision: context.expectedRevision, command: .createFirstSign(.init(siteID: C08.id(980_110), newSite: .init(id: C08.id(980_110), label: "C08 site", address: nil, timeZoneID: "UTC"), assetID: C08.id(980_111), assetLabel: assetLabel, packID: "c08.pack", packSchemaVersion: 1, packContentVersion: 1, createdAt: C08.time)))
     }
 }
 
@@ -116,7 +139,9 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
 
     init(
         atomicMaterializer: any ImportWorkspaceCommandMaterializingV1,
-        atomicAllowedWorkspaceCommandKinds: Set<WorkspaceCommandKindV1>
+        atomicAllowedWorkspaceCommandKinds: Set<WorkspaceCommandKindV1>,
+        assetLabel: String = "C08 imported asset",
+        temporaryFileName: String? = nil
     ) throws {
         let models = PersistentSchemaV45.models + [ImportMappingProfileRowV1.self, BulkSessionRowV1.self, BulkCommitReceiptRowV1.self]
         let schema = Schema(models, version: PersistentSchemaV45.versionIdentifier)
@@ -127,7 +152,7 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
         let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: C08.id(980_091)))
         let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generationID)
         adapter = C08WriterAdapter()
-        writer = try WorkspaceWriterV1(identity: identity, generationID: generationID, initialRevision: journal.currentRevision(writerInstanceID: C08.id(980_092)), clock: C08Clock(), idSource: C08IDSource(value: C08.id(980_092)), fileAuthority: C08FileAuthority(), adapter: adapter, journalStore: journal)
+        writer = try WorkspaceWriterV1(identity: identity, generationID: generationID, initialRevision: journal.currentRevision(writerInstanceID: C08.id(980_092)), clock: C08Clock(), idSource: C08IDSource(value: C08.id(980_092)), fileAuthority: C08FileAuthority(fileName: temporaryFileName), adapter: adapter, journalStore: journal)
         let registration = try C08Stack.registration()
         lifecycle = try ImportBulkLifecycleAdapterV1(registrations: [registration], modelContext: context)
         let materializers = try ImportCommandKindV1.allCases.map { kind in
@@ -140,7 +165,7 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
             }
             return try ImportBulkMaterializerRegistrationV1(
                 kind: kind,
-                materializer: kind == .createAsset ? C08CreateAssetMaterializer() : C08RejectingMaterializer()
+                materializer: kind == .createAsset ? C08CreateAssetMaterializer(assetLabel: assetLabel) : C08RejectingMaterializer()
             )
         }
         coordinator = try ImportBulkCoordinatorV1(writer: writer, lifecycle: lifecycle, materializers: materializers)
@@ -372,6 +397,73 @@ private struct C08CreateAssetMaterializer: ImportWorkspaceCommandMaterializingV1
         XCTAssertEqual(receiptRejection.reason, .immutableAuditReceiptCannotBeRebound)
         let rejectionJSON = String(data: try ImportBulkCanonicalCodecV1.encode(receiptRejection), encoding: .utf8)!
         XCTAssertFalse(rejectionJSON.contains(plan.workspaceID.rawValue.uuidString))
+    }
+
+    func testV30P02C02UnicodeImportedTextCommitAndRetryRecoveryPreserveUTF8() throws {
+        let decomposed = "Cafe\u{0301}"
+        let nfc = "Café"
+        XCTAssertNotEqual(Array(decomposed.utf8), Array(nfc.utf8))
+        let emoji = "👩🏽‍🔧"
+        let cjkAndJamo = "東京 한"
+        let arabic = "موقع الشرق"
+        let importedAssetLabel = "\(decomposed) · \(emoji) · \(cjkAndJamo) · \(arabic)"
+        let sourceFileName = "\(decomposed)-\(emoji)-\(cjkAndJamo)-\(arabic).csv"
+        let (plan, bulk) = try C08.plan(assetName: importedAssetLabel)
+        let mappedLabel = try XCTUnwrap(plan.rows[0].mappedFields.first { $0.key == "asset_name" }?.value)
+        XCTAssertEqual(Array(mappedLabel.utf8), Array(importedAssetLabel.utf8))
+
+        let stack = try C08Stack(
+            atomicMaterializer: C08RejectingMaterializer(),
+            atomicAllowedWorkspaceCommandKinds: [.applyAssetSemantics],
+            assetLabel: importedAssetLabel,
+            temporaryFileName: sourceFileName
+        )
+        let preview = try stack.coordinator.preview(
+            importPlan: plan,
+            bulkPlan: bulk,
+            currentSourceSHA256: plan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256
+        )
+        let begun = try stack.coordinator.begin(
+            sessionID: C08.id(980_200), preview: preview,
+            currentSourceSHA256: plan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256
+        )
+        let committed = try stack.coordinator.commitFirstMissingChunk(
+            session: begun, importPlan: plan, bulkPlan: bulk,
+            currentSourceSHA256: plan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256,
+            cancellationRequested: false
+        )
+        XCTAssertEqual(committed.state, .completed)
+        let temporaryPath = try XCTUnwrap(stack.adapter.lastTemporaryRelativePath)
+        XCTAssertEqual(
+            Array(temporaryPath.utf8),
+            Array("c08/\(bulk.chunks[0].mutationIDs[0].rawValue.uuidString.lowercased())/\(sourceFileName)".utf8)
+        )
+
+        let history = try stack.writer.sourceMutationHistorySnapshot()
+        let record = try XCTUnwrap(history.receipts.first)
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+        guard case let .createFirstSign(input) = envelope.command else {
+            return XCTFail("the imported bulk command must remain a canonical create-first-sign request")
+        }
+        XCTAssertEqual(Array(input.assetLabel.utf8), Array(importedAssetLabel.utf8))
+
+        let restartingSession = try BulkSessionV1(
+            sessionID: begun.sessionID, workspaceID: plan.workspaceID, bulkPlan: bulk,
+            sourceSHA256: plan.source.sourceSHA256,
+            expectedWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256
+        )
+        try stack.lifecycle.record(session: restartingSession, replacing: committed.sessionSHA256)
+        let recovered = try stack.coordinator.commitFirstMissingChunk(
+            session: restartingSession, importPlan: plan, bulkPlan: bulk,
+            currentSourceSHA256: plan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: plan.workspaceRevisionSHA256,
+            cancellationRequested: false
+        )
+        XCTAssertEqual(recovered.chunkReceipts, committed.chunkReceipts)
+        XCTAssertEqual(stack.adapter.applyCount, 1)
     }
 
     private func loadCorpus() throws -> C08Corpus {
