@@ -2407,11 +2407,12 @@ foreach ($cell in $visual.candidate_cells) {
         Assert-Equal $cell.$field $cellReceipt.$field "$($cell.cell_id) $field"
     }
     # H411_CELL_SOURCE_END
-    if ($receiptProvider -ceq "bitrise_build_hub" -and [string]::IsNullOrWhiteSpace([string]$cell.runner_provider)) {
+    $cellProvider = [string](Get-H411Field $cell 'runner_provider')
+    if ($receiptProvider -ceq "bitrise_build_hub" -and [string]::IsNullOrWhiteSpace($cellProvider)) {
         Add-ValidationError "$($cell.cell_id) Bitrise candidate lacks runner_provider."
     }
-    if (-not [string]::IsNullOrWhiteSpace([string]$cell.runner_provider)) {
-        Assert-Equal $cell.runner_provider $receiptProvider "$($cell.cell_id) runner provider"
+    if (-not [string]::IsNullOrWhiteSpace($cellProvider)) {
+        Assert-Equal $cellProvider $receiptProvider "$($cell.cell_id) runner provider"
     }
     $expectedAttachmentName = "S10.4 candidate $($cell.shard_id) $($cell.screen_state_id)"
     $artifactRoot = "https://github.com/palatis3/AssetRounds/actions/runs/$($cell.run_id)/artifacts/$($cell.artifact_id)"
