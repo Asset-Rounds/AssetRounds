@@ -4358,3 +4358,38 @@ Implementation paths (10 within the 21-path fence):
 - `FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift`
 
 Boundary: isolated provisional branch only, no main or Phase 10 access/mutation. Replay/reimplement after S in graph order, preserve accepted Phase 10 design and requalify every invalidated result; never merge wholesale. Next unstarted card: V30-P02-C05 - Locale-aware search, sorting, and normalization. This entry does not self-record its containing commit.
+
+
+## Card 19 of 55 - V30-P02-C05 - Locale-aware search, sorting, and normalization
+
+State: PROVISIONAL_CHECKPOINTED. Graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `d804f60308bcfdcaadf01780d429132e4bcbd77d`, tree `0cde23d9cf27616f10d4465ef4ee5a9ac387791e` (C04 checkpoint 39). Direct prerequisites retain P01-C07 `36f9c62ef09bff21c47923add3ade6469a82650e` / tree `0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8`, checkpoint 28, and P02-C02 `69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe` / tree `56016965f7f633eaf605460598e21910c1fc298b`, checkpoint 35.
+- Observed G0 authority A: `d7c38983f4013b9caf177874a4568b41b0ced114`; M..A is exactly four V30 execution documents. All 17 fence entries match immutable authority and frozen B hashes; no S10 overlap or shared authority tuple applies.
+- Product implementation E: `9f9fab6beb17d5149128c87b255facd7a3e720b1`, tree `0a4ae5c9d354277cdc4f84291f5378fb543c532f`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 41: head `750c6240cec80828be115597c29cee96efc7a07b`, ledger digest `588aee486d0176999982104239dc3349dfc5674a29c8b8a4aa7e8cfb254f0788`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P02-C05/CHECKPOINT/1`. Receipt preserves candidate history, raw committed hashes, source inventory, review corrections and all provenance.
+
+Versioned derived search applies explicit root Latin diacritic/case/width folding, NFC composition for other scripts, and bounded CJK tokens while retaining full derived normalized text. Contiguous CJK query matching spans stored chunks without reversing order; overlong query runs fail explicitly. Hangul composition is tested by UTF-8 bytes. Turkish and Arabic fixtures are diagnostics, not shipping-language claims. Exact identity ranking compares source UTF-8 bytes. Display collation takes an explicit locale snapshot with a raw stable-identity tie breaker; production supplies the OS formatting locale without changing canonical identifiers or index normalization.
+
+Five incumbent legacy normalizer bodies and the SearchSessionState, SavedSmartView and field registry contracts remain unchanged for external callers. Optional metadata distinguishes new normalization from explicit legacy rows. New format 2 permits freshly produced legacy compatibility rows, while real SwiftData projection uses new material. Old format 1 files/staging are discarded and rebuilt; historical checkpoint loading is structural, current resume/publication remains exact-format. Validating encode/decode rejects tampered receipt material. Projection, checkpoint, failure recovery and erase preserve existing atomic publication and source boundaries.
+
+Nine new authored tests cover fixed shipping/hostile fixture bytes, Hangul, validating payloads, cross-chunk CJK, actual coordinator ranking/suggestions/collation, current and legacy policies, stale-format rebuild, injected rebuild failure/resume, and derived erase. S6_4 adds actual BackupRestoreService restore followed by actual SwiftData rebuild with exact Unicode source/identity preservation. The erase fixture calls derived-store erase, not a full EraseAllService run. No tests were compiled or executed on Windows; native XCTest, backup/erase integration and Simulator qualification remain pending.
+
+Static validation PASS: immutable package 55 cards/107 edges; typed CI contract WINDOWS_STATIC/selector null; exact fence/B pins and M..A authority-only proof; ten implementation paths; zero S10 overlaps; unchanged legacy method bodies/canonical contracts; exact fixture identities; git diff --check. Independent final product/test and restore-test audits PASS_STATIC after correcting payload validation, stale-checkpoint decode, query binding, source-preserving assertions and argument/actor syntax. A precommit unrelated SearchSessionState edit was fully restored to A. A diagnostic invocation initially used an absent package Scripts subpath; the actual package-root validator passed. No hosted workflow dispatched. Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots are unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT.
+
+Historical C01 UI-source audit invalidations from C03/C04 remain preserved and unchanged; no whole-suite pass is claimed. BackupRestoreService, EraseAllService, V9_19 tests, project, catalogs and canonical persistence/journal bytes were not changed by this card. KNOWN_BUGS remains its template; no defect was accepted. All diagnosed current-card precommit static blockers were corrected. Native and prior invalidated evidence remain pending after reconciliation.
+
+Implementation paths (10 within the 17-path fence):
+- `FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift`
+- `FieldEvidenceApp/Domain/Search/GlobalizedSearchNormalizationContractsV1.swift`
+- `FieldEvidenceApp/Domain/Search/SearchContractsV1.swift`
+- `FieldEvidenceApp/Domain/Search/SearchPersistenceModelsV1.swift`
+- `FieldEvidenceApp/Infrastructure/Search/GlobalizedSearchNormalizationServiceV1.swift`
+- `FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift`
+- `FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/Search/globalized-search-cases-v1.json`
+- `FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift`
+- `FieldEvidenceAppTests/V30_P02_C05GlobalizedSearchTests.swift`
+
+Boundary: isolated provisional branch only, no main or Phase 10 access/mutation. Replay/reimplement after S in graph order and requalify all invalidated/native evidence; never merge wholesale. Next unstarted card: V30-P02-C06 - Pseudo, RTL, long-text, and screenshot harness. This entry does not self-record its containing commit.
