@@ -14,20 +14,36 @@
     "features",
     "eligible_features",
     "tasks",
-    "aggregate"
+    "aggregate",
+    "acceptance_policy_id"
   ],
   "properties": {
-    "schema_version": { "const": "4.1.0" },
-    "document_status": { "const": "automated_evaluated" },
-    "automation_amendment_id": { "const": "assetrounds-s10.4-automation-amendment-v1" },
-    "source_product_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "acceptance_policy_id": {
+      "const": "s10.4.current-seven-with-minimum-verification-deferred.v1"
+    },
+    "schema_version": {
+      "const": "4.1.0"
+    },
+    "document_status": {
+      "const": "automated_evaluated"
+    },
+    "automation_amendment_id": {
+      "const": "assetrounds-s10.4-automation-amendment-v1"
+    },
+    "source_product_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
     "device_profile_ids": {
       "const": [
         "iphone-17-ios-26.2-current",
         "iphone-se-3-ios-18.0-minimum"
       ]
     },
-    "criteria_checked_date": { "type": "string", "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$" },
+    "criteria_checked_date": {
+      "type": "string",
+      "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"
+    },
     "features": {
       "const": [
         "voiceover",
@@ -43,7 +59,15 @@
       "type": "array",
       "uniqueItems": true,
       "items": {
-        "enum": ["voiceover", "voice_control", "larger_text", "dark_interface", "differentiate_without_color", "sufficient_contrast", "reduced_motion"]
+        "enum": [
+          "voiceover",
+          "voice_control",
+          "larger_text",
+          "dark_interface",
+          "differentiate_without_color",
+          "sufficient_contrast",
+          "reduced_motion"
+        ]
       }
     },
     "tasks": {
@@ -53,18 +77,39 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["task_id", "title", "critical", "screen_state_ids", "feature_results"],
+        "required": [
+          "task_id",
+          "title",
+          "critical",
+          "screen_state_ids",
+          "feature_results"
+        ],
         "properties": {
           "task_id": {
-            "enum": ["one_handed_start", "capture_and_review", "force_quit_draft_resume", "history_recovery", "work_and_recheck", "report_comprehension"]
+            "enum": [
+              "one_handed_start",
+              "capture_and_review",
+              "force_quit_draft_resume",
+              "history_recovery",
+              "work_and_recheck",
+              "report_comprehension"
+            ]
           },
-          "title": { "type": "string", "minLength": 1 },
-          "critical": { "type": "boolean" },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "critical": {
+            "type": "boolean"
+          },
           "screen_state_ids": {
             "type": "array",
             "minItems": 1,
             "uniqueItems": true,
-            "items": { "type": "string", "pattern": "^state\\.[a-z0-9._-]+$" }
+            "items": {
+              "type": "string",
+              "pattern": "^state\\.[a-z0-9._-]+$"
+            }
           },
           "feature_results": {
             "type": "array",
@@ -98,39 +143,127 @@
                 "manual_status",
                 "manual_evidence_ids",
                 "manual_reviewer",
-                "rationale"
+                "rationale",
+                "acceptance_scope"
               ],
               "properties": {
-                "device_profile_id": { "enum": ["iphone-17-ios-26.2-current", "iphone-se-3-ios-18.0-minimum"] },
-                "feature": { "enum": ["voiceover", "voice_control", "larger_text", "dark_interface", "differentiate_without_color", "sufficient_contrast", "reduced_motion"] },
-                "automation_shard_id": { "type": "string", "pattern": "^s10\\.4\\.(current|minimum)\\.[a-z0-9-]+$" },
-                "source_product_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-                "run_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },
-                "job_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },
-                "artifact_id": { "type": "string", "pattern": "^[1-9][0-9]*$" },
-                "artifact_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-                "ax_evidence_id": { "type": "string", "minLength": 1 },
-                "ax_evidence_locator": { "type": "string", "minLength": 1 },
-                "ax_evidence_sha256": { "type": "string", "pattern": "^[0-9A-F]{64}$" },
-                "focus_order_evidence_id": { "type": "string", "minLength": 1 },
-                "target_size_evidence_id": { "type": "string", "minLength": 1 },
-                "contrast_evidence_id": { "type": "string", "minLength": 1 },
-                "automated_status": { "enum": ["PASS", "NOT_APPLICABLE", "EXCEPTION"] },
+                "device_profile_id": {
+                  "enum": [
+                    "iphone-17-ios-26.2-current",
+                    "iphone-se-3-ios-18.0-minimum"
+                  ]
+                },
+                "feature": {
+                  "enum": [
+                    "voiceover",
+                    "voice_control",
+                    "larger_text",
+                    "dark_interface",
+                    "differentiate_without_color",
+                    "sufficient_contrast",
+                    "reduced_motion"
+                  ]
+                },
+                "automation_shard_id": {
+                  "type": "string",
+                  "pattern": "^s10\\.4\\.(current|minimum)\\.[a-z0-9-]+$"
+                },
+                "source_product_head": {
+                  "type": "string",
+                  "pattern": "^$|^[0-9a-f]{40}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*$"
+                },
+                "job_id": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*$"
+                },
+                "artifact_id": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*$"
+                },
+                "artifact_digest": {
+                  "type": "string",
+                  "pattern": "^$|^sha256:[0-9a-f]{64}$"
+                },
+                "ax_evidence_id": {
+                  "type": "string",
+                  "minLength": 0
+                },
+                "ax_evidence_locator": {
+                  "type": "string",
+                  "minLength": 0
+                },
+                "ax_evidence_sha256": {
+                  "type": "string",
+                  "pattern": "^$|^[0-9A-F]{64}$"
+                },
+                "focus_order_evidence_id": {
+                  "type": "string",
+                  "minLength": 0
+                },
+                "target_size_evidence_id": {
+                  "type": "string",
+                  "minLength": 0
+                },
+                "contrast_evidence_id": {
+                  "type": "string",
+                  "minLength": 0
+                },
+                "automated_status": {
+                  "enum": [
+                    "PASS",
+                    "NOT_APPLICABLE",
+                    "EXCEPTION",
+                    "DEFERRED"
+                  ]
+                },
                 "automated_evidence_ids": {
                   "type": "array",
-                  "minItems": 1,
+                  "minItems": 0,
                   "uniqueItems": true,
-                  "items": { "type": "string", "minLength": 1 }
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 },
-                "automated_reviewer": { "type": "string", "minLength": 1 },
-                "exception_issue_id": { "type": "string" },
-                "exception_owner": { "type": "string" },
-                "exception_expires_at": { "type": "string" },
-                "exception_rationale": { "type": "string" },
-                "manual_status": { "const": "NOT_RUN" },
-                "manual_evidence_ids": { "const": [] },
-                "manual_reviewer": { "const": "" },
-                "rationale": { "type": "string", "minLength": 1 }
+                "automated_reviewer": {
+                  "type": "string",
+                  "minLength": 0
+                },
+                "exception_issue_id": {
+                  "type": "string"
+                },
+                "exception_owner": {
+                  "type": "string"
+                },
+                "exception_expires_at": {
+                  "type": "string"
+                },
+                "exception_rationale": {
+                  "type": "string"
+                },
+                "manual_status": {
+                  "const": "NOT_RUN"
+                },
+                "manual_evidence_ids": {
+                  "const": []
+                },
+                "manual_reviewer": {
+                  "const": ""
+                },
+                "rationale": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "acceptance_scope": {
+                  "enum": [
+                    "REQUIRED",
+                    "DEFERRED"
+                  ]
+                }
               }
             }
           }
@@ -151,24 +284,60 @@
         "accessibility_tuple_set_sha256",
         "all_automated_rows_closed",
         "manual_results_unclaimed",
-        "evidence_ids"
+        "evidence_ids",
+        "required_automated_row_count",
+        "deferred_automated_row_count",
+        "all_required_automated_rows_closed"
       ],
       "properties": {
-        "source_product_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-        "task_count": { "const": 6 },
-        "device_profile_count": { "const": 2 },
-        "feature_count": { "const": 7 },
-        "automated_row_count": { "const": 84 },
-        "manual_open_row_count": { "const": 84 },
-        "task_set_sha256": { "const": "BAC94780D3AA60B036E370F1FF1EAF12DE9E5CBB1EB4C6D1A58E6C19AD72C33B" },
-        "accessibility_tuple_set_sha256": { "const": "E8F43E18BF400FA3BC229436DA0598EE3F67914710A729673C591BE6B49D76BE" },
-        "all_automated_rows_closed": { "const": true },
-        "manual_results_unclaimed": { "const": true },
+        "source_product_head": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "task_count": {
+          "const": 6
+        },
+        "device_profile_count": {
+          "const": 2
+        },
+        "feature_count": {
+          "const": 7
+        },
+        "automated_row_count": {
+          "const": 84
+        },
+        "manual_open_row_count": {
+          "const": 84
+        },
+        "task_set_sha256": {
+          "const": "BAC94780D3AA60B036E370F1FF1EAF12DE9E5CBB1EB4C6D1A58E6C19AD72C33B"
+        },
+        "accessibility_tuple_set_sha256": {
+          "const": "E8F43E18BF400FA3BC229436DA0598EE3F67914710A729673C591BE6B49D76BE"
+        },
+        "all_automated_rows_closed": {
+          "const": false
+        },
+        "manual_results_unclaimed": {
+          "const": true
+        },
         "evidence_ids": {
           "type": "array",
-          "minItems": 14,
+          "minItems": 9,
           "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required_automated_row_count": {
+          "const": 42
+        },
+        "deferred_automated_row_count": {
+          "const": 42
+        },
+        "all_required_automated_rows_closed": {
+          "const": true
         }
       }
     }

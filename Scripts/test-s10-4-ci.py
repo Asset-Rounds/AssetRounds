@@ -11,6 +11,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import types
 import unittest
@@ -1419,6 +1420,354 @@ class MinimumCoreSmokeProtocol(unittest.TestCase):
             failed=ci.consumer_facts(source,self.root,selected,3,[dict(jobs[0],conclusion='failure')],'failure')
             self.assertFalse(failed['smokeComplete']); self.assertFalse(failed['fullShardComplete'])
             self.assertEqual(failed['smokeCheckpointCount'],6); self.assertTrue(failed['gaps'])
+
+
+class UnacquiredHostedWorkerProtocol(unittest.TestCase):
+    def fixture(self):
+        selected = intent(rid=3, segment='none')
+        selected['shardID'] = 's10.4.current.increased-contrast'
+        selected['segmentID'] = 'none'; selected['owned'] = 67
+        selected['inputs']['s10_4_shard_id'] = selected['shardID']
+        selected['inputs']['s10_4_shared_segment_id'] = 'none'
+        raw_run = run(3, selected)
+        name = 'GitHub Xcode 26.6 acceptance · ' + selected['shardID'] + ' · none / verify'
+        url = 'https://api.github.com/repos/' + ci.REPO + '/check-runs/4'
+        html = 'https://github.com/' + ci.REPO + '/actions/runs/3/job/4'
+        job = {'id': 4, 'name': name, 'run_id': 3, 'run_attempt': 1, 'head_sha': H,
+               'head_branch': ci.REF, 'check_run_url': url, 'html_url': html,
+               'status': 'completed', 'conclusion': 'cancelled',
+               'started_at': '2026-09-01T00:00:01Z', 'completed_at': '2026-09-01T00:15:01Z',
+               'runner_id': 0, 'runner_name': '', 'runner_group_id': 0, 'runner_group_name': '',
+               'labels': ['macos-26'], 'steps': []}
+        check = {'id': 4, 'name': name, 'head_sha': H, 'url': url, 'html_url': html, 'details_url': html,
+                 'status': 'completed', 'conclusion': 'cancelled', 'started_at': job['started_at'],
+                 'completed_at': job['completed_at'], 'app': {'id': 15368, 'slug': 'github-actions'},
+                 'output': {'annotations_count': 1}}
+        xml = (b'<?xml version="1.0" encoding="utf-8"?><Error><Code>BlobNotFound</Code>'
+               b'<Message>The specified blob does not exist.\nRequestId:4914a726-f01e-008c-7030-41f3e4000000\n'
+               b'Time:2026-09-10T14:30:15.2095424Z</Message></Error>\n')
+        transport = {'returncode': 1, 'stdout': xml, 'stderr': b'gh: HTTP 404\n'}
+        admission = {'id': 2, 'name': 'Validate shared build selection and dependencies', 'run_id': 3,
+                     'run_attempt': 1, 'head_sha': H, 'head_branch': ci.REF, 'status': 'completed',
+                     'conclusion': 'success', 'started_at': '2026-09-01T00:00:00Z',
+                     'completed_at': '2026-09-01T00:00:01Z',
+                     'steps': [{'name': 'Check out the exact revision',
+                                                        'status': 'completed', 'conclusion': 'success'}]}
+        annotation = dict(ci.UNACQUIRED_ANNOTATION,
+            blob_href='https://github.com/' + ci.REPO + '/blob/' + H + '/.github')
+        return raw_run, job, selected, [], check, [annotation], transport, [admission, job]
+
+    def test_exact_service_witness_is_nonaccepting(self):
+        witness = ci.unacquired_hosted_worker(*self.fixture())
+        self.assertEqual(witness['classification'], 'github-hosted-worker-not-acquired')
+        for key in ('nativeUIExecuted', 'compilationPassed', 'fullSegmentComplete',
+                    'fullShardComplete', 'formalAcceptance', 'humanReviewGranted'):
+            self.assertFalse(witness[key])
+
+    def test_live_precollection_gate_requires_exact_no_runner_service_facts(self):
+        raw_run, job, selected, artifacts, check, annotations, log_result, all_jobs = self.fixture()
+        class Live:
+            def api(self, endpoint):
+                if endpoint == 'actions/runs/3': return raw_run
+                if endpoint == 'check-runs/4': return check
+                if endpoint == 'check-runs/4/annotations': return annotations
+                raise AssertionError(endpoint)
+            def pages(self, endpoint, key):
+                self_endpoint = endpoint
+                if self_endpoint == 'actions/runs/3/jobs?per_page=100' and key == 'jobs': return all_jobs
+                raise AssertionError((endpoint, key))
+        fact = ci.conditional_live_witness(Live(), selected, 3)
+        self.assertEqual(fact['jobID'], 4)
+        acquired = copy.deepcopy(job); acquired.update(runner_id=8, runner_name='GitHub Actions 8')
+        all_jobs[:] = [all_jobs[0], acquired]
+        with self.assertRaises(ci.Rejected): ci.conditional_live_witness(Live(), selected, 3)
+
+    def test_hostile_runner_step_annotation_identity_artifact_and_transport_reject(self):
+        mutations = [
+            lambda x: x[1].update(runner_id=99, runner_name='GitHub Actions 99'),
+            lambda x: x[1]['steps'].append({'name': 'Set up job'}),
+            lambda x: x[5][0].update(message='Capacity unavailable'),
+            lambda x: x[4].update(head_sha='2' * 40),
+            lambda x: x[3].append({'name': 'ios-ci-shared-3-1-s10.4.current.reduce-transparency-none'}),
+            lambda x: x[6].update(stderr=b'gh: HTTP 500\n'),
+            lambda x: x[6].update(stdout=b''),
+            lambda x: x[6].update(stdout=x[6]['stdout'].replace(b'BlobNotFound', b'AccessDenied')),
+            lambda x: x[0].update(conclusion='success'),
+            lambda x: x[1].update(status='in_progress'),
+            lambda x: x[1].update(conclusion='success'),
+            lambda x: (x[1].update(html_url='https://github.com/foreign/repo/actions/runs/9/job/99'),
+                       x[4].update(html_url='https://github.com/foreign/repo/actions/runs/9/job/99',
+                                   details_url='https://github.com/foreign/repo/actions/runs/9/job/99')),
+            lambda x: x[1].update(name='GitHub Xcode 26.6 acceptance · another · none / verify'),
+            lambda x: x[7].pop(0),
+            lambda x: x[7][0].update(conclusion='failure'),
+            lambda x: x[7].append(copy.deepcopy(x[7][0])),
+            lambda x: x[7][0].update(head_sha='2' * 40),
+        ]
+        for mutate in mutations:
+            fixture = list(copy.deepcopy(self.fixture())); mutate(fixture)
+            with self.assertRaises(ci.Rejected): ci.unacquired_hosted_worker(*fixture)
+
+    def test_verify_collection_revalidates_retained_service_witness(self):
+        fixture = self.fixture(); raw_run, job, selected, artifacts, check, annotations, transport, all_jobs = fixture
+        witness = ci.unacquired_hosted_worker(*fixture)
+        with tempfile.TemporaryDirectory() as value:
+            root = Path(value).resolve(); prefix = 'job-4.unacquired-hosted-worker'
+            ci.save(root / 'run.json', raw_run)
+            ci.save(root / 'jobs.json', {'total_count': len(all_jobs), 'jobs': all_jobs})
+            ci.save(root / 'artifacts.json', {'total_count': 0, 'artifacts': artifacts})
+            (root / 'job-2.log').write_bytes(b'admission\n')
+            (root / (prefix + '.log.stdout')).write_bytes(transport['stdout'])
+            (root / (prefix + '.log.stderr')).write_bytes(transport['stderr'])
+            (root / (prefix + '.log.exit')).write_bytes(b'1')
+            ci.save(root / (prefix + '.check-run.json'), check)
+            ci.save(root / (prefix + '.annotations.json'), annotations)
+            ci.save(root / (prefix + '.json'), witness)
+            facts = ci.verify_collection(root, selected, 3)
+            self.assertTrue(facts['allAvailableOriginalsVerified'])
+            self.assertEqual(facts['unacquiredHostedWorkers'], [witness])
+            self.assertEqual(facts['gaps'], [witness['gap']])
+            (root / (prefix + '.log.exit')).write_bytes(b'0')
+            with self.assertRaises(ci.Rejected): ci.verify_collection(root, selected, 3)
+
+    def test_terminal_collection_resumes_witness_without_second_log_request_and_partial_rejects(self):
+        fixture = self.fixture(); raw_run, job, selected, artifacts, check, annotations, transport, all_jobs = fixture
+        witness = ci.unacquired_hosted_worker(*fixture)
+        class NoSecondCapture:
+            def api(self, endpoint): return raw_run
+            def capture(self, *unused): raise AssertionError('log transport repeated')
+            def artifact(self, *unused, **kwargs): raise AssertionError('no artifacts')
+        with tempfile.TemporaryDirectory() as value:
+            folder = Path(value).resolve(); root = folder / 'originals'; root.mkdir()
+            prefix = 'job-4.unacquired-hosted-worker'
+            ci.save(root / 'run.json', raw_run); ci.save(root / 'jobs.json', {'total_count': len(all_jobs), 'jobs': all_jobs})
+            ci.save(root / 'artifacts.json', {'total_count': 0, 'artifacts': artifacts})
+            (root / 'job-2.log').write_bytes(b'admission\n')
+            (root / (prefix + '.log.stdout')).write_bytes(transport['stdout'])
+            (root / (prefix + '.log.stderr')).write_bytes(transport['stderr'])
+            (root / (prefix + '.log.exit')).write_bytes(b'1')
+            ci.save(root / (prefix + '.check-run.json'), check); ci.save(root / (prefix + '.annotations.json'), annotations)
+            ci.save(root / (prefix + '.json'), witness)
+            record = {'path': folder, 'intent': selected, 'resolution': {'runID': 3}}
+            with patch.object(ci, 'collection_proof', return_value={'resumed': True}):
+                self.assertEqual(ci.terminal_collection(types.SimpleNamespace(), record, NoSecondCapture()), {'resumed': True})
+            (root / (prefix + '.json')).unlink()
+            with patch.object(ci, 'collection_proof', return_value={'resumed': True}):
+                with self.assertRaises(ci.Rejected): ci.terminal_collection(types.SimpleNamespace(), record, NoSecondCapture())
+
+    def test_audit_and_retry_keep_service_gap_nonaccepting_and_hosted_only(self):
+        fixture = self.fixture(); raw_run, job, selected, artifacts, check, annotations, transport, all_jobs = fixture
+        witness = ci.unacquired_hosted_worker(*fixture)
+        facts = {'runID': 3, 'head': H, 'conclusion': 'failure', 'artifacts': [],
+                 'unacquiredHostedWorkers': [witness], 'gaps': [witness['gap']],
+                 'originalFilesSHA256': 'F' * 64, 'originalFileCount': 9,
+                 'allAvailableOriginalsVerified': True}
+        with tempfile.TemporaryDirectory() as value:
+            registry = Path(value).resolve(); folder = registry / 'requests' / selected['requestID']; originals = folder / 'originals'
+            originals.mkdir(parents=True); ci.save(originals / 'jobs.json', {'total_count': len(all_jobs), 'jobs': all_jobs})
+            ci.save(originals / 'artifacts.json', {'total_count': 0, 'artifacts': []})
+            (originals / 'job-2.log').write_bytes(b'admission\n')
+            record = {'path': folder, 'intent': selected, 'resolution': {'runID': 3}}
+            source = types.SimpleNamespace(identity={'files': {'a': 'A' * 64}})
+            matrix = types.SimpleNamespace(registry=registry, root=registry, source=lambda unused: source)
+            with patch.object(ci, 'records', return_value=[record]), patch.object(ci, 'collection_proof', return_value=facts):
+                audited = ci.audit(matrix, selected['requestID'])
+            self.assertTrue(audited['completeOriginalAudit']); self.assertEqual(audited['gaps'], [witness['gap']])
+            self.assertFalse(audited['nativeUIExecuted']); self.assertFalse(audited['formalAcceptance'])
+            proposal = {k: selected[k] for k in ('head', 'kind', 'shardID', 'segmentID')}
+            with patch.object(ci, 'verify_collection', return_value=facts):
+                with self.assertRaises(ci.Rejected):
+                    ci.validate_retry([raw_run], [record], proposal, 3, 'unknown-native-cause', 'Service record requires hosted classification.')
+                retry = ci.validate_retry([raw_run], [record], proposal, 3, 'hosted-infrastructure',
+                                          'GitHub did not acquire the hosted worker; retry exact route.')
+            self.assertEqual(retry['classification'], 'hosted-infrastructure')
+
+    def test_real_ic_and_rt_original_service_records(self):
+        fixture_root = os.environ.get('S10_4_FIXTURE_ROOT')
+        if not fixture_root:
+            self.skipTest('set S10_4_FIXTURE_ROOT for read-only source/original fixtures')
+        base = Path(fixture_root).resolve()
+        cases = [
+            ('3279fa0c3b0e4c17b3014a839b5c9c6a', 102903990486,
+             base / 'Temp/S10_4_CI/run34487026789/api'),
+            ('932fa115f175490fbd8e38ff3a152313', 102906216707,
+             base / 'Temp/S10_4_CI/run34487679270/service-diagnostics/20260910T143054Z'),
+        ]
+        for request_id, job_id, diagnostic in cases:
+            request = base / 'Temp/S10_4_CI/registry/requests' / request_id
+            originals = request / 'originals'; collection = request / 'collection-api'
+            raw_run = ci.load(originals / 'run.json'); jobs = ci.load(originals / 'jobs.json')['jobs']
+            selected = ci.load(request / 'intent.json'); job = next(j for j in jobs if j['id'] == job_id)
+            if (diagnostic / 'artifacts.json').exists():
+                artifacts = ci.load(diagnostic / 'artifacts.json')['artifacts']
+                check = ci.load(diagnostic / 'check-run.json'); annotations = ci.load(diagnostic / 'check-annotations.json')
+                stdout = (diagnostic / 'consumer-log.stdout').read_bytes()
+                stderr = (diagnostic / 'consumer-log.stderr').read_bytes()
+                returncode = int((diagnostic / 'consumer-log.exit').read_text(encoding='utf-8').strip())
+            else:
+                artifacts = ci.decode((diagnostic / 'artifacts.stdout').read_bytes())['artifacts']
+                check = ci.decode((diagnostic / 'check.stdout').read_bytes())
+                annotations = ci.decode((diagnostic / 'annotations.stdout').read_bytes())
+                pair = next(p for p in collection.glob('job-log-*.stdout') if b'<Code>BlobNotFound</Code>' in p.read_bytes())
+                stdout = pair.read_bytes(); stderr = pair.with_suffix('.stderr').read_bytes()
+                returncode = int(pair.with_suffix('.exit').read_text(encoding='utf-8').strip())
+            witness = ci.unacquired_hosted_worker(raw_run, job, selected, artifacts, check, annotations,
+                                                   {'returncode': returncode, 'stdout': stdout, 'stderr': stderr}, jobs)
+            self.assertEqual(witness['jobID'], job_id); self.assertFalse(witness['nativeUIExecuted'])
+
+
+class OperationalReviewProtocol(unittest.TestCase):
+    def setUp(self):
+        draft = Path(__file__).resolve().parent
+        self.temp = tempfile.TemporaryDirectory(dir=draft)
+        self.base = Path(self.temp.name).resolve(); self.addCleanup(self.temp.cleanup)
+        (self.base / 'owner-exception-proposal').mkdir(); (self.base / 'independent-review').mkdir()
+        source_base = draft.parent
+        copies = [('owner-exception-proposal/PROPOSAL.md', 'owner-exception-proposal/PROPOSAL.md'),
+                  ('owner-exception-proposal/OWNER_APPROVAL_20260910.json', 'owner-exception-proposal/OWNER_APPROVAL_20260910.json'),
+                  ('independent-review/POLICY_SCOPE_REVIEW.md', 'independent-review/POLICY_SCOPE_REVIEW.md'),
+                  ('independent-review/CLASSIFIER_REVIEW_DAF9.md', 'independent-review/CLASSIFIER_REVIEW_DAF9.md')]
+        for source, target in copies: shutil.copyfile(source_base / source, self.base / target)
+        self.diff = self.base / 'operational.diff'; self.diff.write_text('reviewed diff\n', encoding='utf-8')
+        self.inverse = self.base / 'operational.inverse.diff'; self.inverse.write_text('reviewed inverse\n', encoding='utf-8')
+        self.focused = self.base / 'focused.txt'; self.focused.write_text('PASS\n', encoding='utf-8')
+        self.full = self.base / 'full.txt'; self.full.write_text('PASS\n', encoding='utf-8')
+        self.matrix_path = Path(r'C:/AssetRounds/Temp/S10_4_CI/matrices/0adebd7-qualified.json')
+        base_matrix = ci.Matrix(self.matrix_path)
+        bind = lambda path: {'path': str(path.resolve()), 'sha256': ci.sha(path)}
+        self.value = {'schemaVersion': 1, 'recordType': 'S10_4_OPERATIONAL_CONTROLLER_REVIEW',
+            'decision': 'GO', 'reviewer': 'independent-operational-reviewer',
+            'reviewedAtUTC': '2026-09-10T16:00:00Z', 'unresolvedIssues': [],
+            'proposal': bind(self.base / 'owner-exception-proposal/PROPOSAL.md'),
+            'ownerApproval': bind(self.base / 'owner-exception-proposal/OWNER_APPROVAL_20260910.json'),
+            'policyScopeReview': bind(self.base / 'independent-review/POLICY_SCOPE_REVIEW.md'),
+            'classifierReview': bind(self.base / 'independent-review/CLASSIFIER_REVIEW_DAF9.md'),
+            'baseline': {'files': ci.BASELINE_FILES, 'protocolReviewSHA256': ci.BASELINE_REVIEW_SHA256},
+            'operational': {'controller': bind(draft / 's10-4-ci.py'), 'protocol': bind(draft / 'test-s10-4-ci.py')},
+            'fixed': {'repository': ci.REPO, 'ref': ci.REF, 'head': ci.FIXED_HEAD, 'mainSHA': ci.FIXED_MAIN,
+                      'checkoutRoot': str(base_matrix.root), 'registryRoot': str(base_matrix.registry),
+                      'sourceIdentitySHA256': ci.FIXED_SOURCE_IDENTITY, 'producer': ci.FIXED_PRODUCER},
+            'lineages': list(ci.LINEAGE_ROOTS),
+            'tests': [dict(name='focused operational controls', result='PASS', **bind(self.focused)),
+                      dict(name='full protocol suite', result='PASS', **bind(self.full))],
+            'diff': bind(self.diff), 'inverse': bind(self.inverse)}
+        self.review_path = self.base / 'independent-review/OPERATIONAL_REVIEW.json'
+
+    def matrix(self, value=None):
+        self.review_path.write_bytes(ci.canonical(value or self.value) + b'\n')
+        return ci.Matrix(self.matrix_path, self.review_path, ci.sha(self.review_path))
+
+    def test_ordinary_review_branch_remains_exact_git_strict(self):
+        with self.assertRaises(ci.Rejected): ci.Matrix(self.matrix_path).review()
+
+    def test_explicit_operational_review_accepts_only_complete_sealed_data(self):
+        matrix = self.matrix()
+        with patch.object(ci, 'OPERATIONAL_BASE', self.base), patch.object(ci, 'runtime_integrity', return_value=None):
+            result = matrix.review()
+        self.assertTrue(result['operationalException']); self.assertEqual(result['files'], {
+            ci.TOOL_PATHS[0]: ci.sha(Path(__file__).with_name('s10-4-ci.py')),
+            ci.TOOL_PATHS[1]: ci.sha(Path(__file__))})
+
+    def test_operational_review_hostile_bindings_and_runtime_patch_reject(self):
+        changes = [
+            lambda v: v.update(unresolvedIssues=['open']),
+            lambda v: v.update(reviewer='author'),
+            lambda v: v['ownerApproval'].update(sha256='0' * 64),
+            lambda v: v['operational']['controller'].update(sha256='0' * 64),
+            lambda v: v['fixed'].update(head='1' * 40),
+            lambda v: v['lineages'].pop(),
+            lambda v: v['tests'][0].update(result='FAIL'),
+            lambda v: v['inverse'].update(path=str(self.diff)),
+        ]
+        for change in changes:
+            value = copy.deepcopy(self.value); change(value); matrix = self.matrix(value)
+            with patch.object(ci, 'OPERATIONAL_BASE', self.base), patch.object(ci, 'runtime_integrity', return_value=None), self.assertRaises(ci.Rejected): matrix.review()
+        with patch.object(ci, 'capacity', lambda *a: {}), self.assertRaises(ci.Rejected): ci.runtime_integrity()
+        with patch.object(ci, 'OPERATIONAL_BASE', self.base), self.assertRaises(ci.Rejected): ci.runtime_integrity()
+        with self.assertRaises(ci.Rejected): ci.Matrix(self.matrix_path, self.review_path)
+        matrix = self.matrix(); self.review_path.write_bytes(b'{}\n')
+        with patch.object(ci, 'OPERATIONAL_BASE', self.base), patch.object(ci, 'runtime_integrity', return_value=None), self.assertRaises(ci.Rejected): matrix.review()
+        matrix = self.matrix(); alias = self.base / 'independent-review/review-alias.json'; os.link(self.review_path, alias)
+        try:
+            with patch.object(ci, 'OPERATIONAL_BASE', self.base), patch.object(ci, 'runtime_integrity', return_value=None), self.assertRaises(ci.Rejected): matrix.review()
+        finally:
+            alias.unlink()
+
+    def test_lineage_roots_successors_and_conditional_smoke(self):
+        matrix = ci.Matrix(self.matrix_path)
+        registry = ci.records(matrix, True)
+        ic = next(r for r in registry if r['intent']['requestID'] == ci.LINEAGE_ROOTS[0]['requestID'])
+        with patch.object(ci, 'records', return_value=registry):
+            root = matrix.lineage(ic['intent']); self.assertEqual(root['rootRunID'], 34487026789)
+            successor = dict(ic['intent'], retry={'runID': 34487026789, 'classification': 'hosted-infrastructure'})
+            successor.pop('requestID')
+            self.assertEqual(matrix.lineage(successor, 34487026789)['chainRunIDs'], [34487026789])
+            with self.assertRaises(ci.Rejected): matrix.lineage(dict(successor, shardID='s10.4.current.default-light'), 34487026789)
+        recorded = dict(successor, requestID='f' * 32)
+        recorded_row = {'path': self.base / 'recorded', 'intent': recorded, 'resolution': {'runID': 999}}
+        with patch.object(ci, 'records', return_value=registry + [recorded_row]):
+            self.assertEqual(matrix.lineage(recorded)['chainRunIDs'], [34487026789])
+        bad_path = self.base / 'bad-root'; (bad_path / 'originals').mkdir(parents=True)
+        jobs_value = ci.load(ci.original_root(ic) / 'jobs.json')
+        target = next(j for j in jobs_value['jobs'] if j['id'] == ci.LINEAGE_ROOTS[0]['jobID']); target['id'] += 1
+        ci.save(bad_path / 'originals/jobs.json', jobs_value)
+        bad_record = {'path': bad_path, 'intent': ic['intent'], 'resolution': ic['resolution']}
+        with patch.object(ci, 'records', return_value=[bad_record]), self.assertRaises(ci.Rejected):
+            matrix.lineage(ic['intent'])
+        smoke_root = ci.LINEAGE_ROOTS[2]; smoke_path = self.base / 'smoke'; (smoke_path / 'audits').mkdir(parents=True)
+        smoke_intent = {'requestID': smoke_root['requestID'], 'head': ci.FIXED_HEAD, 'kind': 'consumer',
+                        'provider': 'github', 'shardID': smoke_root['shardID'], 'segmentID': 'none',
+                        'inputs': {'execution_lane': ci.CONSUMER}}
+        smoke_record = {'path': smoke_path, 'intent': smoke_intent, 'resolution': {'runID': smoke_root['runID']}}
+        with patch.object(ci, 'records', return_value=[smoke_record]), \
+             patch.object(ci, 'verify_collection', return_value={'unacquiredHostedWorkers': []}), \
+             self.assertRaises(ci.Rejected): matrix.lineage(smoke_intent, conditional_level='verified')
+        witness = [{'jobID': 1}]
+        ci.save(smoke_path / 'audits/a.json', {'completeOriginalAudit': True, 'runID': smoke_root['runID'],
+            'head': ci.FIXED_HEAD, 'originalFilesSHA256': 'A' * 64, 'unacquiredHostedWorkers': witness})
+        with patch.object(ci, 'records', return_value=[smoke_record]), \
+             patch.object(ci, 'verify_collection', return_value={'originalFilesSHA256': 'A' * 64,
+                                                                  'unacquiredHostedWorkers': witness}):
+            self.assertTrue(matrix.lineage(smoke_intent)['conditional'])
+            self.assertEqual(matrix.lineage(smoke_intent, conditional_level='verified')['conditional'], True)
+            next_intent = dict(smoke_intent, requestID='e' * 32,
+                               retry={'runID': smoke_root['runID'], 'classification': 'hosted-infrastructure'})
+            next_record = {'path': self.base / 'next-smoke', 'intent': next_intent,
+                           'resolution': {'runID': smoke_root['runID'] + 1}}
+            with patch.object(ci, 'records', return_value=[smoke_record, next_record]):
+                self.assertTrue(matrix.lineage(next_intent)['conditional'])
+
+        live_run = {'id': smoke_root['runID']}; live_jobs = [{'id': 1}]
+        class LiveTransport:
+            def api(self, endpoint):
+                return {'run': live_run, 'check-runs/1': {'id': 1},
+                        'check-runs/1/annotations': [{'service': 'unacquired'}]}.get(endpoint, live_run)
+            def pages(self, endpoint, key): return live_jobs
+        with patch.object(ci, 'records', return_value=[smoke_record]), \
+             patch.object(ci, 'conditional_live_witness', return_value={'jobID': 1}) as live:
+            pending = matrix.lineage(smoke_intent, conditional_level='pending', transport=LiveTransport())
+            self.assertEqual(pending['conditionalEvidence'], 'live-service-precollection')
+            live.assert_called_once_with(unittest.mock.ANY, smoke_intent, smoke_root['runID'])
+        with patch.object(ci, 'records', return_value=[smoke_record]), \
+             patch.object(ci, 'conditional_live_witness', side_effect=ci.Rejected('runner acquired')), \
+             self.assertRaises(ci.Rejected):
+            matrix.lineage(smoke_intent, conditional_level='pending', transport=LiveTransport())
+
+    def test_operation_guard_api_preserves_existing_producer_proof(self):
+        matrix = ci.Matrix(self.matrix_path); matrix.operational_review_path = self.review_path
+        intent_value = {'requestID': ci.LINEAGE_ROOTS[0]['requestID'], 'head': ci.FIXED_HEAD, 'kind': 'consumer',
+                        'provider': 'github', 'shardID': ci.LINEAGE_ROOTS[0]['shardID'], 'segmentID': 'none'}
+        source = matrix.source()
+        proof = dict(ci.FIXED_PRODUCER, producerUnitCount=5)
+        with patch.object(matrix, 'fresh', return_value=(source, {'operationalException': True})), \
+             patch.object(matrix, 'lineage', return_value={'rootRunID': 34487026789}), \
+             patch.object(ci, 'producer_proof', return_value=(Path('.'), proof)), \
+             patch.object(ci, 'runtime_integrity', return_value=None):
+            for stage in ('before-collect', 'after-collect', 'before-audit', 'after-audit',
+                          'before-precheck', 'after-precheck', 'before-dispatch', 'after-dispatch',
+                          'before-reconcile', 'after-reconcile'):
+                self.assertEqual(matrix.operation_guard(intent_value, stage=stage, transport=object())['stage'], stage)
+            with self.assertRaises(ci.Rejected): matrix.operation_guard(intent_value, stage='unknown', transport=object())
 
 
 if __name__ == '__main__':

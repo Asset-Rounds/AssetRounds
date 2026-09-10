@@ -39,9 +39,9 @@
     "s10_branch": "phase/s10-brand-refresh",
     "authority_document_path": "docs/execution/CURRENT_TASK.md",
     "pinned_plan_path": "docs/product/BUILD_PLAN_V4.md",
-    "pinned_plan_sha256": "8A3212BE7710AC24DE8EA4F5FDF6C7A7543B737F277D94FD181331F6DA251BDF",
+    "pinned_plan_sha256": "06C2340E5920807B3DBF74FE8F0FA61A2F8F88A2461B5E0612A7E41C2596FEFA",
     "pinned_runbook_path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
-    "pinned_runbook_sha256": "4AEB0D438DCF1D3F82C25F2D343D3D5A69FBEB66F056AB5762BF010AB634DB69",
+    "pinned_runbook_sha256": "92DD7C953BAC22E7CE69DA2A3C9B5FFF89C6628C53542650914FF70C7856FEA0",
     "allowed_remote_operations": [
       "fetch",
       "read_refs",
@@ -73,7 +73,7 @@
     "workflow_id": "ios-ci",
     "workflow_path": ".github/workflows/ios-ci.yml",
     "workflow_ref": "phase/s10-brand-refresh",
-    "workflow_sha256": "BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7"
+    "workflow_sha256": "64BEB60B465EB71B708FB19FEC2061E6F05FFA74A3D93955A88BB3CADC9D3A85"
   },
   "contract_paths": {
     "activation": "docs/design/s10/s10-activation.json",
@@ -368,5 +368,89 @@
     "AutomatedLab",
     "PhysicalExperience",
     "Release"
-  ]
+  ],
+  "s10_4_acceptance_policy": {
+    "policy_id": "s10.4.current-seven-with-minimum-verification-deferred.v1",
+    "authority_id": "H420",
+    "required_visual_cell_count": 469,
+    "deferred_visual_cell_count": 469,
+    "required_accessibility_row_count": 42,
+    "deferred_accessibility_row_count": 42,
+    "minimum_core_smoke": {
+      "schema_version": 1,
+      "contract_id": "s10.4.minimum-core-smoke.v1",
+      "acceptance_scope": "DEFERRED",
+      "shard_id": "s10.4.minimum.minimum-os",
+      "segment_id": "none",
+      "execution_lane": "github-xcode-26.6-shared-build-acceptance",
+      "runner_provider": "github",
+      "device_profile_id": "iphone-se-3-ios-18.0-minimum",
+      "simulator_runtime": "iOS 18.0",
+      "simulator_os_build": "22A3351",
+      "appearance": "light",
+      "contrast": "standard",
+      "locale_profile_id": "en-US-release",
+      "layout_direction": "left_to_right",
+      "content_size_category": "UICTContentSizeCategoryL",
+      "checkpoint_count": 6,
+      "checkpoint_ids": [
+        "launch",
+        "sign-saved",
+        "capture-review",
+        "report-saved",
+        "report-reopened",
+        "settings"
+      ],
+      "attachment_count": 7,
+      "catalog_visual_cell_credit": 0,
+      "catalog_accessibility_row_credit": 0,
+      "full_matrix_eligible": false,
+      "full_shard_complete": false,
+      "full_segment_complete": false,
+      "human_review_required": false,
+      "native_pass_required": false,
+      "complete_original_integrity_required": true
+    },
+    "evidence_policy_path_allowlist": [
+      "Scripts/s10-4-ci.py",
+      "Scripts/test-s10-4-ci.py",
+      "AGENTS.md",
+      "docs/product/BUILD_PLAN_V4.md",
+      "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+      "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+      "docs/execution/S10_4_CI_OPERATING_BRIEF.md",
+      "docs/execution/CURRENT_TASK.md",
+      "docs/design/s10/s10-activation.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+      "docs/design/s10/s10-accessibility-common-tasks.json",
+      "docs/design/s10/s10-token-coverage.json",
+      "docs/design/s10/s10-visual-regression.json"
+    ],
+    "native_evidence_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+    "native_manifest_sha256": "F29BB5F29C0876BEAE1C32C7D6A418BC29AB43C8882CCDC0F622922FD042238C",
+    "selected_producer_run_id": 34477382489,
+    "selected_shared_build_identity_sha256": "0BE9475570B1F0B9CC5C9520DA4F2D11308D034033ABD17C4F6E61F1901DADAE",
+    "selected_producer_qualification_sha256": "A1A9BF1B92B4CABFD150702EF3F2E218590C290B52B685E598926CF5D158542B",
+    "required_shard_ids": [
+      "s10.4.current.default-light",
+      "s10.4.current.default-dark",
+      "s10.4.current.increased-contrast",
+      "s10.4.current.ax-text",
+      "s10.4.current.differentiate-without-color",
+      "s10.4.current.reduce-motion",
+      "s10.4.current.reduce-transparency"
+    ],
+    "deferred_shard_ids": [
+      "s10.4.minimum.minimum-os",
+      "s10.4.minimum.double-length",
+      "s10.4.minimum.rtl",
+      "s10.4.minimum.rtl-string",
+      "s10.4.minimum.tall",
+      "s10.4.minimum.accented",
+      "s10.4.minimum.bounded"
+    ]
+  }
 }

@@ -28,7 +28,7 @@ import uuid
 import zipfile
 
 CONTRACT = 's10.4.ci.v1'
-COLLECTOR_RELEASE = 's10.4-failed-segment-start-audit-v1'
+COLLECTOR_RELEASE = 's10.4-unacquired-hosted-worker-audit-v1'
 REPO = 'Asset-Rounds/AssetRounds'
 REF = 'phase/s10-brand-refresh'
 WORKFLOW = 'ios-ci.yml'
@@ -43,6 +43,30 @@ EXTRA_SOURCE = ('docs/design/s10/s10-screen-state-inventory.json',
 MAX_ARCHIVE = 2 * 1024**3
 MAX_EXPANDED = 8 * 1024**3
 MAX_MEMBERS = 100000
+OPERATIONAL_BASE = Path(r'C:/AssetRounds/Temp/S10_4_CI/unacquired-hosted-worker')
+OPERATIONAL_CONTROLLER_DIR = OPERATIONAL_BASE / 'controller-draft'
+FIXED_HEAD = '0adebd72ae0226a80e14eaf515ca133072fb1c76'
+FIXED_MAIN = '01233f789b1cef5a6f56c7ff4caa9271409cd3bc'
+FIXED_SOURCE_IDENTITY = 'FA2E57BD20754B0E9844D8939B7BB4887448DC02D026F5EB635189B80C8E5F7A'
+FIXED_PRODUCER = {'runID': 34477382489,
+                  'sharedBuildIdentitySHA256': '0BE9475570B1F0B9CC5C9520DA4F2D11308D034033ABD17C4F6E61F1901DADAE',
+                  'producerQualificationSHA256': 'A1A9BF1B92B4CABFD150702EF3F2E218590C290B52B685E598926CF5D158542B'}
+BASELINE_FILES = {'Scripts/s10-4-ci.py': '58BFD7988C9A4DDD847D96532BBE5A9BB617ADDC5C3B1521F9FEE06F28228354',
+                  'Scripts/test-s10-4-ci.py': '857AA47537D225FE2DF7AFAAD0C0EF4DB60509CCCE910E334920927571FB74B0'}
+BASELINE_REVIEW_SHA256 = '407A261A82F058D4AFF040DA7E0C4356FBE8DF1A5DA2CD2C87B36AFA447DB7FF'
+OWNER_APPROVAL_SHA256 = 'CB0CC46E78EFF32439B7A1D8A430D68C1130051AC960D74F90C8F5AD6D673116'
+PROPOSAL_SHA256 = '917509BAC9D40A572C04AFC9880B51A79E5C17CD272BADDA79583AEE4CFDC51A'
+POLICY_REVIEW_SHA256 = 'A088B734C1952B2ED144FEFDC927FBD3216E4961AB62C53793D3D80F622CBBA8'
+CLASSIFIER_REVIEW_SHA256 = '6087EB45A57D2E2690397FB05005D59BDF9C24F6A2120B771E56AB4F69B98DF3'
+LINEAGE_ROOTS = ({'requestID': '3279fa0c3b0e4c17b3014a839b5c9c6a', 'runID': 34487026789,
+                  'jobID': 102903990486, 'kind': 'consumer',
+                  'shardID': 's10.4.current.increased-contrast', 'segmentID': 'none', 'conditional': False},
+                 {'requestID': '932fa115f175490fbd8e38ff3a152313', 'runID': 34487679270,
+                  'jobID': 102906216707, 'kind': 'consumer',
+                  'shardID': 's10.4.current.reduce-transparency', 'segmentID': 'none', 'conditional': False},
+                 {'requestID': '364d902e3db54e5fb4740eb919e012b1', 'runID': 34489259863,
+                  'jobID': None, 'kind': 'consumer', 'shardID': 's10.4.minimum.minimum-os',
+                  'segmentID': 'none', 'conditional': True})
 
 
 class Rejected(Exception):
@@ -81,6 +105,11 @@ def sha(path):
     regular(path)
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest().upper()
+
+
+# Captured while the module is loading, so restoring different bytes before a
+# later review cannot substitute runtime code behind a reviewed physical file.
+LOADED_CONTROLLER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest().upper()
 
 
 def positive(value):
@@ -171,6 +200,44 @@ def retain(path, raw):
 
 def save(path, value):
     retain(path, canonical(value) + b'\n')
+
+
+def sealed_binding(binding, *, parent=None):
+    require(type(binding) is dict and set(binding) == {'path', 'sha256'}, 'sealed file binding schema differs')
+    path = absolute(binding['path']); regular(path)
+    if parent is not None:
+        require(path.is_relative_to(absolute(str(parent))), 'sealed file outside required root')
+    info = path.stat()
+    require(getattr(info, 'st_nlink', 1) == 1, 'hard-linked/aliased sealed file rejected')
+    require(sha(path) == hash_value(binding['sha256']), 'sealed file hash differs')
+    return path
+
+
+def runtime_fixed_digest():
+    return digest(canonical({'contract': CONTRACT, 'repository': REPO, 'ref': REF, 'workflow': WORKFLOW,
+        'toolPaths': TOOL_PATHS, 'operationalBase': str(OPERATIONAL_BASE),
+        'operationalControllerDir': str(OPERATIONAL_CONTROLLER_DIR), 'head': FIXED_HEAD, 'main': FIXED_MAIN,
+        'sourceIdentity': FIXED_SOURCE_IDENTITY, 'producer': FIXED_PRODUCER, 'baselineFiles': BASELINE_FILES,
+        'baselineReview': BASELINE_REVIEW_SHA256, 'ownerApproval': OWNER_APPROVAL_SHA256,
+        'proposal': PROPOSAL_SHA256, 'policyReview': POLICY_REVIEW_SHA256,
+        'classifierReview': CLASSIFIER_REVIEW_SHA256, 'lineages': LINEAGE_ROOTS}))
+
+
+def runtime_integrity():
+    require(globals().get('_RUNTIME_READY') is True, 'operational runtime seal unavailable')
+    require(LOADED_CONTROLLER_SHA256 == _RUNTIME_CONSTANTS['loadedControllerSHA256'] and
+            tuple(BASELINE_FILES.items()) == _RUNTIME_CONSTANTS['baselineFiles'],
+            'operational runtime constants patched')
+    require(runtime_fixed_digest() == _RUNTIME_CONSTANTS['fixedDigest'], 'operational fixed runtime policy patched')
+    for name, original in _RUNTIME_GLOBALS.items():
+        require(globals().get(name) is original, 'operational runtime callable patched: ' + name)
+    for class_name, members in _RUNTIME_METHODS.items():
+        cls = globals().get(class_name)
+        require(cls is _RUNTIME_GLOBALS[class_name], 'operational runtime class substituted: ' + class_name)
+        for name, original in members.items():
+            require(cls.__dict__.get(name) is original, 'operational runtime method patched: ' + class_name + '.' + name)
+    for name, original in _RUNTIME_MODULES.items():
+        require(globals().get(name) is original, 'operational runtime module/path primitive patched: ' + name)
 
 
 def command(root, args):
@@ -367,7 +434,7 @@ class Transport:
         self.root, self.output = root, output
         output.mkdir(parents=True, exist_ok=True)
 
-    def execute(self, args, name):
+    def capture(self, args, name):
         prefix = self.output / (name + '-' + uuid.uuid4().hex)
         try:
             result = subprocess.run(['gh', *args], cwd=self.root, capture_output=True, shell=False, env=gh_environment())
@@ -377,8 +444,15 @@ class Transport:
         exclusive(prefix.with_suffix('.stdout'), result.stdout)
         exclusive(prefix.with_suffix('.stderr'), result.stderr)
         exclusive(prefix.with_suffix('.exit'), str(result.returncode).encode())
-        require(result.returncode == 0, 'gh transport failed; retained raw response')
-        return result.stdout
+        return {'stdout': result.stdout, 'stderr': result.stderr, 'returncode': result.returncode,
+                'retained': {'stdout': str(prefix.with_suffix('.stdout')),
+                             'stderr': str(prefix.with_suffix('.stderr')),
+                             'exit': str(prefix.with_suffix('.exit'))}}
+
+    def execute(self, args, name):
+        result = self.capture(args, name)
+        require(result['returncode'] == 0, 'gh transport failed; retained raw response')
+        return result['stdout']
 
     def api(self, endpoint):
         require(re.fullmatch(r'[A-Za-z0-9/?=&._-]+', endpoint) and '..' not in endpoint, 'unsafe endpoint')
@@ -474,8 +548,12 @@ def manifests(root):
 
 
 class Matrix:
-    def __init__(self, path):
+    def __init__(self, path, operational_review=None, operational_review_sha256=None):
         self.path = absolute(str(path))
+        require((operational_review is None) == (operational_review_sha256 is None),
+                'operational review path and SHA256 must be supplied together')
+        self.operational_review_path = absolute(str(operational_review)) if operational_review else None
+        self.operational_review_sha256 = hash_value(operational_review_sha256) if operational_review_sha256 else None
         self.value = load(self.path)
         required = {'schemaVersion', 'contractID', 'repository', 'ref', 'head', 'mainSHA',
                     'checkoutRoot', 'registryRoot', 'protocolReview', 'producer'}
@@ -500,6 +578,8 @@ class Matrix:
         return Source(self.root, selected, self.registry / 'source' / selected)
 
     def review(self):
+        if self.operational_review_path is not None:
+            return self.operational_review()
         binding = self.value['protocolReview']
         require(type(binding) is dict and set(binding) == {'path', 'sha256'}, 'review binding schema mismatch')
         path = absolute(binding['path'])
@@ -515,6 +595,78 @@ class Matrix:
                     'tool/test bytes do not match reviewed exact source')
         require(sha(Path(__file__).resolve()) == review['files'][TOOL_PATHS[0]], 'executed controller is not reviewed controller')
         return {'sha256': sha(path), 'files': review['files'], 'reviewer': review['reviewer']}
+
+    def operational_review(self):
+        runtime_integrity()
+        review_path = self.operational_review_path
+        require(review_path.is_relative_to(absolute(str(OPERATIONAL_BASE / 'independent-review'))),
+                'operational review outside fixed independent-review root')
+        regular(review_path)
+        require(getattr(review_path.stat(), 'st_nlink', 1) == 1, 'aliased operational review rejected')
+        before = filesystem_stamp(review_path); raw = review_path.read_bytes(); after = filesystem_stamp(review_path)
+        require(before == after and digest(raw) == self.operational_review_sha256,
+                'operational review bytes changed or explicit hash differs')
+        value = decode(raw)
+        required = {'schemaVersion', 'recordType', 'decision', 'reviewer', 'reviewedAtUTC', 'unresolvedIssues',
+                    'proposal', 'ownerApproval', 'policyScopeReview', 'classifierReview', 'baseline',
+                    'operational', 'fixed', 'lineages', 'tests', 'diff', 'inverse'}
+        require(type(value) is dict and set(value) == required and value['schemaVersion'] == 1 and
+                value['recordType'] == 'S10_4_OPERATIONAL_CONTROLLER_REVIEW' and value['decision'] == 'GO' and
+                type(value['reviewer']) is str and value['reviewer'].strip() not in ('', 'author', 'root', 'task owner') and
+                utc(value['reviewedAtUTC']) and value['unresolvedIssues'] == [], 'operational review decision/schema differs')
+        references = ((value['proposal'], OPERATIONAL_BASE / 'owner-exception-proposal/PROPOSAL.md', PROPOSAL_SHA256),
+                      (value['ownerApproval'], OPERATIONAL_BASE / 'owner-exception-proposal/OWNER_APPROVAL_20260910.json', OWNER_APPROVAL_SHA256),
+                      (value['policyScopeReview'], OPERATIONAL_BASE / 'independent-review/POLICY_SCOPE_REVIEW.md', POLICY_REVIEW_SHA256),
+                      (value['classifierReview'], OPERATIONAL_BASE / 'independent-review/CLASSIFIER_REVIEW_DAF9.md', CLASSIFIER_REVIEW_SHA256))
+        sealed = []
+        for binding, expected_path, expected_sha in references:
+            path = sealed_binding(binding, parent=OPERATIONAL_BASE)
+            require(path == absolute(str(expected_path)) and binding['sha256'] == expected_sha, 'fixed authority/review binding differs')
+            sealed.append((path, binding['sha256']))
+        baseline = value['baseline']
+        require(baseline == {'files': BASELINE_FILES, 'protocolReviewSHA256': BASELINE_REVIEW_SHA256},
+                'baseline Git/review identities differ')
+        source_review_binding = self.value['protocolReview']; source_review_path = sealed_binding(source_review_binding)
+        sealed.append((source_review_path, source_review_binding['sha256']))
+        source_review = load(source_review_path)
+        require(source_review_binding['sha256'] == BASELINE_REVIEW_SHA256 and source_review.get('decision') == 'GO' and
+                source_review.get('files') == BASELINE_FILES and source_review.get('unresolvedFindings') == [],
+                'baseline independent review changed')
+        for name, expected in BASELINE_FILES.items():
+            require(digest(git(self.root, 'show', self.head + ':' + name)) == expected,
+                    'exact-head baseline controller/protocol Git blob changed')
+        operational = value['operational']
+        require(type(operational) is dict and set(operational) == {'controller', 'protocol'},
+                'operational pair binding schema differs')
+        controller = sealed_binding(operational['controller'], parent=OPERATIONAL_CONTROLLER_DIR)
+        protocol = sealed_binding(operational['protocol'], parent=OPERATIONAL_CONTROLLER_DIR)
+        sealed.extend(((controller, operational['controller']['sha256']), (protocol, operational['protocol']['sha256'])))
+        require(controller == absolute(str(OPERATIONAL_CONTROLLER_DIR / 's10-4-ci.py')) and
+                protocol == absolute(str(OPERATIONAL_CONTROLLER_DIR / 'test-s10-4-ci.py')) and
+                Path(__file__).resolve() == controller and LOADED_CONTROLLER_SHA256 == operational['controller']['sha256'],
+                'executing operational controller/protocol path or loaded bytes differ')
+        fixed = {'repository': REPO, 'ref': REF, 'head': FIXED_HEAD, 'mainSHA': FIXED_MAIN,
+                 'checkoutRoot': str(self.root), 'registryRoot': str(self.registry),
+                 'sourceIdentitySHA256': FIXED_SOURCE_IDENTITY, 'producer': FIXED_PRODUCER}
+        require(value['fixed'] == fixed and self.head == FIXED_HEAD and self.main == FIXED_MAIN and
+                self.producer == FIXED_PRODUCER, 'fixed operational matrix bindings differ')
+        require(value['lineages'] == list(LINEAGE_ROOTS), 'operational lineage declaration differs')
+        require(type(value['tests']) is list and len(value['tests']) >= 2, 'operational review lacks executed tests')
+        for test in value['tests']:
+            require(type(test) is dict and set(test) == {'name', 'path', 'sha256', 'result'} and
+                    type(test['name']) is str and test['name'].strip() and test['result'] == 'PASS',
+                    'operational test binding differs')
+            path = sealed_binding({'path': test['path'], 'sha256': test['sha256']}, parent=OPERATIONAL_CONTROLLER_DIR)
+            sealed.append((path, test['sha256']))
+        sealed.extend(((sealed_binding(value['diff'], parent=OPERATIONAL_CONTROLLER_DIR), value['diff']['sha256']),
+                       (sealed_binding(value['inverse'], parent=OPERATIONAL_CONTROLLER_DIR), value['inverse']['sha256'])))
+        require(digest(canonical(load(self.path))) == self.identity, 'matrix changed during operational review')
+        require(all(sha(path) == expected for path, expected in sealed) and
+                digest(review_path.read_bytes()) == self.operational_review_sha256 and
+                filesystem_stamp(review_path) == after, 'sealed operational inputs changed during review')
+        return {'sha256': sha(review_path), 'files': {TOOL_PATHS[0]: operational['controller']['sha256'],
+                TOOL_PATHS[1]: operational['protocol']['sha256']}, 'reviewer': value['reviewer'],
+                'operationalException': True, 'ownerApprovalSHA256': OWNER_APPROVAL_SHA256}
 
     def fresh(self):
         remote = git(self.root, 'remote', 'get-url', 'origin').decode().strip()
@@ -535,6 +687,113 @@ class Matrix:
         review = self.review()
         require(digest(canonical(load(self.path))) == self.identity, 'matrix changed during operation')
         return source, review
+
+    def lineage(self, intent, retry_run_id=None, conditional_level='audited', transport=None):
+        require(conditional_level in {'pending', 'verified', 'audited'},
+                'unknown conditional lineage evidence level')
+        require(type(intent) is dict and intent.get('head') == FIXED_HEAD and intent.get('kind') == 'consumer' and
+                intent.get('provider', 'github') == 'github', 'operation is outside fixed consumer lineage')
+        selected_tuple = (intent.get('kind'), intent.get('shardID'), intent.get('segmentID'))
+        candidates = [root for root in LINEAGE_ROOTS if selected_tuple ==
+                      (root['kind'], root['shardID'], root['segmentID'])]
+        require(len(candidates) == 1, 'operation tuple outside covered lineages')
+        root = candidates[0]; registry = records(self, True)
+        by_run = {row['resolution']['runID']: row for row in registry if row['resolution']}
+        current_request = intent.get('requestID')
+        current_row = None
+        if current_request == root['requestID']:
+            row = next((r for r in registry if r['intent']['requestID'] == current_request), None)
+            require(row is not None and row['resolution'] and row['resolution']['runID'] == root['runID'],
+                    'covered root request/run binding differs')
+            current_row = row; chain = [row]
+        else:
+            if current_request is not None:
+                current = [r for r in registry if r['intent']['requestID'] == current_request]
+                require(len(current) == 1 and current[0]['intent'] == intent,
+                        'registered operational successor identity differs')
+                current_row = current[0]
+            rid = retry_run_id
+            if rid is None and type(intent.get('retry')) is dict:
+                rid = intent['retry'].get('runID')
+            require(type(rid) is int and rid > 0, 'covered successor lacks explicit predecessor run')
+            chain = []
+            for _ in range(len(registry) + 1):
+                require(rid in by_run, 'lineage predecessor absent from registry')
+                row = by_run[rid]; chain.append(row)
+                row_tuple = (row['intent']['kind'], row['intent']['shardID'], row['intent']['segmentID'])
+                require(row['intent']['head'] == FIXED_HEAD and row_tuple == selected_tuple,
+                        'lineage predecessor head/tuple differs')
+                if row['intent']['requestID'] == root['requestID']:
+                    require(row['resolution']['runID'] == root['runID'], 'lineage root run differs')
+                    break
+                retry = row['intent'].get('retry')
+                require(type(retry) is dict and type(retry.get('runID')) is int, 'lineage chain is not explicit')
+                rid = retry['runID']
+            else:
+                raise Rejected('lineage chain did not reach covered root')
+        root_record = chain[-1]
+        if root['jobID'] is not None:
+            root_jobs = load(original_root(root_record) / 'jobs.json')['jobs']
+            expected_name = 'GitHub Xcode 26.6 acceptance · ' + root['shardID'] + ' · ' + root['segmentID'] + ' / verify'
+            matched = [job for job in root_jobs if job['name'] == expected_name]
+            require(len(matched) == 1 and matched[0]['id'] == root['jobID'] and
+                    matched[0]['run_id'] == root['runID'] and matched[0]['head_sha'] == FIXED_HEAD,
+                    'covered root worker job binding differs')
+        if root['conditional']:
+            evidence_rows = ([current_row] if current_row is not None and current_row not in chain else []) + chain
+            if conditional_level == 'pending':
+                require(current_row is not None and current_row['resolution'] is not None and transport is not None,
+                        'minimum-smoke collection requires registered resolved current run and live transport')
+                conditional_live_witness(transport, intent, current_row['resolution']['runID'])
+                return {'rootRequestID': root['requestID'], 'rootRunID': root['runID'],
+                        'conditional': True, 'conditionalEvidence': 'live-service-precollection',
+                        'chainRunIDs': [r['resolution']['runID'] for r in chain]}
+            witnessed = False
+            for row in evidence_rows:
+                if conditional_level == 'verified':
+                    original = verify_collection(original_root(row), row['intent'], row['resolution']['runID'])
+                    if original.get('unacquiredHostedWorkers'):
+                        witnessed = True
+                    continue
+                audits = sorted((row['path'] / 'audits').glob('*.json'))
+                for path in audits:
+                    audit_value = load(path)
+                    if audit_value.get('completeOriginalAudit') is True and audit_value.get('unacquiredHostedWorkers'):
+                        original = verify_collection(original_root(row), row['intent'], row['resolution']['runID'])
+                        require(audit_value.get('runID') == row['resolution']['runID'] and
+                                audit_value.get('head') == FIXED_HEAD and
+                                audit_value.get('originalFilesSHA256') == original['originalFilesSHA256'] and
+                                audit_value['unacquiredHostedWorkers'] == original.get('unacquiredHostedWorkers'),
+                                'conditional smoke audit/original unacquired witness differs')
+                        witnessed = True
+            require(witnessed, 'minimum-smoke operational lineage lacks exact ' + conditional_level +
+                    ' unacquired-worker witness')
+        return {'rootRequestID': root['requestID'], 'rootRunID': root['runID'],
+                'conditional': root['conditional'], 'chainRunIDs': [r['resolution']['runID'] for r in chain]}
+
+    def operation_guard(self, intent, *, stage, retry_run_id=None, transport=None):
+        """Explicit before/after gate used by collect, audit, precheck and dispatch."""
+        if self.operational_review_path is None:
+            return {'operationalException': False}
+        require(stage in {'before-collect', 'after-collect', 'before-audit', 'after-audit',
+                          'before-precheck', 'after-precheck', 'before-dispatch', 'after-dispatch',
+                          'before-reconcile', 'after-reconcile'},
+                'unknown operational guard stage')
+        source, review = self.fresh()
+        require(digest(canonical(source.identity)) == FIXED_SOURCE_IDENTITY,
+                'fixed operational source identity differs')
+        level = ('pending' if stage == 'before-collect' else
+                 'verified' if stage in {'after-collect', 'before-audit'} else 'audited')
+        lineage = self.lineage(intent, retry_run_id, level, transport)
+        gate_transport = transport or Transport(self.root, self.registry / 'operational-gates' / uuid.uuid4().hex)
+        _, proof = producer_proof(self, source, gate_transport, FIXED_PRODUCER['runID'], FIXED_PRODUCER)
+        require(all(proof[key] == FIXED_PRODUCER[key] for key in
+                    ('runID', 'sharedBuildIdentitySHA256', 'producerQualificationSHA256')) and
+                proof['producerUnitCount'] == 5, 'fixed producer/payload qualification differs')
+        runtime_integrity()
+        require(digest(canonical(load(self.path))) == self.identity, 'matrix changed across operational gate')
+        return {'operationalException': True, 'stage': stage, 'review': review, 'lineage': lineage,
+                'sourceIdentitySHA256': FIXED_SOURCE_IDENTITY, 'producerProof': proof}
 
 
 def request_path(matrix, request_id):
@@ -736,13 +995,123 @@ def collection_proof(matrix, root, intent, rid):
     return facts
 
 
+UNACQUIRED_ANNOTATION = {'path': '.github', 'start_line': 1, 'start_column': None,
+                         'end_line': 1, 'end_column': None, 'annotation_level': 'failure',
+                         'title': '', 'message': 'The job was not acquired by Runner of type hosted even after multiple attempts',
+                         'raw_details': ''}
+
+
+def unacquired_hosted_worker_service(run, job, intent, check, annotations, all_jobs):
+    """Verify the live GitHub service facts that prove a worker never started."""
+    rid = positive(run['id']); jid = positive(job['id'])
+    require(intent['kind'] == 'consumer' and intent['provider'] == 'github' and
+            intent['inputs']['execution_lane'] == CONSUMER, 'unacquired witness limited to GitHub consumer lane')
+    run_identity(run, intent, rid)
+    expected_name = 'GitHub Xcode 26.6 acceptance · ' + intent['shardID'] + ' · ' + intent['segmentID'] + ' / verify'
+    require(run['status'] == 'completed' and run['conclusion'] == 'failure' and
+            job['status'] == 'completed' and job['conclusion'] == 'cancelled' and job['name'] == expected_name,
+            'run/job is not exact unacquired failure shape')
+    require(job['run_id'] == rid and job['run_attempt'] == 1 and job['head_sha'] == intent['head'] and
+            job['head_branch'] == REF and job['check_run_url'] ==
+            'https://api.github.com/repos/' + REPO + '/check-runs/' + str(jid), 'unacquired job identity differs')
+    expected_html = 'https://github.com/' + REPO + '/actions/runs/' + str(rid) + '/job/' + str(jid)
+    require(job['html_url'] == expected_html, 'unacquired job HTML identity differs')
+    require(job['runner_id'] == 0 and job['runner_name'] == '' and job['runner_group_id'] == 0 and
+            job['runner_group_name'] == '' and job['labels'] == ['macos-26'] and job['steps'] == [],
+            'job shows runner acquisition or execution')
+    require(type(all_jobs) is list and len({positive(j['id']) for j in all_jobs}) == len(all_jobs),
+            'incomplete or duplicate job inventory')
+    admission = [j for j in all_jobs if j['name'] == 'Validate shared build selection and dependencies']
+    require(len(admission) == 1 and sum(j['id'] == jid for j in all_jobs) == 1, 'admission/worker job inventory differs')
+    admitted = admission[0]
+    checkout = [s for s in admitted['steps'] if s['name'] == 'Check out the exact revision']
+    require(admitted['run_id'] == rid and admitted['run_attempt'] == 1 and admitted['head_sha'] == intent['head'] and
+            admitted['head_branch'] == REF and admitted['status'] == 'completed' and admitted['conclusion'] == 'success' and
+            len(checkout) == 1 and checkout[0]['status'] == 'completed' and checkout[0]['conclusion'] == 'success',
+            'successful exact-head admission evidence absent')
+    require(check['id'] == jid and check['name'] == expected_name and check['head_sha'] == intent['head'] and
+            check['url'] == job['check_run_url'] and check['html_url'] == job['html_url'] and
+            check['details_url'] == job['html_url'] and check['status'] == 'completed' and
+            check['conclusion'] == 'cancelled' and check['started_at'] == job['started_at'] and
+            check['completed_at'] == job['completed_at'] and check['app']['id'] == 15368 and
+            check['app']['slug'] == 'github-actions' and check['output']['annotations_count'] == 1,
+            'original GitHub Actions check does not bind exact cancelled job')
+    expected_annotation = dict(UNACQUIRED_ANNOTATION,
+        blob_href='https://github.com/' + REPO + '/blob/' + intent['head'] + '/.github')
+    require(annotations == [expected_annotation], 'unacquired service annotation differs')
+    return {'runID': rid, 'jobID': jid, 'jobName': expected_name, 'checkRunURL': job['check_run_url'],
+            'annotation': expected_annotation, 'admissionJobID': admitted['id']}
+
+
+def conditional_live_witness(transport, intent, rid):
+    """Fail before collection unless live APIs already prove the exact no-runner service state."""
+    run = run_identity(transport.api('actions/runs/' + str(rid)), intent, rid)
+    jobs = transport.pages('actions/runs/' + str(rid) + '/jobs?per_page=100', 'jobs')
+    expected_name = 'GitHub Xcode 26.6 acceptance · ' + intent['shardID'] + ' · ' + intent['segmentID'] + ' / verify'
+    matched = [job for job in jobs if job['name'] == expected_name]
+    require(len(matched) == 1, 'live conditional worker job absent or ambiguous')
+    job = matched[0]
+    check = transport.api('check-runs/' + str(positive(job['id'])))
+    annotations = transport.api('check-runs/' + str(positive(job['id'])) + '/annotations')
+    return unacquired_hosted_worker_service(run, job, intent, check, annotations, jobs)
+
+
+def unacquired_hosted_worker(run, job, intent, artifacts, check, annotations, log_result, all_jobs):
+    """Recognize only GitHub's exact pre-runner cancellation service record."""
+    service = unacquired_hosted_worker_service(run, job, intent, check, annotations, all_jobs)
+    rid = service['runID']; jid = service['jobID']; expected_annotation = service['annotation']
+    blob_pattern = (br'(?:\xef\xbb\xbf)?<\?xml version="1\.0" encoding="utf-8"\?><Error><Code>BlobNotFound</Code>'
+                    br'<Message>The specified blob does not exist\.\nRequestId:[0-9a-f]{8}-[0-9a-f]{4}-'
+                    br'[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\nTime:'
+                    br'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{7}Z</Message></Error>\r?\n?')
+    require(log_result['returncode'] == 1 and re.fullmatch(blob_pattern, log_result['stdout']) is not None and
+            log_result['stderr'] in (b'gh: HTTP 404\n', b'gh: HTTP 404\r\n'),
+            'missing log is not exact Azure BlobNotFound plus gh HTTP 404')
+    worker_prefix = 'ios-ci-shared-' + str(rid) + '-1-'
+    expected_artifact = worker_prefix + intent['shardID'] + '-' + intent['segmentID']
+    require(not any(a['name'].startswith(worker_prefix) for a in artifacts), 'worker artifact conflicts with unacquired witness')
+    return {'schemaVersion': 1, 'classification': 'github-hosted-worker-not-acquired',
+            'runID': rid, 'runAttempt': 1, 'head': intent['head'], 'jobID': jid, 'jobName': service['jobName'],
+            'checkRunURL': service['checkRunURL'], 'annotation': expected_annotation,
+            'logTransport': {'exit': 1, 'responseForm': 'azure-blob-not-found-xml',
+                             'stdoutSHA256': digest(log_result['stdout']),
+                             'stderrSHA256': digest(log_result['stderr'])},
+            'expectedWorkerArtifact': expected_artifact, 'workerArtifactAbsent': True,
+            'admissionJobID': service['admissionJobID'], 'admissionSucceeded': True,
+            'runnerAssigned': False, 'stepsStarted': False, 'nativeUIExecuted': False,
+            'compilationPassed': False, 'localUnitCount': 0, 'fullSegmentComplete': False,
+            'fullShardComplete': False, 'formalAcceptance': False, 'humanReviewGranted': False,
+            'gap': 'GitHub hosted worker was never acquired; the unstarted worker log is unavailable (HTTP 404).'}
+
+
+def retained_unacquired(root, run, job, intent, artifacts, all_jobs):
+    prefix = 'job-' + str(positive(job['id'])) + '.unacquired-hosted-worker'
+    paths = {suffix: root / (prefix + suffix) for suffix in
+             ('.log.stdout', '.log.stderr', '.log.exit', '.check-run.json', '.annotations.json', '.json')}
+    present = list(root.glob(prefix + '.*'))
+    require(present and all(path.is_file() for path in paths.values()) and set(present) == set(paths.values()),
+            'partial or foreign unacquired worker witness')
+    for path in paths.values(): regular(path)
+    require(paths['.log.exit'].read_bytes() == b'1', 'unacquired log transport exit differs')
+    witness = unacquired_hosted_worker(run, job, intent, artifacts,
+        load(paths['.check-run.json']), load(paths['.annotations.json']),
+        {'returncode': 1, 'stdout': paths['.log.stdout'].read_bytes(), 'stderr': paths['.log.stderr'].read_bytes()}, all_jobs)
+    require(load(paths['.json']) == witness, 'unacquired witness changed')
+    return witness
+
+
 def terminal_collection(matrix, record, transport):
     rid = record['resolution']['runID']; intent = record['intent']; root = original_root(record)
+    if getattr(matrix, 'operational_review_path', None) is not None:
+        matrix.operation_guard(intent, stage='before-collect', transport=transport)
     live = run_identity(transport.api('actions/runs/' + str(rid)), intent, rid)
     require(live['status'] == 'completed', 'not terminal; no original download or frozen terminal API')
     if intent.get('originals'):
         require(root.exists(), 'imported originals unavailable; never create another collector copy')
-        return collection_proof(matrix, root, intent, rid)
+        facts = collection_proof(matrix, root, intent, rid)
+        if getattr(matrix, 'operational_review_path', None) is not None:
+            matrix.operation_guard(intent, stage='after-collect')
+        return facts
     root.mkdir(parents=True, exist_ok=True)
     if not (root / 'run.json').exists():
         save(root / 'run.json', live)
@@ -752,23 +1121,43 @@ def terminal_collection(matrix, record, transport):
         jobs = transport.pages('actions/runs/' + str(rid) + '/jobs?per_page=100', 'jobs')
         save(root / 'jobs.json', {'total_count': len(jobs), 'jobs': jobs})
     jobs = load(root / 'jobs.json')['jobs']
+    if not (root / 'artifacts.json').exists():
+        artifacts = transport.pages('actions/runs/' + str(rid) + '/artifacts?per_page=100', 'artifacts')
+        save(root / 'artifacts.json', {'total_count': len(artifacts), 'artifacts': artifacts})
+    artifacts = load(root / 'artifacts.json')['artifacts']
     for job in jobs:
         require(job['status'] == 'completed' and job['head_sha'] == intent['head'], 'job not terminal exact head')
         if job['conclusion'] != 'skipped':
             path = root / ('job-' + str(positive(job['id'])) + '.log')
             if not path.exists():
-                retain(path, transport.execute(['api', 'repos/' + REPO + '/actions/jobs/' + str(job['id']) + '/logs'], 'job-log'))
-    if not (root / 'artifacts.json').exists():
-        artifacts = transport.pages('actions/runs/' + str(rid) + '/artifacts?per_page=100', 'artifacts')
-        save(root / 'artifacts.json', {'total_count': len(artifacts), 'artifacts': artifacts})
+                prefix = 'job-' + str(job['id']) + '.unacquired-hosted-worker'
+                if list(root.glob(prefix + '.*')):
+                    retained_unacquired(root, original_run, job, intent, artifacts, jobs)
+                    continue
+                captured = transport.capture(['api', 'repos/' + REPO + '/actions/jobs/' + str(job['id']) + '/logs'], 'job-log')
+                if captured['returncode'] == 0:
+                    retain(path, captured['stdout'])
+                else:
+                    check = transport.api('check-runs/' + str(job['id']))
+                    annotations = transport.api('check-runs/' + str(job['id']) + '/annotations')
+                    witness = unacquired_hosted_worker(original_run, job, intent, artifacts, check, annotations, captured, jobs)
+                    prefix = 'job-' + str(job['id']) + '.unacquired-hosted-worker'
+                    retain(root / (prefix + '.log.stdout'), captured['stdout'])
+                    retain(root / (prefix + '.log.stderr'), captured['stderr'])
+                    retain(root / (prefix + '.log.exit'), str(captured['returncode']).encode())
+                    save(root / (prefix + '.check-run.json'), check)
+                    save(root / (prefix + '.annotations.json'), annotations)
+                    save(root / (prefix + '.json'), witness)
     assembly = (matrix.source(intent['head']), intent, original_run) if intent['kind'] == 'assembly' else None
-    for meta in load(root / 'artifacts.json')['artifacts']:
+    for meta in artifacts:
         destination = root / str(positive(meta['id']))
         save(destination / 'metadata.json', meta)
         transport.artifact(meta, destination / 'original.zip', assembly=assembly)
         extract_checked(destination / 'original.zip', destination / 'artifact')
     facts = collection_proof(matrix, root, intent, rid)
     save(record['path'] / 'collection.json', facts)
+    if getattr(matrix, 'operational_review_path', None) is not None:
+        matrix.operation_guard(intent, stage='after-collect')
     return facts
 
 
@@ -780,11 +1169,16 @@ def verify_collection(root, intent, rid):
     require(jobs['total_count'] == len(jobs['jobs']) and arts['total_count'] == len(arts['artifacts']), 'incomplete original API inventory')
     require(len({j['id'] for j in jobs['jobs']}) == len(jobs['jobs']) and
             len({a['id'] for a in arts['artifacts']}) == len(arts['artifacts']), 'duplicate original API identity')
-    gaps = []; entries = []
+    gaps = []; entries = []; unavailable = []
     for job in jobs['jobs']:
         require(job['status'] == 'completed' and job['head_sha'] == intent['head'], 'original job identity mismatch')
         if job['conclusion'] != 'skipped':
-            regular(root / ('job-' + str(positive(job['id'])) + '.log'))
+            jid = positive(job['id']); log = root / ('job-' + str(jid) + '.log')
+            if log.exists():
+                regular(log)
+            else:
+                witness = retained_unacquired(root, run, job, intent, arts['artifacts'], jobs['jobs'])
+                unavailable.append(witness); gaps.append(witness['gap'])
     for meta in arts['artifacts']:
         aid = positive(meta['id']); folder = root / str(aid); archive = folder / 'original.zip'
         require(load(folder / 'metadata.json') == meta, 'artifact metadata copy changed')
@@ -814,7 +1208,8 @@ def verify_collection(root, intent, rid):
     identity_files = {p.relative_to(root).as_posix(): sha(p) for p in root.rglob('*') if p.is_file()
                       and not p.relative_to(root).parts[0].startswith('AUDIT') and p.name != 'integrity.json'}
     return {'runID': rid, 'head': intent['head'], 'conclusion': run['conclusion'],
-            'artifacts': entries, 'gaps': gaps, 'originalFilesSHA256': digest(canonical(identity_files)),
+            'artifacts': entries, 'unacquiredHostedWorkers': unavailable, 'gaps': gaps,
+            'originalFilesSHA256': digest(canonical(identity_files)),
             'originalFileCount': len(identity_files), 'allAvailableOriginalsVerified': True}
 
 
@@ -1051,6 +1446,9 @@ def validate_retry(history, registry, proposal, retry_id, retry_kind, reason):
     complete = [index for index, a in enumerate(history_audits) if a.get('completeOriginalAudit') is True]
     require(complete, 'complete original predecessor audit missing')
     audit_index = complete[-1]
+    if history_audits[audit_index].get('unacquiredHostedWorkers'):
+        require(retry_kind == 'hosted-infrastructure',
+                'unacquired GitHub hosted worker requires hosted-infrastructure retry classification')
     return {'runID': retry_id, 'auditSHA256': sha(audits[audit_index]), 'classification': retry_kind, 'reason': reason,
             'classificationBy': 'explicit root dispatch invocation', 'nondeterminismProvedByController': False}
 
@@ -1063,13 +1461,15 @@ def dispatch(matrix, args):
     producer_id = matrix.producer['runID'] if matrix.producer else None
     selected_inputs = inputs(row, producer_id, dependencies)
     require(type(args.question) is str and len(args.question.strip()) >= 20, 'record a concrete unanswered question')
+    proposed = dict(row, head=matrix.head)
+    if getattr(matrix, 'operational_review_path', None) is not None:
+        matrix.operation_guard(proposed, stage='before-dispatch', retry_run_id=args.retry)
     request_id = uuid.uuid4().hex
     gate = matrix.registry / 'dispatch.gate'
     exclusive(gate, request_id.encode())
     attempted = False
     try:
         registry = records(matrix)
-        proposed = dict(row, head=matrix.head)
         transport = Transport(matrix.root, matrix.registry / 'preflight' / request_id)
         history, capacity_fact = check_history(matrix, transport, proposed, registry)
         retry = validate_retry(history, registry, proposed, args.retry, args.retry_kind, args.reason)
@@ -1102,6 +1502,8 @@ def dispatch(matrix, args):
         exclusive(folder / 'returned.exit', str(result.returncode).encode())
         require(result.returncode == 0, 'uncertain dispatch transport; reconcile same request only')
         resolve(matrix, request_id)
+        if getattr(matrix, 'operational_review_path', None) is not None:
+            matrix.operation_guard(load(folder / 'intent.json'), stage='after-dispatch', transport=transport)
         return {'requestID': request_id, 'runID': load(folder / 'resolution.json')['runID']}
     finally:
         if not attempted:
@@ -1111,9 +1513,13 @@ def dispatch(matrix, args):
 
 def resolve(matrix, request_id):
     folder = request_path(matrix, request_id); intent = load(folder / 'intent.json')
+    if getattr(matrix, 'operational_review_path', None) is not None:
+        matrix.operation_guard(intent, stage='before-reconcile')
     if (folder / 'resolution.json').exists():
         result = load(folder / 'resolution.json')
         require(result['intentSHA256'] == sha(folder / 'intent.json'), 'resolution intent mismatch')
+        if getattr(matrix, 'operational_review_path', None) is not None:
+            matrix.operation_guard(intent, stage='after-reconcile')
         return result
     require((folder / 'returned.stdout').exists(), 'no returned direct identity; retain uncertain intent, never redispatch')
     rid = returned_id((folder / 'returned.stdout').read_bytes())
@@ -1130,6 +1536,8 @@ def resolve(matrix, request_id):
     if gate.exists():
         require(gate.read_bytes() == request_id.encode(), 'dispatch gate belongs to another intent')
         gate.unlink()
+    if getattr(matrix, 'operational_review_path', None) is not None:
+        matrix.operation_guard(intent, stage='after-reconcile')
     return result
 
 
@@ -1752,6 +2160,8 @@ def audit(matrix, request_id, known_deterministic=False):
     record = next(r for r in records(matrix, True) if r['path'] == folder)
     require(record['resolution'] is not None, 'cannot audit unresolved request')
     intent = record['intent']; rid = record['resolution']['runID']; originals = original_root(record)
+    if getattr(matrix, 'operational_review_path', None) is not None:
+        matrix.operation_guard(intent, stage='before-audit')
     source = matrix.source(intent['head']); original = collection_proof(matrix, originals, intent, rid)
     prior_audit_paths = sorted((folder / 'audits').glob('*.json'))
     prior_audits = [load(path) for path in prior_audit_paths]
@@ -1763,13 +2173,22 @@ def audit(matrix, request_id, known_deterministic=False):
     for job in jobs:
         if job['conclusion'] == 'skipped':
             continue
-        text = (originals / ('job-' + str(job['id']) + '.log')).read_text(encoding='utf-8')
-        log_rows.append({'jobID': job['id'], 'name': job['name'], 'conclusion': job['conclusion'],
-                         'startedAt': job['started_at'], 'completedAt': job['completed_at'],
-                         'elapsedSeconds': (utc(job['completed_at']) - utc(job['started_at'])).total_seconds(),
-                         'steps': job['steps'], 'logBytes': len(text.encode()),
-                         'budgetLines': [line for line in text.splitlines() if re.search(r'Z (?:elapsed_seconds|total_budget_seconds)=', line)],
-                         'failureAndWarningLines': [line for line in text.splitlines() if re.search(r'error:|warning:|Code=56|Test Case.*failed|\*\* TEST .*FAILED', line)]})
+        path = originals / ('job-' + str(job['id']) + '.log')
+        witness = next((w for w in original.get('unacquiredHostedWorkers', []) if w['jobID'] == job['id']), None)
+        if witness is not None:
+            log_rows.append({'jobID': job['id'], 'name': job['name'], 'conclusion': job['conclusion'],
+                             'startedAt': job['started_at'], 'completedAt': job['completed_at'],
+                             'elapsedSeconds': (utc(job['completed_at']) - utc(job['started_at'])).total_seconds(),
+                             'steps': [], 'logUnavailable': True, 'logUnavailableReason': witness['classification'],
+                             'runnerAssigned': False, 'budgetLines': [], 'failureAndWarningLines': []})
+        else:
+            text = path.read_text(encoding='utf-8')
+            log_rows.append({'jobID': job['id'], 'name': job['name'], 'conclusion': job['conclusion'],
+                             'startedAt': job['started_at'], 'completedAt': job['completed_at'],
+                             'elapsedSeconds': (utc(job['completed_at']) - utc(job['started_at'])).total_seconds(),
+                             'steps': job['steps'], 'logBytes': len(text.encode()),
+                             'budgetLines': [line for line in text.splitlines() if re.search(r'Z (?:elapsed_seconds|total_budget_seconds)=', line)],
+                             'failureAndWarningLines': [line for line in text.splitlines() if re.search(r'error:|warning:|Code=56|Test Case.*failed|\*\* TEST .*FAILED', line)]})
     result = dict(original, contractID=CONTRACT, auditedAt=now(), completeOriginalAudit=True,
                   collectorRelease=COLLECTOR_RELEASE, collectorSHA256=sha(Path(__file__).resolve()),
                   priorAuditBindings=[{'path': path.relative_to(folder).as_posix(), 'sha256': sha(path),
@@ -1780,6 +2199,7 @@ def audit(matrix, request_id, known_deterministic=False):
                   deterministicClassificationBy='explicit root audit invocation' if known_deterministic else
                       ('preserved append-only prior finding' if inherited_deterministic else 'not classified'),
                   sourceFilesVerified=len(source.identity['files']), jobs=log_rows,
+                  unacquiredHostedWorkers=original.get('unacquiredHostedWorkers', []),
                   compilationPassed=False, producerUnitCount=0, localUnitCount=0, nativeUIExecuted=False,
                   fullSegmentComplete=False, fullShardComplete=False, formalAcceptance=False, humanReviewGranted=False)
     transport = Transport(matrix.root, folder / 'audit-api' / uuid.uuid4().hex)
@@ -1823,7 +2243,8 @@ def audit(matrix, request_id, known_deterministic=False):
                     else:
                         result.update(full_shard_proof(source, root, intent, result))
             else:
-                result['gaps'].append('Worker artifact absent; setup/admission failure remains explicit.')
+                if not result.get('unacquiredHostedWorkers'):
+                    result['gaps'].append('Worker artifact absent; setup/admission failure remains explicit.')
         else:
             producer_id = int(intent['inputs']['s10_4_shared_payload_run_id'])
             proof_root, proof = producer_proof(matrix, source, transport, producer_id)
@@ -1859,6 +2280,8 @@ def audit(matrix, request_id, known_deterministic=False):
     result['formalAcceptance'] = False; result['humanReviewGranted'] = False
     output = folder / 'audits' / (dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + uuid.uuid4().hex + '.json')
     save(output, result)
+    if getattr(matrix, 'operational_review_path', None) is not None:
+        matrix.operation_guard(intent, stage='after-audit')
     return result
 
 
@@ -1886,6 +2309,8 @@ def main(argv=None):
     inv = sub.add_parser('inventory'); inv.add_argument('--root', required=True); inv.add_argument('--head', required=True)
     for name in ('dispatch', 'reconcile', 'import', 'collect', 'audit', 'summary'):
         command_parser = sub.add_parser(name); command_parser.add_argument('--matrix', required=True)
+        command_parser.add_argument('--operational-review')
+        command_parser.add_argument('--operational-review-sha256')
         if name in ('reconcile', 'collect', 'audit'):
             command_parser.add_argument('--request', required=True)
         if name == 'audit':
@@ -1906,7 +2331,10 @@ def main(argv=None):
         result = {'head': source.head, 'mainSHA': source.main, 'source': source.identity, 'tuples': source.tuples,
                   'formalAcceptance': False}
     else:
-        matrix = Matrix(args.matrix)
+        matrix = Matrix(args.matrix, args.operational_review, args.operational_review_sha256)
+        if matrix.operational_review_path is not None:
+            require(args.command in ('dispatch', 'reconcile', 'collect', 'audit'),
+                    'operational controller command outside approved mutation/recovery surface')
         if args.command == 'dispatch': result = dispatch(matrix, args)
         elif args.command == 'reconcile': result = resolve(matrix, args.request)
         elif args.command == 'import': result = import_record(matrix, args)
@@ -1918,6 +2346,19 @@ def main(argv=None):
             result = terminal_collection(matrix, record, Transport(matrix.root, record['path'] / 'collection-api'))
     print(json.dumps(result, indent=2, ensure_ascii=True, allow_nan=False))
     return result
+
+
+_RUNTIME_GLOBALS = {name: value for name, value in tuple(globals().items())
+                    if (isinstance(value, types.FunctionType) and value.__module__ == __name__) or
+                    (isinstance(value, type) and value.__module__ == __name__)}
+_RUNTIME_METHODS = {name: {member: value for member, value in cls.__dict__.items()
+                           if isinstance(value, (types.FunctionType, classmethod, staticmethod))}
+                    for name, cls in _RUNTIME_GLOBALS.items() if isinstance(cls, type)}
+_RUNTIME_MODULES = {name: globals()[name] for name in
+                    ('subprocess', 'hashlib', 'json', 'os', 're', 'Path', 'PurePosixPath')}
+_RUNTIME_CONSTANTS = {'loadedControllerSHA256': LOADED_CONTROLLER_SHA256,
+                      'baselineFiles': tuple(BASELINE_FILES.items()), 'fixedDigest': runtime_fixed_digest()}
+_RUNTIME_READY = True
 
 
 if __name__ == '__main__':
