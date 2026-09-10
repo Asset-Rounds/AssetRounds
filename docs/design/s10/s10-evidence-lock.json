@@ -18,8 +18,8 @@
       "document_id": "s10.6-preparation-authority-activation",
       "document_type": "activation",
       "path": "docs/design/s10/s10-activation.json",
-      "blob_commit": "3d5fad43f9df8fca3bb79e58410d7331ac9aa025",
-      "sha256": "3F2392E99A706CA407C24614EE2644D0FDD11B4FD25E417C4316BBC1DD57868F",
+      "blob_commit": "f8193befda29c591b21f8d561f5925bb9c659042",
+      "sha256": "35F144688619AFBEE0D7E4040F7CDA4DBA3FB6E9246CC5720135A3E925AFE836",
       "gate_ids": []
     },
     {
@@ -63,7 +63,30 @@
       "gate_ids": []
     }
   ],
-  "ci_runs": [],
+  "ci_runs": [
+    {
+      "run_id": "34525551221",
+      "workflow": ".github/workflows/ios-ci.yml",
+      "workflow_ref": "refs/heads/phase/s10-brand-refresh",
+      "head_sha": "df52d7517806192b8ccff46923d1add1680ec75f",
+      "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+      "conclusion": "success",
+      "artifact_ids": [
+        "10171827197"
+      ]
+    },
+    {
+      "run_id": "34527590250",
+      "workflow": ".github/workflows/ios-ci.yml",
+      "workflow_ref": "refs/heads/phase/s10-brand-refresh",
+      "head_sha": "0a48504502994fdb8a5d73c9e8cc307aba210821",
+      "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+      "conclusion": "success",
+      "artifact_ids": [
+        "10172675373"
+      ]
+    }
+  ],
   "field_evidence_ids": [],
   "app_store_evidence_ids": [],
   "app_store_claims": []

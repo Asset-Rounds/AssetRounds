@@ -532,5 +532,100 @@
       "resume_policy": "explicit_owner_request_after_app_store_release",
       "policy_id": "owner-s10-5-nonblocking-post-release-20260910"
     }
-  ]
+  ],
+  "unsigned_preparation_ci": {
+    "evidenceID": "s10.6-unsigned-preparation-ci-34527590250",
+    "status": "PASS",
+    "scope": "unsigned_preparation_build_five_unit_tests_one_branded_ui_smoke",
+    "headSHA": "0a48504502994fdb8a5d73c9e8cc307aba210821",
+    "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+    "runID": "34527590250",
+    "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34527590250",
+    "workflow": ".github/workflows/ios-ci.yml",
+    "workflowRef": "phase/s10-brand-refresh",
+    "runAttempt": 1,
+    "jobID": "103040237596",
+    "executionLane": "github-xcode-26.6-acceptance",
+    "selectorTier": "F25",
+    "unitSelectors": [
+      "FieldEvidenceAppTests/S10_6BrandReleaseTests"
+    ],
+    "uiSelectors": [
+      "FieldEvidenceAppUITests/S10_6BrandReleaseUITests"
+    ],
+    "unitPassed": 5,
+    "uiPassed": 1,
+    "artifactID": "10172675373",
+    "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34527590250/artifacts/10172675373",
+    "artifactName": "ios-ci-34527590250-1",
+    "artifactSHA256": "49EF4F73EB8E5F7CB827EF77A0B2CCC08499425CDCE9469119D2474E4952E09D",
+    "artifactExpiresAt": "2026-09-24T20:52:20Z",
+    "checksumFileCount": 102,
+    "checksumManifestSHA256": "D304259FF08611F5E46CBC2A01E034D8AFDF720C10A8DE8AFDBD4DFA692E8A22",
+    "originalLogsSHA256": "4B9EAEFB3DD6F102D90881A2C89F9E77611671B977DAB695F08D3DBA74ED2592",
+    "auditPath": "Temp/S10_6_ReleasePreparation/ci/0a48504502994fdb8a5d73c9e8cc307aba210821/originals/34527590250/AUDIT.json",
+    "auditSHA256": "83C6C8525365E7D6EB947255C017782BD88E0DEFD8EA7AA16CBA38482D70CE2A",
+    "terminalScreenshotEntry": "ui-final.png",
+    "terminalScreenshotSHA256": "2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C",
+    "unitResultsSHA256": "9821B6EA67DA88E940C5CB859DE03F368E0E70FBE5BCEA64087C03D2F2FD2A7A",
+    "uiResultsSHA256": "356677CDC2AE15FE9917C3630C032539EDD1CA4E6174F5323F520E270CED8DDB",
+    "runnerImage": {
+      "ImageOS": "macos26",
+      "ImageVersion": "20260831.0337.3",
+      "ImageArch": "unknown"
+    },
+    "xcodeVersion": "Xcode 26.6",
+    "xcodeBuild": "17F113",
+    "sdkName": "iphonesimulator26.5",
+    "sdkBuild": "23F81a",
+    "simulator": {
+      "runtime": "iOS 26.2",
+      "runtime_build": "23C54",
+      "name": "iPhone 17",
+      "udid": "F007E22E-9AEC-4FE9-8477-78ED0F8133C7",
+      "initial_state": "Shutdown"
+    },
+    "nativeStepSeconds": {
+      "Build unsigned simulator app": 307.0,
+      "Run targeted tests": 72.0,
+      "Run task-authorized UI smoke": 250.0
+    },
+    "setupArtifactBudget": {
+      "setup_elapsed_seconds": "67",
+      "artifact_elapsed_seconds": "1",
+      "setup_artifact_elapsed_seconds": "68",
+      "setup_artifact_budget_seconds": "300"
+    },
+    "nativeCommands": {
+      "build-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing",
+      "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
+      "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
+    },
+    "humanVisualReview": "PENDING",
+    "formalReleaseAcceptance": false,
+    "physicalPass": false
+  },
+  "physical_deferral_owner_request": {
+    "policy_id": "owner-s10-5-nonblocking-post-release-20260910",
+    "original_path": "Temp/S10_6_ReleasePreparation/post-release-deferral/OWNER_REQUEST_20260910.json",
+    "original_sha256": "2C2F440BDB4EB999DF9DF93793F843AABF382681E85690A01761A8254BE7FE7A",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"source\": \"direct owner message in the active S10 task\",\n  \"ownerInstruction\": \"Is there anyway I can change policy change to just not include 10.5 going forward until the app is in the app store and I can come back to it for like \\\"bug fixes\\\" or anything. \",\n  \"interpretation\": \"Make S10.5 non-blocking for S10.6 and S10 phase acceptance, defer it until after App Store release, and resume only on explicit future owner request.\",\n  \"physicalResult\": \"DEFERRED\",\n  \"physicalPassClaimed\": false,\n  \"automaticResumptionAuthorized\": false,\n  \"otherReleaseGatesWaived\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"observedPreparationHead\": \"df52d7517806192b8ccff46923d1add1680ec75f\",\n  \"activeOriginalCIRunID\": \"34525551221\",\n  \"authorityApplicationStatus\": \"PENDING_REVIEW_AND_SAFE_POST_CI_BOUNDARY\"\n}\n",
+    "status": "DEFERRED",
+    "blocking": false,
+    "resume_policy": "explicit_owner_request_after_app_store_release"
+  },
+  "owner_name_attestation": {
+    "evidence_id": "owner-name-ownership-attestation-20260910",
+    "date": "2026-09-10",
+    "owner": "palatis3",
+    "name": "AssetRounds",
+    "status": "OWNER_ATTESTED",
+    "source_path": "Temp/S10_6_ReleasePreparation/remaining-inputs/OWNER_NAME_ATTESTATION_20260910.json",
+    "source_sha256": "CBD773A2616D51732AB4B17FD77C4B8D65BE9E9E6485FCF845E772022AA5AF94",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"source\": \"direct owner response in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"ownerStatement\": \"No urls yet. I own the name. Lets mark it as today. I will make website once this is done and update accordignly\",\n  \"name\": \"AssetRounds\",\n  \"ownerIdentityFromExistingGrant\": \"palatis3\",\n  \"ownershipAttested\": true,\n  \"websiteStatus\": \"planned_after_current_work\",\n  \"liveURLsProvided\": false,\n  \"separateTrademarkSearchOrClearanceEvidenceProvided\": false,\n  \"fiveStoreClaimsSeparatelyReviewed\": false,\n  \"interpretation\": \"Record the owner's name-ownership attestation dated today and retain absent live URLs as pending; do not infer a separate trademark clearance, claim review, website existence, or release approval.\"\n}\n",
+    "website_status": "planned_after_current_work",
+    "live_urls_provided": false,
+    "separate_trademark_clearance_evidence": null,
+    "separate_five_claim_review_evidence": null
+  }
 }

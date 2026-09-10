@@ -11,7 +11,79 @@
       "releaseReady": false,
       "physicalVerificationBlocking": false,
       "physicalResumePolicy": "explicit_owner_request_after_app_store_release",
-      "physicalDeferralPolicyID": "owner-s10-5-nonblocking-post-release-20260910"
+      "physicalDeferralPolicyID": "owner-s10-5-nonblocking-post-release-20260910",
+      "unsignedPreparationCI": {
+        "evidenceID": "s10.6-unsigned-preparation-ci-34527590250",
+        "status": "PASS",
+        "scope": "unsigned_preparation_build_five_unit_tests_one_branded_ui_smoke",
+        "headSHA": "0a48504502994fdb8a5d73c9e8cc307aba210821",
+        "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+        "runID": "34527590250",
+        "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34527590250",
+        "workflow": ".github/workflows/ios-ci.yml",
+        "workflowRef": "phase/s10-brand-refresh",
+        "runAttempt": 1,
+        "jobID": "103040237596",
+        "executionLane": "github-xcode-26.6-acceptance",
+        "selectorTier": "F25",
+        "unitSelectors": [
+          "FieldEvidenceAppTests/S10_6BrandReleaseTests"
+        ],
+        "uiSelectors": [
+          "FieldEvidenceAppUITests/S10_6BrandReleaseUITests"
+        ],
+        "unitPassed": 5,
+        "uiPassed": 1,
+        "artifactID": "10172675373",
+        "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34527590250/artifacts/10172675373",
+        "artifactName": "ios-ci-34527590250-1",
+        "artifactSHA256": "49EF4F73EB8E5F7CB827EF77A0B2CCC08499425CDCE9469119D2474E4952E09D",
+        "artifactExpiresAt": "2026-09-24T20:52:20Z",
+        "checksumFileCount": 102,
+        "checksumManifestSHA256": "D304259FF08611F5E46CBC2A01E034D8AFDF720C10A8DE8AFDBD4DFA692E8A22",
+        "originalLogsSHA256": "4B9EAEFB3DD6F102D90881A2C89F9E77611671B977DAB695F08D3DBA74ED2592",
+        "auditPath": "Temp/S10_6_ReleasePreparation/ci/0a48504502994fdb8a5d73c9e8cc307aba210821/originals/34527590250/AUDIT.json",
+        "auditSHA256": "83C6C8525365E7D6EB947255C017782BD88E0DEFD8EA7AA16CBA38482D70CE2A",
+        "terminalScreenshotEntry": "ui-final.png",
+        "terminalScreenshotSHA256": "2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C",
+        "unitResultsSHA256": "9821B6EA67DA88E940C5CB859DE03F368E0E70FBE5BCEA64087C03D2F2FD2A7A",
+        "uiResultsSHA256": "356677CDC2AE15FE9917C3630C032539EDD1CA4E6174F5323F520E270CED8DDB",
+        "runnerImage": {
+          "ImageOS": "macos26",
+          "ImageVersion": "20260831.0337.3",
+          "ImageArch": "unknown"
+        },
+        "xcodeVersion": "Xcode 26.6",
+        "xcodeBuild": "17F113",
+        "sdkName": "iphonesimulator26.5",
+        "sdkBuild": "23F81a",
+        "simulator": {
+          "runtime": "iOS 26.2",
+          "runtime_build": "23C54",
+          "name": "iPhone 17",
+          "udid": "F007E22E-9AEC-4FE9-8477-78ED0F8133C7",
+          "initial_state": "Shutdown"
+        },
+        "nativeStepSeconds": {
+          "Build unsigned simulator app": 307.0,
+          "Run targeted tests": 72.0,
+          "Run task-authorized UI smoke": 250.0
+        },
+        "setupArtifactBudget": {
+          "setup_elapsed_seconds": "67",
+          "artifact_elapsed_seconds": "1",
+          "setup_artifact_elapsed_seconds": "68",
+          "setup_artifact_budget_seconds": "300"
+        },
+        "nativeCommands": {
+          "build-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing",
+          "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
+          "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
+        },
+        "humanVisualReview": "PENDING",
+        "formalReleaseAcceptance": false,
+        "physicalPass": false
+      }
     }
   },
   "phaseBaseSHA": "2e9f8a1bdade83f4510c6c6ff6bd18cefc7343a9",

@@ -188,14 +188,16 @@
   "toolchain": {
     "gate_id": "final-toolchain",
     "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
-    "runner_image": "PENDING_S10_6_ORIGINAL_CI_OBSERVATION",
+    "runner_image": "macos26/20260831.0337.3",
     "xcode_version": "Xcode 26.6",
     "xcode_build": "17F113",
     "sdk_name": "iphonesimulator26.5",
     "sdk_build": "23F81a",
     "swift_version": "5",
     "build_configuration": "Debug",
-    "evidence_ids": []
+    "evidence_ids": [
+      "s10.6-unsigned-preparation-ci-34527590250"
+    ]
   },
   "privacy_results": [
     {

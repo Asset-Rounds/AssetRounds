@@ -271,7 +271,21 @@
     "name_clearance_status": "PENDING",
     "claim_clearance_status": "PENDING",
     "url_clearance_status": "PENDING",
-    "dated_clearance_evidence": null
+    "dated_clearance_evidence": null,
+    "owner_name_attestation": {
+      "evidence_id": "owner-name-ownership-attestation-20260910",
+      "date": "2026-09-10",
+      "owner": "palatis3",
+      "name": "AssetRounds",
+      "status": "OWNER_ATTESTED",
+      "source_path": "Temp/S10_6_ReleasePreparation/remaining-inputs/OWNER_NAME_ATTESTATION_20260910.json",
+      "source_sha256": "CBD773A2616D51732AB4B17FD77C4B8D65BE9E9E6485FCF845E772022AA5AF94",
+      "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"source\": \"direct owner response in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"ownerStatement\": \"No urls yet. I own the name. Lets mark it as today. I will make website once this is done and update accordignly\",\n  \"name\": \"AssetRounds\",\n  \"ownerIdentityFromExistingGrant\": \"palatis3\",\n  \"ownershipAttested\": true,\n  \"websiteStatus\": \"planned_after_current_work\",\n  \"liveURLsProvided\": false,\n  \"separateTrademarkSearchOrClearanceEvidenceProvided\": false,\n  \"fiveStoreClaimsSeparatelyReviewed\": false,\n  \"interpretation\": \"Record the owner's name-ownership attestation dated today and retain absent live URLs as pending; do not infer a separate trademark clearance, claim review, website existence, or release approval.\"\n}\n",
+      "website_status": "planned_after_current_work",
+      "live_urls_provided": false,
+      "separate_trademark_clearance_evidence": null,
+      "separate_five_claim_review_evidence": null
+    }
   },
   "physical_verification_blocking": false,
   "deferred_follow_ups": [
