@@ -26,9 +26,11 @@ struct LocaleGregorianDateV1: Codable, Equatable, Hashable, Sendable {
         calendar.timeZone = .gmt
         let components = DateComponents(year: year, month: month, day: day, hour: 12)
         guard (1...9999).contains(year),
-              let value = calendar.date(from: components),
-              calendar.dateComponents([.year, .month, .day], from: value) ==
-                DateComponents(year: year, month: month, day: day) else {
+              let value = calendar.date(from: components) else {
+            throw LocaleFormattingFailureV1.invalidGregorianDate
+        }
+        let observed = calendar.dateComponents([.year, .month, .day], from: value)
+        guard observed.year == year, observed.month == month, observed.day == day else {
             throw LocaleFormattingFailureV1.invalidGregorianDate
         }
         self.year = year
@@ -64,6 +66,20 @@ struct LocaleWallTimeV1: Codable, Equatable, Hashable, Sendable {
         self.hour = hour
         self.minute = minute
         self.second = second
+    }
+
+    var canonicalString: String {
+        String(format: "%02d:%02d:%02d", hour, minute, second)
+    }
+
+    init(canonicalString: String) throws {
+        let parts = canonicalString.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts.allSatisfy({ $0.count == 2 && $0.utf8.allSatisfy { (48...57).contains($0) } }),
+              let hour = Int(parts[0]), let minute = Int(parts[1]), let second = Int(parts[2]) else {
+            throw LocaleFormattingFailureV1.invalidWallTime
+        }
+        try self.init(hour: hour, minute: minute, second: second)
     }
 
     private enum CodingKeys: String, CodingKey { case hour, minute, second }
@@ -130,6 +146,29 @@ struct LocaleCurrencyAmountV1: Codable, Equatable, Sendable {
         try self.init(
             amount: container.decode(Decimal.self, forKey: .amount),
             currencyCode: container.decode(String.self, forKey: .currencyCode)
+        )
+    }
+}
+
+/// A length carries its canonical unit. The localized display unit is supplied
+/// explicitly at the presentation boundary and is never guessed from locale.
+struct LocaleLengthAmountV1: Codable, Equatable, Sendable {
+    let value: Decimal
+    let canonicalUnit: LocaleLengthUnitV1
+
+    init(value: Decimal, canonicalUnit: LocaleLengthUnitV1) throws {
+        guard !value.isNaN else { throw LocaleFormattingFailureV1.invalidLocalizedInput }
+        self.value = value
+        self.canonicalUnit = canonicalUnit
+    }
+
+    private enum CodingKeys: String, CodingKey { case value, canonicalUnit }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            value: container.decode(Decimal.self, forKey: .value),
+            canonicalUnit: container.decode(LocaleLengthUnitV1.self, forKey: .canonicalUnit)
         )
     }
 }

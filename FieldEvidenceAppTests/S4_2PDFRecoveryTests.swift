@@ -42,6 +42,41 @@ private final class C30EvidenceContextAnchorS4_2PDFRecovery: XCTestCase {
 }
 
 final class S4_2PDFRecoveryTests: XCTestCase {
+    @MainActor
+    func testV30C07FormattedSummaryDoesNotChangeHistoricalPDFRecovery() async throws {
+        let harness = try await makeHarness("v30-c07-recovery")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let authority = try immutableAuthority(in: harness)
+        let failing = try ReportRecoveryService(
+            modelContext: harness.context, generationRootURL: harness.session.generationRootURL,
+            failNextRenderAttempt: true
+        )
+        try failing.reconcileAtStartup()
+        try assertFailed(harness)
+        let recovery = try ReportRecoveryService(
+            modelContext: harness.context, generationRootURL: harness.session.generationRootURL
+        )
+        guard case .ready = try await recovery.retryFailedReport(id: Fixture.reportID) else {
+            return XCTFail("Historical report must recover before presentation")
+        }
+        let recoveredBytes = try Data(contentsOf: finalURL(in: harness))
+        let delivery = try ReportDeliveryCoordinator(
+            modelContext: harness.context, generationRootURL: harness.session.generationRootURL
+        )
+        let korean = try delivery.loadReadyReport(
+            id: Fixture.reportID, formattingLocale: Locale(identifier: "ko_KR")
+        )
+        let vietnamese = try delivery.loadReadyReport(
+            id: Fixture.reportID, formattingLocale: Locale(identifier: "vi_VN")
+        )
+        XCTAssertEqual(korean.pdfData, recoveredBytes)
+        XCTAssertEqual(vietnamese.pdfData, recoveredBytes)
+        XCTAssertNotEqual(korean.detailLines, vietnamese.detailLines)
+        XCTAssertEqual(try immutableAuthority(in: harness), authority)
+        XCTAssertEqual(try Data(contentsOf: finalURL(in: harness)), recoveredBytes)
+        XCTAssertFalse(harness.context.hasChanges)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

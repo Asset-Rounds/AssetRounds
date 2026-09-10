@@ -39,7 +39,46 @@ struct ReportDeliveryValue: Equatable, Sendable {
     let filename: String
     let title: String
     let subtitle: String
-    let detailLines: [String]
+    private let canonicalDetailLines: [String]
+    private let formattingLocale: Locale
+
+    init(
+        reportID: UUID, pdfSHA256: String, pdfData: Data, filename: String,
+        title: String, subtitle: String, detailLines: [String],
+        formattingLocale: Locale = .current
+    ) {
+        self.reportID = reportID
+        self.pdfSHA256 = pdfSHA256
+        self.pdfData = pdfData
+        self.filename = filename
+        self.title = title
+        self.subtitle = subtitle
+        self.canonicalDetailLines = detailLines
+        self.formattingLocale = formattingLocale
+    }
+
+    var detailLines: [String] {
+        guard canonicalDetailLines.count == 4 else { return canonicalDetailLines }
+        var display = canonicalDetailLines
+        // Legacy unknown/source strings remain intact. This is presentation of
+        // already-validated history, never an input or canonical-data parser.
+        display[2] = (try? LocaleFormattingServiceV1.displayCanonicalLocalDate(
+            display[2], locale: formattingLocale
+        )) ?? display[2]
+        display[3] = (try? LocaleFormattingServiceV1.displayCanonicalLocalTime(
+            display[3], locale: formattingLocale
+        )) ?? display[3]
+        return display
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        // Correction/replay guards compare stored delivery truth. A locale
+        // change cannot invalidate the same immutable report or its chain.
+        lhs.reportID == rhs.reportID && lhs.pdfSHA256 == rhs.pdfSHA256
+            && lhs.pdfData == rhs.pdfData && lhs.filename == rhs.filename
+            && lhs.title == rhs.title && lhs.subtitle == rhs.subtitle
+            && lhs.canonicalDetailLines == rhs.canonicalDetailLines
+    }
 }
 
 struct ValidatedReadyEvidenceValue: Equatable, Sendable {
@@ -268,11 +307,15 @@ final class ReportDeliveryCoordinator {
         }
     }
 
-    func loadReadyReport(id reportID: UUID) throws -> ReportDeliveryValue {
-        try validatedReadyReport(id: reportID).delivery
+    func loadReadyReport(
+        id reportID: UUID, formattingLocale: Locale = .current
+    ) throws -> ReportDeliveryValue {
+        try validatedReadyReport(id: reportID, formattingLocale: formattingLocale).delivery
     }
 
-    func validatedReadyReport(id reportID: UUID) throws -> ValidatedReadyReportValue {
+    func validatedReadyReport(
+        id reportID: UUID, formattingLocale: Locale = .current
+    ) throws -> ValidatedReadyReportValue {
         guard !modelContext.hasChanges else {
             throw ReportDeliveryCoordinatorError.contextHasChanges
         }
@@ -284,7 +327,8 @@ final class ReportDeliveryCoordinator {
         }
         return try validatedReadyReport(
             report,
-            requiresCurrentTip: chain.first?.id == report.id
+            requiresCurrentTip: chain.first?.id == report.id,
+            formattingLocale: formattingLocale
         )
     }
 
@@ -331,7 +375,8 @@ final class ReportDeliveryCoordinator {
 
     private func validatedReadyReport(
         _ report: Report,
-        requiresCurrentTip: Bool
+        requiresCurrentTip: Bool,
+        formattingLocale: Locale = .current
     ) throws -> ValidatedReadyReportValue {
         let reportID = report.id
         let canonicalID = reportID.uuidString.lowercased()
@@ -377,7 +422,8 @@ final class ReportDeliveryCoordinator {
                 snapshot.display.outcome,
                 snapshot.timeContext.localDate,
                 snapshot.timeContext.localTime,
-            ]
+            ],
+            formattingLocale: formattingLocale
         )
         return ValidatedReadyReportValue(
             delivery: delivery,

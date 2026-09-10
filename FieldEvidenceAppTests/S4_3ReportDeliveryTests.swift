@@ -42,6 +42,52 @@ private final class C30EvidenceContextAnchorS4_3ReportDelivery: XCTestCase {
 }
 
 final class S4_3ReportDeliveryTests: XCTestCase {
+    func testV30C07SummaryKeepsUnknownHistoricalTextAndCanonicalIdentity() {
+        func value(locale: Locale, sourceDate: String = "Unknown") -> ReportDeliveryValue {
+            ReportDeliveryValue(
+                reportID: Fixture.reportID, pdfSHA256: String(repeating: "a", count: 64),
+                pdfData: Data([1, 2, 3]), filename: "historical.pdf",
+                title: "Montréal Sign", subtitle: "工厂",
+                detailLines: ["Check", "No visible issue", sourceDate, "Unknown"],
+                formattingLocale: locale
+            )
+        }
+        let english = value(locale: Locale(identifier: "en_US"))
+        let korean = value(locale: Locale(identifier: "ko_KR"))
+        XCTAssertEqual(english, korean)
+        XCTAssertEqual(korean.detailLines, ["Check", "No visible issue", "Unknown", "Unknown"])
+        XCTAssertNotEqual(english, value(locale: Locale(identifier: "en_US"), sourceDate: "2024-01-01"))
+    }
+
+    @MainActor
+    func testV30C07LocaleChangesOnlyReadyReportSummaryAndPreservesCachedDelivery() async throws {
+        let harness = try await makeHarness("v30-c07-locale")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let before = try immutableAuthority(in: harness)
+        let cachedPDF = try Data(contentsOf: finalURL(in: harness))
+        let coordinator = try ReportDeliveryCoordinator(
+            modelContext: harness.context, generationRootURL: harness.session.generationRootURL
+        )
+        let english = try coordinator.loadReadyReport(
+            id: Fixture.reportID, formattingLocale: Locale(identifier: "en_US")
+        )
+        let german = try coordinator.loadReadyReport(
+            id: Fixture.reportID, formattingLocale: Locale(identifier: "de_DE")
+        )
+        XCTAssertNotEqual(english.detailLines, german.detailLines)
+        XCTAssertEqual(english, german, "Formatting must not invalidate correction/replay identity")
+        XCTAssertEqual(english.title, german.title)
+        XCTAssertEqual(english.subtitle, german.subtitle)
+        XCTAssertEqual(Array(english.detailLines.prefix(2)), Array(german.detailLines.prefix(2)))
+        XCTAssertEqual(english.pdfData, cachedPDF)
+        XCTAssertEqual(german.pdfData, cachedPDF)
+        XCTAssertEqual(english.pdfSHA256, german.pdfSHA256)
+        XCTAssertEqual(english.filename, german.filename)
+        XCTAssertEqual(try Data(contentsOf: finalURL(in: harness)), cachedPDF)
+        XCTAssertEqual(try immutableAuthority(in: harness), before)
+        XCTAssertFalse(harness.context.hasChanges)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

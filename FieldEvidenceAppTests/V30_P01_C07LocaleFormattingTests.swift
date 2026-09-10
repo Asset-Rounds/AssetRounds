@@ -56,7 +56,7 @@ final class V30P01C07LocaleFormattingTests: XCTestCase {
         XCTAssertThrowsError(try service.parseCurrency("$12 trailing", currencyCode: "USD"))
         XCTAssertThrowsError(try service.parsePercent("12% trailing"))
         XCTAssertThrowsError(try LocaleCurrencyAmountV1(amount: 1, currencyCode: "ZZZ"))
-        XCTAssertEqual(service.formatCurrency(try LocaleCurrencyAmountV1(amount: 1, currencyCode: "USD")), "$1.00")
+        XCTAssertEqual(try service.formatCurrency(LocaleCurrencyAmountV1(amount: 1, currencyCode: "USD")), "$1.00")
         XCTAssertEqual(try service.parseCurrency("$1.00", currencyCode: "USD").amount, 1)
     }
 
@@ -80,6 +80,29 @@ final class V30P01C07LocaleFormattingTests: XCTestCase {
         XCTAssertEqual(iso.string(from: later), "2024-11-03T06:30:00Z")
     }
 
+    func testWallClockRoundTripsAndDoesNotGuessAMPMOrADate() throws {
+        let wall = try LocaleWallTimeV1(canonicalString: "15:02:03")
+        XCTAssertEqual(wall.canonicalString, "15:02:03")
+        for identifier in try strings("locales") {
+            let service = try formatter(identifier)
+            XCTAssertEqual(try service.parseDisplayedWallTime(service.displayWallTime(wall)), wall, identifier)
+        }
+        let us = try formatter("en-US")
+        let gb = try formatter("en-GB")
+        XCTAssertNotEqual(try us.displayWallTime(wall), try gb.displayWallTime(wall))
+        XCTAssertThrowsError(try us.parseDisplayedWallTime("3:02:03"))
+        XCTAssertThrowsError(try gb.parseDisplayedWallTime("15:02:03 trailing"))
+        for invalid in ["24:00:00", "15:60:00", "15:02", "1:02:03", "١٥:٠٢:٠٣"] {
+            XCTAssertThrowsError(try LocaleWallTimeV1(canonicalString: invalid), invalid)
+        }
+        let skipped = try formatter("en-US", zone: "Pacific/Apia")
+        XCTAssertThrowsError(try skipped.resolveInstant(
+            localDate: LocaleGregorianDateV1(year: 2011, month: 12, day: 30), localTime: wall
+        )) {
+            XCTAssertEqual($0 as? LocaleFormattingFailureV1, .nonexistentDSTTime)
+        }
+    }
+
     func testCivilDaySurvivesSkippedTimeZoneDayAndNonGregorianPresentation() throws {
         let day = try LocaleGregorianDateV1(year: 2011, month: 12, day: 30)
         let apia = try formatter("en-US", zone: "Pacific/Apia")
@@ -97,8 +120,8 @@ final class V30P01C07LocaleFormattingTests: XCTestCase {
     func testUnitsWeekPaperAndAuthoredContactData() throws {
         let metric = try formatter("en-US", units: .metric)
         let customary = try formatter("en-US", units: .usCustomary)
-        XCTAssertNotEqual(metric.formatLength(1, canonicalUnit: .meters),
-                          customary.formatLength(1, canonicalUnit: .meters))
+        XCTAssertNotEqual(try metric.formatLength(1, canonicalUnit: .feet),
+                          try customary.formatLength(1, canonicalUnit: .feet))
         XCTAssertEqual(metric.weekRules().firstWeekday, 1)
         XCTAssertEqual(try formatter("en-GB").weekRules().firstWeekday, 2)
         XCTAssertEqual(try formatter("en-GB").weekRules().minimumDaysInFirstWeek, 4)
@@ -128,12 +151,87 @@ final class V30P01C07LocaleFormattingTests: XCTestCase {
             instant, timeZone: .gmt, regionSource: locale), date.string(from: instant))
     }
 
+    func testNumberingSystemIsIndependentAndCanonicalGrammarStaysASCII() throws {
+        let arabic = try LocaleFormattingServiceV1(profile: FormattingLocaleProfileV1(
+            localeIdentifier: "ar-EG", ianaTimeZoneIdentifier: "Africa/Cairo",
+            calendar: .gregorian, numberingSystem: .arabicIndic, units: .metric
+        ))
+        let latin = try LocaleFormattingServiceV1(profile: FormattingLocaleProfileV1(
+            localeIdentifier: "ar-EG", ianaTimeZoneIdentifier: "Africa/Cairo",
+            calendar: .gregorian, numberingSystem: .latin, units: .metric
+        ))
+        let value = try XCTUnwrap(Decimal(string: "1234.5"))
+        XCTAssertNotEqual(try arabic.formatDecimal(value), try latin.formatDecimal(value))
+        XCTAssertEqual(try arabic.parseDecimal(arabic.formatDecimal(value)), value)
+        XCTAssertEqual(try LocaleGregorianDateV1(year: 2024, month: 2, day: 29).canonicalString, "2024-02-29")
+        XCTAssertThrowsError(try LocaleFormattingServiceV1.decodeCanonicalGregorianDate("٢٠٢٤-٠٢-٢٩"))
+    }
+
+    func testLengthGrammarRequiresExplicitUnitsAndPreservesCanonicalQuantity() throws {
+        let service = try formatter("en-US", units: .metric)
+        let display = try service.formatLength(1, canonicalUnit: .feet)
+        let parsed = try service.parseLength(display, displayedUnit: .meters, canonicalUnit: .feet)
+        XCTAssertEqual(parsed.value, 1)
+        XCTAssertEqual(parsed.canonicalUnit, .feet)
+        XCTAssertThrowsError(try service.parseLength(display, displayedUnit: .feet, canonicalUnit: .feet))
+        XCTAssertThrowsError(try service.parseLength("1", displayedUnit: .meters, canonicalUnit: .feet))
+        XCTAssertThrowsError(try service.parseLength(display + " trailing", displayedUnit: .meters, canonicalUnit: .feet))
+        XCTAssertThrowsError(try service.formatLength(.nan, canonicalUnit: .meters))
+        let customary = try formatter("en-US", units: .usCustomary)
+        XCTAssertThrowsError(try customary.formatLength(1, canonicalUnit: .meters))
+    }
+
+    func testSignedZeroCurrencyAndLocaleSeparators() throws {
+        let us = try formatter("en-US")
+        let german = try formatter("de-DE")
+        XCTAssertEqual(try us.parseDecimal("1,234.5"), Decimal(string: "1234.5"))
+        XCTAssertEqual(try german.parseDecimal("1.234,5"), Decimal(string: "1234.5"))
+        XCTAssertThrowsError(try german.parseDecimal("1,234.5"))
+        for amount in [Decimal(-12), 0, 12] {
+            for currency in ["USD", "JPY", "EUR"] {
+                let money = try LocaleCurrencyAmountV1(amount: amount, currencyCode: currency)
+                XCTAssertEqual(try german.parseCurrency(german.formatCurrency(money), currencyCode: currency), money)
+            }
+        }
+    }
+
+    func testHighPrecisionEitherRoundTripsExactlyOrFailsExplicitly() throws {
+        let service = try formatter("en-US")
+        let source = try XCTUnwrap(Decimal(string: "12345678901234567890.123456789012345678",
+                                           locale: Locale(identifier: "en_US_POSIX")))
+        do {
+            let display = try service.formatDecimal(source)
+            XCTAssertEqual(try service.parseDecimal(display), source)
+        } catch {
+            XCTAssertEqual(error as? LocaleFormattingFailureV1, .lossyLocalizedRoundTrip)
+        }
+        XCTAssertThrowsError(try service.formatDecimal(.nan))
+        XCTAssertThrowsError(try service.formatPercent(.nan))
+        XCTAssertThrowsError(try LocaleCurrencyAmountV1(amount: .nan, currencyCode: "USD"))
+    }
+
+    func testDecodedProfileCannotSilentlyFallBackToGMT() throws {
+        let original = try FormattingLocaleProfileV1(
+            localeIdentifier: "en-US", ianaTimeZoneIdentifier: "America/New_York",
+            calendar: .gregorian, numberingSystem: .latin, units: .metric
+        )
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(original)) as? [String: Any])
+        object["ianaTimeZoneIdentifier"] = "Invalid/Zone"
+        let decoded = try JSONDecoder().decode(
+            FormattingLocaleProfileV1.self, from: JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertThrowsError(try LocaleFormattingServiceV1(profile: decoded)) {
+            XCTAssertEqual($0 as? GlobalizationAxisFailureV1, .invalidTimeZone)
+        }
+    }
+
     private func formatter(
         _ locale: String, zone: String = "America/New_York",
         calendar: GlobalizationCalendarV1 = .gregorian,
         units: GlobalizationUnitsV1 = .metric
     ) throws -> LocaleFormattingServiceV1 {
-        LocaleFormattingServiceV1(profile: try FormattingLocaleProfileV1(
+        try LocaleFormattingServiceV1(profile: FormattingLocaleProfileV1(
             localeIdentifier: locale, ianaTimeZoneIdentifier: zone,
             calendar: calendar, numberingSystem: .latin, units: units
         ))
