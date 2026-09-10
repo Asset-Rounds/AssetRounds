@@ -39,9 +39,9 @@
     "s10_branch": "phase/s10-brand-refresh",
     "authority_document_path": "docs/execution/CURRENT_TASK.md",
     "pinned_plan_path": "docs/product/BUILD_PLAN_V4.md",
-    "pinned_plan_sha256": "9B3F11724D6104030CDFF471D01E24B06422A0743F531C3279F7843D7B0F223D",
+    "pinned_plan_sha256": "17AEF5CE3FB7A36D506D2DAFCA1DB5F923A43F3B2E6DC3263E281DA9324CBDB5",
     "pinned_runbook_path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
-    "pinned_runbook_sha256": "43E17271F3E465191C883E4B97E5211A3280F43549B822747618360B6D6CE305",
+    "pinned_runbook_sha256": "0B12FC09E9929CA28A9DB311A3DF19DCE9172C314390F5843193223543321281",
     "allowed_remote_operations": [
       "fetch",
       "read_refs",
