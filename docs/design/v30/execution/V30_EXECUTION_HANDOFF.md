@@ -3256,3 +3256,213 @@ Card V30-P01-C07 remains selected and PROVISIONAL_IMPLEMENTING. No ledger transi
   "transition": "NOT_YET_PERFORMED"
 }
 ```
+
+
+## Card 14 of 55 - C08 provisional checkpoint
+
+```json
+{
+  "A": "fca495d2fb90a9d9bbb07d38ebd70a75c6aabdb7",
+  "E": {
+    "credit": "PROVISIONAL_ONLY",
+    "head": "020c9da6df9c2d9afe741290ecab1b1893d8b2ec",
+    "tree": "a7b68fe27452c186cdd9e8c6a244a39c29b5c1ff"
+  },
+  "K": null,
+  "M": {
+    "head": "36f9c62ef09bff21c47923add3ade6469a82650e",
+    "tree": "0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8"
+  },
+  "P": {
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+  },
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "PASS M..A exactly four execution documents",
+  "candidateHistory": [
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "4bd8911b34f2168ddc5ae2f017074c94f33c342c",
+      "parent": "36f9c62ef09bff21c47923add3ade6469a82650e",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "Hand off provisional C07 formatting checkpoint",
+      "tree": "e25c5c2b79e548d63dcdbaf0aee4fec3ac2fcc66"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+      ],
+      "head": "fca495d2fb90a9d9bbb07d38ebd70a75c6aabdb7",
+      "parent": "4bd8911b34f2168ddc5ae2f017074c94f33c342c",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "Hydrate C08 catalog release implementation",
+      "tree": "f086fc546445b149657b060523c0b73ff6fd9025"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Domain/Globalization/LocalizationCatalogReleaseContractsV1.swift",
+        "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/LocalizationCatalogReleaseStoreV1.swift",
+        "FieldEvidenceAppTests/Fixtures/V30/CatalogRelease/catalog-release-cases-v1.json",
+        "FieldEvidenceAppTests/V30_P01_C08CatalogReleaseIntegrityTests.swift",
+        "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+      ],
+      "head": "020c9da6df9c2d9afe741290ecab1b1893d8b2ec",
+      "parent": "fca495d2fb90a9d9bbb07d38ebd70a75c6aabdb7",
+      "state": "PROVISIONAL_CHECKPOINTED",
+      "subject": "Implement C08 offline catalog releases and historical rollback",
+      "tree": "a7b68fe27452c186cdd9e8c6a244a39c29b5c1ff"
+    }
+  ],
+  "cardID": "V30-P01-C08",
+  "changedPaths": [
+    "FieldEvidenceApp/Domain/Globalization/LocalizationCatalogReleaseContractsV1.swift",
+    "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+    "FieldEvidenceApp/Infrastructure/Localization/LocalizationCatalogReleaseStoreV1.swift",
+    "FieldEvidenceAppTests/Fixtures/V30/CatalogRelease/catalog-release-cases-v1.json",
+    "FieldEvidenceAppTests/V30_P01_C08CatalogReleaseIntegrityTests.swift",
+    "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+    "docs/design/v30/execution/V30_CI_SELECTION.json",
+    "docs/design/v30/execution/V30_CURRENT_TASK.md",
+    "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+    "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+  ],
+  "coordination": {
+    "head": "4fb36879a352e3a161dcbd7c40af414a6d87e450",
+    "ledgerDigest": "5c00a94e95f0e17c20f434c2c37b6c32acd138306eeaf436fe01f8f48486856f",
+    "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P01-C08/CHECKPOINT/1",
+    "sequence": 31
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "fallback": "Requested/effective language and explicit English missing-language fallback evidence",
+      "historicalLookup": "Exact historical release lookup preserves bytes; missing history never falls back",
+      "offlineIntegrity": "Bounded immutable archives validate all three payload hashes and source/key/manifest semantics; no network",
+      "provenance": "Legacy English receipt preserved; no final locale/reviewer candidate claims",
+      "schema": "Versioned validating Codable descriptor with exact full-payload ID and reader/source schema compatibility",
+      "supersessionRollback": "Single compatible successor chain, explicit ancestor rollback, atomic rejection of missing/duplicate/fork/incompatible states",
+      "tests": "Seven C08 XCTest methods and inherited V9_22 receipt regression authored; not executed"
+    },
+    "commands": [
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS WINDOWS_STATIC nativeCredit=false finalCredit=false"
+      },
+      {
+        "command": "installed package validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS 55 cards;107 edges;immutable package digest unchanged"
+      },
+      {
+        "command": "git diff --check; exact M..A authority-only and M..head fence; unchanged source catalog and remote equality",
+        "result": "PASS"
+      }
+    ],
+    "independentAudits": [
+      {
+        "agent": "c07_delivery_review",
+        "head": "020c9da6df9c2d9afe741290ecab1b1893d8b2ec",
+        "result": "PASS_STATIC",
+        "scope": "Catalog descriptor/store/tests review; fork rejection fixed; linear r1-r2-r3 upgrade preserved. XCTest not run."
+      }
+    ],
+    "knownBugs": "KNOWN_BUGS template read. No accepted defect entries. Native compile and XCTest pending.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Implement the versioned catalog-release schema, validator, compatibility/supersession/rollback, zero-network loading, fallback evidence, and historical lookup. No locale release or reviewer receipt is final before P04-C07 and P05 reconciliation.",
+    "static": {
+      "artifacts": [
+        {
+          "bytes": 17880,
+          "path": "FieldEvidenceApp/Domain/Globalization/LocalizationCatalogReleaseContractsV1.swift",
+          "sha256": "63f6dc3ead474113309af73b94092f522abc953fb6b62bfdb193336a21be0bce"
+        },
+        {
+          "bytes": 363800,
+          "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+          "sha256": "94cec3972ed0def0a0c728c88bf0dbd9ab1f627ea275eecc46a11cad2c39b10b"
+        },
+        {
+          "bytes": 330611,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "sha256": "a1ca7f6e3ae057e34be627298ffec6936d88d5d509a25f67b40c9ab1c8fac323"
+        },
+        {
+          "bytes": 7428,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/LocalizationCatalogReleaseStoreV1.swift",
+          "sha256": "a860fa68f116ae1856631c42542a6f1cf245b443eb84eee9144b2eb024d28869"
+        },
+        {
+          "bytes": 322,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/CatalogRelease/catalog-release-cases-v1.json",
+          "sha256": "f6ad3621e590c0b7adf0dfed22f0393fd567b39c54a27dd0f0cfa9f9846ec8e8"
+        },
+        {
+          "bytes": 13522,
+          "path": "FieldEvidenceAppTests/V30_P01_C08CatalogReleaseIntegrityTests.swift",
+          "sha256": "6fd1c6364cf2d70c34119d85f3d3d58202640e27cbc0f93683ce08702290f1e9"
+        },
+        {
+          "bytes": 114702,
+          "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+          "sha256": "02b57b5e56cbef0e169f92463446967dae8680299f07c01d545bab6745b4793f"
+        },
+        {
+          "bytes": 1133,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "fe6cecf0264406700e0780da6325b0d30e2f7e95a5b63a731f076d2ceba3e3c6"
+        },
+        {
+          "bytes": 13641,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "df44700c1b986ffc32feec12e5a162ed5f9cdeac4e4c7d7bb85bb537be7cda41"
+        },
+        {
+          "bytes": 148525,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "959e364a81515dcf3ac06297ef6cd33603d7667727fd29e852209e063e5ff5af"
+        },
+        {
+          "bytes": 695,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "70cee03528b2a7ff7e88527fdb0a68b702ce999f3549ae477fdfdc996f31988c"
+        }
+      ],
+      "result": "PASS_STATIC_PROVISIONAL_INTEGRITY"
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "020c9da6df9c2d9afe741290ecab1b1893d8b2ec",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "nextUnstarted": "V30-P02-C01",
+  "operationalProvenance": [
+    "C08 source catalog bytes and old release digest formula are unchanged. Seven product paths changed within the issued fence.",
+    "Read-only review found a forked supersession risk; store rejects a second successor of one predecessor and regression test was added before implementation commit.",
+    "Windows-static only. Native, final, canonical, main and release credit remain false."
+  ],
+  "ordinal": 14,
+  "preAuthorizedOverlapTuples": [],
+  "remainingAcceptance": [
+    "Native Swift compilation, XCTest and UI qualification not executed.",
+    "Replay or reimplement after accepted S. Locale releases/reviewer receipts remain unqualified until later cards and reconciliation.",
+    "No final/canonical/main/phase-close/release credit."
+  ],
+  "s10SharedPathsChanged": [],
+  "status": "PROVISIONAL_CHECKPOINTED_NOT_FINAL",
+  "transition": "NOT_YET_PERFORMED"
+}
+```
