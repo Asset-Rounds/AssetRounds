@@ -711,7 +711,7 @@ final class S10_6BrandReleaseTests: XCTestCase {
             "sha256": String(repeating: "A", count: 64),
         ])
         extraAssetDocuments.privacy["runtime_assets"] = fixtureAssets
-        let extraAssetChecks = try authenticatedChecks(
+        let extraAssetChecks = try fixtureChecks(
             for: extraAssetDocuments, fixtureReady: true
         )
         XCTAssertNil(evaluatePhaseEvidence(
