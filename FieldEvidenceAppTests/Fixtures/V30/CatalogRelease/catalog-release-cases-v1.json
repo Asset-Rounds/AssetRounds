@@ -1,0 +1,11 @@
+{
+  "schema": "V30CatalogReleaseCasesV1",
+  "cardID": "V30-P01-C08",
+  "qualification": "PROVISIONAL_FIXTURE",
+  "family": "assetrounds.catalog-test",
+  "readerVersion": 1,
+  "replacementDoneText": "Finish",
+  "requestedMissingLanguage": "es",
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "finalCredit": false
+}

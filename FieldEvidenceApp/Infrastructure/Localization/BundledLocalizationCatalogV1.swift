@@ -2741,10 +2741,11 @@ enum BundledLocalizationCatalogV1 {
         }
         let registryBytes = try LocalizationContractCanonicalCodecV1.encode(keys)
         let localeBytes = try LocalizationContractCanonicalCodecV1.encode(locales)
-        let release = try LocalizationCatalogReleaseV1.make(
-            sourceCatalog: sourceCatalogBytes, registry: registryBytes,
-            localeManifest: localeBytes
+        let loadedRelease = try loadInheritedRelease(
+            sourceCatalogBytes: sourceCatalogBytes,
+            registryBytes: registryBytes, localeManifestBytes: localeBytes
         )
+        let release = loadedRelease.archive.descriptor.legacyRelease
         let packageBindings = try packagePublications.map {
             try PackageLocalizationReleaseBindingV1(
                 publication: $0, localizationRelease: release,
@@ -3493,7 +3494,29 @@ enum BundledLocalizationCatalogV1 {
         return formatter.string(from: value)
     }
 
-    private static func validateSourceCatalog(
+    /// Validates exact offline bytes through the V30 envelope and the inherited
+    /// semantic validator. This does not publish a new translated locale.
+    static func loadInheritedRelease(
+        sourceCatalogBytes: Data, registryBytes: Data, localeManifestBytes: Data
+    ) throws -> V30CatalogResolutionV1 {
+        let legacy = try LocalizationCatalogReleaseV1.make(
+            sourceCatalog: sourceCatalogBytes, registry: registryBytes,
+            localeManifest: localeManifestBytes
+        )
+        let archive = try V30CatalogReleaseArchiveV1(
+            descriptor: legacy.v30InheritedDescriptor(),
+            sourceCatalog: sourceCatalogBytes, registry: registryBytes,
+            localeManifest: localeManifestBytes
+        )
+        var store = try LocalizationCatalogReleaseStoreV1(archives: [archive])
+        try store.activate(releaseID: archive.descriptor.releaseID, readerVersion: 1)
+        return try store.resolve(
+            family: archive.descriptor.family, requestedLanguage: .english,
+            readerVersion: 1, allowsEnglishFallback: false
+        )
+    }
+
+    static func validateSourceCatalog(
         _ data: Data,
         registry: LocalizationKeyRegistryV1
     ) throws {

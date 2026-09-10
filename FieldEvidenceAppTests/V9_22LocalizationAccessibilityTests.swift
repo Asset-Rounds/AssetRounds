@@ -206,6 +206,15 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         }
         XCTAssertEqual(publishedRegistry, registry)
         XCTAssertEqual(publishedLegacy, legacy)
+        let v30Loaded = try BundledLocalizationCatalogV1.loadInheritedRelease(
+            sourceCatalogBytes: sourceCatalog,
+            registryBytes: LocalizationContractCanonicalCodecV1.encode(publishedRegistry),
+            localeManifestBytes: LocalizationContractCanonicalCodecV1.encode(localeManifest)
+        )
+        XCTAssertEqual(v30Loaded.archive.descriptor.legacyRelease, receipt.release)
+        XCTAssertEqual(v30Loaded.archive.sourceCatalog, sourceCatalog)
+        XCTAssertEqual(v30Loaded.fallback, .exact)
+        XCTAssertFalse(v30Loaded.finalAcceptanceClaimed)
         let publishedPackageBinding = try XCTUnwrap(publishedPackageBindings.first)
         let expectedSlotBindings = try BundledInspectionPackageRegistryV2
             .shippingLocalizationSlotBindings()

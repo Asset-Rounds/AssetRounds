@@ -302,6 +302,21 @@ struct LocalizationCatalogReleaseV1: Codable, Equatable, Sendable {
     }
 }
 
+extension LocalizationCatalogReleaseV1 {
+    /// Adds V30 loading metadata around the inherited receipt. No legacy
+    /// identity byte, source text, or shipping-language declaration changes.
+    func v30InheritedDescriptor() throws -> V30CatalogReleaseDescriptorV1 {
+        try validateIdentity()
+        return try V30CatalogReleaseDescriptorV1(
+            family: "assetrounds.inherited-base-catalog", revision: 1, language: .english,
+            minimumReaderSchemaVersion: 1, maximumReaderSchemaVersion: 1,
+            sourceSchemaVersion: 1, sourceRevision: sourceCatalogSHA256,
+            termbaseRevision: "INHERITED_NO_VERSIONED_TERMBASE",
+            qualification: .inheritedEnglish, legacyRelease: self
+        )
+    }
+}
+
 struct PackageLocalizationSlotBindingV1: Codable, Equatable, Sendable {
     let slotID: String
     let localizationKey: LocalizationKeyV1
