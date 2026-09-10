@@ -2844,3 +2844,107 @@ The earlier native S10.3E..E history contains exactly the reviewed58 paths recor
 After accepted S10.4 E0adebd72ae0226a80e14eaf515ca133072fb1c76 / Ke2189af36a89caf815cf078756341c1f1542f7df / C0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3, the owner deferred S10.5 physical operation until a finalized installable development build is available. Exact sealed instruction Temp/S10_5_PhysicalEvidence/owner-deferral/OWNER_DIRECT_S10_5_DEFERRAL_20260910.json, SHA256 86C611579B0B024751BB1C786570C74F8B38A7EE42013593ACB57B05F3DA9244. Physical verification remains DEFERRED/NOT_RUN, not PASS; no physical or Release stage receipt is created. The finite authority exception selects S10.6 only for repository preparation and unsigned hosted verification while final physical/legal/release gates remain pending. Main/P is unchanged; final phase close/main integration/signing/upload/submission are not authorized by preparation. Historical S10.4 evidence and its separate minimum deferral remain unchanged. The containing authority SHA is not self-recorded.
 
 The owner also approved only the reviewed ordinary F25 CI tier correction, receipt Temp/S10_6_ReleasePreparation/worker-tier-correction/OWNER_APPROVAL_20260910.json / SHA256 154034FC2F79B55DEEB67CE196DD9DA212F5BCCEA5F2544B9BDD46C41ACAC67C. Exact worker candidate670A05D338CC7AB33ABCDD8789A8050D460A281F206161FA9107F63C02F07EAC preserves S10.4 budgets and restores frozen ordinary S10.6 budgets; independent reviewSHA256 332405DF96CEB733E6AA581E1B3E872911F9798AFDC41735E7330B9D005B92DA. This support correction follows fresh G0 before first dispatch and adds no physical/release acceptance or signing/upload authority.
+
+
+## S10.6 verified repository preparation and nonblocking physical policy — 2026-09-10
+
+S10.6 remains selected, global42/42, phase S10 position6/6, on `phase/s10-brand-refresh`. This is a preparation progress receipt, not accepted S10.6, a Release checkpoint, or a phase-close C. The S10 phase is not integrated into main. `KNOWN_BUGS.md` was read; it contains no accepted defect entries and no new defect is added.
+
+Immutable phase-main base P is `01233f789b1cef5a6f56c7ff4caa9271409cd3bc`. Card/predecessor M is accepted S10.4 receipt C `0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3`, following native source E `0adebd72ae0226a80e14eaf515ca133072fb1c76` and accepted evidence K `e2189af36a89caf815cf078756341c1f1542f7df`. S10.4 ReceiptC validation passed with log SHA256 `D42FFD3E8EB627E5622D445A3B212BDDB02B1B223CFFDCD0F2A38A68F39EE5AB`. Those accepted entries and four real stage receipts remain immutable.
+
+Observed original task authority A was `3d5fad43f9df8fca3bb79e58410d7331ac9aa025`. Fresh G0 verified the exact six authority/bookkeeping paths M..A, pins, P, selector and protected product equality (`Temp/S10_6_ReleasePreparation/authority/G0.json`, SHA256 `5208B3950287883737D09B81AAD6C987FD33D02814A254D799EC0A825397E43B`). Original preparation I `df52d7517806192b8ccff46923d1add1680ec75f` contains seven evidence/metadata documents, two bounded tests, the selector and the exact owner-approved worker comparison repair. The only worker change preserves S10.4 F25 and restores ordinary F25 to300/900/1200/1800/4500; worker SHA256 `670A05D338CC7AB33ABCDD8789A8050D460A281F206161FA9107F63C02F07EAC`. Selector SHA256 `CFEAF7EEAF04766164044EC3E5EF6F153EB955CC3901662463A2D20423F3816E` and workflow SHA256 `64BEB60B465EB71B708FB19FEC2061E6F05FFA74A3D93955A88BB3CADC9D3A85` remain unchanged.
+
+The owner then made S10.5 indefinitely DEFERRED and nonblocking for S10.6, S10 phase/main completion, and otherwise authorized expansion integration. The sealed original request has SHA256 `2C2F440BDB4EB999DF9DF93793F843AABF382681E85690A01761A8254BE7FE7A`; its exact UTF-8 content is retained in the preparation privacy evidence. After I's original CI was terminal and preserved, five-file authority amendment `f8193befda29c591b21f8d561f5925bb9c659042` directly followed I. Fresh authority/ref/pin/path/selector validation passed, then the six-file evidence/unit correction I2 `0a48504502994fdb8a5d73c9e8cc307aba210821` directly followed that authority head. Independent combined review SHA256 `405CE5C37F2B79450224D3BDEFB1565409484547F9987C9DEDBBF1882707AA93` is retained at `Temp/S10_6_ReleasePreparation/post-release-deferral/integration-review/AUTHORITY_COMBINED_REVIEW.json`.
+
+Physical verification is not PASS, complete or accepted. Resume S10.5 only after an actual App Store release and a new explicit owner request. No automatic resumption or scheduled task is authorized. Final phase policy expects five real receipts (Inventory, ComponentSystem, Migration, AutomatedLab, Release) plus the sealed deferral; only the first four currently exist. S10.4 minimum469 visual/42 AX plus minimum smoke remain separately DEFERRED, with no retry or automatic resumption. The prior unresolved hosted request still has null run identity and its one-slot reservation is preserved.
+
+The owner explicitly requested notification to the separate expansion task. The applied policy and exact authority/I2 heads were sent to task `01a03910-b59b-7a21-bda2-a7da4c6aca78`; its isolated review head `327a4e2567c2a7d442e7f134b0c8ed235e8b2167` remains separate, expansion remains PAUSED until new owner instruction, and no current-repository or main integration is implied.
+
+### Exact-head original hosted evidence
+
+Both candidates used `.github/workflows/ios-ci.yml`, branch ref `phase/s10-brand-refresh`, lane `github-xcode-26.6-acceptance`, F25, run_ui_smoke=true, and shard/segment/minimum-smoke `none` with empty payload/map inputs. There were no S10.4 controller/shared/Bitrise routes or duplicate candidates. GitHub job runner is macos-26, Xcode26.6/17F113, SDK iphonesimulator26.5/23F81a, shared FieldEvidenceApp scheme/Debug, Swift5, unsigned build-for-testing and unit/UI test-without-building; readiness900 seconds, job90 minutes, cancel-in-progress=false. Authorship and source checks occurred on Windows; all native compilation/tests below were hosted.
+
+Exact preparation/policy/evidence path union (append-only HANDOFF is separate):
+
+- `.github/workflows/ios-ci-worker.yml`
+- `FieldEvidenceAppTests/S10_6BrandReleaseTests.swift`
+- `FieldEvidenceAppUITests/S10_6BrandReleaseUITests.swift`
+- `Release/LaunchSmokeEvidenceIndexV1.json`
+- `Release/PrivacyReviewV1.md`
+- `Release/UnsignedRCMetadataV1.json`
+- `Scripts/ci-selection.json`
+- `docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json`
+- `docs/design/s10/evidence/s10.6/store-screenshot-manifest.json`
+- `docs/design/s10/s10-activation.json`
+- `docs/design/s10/s10-evidence-lock.json`
+- `docs/design/s10/s10-store-readiness.json`
+- `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md`
+- `docs/execution/CURRENT_TASK.md`
+- `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`
+- `docs/product/BUILD_PLAN_V4.md`
+
+- Run [34525551221](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34525551221) / attempt1 / exact head `df52d7517806192b8ccff46923d1add1680ec75f` / native job `103033519150`: successful unsigned compilation, all 5 selected unit methods PASS, one selected UI method PASS, all evidence/watchdog/checksum/upload steps PASS. Artifact `10171827197` / `ios-ci-34525551221-1` has SHA256 `sha256:72f395a95d8a4ca55b1b365e65c5a6da0becfc32ad45ce93193e17fde0ba3fd7` and expires `2026-09-24T20:29:43Z`; 102 checksummed files, all three xcresult bundles, complete original logs and terminal screenshot were preserved. Native step seconds: `{"Build unsigned simulator app": 313.0, "Run targeted tests": 52.0, "Run task-authorized UI smoke": 208.0}`. Original log ZIP SHA256 `A0AAB914786D7F2EB6402B9136CB3879120F3CE1374370FE613EE86B85DFC226`; full audit SHA256 `D1F978AC4A44AEE4CC64AC8592A7FE7E24D19B720068211FF442AB52724C4737`. Terminal image SHA256 `0E204B040109C8686CE42EB86935FAC000EB827A457F31E1289B3541F8C73B55`. Original source/native warnings remain recorded in the audit; no S10.6 warning or failed test was suppressed. AI inspection of the terminal screenshot does not supply required human store approval.
+
+Actual environment and Simulator selection for run34525551221:
+
+```text
+ImageOS=macos26
+ImageVersion=20260907.0351.1
+ImageArch=unknown
+runtime=iOS 26.2
+runtime_build=23C54
+name=iPhone 17
+udid=25B395EC-01B8-4FB6-8D2A-1C484C360481
+initial_state=Shutdown
+setup_elapsed_seconds=22
+artifact_elapsed_seconds=0
+setup_artifact_elapsed_seconds=22
+setup_artifact_budget_seconds=300
+```
+
+Actual hosted native commands for run34525551221:
+
+```text
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=25B395EC-01B8-4FB6-8D2A-1C484C360481" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=25B395EC-01B8-4FB6-8D2A-1C484C360481" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult "-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests" CODE_SIGNING_ALLOWED=NO test-without-building
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=25B395EC-01B8-4FB6-8D2A-1C484C360481" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult "-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests" CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+- Run [34527590250](https://github.com/Asset-Rounds/AssetRounds/actions/runs/34527590250) / attempt1 / exact head `0a48504502994fdb8a5d73c9e8cc307aba210821` / native job `103040237596`: successful unsigned compilation, all 5 selected unit methods PASS, one selected UI method PASS, all evidence/watchdog/checksum/upload steps PASS. Artifact `10172675373` / `ios-ci-34527590250-1` has SHA256 `sha256:49ef4f73eb8e5f7cb827ef77a0b2ccc08499425cdce9469119d2474e4952e09d` and expires `2026-09-24T20:52:20Z`; 102 checksummed files, all three xcresult bundles, complete original logs and terminal screenshot were preserved. Native step seconds: `{"Build unsigned simulator app": 307.0, "Run targeted tests": 72.0, "Run task-authorized UI smoke": 250.0}`. Original log ZIP SHA256 `4B9EAEFB3DD6F102D90881A2C89F9E77611671B977DAB695F08D3DBA74ED2592`; full audit SHA256 `83C6C8525365E7D6EB947255C017782BD88E0DEFD8EA7AA16CBA38482D70CE2A`. Terminal image SHA256 `2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C`. Original source/native warnings remain recorded in the audit; no S10.6 warning or failed test was suppressed. AI inspection of the terminal screenshot does not supply required human store approval.
+
+Actual environment and Simulator selection for run34527590250:
+
+```text
+ImageOS=macos26
+ImageVersion=20260831.0337.3
+ImageArch=unknown
+runtime=iOS 26.2
+runtime_build=23C54
+name=iPhone 17
+udid=F007E22E-9AEC-4FE9-8477-78ED0F8133C7
+initial_state=Shutdown
+setup_elapsed_seconds=67
+artifact_elapsed_seconds=1
+setup_artifact_elapsed_seconds=68
+setup_artifact_budget_seconds=300
+```
+
+Actual hosted native commands for run34527590250:
+
+```text
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult "-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests" CODE_SIGNING_ALLOWED=NO test-without-building
+/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination "platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult "-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests" CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Post-CI preparation evidence commit `028bf3ec9124e5cbff1288b510263f9c5cce448f` directly follows I2 and changes only the seven reviewed evidence/metadata files recorded in `Temp/S10_6_ReleasePreparation/post-release-deferral/COMMITTED_PREPARATION_EVIDENCE.json`. It binds original I/I2 results, the current observed toolchain, actual activation blob and sealed physical deferral. It is not a formal accepted S10.6 K and is not a native CI head. All app/project/native source bytes still equal S10.4 E; I2 unit/UI tests, selector and worker remain unchanged. Store state remains planned, evidence lock template, final release-ready false, and formal final F25/evidence-lock acceptance pending.
+
+The owner responded, “No urls yet. I own the name. Lets mark it as today. I will make website once this is done and update accordignly”. The statement is recorded as an owner name-ownership attestation dated 2026-09-10, with its exact sealed UTF-8 text in the two S10.6 evidence manifests. No live website, separate trademark-clearance evidence, or five-claim review was supplied or inferred. The existing asset-use grant remains accepted. The frozen package LICENSE_AND_PROVENANCE.md distinguishes use attestation from separate dated trademark/name-clearance evidence and owner/legal approval, so the separate status remains pending rather than being fabricated from the ownership statement.
+
+### Remaining gate distinctions
+
+S10.6 preparation is verified; formal phase acceptance still needs retained dated trademark/name/claim/URL clearance, genuine required store/terminal human review, reconciliation of the frozen five6.3-inch store slots with later upload-size obligations, and the reviewed exception-aware final evidence/receipt validation. The actual archive, final version/build, live production values, App Privacy and submission facts belong to the later owner S9.2/S9.3 sequence. They remain truthfully pending and prevent actual product release; no unauthorized early archive, physical/network observation, upload or invented external value is supplied here. The unchanged legacy six-stage release-lock validator is not claimed to implement the amended five-receipt phase contract.
+
+The ordinary F25 preparation proof above is distinct from full final-card acceptance and exact-main integration. Neither phase-close C nor main verification was attempted. P/main remains `01233f789b1cef5a6f56c7ff4caa9271409cd3bc`; the next work is still the selected S10.6 acceptance contract and missing evidence. S9.2/S9.3 remain owner-only and unstarted. No force push, merge/PR, signing, archive/export, TestFlight/App Store operation, deployment, submission, new feature, dependency, or unrelated path mutation occurred.
+
+Original raw budget evidence is also preserved: run34525551221 records Simulator readiness68/900 seconds and total669/4500; run34527590250 records readiness95/900 and total802/4500. The second run's setup/artifact aggregate is67+1=68/300 seconds. These are original watchdog-accounting observations, separate from the native job step durations above. No simulator timing was subtracted from or substituted into the original total.
