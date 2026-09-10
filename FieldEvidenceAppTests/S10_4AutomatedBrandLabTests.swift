@@ -95,8 +95,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 79_488,
-            sha256: "501B0F848A69B8D409F55AF098C1ADFE1BB8D10C66DEC5BA236D3C2F5F0FBE39"
+            byteCount: 79_638,
+            sha256: "50EE2448001D787D157677C38CF1F6E36B73656DDBD4770A447ABD27FAF1DE6C"
         )
         let uiSmokeSource = try text(uiSmokePath)
         // H411 shell commands retain the existing native selectors and separate producer units from consumer UI.
@@ -346,8 +346,9 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             #"[ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_HEAD:-}" = "$GITHUB_SHA" ]"#,
             #"[ "${TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_REF:-}" = "$GITHUB_REF" ]"#,
             "s10.4.minimum.bounded:14:bounded)", "s10.4.minimum.rtl-string:11:rtl_string)",
+            "s10.4.minimum.double-length:9:double_length) h412_shared_incident_profile=double-length ;;",
         ] { XCTAssertTrue(h412AdmissionSource.contains(required), required) }
-        XCTAssertEqual(h412AdmissionSource.components(separatedBy: "h412_shared_incident_profile=").count - 1, 3)
+        XCTAssertEqual(h412AdmissionSource.components(separatedBy: "h412_shared_incident_profile=").count - 1, 4)
         for forbidden in ["log show", "xcrun", "xcodebuild", "sleep", "exit", "s10.4.current."] {
             XCTAssertFalse(h412AdmissionSource.contains(forbidden), forbidden)
         }
@@ -358,7 +359,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         XCTAssertTrue(uiFailureDiagnosticSource.contains(h412NativeExportSource))
         for required in [
-            #"[ "$h412_shared_incident_profile" = bounded ] || [ "$h412_shared_incident_profile" = rtl-string ]"#,
+            #"[ "$h412_shared_incident_profile" = bounded ] || [ "$h412_shared_incident_profile" = rtl-string ] || [ "$h412_shared_incident_profile" = double-length ]"#,
             "xcrun xcresulttool help export diagnostics", "native_diagnostics_help Scripts/run-with-timeout.sh 5",
             "native_diagnostics_export Scripts/run-with-timeout.sh 20", "xcrun xcresulttool export diagnostics --path",
             "native_diagnostics_index Scripts/run-with-timeout.sh 5", "native_diagnostics_acceptance_eligible=false",

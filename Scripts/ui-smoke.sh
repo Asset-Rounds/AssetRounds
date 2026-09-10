@@ -341,6 +341,7 @@ if [ "${CI_RUNNER_PROVIDER:-}" = github ] &&
   case "${CI_S10_4_SHARD_ID:-}:${CI_S10_4_SHARD_ORDINAL:-}:${CI_S10_4_REQUIREMENT_ID:-}" in
     s10.4.minimum.bounded:14:bounded) h412_shared_incident_profile=bounded ;;
     s10.4.minimum.rtl-string:11:rtl_string) h412_shared_incident_profile=rtl-string ;;
+    s10.4.minimum.double-length:9:double_length) h412_shared_incident_profile=double-length ;;
   esac
 fi
 # End H412 finite shared middle-segment diagnostic admission.
@@ -800,7 +801,7 @@ if [ "$xcodebuild_status" -ne 0 ]; then
 
   # H412 native container diagnostics: separate originals, failure-only and nonaccepting.
   h412_native_incident_root=""
-  if [ "$h412_shared_incident_profile" = bounded ] || [ "$h412_shared_incident_profile" = rtl-string ]; then
+  if [ "$h412_shared_incident_profile" = bounded ] || [ "$h412_shared_incident_profile" = rtl-string ] || [ "$h412_shared_incident_profile" = double-length ]; then
     h412_native_export_path="$failure_diagnostic_path/native-container-diagnostics"
     h412_native_now="$(date +%s)"
     h412_native_origin="${CI_BUDGET_START_EPOCH:-}"
