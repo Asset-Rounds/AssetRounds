@@ -2174,7 +2174,7 @@ Assert-Equal @($visual.shard_receipts).Count $h413RequiredShards.Count "required
 $receiptByShard = @{}
 $bitriseReceiptCount = 0
 $payloadFingerprints = [System.Collections.Generic.List[string]]::new()
-$githubEquivalenceReceipts = if ($visual.PSObject.Properties.Name -ccontains "github_equivalence_receipts") { @($visual.github_equivalence_receipts) } else { @() }
+$githubEquivalenceReceipts = @(if ($visual.PSObject.Properties.Name -ccontains "github_equivalence_receipts") { @($visual.github_equivalence_receipts) } else { @() })
 $githubEquivalenceByID = @{}
 $githubEquivalenceByShard = @{}
 foreach ($githubReceipt in $githubEquivalenceReceipts) {

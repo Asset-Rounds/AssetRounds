@@ -591,8 +591,8 @@
     },
     {
       "path": "validate-s10-contracts.ps1",
-      "byte_length": 209855,
-      "sha256": "5BA0B2E73764771CAC7CAB412CC068ACEE095DED4385F3352D20AA38E4405414"
+      "byte_length": 209858,
+      "sha256": "DB9DA714F69658A251228CB0D2692803F36785ACB7EC09D4D5DBB5E8479D12DC"
     }
   ],
   "manifest_excludes_self": true,
