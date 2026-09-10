@@ -1,5 +1,9 @@
 # Repository Instructions
 
+## Owner pause and testing deferrals — 2026-09-10
+
+On `codex/v23-premerge-review-20260905`, the latest owner instruction selects only the policy/checkpoint update in `docs/design/v23/review/OWNER_DEFERRALS_20260910.md`, then pauses V23 review, implementation, native dispatch, integration and branch cleanup until explicit further owner instruction. This supersedes older prospective continuation/dispatch directions below; it does not mark the expansion goal complete. Minimum-OS verification remains indefinitely DEFERRED, and S10.5 physical testing is deferred until the expansion-inclusive app is available for owner testing. Neither is PASS. The active S10.6 task retains ownership of `C:\AssetRounds` and its authority/pins/evidence; do not modify or interrupt that work. Read the policy/checkpoint before any future resumption.
+
 ## Current owner-directed V23 pre-merge review
 
 On `codex/v23-premerge-review-20260905` only, the owner's 2026-09-05 request selects `V23-REVIEW-20260905`, described in `docs/design/v23/review/CURRENT_REVIEW.md`. This review may inspect all V23 cards and implementation, add demonstrated causal fixes and regression tests, and maintain the review report. The inherited S9 task and frozen V23 package remain historical inputs; do not resume their old prospective commands or change their receipts to make the review pass. This override does not apply to any other branch.

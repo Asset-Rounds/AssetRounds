@@ -2,6 +2,8 @@
 
 Selected task: `V23-REVIEW-20260905`.
 
+Current execution disposition: **PAUSED by owner, 2026-09-10**, after the documentation-only policy/checkpoint update in [OWNER_DEFERRALS_20260910.md](OWNER_DEFERRALS_20260910.md). The owner will return with further instructions after the separate S10.6 work. Do not resume this review, compile/test, merge, delete branches, or schedule follow-up work automatically. Earlier next-run and continuation paragraphs below are preserved history, not current dispatch instructions.
+
 Owner request: review V23's implementation and all cards for major defects before future integration, fix demonstrated problems, update active model guidance for Astra, and report readiness and remaining requirements. This is a new review task, not a replay of inherited S9 or an acceptance amendment to historical V23 cards.
 
 ## Frozen inputs and isolated output
@@ -23,6 +25,7 @@ Read-only review covers the full V23 card register, source, tests, project, work
 - `docs/design/v23/review/CURRENT_REVIEW.md`: current scope and observed evidence.
 - `docs/design/v23/review/PREMERGE_REVIEW.md`: findings, corrections, coverage, and remaining integration requirements.
 - `docs/design/v23/review/CARD_COVERAGE.md`: all-146-card read-only evidence inventory, with historical statuses preserved.
+- `docs/design/v23/review/OWNER_DEFERRALS_20260910.md`: latest owner deferral policy and nonaccepting pause checkpoint. The current documentation-only delta is limited to this file, `AGENTS.md`, and `CURRENT_REVIEW.md`; no product, CI, frozen authority, or Phase 10 path is changed.
 
 Additional exact causal source/test paths will be recorded here after diagnosis. Canonical V23 card statuses, sealed plans and receipts, V30 worktree, `C:\AssetRounds`, Phase 10 refs/runs, and `main` are not review mutation targets. No merge or release is performed by this task.
 
