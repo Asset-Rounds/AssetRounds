@@ -104,6 +104,60 @@
         "screen-state-count-67",
         "untracked-visual-constant-count-0"
       ]
+    },
+    {
+      "stage": "AutomatedLab",
+      "gate_id": "s10.4-automated-lab",
+      "product_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "evidence_head": "e2189af36a89caf815cf078756341c1f1542f7df",
+      "evidence_head_role": "K",
+      "documents": [
+        {
+          "document_type": "accessibility_common_tasks",
+          "path": "docs/design/s10/s10-accessibility-common-tasks.json",
+          "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+          "sha256": "CE2BB6143140825749783D00F25D8AF5A8F1290274E39AE59D1421F8AC4E0F49"
+        },
+        {
+          "document_type": "token_coverage",
+          "path": "docs/design/s10/s10-token-coverage.json",
+          "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+          "sha256": "42476BEFB8283F35D5A61BA3D3693D5B0181024493DE33304738FBAF71AA5AD6"
+        },
+        {
+          "document_type": "visual_regression",
+          "path": "docs/design/s10/s10-visual-regression.json",
+          "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+          "sha256": "D9086AE7D1DB74BEF22D85088BA5356EA55960868B4A36C0A1683215C9A71E64"
+        },
+        {
+          "document_type": "release_evidence",
+          "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+          "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+          "sha256": "A931F6DF332A834C445A1B03BAE2A710405A9D4ADFD5F486AE0B6ABACCA1383B"
+        }
+      ],
+      "evidence_ids": [
+        "s10.4-required-shard-count-7",
+        "s10.4-required-visual-cell-count-469",
+        "s10.4-required-accessibility-row-count-42",
+        "s10.4-deferred-shard-count-7",
+        "s10.4-deferred-visual-cell-count-469",
+        "s10.4-deferred-accessibility-row-count-42",
+        "s10.4.current-seven-with-minimum-verification-deferred.v1",
+        "s10.4.minimum-verification-deferred.v1",
+        "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+        "github-actions-run-34480322932-job-102881390100-artifact-10154890307",
+        "github-actions-run-34503516448-job-102960035557-artifact-10164149667",
+        "github-actions-run-34488367740-job-102908408734-artifact-10156757395",
+        "github-actions-run-34484444222-job-102895217386-artifact-10156531879",
+        "github-actions-run-34485051922-job-102897317385-artifact-10156935586",
+        "github-actions-run-34498424607-job-102942920648-artifact-10162770104",
+        "s10.4-producer-run-34477382489-five-native-methods",
+        "s10.4-human-current-visual-cells-469-approved",
+        "s10.4-owner-direct-minimum-deferral-20260910",
+        "s10.4-unknown-dispatch-3df9f1f463b549499a2a503886fa9517-remains-unconfirmed"
+      ]
     }
   ]
 }

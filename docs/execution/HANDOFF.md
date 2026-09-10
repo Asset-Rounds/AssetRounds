@@ -2702,3 +2702,139 @@ The owner explicitly approved shared builds across all fourteen shards and short
 Controlling changes are in CURRENT_TASK H411, the selected S10.4 runbook exception, plan/contract execution policy and operating brief, with AGENTS navigation and mechanical activation/manifest/unit pins. No app/product/project/fixture/asset, hosted toolchain/runtime, selector, watchdog, provider allowlist or release operation changes in this authority candidate. The exact future amendment SHA is not self-recorded.
 
 The new process requires one immutable exact-head shared payload with five native unit methods qualified once, independently verified consumer provenance, fresh Simulators, test-without-building, no rebuild/fallback, and complete minimum segment/public-journey dependency closure. All67states per logical shard,938visualcells,84accessibilityrows,six tasks, strict native checks, original integrity and genuine human review remain mandatory. Runtime implementation, source/hosted qualification, timing measurements and final matrix are still pending. Existing K481 tests retain only their actual original head and coverage. S10.5 remains the next unstarted card after accepted S10.4 E/K/C; physical and release evidence is not claimed.
+
+
+## S10.4 — Automated lab evidence closeout (2026-09-10)
+Native product E is `0adebd72ae0226a80e14eaf515ca133072fb1c76`. Accepted evidence K is `e2189af36a89caf815cf078756341c1f1542f7df`; app, project, UI/unit tests, native workflow and payload source bytes remain those of E. This receipt does not self-record its future containing C SHA. The immediate next unstarted card is S10.5, with physical evidence still required.
+
+S10.4 remains the selected card on `phase/s10-brand-refresh` (40 of 42). Immutable phase base `P=01233f789b1cef5a6f56c7ff4caa9271409cd3bc`, integrated S10.3 receipt `M=d4661ef2096fb55c824842965bee06630cc0aeb7`, and task-start authority `A=9a4b27479cd347d340d800aa5c52ccdaf256d9f8` remain fixed. S10.3 predecessor evidence is `E=e1004c9cfeff932e904046e0ad1aa31d2bb2c139`, `K=9461a8ef52cdd2a1a49a95d34c7e7ea8abd9d284`, `C=M`; run `31966468925`, job `95212275453`, artifact `9268967312` (`ios-ci-31966468925-1`, digest `sha256:42c871456fa009ce3254723f30855fb4c5af563352cda2ba4f5983744fb7d17c`) and the complete Migration validator passed.
+
+The preserved S10.4 evidence binds native head `0adebd72ae0226a80e14eaf515ca133072fb1c76` to source identity `FA2E57BD20754B0E9844D8939B7BB4887448DC02D026F5EB635189B80C8E5F7A` and qualified shared producer run `34477382489` / request `3a0af74cfb9349dd9a4d645bd5eeda57`. Shared identity is `0BE9475570B1F0B9CC5C9520DA4F2D11308D034033ABD17C4F6E61F1901DADAE`; qualification is `A1A9BF1B92B4CABFD150702EF3F2E218590C290B52B685E598926CF5D158542B`; exactly five producer unit methods passed.
+
+The current half has seven logical profiles, 469 visual cells, and 42 automated accessibility rows across the complete 67-state inventory. Six profiles have whole native receipts. AX Text is one logical assembly from three distinct original native consumers; it does not claim assembly as native execution. This yields nine native sessions in total. Automated accessibility is 32 PASS plus 10 approved exceptions. Three owner receipts bind human approval to all 469 current visual cells.
+
+| Profile | Evidence | Run / job | Primary artifact | SHA-256 | Expires UTC | Human receipt SHA-256 |
+|---|---|---|---|---|---|---|
+| `s10.4.current.default-light` | whole native | 34481147676 / 102884124119 | `10155130147` / `ios-ci-shared-34481147676-1-s10.4.current.default-light-none` | `sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a` | `2026-09-24T13:46:55Z` | `E26B264BAD7A8EA35AC1428F3CA0637839257BD92E0F665BF32F61D4828632AF` |
+| `s10.4.current.default-dark` | whole native | 34480322932 / 102881390100 | `10154890307` / `ios-ci-shared-34480322932-1-s10.4.current.default-dark-none` | `sha256:3ae284afbd1ddf19596b9b1e9d9a94409c1ab0f73bc646ce93c57156f7602c2b` | `2026-09-24T13:41:22Z` | `E26B264BAD7A8EA35AC1428F3CA0637839257BD92E0F665BF32F61D4828632AF` |
+| `s10.4.current.increased-contrast` | whole native | 34503516448 / 102960035557 | `10164149667` / `ios-ci-shared-34503516448-1-s10.4.current.increased-contrast-none` | `sha256:f4cfa847a185c928b93d6a27ea002210992d6fc71ff0cef33699bc230dede14e` | `2026-09-24T17:12:49Z` | `07CFFB8A5FE0442CFB7308D24DD899769344CD243A94ECA23539E924275D5F85` |
+| `s10.4.current.ax-text` | assembled logical (3 native consumers) | assembly 34488367740 / 102908408734; native 34478706976 / 102875913643; 34478931821 / 102876697914; 34483663201 / 102892874459 | `10156757395` / `ios-ci-shared-admission-34488367740-1-s10.4.current.ax-text` | `sha256:f8cf72580b0a3c7be1f7c73a9354ebf2d7a10e6a2c243eff856b86d370351b1a` | `2026-09-24T14:21:48Z` | `0879B2C35AFC4FE548329B9D0D3E2038B37F10D165FA7ACA6D78CA4CFF29BE58` |
+| `s10.4.current.differentiate-without-color` | whole native | 34484444222 / 102895217386 | `10156531879` / `ios-ci-shared-34484444222-1-s10.4.current.differentiate-without-color-none` | `sha256:5c6f4ad1e42dc752a7ef388fb3c25ff76fbda0f9694847ca0490c3af552536c5` | `2026-09-24T14:18:04Z` | `0879B2C35AFC4FE548329B9D0D3E2038B37F10D165FA7ACA6D78CA4CFF29BE58` |
+| `s10.4.current.reduce-motion` | whole native | 34485051922 / 102897317385 | `10156935586` / `ios-ci-shared-34485051922-1-s10.4.current.reduce-motion-none` | `sha256:351456599e50b3023810d719cc3e3f2f0856af430cc6cf31e1501b27da4e45db` | `2026-09-24T14:26:50Z` | `0879B2C35AFC4FE548329B9D0D3E2038B37F10D165FA7ACA6D78CA4CFF29BE58` |
+| `s10.4.current.reduce-transparency` | whole native | 34498424607 / 102942920648 | `10162770104` / `ios-ci-shared-34498424607-1-s10.4.current.reduce-transparency-none` | `sha256:72da521021719790e18d19aee361139e5da3b6b2b236ccf5dba8e4fc833c52b1` | `2026-09-24T16:38:31Z` | `07CFFB8A5FE0442CFB7308D24DD899769344CD243A94ECA23539E924275D5F85` |
+
+Each logical profile binds 67 candidate cells, 67 state/AX rows, 67 contrast rows, and six automated accessibility rows. The per-profile original audit SHA, logical receipt SHA, request ID, and source evidence paths are recorded in `HANDOFF_FACTS.json`.
+
+The owner directly deferred the separate minimum core smoke after the completed first additional attempt: request `2c2d366f683f42a6b4df8ee6da2e5c1e`, run `34511363515`, conclusion `failure`. Its complete audit SHA-256 is `4FA329BE22967385333079100A99246905444FCEA9DC9EA3EBB08A0EE833525D`; report SHA-256 is `BA1CD487E49E1CE4785D734A1FA82CFA820622ED936BB56861AC88CACF82FE37`. The selected test body did not start, the smoke did not pass, and the evidence did not prove a deterministic repository cause. The direct receipt SHA-256 is `2ECB823298BEA8716A7A358F9C69D37FDA36BB824077D6DC8F688A06BB03FA43`; it supersedes the earlier two-additional-attempt condition. No second attempt was dispatched and its provider POST count is zero. The completed capacity precheck is bound by SHA-256 `3FFCB9011B4BE4D642A722B83E25FF2853D296FDEA5F9F918A48E5A70D127CD6`.
+
+The retained full catalog remains 14 profiles / 938 visual cells / 84 accessibility rows. The current half contributes seven / 469 / 42. The deferred minimum half contributes zero acceptance credit, and the separate minimum core smoke is `DEFERRED` with no functional pass claim. Physical evidence is not waived.
+
+Original-history closure is preserved by H419 V2 (nine dynamically selected records, SHA-256 `ECEDC0386723C111B2570778F279FBC1AC65C95B030593328108653157B535C8`) and H420 V2 (seven dynamically selected records, SHA-256 `014FD88BFB7E5BB689A3F42F3AD71B9735678B3E1050FDBD5AB9DD02F538E3BC`), with report SHA-256 `241741136362D6E195A896AD564209E2E90997184D39A102B6251858AD0313B0` and seal SHA-256 `90924B8DBB9DBD3C95371EC047CAC7A4A087B7FE2C82D71886D26F5DF4D236E5`. Reserved request `3df9f1f463b549499a2a503886fa9517` remains unconfirmed: run ID null, provider noncreation unproved, one reserved GitHub slot, and it is excluded from proved run history.
+
+### Verification and remaining limits
+The initial G0 authority comparison `M..A` contains exactly `docs/execution/CURRENT_TASK.md` and prior-card `docs/execution/HANDOFF.md`, with no implementation change. The immutable main/P remains unchanged. The complete corrected automation overlay was run as `-LifecycleMode EvidenceK -ProductHead 0adebd72ae0226a80e14eaf515ca133072fb1c76 -EvidenceHead e2189af36a89caf815cf078756341c1f1542f7df -RepositoryRoot C:/AssetRounds`; it completed with exit0 and the explicit H420 EvidenceK PASS. Original validation log `Temp/S10_4_CI/minimum-core-smoke/policy/root-final-integration/EVIDENCE_K_e2189af.log` has SHA256 `FCCA328D24263F797EC8DCC02B9F9C34FC9EEC5FCBE53450E0C4F4EB1424230A`. AuthorityH and all populated schemas, original H419/H420 guards, same-E native/producer/payload/source/expiry bindings, strict native state/journey proof, authentic human review and the exact sixteen-path K envelope passed. Fresh19:31UTC original/live metadata comparison proved all11 selected success runs and23 unexpired artifacts unchanged, with zero repository-active runs. The phase was non-force pushed to the accepted K and re-fetched; main/P stayed unchanged. Later ReceiptC validation must bind the actual resulting receipt commit and be recorded in the subsequent transition.
+Windows authoring checks and the policy validator are distinct from hosted native proof. Producer34477382489 compiled unsigned build-for-testing and passed exactly the following five native methods, proved by original unit xcresult/export and immutable payload/seal. Every consumer uses test-without-building with zero local unit tests, no rebuild/fallback and unchanged products.
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth`
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices`
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory`
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree`
+- `FieldEvidenceAppTests/S10_4AutomatedBrandLabTests/testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract`
+
+Producer: Bitrise Build Hub, exact task-pinned M4 runner route; actual runner `vm-pool-g2-mac-m4-10c-28g-b143d31-02977f25-69dc`, unit Simulator `21FEBD49-AF24-47B6-BBCF-00C9DA12A887`. Toolchain: Xcode26.6/17F113, iphonesimulator26.5/23F81a, arm64, project/shared scheme FieldEvidenceApp, Debug. Payload `FieldEvidencePayload.tar` is 94371840bytes/SHA256 `D5362C6A31D726DD639F4052DC2834D28CB29DDAB29D125208289A4B244A8358`. Exact native unit argv:
+
+```text
+xcodebuild -xctestrun /Users/vagrant/actions-runner/_work/_temp/FieldEvidenceSharedPrepared/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=21FEBD49-AF24-47B6-BBCF-00C9DA12A887' -resultBundlePath /Users/vagrant/actions-runner/_work/_temp/FieldEvidenceCI/UnitTests.xcresult -only-testing:FieldEvidenceAppTests/S10_4AutomatedBrandLabTests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+All nine current native sessions use a fresh isolated iPhone17/iOS26.2 build23C54 on GitHub macos-26; exact image and UDID follow. AX segment rows name native consumers, not the later assembly as native execution. F25 selector bytes remain SHA256 `692DD6F7DBCF771170191E7839C6B6281FB0A72603475FF2D0D81E35078330E2`, with exact setup/build/unit/UI/total boundaries420/900/1200/2520/4500 seconds, readiness900 seconds and job watchdog90 minutes. Complete source argv/raw accounting/original checksums are retained per run.
+
+| Profile / segment | Native run | Image | Simulator UDID |
+|---|---|---|---|
+| s10.4.current.default-light / none | 34481147676 | macos26-20260831.0337.3 | 1808695D-10F6-4B89-8533-EA377650C150 |
+| s10.4.current.default-dark / none | 34480322932 | macos26-20260831.0337.3 | 9ECC25D6-3935-4D63-A055-2C6B57513F7F |
+| s10.4.current.increased-contrast / none | 34503516448 | macos26-20260831.0337.3 | 26B1CA01-4885-42D3-957B-E0B204BD46F0 |
+| s10.4.current.ax-text / segment-1 | 34478706976 | macos26-20260831.0337.3 | 1C770D8C-E398-4BB6-8491-87430E97EFAD |
+| s10.4.current.ax-text / segment-2 | 34478931821 | macos26-20260831.0337.3 | 068022CC-3C98-4566-8A01-E2F733E3B8D0 |
+| s10.4.current.ax-text / segment-3 | 34483663201 | macos26-20260831.0337.3 | A5F15721-2096-4C93-8358-454D352C04E1 |
+| s10.4.current.differentiate-without-color / none | 34484444222 | macos26-20260831.0337.3 | 1FA21541-6CEB-4CB7-A58E-5EB88CA6BBEC |
+| s10.4.current.reduce-motion / none | 34485051922 | macos26-20260831.0337.3 | B0C637A8-4030-45BA-8563-50560ECB5869 |
+| s10.4.current.reduce-transparency / none | 34498424607 | macos26-20260831.0337.3 | 31771CEB-CD5A-455E-9478-B184C7B0A7E3 |
+
+Exact native UI argv by original run:
+
+Run34481147676 (`Temp/S10_4_CI/registry/requests/252ebeee81bd4f0f96ba416ec8e6d689/originals/10155130147/artifact/shared-consumer/consumer-build-reference.json`, SHA256`7F491CFE2875CEE416097ACB55C80D07451A4031CEB2FF7F15FA9B0724F2F423`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=1808695D-10F6-4B89-8533-EA377650C150' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34480322932 (`Temp/S10_4_CI/registry/requests/9619fccc22b246f49a8f49c2c6ac7d61/originals/10154890307/artifact/shared-consumer/consumer-build-reference.json`, SHA256`511D4565CDA1278416402B6A7C676082BAF6252E7A39306F82BE1C2FB40A9FC0`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=9ECC25D6-3935-4D63-A055-2C6B57513F7F' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34503516448 (`Temp/S10_4_CI/registry/requests/81bcc2a133874daf9af708e4c0339355/originals/10164149667/artifact/shared-consumer/consumer-build-reference.json`, SHA256`CFF9C47843F47DED5FB0C5A7821E7568E739F60384D6221598C471E2E82772EE`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=26B1CA01-4885-42D3-957B-E0B204BD46F0' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34478706976 (`Temp/S10_4_CI/registry/requests/7be401f8196b43a5b7c8d72c2cc96d56/originals/10156757395/artifact/FieldEvidenceSharedAssembly/segment-sources/segment-1/artifact/s10-4/s10.4.current.ax-text/consumer-build-reference.json`, SHA256`C07042E8A96F47B568AC3F354C2EB4CFC3A7A5334A16CC1E07E96ED0D1CA0E8F`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=1C770D8C-E398-4BB6-8491-87430E97EFAD' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34478931821 (`Temp/S10_4_CI/registry/requests/7be401f8196b43a5b7c8d72c2cc96d56/originals/10156757395/artifact/FieldEvidenceSharedAssembly/segment-sources/segment-2/artifact/s10-4/s10.4.current.ax-text/consumer-build-reference.json`, SHA256`3C4C8555ADF63133EA1AF54E87D1021CD10E02F525FA4F22472E76EC4A8A53EF`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=068022CC-3C98-4566-8A01-E2F733E3B8D0' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34483663201 (`Temp/S10_4_CI/registry/requests/7be401f8196b43a5b7c8d72c2cc96d56/originals/10156757395/artifact/FieldEvidenceSharedAssembly/segment-sources/segment-3/artifact/s10-4/s10.4.current.ax-text/consumer-build-reference.json`, SHA256`DD7B4950B61DCB15E5DA4F7B77805E7C993D3B897F3DD3515F931C9B4865510A`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=A5F15721-2096-4C93-8358-454D352C04E1' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34484444222 (`Temp/S10_4_CI/registry/requests/d2b53b97ec8c414fafb92c86e42cac86/originals/10156531879/artifact/shared-consumer/consumer-build-reference.json`, SHA256`DAF365312D5F3C47A65D86E44FA9BE9CF3EE28E8C851FE7418F71077B231E781`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=1FA21541-6CEB-4CB7-A58E-5EB88CA6BBEC' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34485051922 (`Temp/S10_4_CI/registry/requests/27241a1c7223450fbeb6017f282f079c/originals/10156935586/artifact/shared-consumer/consumer-build-reference.json`, SHA256`47426E23431F05B470617E7CF0AC952ED510BAA370F53DED4E6650129B65BCD8`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=B0C637A8-4030-45BA-8563-50560ECB5869' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+Run34498424607 (`Temp/S10_4_CI/registry/requests/35a1d5e5e4464089afd6107d3254c3a7/originals/10162770104/artifact/shared-consumer/consumer-build-reference.json`, SHA256`1C604FD3199F72B986D4544611C175FA2E0C532FF3CAC15DDFECFA93544DAE7D`):
+
+```text
+xcodebuild -xctestrun /Users/runner/work/_temp/FieldEvidenceSharedRestore/payload/FieldEvidenceDerivedData/Build/Products/FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun -destination 'platform=iOS Simulator,id=31771CEB-CD5A-455E-9478-B184C7B0A7E3' -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult -only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests CODE_SIGNING_ALLOWED=NO test-without-building
+```
+
+The evidence-only E..K path closure is exactly sixteen:
+
+- `AGENTS.md`
+- `Scripts/s10-4-ci.py`
+- `Scripts/test-s10-4-ci.py`
+- `docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json`
+- `docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json`
+- `docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json`
+- `docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1`
+- `docs/design/s10/s10-accessibility-common-tasks.json`
+- `docs/design/s10/s10-activation.json`
+- `docs/design/s10/s10-token-coverage.json`
+- `docs/design/s10/s10-visual-regression.json`
+- `docs/execution/CODEX_EXECUTION_CONTRACT_V4.md`
+- `docs/execution/CURRENT_TASK.md`
+- `docs/execution/S10_4_CI_OPERATING_BRIEF.md`
+- `docs/execution/V4_IMPLEMENTATION_RUNBOOK.md`
+- `docs/product/BUILD_PLAN_V4.md`
+
+The earlier native S10.3E..E history contains exactly the reviewed58 paths recorded in the final manifest; all historical authority/correction/run/artifact records remain in Git and the original registry. The two unaccepted evidence candidates5c5e134 and6ad3a19 and their failing validator logs remain provenance. Final integration corrections address the activation schema projection, already-reviewed historical path declaration, empty equivalence array, and optional candidate-provider read; none changes native product behavior or evidence values.
+
+`KNOWN_BUGS.md` was read and contains no accepted entries. No new bug is added. Minimum-runtime verification remains unverified/DEFERRED after the owner instruction and original bootstrap failures; no deterministic repository cause or smoke pass is claimed. Keep a pending HANDOFF item for future minimum verification only; do not schedule or create another task. Current visual differences retain the owner-approved migration reviews and existing ten narrow automated exceptions with their original owners/expiry/evidence. Physical/manual observations remain NOT_RUN, and S10.5/S10.6, professional clearance, signing, upload and submission remain separate uncompleted gates. The unresolved dispatch reservation stays unconfirmed with null identity and false noncreation proof.
