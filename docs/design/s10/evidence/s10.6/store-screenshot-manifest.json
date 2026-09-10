@@ -249,7 +249,6 @@
     }
   ],
   "pending_gates": [
-    "final_f25_evidence",
     "required_6_5_or_6_9_screenshot_set",
     "dated_trademark_name_claim_url_clearance",
     "owner_release_version_build_and_live_inputs",

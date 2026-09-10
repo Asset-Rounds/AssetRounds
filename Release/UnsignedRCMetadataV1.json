@@ -46,10 +46,9 @@
     "physicalVerificationStatus": "DEFERRED",
     "storeStatus": "planned",
     "evidenceLockStatus": "template",
-    "finalF25Status": "NOT_RUN",
+    "finalF25Status": "PASS",
     "releaseReady": false,
     "pendingGates": [
-      "final_f25_evidence",
       "required_6_5_or_6_9_screenshot_set",
       "dated_trademark_name_claim_url_clearance",
       "owner_release_version_build_and_live_inputs",
@@ -70,17 +69,17 @@
     "physicalResumePolicy": "explicit_owner_request_after_app_store_release",
     "physicalDeferralPolicyID": "owner-s10-5-nonblocking-post-release-20260910",
     "unsignedPreparationCI": {
-      "evidenceID": "s10.6-unsigned-preparation-ci-34527590250",
+      "evidenceID": "s10.6-phase-contract-ci-34536261005",
       "status": "PASS",
-      "scope": "unsigned_preparation_build_five_unit_tests_one_branded_ui_smoke",
-      "headSHA": "0a48504502994fdb8a5d73c9e8cc307aba210821",
+      "scope": "unsigned_phase_contract_five_unit_tests_one_branded_ui_smoke",
+      "headSHA": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
       "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
-      "runID": "34527590250",
-      "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34527590250",
+      "runID": "34536261005",
+      "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34536261005",
       "workflow": ".github/workflows/ios-ci.yml",
       "workflowRef": "phase/s10-brand-refresh",
       "runAttempt": 1,
-      "jobID": "103040237596",
+      "jobID": "103068528764",
       "executionLane": "github-xcode-26.6-acceptance",
       "selectorTier": "F25",
       "unitSelectors": [
@@ -91,20 +90,20 @@
       ],
       "unitPassed": 5,
       "uiPassed": 1,
-      "artifactID": "10172675373",
-      "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34527590250/artifacts/10172675373",
-      "artifactName": "ios-ci-34527590250-1",
-      "artifactSHA256": "49EF4F73EB8E5F7CB827EF77A0B2CCC08499425CDCE9469119D2474E4952E09D",
-      "artifactExpiresAt": "2026-09-24T20:52:20Z",
+      "artifactID": "10175949736",
+      "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34536261005/artifacts/10175949736",
+      "artifactName": "ios-ci-34536261005-1",
+      "artifactSHA256": "F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467",
+      "artifactExpiresAt": "2026-09-24T22:26:38Z",
       "checksumFileCount": 102,
-      "checksumManifestSHA256": "D304259FF08611F5E46CBC2A01E034D8AFDF720C10A8DE8AFDBD4DFA692E8A22",
-      "originalLogsSHA256": "4B9EAEFB3DD6F102D90881A2C89F9E77611671B977DAB695F08D3DBA74ED2592",
-      "auditPath": "Temp/S10_6_ReleasePreparation/ci/0a48504502994fdb8a5d73c9e8cc307aba210821/originals/34527590250/AUDIT.json",
-      "auditSHA256": "83C6C8525365E7D6EB947255C017782BD88E0DEFD8EA7AA16CBA38482D70CE2A",
+      "checksumManifestSHA256": "6920ECB3A6A1EFB23712E734E51BE4C5D70FB82E1D3CEC9CA20B69DE5713681C",
+      "originalLogsSHA256": "5BF1A00F3AF12C5AC9FD50A976D3543626C3DBFF5E07FB07C500ECBF88F35DE4",
+      "auditPath": "Temp/S10_6_ReleasePreparation/ci/75a8856c21e7a4aae5a8e48b40a68bdef6874d94/originals/34536261005/AUDIT.json",
+      "auditSHA256": "1EB98088D09B7C90007DA986DB8B6033C5AA7215E3DEE4C59A7725DBC69BCFAC",
       "terminalScreenshotEntry": "ui-final.png",
-      "terminalScreenshotSHA256": "2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C",
-      "unitResultsSHA256": "9821B6EA67DA88E940C5CB859DE03F368E0E70FBE5BCEA64087C03D2F2FD2A7A",
-      "uiResultsSHA256": "356677CDC2AE15FE9917C3630C032539EDD1CA4E6174F5323F520E270CED8DDB",
+      "terminalScreenshotSHA256": "C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888",
+      "unitResultsSHA256": "0A0212D2DAB014445C5E7731DF0C20B2DEB919DF15489B8705C7F3D8ACA9F03F",
+      "uiResultsSHA256": "A5FF6EA836F74F1A01172BADF2416030252CBDF2E4991BA5898885934CD8CCFC",
       "runnerImage": {
         "ImageOS": "macos26",
         "ImageVersion": "20260831.0337.3",
@@ -122,14 +121,14 @@
         "initial_state": "Shutdown"
       },
       "nativeStepSeconds": {
-        "Build unsigned simulator app": 307.0,
-        "Run targeted tests": 72.0,
-        "Run task-authorized UI smoke": 250.0
+        "Build unsigned simulator app": 325.0,
+        "Run targeted tests": 84.0,
+        "Run task-authorized UI smoke": 233.0
       },
       "setupArtifactBudget": {
-        "setup_elapsed_seconds": "67",
-        "artifact_elapsed_seconds": "1",
-        "setup_artifact_elapsed_seconds": "68",
+        "setup_elapsed_seconds": "70",
+        "artifact_elapsed_seconds": "2",
+        "setup_artifact_elapsed_seconds": "72",
         "setup_artifact_budget_seconds": "300"
       },
       "nativeCommands": {
@@ -137,18 +136,16 @@
         "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
         "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
       },
-      "humanVisualReview": "APPROVED",
+      "humanVisualReview": "PENDING",
       "formalReleaseAcceptance": false,
-      "physicalPass": false,
-      "humanVisualReviewEvidenceID": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
-      "humanVisualReviewScope": "exact_five_frozen_6_3_store_candidates_and_exact_i2_terminal_screenshot"
+      "physicalPass": false
     },
     "phaseEvidence": {
       "schemaVersion": 1,
       "contractID": "s10.6-post-release-physical-deferral-v1",
       "contentStatus": "PENDING",
       "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
-      "candidateHead": null,
+      "candidateHead": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
       "predecessorCheckpointSHA256": [
         "0C7489E55D2546C82047126BB89F5B1A1F1BBA2E0530247E0A75DF510587225F",
         "D15638ADFEA577D7074F17430BF6DB66FB6C55B82D70850FB5BE8B64CF8F506C",
@@ -159,37 +156,37 @@
         {
           "role": "launch_smoke",
           "path": "Release/LaunchSmokeEvidenceIndexV1.json",
-          "sha256": "5ED570642B7D62CCCED2A8240B09EE3DC566D9B542B858E76E27AEF6DFF02BEA"
+          "sha256": "8EAEA7B2CD71C19EA5F84DE11F64BDE21045E4F31F52238693B969850B106DF2"
         },
         {
           "role": "privacy_narrative",
           "path": "Release/PrivacyReviewV1.md",
-          "sha256": "8CBB1FECB64190583C681EBBC2AECBC1FFF0D6E1D4D2DEC4B63A806D9CF40E32"
+          "sha256": "5782850594F5795E0033DC3DC33DF0DE66285ADA861DBF83250DB68AFE95C0E8"
         },
         {
           "role": "store_readiness",
           "path": "docs/design/s10/s10-store-readiness.json",
-          "sha256": "8C3870D7744074F1356F176F970DAFAB4FB7F0933D304287BC0559B04DC1ECCC"
+          "sha256": "0A6DB85667D4E40281B6BE3F0F2D4088C3727B8562CC84A820F4AC3803DB671F"
         },
         {
           "role": "evidence_lock",
           "path": "docs/design/s10/s10-evidence-lock.json",
-          "sha256": "51ED9C2A5CC99DE23F6018AC01D1F6FFEE2BE32A92BEFA8F144EA548FA3BD864"
+          "sha256": "FFF1D25E75F3D19AF5B149B20B8FE41A8D22A6349FC9C916B0380D88DD4C0D6C"
         },
         {
           "role": "store_manifest",
           "path": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
-          "sha256": "439F793F99B367042F7A8CF7BCD3F902B33C0CC779684B2E1F89D3B2877789EB"
+          "sha256": "5DBAD4C21E59D8A3CEEBBACF4C63363BDCB47FC93B177B5C12EE7FA01B6EF097"
         },
         {
           "role": "privacy_supply_chain",
           "path": "docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json",
-          "sha256": "B8BFAAA8FD478BB7270DAC4712BF34A4FE067EE21D2CC30947F17DA053B158A6"
+          "sha256": "437B4A62CD407802954CD7D61AF8356FDF66BE94A43EBF696078AA2DEC367211"
         }
       ],
       "f25": {
-        "status": "NOT_RUN",
-        "evidenceID": null
+        "status": "PASS",
+        "evidenceID": "s10.6-phase-contract-ci-34536261005"
       },
       "humanStoreReview": {
         "status": "APPROVED",
