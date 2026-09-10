@@ -4250,3 +4250,38 @@ The isolated English-source normalization checkpoint adds 1,599 semantic keys ac
   "xcode": "NOT_EXECUTED"
 }
 ```
+
+
+## Card 16 of 55 - V30-P02-C02 - Unicode input, persistence, journal, and evidence safety
+
+State: PROVISIONAL_CHECKPOINTED. This is graph-dependency progress only. Native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `86eabf98abee15c8bd14ff5bfb61a149ab09f103`, tree `ab8211eed89a7980d4f38246026800b72226afe3` (C01 provisional implementation). Direct graph prerequisite C05 remains E `66ef581ea88ce2ee1d6cb35586574d5df5c94bf7`, tree `4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7`, coordination checkpoint 24.
+- Observed G0 authority A: `909aa5aac6dca9e4212194956234d5df8ad730bc`; M..A changed exactly the four V30 execution documents. All 23 exact allowed paths match the frozen B declarations; no S10 overlap tuple is used.
+- Product implementation E: `69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe`, tree `56016965f7f633eaf605460598e21910c1fc298b`. No distinct infrastructure K; no hosted candidate.
+- Isolated coordination checkpoint: sequence 35, head `facd85e69c7756ba71be0bf57e426a29c7c1450c`, digest `926e27c1c8503871c821dce5dcdff1cbdbe7305ef6169fd5b4cf01abc10d96ff`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P02-C02/CHECKPOINT/1`. Candidate history and exact committed path/blob hashes are appended in that receipt; prior history is unchanged.
+
+The writer command and local journal batch boundary now compare exact re-encoded canonical bytes in addition to their previous structural equality checks, using the same date strategies and public error mappings. This closes the NFC/NFD gap in Swift's canonically equivalent String equality. Existing envelope/receipt, backup/restore and evidence codecs retain their byte checks; no canonical schema, data family, identifier, hash format, normalization rule, machine path or binary storage representation changed.
+
+The pure Unicode identity contract reports SHA-256, byte/scalar/grapheme counts and the positions of 12 Bidi_Control scalars without modifying source. Strict UTF-8 decoding accepts only an identical byte round trip, including authored U+FEFF and NUL. Nineteen fixed cases cover composed/decomposed accents, stacked marks, emoji combinations, Chinese, Korean Jamo, Vietnamese, Arabic, bidi content, filenames, whitespace/newlines and literal format/JSON punctuation.
+
+Ten XCTest methods were authored across five files. They exercise production writer/journal checkpoint and replay, cold reopen, actual backup validation and atomic restore, exported report snapshots with authored work/recheck text, contact/caption/filename codecs, original binary evidence readback, and actual EraseAllService with a cold empty-generation reopen. The bulk-import test uses the existing test materializer/writer-adapter stub with the real lifecycle and journal, and asserts exact UTF-8 payloads plus retry idempotence. No runtime result is claimed for these tests.
+
+Validation: V30 provisional CI-contract validator PASS (WINDOWS_STATIC, selector null); complete external package validation PASS (55 cards / 107 edges, all immutable pins); exact fence/B/source/fixture audit PASS; Windows .NET grapheme fixture cross-check PASS for 19 cases; git diff --check PASS. Independent static review covers coordinator/error/date invariants and real test API paths. Native workflow run ID/URL/head, runner image/Xcode/Simulator/UDID, .xcresult and screenshots: NOT_EXECUTED / unavailable, no native credit. The checked-in project uses synchronized source groups; no project mutation was needed.
+
+Before commit, review corrected test date decoding, initial-placement setup, old writer/model lifetimes before erase, and the binary test's generation authority. The UTF-8 helper was adjusted to preserve an authored leading U+FEFF. All operational findings and superseded draft details remain recorded in the checkpoint. KNOWN_BUGS was read and contains only its template; no defect was accepted. UI/IME device behavior, glyph rendering and all native qualification remain pending; C03 owns RTL UI semantics, C05 derived search, and later cards own PDF/rendering qualification.
+
+Implementation paths (10, all inside the 23-path fence):
+- `FieldEvidenceApp/Application/Globalization/UnicodeEvidenceSafetyCoordinatorV1.swift`
+- `FieldEvidenceApp/Domain/Globalization/UnicodeEvidenceSafetyContractsV1.swift`
+- `FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift`
+- `FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/Unicode/unicode-evidence-hostile-cases-v1.json`
+- `FieldEvidenceAppTests/S6_3BackupValidationTests.swift`
+- `FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift`
+- `FieldEvidenceAppTests/V30_P02_C02UnicodeEvidenceSafetyTests.swift`
+- `FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift`
+- `FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift`
+
+Boundary state: isolated provisional branch only, no main or Phase 10 access/mutation. Replay or reimplement this candidate after accepted S in graph order and rerun invalidated evidence; never merge wholesale. Next unstarted card: V30-P02-C03 - RTL and bidirectional semantics. This entry does not self-record its containing handoff commit.
