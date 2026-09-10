@@ -158,6 +158,64 @@
         "s10.4-owner-direct-minimum-deferral-20260910",
         "s10.4-unknown-dispatch-3df9f1f463b549499a2a503886fa9517-remains-unconfirmed"
       ]
+    },
+    {
+      "stage": "Release",
+      "gate_id": "s10.6-release-phase-evidence",
+      "product_head": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
+      "evidence_head": "bcad8a2f630d590b697f6bae167438edb09d57b8",
+      "evidence_head_role": "K",
+      "documents": [
+        {
+          "document_type": "release_evidence",
+          "path": "Release/UnsignedRCMetadataV1.json",
+          "blob_commit": "bcad8a2f630d590b697f6bae167438edb09d57b8",
+          "sha256": "740A4C54EACB6C230789834F4E7B6284761587E18C617792261246F0460002D0"
+        },
+        {
+          "document_type": "release_evidence",
+          "path": "Release/LaunchSmokeEvidenceIndexV1.json",
+          "blob_commit": "bcad8a2f630d590b697f6bae167438edb09d57b8",
+          "sha256": "6D0501FE1980E256C0D09FE4F19A40DC82D483BE2F5FD66D166F0F86C8D7D69B"
+        },
+        {
+          "document_type": "release_evidence",
+          "path": "Release/PrivacyReviewV1.md",
+          "blob_commit": "bcad8a2f630d590b697f6bae167438edb09d57b8",
+          "sha256": "F3D6D978570576A417940085C85852E4BB2DFF61CC3B3FD05FFF6F989D1844E4"
+        },
+        {
+          "document_type": "store_readiness",
+          "path": "docs/design/s10/s10-store-readiness.json",
+          "blob_commit": "bcad8a2f630d590b697f6bae167438edb09d57b8",
+          "sha256": "454E711841E916075035EE83935AF486ACB5EC820CC758C125DE8D8E32F6B60A"
+        },
+        {
+          "document_type": "release_evidence",
+          "path": "docs/design/s10/s10-evidence-lock.json",
+          "blob_commit": "bcad8a2f630d590b697f6bae167438edb09d57b8",
+          "sha256": "C47BB62BDAF1C08C5F5A573A72B82027ADE807C5E1FEAC38A42A6C521FF83722"
+        },
+        {
+          "document_type": "release_evidence",
+          "path": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
+          "blob_commit": "bcad8a2f630d590b697f6bae167438edb09d57b8",
+          "sha256": "893000ADF7456B27EE71499629D271BCBC5C698C89201F97F8ACE786B429C183"
+        },
+        {
+          "document_type": "release_evidence",
+          "path": "docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json",
+          "blob_commit": "bcad8a2f630d590b697f6bae167438edb09d57b8",
+          "sha256": "44E22469FD257BE401546E583BE70C9F47ECE38EB948E0C7C8C5A6D6E2914260"
+        }
+      ],
+      "evidence_ids": [
+        "s10.6-phase-contract-ci-34540218053",
+        "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+        "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+        "s10.6-five-store-claims-source-substantiation-20260910",
+        "owner-s10-5-nonblocking-post-release-20260910"
+      ]
     }
   ]
 }
