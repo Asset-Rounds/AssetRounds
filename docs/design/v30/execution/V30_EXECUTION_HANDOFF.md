@@ -3466,3 +3466,787 @@ Card V30-P01-C07 remains selected and PROVISIONAL_IMPLEMENTING. No ledger transi
   "transition": "NOT_YET_PERFORMED"
 }
 ```
+
+## Card 15 of 55 - V30-P02-C01 English catalog normalization
+
+The isolated English-source normalization checkpoint adds 1,599 semantic keys across the exact 47-file UI fence and preserves every inherited catalog entry. All 945 remaining literals have reviewed dispositions; this is scoped source coverage, not whole-program text ownership closure. Static verification passed. Eight XCTest methods are authored but not executed, and professional/native linguistic acceptance remains pending.
+
+```json
+{
+  "A": "44fc9d1f0b336a253d063753467e312b9a6c5dbd",
+  "E": {
+    "head": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
+    "status": "PROVISIONAL_ONLY_NOT_FINAL_ACCEPTANCE",
+    "tree": "ab8211eed89a7980d4f38246026800b72226afe3"
+  },
+  "K": null,
+  "M": {
+    "head": "020c9da6df9c2d9afe741290ecab1b1893d8b2ec",
+    "tree": "a7b68fe27452c186cdd9e8c6a244a39c29b5c1ff"
+  },
+  "P": {
+    "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+    "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+  },
+  "authorityOnlyDiffResult": "PASS M..A exactly V30_CURRENT_TASK.md, V30_CI_SELECTION.json, V30_PROVISIONAL_LEDGER_PROJECTION.json and prior V30_EXECUTION_HANDOFF.md; observed before implementation.",
+  "boundaryState": "NO_PHASE_OR_MAIN_INTEGRATION; isolated provisional cohort continues only after this checkpoint",
+  "candidateHistory": [
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "8273e331afc62fc781d8e8d7597c4bddcc372456",
+      "parent": "020c9da6df9c2d9afe741290ecab1b1893d8b2ec",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "Hand off provisional C08 catalog releases",
+      "tree": "cfef15c9de8a5ce5676f2b20675d604e2b56fde9"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+      ],
+      "head": "44fc9d1f0b336a253d063753467e312b9a6c5dbd",
+      "parent": "8273e331afc62fc781d8e8d7597c4bddcc372456",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "Hydrate P02 C01 English catalog normalization",
+      "tree": "b20dec86437270c63bb13d69f8c674c00474116c"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+        "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+        "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift",
+        "FieldEvidenceApp/Features/Activities/InstallationWorkflowView.swift",
+        "FieldEvidenceApp/Features/Activities/PunchReviewWorkflowView.swift",
+        "FieldEvidenceApp/Features/AssetImport/PartyContactSiteRoleImportView.swift",
+        "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+        "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift",
+        "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
+        "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+        "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+        "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+        "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+        "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
+        "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+        "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift",
+        "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+        "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+        "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+        "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+        "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+        "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+        "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+        "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+        "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+        "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+        "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift",
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceAppTests/Fixtures/V30/EnglishCatalog/english-catalog-audit-v1.json",
+        "FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift"
+      ],
+      "head": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
+      "parent": "44fc9d1f0b336a253d063753467e312b9a6c5dbd",
+      "state": "PROVISIONAL_CHECKPOINTED",
+      "subject": "Normalize C01 English catalog and typed UI text",
+      "tree": "ab8211eed89a7980d4f38246026800b72226afe3"
+    }
+  ],
+  "cardID": "V30-P02-C01",
+  "changedPaths": [
+    "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+    "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+    "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+    "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift",
+    "FieldEvidenceApp/Features/Activities/InstallationWorkflowView.swift",
+    "FieldEvidenceApp/Features/Activities/PunchReviewWorkflowView.swift",
+    "FieldEvidenceApp/Features/AssetImport/PartyContactSiteRoleImportView.swift",
+    "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+    "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+    "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift",
+    "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
+    "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+    "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+    "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+    "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+    "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+    "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
+    "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+    "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift",
+    "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+    "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+    "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+    "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+    "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+    "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+    "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+    "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+    "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+    "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+    "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+    "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+    "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+    "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+    "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+    "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift",
+    "FieldEvidenceApp/Resources/Localizable.xcstrings",
+    "FieldEvidenceAppTests/Fixtures/V30/EnglishCatalog/english-catalog-audit-v1.json",
+    "FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift",
+    "docs/design/v30/execution/V30_CI_SELECTION.json",
+    "docs/design/v30/execution/V30_CURRENT_TASK.md",
+    "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+    "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+  ],
+  "coordination": {
+    "coordinationHead": "9caf635edfd3a220afb9e49ba6aa4a06df48ee00",
+    "ledgerDigest": "d208d038e62a5f3ceea3d41c9adb4e478cdd23c87022d054dde300a37bc930b2",
+    "sequence": 33
+  },
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "epoch": "PRE_S10_PROVISIONAL",
+  "evidence": {
+    "acceptanceMap": {
+      "axes": "Foundation performs catalog lookup and plural selection. Public replacement-index attributes identify numeric runs for independent formatting-locale presentation; authored text and opaque IDs are copied unchanged.",
+      "coverage": "47 UI files, 945 remaining literal spans with exact source/token hashes and reviewed dispositions. System permission resources and document renderer work remain explicitly assigned to P03-C09/P03-C04. Whole-program inventory closure is not claimed.",
+      "historicalCompatibility": "All 1491 inherited source entries and the legacy definition/release-hash schema remain unchanged. The additive English registry is audit metadata; P04-C07 owns final V30 release binding.",
+      "semanticCatalog": {
+        "inheritedEntryCount": 1491,
+        "literalDispositionCounts": {
+          "DNT_CONFIRMATION_TOKEN": 20,
+          "EXISTING_TYPED_CATALOG": 73,
+          "FORMAT_LITERAL": 21,
+          "MACHINE_IDENTIFIER": 646,
+          "SYMBOL_OR_FORMAT": 185
+        },
+        "newSemanticKeyCount": 1599,
+        "plainKeyCount": 1438,
+        "remainingLiteralCount": 945,
+        "sourceFileCount": 47,
+        "substitutionMessageCount": 12,
+        "typedMessageCount": 161,
+        "unresolvedCurrentFileLiterals": 0,
+        "wholeMessagePluralCount": 35
+      },
+      "tests": "Eight XCTest methods authored, including real compiled-catalog 0/1/2 plurals and multi-count combinations, formatting-locale independence, Int64 bounds, reordered/repeated numeric attributes, hostile authored text, mutation rejection and literal fixture integrity; not executed.",
+      "typedPresentation": "Every new plain key and typed method has an exact catalog entry and call coverage. Named argument types, privacy, cardinality, translator context and all English plural branches are validated."
+    },
+    "commands": [
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS WINDOWS_STATIC nativeCredit=false finalCredit=false"
+      },
+      {
+        "command": "installed validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS 55 cards, 107 edges; exact immutable package and manifest digests unchanged"
+      },
+      {
+        "command": "Exact fenced static verification and existing SwiftLexer census; git diff --check",
+        "result": "PASS 46 changed paths within 58 allowed; 47 file/token hash matches; M..A exactly four authority paths; inherited entries unchanged; source catalog 1429026 bytes below 2097152 limit"
+      }
+    ],
+    "independentAudits": [
+      {
+        "agent": "c07_delivery_review",
+        "head": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
+        "result": "PASS_STATIC",
+        "scope": "UI type/canonical preservation, generated key/call/substitution closure, tests, final Voice default and all fixture hashes/dispositions; no native execution"
+      }
+    ],
+    "knownBugs": "KNOWN_BUGS template read. No accepted defect entries. All diagnosed static implementation blockers corrected; native qualification and professional/native review remain pending.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Normalize required app-owned English text into semantic keys with comments, placeholders, plurals, variations, terminology, permission/accessibility/report coverage, and explicit literal dispositions.",
+    "static": {
+      "artifacts": [
+        {
+          "bytes": 19939,
+          "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+          "sha256": "c4996d3da72e433530f3fc39edb494f312723d0a7f4b82824aaa984063f1037f"
+        },
+        {
+          "bytes": 5605,
+          "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+          "sha256": "1d18780f400e16d877c2dc8b166e13abf5c90bde5cc6454286f505989e18339d"
+        },
+        {
+          "bytes": 381982,
+          "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+          "sha256": "7a37ebf589a013d517246f72f609c437d0743559412abe538a420059b1d2bd17"
+        },
+        {
+          "bytes": 28133,
+          "path": "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift",
+          "sha256": "466d7f23ea3507d3104e6afcd82da631a9dff04d72be12b1ca8ef1f5d0ebaf8f"
+        },
+        {
+          "bytes": 24823,
+          "path": "FieldEvidenceApp/Features/Activities/InstallationWorkflowView.swift",
+          "sha256": "b1bb890ae4955ec04344d21c88ffc8723072d576213905c216b8c4206d5de2e8"
+        },
+        {
+          "bytes": 23037,
+          "path": "FieldEvidenceApp/Features/Activities/PunchReviewWorkflowView.swift",
+          "sha256": "cc097e6b8eff4c7f1d9202057a42b60329efb1d6757432f0242e4a499bd8d570"
+        },
+        {
+          "bytes": 49811,
+          "path": "FieldEvidenceApp/Features/AssetImport/PartyContactSiteRoleImportView.swift",
+          "sha256": "90aefb463e53d50f1f05e0152aee7729c43f80911be41799b21768f2c1f2c1c2"
+        },
+        {
+          "bytes": 17704,
+          "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+          "sha256": "b00a385450560deae7dd8c044995bc068a1f296b7658227ce957948edc3c82bf"
+        },
+        {
+          "bytes": 5405,
+          "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+          "sha256": "78d0ad2ae4f5820b17a44c615b593353100424f612559cc65394767930225970"
+        },
+        {
+          "bytes": 16226,
+          "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+          "sha256": "24b151b11ef6ca4545e706d8f6ba5ee55b98c2d8b4ad2374364f2947ad33799d"
+        },
+        {
+          "bytes": 23002,
+          "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+          "sha256": "6d2607f70630c7a02d2619f205f57cd33085bc4b835ed36309843ea2963bb9ea"
+        },
+        {
+          "bytes": 13834,
+          "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+          "sha256": "aae0b29356bdf7168acaf2cc10e896e0728634d2cc657c5ad6b3f0444097cc4a"
+        },
+        {
+          "bytes": 5874,
+          "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+          "sha256": "be07a4b48ec9c16df1d3c47d66f99a317e4e1cddae61eb582232cd6a7e4c22c7"
+        },
+        {
+          "bytes": 24634,
+          "path": "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift",
+          "sha256": "8f68d7e2dfd28b2a75aead9ba5374d4ebe24226ab5e2c7af84d71d33d4948ade"
+        },
+        {
+          "bytes": 20225,
+          "path": "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
+          "sha256": "ce2544ec16d9d23efa93bef3401fb7f65bd42a87599d18b1fe38cc6f452b6075"
+        },
+        {
+          "bytes": 20977,
+          "path": "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+          "sha256": "b2a816dd1199bcd5de1ed33b65f863a35eec53d91a3d36788bdfdebadb1b1d4e"
+        },
+        {
+          "bytes": 8580,
+          "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+          "sha256": "a6dc2ad23c10a1af242907d16ff84122e8a0f6177c3eb4c39a0d2e081ffa8583"
+        },
+        {
+          "bytes": 14100,
+          "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+          "sha256": "9ccaa560c9f4fc12a3f5dc82054169112e3518b0e88a96cff7b5039f243b9e6b"
+        },
+        {
+          "bytes": 19689,
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "sha256": "cc6e30a06af1b5f1fe0427f45b90dd92698139da9615e8cc3a902e5846c46bb6"
+        },
+        {
+          "bytes": 73752,
+          "path": "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift",
+          "sha256": "17990a52a10fafec527c5dfd848c50401e3fa697a6654b52a62d4e031f51d1c1"
+        },
+        {
+          "bytes": 15338,
+          "path": "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+          "sha256": "1a9969e1c0bc30560cf90e258ef0828e07605415835759b4e5a3965e5b9dbb33"
+        },
+        {
+          "bytes": 18176,
+          "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+          "sha256": "79e0e9225204bb6b294ce27a49b6042dbb29946c1887d86e8dca6696c002ea9c"
+        },
+        {
+          "bytes": 5336,
+          "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+          "sha256": "997e26272c7f6029b0dd7fa74a53fc80c9756ceca36e3dfccc648beabd1577fa"
+        },
+        {
+          "bytes": 34139,
+          "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+          "sha256": "6eb48b46c5ce1f4d871ca3d27c352a0768f3305b075ba56d4f548a7e73811741"
+        },
+        {
+          "bytes": 20442,
+          "path": "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
+          "sha256": "159a38418326d73456d303cb668595a5df50837e2d4341423ebf2697ac3b0bc1"
+        },
+        {
+          "bytes": 25270,
+          "path": "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+          "sha256": "84ea690261fbe678e37ebc4ba0b6efe593b97e2fbf0347b442be14e201738c35"
+        },
+        {
+          "bytes": 19855,
+          "path": "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift",
+          "sha256": "5673bc1c8ba69e986c35c82289e0fa5ba58da1fe9d8fccf63e543448062c74e9"
+        },
+        {
+          "bytes": 7788,
+          "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+          "sha256": "cbad34cae3e4c3459070f8dfccb003d56e933bf7c944eeff2ef745cd5edc1e75"
+        },
+        {
+          "bytes": 9579,
+          "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+          "sha256": "46e35eda2e8aa9a5252d09712cb488c416c29dbe3dd2f5d6dae686acf8c2522d"
+        },
+        {
+          "bytes": 9162,
+          "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+          "sha256": "3b9926b459682a49e1f6d4ed5f39de0ca6ed934944dc83ea03e65853901878b0"
+        },
+        {
+          "bytes": 14082,
+          "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+          "sha256": "995b88c843dbe569efd31b2f66671c978896a155a94b5ef315a1eda2e008a0e5"
+        },
+        {
+          "bytes": 13449,
+          "path": "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+          "sha256": "00caa6452d5c774957c789ce0a2804cc356a055ff59830e69452e06768bad85a"
+        },
+        {
+          "bytes": 26723,
+          "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+          "sha256": "cf1194fe73da7959dadab9ae976b412534f481da51af325c7dcef3c7182fca0c"
+        },
+        {
+          "bytes": 4532,
+          "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+          "sha256": "871ab35c5834c3646aa5ac3ccc5a38230ff95f10fee06b7413bb974faae7b5bf"
+        },
+        {
+          "bytes": 13306,
+          "path": "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+          "sha256": "367aa8688d9093a8697cac1213e9199ecff0cbc8d1f210040fbef35ce76bb1d5"
+        },
+        {
+          "bytes": 11173,
+          "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+          "sha256": "53e2d8ad0e320bba9e38bbae0a6a97b1a1f194c3cf315faf85126874ad792479"
+        },
+        {
+          "bytes": 32698,
+          "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+          "sha256": "a9fb603d069ca603e80ca2ab9cd96c742cb32e694c4672675b53a95add86e08b"
+        },
+        {
+          "bytes": 11466,
+          "path": "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+          "sha256": "9645a45f6c4e60a53463f3e37a56a827e26500257318e0e52bd4696cafc3a6fe"
+        },
+        {
+          "bytes": 13059,
+          "path": "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+          "sha256": "347d1c7bd20626055169fa7e7cea6b6354524ddd53b8981860509fd896309cf8"
+        },
+        {
+          "bytes": 65873,
+          "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+          "sha256": "6dcfd6b8f9cb02e5cd25c56496738e0cc864c17fcba89e1852041003f45e3ef3"
+        },
+        {
+          "bytes": 18217,
+          "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+          "sha256": "40e0ea1f1fe30588b97e846ee9dc939d208626741b75737a64bc2c0c6af6cda8"
+        },
+        {
+          "bytes": 331615,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "sha256": "c370ff323026fbb8236648482e9dc06ff170676b6a8a385a99083bebc641db07"
+        },
+        {
+          "bytes": 2266700,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift",
+          "sha256": "55af833eebd0fd9ca5c6eec19b436e69275376282b2c9734f2b5315cae059069"
+        },
+        {
+          "bytes": 1429026,
+          "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "sha256": "cef2d893c18f35e82299127ab3d95112035df7fc57dd65fb3f142f4c1d71e075"
+        },
+        {
+          "bytes": 2210203,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/EnglishCatalog/english-catalog-audit-v1.json",
+          "sha256": "978f80be85b33eca0cf11fb3987e9d8bbc0b80ceec65657f07b1d75d9938bfc3"
+        },
+        {
+          "bytes": 17058,
+          "path": "FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift",
+          "sha256": "b0cef93e5b266931b8fae304981903cb95d729c3c6d88cbecbba363057272daf"
+        },
+        {
+          "bytes": 1080,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "fbac3ec93e08de6c4f32438bcd5f31a6d90f87820de30f4dc3749841b6879307"
+        },
+        {
+          "bytes": 55741,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "e5419a5f171fb5a95830b6931484499029ffcb59f517b7b60eae77ea563add6b"
+        },
+        {
+          "bytes": 158474,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "0789618d71fdefb9025bcaef78effd6bffdd20a9844a740dc7ba579a3be66f8d"
+        },
+        {
+          "bytes": 695,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "7b9c6981598b73a11182eb4775b080565cc7d64f5dca5f681984dd1b91331665"
+        }
+      ],
+      "result": "PASS_STATIC_PROVISIONAL_ENGLISH_NORMALIZATION"
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "implementationChangedPaths": [
+    "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+    "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+    "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+    "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift",
+    "FieldEvidenceApp/Features/Activities/InstallationWorkflowView.swift",
+    "FieldEvidenceApp/Features/Activities/PunchReviewWorkflowView.swift",
+    "FieldEvidenceApp/Features/AssetImport/PartyContactSiteRoleImportView.swift",
+    "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+    "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+    "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+    "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift",
+    "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
+    "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+    "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+    "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+    "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+    "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+    "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+    "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
+    "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+    "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift",
+    "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+    "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+    "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+    "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+    "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+    "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+    "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+    "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+    "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+    "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+    "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+    "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+    "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+    "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+    "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+    "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift",
+    "FieldEvidenceApp/Resources/Localizable.xcstrings",
+    "FieldEvidenceAppTests/Fixtures/V30/EnglishCatalog/english-catalog-audit-v1.json",
+    "FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift"
+  ],
+  "nextUnstartedCard": "V30-P02-C02",
+  "operationalProvenance": [
+    "Before commit, independent static review found UInt64 revision arguments declared as Int/String inconsistently and Int64 import bytes declared Int. Revision display calls explicitly preserve raw String values; byte calls retain Int64.",
+    "The operations draft receipt had 33 malformed interpolation defaults plus argument-cardinality/type errors. They were corrected before generation; source controls, IDs, seed values and canonical data remained unchanged.",
+    "Generation rejected four semantic-key collisions between static labels and dynamic values. Static label keys were separated before implementation commit. Nested receipt argument arrays and one plural-other default mismatch were corrected before generation.",
+    "Contract review corrected substitution host-unit validation, literal %arg binding, negative index safety, exact argument-name binding and exhaustive bounded one/other combination checks before implementation commit.",
+    "Literal census initially treated the presentation-only default Existing work draft as source content. Root review normalized that default and preserved explicit caller labels. Ten English comparison tokens remain exact internal identities with separately localized visible labels.",
+    "Only static verification ran. No native build, XCTest, Simulator, hosted run, linguistic-review or final-catalog receipt is claimed."
+  ],
+  "ordinal": 15,
+  "preAuthorizedOverlapTuples": [
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/App/FieldEvidenceAppApp.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "50e6a7e11ff107d608318498fa578d852b5c6b06",
+      "expectedBSHA256": "7c33e08af4b67ffa60f4574192cca077548e9d1d5989f890be2a3a07c7fa8563",
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/DesignSystem/WorklightComponents.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
+      "expectedBSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+      "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+      "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "535a86a3312f537f13c10b5db3f7bed3ac0f3945",
+      "expectedBSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
+      "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
+      "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
+      "expectedBSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
+      "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/CheckRunner/PreflightView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
+      "expectedBSHA256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955",
+      "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "0797274e09f174e1caca359c3ce6b030c41054e6",
+      "expectedBSHA256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8",
+      "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Issues/IssueDetailView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "9007a09c8dbca262ddbaa680e8bc6d906c3166c5",
+      "expectedBSHA256": "217403ff65a8cde53dc0d1402d929720782232391d998eab48afc1fd72159c6c",
+      "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Issues/RecordWorkView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "e830455b14706763c3f9be4a930cd27955ef0890",
+      "expectedBSHA256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6",
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "af1cea52cbd507b9a2c5ff4fcb823e8aa999b0ec",
+      "expectedBSHA256": "dd5d6dddb6e58fbc86e9cbbf7318a8ad6d3271bd93117b4c72ac52d058381fd8",
+      "path": "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Reports/ReportDetailView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+      "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+      "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Reports/ReportFailureView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "5378ee6c73d8d86cce2c7a316fa23509d4d3250e",
+      "expectedBSHA256": "e869176ccc9a768f1c351442c3e22d4a560bd7b39ab2ea209d85774c1079d26a",
+      "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Reports/ReportsRootView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+      "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+      "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Settings/BackupExportView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "0b4f6740f4a5ecbb801ce2dd5bdd7c77f30afe92",
+      "expectedBSHA256": "82f4862beabd981422629fad66065086571fc66d1f79d982df3deec683ade1a0",
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "2f9e5a5b606e1170030b91d867374b55b6144d86",
+      "expectedBSHA256": "007303e9c3ac6125a0833ecd045b5d4338ccc7c49832cd03a9692dcdac7ccc34",
+      "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Settings/EraseAllView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "f6b551d503a0af293cff966a1cb5d725a20f773d",
+      "expectedBSHA256": "955f13980acd330d98aaa0ee13735bb6f6f2b3c45772fbe8e7ebf8b5c2269c1f",
+      "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Settings/FeedbackView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+      "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+      "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+      "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "424f869477fe107d1595763c951abef7193c9c6b",
+      "expectedBSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+      "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Signs/NewSignView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "9945d02fd9c0680ee79e986fd2a90c3deee6ebeb",
+      "expectedBSHA256": "ecf83578f59beef12e9aa03a0324acc7779f9847ff163d1ba5271c84a7f230af",
+      "path": "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Signs/SignDetailView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "8844b6684eaf9c44866d9b81057cab872d2c37cd",
+      "expectedBSHA256": "7f4ff80b1949f0d851358c732a6add07d9567f1e2f50f7701810fccf657e2b39",
+      "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Signs/SignsRootView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "112133d2df57c5f734267a079987277866e74a84",
+      "expectedBSHA256": "4b59bad89665bbf0b1b7c6189c09090f93e78d1b963152f344b9611490cf527f",
+      "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Subscription/PaywallView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "21d5da5da6c3db7aae50b6e8eaf352de2ae5302a",
+      "expectedBSHA256": "28c95fc0a9c84f29ef3e26f758f6c22eee92927ee5e9a40a650e62db1d9f11a7",
+      "path": "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    },
+    {
+      "boundedPurpose": "replace only app-owned English literal/accessibility copy in FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift; preserve Phase10 visual styling, token values, navigation, and feature flow",
+      "cardID": "V30-P02-C01",
+      "expectedBBlobOID": "78af1da11a91694d54dc4539c446685a7e12eb9d",
+      "expectedBSHA256": "7b25a78ebd2a216ef538bc22260f8b85d1ef2b8d239e94c5f0e93c03eee24a04",
+      "path": "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P02-C01-ENGLISH-NORMALIZER"
+    }
+  ],
+  "reconciliation": "Replay or reimplement all deltas after accepted S. Preserve accepted Phase 10 design and rerun invalidated evidence; no wholesale merge, final translation acceptance or release credit.",
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P02-C01/CHECKPOINT/1",
+  "runnerImage": "NOT_EXECUTED_WINDOWS_STATIC",
+  "simulator": {
+    "model": null,
+    "os": null,
+    "udid": null
+  },
+  "state": "PROVISIONAL_CHECKPOINTED",
+  "title": "English catalog normalization",
+  "transitionStatus": "NOT_YET_STARTED",
+  "xcode": "NOT_EXECUTED"
+}
+```
