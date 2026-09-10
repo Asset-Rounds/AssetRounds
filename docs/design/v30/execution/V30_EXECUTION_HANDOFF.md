@@ -2992,3 +2992,267 @@ Card V30-P01-C07 remains selected and PROVISIONAL_IMPLEMENTING. No ledger transi
 - Native status: NOT_EXECUTED_NO_NATIVE_CREDIT. No workflow/run/artifacts/runner/Xcode/Simulator evidence exists for this candidate.
 - Remaining before any provisional checkpoint: complete explicit report-formatting/paper/provenance integration and recovery/delivery regression coverage while preserving frozen historical report bytes; review full C07 outcome and final scope/hash evidence. Native Foundation parsing and precision behavior remains unverified. Do not present this progress commit as complete Card 13.
 - KNOWN_BUGS read; no new accepted bug entry. No Phase10/main/release access or mutation. Next card V30-P01-C08 remains unstarted.
+
+
+## Card 13 / V30-P01-C07 — provisional checkpoint, 2026-09-10
+
+```json
+{
+  "A": "65bbae68a067e7d49df974261706da3d7c0cf3b4",
+  "E": "36f9c62ef09bff21c47923add3ade6469a82650e",
+  "K": null,
+  "M": "3a28f593e755ac952071777b7e8440457950a010",
+  "P": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+  "authorityOnlyDiff": "PASS original M..A contains four V30 execution documents only",
+  "candidate": {
+    "base": "3a28f593e755ac952071777b7e8440457950a010",
+    "baseTree": "7f67173942a087f86770b10ed8bf99041425ee4f",
+    "changedPaths": [
+      "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift",
+      "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift",
+      "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json",
+      "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
+      "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+      "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    ],
+    "head": "36f9c62ef09bff21c47923add3ade6469a82650e",
+    "tree": "0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8"
+  },
+  "candidateHistory": [
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "d62ec84e18f7638559e141e11d92b32169fced36",
+      "parent": "3a28f593e755ac952071777b7e8440457950a010",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "docs(v30): hand off provisional C06 language resolution",
+      "tree": "1905cf46bcc21cbe3c1e860fc04da542fdb374e0"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_CI_SELECTION.json",
+        "docs/design/v30/execution/V30_CURRENT_TASK.md",
+        "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+      ],
+      "head": "65bbae68a067e7d49df974261706da3d7c0cf3b4",
+      "parent": "d62ec84e18f7638559e141e11d92b32169fced36",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "chore(v30): hydrate C07 locale formatting",
+      "tree": "fa1abc9c3bc348c03aa9ca66e1b5a5a8c743f512"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift",
+        "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift",
+        "FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json",
+        "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift"
+      ],
+      "head": "89a56a39791c3a4533a7c9649e2e4ca04ac14c4b",
+      "parent": "65bbae68a067e7d49df974261706da3d7c0cf3b4",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "Implement provisional C07 formatting core and date-entry boundary",
+      "tree": "7862faff739857a936139f8dcd9ca7739e6ee509"
+    },
+    {
+      "changedPaths": [
+        "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md"
+      ],
+      "head": "a7e29a55a39660d5eee0939c5761e648af8261b4",
+      "parent": "89a56a39791c3a4533a7c9649e2e4ca04ac14c4b",
+      "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+      "subject": "Record C07 implementation progress and remaining acceptance",
+      "tree": "89008424db20ca27e26a863cb2f8b306462a2042"
+    },
+    {
+      "changedPaths": [
+        "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift",
+        "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift",
+        "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+        "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
+        "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+        "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift"
+      ],
+      "head": "36f9c62ef09bff21c47923add3ade6469a82650e",
+      "parent": "a7e29a55a39660d5eee0939c5761e648af8261b4",
+      "state": "PROVISIONAL_CHECKPOINTED",
+      "subject": "Complete C07 strict formatting and immutable report-summary integration",
+      "tree": "0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8"
+    }
+  ],
+  "cardID": "V30-P01-C07",
+  "coordination": {
+    "head": "d02682ce99608d7eba028802c79d35aae89d3265",
+    "ledgerDigest": "f216c0bd80463419a20bdd5bbe8c67543332c135760e3c6e3a344e5667f9b889",
+    "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P01-C07/CHECKPOINT/1",
+    "sequence": 28
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "addressesPhones": "opaque Unicode/source text preservation and NUL/empty validation",
+      "datesCalendars": "validated Gregorian canonical date, fixed-zone civil display, six locale and Buddhist/Japanese roundtrip tests",
+      "instantsWallTimeDST": "IANA profile, civil clock grammar, AM/PM full-consumption, explicit fold choice, gap/full-day skip rejection tests",
+      "integration": "DatePicker environment time zone, catalog chosen locale, report summary locale with cached PDF/canonical identity unchanged; tests authored not run",
+      "numbersCurrencyPercent": "Foundation formatter with exact Decimal roundtrip; NaN/partial/ambiguous separator rejection; USD JPY EUR signed/zero tests",
+      "units": "explicit meters/feet input label, exact decimal conversion with Foundation arithmetic error handling, roundtrip and precision-loss rejection tests",
+      "weekPaper": "locale first weekday/minimum days and explicit Letter/A4 dimensions, no inferred jurisdiction"
+    },
+    "commands": [
+      {
+        "command": "python -B Scripts/v30/validate_v30_provisional_ci_contract.py",
+        "result": "PASS WINDOWS_STATIC nativeCredit=false finalCredit=false"
+      },
+      {
+        "command": "installed package validate_v30_package.py --installed-root C:/AssetRounds-v30-globalization",
+        "result": "PASS 55 cards;107 edges;immutable package digest unchanged"
+      },
+      {
+        "command": "git diff --check; exact fence/shared B hashes/original M..A authority-only/remote audit",
+        "result": "PASS"
+      }
+    ],
+    "independentAudits": [
+      {
+        "agent": "c07_delivery_review",
+        "head": "36f9c62ef09bff21c47923add3ade6469a82650e",
+        "result": "PASS_STATIC",
+        "scope": "ReportDeliveryValue canonical equality, cached PDF preservation, labelled callsites, startup-failure and retry test bindings"
+      }
+    ],
+    "knownBugs": "KNOWN_BUGS template read. No accepted defect entries. Native Foundation and XCTest execution remain pending.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Implement and test dates, instants/local time, DST, calendars, numbers, currency, percent, units, week rules, paper, addresses, phones, parsing, ambiguous-input rejection, and canonical round trips with Foundation locale-aware APIs.",
+    "primaryAPIDocumentation": [
+      "https://developer.apple.com/documentation/foundation/nsdecimaldivide(_:_:_:_:)",
+      "https://developer.apple.com/documentation/foundation/measurementformatter/"
+    ],
+    "static": {
+      "artifacts": [
+        {
+          "bytes": 6245,
+          "path": "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift",
+          "sha256": "b7a7ff9d42a8eac741dedde08253fc6502e8300a03bdeedc467dfbe8b8b3495c"
+        },
+        {
+          "bytes": 13064,
+          "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+          "sha256": "d6f0190dac1d004adac6d8efe1370538d1c77df500a6f73bb04ebc600367d369"
+        },
+        {
+          "bytes": 329444,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "sha256": "ecd719d04bc326d4b63bae0b6635601cc0ab8373cb7fb6864853d1a7d0fafa1c"
+        },
+        {
+          "bytes": 21869,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift",
+          "sha256": "cdd4e8f4a567305306cc3df035fe679fed3f66710c715db4ef68be096af8a205"
+        },
+        {
+          "bytes": 125641,
+          "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+          "sha256": "b4870b3d4c9dd045a65f048e730ded966d4407c4af0771a798d87a5f0a9c36e2"
+        },
+        {
+          "bytes": 579,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json",
+          "sha256": "9099c8458aa02be279b5bb9839302fda86dde544dab6cfa312865c2738e0420a"
+        },
+        {
+          "bytes": 47277,
+          "path": "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
+          "sha256": "5d26a4a411ef6386cb7f1daa06fdb38faf05c1089b120a55d3c1847fd8bbc140"
+        },
+        {
+          "bytes": 54323,
+          "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+          "sha256": "c91b3abe53be1d8b8d830bac108656f43a5f814bb84fb4968a0063f48b928c4a"
+        },
+        {
+          "bytes": 14082,
+          "path": "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift",
+          "sha256": "5bc4a61d7ae5bfdc136dbdd21ab4c43ba6614a48c394458b80e9c38ad71a49b1"
+        },
+        {
+          "bytes": 1092,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "aa788b5720480e76573d4240ed13581c3b8a629cda42316ec17e247534b82871"
+        },
+        {
+          "bytes": 14585,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "364dfd42488a331334c3bcda78f0e5be89bf1910366f2127bda6751cd647e94f"
+        },
+        {
+          "bytes": 134874,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "159ee875e3808eed83282857fd9e91271a958145f11c70a5397c7d1ee34a04e2"
+        },
+        {
+          "bytes": 695,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "8a7ee3646151bb8200f68d42e40064a54d4e5e08dc58b04afa50201c74dfc75c"
+        }
+      ],
+      "result": "PASS_STATIC_PROVISIONAL_INTEGRITY"
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "36f9c62ef09bff21c47923add3ade6469a82650e",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "nextUnstarted": "V30-P01-C08",
+  "operationalProvenance": [
+    "Original implementation, handoff-only progress, and direct-child correction retained. Nine product paths and four execution documents remain within issued fence.",
+    "Prior progress handoff over-scoped report rendering. Frozen blueprint row1009 assigns Unicode PDF/font/Letter-A4/provenance rendering to V30-P03-C04. C07 implements formatting contracts, DatePicker canonical boundary, catalog locale and cached report-summary presentation.",
+    "Raw authored address and phone preservation reflects existing freeform source fields, no country guessing or jurisdiction normalization.",
+    "Strict number and unit APIs reject values Foundation cannot represent and parse exactly; no silent rounding. No native/final/main/release credit.",
+    "Coordination checkpoint commit30c0190 used CRLF serialization. Direct-child d02682c restored LF only; JSON events, sequence28 and ledger payload digest unchanged; no history rewritten."
+  ],
+  "ordinal": 13,
+  "preAuthorizedOverlapTuples": [
+    {
+      "boundedPurpose": "replace only locale-sensitive date/number input or display formatting in FieldEvidenceApp/Features/Issues/RecordWorkView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P01-C07",
+      "expectedBBlobOID": "e830455b14706763c3f9be4a930cd27955ef0890",
+      "expectedBSHA256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6",
+      "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P01-C07-LOCALE-FORMAT-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "replace only locale-sensitive date/number input or display formatting in FieldEvidenceApp/Features/Issues/WorkCoordinator.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P01-C07",
+      "expectedBBlobOID": "c48fbb8f39643d24cef00d49a5ed90313780c1f5",
+      "expectedBSHA256": "8c7dd5d1412895266be2ad1c5bffe743c13db2b1c2074e2f35d5b0e6d947f310",
+      "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P01-C07-LOCALE-FORMAT-INTEGRATOR"
+    }
+  ],
+  "remainingAcceptance": [
+    "Native compile/XCTest/DST/numeric runtime and UI verification not executed.",
+    "RecordWorkView shared date boundary must be replayed or reimplemented after accepted S.",
+    "P03-C04 owns Unicode renderer/font/Letter-A4 layout and report provenance rollout. Prior progress handoff overstated this as a C07 requirement; cached PDFs remain frozen.",
+    "No final/canonical/main/release acceptance or automatic merge credit."
+  ],
+  "s10SharedPathsChanged": [
+    "FieldEvidenceApp/Features/Issues/RecordWorkView.swift"
+  ],
+  "status": "PROVISIONAL_CHECKPOINTED_NOT_FINAL",
+  "transition": "NOT_YET_PERFORMED"
+}
+```
