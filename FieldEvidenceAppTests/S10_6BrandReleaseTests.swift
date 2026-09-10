@@ -1078,8 +1078,8 @@ final class S10_6BrandReleaseTests: XCTestCase {
               brand["preparationStatus"] as? String == "phase_evidence_ready",
               brand["finalF25Status"] as? String == "PASS",
               brand["releaseReady"] as? Bool == false,
-              let candidate = (documents.smoke["finalRCSmoke"] as? [String: Any])?
-                ["brandedCandidate"] as? [String: Any],
+              let finalSmoke = documents.smoke["finalRCSmoke"] as? [String: Any],
+              let candidate = finalSmoke["brandedCandidate"] as? [String: Any],
               candidate["evidenceStatus"] as? String == "PASS",
               candidate["sourceProductHead"] as? String == productHead,
               let privacyCI = documents.privacy["unsigned_preparation_ci"] as? [String: Any],
@@ -1314,11 +1314,11 @@ final class S10_6BrandReleaseTests: XCTestCase {
     }
 
     private func unsignedCICopiesMatch(_ documents: PhaseDocuments) -> Bool {
-        guard let metadataCI = (documents.metadata["brandRefresh"] as? [String: Any])?
-                ["unsignedPreparationCI"] as? [String: Any],
-              let smokeCI = ((documents.smoke["finalRCSmoke"] as? [String: Any])?
-                ["brandedCandidate"] as? [String: Any])?["unsignedPreparationCI"]
-                as? [String: Any],
+        guard let brand = documents.metadata["brandRefresh"] as? [String: Any],
+              let metadataCI = brand["unsignedPreparationCI"] as? [String: Any],
+              let finalSmoke = documents.smoke["finalRCSmoke"] as? [String: Any],
+              let candidate = finalSmoke["brandedCandidate"] as? [String: Any],
+              let smokeCI = candidate["unsignedPreparationCI"] as? [String: Any],
               let privacyCI = documents.privacy["unsigned_preparation_ci"] as? [String: Any]
         else { return false }
         return canonicalSHA256(metadataCI) == canonicalSHA256(smokeCI)
