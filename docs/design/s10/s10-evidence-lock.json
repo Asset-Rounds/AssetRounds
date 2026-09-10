@@ -96,6 +96,17 @@
       "artifact_ids": [
         "10175949736"
       ]
+    },
+    {
+      "run_id": "34540218053",
+      "workflow": ".github/workflows/ios-ci.yml",
+      "workflow_ref": "refs/heads/phase/s10-brand-refresh",
+      "head_sha": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
+      "toolchain_id": "github-macos26-xcode26.6-ios26.2-swift5",
+      "conclusion": "success",
+      "artifact_ids": [
+        "10177393405"
+      ]
     }
   ],
   "field_evidence_ids": [],

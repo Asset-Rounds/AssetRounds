@@ -252,8 +252,7 @@
     "required_6_5_or_6_9_screenshot_set",
     "owner_release_version_build_and_live_inputs",
     "archive_privacy_supply_chain_review",
-    "required_checkpoint_receipts",
-    "final_f25_evidence"
+    "required_checkpoint_receipts"
   ],
   "apple_specification_review": {
     "url": "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",

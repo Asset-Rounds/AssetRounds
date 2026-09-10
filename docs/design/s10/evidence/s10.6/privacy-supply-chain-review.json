@@ -530,17 +530,17 @@
     }
   ],
   "unsigned_preparation_ci": {
-    "evidenceID": "s10.6-phase-contract-ci-34536261005",
+    "evidenceID": "s10.6-phase-contract-ci-34540218053",
     "status": "PASS",
     "scope": "unsigned_phase_contract_five_unit_tests_one_branded_ui_smoke",
-    "headSHA": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
+    "headSHA": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
     "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
-    "runID": "34536261005",
-    "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34536261005",
+    "runID": "34540218053",
+    "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34540218053",
     "workflow": ".github/workflows/ios-ci.yml",
     "workflowRef": "phase/s10-brand-refresh",
     "runAttempt": 1,
-    "jobID": "103068528764",
+    "jobID": "103081012380",
     "executionLane": "github-xcode-26.6-acceptance",
     "selectorTier": "F25",
     "unitSelectors": [
@@ -551,20 +551,20 @@
     ],
     "unitPassed": 5,
     "uiPassed": 1,
-    "artifactID": "10175949736",
-    "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34536261005/artifacts/10175949736",
-    "artifactName": "ios-ci-34536261005-1",
-    "artifactSHA256": "F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467",
-    "artifactExpiresAt": "2026-09-24T22:26:38Z",
+    "artifactID": "10177393405",
+    "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34540218053/artifacts/10177393405",
+    "artifactName": "ios-ci-34540218053-1",
+    "artifactSHA256": "A3E05448E9B2DAE4D6BEED948DB83F36942AE37F4442466C38D7EF64D4A03CDC",
+    "artifactExpiresAt": "2026-09-24T23:16:54Z",
     "checksumFileCount": 102,
-    "checksumManifestSHA256": "6920ECB3A6A1EFB23712E734E51BE4C5D70FB82E1D3CEC9CA20B69DE5713681C",
-    "originalLogsSHA256": "5BF1A00F3AF12C5AC9FD50A976D3543626C3DBFF5E07FB07C500ECBF88F35DE4",
-    "auditPath": "Temp/S10_6_ReleasePreparation/ci/75a8856c21e7a4aae5a8e48b40a68bdef6874d94/originals/34536261005/AUDIT.json",
-    "auditSHA256": "1EB98088D09B7C90007DA986DB8B6033C5AA7215E3DEE4C59A7725DBC69BCFAC",
+    "checksumManifestSHA256": "5F38798BA67A75D45C7BA063F26A18B3339162D80A17878C0A3B028CE2E6B81F",
+    "originalLogsSHA256": "F18BCD2E31A7DB33200D0B1F7F1137AB603F46D24F0CF4B61FA3FFEB6B9CB14D",
+    "auditPath": "Temp/S10_6_ReleasePreparation/ci/e28d6827bcf78c26dd6381926aa6aec73d7e9999/originals/34540218053/AUDIT.json",
+    "auditSHA256": "2470B764823D3E588525337D238AA3BF3E69176DFC0E772895692E72CB3C5F6C",
     "terminalScreenshotEntry": "ui-final.png",
-    "terminalScreenshotSHA256": "C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888",
-    "unitResultsSHA256": "0A0212D2DAB014445C5E7731DF0C20B2DEB919DF15489B8705C7F3D8ACA9F03F",
-    "uiResultsSHA256": "A5FF6EA836F74F1A01172BADF2416030252CBDF2E4991BA5898885934CD8CCFC",
+    "terminalScreenshotSHA256": "D56C831A3F95CC7AC2336A0B5511E1A92C9C87762AFCD9529CC5768FD9CCFCA7",
+    "unitResultsSHA256": "AD1B2F9124ECC52A275F48D63D428AA0E4A06DC3227D7F9A961BEA34592740EB",
+    "uiResultsSHA256": "43CF7909C8491030B32823E81D0E43EFA4534FE821157D7F951DC7BD1E45E19A",
     "runnerImage": {
       "ImageOS": "macos26",
       "ImageVersion": "20260831.0337.3",
@@ -582,14 +582,14 @@
       "initial_state": "Shutdown"
     },
     "nativeStepSeconds": {
-      "Build unsigned simulator app": 325.0,
-      "Run targeted tests": 84.0,
-      "Run task-authorized UI smoke": 233.0
+      "Build unsigned simulator app": 379.0,
+      "Run targeted tests": 67.0,
+      "Run task-authorized UI smoke": 342.0
     },
     "setupArtifactBudget": {
-      "setup_elapsed_seconds": "70",
-      "artifact_elapsed_seconds": "2",
-      "setup_artifact_elapsed_seconds": "72",
+      "setup_elapsed_seconds": "27",
+      "artifact_elapsed_seconds": "1",
+      "setup_artifact_elapsed_seconds": "28",
       "setup_artifact_budget_seconds": "300"
     },
     "nativeCommands": {
@@ -600,8 +600,8 @@
     "humanVisualReview": "APPROVED",
     "formalReleaseAcceptance": false,
     "physicalPass": false,
-    "humanVisualReviewEvidenceID": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
-    "humanVisualReviewScope": "displayed exact I5 Settings terminal screenshot"
+    "humanVisualReviewEvidenceID": "s10.6-terminal-owner-review-34540218053",
+    "humanVisualReviewScope": "displayed_exact_candidate_terminal_screenshot"
   },
   "physical_deferral_owner_request": {
     "policy_id": "owner-s10-5-nonblocking-post-release-20260910",
@@ -745,5 +745,17 @@
     "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/OWNER_DIRECTIVE_20260910.json",
     "source_sha256": "BD23286FA03EC456B50D637E4DE11FCDAB34383A466FDFAD40F75CBAF8F365E7",
     "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910\",\n  \"policyID\": \"owner-s10.6-name-trademark-url-clearance-waiver-20260910\",\n  \"source\": \"direct owner instruction in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I approve. Merge into main. We don't need the dated name or trademark or URL clearance.\",\n  \"approvedTerminalImage\": {\n    \"headSHA\": \"75a8856c21e7a4aae5a8e48b40a68bdef6874d94\",\n    \"runID\": \"34536261005\",\n    \"artifactID\": \"10175949736\",\n    \"artifactSHA256\": \"F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467\",\n    \"pathWithinArtifact\": \"ui-final.png\",\n    \"sha256\": \"C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888\",\n    \"status\": \"APPROVED\",\n    \"scope\": \"displayed exact I5 Settings terminal screenshot\",\n    \"futureUnseenImageApproval\": false\n  },\n  \"clearanceObligation\": {\n    \"status\": \"OWNER_WAIVED\",\n    \"waivedClearances\": [\"name\", \"trademark\", \"url\"],\n    \"scope\": [\"S10.6 phase closure\", \"S10 main integration\"],\n    \"positiveLegalClearanceClaimed\": false,\n    \"clearanceReportProvided\": false,\n    \"truthfulFiveStoreClaimSubstantiationWaived\": false,\n    \"actualLiveURLRequirementsWaived\": false\n  },\n  \"mainIntegrationAuthorized\": true,\n  \"nonForceFastForwardRequired\": true,\n  \"remainingEvidenceAndCIRequirementsWaived\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"interpretation\": \"Record approval of the displayed I5 terminal image and remove the three named clearance prerequisites for the current S10.6 phase/main boundary. Preserve truthful source-backed review of the five store claims, actual absent live values, all remaining evidence/receipt/CI requirements, historical originals, and later owner-only release operations. The waiver is not a positive legal clearance result.\"\n}\n"
+  },
+  "current_candidate_terminal_review_record": {
+    "evidence_id": "s10.6-terminal-owner-review-34540218053",
+    "date": "2026-09-10",
+    "reviewer": "palatis3",
+    "head_sha": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
+    "run_id": "34540218053",
+    "artifact_id": "10177393405",
+    "terminal_screenshot_sha256": "D56C831A3F95CC7AC2336A0B5511E1A92C9C87762AFCD9529CC5768FD9CCFCA7",
+    "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/OWNER_TERMINAL_APPROVAL_34540218053.json",
+    "source_sha256": "0306CD7775E0EFA13C8BF7468391BB2543970749CE6E89C546F350BD67B22F9F",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"s10.6-terminal-owner-review-34540218053\",\n  \"status\": \"APPROVED\",\n  \"owner\": \"palatis3\",\n  \"date\": \"2026-09-10\",\n  \"ownerStatement\": \"Approve screenshot\",\n  \"sourceUserMessageID\": \"483702911\",\n  \"sourceMessageTimestampUTC\": \"2026-09-10T23:18:56.931564Z\",\n  \"sourceQuestionItemID\": \"[\\\"request_user_input_async\\\",\\\"call_1haySXeHNWUyOrTgIYEtZBfn\\\",0]\",\n  \"sourceQuestion\": \"Do you approve the displayed terminal screenshot from successful CI run 34540218053 for the final S10.6 evidence?\",\n  \"sourceReceiptType\": \"direct_owner_response_after_image_display\",\n  \"scope\": \"displayed_exact_candidate_terminal_screenshot\",\n  \"headSHA\": \"e28d6827bcf78c26dd6381926aa6aec73d7e9999\",\n  \"runID\": \"34540218053\",\n  \"artifactID\": \"10177393405\",\n  \"terminalScreenshotSHA256\": \"D56C831A3F95CC7AC2336A0B5511E1A92C9C87762AFCD9529CC5768FD9CCFCA7\",\n  \"displayedLocalPath\": \"Temp/S10_6_ReleasePreparation/ci/e28d6827bcf78c26dd6381926aa6aec73d7e9999/originals/34540218053/10177393405/ui-final.png\",\n  \"pixelWidth\": 1206,\n  \"pixelHeight\": 2622,\n  \"priorImageApprovalReused\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"recordedAtUTC\": \"2026-09-10T23:19:50.763079+00:00\"\n}\n"
   }
 }

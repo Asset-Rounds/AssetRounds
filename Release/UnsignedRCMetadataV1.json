@@ -39,21 +39,20 @@
   "unsigned": true,
   "brandRefresh": {
     "card": "S10.6",
-    "preparationStatus": "prepared_pending_verification",
+    "preparationStatus": "phase_evidence_ready",
     "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
     "acceptedAutomatedEvidenceHead": "e2189af36a89caf815cf078756341c1f1542f7df",
     "acceptedAutomatedReceiptHead": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
     "physicalVerificationStatus": "DEFERRED",
     "storeStatus": "planned",
     "evidenceLockStatus": "template",
-    "finalF25Status": "NOT_RUN",
+    "finalF25Status": "PASS",
     "releaseReady": false,
     "pendingGates": [
       "required_6_5_or_6_9_screenshot_set",
       "owner_release_version_build_and_live_inputs",
       "archive_privacy_supply_chain_review",
-      "required_checkpoint_receipts",
-      "final_f25_evidence"
+      "required_checkpoint_receipts"
     ],
     "evidencePaths": {
       "storeManifest": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
@@ -69,17 +68,17 @@
     "physicalResumePolicy": "explicit_owner_request_after_app_store_release",
     "physicalDeferralPolicyID": "owner-s10-5-nonblocking-post-release-20260910",
     "unsignedPreparationCI": {
-      "evidenceID": "s10.6-phase-contract-ci-34536261005",
+      "evidenceID": "s10.6-phase-contract-ci-34540218053",
       "status": "PASS",
       "scope": "unsigned_phase_contract_five_unit_tests_one_branded_ui_smoke",
-      "headSHA": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
+      "headSHA": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
       "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
-      "runID": "34536261005",
-      "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34536261005",
+      "runID": "34540218053",
+      "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34540218053",
       "workflow": ".github/workflows/ios-ci.yml",
       "workflowRef": "phase/s10-brand-refresh",
       "runAttempt": 1,
-      "jobID": "103068528764",
+      "jobID": "103081012380",
       "executionLane": "github-xcode-26.6-acceptance",
       "selectorTier": "F25",
       "unitSelectors": [
@@ -90,20 +89,20 @@
       ],
       "unitPassed": 5,
       "uiPassed": 1,
-      "artifactID": "10175949736",
-      "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34536261005/artifacts/10175949736",
-      "artifactName": "ios-ci-34536261005-1",
-      "artifactSHA256": "F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467",
-      "artifactExpiresAt": "2026-09-24T22:26:38Z",
+      "artifactID": "10177393405",
+      "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34540218053/artifacts/10177393405",
+      "artifactName": "ios-ci-34540218053-1",
+      "artifactSHA256": "A3E05448E9B2DAE4D6BEED948DB83F36942AE37F4442466C38D7EF64D4A03CDC",
+      "artifactExpiresAt": "2026-09-24T23:16:54Z",
       "checksumFileCount": 102,
-      "checksumManifestSHA256": "6920ECB3A6A1EFB23712E734E51BE4C5D70FB82E1D3CEC9CA20B69DE5713681C",
-      "originalLogsSHA256": "5BF1A00F3AF12C5AC9FD50A976D3543626C3DBFF5E07FB07C500ECBF88F35DE4",
-      "auditPath": "Temp/S10_6_ReleasePreparation/ci/75a8856c21e7a4aae5a8e48b40a68bdef6874d94/originals/34536261005/AUDIT.json",
-      "auditSHA256": "1EB98088D09B7C90007DA986DB8B6033C5AA7215E3DEE4C59A7725DBC69BCFAC",
+      "checksumManifestSHA256": "5F38798BA67A75D45C7BA063F26A18B3339162D80A17878C0A3B028CE2E6B81F",
+      "originalLogsSHA256": "F18BCD2E31A7DB33200D0B1F7F1137AB603F46D24F0CF4B61FA3FFEB6B9CB14D",
+      "auditPath": "Temp/S10_6_ReleasePreparation/ci/e28d6827bcf78c26dd6381926aa6aec73d7e9999/originals/34540218053/AUDIT.json",
+      "auditSHA256": "2470B764823D3E588525337D238AA3BF3E69176DFC0E772895692E72CB3C5F6C",
       "terminalScreenshotEntry": "ui-final.png",
-      "terminalScreenshotSHA256": "C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888",
-      "unitResultsSHA256": "0A0212D2DAB014445C5E7731DF0C20B2DEB919DF15489B8705C7F3D8ACA9F03F",
-      "uiResultsSHA256": "A5FF6EA836F74F1A01172BADF2416030252CBDF2E4991BA5898885934CD8CCFC",
+      "terminalScreenshotSHA256": "D56C831A3F95CC7AC2336A0B5511E1A92C9C87762AFCD9529CC5768FD9CCFCA7",
+      "unitResultsSHA256": "AD1B2F9124ECC52A275F48D63D428AA0E4A06DC3227D7F9A961BEA34592740EB",
+      "uiResultsSHA256": "43CF7909C8491030B32823E81D0E43EFA4534FE821157D7F951DC7BD1E45E19A",
       "runnerImage": {
         "ImageOS": "macos26",
         "ImageVersion": "20260831.0337.3",
@@ -121,14 +120,14 @@
         "initial_state": "Shutdown"
       },
       "nativeStepSeconds": {
-        "Build unsigned simulator app": 325.0,
-        "Run targeted tests": 84.0,
-        "Run task-authorized UI smoke": 233.0
+        "Build unsigned simulator app": 379.0,
+        "Run targeted tests": 67.0,
+        "Run task-authorized UI smoke": 342.0
       },
       "setupArtifactBudget": {
-        "setup_elapsed_seconds": "70",
-        "artifact_elapsed_seconds": "2",
-        "setup_artifact_elapsed_seconds": "72",
+        "setup_elapsed_seconds": "27",
+        "artifact_elapsed_seconds": "1",
+        "setup_artifact_elapsed_seconds": "28",
         "setup_artifact_budget_seconds": "300"
       },
       "nativeCommands": {
@@ -139,15 +138,15 @@
       "humanVisualReview": "APPROVED",
       "formalReleaseAcceptance": false,
       "physicalPass": false,
-      "humanVisualReviewEvidenceID": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
-      "humanVisualReviewScope": "displayed exact I5 Settings terminal screenshot"
+      "humanVisualReviewEvidenceID": "s10.6-terminal-owner-review-34540218053",
+      "humanVisualReviewScope": "displayed_exact_candidate_terminal_screenshot"
     },
     "phaseEvidence": {
       "schemaVersion": 1,
       "contractID": "s10.6-post-release-physical-deferral-v1",
-      "contentStatus": "PENDING",
+      "contentStatus": "EVIDENCE_READY",
       "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
-      "candidateHead": null,
+      "candidateHead": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
       "predecessorCheckpointSHA256": [
         "0C7489E55D2546C82047126BB89F5B1A1F1BBA2E0530247E0A75DF510587225F",
         "D15638ADFEA577D7074F17430BF6DB66FB6C55B82D70850FB5BE8B64CF8F506C",
@@ -158,37 +157,37 @@
         {
           "role": "launch_smoke",
           "path": "Release/LaunchSmokeEvidenceIndexV1.json",
-          "sha256": "8B26BD64E620F5B3D3903E6C6DD62FEC410FBEE39B2B36816090F4153AE5457D"
+          "sha256": "6D0501FE1980E256C0D09FE4F19A40DC82D483BE2F5FD66D166F0F86C8D7D69B"
         },
         {
           "role": "privacy_narrative",
           "path": "Release/PrivacyReviewV1.md",
-          "sha256": "1FB49B20CB309ECEBADA9122DF233356481584A8067D3F91D572472F91E17C35"
+          "sha256": "F3D6D978570576A417940085C85852E4BB2DFF61CC3B3FD05FFF6F989D1844E4"
         },
         {
           "role": "store_readiness",
           "path": "docs/design/s10/s10-store-readiness.json",
-          "sha256": "171D8FCC0447CC71F793D1D4AA7D45A9D9774491E514469FFB20805D589D9F7E"
+          "sha256": "454E711841E916075035EE83935AF486ACB5EC820CC758C125DE8D8E32F6B60A"
         },
         {
           "role": "evidence_lock",
           "path": "docs/design/s10/s10-evidence-lock.json",
-          "sha256": "FFF1D25E75F3D19AF5B149B20B8FE41A8D22A6349FC9C916B0380D88DD4C0D6C"
+          "sha256": "C47BB62BDAF1C08C5F5A573A72B82027ADE807C5E1FEAC38A42A6C521FF83722"
         },
         {
           "role": "store_manifest",
           "path": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
-          "sha256": "71AB7486ED8F3CFC0DF39B97E3FB5361784C381DB0D768359B4B2E40358BF9E6"
+          "sha256": "893000ADF7456B27EE71499629D271BCBC5C698C89201F97F8ACE786B429C183"
         },
         {
           "role": "privacy_supply_chain",
           "path": "docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json",
-          "sha256": "1EEE5B6653C769704EE2B9296AD4116BA58FAAEBDE3020ABC3C6BD0F398CD9A9"
+          "sha256": "44E22469FD257BE401546E583BE70C9F47ECE38EB948E0C7C8C5A6D6E2914260"
         }
       ],
       "f25": {
-        "status": "NOT_RUN",
-        "evidenceID": null
+        "status": "PASS",
+        "evidenceID": "s10.6-phase-contract-ci-34540218053"
       },
       "humanStoreReview": {
         "status": "APPROVED",
