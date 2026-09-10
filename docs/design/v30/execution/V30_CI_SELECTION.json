@@ -1,8 +1,8 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
   "branchRef": "refs/heads/phase/v30-globalization",
-  "cardID": "V30-P02-C05",
-  "cardTitle": "Locale-aware search, sorting, and normalization",
+  "cardID": "V30-P02-C06",
+  "cardTitle": "Pseudo, RTL, long-text, and screenshot harness",
   "developmentRouteSHA256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690",
   "hostedDispatchAllowed": false,
   "hostedDispatchUnlockCard": "V30-P00-C05",
@@ -14,7 +14,7 @@
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "6e612de421e5028de29436912a385790d91c0f109603b597f41c95e3eb65a5f6",
+  "payloadDigest": "9110656bc0a6afc5a03f883bf5068a5006c0a1dd5e65161de9446522e9813430",
   "preS10FinalCredit": false,
   "reason": "Windows-static provisional card; no native dispatch is selected.",
   "schemaVersion": "V30BootstrapPayloadV1",
