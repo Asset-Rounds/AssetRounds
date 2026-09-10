@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 16 of 55 - Unicode input, persistence, journal, and evidence safety
+Card 17 of 55 - RTL and bidirectional semantics
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Preserve grapheme clusters, combining marks, emoji, CJK, Korean, Arabic/bidi, filenames, contacts, notes, captions, labels, and imported text through persistence, events, snapshots, backup, restore, and erase.",
+    "required": "Correct semantic mirroring, mixed identifiers/numbers, icon rules, navigation, lists, signatures, reports, focus order, invisible-control safety, and hostile Arabic/bidi fixtures without claiming Arabic shipping support.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
-    "tree": "ab8211eed89a7980d4f38246026800b72226afe3"
+    "head": "69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe",
+    "tree": "56016965f7f633eaf605460598e21910c1fc298b"
   },
-  "cardID": "V30-P02-C02",
+  "cardID": "V30-P02-C03",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,7 +33,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P01-C05"
+    "V30-P01-C06",
+    "V30-P02-C02"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -74,168 +75,119 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Domain/Globalization/UnicodeEvidenceSafetyContractsV1.swift",
-        "purpose": "Unicode preservation and spoof-safe display contracts.",
+        "path": "FieldEvidenceApp/Infrastructure/Localization/BidirectionalTextSafetyV1.swift",
+        "purpose": "Bidirectional rendering, isolation, and mixed-identifier safety policy.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Application/Globalization/UnicodeEvidenceSafetyCoordinatorV1.swift",
-        "purpose": "Boundary audit coordinator for persistence, journal, backup, restore, and erase.",
+        "path": "FieldEvidenceApp/Features/Globalization/GlobalizationRTLSemanticsV1.swift",
+        "purpose": "Semantic mirroring/focus/navigation rendering helper.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P02_C02UnicodeEvidenceSafetyTests.swift",
-        "purpose": "Grapheme, CJK, emoji, bidi, filename, and evidence-preservation tests.",
+        "path": "FieldEvidenceAppTests/V30_P02_C03RTLSemanticsTests.swift",
+        "purpose": "RTL layout, mixed direction, and invisible-control safety tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/Unicode/unicode-evidence-hostile-cases-v1.json",
-        "purpose": "Hostile Unicode preservation fixtures.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/RTL/rtl-hostile-cases-v1.json",
+        "purpose": "Arabic/bidi hostile fixtures without Arabic-shipping claim.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c428c9c4f9128188bb9126d08df2fdab39fe71f3",
-        "expectedBSHA256": "84cc28ffe7b87eee1459002852a04f8cca701af8726a94ca5bf032e0407759a1",
-        "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
-        "purpose": "Preserve Unicode at the canonical writer boundary.",
+        "expectedBBlobOID": "47dce913f9d74c67372fd74381193e30f6ed3ea8",
+        "expectedBSHA256": "6dffb68fd94398664e9ca9a77a52ab8104be3763df03c061fc806438f93940c4",
+        "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
+        "purpose": "Extend existing semantic accessibility contracts for RTL/bidi focus/order safety.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "f867ebe231a7f998ee89069ca4ce357999efae87",
-        "expectedBSHA256": "664647c16a9df7342a123b755f41fc041987a439bf5f55f8a70dafc142fd856b",
-        "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
-        "purpose": "Preserve Unicode in journal contract payloads and canonical identity.",
+        "expectedBBlobOID": "c8d7b6f4eebff67d288c26d3bf3b6a3449ceb27d",
+        "expectedBSHA256": "e2bffbc3c9a6069c935d3e6b6c92db808435203a51f7dbe441d4013bcf7d4cad",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift",
+        "purpose": "Remove ASCII-only/bidi-unsafe deterministic PDF behavior and preserve canonical report identity.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "a54f89f2b61e470eaa66c2bee7142bdddf83c832",
-        "expectedBSHA256": "c320713b856bd0a2674ebcbbccc280712993932618ea05dbff321c06d0a19c64",
-        "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
-        "purpose": "Preserve Unicode through mutation journal persistence and recovery.",
+        "expectedBBlobOID": "d8dcc7fe5f5bca80bf21e964ad411aaac2baa837",
+        "expectedBSHA256": "444d71a74c2b4336ffd4ab7e46850fcb7ee7afc7edaebb1bf311d0431e6d99b4",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift",
+        "purpose": "Preserve bidi-safe JSON display variants without changing machine keys.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "45d5e58ec81cfb61136c895c1756d643a47508ec",
-        "expectedBSHA256": "2445e1dcfaeedca8d3304999391dca01bf63cf3a7bc8a9aaeb9f492ef9713d0a",
-        "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
-        "purpose": "Preserve Unicode through local replication journal records.",
+        "expectedBBlobOID": "fc88143bf623ba193458ef3eabcf6f56872df93f",
+        "expectedBSHA256": "b47b36127800c20edba871c80f7b32614f674c8f99d22de1d3ddc3a2450efa05",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+        "purpose": "Apply bidi-safe document layout/rendering through the existing renderer.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "6dbfedde09fbd158b1f44a16e692f5e06e4be0ee",
-        "expectedBSHA256": "d7a2b194dff13e4b63976a288f7ac5aa7561a56df17fb86f717dff1ed18c514d",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
-        "purpose": "Preserve Unicode in canonical backup encoding.",
+        "expectedBBlobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
+        "expectedBSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+        "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+        "purpose": "Apply only semantic RTL direction, focus, and touch ordering; preserve Phase10 visual tokens and brand composition.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "54e9abdae8e0daea7810e286cac6de8fc08e71ab",
-        "expectedBSHA256": "1c82f2bb1d449c0a21f65e3e2883c8cb16a06f6211c292aecf070c733c6341a0",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
-        "purpose": "Preserve Unicode in canonical backup decoding.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0bf7f754158823aaa93879f35bcb2993355fef2e",
-        "expectedBSHA256": "e65a95dd10cb1e1fde2673f80271bf5aea7257867f253fbc91c7d658b25378b5",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
-        "purpose": "Validate Unicode-preserving backup package boundaries.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "791d3cebb57ddc4f8844cd0cc6cb5c96c929d4cb",
-        "expectedBSHA256": "bedeea43e25cceba20b2ed35832e4feba24e9e7db08bdc6bbea33631a029b82d",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
-        "purpose": "Preserve Unicode through restore and recovery.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "647167b7ea7d595b2798fca418b3bc0117cd596e",
-        "expectedBSHA256": "fb2f5c449afd336d972afa95797256f5ea7b9ffab12e4707ad27b17bfd64bf21",
-        "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
-        "purpose": "Preserve Unicode filenames/captions through evidence bundle storage.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "382c11ed2c1e1676fd987613cfb2115649cf204d",
-        "expectedBSHA256": "620600e8ddfb3844f13433a66e75bb45e1e1020a1336003f654217736a3f3473",
-        "path": "FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift",
-        "purpose": "Preserve Unicode through bulk import lifecycle boundaries.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "66066190eb633d3a8b7513c0a8d07d2732064044",
-        "expectedBSHA256": "3d33b479173d30c56245f48fa46db2637b388ff27eb4e5220944979932fce4bf",
-        "path": "FieldEvidenceApp/Infrastructure/ImportExport/EntityIdentityResolutionLifecycleAdapterV1.swift",
-        "purpose": "Preserve Unicode through entity identity import/recovery boundaries.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c09d86700bb161118f54d96289e0c6167255fc8f",
-        "expectedBSHA256": "25a59f8401631f6cbe358b3391dc0617660c03b7d3706b8b65e32aee122581ed",
-        "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
-        "purpose": "Regression-test journal Unicode survival.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "71deca029b00137b1484f24cf9cffbf4a2e92c35",
-        "expectedBSHA256": "a49ce814c521231a87e5bafb83171ba4643c34389732ec794cbefc4dc2eaa813",
-        "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
-        "purpose": "Regression-test backup Unicode survival.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "fc13366c237192cc69bcea214813929be3544b4c",
-        "expectedBSHA256": "cf25c460046ee10aa8a2f044cef5e117c18ff418f3272038eea9c1c9ba606f69",
-        "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
-        "purpose": "Regression-test restore Unicode survival.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "48e816bbe971ef570667572d3faa380c0e3e2241",
-        "expectedBSHA256": "6e30e95f92b4427205f63e68650acf948bfe29115b250782e06abdbb46ed1c41",
-        "path": "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift",
-        "purpose": "Regression-test import Unicode survival.",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "purpose": "Apply only semantic tab/navigation ordering for RTL; preserve Phase10 shell visual composition.",
         "serializedSharedPath": true
       }
     ],
-    "cardID": "V30-P02-C02",
+    "cardID": "V30-P02-C03",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
-      "V30-P01-C05"
+      "V30-P01-C06",
+      "V30-P02-C02"
     ],
-    "ordinal": 16,
-    "preAuthorizedOverlapTuples": [],
-    "s10SharedPaths": [],
+    "ordinal": 17,
+    "preAuthorizedOverlapTuples": [
+      {
+        "boundedPurpose": "apply only semantic RTL/bidi direction, focus, or touch ordering in FieldEvidenceApp/DesignSystem/WorklightComponents.swift; preserve Phase10 visual tokens and brand composition",
+        "cardID": "V30-P02-C03",
+        "expectedBBlobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
+        "expectedBSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
+        "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C03-RTL-SEMANTICS-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "apply only semantic RTL/bidi direction, focus, or touch ordering in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 visual tokens and brand composition",
+        "cardID": "V30-P02-C03",
+        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
+        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
+        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P02-C03-RTL-SEMANTICS-INTEGRATOR"
+      }
+    ],
+    "s10SharedPaths": [
+      "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+      "FieldEvidenceApp/Features/Shell/AppShellView.swift"
+    ],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Unicode input, persistence, journal, and evidence safety"
+    "title": "RTL and bidirectional semantics"
   },
   "fenceSource": {
-    "cardID": "V30-P02-C02",
+    "cardID": "V30-P02-C03",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -246,57 +198,74 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P02-C03",
+  "next": "V30-P02-C04",
   "observedCoordination": {
-    "head": "9caf635edfd3a220afb9e49ba6aa4a06df48ee00",
-    "ledgerDigest": "d208d038e62a5f3ceea3d41c9adb4e478cdd23c87022d054dde300a37bc930b2",
-    "sequence": 33
+    "head": "facd85e69c7756ba71be0bf57e426a29c7c1450c",
+    "ledgerDigest": "926e27c1c8503871c821dce5dcdff1cbdbe7305ef6169fd5b4cf01abc10d96ff",
+    "sequence": 35
   },
-  "ordinal": 16,
-  "outcome": "Preserve grapheme clusters, combining marks, emoji, CJK, Korean, Arabic/bidi, filenames, contacts, notes, captions, labels, and imported text through persistence, events, snapshots, backup, restore, and erase.",
-  "payloadDigest": "b288ede5a4475430743c673e4b4cc452ddb5fb1ffab90b85b7b58308f2fd05b9",
+  "ordinal": 17,
+  "outcome": "Correct semantic mirroring, mixed identifiers/numbers, icon rules, navigation, lists, signatures, reports, focus order, invisible-control safety, and hostile Arabic/bidi fixtures without claiming Arabic shipping support.",
+  "payloadDigest": "0a7f35020a6448fb374f76e349304a11f5e6038999d2cefcc69653c18c755213",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P01-C05": {
+    "V30-P01-C06": {
       "candidate": {
-        "base": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
-        "baseTree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13",
+        "base": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+        "baseTree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7",
         "changedPaths": [
-          "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
-          "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift",
-          "FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift",
-          "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
-          "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
-          "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
-          "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
-          "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
-          "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
-          "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+          "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+          "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
+          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+          "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift",
+          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "3a28f593e755ac952071777b7e8440457950a010",
+        "tree": "7f67173942a087f86770b10ed8bf99041425ee4f"
+      },
+      "sequence": 26
+    },
+    "V30-P02-C02": {
+      "candidate": {
+        "base": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
+        "baseTree": "ab8211eed89a7980d4f38246026800b72226afe3",
+        "changedPaths": [
+          "FieldEvidenceApp/Application/Globalization/UnicodeEvidenceSafetyCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/UnicodeEvidenceSafetyContractsV1.swift",
           "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
           "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
+          "FieldEvidenceAppTests/Fixtures/V30/Unicode/unicode-evidence-hostile-cases-v1.json",
           "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
           "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
-          "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift",
+          "FieldEvidenceAppTests/V30_P02_C02UnicodeEvidenceSafetyTests.swift",
+          "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift",
           "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
-        "tree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7"
+        "head": "69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe",
+        "tree": "56016965f7f633eaf605460598e21910c1fc298b"
       },
-      "sequence": 24
+      "sequence": 35
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 995,
-  "sourceStartLine": 995,
-  "title": "Unicode input, persistence, journal, and evidence safety"
+  "sourceEndLine": 996,
+  "sourceStartLine": 996,
+  "title": "RTL and bidirectional semantics"
 }
 ```
