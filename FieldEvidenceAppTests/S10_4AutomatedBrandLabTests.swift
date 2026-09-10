@@ -134,7 +134,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
         XCTAssertEqual(sharedAdmissionBodies.count, 2)
         let sharedUnitAdmission = try XCTUnwrap(sharedAdmissionBodies.first)
-        var sharedUIAdmission = try XCTUnwrap(sharedAdmissionBodies.last)
+        let activeSharedUIAdmission = try XCTUnwrap(sharedAdmissionBodies.last)
+        var sharedUIAdmission = activeSharedUIAdmission
         let minimumCoreSmokeLaunchKeyAddition =
             "        if e.get(\"WORKER_S10_4_MINIMUM_CORE_SMOKE_ID\", \"none\") != \"none\":\n" +
                 "            expected_launch_keys.update(\"TEST_RUNNER_CI_S10_4_MINIMUM_CORE_SMOKE_\" + suffix for suffix in (\"ID\", \"HEAD\", \"REF\", \"EXECUTION_LANE\"))\n"
@@ -667,7 +668,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 1,
                 shardID
             )
-            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: h412AdmissionSource, with: "").replacingOccurrences(of: sharedAdmission, with: "").replacingOccurrences(of: simulatorAppLifecycleSource, with: "").replacingOccurrences(of: incidentCollectorSource, with: "").replacingOccurrences(of: incidentStartSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
+            XCTAssertEqual(uiSmokeSource.replacingOccurrences(of: h412AdmissionSource, with: "").replacingOccurrences(of: activeSharedUIAdmission, with: "").replacingOccurrences(of: simulatorAppLifecycleSource, with: "").replacingOccurrences(of: incidentCollectorSource, with: "").replacingOccurrences(of: incidentStartSource, with: "").components(separatedBy: shardID).count - 1, 1, shardID)
         }
         let bypassedAccessibilityRefreshShards = [
             "s10.4.current.default-dark",
@@ -1082,8 +1083,43 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             of: "'''", range: sharedExecutable0Start.upperBound..<sharedPayloadEmitterSource.endIndex
         ))
         let sharedExecutable0 = String(sharedPayloadEmitterSource[sharedExecutable0Start.upperBound..<sharedExecutable0End.lowerBound])
-        XCTAssertEqual(sharedExecutable0.utf8.count, 9_480)
-        XCTAssertEqual(Data(sharedExecutable0.utf8).sha256, "C2FF5EF0452479A8450C1E3696780A2538095ACE5129180E91DB9F7A5A7DD1C0")
+        // K505: bind the active H418 emitted driver, then remove only its two causal edits.
+        XCTAssertEqual(sharedExecutable0.utf8.count, 10_223)
+        XCTAssertEqual(Data(sharedExecutable0.utf8).sha256, "D619CDB071672495BDBC79AB085EDAD64A73DBBCA3FA366E2D4F1E13541AEC24")
+        let h418SharedDriverEnvironment =
+            "    smoke_id=os.environ.get('WORKER_S10_4_MINIMUM_CORE_SMOKE_ID','none')\n" +
+            "    if smoke_id!='none':\n" +
+            "        assert smoke_id==kernel['smoke_contract'](root)['contractID']\n" +
+            "        c['nativeMode']=smoke_id\n" +
+            "        for key,value in zip(kernel['SMOKE_KEYS'],[smoke_id,os.environ['GITHUB_SHA'],os.environ['GITHUB_REF'],kernel['SMOKE_LANE']]):\n" +
+            "            assert key not in os.environ and 'TEST_RUNNER_'+key not in os.environ\n" +
+            "            append_env(key,value); append_env('TEST_RUNNER_'+key,value)\n"
+        let h418SharedDriverSmokeBranch =
+            "    if smoke_id!='none':\n" +
+            "        assert mapping=={}\n" +
+            "        admission_output.mkdir()\n" +
+            "        matrix=kernel['smoke_binding'](root,kernel['load'](restored/'admission.json'))\n" +
+            "        save(admission_output/'matrix-binding.json',matrix)\n" +
+            "    else:\n" +
+            "        subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--admit-shared-selection',str(restored),\n" +
+            "                        c['shardID'],segment,str(source_map),str(admission_output)],cwd=root,check=True)\n" +
+            "        matrix=kernel['load'](admission_output/'matrix-binding.json')\n"
+        let legacySharedDriverAdmissionBranch =
+            "    subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--admit-shared-selection',str(restored),\n" +
+            "                    c['shardID'],segment,str(source_map),str(admission_output)],cwd=root,check=True)\n" +
+            "    matrix=kernel['load'](admission_output/'matrix-binding.json')\n"
+        XCTAssertEqual(h418SharedDriverEnvironment.utf8.count, 489)
+        XCTAssertEqual(Data(h418SharedDriverEnvironment.utf8).sha256, "97C6AD56B65B0DE33209486E6BD6DAED2CAAA277FD43E433F69240361AAFEBF4")
+        XCTAssertEqual(sharedExecutable0.components(separatedBy: h418SharedDriverEnvironment).count - 1, 1)
+        XCTAssertEqual(h418SharedDriverSmokeBranch.utf8.count - legacySharedDriverAdmissionBranch.utf8.count, 254)
+        XCTAssertEqual(Data(h418SharedDriverSmokeBranch.utf8).sha256, "A95C07F3FDE17AC7CB76064A176922A8C3123683CD1EA77DC7BE6163B851CA4B")
+        XCTAssertEqual(Data(legacySharedDriverAdmissionBranch.utf8).sha256, "924593B14A9DD2A79EC1EB0AF06A9D25BB0A8216B931B5F7B92947D53077FA3B")
+        XCTAssertEqual(sharedExecutable0.components(separatedBy: h418SharedDriverSmokeBranch).count - 1, 1)
+        let preH418SharedExecutable0 = sharedExecutable0
+            .replacingOccurrences(of: h418SharedDriverEnvironment, with: "")
+            .replacingOccurrences(of: h418SharedDriverSmokeBranch, with: legacySharedDriverAdmissionBranch)
+        XCTAssertEqual(preH418SharedExecutable0.utf8.count, 9_480)
+        XCTAssertEqual(Data(preH418SharedExecutable0.utf8).sha256, "C2FF5EF0452479A8450C1E3696780A2538095ACE5129180E91DB9F7A5A7DD1C0")
         XCTAssertTrue(sharedPayloadEmitterSource.contains("if arguments == [\"emit-shared-request-driver\"]:"))
         XCTAssertTrue(sharedPayloadEmitterSource.contains("sys.stdout.buffer.write(SHARED_REQUEST_DRIVER_SOURCE.encode(\"utf-8\"))"))
         XCTAssertTrue(workflowSource.contains("python3 Scripts/s10-4-build-payload.py emit-shared-request-driver > \"$RUNNER_TEMP/s10-4-shared-driver.py\""))
@@ -1093,11 +1129,34 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             of: "'''", range: sharedExecutable1Start.upperBound..<sharedPayloadEmitterSource.endIndex
         ))
         let sharedExecutable1 = String(sharedPayloadEmitterSource[sharedExecutable1Start.upperBound..<sharedExecutable1End.lowerBound])
+        // K505: the H418 smoke branch precedes K486; prove both inverses in order.
+        XCTAssertEqual(sharedExecutable1.utf8.count, 3_535)
+        XCTAssertEqual(Data(sharedExecutable1.utf8).sha256, "FA81B8403AFF780825B5815A40C9FB41B6CA6079E0DB10E2539EE75E01A1F9FF")
+        let h418SharedUIEvidenceBranch =
+            "if c.get('nativeMode')==k['SMOKE_ID']:\n" +
+            "    k['smoke_environment'](os.environ,root,os.environ['WORKER_S10_4_MINIMUM_CORE_SMOKE_ID'])\n" +
+            "    retained=artifact/'s10-4-smoke-attachments'\n" +
+            "    k['copy_tree'](Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments',retained)\n" +
+            "    save(artifact/'s10-4-smoke-environment.json',k['decode_bytes'](os.environ['CI_S10_4_GITHUB_ENVIRONMENT'].encode()))\n" +
+            "    save(artifact/'s10-4-minimum-core-smoke-proof.json',k['smoke_proof'](root,artifact,reference))\n" +
+            "elif segment!='none':\n"
+        let legacySharedUIEvidenceBranch =
+            "if segment!='none':\n"
+        XCTAssertEqual(h418SharedUIEvidenceBranch.utf8.count - legacySharedUIEvidenceBranch.utf8.count, 496)
+        XCTAssertEqual(Data(h418SharedUIEvidenceBranch.utf8).sha256, "776A7542B02DF08E4659B560D2A9CAEA2AEC172B94A7F0FABA9377205B511D11")
+        XCTAssertEqual(Data(legacySharedUIEvidenceBranch.utf8).sha256, "61F6E83D17DC3854981300B2EABABA25ED9931D1549791223243541D8605DDEB")
+        XCTAssertEqual(sharedExecutable1.components(separatedBy: h418SharedUIEvidenceBranch).count - 1, 1)
+        let preH418SharedExecutable1 = sharedExecutable1.replacingOccurrences(
+            of: h418SharedUIEvidenceBranch,
+            with: legacySharedUIEvidenceBranch
+        )
+        XCTAssertEqual(preH418SharedExecutable1.utf8.count, 3_039)
+        XCTAssertEqual(Data(preH418SharedExecutable1.utf8).sha256, "EF5C175F86C9EF21E6615B54C4981E30E7B1A27EEB447A2FC74CB77B1B473CB0")
         // K486 retains raw shared exports before collection; all other native gates stay exact.
         let sharedAttachmentRetention = "if segment!='none':\n    retained=artifact/'s10-4-shared-raw-attachments'\n    k['copy_tree'](Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments',retained)\n    subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--collect-shared-segment',str(artifact),\n                    str(retained),c['shardID'],segment,\n                    os.environ['CI_S10_4_MATRIX_BINDING']],cwd=root,check=True)\n"
         let priorSharedAttachmentCollection = "if segment!='none':\n    subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--collect-shared-segment',str(artifact),\n                    str(Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments'),c['shardID'],segment,\n                    os.environ['CI_S10_4_MATRIX_BINDING']],cwd=root,check=True)\n"
         XCTAssertEqual(sharedExecutable1.components(separatedBy: sharedAttachmentRetention).count - 1, 1)
-        let originalSharedExecutable1 = sharedExecutable1.replacingOccurrences(
+        let originalSharedExecutable1 = preH418SharedExecutable1.replacingOccurrences(
             of: sharedAttachmentRetention, with: priorSharedAttachmentCollection
         )
         XCTAssertEqual(originalSharedExecutable1.utf8.count, 2_948)
