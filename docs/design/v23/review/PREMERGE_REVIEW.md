@@ -51,6 +51,14 @@ Batch-2 source completion: resumed the saved checkpoint and finished all compile
 
 ## What still blocks a safe final merge
 
+### Resumed review checkpoint — 2026-09-10
+
+The owner explicitly resumed work after saved policy checkpoint `327a4e2567c2a7d442e7f134b0c8ed235e8b2167`. Both testing deferrals remain unchanged: minimum-OS verification indefinitely deferred; S10.5 physical verification deferred until after App Store release and non-blocking under its explicit owner exception. The original S10.6 task still owns its checkout and acceptance process. Its preparation CI success is not final S10.6 or expansion acceptance.
+
+The next original review diagnostic, [33980870020](https://github.com/Asset-Rounds/AssetRounds/actions/runs/33980870020), failed build-for-testing at `4175e75da9c4fb1a51220a2fe463142696507773`. Targeted units and UI were skipped. Complete job/build logs and artifact `9974093015` are preserved under `C:\AssetRounds-v23-review-evidence\33980870020`; all 22 artifact-manifest members match their SHA-256 values. The API-reported ZIP digest is retained, but the ZIP transport digest was not independently recomputed because the artifact was extracted directly. The 14 error lines represent seven unique normalized diagnostics in two files, not seven independent product defects.
+
+Batch 3 corrects the extra closing brace after `PlacementPoseMutationV1.expectedRevision(for:)`, separates its adjacent joined OR/negation operator, and parenthesizes the remaining backup-restore guard's target-receipt map closure. Source review verifies declaration ownership and unchanged predicates/failure behavior. The existing 50-case card-contract and 31-case controller checks pass; these are static/Python checks, not native Swift or feature-adoption evidence. A fresh exact-head native diagnostic remains required.
+
 1. Reconcile against the accepted Phase 10 head when the owner declares that work ready. Preserve branding, original navigation and sole-writer ownership; do not blindly merge old app roots over the accepted app.
 2. Complete production composition and feature-root adoption explicitly deferred in V23. The incumbent shell still launches; a production-root type existing in the source does not mean V23 is wired into the running app.
 3. Compile the combined source and test targets, resolve genuine compiler/test failures, run required card-native selectors and golden-path parity on that exact integrated head. Existing V23 UI test skip paths are not test passes.

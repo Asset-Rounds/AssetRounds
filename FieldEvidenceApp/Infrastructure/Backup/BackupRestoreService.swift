@@ -5181,9 +5181,9 @@ private extension BackupRestoreService {
                           $0 == semantic.reversesMutationID
                       }) ?? false,
                       semantic.reversalReceiptIdentity == targetReceipt.identity,
-                      targetReceipt.reversesMutationID.map {
+                      targetReceipt.reversesMutationID.map({
                           $0 == semantic.reversesMutationID
-                      } ?? false,
+                      }) ?? false,
                       semantic.resultingRevision == sourceReceipt.resultingRevision,
                       !expectedRevisionChanged,
                       !resultingRevisionChanged,

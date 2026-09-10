@@ -2,9 +2,9 @@
 
 Selected task: `V23-REVIEW-20260905`.
 
-Current execution disposition: **PAUSED by owner, 2026-09-10**, after the documentation-only policy/checkpoint update in [OWNER_DEFERRALS_20260910.md](OWNER_DEFERRALS_20260910.md). The owner will return with further instructions after the separate S10.6 work. Do not resume this review, compile/test, merge, delete branches, or schedule follow-up work automatically. Earlier next-run and continuation paragraphs below are preserved history, not current dispatch instructions.
+Current execution disposition: **RESUMED by explicit owner instruction, 2026-09-10**: "Resume it, lets continue". The prior pause checkpoint `327a4e2567c2a7d442e7f134b0c8ed235e8b2167` and [OWNER_DEFERRALS_20260910.md](OWNER_DEFERRALS_20260910.md) remain historical evidence. Resume this existing isolated correctness review, causal fixes and their bounded native verification; do not replay consumed earlier next-run instructions. The separate S10.6 task retains its original checkout, authority, refs and evidence ownership; no merge, main advancement, branch deletion, Card 135 action or release operation is authorized by this resumed review.
 
-The owner's later direct S10 clarification, verified against the source receipt identified in that policy, makes S10.5 **DEFERRED and NON-BLOCKING** for S10.6, phase completion and future expansion integration. Physical testing is deferred until after App Store release with explicit-owner-only resumption; minimum-OS verification remains indefinitely deferred. This narrow prerequisite exception does not waive any other integration/release gate, supply missing evidence, or authorize a merge during this pause.
+The owner's later direct S10 clarification, verified against the source receipt identified in that policy, makes S10.5 **DEFERRED and NON-BLOCKING** for S10.6, phase completion and future expansion integration. Physical testing is deferred until after App Store release with explicit-owner-only resumption; minimum-OS verification remains indefinitely deferred. This narrow prerequisite exception does not waive any other integration/release gate, supply missing evidence, or authorize an immediate merge.
 
 Owner request: review V23's implementation and all cards for major defects before future integration, fix demonstrated problems, update active model guidance for Astra, and report readiness and remaining requirements. This is a new review task, not a replay of inherited S9 or an acceptance amendment to historical V23 cards.
 
@@ -27,11 +27,19 @@ Read-only review covers the full V23 card register, source, tests, project, work
 - `docs/design/v23/review/CURRENT_REVIEW.md`: current scope and observed evidence.
 - `docs/design/v23/review/PREMERGE_REVIEW.md`: findings, corrections, coverage, and remaining integration requirements.
 - `docs/design/v23/review/CARD_COVERAGE.md`: all-146-card read-only evidence inventory, with historical statuses preserved.
-- `docs/design/v23/review/OWNER_DEFERRALS_20260910.md`: latest owner deferral policy and nonaccepting pause checkpoint. The current documentation-only delta is limited to this file, `AGENTS.md`, and `CURRENT_REVIEW.md`; no product, CI, frozen authority, or Phase 10 path is changed.
+- `docs/design/v23/review/OWNER_DEFERRALS_20260910.md`: saved owner deferral policy and nonaccepting pause checkpoint; preserve its recorded source messages and the subsequent explicit resumption above. The earlier three-document pause update is complete, not a restriction on the resumed causal correction scope below.
 
 Additional exact causal source/test paths will be recorded here after diagnosis. Canonical V23 card statuses, sealed plans and receipts, V30 worktree, `C:\AssetRounds`, Phase 10 refs/runs, and `main` are not review mutation targets. No merge or release is performed by this task.
 
 ## Diagnosed correction scope
+
+### Compiler-confirmed batch 3 after owner resumption
+
+Original run `33980870020`, job `101345726120`, failed build-for-testing at exact source `4175e75da9c4fb1a51220a2fe463142696507773` and skipped targeted unit/UI tests. Its log identifies two remaining parser sites: an extra closing brace at the end of `PlacementPoseMutationV1.expectedRevision(for:)`, reported at the following top-level brace, and an unparenthesized `targetReceipt.reversesMutationID.map` closure in a multi-condition backup-restore guard. The policy-only commits through `327a4e2` leave native source, tests, selector and workflow unchanged from that failed head.
+
+Correct only these syntax defects and the independently identified adjacent joined `||!` token in `PlacementPoseMutationV1.validate()` in `FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift` and `FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift`, preserving all predicates, branch/error behavior, fields, declaration ownership and test expectations. Separating `!events.isEmpty || !observations.isEmpty` preserves the existing intended OR/negation predicate; the bounded two-file scan found exactly one such joined logical/negation token. Existing review documents may record the original audit, exact changes and results. No dependency, schema, source exclusion, unit selector, workflow, watchdog, asset, S10 or V30 change is included.
+
+After original-evidence inspection and independent source review, the next exact-head N8/UI-false diagnostic uses the unchanged existing 15-test selector and ordinary `ios-ci.yml` on this review branch. Its unanswered question is whether the corrected source builds and those regressions execute; a parser or unit pass does not establish all-card, runtime-adoption, branded integration or release acceptance. Preserve every failed original and dispatch no duplicate or unchanged known-failing candidate.
 
 Missing-inner-`try` closure family: only insert required throwing annotations at source-proven calls in these paths; no semantic rewrite:
 
