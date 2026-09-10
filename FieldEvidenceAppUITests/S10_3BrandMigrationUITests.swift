@@ -22158,36 +22158,47 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             return CGRect(x: live.minX, y: top, width: live.width, height: bottom - top)
         }
-        let before = try observe()
-        let beforeViewport = try viewport(application: before.application, scroll: before.scroll, navigation: before.navigation, tab: before.tab)
+        var before = try observe()
+        var beforeViewport = try viewport(application: before.application, scroll: before.scroll, navigation: before.navigation, tab: before.tab)
+        var remainingGestureAllowance: Int?
         let diagnosticScalar: (CGFloat) -> Any = { $0.isFinite ? Double($0) as Any : NSNull() }
-        let beforeContext: [String: Any] = [
-            "application": auditFrameObject(before.application), "scroll": auditFrameObject(before.scroll),
-            "navigation": auditFrameObject(before.navigation), "tab": auditFrameObject(before.tab),
-            "field": auditFrameObject(before.field), "controls": before.controls.map { auditFrameObject($0) },
-            "viewport": auditFrameObject(beforeViewport),
-        ]
-        if !beforeViewport.contains(before.field) {
+        while !beforeViewport.contains(before.field) {
+            guard remainingGestureAllowance.map({ $0 > 0 }) ?? true else {
+                throw AutomationConfigurationError.invalid("Double preflight focus exhausted its frozen movement allowance")
+            }
+            let beforeContext: [String: Any] = [
+                "application": auditFrameObject(before.application), "scroll": auditFrameObject(before.scroll),
+                "navigation": auditFrameObject(before.navigation), "tab": auditFrameObject(before.tab),
+                "field": auditFrameObject(before.field), "controls": before.controls.map { auditFrameObject($0) },
+                "viewport": auditFrameObject(beforeViewport),
+            ]
             let lowerShift = beforeViewport.minY - before.field.minY
             let upperShift = beforeViewport.maxY - before.field.maxY
             let receiverTop = beforeViewport.minY + 24
             let receiverBottom = beforeViewport.maxY - 24
+            let receiverCapacity = receiverBottom - receiverTop
             let lowerCommand = max(CGFloat(44), lowerShift)
-            let upperCommand = min(upperShift, receiverBottom - receiverTop)
-            let dragDistance = lowerCommand + (upperCommand - lowerCommand) / 2
+            let upperCommand = min(upperShift, receiverCapacity)
+            let isCoarseStroke = lowerCommand > receiverCapacity
+            // A coarse stroke moves only inside the live receiver; it does not promise containment.
+            // Once containment is reachable in one stroke, preserve the existing interior election.
+            let dragDistance = isCoarseStroke
+                ? receiverCapacity
+                : lowerCommand + (upperCommand - lowerCommand) / 2
             let live = before.scroll.intersection(before.application)
             let gutterLeft = live.minX
             let gutterRight = ([live.maxX, before.field.minX] + before.controls.map { $0.minX }).min()!
             guard before.field.minY < beforeViewport.minY,
                   before.field.minX >= beforeViewport.minX, before.field.maxX <= beforeViewport.maxX,
                   before.field.height <= beforeViewport.height,
-                  [lowerShift, upperShift, lowerCommand, upperCommand, dragDistance, receiverTop, receiverBottom, gutterLeft, gutterRight].allSatisfy({ $0.isFinite }),
-                  lowerCommand <= upperCommand,
+                  [lowerShift, upperShift, lowerCommand, upperCommand, dragDistance, receiverTop, receiverBottom, receiverCapacity, gutterLeft, gutterRight].allSatisfy({ $0.isFinite }),
+                  receiverCapacity >= 44, lowerCommand <= upperShift,
+                  isCoarseStroke || lowerCommand <= upperCommand,
                   dragDistance >= 44, dragDistance <= upperShift,
                   dragDistance <= receiverBottom - receiverTop,
                   gutterRight > gutterLeft else {
                 printJSONLine(prefix: "S10_4_DOUBLE_PREFLIGHT_FOCUS_FAILURE", object: ["diagnosticOnly": true, "finalAcceptanceEligible": false, "atomicSnapshot": false, "shardID": shard.shardID, "ordinal": shard.ordinal, "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID, "scope": "initial-preflight-post-ready-focus", "stage": "infeasible", "before": beforeContext, "lowerShift": diagnosticScalar(lowerShift), "upperShift": diagnosticScalar(upperShift), "dragDistance": diagnosticScalar(dragDistance), "receiverTop": diagnosticScalar(receiverTop), "receiverBottom": diagnosticScalar(receiverBottom), "gutterLeft": diagnosticScalar(gutterLeft), "gutterRight": diagnosticScalar(gutterRight)])
-                throw AutomationConfigurationError.invalid("Double preflight focus cannot certify one downward drag")
+                throw AutomationConfigurationError.invalid("Double preflight focus cannot certify a bounded downward drag")
             }
             let receiverX = gutterLeft + (gutterRight - gutterLeft) / 2
             let startPoint = CGPoint(x: receiverX, y: receiverTop)
@@ -22207,10 +22218,34 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
             let after = try observe()
             let afterViewport = try viewport(application: after.application, scroll: after.scroll, navigation: after.navigation, tab: after.tab)
-            guard after.field.minY > before.field.minY, afterViewport.contains(after.field) else {
+            let observedMovement = after.field.minY - before.field.minY
+            guard after.application == before.application, after.scroll == before.scroll,
+                  after.navigation == before.navigation, after.tab == before.tab,
+                  afterViewport == beforeViewport,
+                  after.field.minX == before.field.minX, after.field.size == before.field.size,
+                  observedMovement.isFinite, observedMovement > 0,
+                  after.field.maxY <= afterViewport.maxY,
+                  isCoarseStroke || afterViewport.contains(after.field) else {
                 printJSONLine(prefix: "S10_4_DOUBLE_PREFLIGHT_FOCUS_FAILURE", object: ["diagnosticOnly": true, "finalAcceptanceEligible": false, "atomicSnapshot": false, "shardID": shard.shardID, "ordinal": shard.ordinal, "requirementID": shard.requirementID, "deviceProfileID": shard.deviceProfileID, "scope": "initial-preflight-post-ready-focus", "stage": "insufficient-movement", "before": beforeContext, "afterApplication": auditFrameObject(after.application), "afterScroll": auditFrameObject(after.scroll), "afterNavigation": auditFrameObject(after.navigation), "afterTab": auditFrameObject(after.tab), "afterField": auditFrameObject(after.field), "afterControls": after.controls.map { auditFrameObject($0) }, "afterViewport": auditFrameObject(afterViewport), "dragDistance": diagnosticScalar(dragDistance), "observedMovement": diagnosticScalar(after.field.minY - before.field.minY)])
                 throw AutomationConfigurationError.invalid("Double preflight focus drag did not fully expose the field")
             }
+            if let allowance = remainingGestureAllowance {
+                remainingGestureAllowance = allowance - 1
+            } else {
+                let remainingDistance = max(0, afterViewport.minY - after.field.minY)
+                let planningGain = max(CGFloat(44), observedMovement)
+                let plannedGestures = (remainingDistance / planningGain).rounded(.up)
+                guard remainingDistance.isFinite, planningGain.isFinite,
+                      plannedGestures.isFinite, plannedGestures >= 0,
+                      plannedGestures < CGFloat(Int.max) else {
+                    throw AutomationConfigurationError.invalid("Double preflight focus movement allowance is not representable")
+                }
+                // Freeze once from this direction's first actual movement, not an assumed future gain.
+                // Later actions cannot enlarge the allowance and must independently prove progress.
+                remainingGestureAllowance = Int(plannedGestures)
+            }
+            before = after
+            beforeViewport = afterViewport
         }
         guard zone.isHittable else {
             throw AutomationConfigurationError.invalid("Double preflight exposed field is not tappable")

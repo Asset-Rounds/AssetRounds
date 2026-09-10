@@ -5347,8 +5347,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             guard [lowerShift, upperShift, capacity].allSatisfy({ $0.isFinite }) else { return nil }
             let lower = max(44, lowerShift)
             let upper = min(upperShift, capacity)
-            let command = lower + (upper - lower) / 2
-            guard [lower, upper, command].allSatisfy({ $0.isFinite }), lower <= upper,
+            let coarse = lower > capacity
+            let command = coarse ? capacity : lower + (upper - lower) / 2
+            guard [lower, upper, command].allSatisfy({ $0.isFinite }),
+                  capacity >= 44, lower <= upperShift, coarse || lower <= upper,
                   command >= 44, command <= upperShift, command <= capacity else { return nil }
             return command
         }
@@ -5363,6 +5365,58 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertNil(doubleFocusCommandModel(lowerShift: Double.nan, upperShift: 100, capacity: 474))
         XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: Double.infinity, capacity: 474))
         XCTAssertNil(doubleFocusCommandModel(lowerShift: 10, upperShift: 100, capacity: Double.infinity))
+        // Far fields select only reachable command space; native movement remains a separate proof.
+        XCTAssertEqual(doubleFocusCommandModel(lowerShift: 1309.5, upperShift: 1765.5, capacity: 474), 474)
+        XCTAssertEqual(doubleFocusCommandModel(lowerShift: 2000, upperShift: 2500, capacity: 500), 500)
+        XCTAssertEqual(doubleFocusCommandModel(lowerShift: 474, upperShift: 930, capacity: 474), 474)
+        XCTAssertEqual(doubleFocusCommandModel(lowerShift: 474.5, upperShift: 930.5, capacity: 474), 474)
+        XCTAssertNil(doubleFocusCommandModel(lowerShift: 1309.5, upperShift: 1300, capacity: 474))
+        func doubleFocusAllowanceModel(remaining: Double, movement: Double) -> Int? {
+            guard remaining.isFinite, remaining >= 0, movement.isFinite, movement > 0 else { return nil }
+            let count = (remaining / max(44, movement)).rounded(.up)
+            guard count.isFinite, count >= 0, count < Double(Int.max) else { return nil }
+            return Int(count)
+        }
+        XCTAssertEqual(doubleFocusAllowanceModel(remaining: 909.5, movement: 400), 3)
+        XCTAssertEqual(doubleFocusAllowanceModel(remaining: 88, movement: 0.000000001), 2)
+        XCTAssertEqual(doubleFocusAllowanceModel(remaining: 0, movement: 75.5), 0)
+        XCTAssertNil(doubleFocusAllowanceModel(remaining: 100, movement: 0))
+        XCTAssertNil(doubleFocusAllowanceModel(remaining: 100, movement: -1))
+        XCTAssertNil(doubleFocusAllowanceModel(remaining: 100, movement: Double.nan))
+        XCTAssertNil(doubleFocusAllowanceModel(remaining: Double.infinity, movement: 44))
+        XCTAssertNil(doubleFocusAllowanceModel(remaining: Double.greatestFiniteMagnitude, movement: 44))
+        func doubleFocusProgressModel(before: Double, after: Double, coarse: Bool, unchanged: Bool = true) -> Bool {
+            let movement = after - before
+            return unchanged && movement.isFinite && movement > 0 && after + 66 <= 602
+                && (coarse || (after >= 80 && after + 66 <= 602))
+        }
+        XCTAssertFalse(doubleFocusProgressModel(before: -5.5, after: 70, coarse: false))
+        XCTAssertTrue(doubleFocusProgressModel(before: -5.5, after: 274.25, coarse: false))
+        XCTAssertTrue(doubleFocusProgressModel(before: -1229.5, after: -829.5, coarse: true))
+        XCTAssertFalse(doubleFocusProgressModel(before: -1229.5, after: -1229.5, coarse: true))
+        XCTAssertFalse(doubleFocusProgressModel(before: -1229.5, after: -1230, coarse: true))
+        XCTAssertFalse(doubleFocusProgressModel(before: -1229.5, after: 537, coarse: true))
+        XCTAssertFalse(doubleFocusProgressModel(before: -1229.5, after: Double.nan, coarse: true))
+        XCTAssertFalse(doubleFocusProgressModel(before: -1229.5, after: Double.infinity, coarse: true))
+        XCTAssertFalse(doubleFocusProgressModel(before: -1229.5, after: -829.5, coarse: true, unchanged: false))
+        func doubleFocusReceiverModel(left: Double, right: Double, startY: Double, endY: Double, obstacle: CGRect) -> Bool {
+            let x = left + (right - left) / 2
+            return [left, right, startY, endY, x].allSatisfy { $0.isFinite }
+                && right > left && startY >= 104 && endY <= 578
+                && (x < obstacle.minX || x > obstacle.maxX || endY < obstacle.minY || startY > obstacle.maxY)
+        }
+        XCTAssertTrue(doubleFocusReceiverModel(left: 0, right: 31.5, startY: 104, endY: 578,
+                                              obstacle: CGRect(x: 32, y: 100.5, width: 311, height: 373.5)))
+        XCTAssertFalse(doubleFocusReceiverModel(left: 0, right: 0, startY: 104, endY: 578,
+                                               obstacle: CGRect(x: 32, y: 100.5, width: 311, height: 373.5)))
+        XCTAssertFalse(doubleFocusReceiverModel(left: 0, right: 32, startY: 104, endY: 578,
+                                               obstacle: CGRect(x: 16, y: 300, width: 20, height: 20)))
+        XCTAssertFalse(doubleFocusReceiverModel(left: 0, right: 31.5, startY: 104, endY: 579,
+                                               obstacle: CGRect(x: 32, y: 100.5, width: 311, height: 373.5)))
+        // Completion is tested before exhaustion; a final contained result is not discarded.
+        let frozenAllowance = try XCTUnwrap(doubleFocusAllowanceModel(remaining: 909.5, movement: 400))
+        XCTAssertEqual(frozenAllowance, 3)
+        XCTAssertEqual((0...frozenAllowance).map { frozenAllowance - $0 }, [3, 2, 1, 0])
         let doubleReadyObservedBlock = "        var readyObservationOrdinal = 0\n        func observe() throws -> (application: CGRect, scroll: CGRect, navigation: CGRect, tab: CGRect, field: CGRect, controls: [CGRect]) {\n            readyObservationOrdinal += 1\n            let retainReadyOperands = minimumSegment == .segment1\n                && shard.locale == \"en-US-double-length\" && readyObservationOrdinal == 1\n            var readyOperands: [String: Any] = [:]\n            let readyOperandKeys = [\"screensCount\", \"zoneCount\", \"navigationCount\", \"tabCount\", \"beginCount\", \"applicationState\", \"preflightExists\", \"detailExists\", \"zoneExists\", \"zoneEnabled\", \"zoneType\", \"zoneIdentifier\", \"keyboardExists\", \"focusedZoneCount\", \"zoneLabel\", \"zoneValue\", \"zonePlaceholder\", \"beginExists\", \"beginEnabled\", \"ackCount0\", \"ackCount1\", \"ackCount2\", \"ackValue0\", \"ackValue1\", \"ackValue2\"]\n            if retainReadyOperands {\n                for key in readyOperandKeys { readyOperands[key] = [\"status\": \"not-reached\"] }\n            }\n            func observed<T>(_ key: String, _ value: T) -> T {\n                if retainReadyOperands {\n                    let description = String(reflecting: value)\n                    readyOperands[key] = [\"status\": \"reached\", \"encoding\": \"swift-reflecting\",\n                        \"value\": String(description.prefix(256)), \"truncated\": description.count > 256]\n                }\n                return value\n            }\n            guard observed(\"screensCount\", screens.count) == 1, observed(\"zoneCount\", zoneFields.count) == 1,\n                  observed(\"navigationCount\", navigationBars.count) == 1, observed(\"tabCount\", tabBars.count) == 1,\n                  acknowledgements.enumerated().allSatisfy({ observed(\"ackCount\\($0.offset)\", $0.element.count) == 1 }), observed(\"beginCount\", beginButtons.count) == 1,\n                  observed(\"applicationState\", app.state) == .runningForeground, observed(\"preflightExists\", preflight.exists), !observed(\"detailExists\", detail.exists),\n                  observed(\"zoneExists\", zone.exists), observed(\"zoneEnabled\", zone.isEnabled),\n                  observed(\"zoneType\", zone.elementType) == .textField,\n                  observed(\"zoneIdentifier\", zone.identifier) == \"s3.preflight.time-zone\",\n                  !observed(\"keyboardExists\", app.keyboards.firstMatch.exists),\n                  observed(\"focusedZoneCount\", zoneFields.matching(NSPredicate(format: \"hasKeyboardFocus == true\")).count) == 0,\n                  observed(\"zoneLabel\", zone.label) == identity.label, observed(\"zoneValue\", (zone.value as? String)) == identity.value,\n                  observed(\"zonePlaceholder\", zone.placeholderValue) == identity.placeholder,\n                  acknowledgements.enumerated().allSatisfy({ observed(\"ackValue\\($0.offset)\", ($0.element.firstMatch.value as? String)) == \"0\" }),\n                  observed(\"beginExists\", beginButtons.firstMatch.exists), !observed(\"beginEnabled\", beginButtons.firstMatch.isEnabled) else {\n                if retainReadyOperands {\n                    printJSONLine(prefix: \"S10_4_PREPARATION_CACHED_FAILURE\", object: [\n                        \"diagnosticOnly\": true, \"feedsAcceptanceAssembler\": false,\n                        \"finalAcceptanceEligible\": false, \"atomicSnapshot\": false,\n                        \"scope\": \"double-initial-ready-first-observation\",\n                        \"shardID\": shard.shardID, \"segmentID\": \"minimum-segment-1\",\n                        \"operands\": readyOperands, \"observationOrdinal\": readyObservationOrdinal,\n                        \"observationMeaning\": \"original lazy getter order; not-reached values were not queried\",\n                    ])\n                }\n                throw AutomationConfigurationError.invalid(\"Double preflight focus preparation changed the ready state\")\n            }\n"
         XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: doubleReadyObservedBlock).count - 1, 1)
         let h412NewSignFailure = "        if diagnosticProbe == nil, automationSegment == .none, minimumSegment == .segment2,\n           let shard = automationShard,\n           shard.shardID == \"s10.4.minimum.minimum-os\", shard.ordinal == 8,\n           shard.requirementID == \"minimum_os\",\n           shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\",\n           shard.locale == \"en-US-release\",\n           !signHasKeyboardFocus || !keyboardIsVisible {\n            printJSONLine(prefix: \"S10_4_PREPARATION_CACHED_FAILURE\", object: [\n                \"diagnosticOnly\": true, \"feedsAcceptanceAssembler\": false,\n                \"finalAcceptanceEligible\": false, \"atomicSnapshot\": false,\n                \"scope\": \"minimum-middle-new-sign-post-tap\",\n                \"shardID\": shard.shardID, \"segmentID\": \"minimum-segment-2\",\n                \"focusWait\": [\"status\": \"reached\", \"value\": signHasKeyboardFocus],\n                \"keyboardWait\": [\"status\": \"reached\", \"value\": keyboardIsVisible],\n                \"observationOrder\": [\"focusWait\", \"keyboardWait\"],\n                \"observationMeaning\": \"separate completed original waits; no new native reads\",\n            ])\n        }\n"
@@ -5423,14 +5477,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let live = scroll.intersection(application)",
             "let top = max(live.minY, navigation.maxY) + 16",
             "let bottom = min(live.maxY, min(application.maxY, tab.minY)) - 16",
-            "if !beforeViewport.contains(before.field)",
+            "while !beforeViewport.contains(before.field)",
+            "guard remainingGestureAllowance.map({ $0 > 0 }) ?? true else",
             "let lowerShift = beforeViewport.minY - before.field.minY",
             "let upperShift = beforeViewport.maxY - before.field.maxY",
             "let lowerCommand = max(CGFloat(44), lowerShift)",
-            "let upperCommand = min(upperShift, receiverBottom - receiverTop)",
-            "let dragDistance = lowerCommand + (upperCommand - lowerCommand) / 2",
-            "[lowerShift, upperShift, lowerCommand, upperCommand, dragDistance, receiverTop, receiverBottom, gutterLeft, gutterRight].allSatisfy({ $0.isFinite })",
-            "lowerCommand <= upperCommand",
+            "let receiverCapacity = receiverBottom - receiverTop",
+            "let upperCommand = min(upperShift, receiverCapacity)",
+            "let isCoarseStroke = lowerCommand > receiverCapacity",
+            "let dragDistance = isCoarseStroke\n                ? receiverCapacity\n                : lowerCommand + (upperCommand - lowerCommand) / 2",
+            "[lowerShift, upperShift, lowerCommand, upperCommand, dragDistance, receiverTop, receiverBottom, receiverCapacity, gutterLeft, gutterRight].allSatisfy({ $0.isFinite })",
+            "receiverCapacity >= 44, lowerCommand <= upperShift",
+            "isCoarseStroke || lowerCommand <= upperCommand",
             "let receiverTop = beforeViewport.minY + 24",
             "let receiverBottom = beforeViewport.maxY - 24",
             "let gutterRight = ([live.maxX, before.field.minX] + before.controls.map { $0.minX }).min()!",
@@ -5446,7 +5504,24 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "let origin = screen.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))",
             "start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)",
             "let after = try observe()",
-            "after.field.minY > before.field.minY, afterViewport.contains(after.field)",
+            "let observedMovement = after.field.minY - before.field.minY",
+            "after.application == before.application, after.scroll == before.scroll",
+            "after.navigation == before.navigation, after.tab == before.tab",
+            "afterViewport == beforeViewport",
+            "after.field.minX == before.field.minX, after.field.size == before.field.size",
+            "observedMovement.isFinite, observedMovement > 0",
+            "after.field.maxY <= afterViewport.maxY",
+            "isCoarseStroke || afterViewport.contains(after.field)",
+            "if let allowance = remainingGestureAllowance",
+            "remainingGestureAllowance = allowance - 1",
+            "let remainingDistance = max(0, afterViewport.minY - after.field.minY)",
+            "let planningGain = max(CGFloat(44), observedMovement)",
+            "let plannedGestures = (remainingDistance / planningGain).rounded(.up)",
+            "remainingDistance.isFinite, planningGain.isFinite",
+            "plannedGestures.isFinite, plannedGestures >= 0",
+            "plannedGestures < CGFloat(Int.max)",
+            "remainingGestureAllowance = Int(plannedGestures)",
+            "before = after\n            beforeViewport = afterViewport",
             "guard zone.isHittable else",
         ] {
             XCTAssertTrue(doubleFocusPreparationSource.contains(invariant), invariant)
@@ -5468,6 +5543,53 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(doubleFocusActionSource.contains(invariant), invariant)
         }
         XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: ".press(").count - 1, 1)
+        XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: "while ").count - 1, 1)
+        XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: "remainingGestureAllowance = Int(plannedGestures)").count - 1, 1)
+        XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: "remainingGestureAllowance = allowance - 1").count - 1, 1)
+        XCTAssertEqual(doubleFocusPreparationSource.components(separatedBy: "try observe()").count - 1, 2)
+        let doubleFocusLoopRange = try XCTUnwrap(doubleFocusPreparationSource.range(of: "while !beforeViewport.contains(before.field)"))
+        let doubleFocusBudgetRange = try XCTUnwrap(doubleFocusPreparationSource.range(of: "guard remainingGestureAllowance.map({ $0 > 0 }) ?? true else"))
+        let doubleFocusPressRange = try XCTUnwrap(doubleFocusPreparationSource.range(of: "start.press(forDuration:"))
+        let doubleFocusAfterRange = try XCTUnwrap(doubleFocusPreparationSource.range(of: "let after = try observe()"))
+        let doubleFocusProgressRange = try XCTUnwrap(doubleFocusPreparationSource.range(of: "observedMovement.isFinite, observedMovement > 0"))
+        let doubleFocusFreezeRange = try XCTUnwrap(doubleFocusPreparationSource.range(of: "if let allowance = remainingGestureAllowance"))
+        let doubleFocusAdvanceRange = try XCTUnwrap(doubleFocusPreparationSource.range(of: "before = after\n            beforeViewport = afterViewport"))
+        let doubleFocusHittableRange = try XCTUnwrap(doubleFocusPreparationSource.range(of: "guard zone.isHittable else"))
+        XCTAssertLessThan(doubleFocusLoopRange.lowerBound, doubleFocusBudgetRange.lowerBound)
+        XCTAssertLessThan(doubleFocusBudgetRange.lowerBound, doubleFocusPressRange.lowerBound)
+        XCTAssertLessThan(doubleFocusPressRange.lowerBound, doubleFocusAfterRange.lowerBound)
+        XCTAssertLessThan(doubleFocusAfterRange.lowerBound, doubleFocusProgressRange.lowerBound)
+        XCTAssertLessThan(doubleFocusProgressRange.lowerBound, doubleFocusFreezeRange.lowerBound)
+        XCTAssertLessThan(doubleFocusFreezeRange.lowerBound, doubleFocusAdvanceRange.lowerBound)
+        XCTAssertLessThan(doubleFocusAdvanceRange.lowerBound, doubleFocusHittableRange.lowerBound)
+        let doubleFocusCriticalGates = [
+            "guard remainingGestureAllowance.map({ $0 > 0 }) ?? true else",
+            "let isCoarseStroke = lowerCommand > receiverCapacity",
+            "receiverCapacity >= 44, lowerCommand <= upperShift",
+            "gutterRight > gutterLeft",
+            "live.contains(startPoint), live.contains(endPoint)",
+            "obstacles.allSatisfy({ obstacle in",
+            "let after = try observe()",
+            "afterViewport == beforeViewport",
+            "observedMovement.isFinite, observedMovement > 0",
+            "after.field.maxY <= afterViewport.maxY",
+            "isCoarseStroke || afterViewport.contains(after.field)",
+            "if let allowance = remainingGestureAllowance",
+            "remainingGestureAllowance = allowance - 1",
+            "let planningGain = max(CGFloat(44), observedMovement)",
+            "plannedGestures < CGFloat(Int.max)",
+            "guard zone.isHittable else",
+        ]
+        func hasDoubleFocusCriticalGates(_ source: String) -> Bool {
+            doubleFocusCriticalGates.allSatisfy { source.contains($0) }
+        }
+        XCTAssertTrue(hasDoubleFocusCriticalGates(doubleFocusPreparationSource))
+        // Hostile source omissions must not pass a contract that only checks the public press exists.
+        for gate in doubleFocusCriticalGates {
+            let mutant = doubleFocusPreparationSource.replacingOccurrences(of: gate, with: "")
+            XCTAssertNotEqual(mutant, doubleFocusPreparationSource, gate)
+            XCTAssertFalse(hasDoubleFocusCriticalGates(mutant), gate)
+        }
         XCTAssertEqual(doubleFocusActionSource.components(separatedBy: "zone.tap()").count - 1, 1)
         let doubleReadySubmissionSource = try boundedSource(
             doubleFocusActionSource,
@@ -5511,7 +5633,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         for prohibited in [".tap(", ".press(", ".swipe", "setToggle", "catch", "screenshot", "debugDescription", "captureBaseline("] {
             XCTAssertFalse(doubleReadySubmissionSource.contains(prohibited), prohibited)
         }
-        for prohibited in [".tap(", ".typeText(", ".swipe", "while ", "for attempt", "setToggle", "catch", "screenshot", "debugDescription"] {
+        for prohibited in [".tap(", ".typeText(", ".swipe", "for attempt", "setToggle", "catch", "screenshot", "debugDescription", "remainingGestureAllowance +=", "previousObservedMovement"] {
             XCTAssertFalse(doubleFocusPreparationSource.contains(prohibited), prohibited)
         }
         for prohibited in ["coordinate(", "catch"] {
@@ -5533,14 +5655,14 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                  gutterRight > gutterLeft else {",
             before: "            let receiverX ="
         )
-        XCTAssertTrue(doubleFocusInfeasibleFailure.contains("throw AutomationConfigurationError.invalid(\"Double preflight focus cannot certify one downward drag\")"))
+        XCTAssertTrue(doubleFocusInfeasibleFailure.contains("throw AutomationConfigurationError.invalid(\"Double preflight focus cannot certify a bounded downward drag\")"))
         for prohibited in ["return", ".tap(", ".typeText(", "catch"] {
             XCTAssertFalse(doubleFocusInfeasibleFailure.contains(prohibited), prohibited)
         }
         let doubleFocusPostDragFailure = try boundedSource(
             doubleFocusPreparationSource,
-            from: "            guard after.field.minY > before.field.minY, afterViewport.contains(after.field) else {",
-            before: "        guard zone.isHittable else {"
+            from: "            guard after.application == before.application, after.scroll == before.scroll,",
+            before: "            if let allowance = remainingGestureAllowance {"
         )
         XCTAssertTrue(doubleFocusPostDragFailure.contains("throw AutomationConfigurationError.invalid(\"Double preflight focus drag did not fully expose the field\")"))
         for prohibited in ["return", ".tap(", ".typeText(", "catch"] {
@@ -22292,10 +22414,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_153_837)
+        XCTAssertEqual(uiSource.utf8.count, 1_156_205)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "DC2A0C7D738C60BD28495BBE07C17E586FE4519935C2C44A50A5663492BF1BF2"
+            "5B5DB6CED7E85AD60BCB851C02E017E88BD14CCB2A3D8B9DAE8D5D63E4E54E46"
         )
         let signsRootSource = try text(signsRootPath)
         let observerProjection = try recheckNavigationObserverProjection(
