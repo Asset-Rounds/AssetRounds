@@ -1,7 +1,15 @@
 {
   "finalRCSmoke": {
     "evidenceStatus": "pending_current_s9_1_ci",
-    "selector": "FieldEvidenceAppUITests/S9_1FinalRCUITests"
+    "selector": "FieldEvidenceAppUITests/S9_1FinalRCUITests",
+    "brandedCandidate": {
+      "card": "S10.6",
+      "selector": "FieldEvidenceAppUITests/S10_6BrandReleaseUITests",
+      "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "evidenceStatus": "NOT_RUN",
+      "physicalVerificationStatus": "DEFERRED",
+      "releaseReady": false
+    }
   },
   "phaseBaseSHA": "2e9f8a1bdade83f4510c6c6ff6bd18cefc7343a9",
   "schemaVersion": 1,

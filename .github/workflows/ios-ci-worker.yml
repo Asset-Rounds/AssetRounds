@@ -289,7 +289,10 @@ jobs:
                   .testTimeoutSeconds,
                   .uiTimeoutSeconds,
                   .totalBudgetSeconds
-                ] == [420, 900, 1200, 2520, 4500]
+                ] == (if .taskID == "S10.4"
+                      then [420, 900, 1200, 2520, 4500]
+                      else [300, 900, 1200, 1800, 4500]
+                      end)
               else false
               end;
             exact_keys

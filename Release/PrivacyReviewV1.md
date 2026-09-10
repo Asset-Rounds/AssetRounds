@@ -35,3 +35,16 @@ The app source does not use system-boot-time APIs. The reasons above are limited
 ## Owner gates
 
 Before TestFlight/App Store submission, the owner must validate the final archive privacy report and network behavior, provide the live privacy/terms/support pages and support email, and complete App Store Connect privacy answers from the exact tested binary. Empty collected-data declarations must be changed if the final binary or owner-operated support flow adds collection not evidenced by this source review.
+
+
+## S10.6 branded candidate preparation — 2026-09-10
+
+Status: source review prepared; unsigned S10.6 build and tests pending. Release remains blocked. The S9.1 review above is preserved as historical evidence.
+
+The source inventory in `docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json` binds 36 inspected files and the exact 12 runtime brand assets to native product E `0adebd72ae0226a80e14eaf515ca133072fb1c76`. No package references or vendored frameworks were found in that source tree. Source privacy declarations and their required-reason values are unchanged. This inventory does not establish final archive contents or runtime network behavior.
+
+Accepted S10.4 automated evidence is K `e2189af36a89caf815cf078756341c1f1542f7df`, receipt C `0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3`. Its 469 current-profile visual approvals and 42 accessibility rows remain historical exact-E evidence. Minimum-profile verification stays owner-deferred. Physical S10.5 remains DEFERRED under the owner's development-build timing instruction; no installation or physical result has been supplied.
+
+The store plan now identifies five unedited screenshot candidates from the accepted current Light run, with original artifact paths and PNG hashes. They are not approved store creative. The frozen 1206-by-2622 set fits Apple's 6.3-inch specification, but the required 6.5-inch set (when no 6.9-inch set is provided) is missing. [Apple screenshot specification, checked 2026-09-10](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications).
+
+The accepted asset-use grant remains separate from pending dated trademark, name, claim and URL clearance. Final version/build, live pages, privacy answers, production commerce, archive privacy/supply-chain review, physical proof, final F25 evidence and all six stage receipts remain required. `s10-store-readiness.json` remains planned and `s10-evidence-lock.json` remains a template. Four stage receipts exist; neither a PhysicalExperience nor a Release receipt is manufactured by this preparation.

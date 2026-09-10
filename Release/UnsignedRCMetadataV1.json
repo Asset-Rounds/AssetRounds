@@ -36,5 +36,34 @@
   },
   "releaseReady": false,
   "schemaVersion": 1,
-  "unsigned": true
+  "unsigned": true,
+  "brandRefresh": {
+    "card": "S10.6",
+    "preparationStatus": "prepared_pending_verification",
+    "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+    "acceptedAutomatedEvidenceHead": "e2189af36a89caf815cf078756341c1f1542f7df",
+    "acceptedAutomatedReceiptHead": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
+    "physicalVerificationStatus": "DEFERRED",
+    "storeStatus": "planned",
+    "evidenceLockStatus": "template",
+    "finalF25Status": "NOT_RUN",
+    "releaseReady": false,
+    "pendingGates": [
+      "physical_s10_5",
+      "final_f25_evidence",
+      "store_creative_review",
+      "required_6_5_or_6_9_screenshot_set",
+      "dated_trademark_name_claim_url_clearance",
+      "owner_release_version_build_and_live_inputs",
+      "archive_privacy_supply_chain_review",
+      "all_six_checkpoint_receipts"
+    ],
+    "evidencePaths": {
+      "storeManifest": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
+      "privacyReview": "docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json",
+      "storeReadiness": "docs/design/s10/s10-store-readiness.json",
+      "evidenceLock": "docs/design/s10/s10-evidence-lock.json",
+      "stageCheckpoints": "docs/design/s10/s10-stage-checkpoints.json"
+    }
+  }
 }
