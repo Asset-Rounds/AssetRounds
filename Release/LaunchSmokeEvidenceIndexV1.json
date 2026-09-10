@@ -8,7 +8,10 @@
       "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
       "evidenceStatus": "NOT_RUN",
       "physicalVerificationStatus": "DEFERRED",
-      "releaseReady": false
+      "releaseReady": false,
+      "physicalVerificationBlocking": false,
+      "physicalResumePolicy": "explicit_owner_request_after_app_store_release",
+      "physicalDeferralPolicyID": "owner-s10-5-nonblocking-post-release-20260910"
     }
   },
   "phaseBaseSHA": "2e9f8a1bdade83f4510c6c6ff6bd18cefc7343a9",

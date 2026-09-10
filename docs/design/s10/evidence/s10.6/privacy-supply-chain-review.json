@@ -474,13 +474,11 @@
     "s10_5_receipt": null,
     "physical_device_identity": null,
     "installed_build_identity": null,
-    "blocks_release_ready": true
+    "blocks_release_ready": false,
+    "resume_policy": "explicit_owner_request_after_app_store_release",
+    "deferral_policy_id": "owner-s10-5-nonblocking-post-release-20260910"
   },
   "store_readiness_gaps": [
-    {
-      "gate": "physical_s10_5_evidence",
-      "status": "DEFERRED"
-    },
     {
       "gate": "final_archive_privacy_and_supply_chain_report",
       "status": "NOT_RUN"
@@ -523,7 +521,16 @@
     {
       "claim": "Release is ready.",
       "status": "BLOCKED",
-      "required_evidence": "All S10.6 hard gates, deferred S10.5 physical evidence, final archive review, legal/live inputs, and final F25 evidence."
+      "required_evidence": "All remaining S10.6 hard gates, final archive review, legal/live inputs and final F25 evidence. S10.5 physical verification is a non-blocking deferred follow-up; this is not a physical PASS."
+    }
+  ],
+  "deferred_follow_ups": [
+    {
+      "gate": "physical_s10_5_evidence",
+      "status": "DEFERRED",
+      "blocking": false,
+      "resume_policy": "explicit_owner_request_after_app_store_release",
+      "policy_id": "owner-s10-5-nonblocking-post-release-20260910"
     }
   ]
 }

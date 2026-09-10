@@ -244,14 +244,13 @@
     }
   ],
   "pending_gates": [
-    "physical_s10_5",
     "final_f25_evidence",
     "store_creative_review",
     "required_6_5_or_6_9_screenshot_set",
     "dated_trademark_name_claim_url_clearance",
     "owner_release_version_build_and_live_inputs",
     "archive_privacy_supply_chain_review",
-    "all_six_checkpoint_receipts"
+    "required_checkpoint_receipts"
   ],
   "apple_specification_review": {
     "url": "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",
@@ -273,5 +272,11 @@
     "claim_clearance_status": "PENDING",
     "url_clearance_status": "PENDING",
     "dated_clearance_evidence": null
-  }
+  },
+  "physical_verification_blocking": false,
+  "deferred_follow_ups": [
+    "physical_s10_5"
+  ],
+  "physical_resume_policy": "explicit_owner_request_after_app_store_release",
+  "physical_deferral_policy_id": "owner-s10-5-nonblocking-post-release-20260910"
 }

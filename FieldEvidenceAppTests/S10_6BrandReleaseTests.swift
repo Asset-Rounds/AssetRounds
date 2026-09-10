@@ -6,6 +6,8 @@ final class S10_6BrandReleaseTests: XCTestCase {
     private let productHead = "0adebd72ae0226a80e14eaf515ca133072fb1c76"
     private let evidenceHead = "e2189af36a89caf815cf078756341c1f1542f7df"
     private let receiptHead = "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3"
+    private let physicalResumePolicy = "explicit_owner_request_after_app_store_release"
+    private let physicalDeferralPolicyID = "owner-s10-5-nonblocking-post-release-20260910"
 
     private let historicalMutableSourcePaths: Set<String> = [
         "Release/PrivacyReviewV1.md",
@@ -125,10 +127,8 @@ final class S10_6BrandReleaseTests: XCTestCase {
             screenshotManifest: screenshotManifest,
             privacyReview: privacyReview
         ))
-        XCTAssertFalse(hasPhysicalAndLegalPrerequisites(
-            screenshotManifest: screenshotManifest,
-            privacyReview: privacyReview
-        ))
+        XCTAssertFalse(hasDatedLegalEvidence(screenshotManifest))
+        XCTAssertFalse(hasSupportedPhysicalEvidence(privacyReview))
     }
 
     func testStoreManifestPreservesFiveFrozenSlotsAndClaimProvenanceWithoutMedia() throws {
@@ -142,6 +142,9 @@ final class S10_6BrandReleaseTests: XCTestCase {
         XCTAssertEqual(manifest["accepted_automated_receipt_head"] as? String, receiptHead)
         XCTAssertEqual(manifest["release_ready"] as? Bool, false)
         XCTAssertEqual(manifest["physical_verification_status"] as? String, "DEFERRED")
+        XCTAssertEqual(manifest["physical_verification_blocking"] as? Bool, false)
+        XCTAssertEqual(try strings(manifest, "deferred_follow_ups"), ["physical_s10_5"])
+        XCTAssertEqual(manifest["physical_resume_policy"] as? String, physicalResumePolicy)
 
         let plan = try object(store, "plan")
         let frozenSlots = try rows(plan, "screenshot_slots")
@@ -196,7 +199,9 @@ final class S10_6BrandReleaseTests: XCTestCase {
         }
 
         let pendingGates = try strings(manifest, "pending_gates")
-        XCTAssertTrue(pendingGates.contains("physical_s10_5"))
+        XCTAssertFalse(pendingGates.contains("physical_s10_5"))
+        XCTAssertTrue(pendingGates.contains("required_checkpoint_receipts"))
+        XCTAssertFalse(pendingGates.contains("all_six_checkpoint_receipts"))
         XCTAssertTrue(pendingGates.contains("dated_trademark_name_claim_url_clearance"))
         let clearance = try object(manifest, "rights_and_clearance")
         XCTAssertEqual(clearance["name_clearance_status"] as? String, "PENDING")
@@ -243,24 +248,48 @@ final class S10_6BrandReleaseTests: XCTestCase {
             metadata: falseReady, smoke: smoke, stages: stages, store: store,
             lock: lock, screenshotManifest: screenshots, privacyReview: review
         ))
-        var readyClaimScreenshots = deepCopy(screenshots)
-        readyClaimScreenshots["release_ready"] = true
-        readyClaimScreenshots["physical_verification_status"] = "PASS"
-        var completeClearance = try object(readyClaimScreenshots, "rights_and_clearance")
+
+        var falseBrandReady = deepCopy(metadata)
+        var falseReadyBrand = try object(falseBrandReady, "brandRefresh")
+        falseReadyBrand["releaseReady"] = true
+        falseBrandReady["brandRefresh"] = falseReadyBrand
+        XCTAssertFalse(validatePendingPreparation(
+            metadata: falseBrandReady, smoke: smoke, stages: stages, store: store,
+            lock: lock, screenshotManifest: screenshots, privacyReview: review
+        ))
+
+        var falseStoreReady = deepCopy(screenshots)
+        falseStoreReady["release_ready"] = true
+        XCTAssertFalse(validatePendingPreparation(
+            metadata: metadata, smoke: smoke, stages: stages, store: store,
+            lock: lock, screenshotManifest: falseStoreReady, privacyReview: review
+        ))
+
+        var falsePrivacyReady = deepCopy(review)
+        falsePrivacyReady["release_ready"] = true
+        XCTAssertFalse(validatePendingPreparation(
+            metadata: metadata, smoke: smoke, stages: stages, store: store,
+            lock: lock, screenshotManifest: screenshots, privacyReview: falsePrivacyReady
+        ))
+
+        var legalEvidenceScreenshots = deepCopy(screenshots)
+        var completeClearance = try object(legalEvidenceScreenshots, "rights_and_clearance")
         completeClearance["name_clearance_status"] = "PASS"
         completeClearance["claim_clearance_status"] = "PASS"
         completeClearance["url_clearance_status"] = "PASS"
         completeClearance["trademark_clearance_status"] = "CLEARED"
         completeClearance["trademark_evidence_id"] = "fixture-trademark-clearance"
         completeClearance["dated_clearance_evidence"] = ["evidence_id": "fixture"]
-        readyClaimScreenshots["rights_and_clearance"] = completeClearance
+        legalEvidenceScreenshots["rights_and_clearance"] = completeClearance
+        XCTAssertEqual(
+            legalEvidenceScreenshots["physical_verification_status"] as? String,
+            "DEFERRED"
+        )
+        XCTAssertTrue(hasDatedLegalEvidence(legalEvidenceScreenshots))
 
         var missingPhysical = deepCopy(review)
         missingPhysical["store_readiness_gaps"] = []
-        XCTAssertFalse(hasPhysicalAndLegalPrerequisites(
-            screenshotManifest: readyClaimScreenshots,
-            privacyReview: missingPhysical
-        ))
+        XCTAssertFalse(hasSupportedPhysicalEvidence(missingPhysical))
 
         var fakePhysical = deepCopy(review)
         var physical = try object(fakePhysical, "physical_verification")
@@ -276,22 +305,16 @@ final class S10_6BrandReleaseTests: XCTestCase {
         completedPhysical["s10_5_receipt"] = ["evidence_id": "fixture"]
         physicalComplete["physical_verification"] = completedPhysical
         physicalComplete["store_readiness_gaps"] = []
-        XCTAssertTrue(hasPhysicalAndLegalPrerequisites(
-            screenshotManifest: readyClaimScreenshots,
-            privacyReview: physicalComplete
-        ))
+        XCTAssertTrue(hasSupportedPhysicalEvidence(physicalComplete))
 
-        var missingDatedEvidence = deepCopy(readyClaimScreenshots)
+        var missingDatedEvidence = deepCopy(legalEvidenceScreenshots)
         var clearanceWithoutDatedEvidence = try object(
             missingDatedEvidence,
             "rights_and_clearance"
         )
         clearanceWithoutDatedEvidence.removeValue(forKey: "dated_clearance_evidence")
         missingDatedEvidence["rights_and_clearance"] = clearanceWithoutDatedEvidence
-        XCTAssertFalse(hasPhysicalAndLegalPrerequisites(
-            screenshotManifest: missingDatedEvidence,
-            privacyReview: physicalComplete
-        ))
+        XCTAssertFalse(hasDatedLegalEvidence(missingDatedEvidence))
 
         var emptyPhysicalReceipt = deepCopy(physicalComplete)
         var physicalWithEmptyReceipt = try object(
@@ -300,21 +323,24 @@ final class S10_6BrandReleaseTests: XCTestCase {
         )
         physicalWithEmptyReceipt["s10_5_receipt"] = [String: Any]()
         emptyPhysicalReceipt["physical_verification"] = physicalWithEmptyReceipt
-        XCTAssertFalse(hasPhysicalAndLegalPrerequisites(
-            screenshotManifest: readyClaimScreenshots,
-            privacyReview: emptyPhysicalReceipt
-        ))
+        XCTAssertFalse(hasSupportedPhysicalEvidence(emptyPhysicalReceipt))
 
-        var missingLegalScreenshots = deepCopy(readyClaimScreenshots)
+        var missingLegalScreenshots = deepCopy(legalEvidenceScreenshots)
         var pendingClearance = try object(missingLegalScreenshots, "rights_and_clearance")
         pendingClearance["name_clearance_status"] = "PENDING"
         pendingClearance["claim_clearance_status"] = "PENDING"
         pendingClearance["url_clearance_status"] = "PENDING"
         pendingClearance["dated_clearance_evidence"] = NSNull()
         missingLegalScreenshots["rights_and_clearance"] = pendingClearance
-        XCTAssertFalse(hasPhysicalAndLegalPrerequisites(
-            screenshotManifest: missingLegalScreenshots,
-            privacyReview: physicalComplete
+        XCTAssertFalse(hasDatedLegalEvidence(missingLegalScreenshots))
+
+        var fakePhysicalCheckpoint = deepCopy(stages)
+        var physicalCheckpoints = try rows(fakePhysicalCheckpoint, "checkpoints")
+        physicalCheckpoints.append(["stage": "PhysicalExperience"])
+        fakePhysicalCheckpoint["checkpoints"] = physicalCheckpoints
+        XCTAssertFalse(validatePendingPreparation(
+            metadata: metadata, smoke: smoke, stages: fakePhysicalCheckpoint, store: store,
+            lock: lock, screenshotManifest: screenshots, privacyReview: review
         ))
 
         var fakeReleaseCheckpoint = deepCopy(stages)
@@ -394,12 +420,19 @@ final class S10_6BrandReleaseTests: XCTestCase {
               brand["acceptedAutomatedEvidenceHead"] as? String == evidenceHead,
               brand["acceptedAutomatedReceiptHead"] as? String == receiptHead,
               brand["physicalVerificationStatus"] as? String == "DEFERRED",
+              brand["physicalVerificationBlocking"] as? Bool == false,
+              (brand["deferredFollowUps"] as? [String]) == ["physical_s10_5"],
+              brand["physicalResumePolicy"] as? String == physicalResumePolicy,
+              brand["physicalDeferralPolicyID"] as? String == physicalDeferralPolicyID,
               brand["storeStatus"] as? String == "planned",
               brand["evidenceLockStatus"] as? String == "template",
               brand["finalF25Status"] as? String == "NOT_RUN",
               brand["releaseReady"] as? Bool == false,
               let pendingGates = brand["pendingGates"] as? [String],
               !pendingGates.isEmpty,
+              !pendingGates.contains("physical_s10_5"),
+              pendingGates.contains("required_checkpoint_receipts"),
+              !pendingGates.contains("all_six_checkpoint_receipts"),
               brand["evidencePaths"] as? [String: Any] != nil,
               let finalSmoke = smoke["finalRCSmoke"] as? [String: Any],
               let candidate = finalSmoke["brandedCandidate"] as? [String: Any],
@@ -408,6 +441,9 @@ final class S10_6BrandReleaseTests: XCTestCase {
               candidate["sourceProductHead"] as? String == productHead,
               candidate["evidenceStatus"] as? String == "NOT_RUN",
               candidate["physicalVerificationStatus"] as? String == "DEFERRED",
+              candidate["physicalVerificationBlocking"] as? Bool == false,
+              candidate["physicalResumePolicy"] as? String == physicalResumePolicy,
+              candidate["physicalDeferralPolicyID"] as? String == physicalDeferralPolicyID,
               candidate["releaseReady"] as? Bool == false,
               let checkpoints = stages["checkpoints"] as? [[String: Any]],
               checkpoints.compactMap({ $0["stage"] as? String }) == [
@@ -424,25 +460,34 @@ final class S10_6BrandReleaseTests: XCTestCase {
               (lock["app_store_claims"] as? [Any])?.isEmpty == true,
               screenshotManifest["release_ready"] as? Bool == false,
               screenshotManifest["physical_verification_status"] as? String == "DEFERRED",
+              screenshotManifest["physical_verification_blocking"] as? Bool == false,
+              (screenshotManifest["deferred_follow_ups"] as? [String]) == ["physical_s10_5"],
+              screenshotManifest["physical_resume_policy"] as? String == physicalResumePolicy,
               privacyReview["release_ready"] as? Bool == false,
               let physical = privacyReview["physical_verification"] as? [String: Any],
               physical["status"] as? String == "DEFERRED",
               physical["s10_5_receipt"] is NSNull,
-              physical["blocks_release_ready"] as? Bool == true,
+              physical["blocks_release_ready"] as? Bool == false,
+              physical["resume_policy"] as? String == physicalResumePolicy,
+              physical["deferral_policy_id"] as? String == physicalDeferralPolicyID,
+              let deferred = privacyReview["deferred_follow_ups"] as? [[String: Any]],
+              deferred.count == 1,
+              deferred[0]["gate"] as? String == "physical_s10_5_evidence",
+              deferred[0]["status"] as? String == "DEFERRED",
+              deferred[0]["blocking"] as? Bool == false,
+              deferred[0]["resume_policy"] as? String == physicalResumePolicy,
+              deferred[0]["policy_id"] as? String == physicalDeferralPolicyID,
               let gaps = privacyReview["store_readiness_gaps"] as? [[String: Any]],
-              Set(gaps.compactMap { $0["gate"] as? String }).isSuperset(of: [
-                "physical_s10_5_evidence",
-                "dated_trademark_name_claim_and_url_clearance",
-              ])
+              !gaps.contains(where: { $0["gate"] as? String == "physical_s10_5_evidence" }),
+              gaps.contains(where: {
+                  $0["gate"] as? String == "dated_trademark_name_claim_and_url_clearance"
+              })
         else { return false }
         return true
     }
 
-    // Necessary evidence only. Full release readiness remains outside this bounded test helper.
-    private func hasPhysicalAndLegalPrerequisites(
-        screenshotManifest: [String: Any],
-        privacyReview: [String: Any]
-    ) -> Bool {
+    // Necessary legal evidence only. Full release readiness remains outside this test helper.
+    private func hasDatedLegalEvidence(_ screenshotManifest: [String: Any]) -> Bool {
         guard let clearance = screenshotManifest["rights_and_clearance"] as? [String: Any],
               clearance["grant_accepted"] as? Bool == true,
               let grantEvidenceID = clearance["grant_evidence_id"] as? String,
@@ -455,18 +500,18 @@ final class S10_6BrandReleaseTests: XCTestCase {
               clearance["url_clearance_status"] as? String == "PASS",
               let datedEvidence = clearance["dated_clearance_evidence"] as? [String: Any],
               let datedEvidenceID = datedEvidence["evidence_id"] as? String,
-              !datedEvidenceID.isEmpty,
-              let physical = privacyReview["physical_verification"] as? [String: Any],
+              !datedEvidenceID.isEmpty
+        else { return false }
+        return true
+    }
+
+    // Validates a claimed physical result; DEFERRED is allowed to remain nonblocking elsewhere.
+    private func hasSupportedPhysicalEvidence(_ privacyReview: [String: Any]) -> Bool {
+        guard let physical = privacyReview["physical_verification"] as? [String: Any],
               physical["status"] as? String == "PASS",
               let receipt = physical["s10_5_receipt"] as? [String: Any],
               let receiptEvidenceID = receipt["evidence_id"] as? String,
-              !receiptEvidenceID.isEmpty,
-              let gaps = privacyReview["store_readiness_gaps"] as? [[String: Any]],
-              !gaps.contains(where: {
-                  let gate = $0["gate"] as? String
-                  return gate == "physical_s10_5_evidence"
-                      || gate == "dated_trademark_name_claim_and_url_clearance"
-              })
+              !receiptEvidenceID.isEmpty
         else { return false }
         return true
     }

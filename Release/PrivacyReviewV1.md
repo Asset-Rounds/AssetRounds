@@ -48,3 +48,12 @@ Accepted S10.4 automated evidence is K `e2189af36a89caf815cf078756341c1f1542f7df
 The store plan now identifies five unedited screenshot candidates from the accepted current Light run, with original artifact paths and PNG hashes. They are not approved store creative. The frozen 1206-by-2622 set fits Apple's 6.3-inch specification, but the required 6.5-inch set (when no 6.9-inch set is provided) is missing. [Apple screenshot specification, checked 2026-09-10](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications).
 
 The accepted asset-use grant remains separate from pending dated trademark, name, claim and URL clearance. Final version/build, live pages, privacy answers, production commerce, archive privacy/supply-chain review, physical proof, final F25 evidence and all six stage receipts remain required. `s10-store-readiness.json` remains planned and `s10-evidence-lock.json` remains a template. Four stage receipts exist; neither a PhysicalExperience nor a Release receipt is manufactured by this preparation.
+
+
+## Prospective S10.5 non-blocking deferral — 2026-09-10
+
+The owner has superseded the earlier blocking treatment of S10.5. Physical verification is now a non-blocking follow-up deferred until after App Store release, with resumption only on an explicit future owner request. App Store availability does not itself schedule or authorize a test. This applies to S10.6, S10 phase completion and the expansion integration prerequisite; it does not authorize an immediate merge or main update.
+
+S10.5 remains DEFERRED, with no fabricated installation, result, PASS or PhysicalExperience E/K/C receipt. Five real accepted stages (Inventory, ComponentSystem, Migration, AutomatedLab and Release), together with the explicit S10.5 deferral, are the prospective checkpoint requirement. Only four stages are currently accepted; Release is still pending. The nominal six-card program and original accepted evidence remain unchanged.
+
+S10.4 minimum profiles and smoke remain indefinitely deferred and require explicit owner instruction to resume. Other store, privacy, legal, current-candidate CI and owner-only S9.2/S9.3 checks remain applicable. Release is still blocked by the remaining unprovided facts, not by S10.5. The sections above are preserved as historical preparation context.
