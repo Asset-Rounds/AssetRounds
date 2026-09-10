@@ -68,14 +68,14 @@ struct ReportsRootView: View {
                         )
                     }
                 } else {
-                    ProgressView("Opening reports")
+                    ProgressView(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility))
                         .frame(maxWidth: .infinity, minHeight: 120)
-                        .accessibilityLabel("Opening reports")
+                        .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility))
                 }
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Reports")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.reportsReportNavigation))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -87,7 +87,7 @@ struct ReportsRootView: View {
 
     private var filters: some View {
         WorklightCard {
-            Text("Filter reports")
+            Text(BundledLocalizationCatalogV1.v30Text(.reportsReportLabel))
                 .font(.headline)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
@@ -101,7 +101,7 @@ struct ReportsRootView: View {
 
     private var siteFilter: some View {
         Menu {
-            Button("All sites") {
+            Button(BundledLocalizationCatalogV1.v30Text(.reportsReportAction)) {
                 selectedSiteID = nil
                 selectedSignID = nil
                 loadIndex(
@@ -127,14 +127,14 @@ struct ReportsRootView: View {
         }
         .buttonStyle(WorklightSecondaryButtonStyle())
         .accessibilityLabel(siteFilterLabel)
-        .accessibilityHint("Filters saved reports by site")
+        .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility2))
         .accessibilityIdentifier(Self.siteFilterAccessibilityIdentifier)
         .accessibilityFocused($focusedElement, equals: .siteFilter)
     }
 
     private var signFilter: some View {
         Menu {
-            Button("All signs") {
+            Button(BundledLocalizationCatalogV1.v30Text(.reportsReportAction2)) {
                 selectedSignID = nil
                 if let selectedSiteID {
                     loadIndex(
@@ -166,26 +166,26 @@ struct ReportsRootView: View {
         }
         .buttonStyle(WorklightSecondaryButtonStyle())
         .accessibilityLabel(signFilterLabel)
-        .accessibilityHint("Filters saved reports by sign")
+        .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility3))
         .accessibilityIdentifier(Self.signFilterAccessibilityIdentifier)
         .accessibilityFocused($focusedElement, equals: .signFilter)
     }
 
     private var siteFilterLabel: String {
-        guard let selectedSiteID else { return "All sites" }
-        return siteOptions.first { $0.id == selectedSiteID }?.label ?? "All sites"
+        guard let selectedSiteID else { return BundledLocalizationCatalogV1.v30Text(.reportsReportAction) }
+        return siteOptions.first { $0.id == selectedSiteID }?.label ?? BundledLocalizationCatalogV1.v30Text(.reportsReportAction)
     }
 
     private var signFilterLabel: String {
-        guard let selectedSignID else { return "All signs" }
-        return signOptions.first { $0.id == selectedSignID }?.label ?? "All signs"
+        guard let selectedSignID else { return BundledLocalizationCatalogV1.v30Text(.reportsReportAction2) }
+        return signOptions.first { $0.id == selectedSignID }?.label ?? BundledLocalizationCatalogV1.v30Text(.reportsReportAction2)
     }
 
     private var emptyState: some View {
         WorklightCard {
-            WorklightStatusBadge(kind: .information, text: "Reports")
+            WorklightStatusBadge(kind: .information, text: BundledLocalizationCatalogV1.v30Text(.reportsReportNavigation))
 
-            Text("Saved reports will appear here.")
+            Text(BundledLocalizationCatalogV1.v30Text(.reportsReportLabel2))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -204,7 +204,7 @@ struct ReportsRootView: View {
                 )
             } else {
                 ReportHistoryUnavailableView(
-                    message: "The saved report could not be opened."
+                    message: BundledLocalizationCatalogV1.v30Text(.reportsReportFailure)
                 )
             }
         case let .comparison(stableRootID):
@@ -215,7 +215,7 @@ struct ReportsRootView: View {
                 )
             } else {
                 ReportHistoryUnavailableView(
-                    message: "This comparison is unavailable."
+                    message: BundledLocalizationCatalogV1.v30Text(.reportsReportFailure2)
                 )
             }
         }
@@ -223,7 +223,7 @@ struct ReportsRootView: View {
 
     private func loadInitialIndex() {
         guard let historyCoordinator else {
-            loadErrorMessage = "Saved reports could not be opened."
+            loadErrorMessage = BundledLocalizationCatalogV1.v30Text(.reportsReportFailure3)
             return
         }
         do {
@@ -239,7 +239,7 @@ struct ReportsRootView: View {
             moveAccessibilityFocus(to: .header)
         } catch {
             indexValue = nil
-            loadErrorMessage = "Saved reports could not be opened."
+            loadErrorMessage = BundledLocalizationCatalogV1.v30Text(.reportsReportFailure3)
             moveAccessibilityFocus(to: .header)
         }
     }
@@ -269,7 +269,7 @@ struct ReportsRootView: View {
     ) {
         guard let historyCoordinator else {
             indexValue = nil
-            loadErrorMessage = "Saved reports could not be opened."
+            loadErrorMessage = BundledLocalizationCatalogV1.v30Text(.reportsReportFailure3)
             return
         }
         do {
@@ -287,7 +287,7 @@ struct ReportsRootView: View {
         } catch {
             indexValue = nil
             comparableRootIDs = []
-            loadErrorMessage = "Saved reports could not be opened."
+            loadErrorMessage = BundledLocalizationCatalogV1.v30Text(.reportsReportFailure3)
             moveAccessibilityFocus(to: .header)
         }
     }
@@ -351,14 +351,14 @@ struct SignReportHistoryView: View {
                             .foregroundStyle(DesignTokens.Colors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Chronological report history")
+                        Text(BundledLocalizationCatalogV1.v30Text(.reportsReportLabel3))
                             .font(.subheadline)
                             .foregroundStyle(DesignTokens.Colors.secondaryText)
                     }
 
                     if history.visits.isEmpty {
                         WorklightCard {
-                            Text("No saved reports for this sign.")
+                            Text(BundledLocalizationCatalogV1.v30Text(.reportsReportLabel4))
                                 .font(.body)
                                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -370,14 +370,14 @@ struct SignReportHistoryView: View {
                         )
                     }
                 } else {
-                    ProgressView("Opening report history")
+                    ProgressView(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility4))
                         .frame(maxWidth: .infinity, minHeight: 120)
-                        .accessibilityLabel("Opening report history")
+                        .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility4))
                 }
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Report history")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.reportsReportNavigation2))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -412,7 +412,7 @@ struct SignReportHistoryView: View {
         do {
             guard let value = try historyCoordinator.signHistory(assetID: assetID) else {
                 history = nil
-                loadErrorMessage = "Report history could not be opened."
+                loadErrorMessage = BundledLocalizationCatalogV1.v30Text(.reportsReportFailure4)
                 moveAccessibilityFocus(to: .unavailable)
                 return
             }
@@ -426,7 +426,7 @@ struct SignReportHistoryView: View {
         } catch {
             history = nil
             comparableRootIDs = []
-            loadErrorMessage = "Report history could not be opened."
+            loadErrorMessage = BundledLocalizationCatalogV1.v30Text(.reportsReportFailure4)
             moveAccessibilityFocus(to: .unavailable)
         }
     }
@@ -453,7 +453,7 @@ private struct ReportVisitList: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
             ForEach(visits) { visit in
                 WorklightCard {
-                    WorklightStatusBadge(kind: .complete, text: "Current revision")
+                    WorklightStatusBadge(kind: .complete, text: BundledLocalizationCatalogV1.v30Text(.reportsReportStatus))
 
                     Text(visit.assetLabel)
                         .font(.title3.weight(.semibold))
@@ -466,28 +466,28 @@ private struct ReportVisitList: View {
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    ReportVisitFact(label: "Visit", value: visitDate(visit))
-                    ReportVisitFact(label: "Stage", value: visit.stage)
-                    ReportVisitFact(label: "Outcome", value: visit.outcome)
+                    ReportVisitFact(label: BundledLocalizationCatalogV1.v30Text(.reportsReportLabel5), value: visitDate(visit))
+                    ReportVisitFact(label: BundledLocalizationCatalogV1.v30Text(.reportsRootStage), value: visit.stage)
+                    ReportVisitFact(label: BundledLocalizationCatalogV1.v30Text(.reportsRootOutcome), value: visit.outcome)
 
                     NavigationLink(
-                        "View report",
+                        BundledLocalizationCatalogV1.v30Text(.reportsReportLabel6),
                         value: ReportHistoryRoute.report(visit.reportID)
                     )
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityHint("Opens this saved report")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility5))
                     .accessibilityIdentifier(
                         ReportsRootView.viewReportAccessibilityIdentifier
                     )
 
                     if comparableRootIDs.contains(visit.stableRootID) {
                         NavigationLink(
-                            "Compare with previous",
+                            BundledLocalizationCatalogV1.v30Text(.reportsReportLabel7),
                             value: ReportHistoryRoute.comparison(visit.stableRootID)
                         )
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityHint(
-                            "Compares this visit with the immediately previous visit"
+                            BundledLocalizationCatalogV1.v30Text(.reportsReportLabel8)
                         )
                         .accessibilityIdentifier(
                             ReportsRootView.compareAccessibilityIdentifier
@@ -501,7 +501,7 @@ private struct ReportVisitList: View {
     }
 
     private func visitDate(_ visit: ReportHistoryVisitValue) -> String {
-        "\(visit.localDate) at \(visit.localTime)"
+        BundledLocalizationCatalogV1.v30ReportsRootVisitDateTime(date: visit.localDate, time: visit.localTime)
     }
 }
 
@@ -547,11 +547,11 @@ private struct ReportHistoryDetailDestination: View {
                 .accessibilityFocused($focusedElement, equals: .detail)
             } else if failed {
                 ReportHistoryUnavailableView(
-                    message: "The saved report could not be opened."
+                    message: BundledLocalizationCatalogV1.v30Text(.reportsReportFailure)
                 )
                 .accessibilityFocused($focusedElement, equals: .unavailable)
             } else {
-                ProgressView("Opening report")
+                ProgressView(BundledLocalizationCatalogV1.v30Text(.reportsReportProgress))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(DesignTokens.Colors.canvas)
             }
@@ -608,14 +608,14 @@ private struct ReportComparisonView: View {
                 } else if failed {
                     unavailable
                 } else {
-                    ProgressView("Opening comparison")
+                    ProgressView(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility6))
                         .frame(maxWidth: .infinity, minHeight: 160)
-                        .accessibilityLabel("Opening comparison")
+                        .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.reportsReportAccessibility6))
                 }
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Then and Now")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.reportsReportNavigation3))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -750,14 +750,14 @@ private struct ReportComparisonView: View {
         identifierPrefix: String
     ) -> some View {
         WorklightCard {
-            comparisonHeading(heading)
+            comparisonHeading(heading == "Then" ? BundledLocalizationCatalogV1.v30Text(.reportsRootThen) : BundledLocalizationCatalogV1.v30Text(.reportsRootNow), isThen: heading == "Then")
 
-            Text("\(visit.localDate) at \(visit.localTime)")
+            Text(BundledLocalizationCatalogV1.v30ReportsRootVisitDateTime(date: visit.localDate, time: visit.localTime))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("\(visit.stage) · \(visit.outcome)")
+            Text(BundledLocalizationCatalogV1.v30ReportsRootVisitStageOutcome(stage: visit.stage, outcome: visit.outcome))
                 .font(.subheadline)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -765,36 +765,36 @@ private struct ReportComparisonView: View {
             comparisonImage(
                 image: wideImage,
                 caption: wideEvidence.purposeDisplay,
-                accessibilityLabel: "\(heading) \(wideEvidence.purposeDisplay)",
+                accessibilityLabel: BundledLocalizationCatalogV1.v30ReportsRootEvidenceAccessibilityLabel(heading: heading == "Then" ? BundledLocalizationCatalogV1.v30Text(.reportsRootThen) : BundledLocalizationCatalogV1.v30Text(.reportsRootNow), purpose: wideEvidence.purposeDisplay),
                 identifier: "\(identifierPrefix).wide"
             )
 
             comparisonImage(
                 image: closeImage,
                 caption: closeEvidence.purposeDisplay,
-                accessibilityLabel: "\(heading) \(closeEvidence.purposeDisplay)",
+                accessibilityLabel: BundledLocalizationCatalogV1.v30ReportsRootEvidenceAccessibilityLabel(heading: heading == "Then" ? BundledLocalizationCatalogV1.v30Text(.reportsRootThen) : BundledLocalizationCatalogV1.v30Text(.reportsRootNow), purpose: closeEvidence.purposeDisplay),
                 identifier: "\(identifierPrefix).close"
             )
         }
     }
 
     @ViewBuilder
-    private func comparisonHeading(_ heading: String) -> some View {
-        if heading == "Then" {
-            headingText(heading)
+    private func comparisonHeading(_ heading: String, isThen: Bool) -> some View {
+        if isThen {
+            headingText(heading, isThen: isThen)
                 .accessibilityFocused($focusedElement, equals: .thenHeading)
         } else {
-            headingText(heading)
+            headingText(heading, isThen: isThen)
         }
     }
 
-    private func headingText(_ heading: String) -> some View {
+    private func headingText(_ heading: String, isThen: Bool) -> some View {
         Text(heading)
             .font(.title2.weight(.bold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(
-                heading == "Then"
+                isThen
                     ? Self.thenHeadingAccessibilityIdentifier
                     : Self.nowHeadingAccessibilityIdentifier
             )
@@ -822,7 +822,7 @@ private struct ReportComparisonView: View {
     }
 
     private var unavailable: some View {
-        ReportHistoryUnavailableView(message: "This comparison is unavailable.")
+        ReportHistoryUnavailableView(message: BundledLocalizationCatalogV1.v30Text(.reportsReportFailure2))
             .accessibilityIdentifier(Self.unavailableAccessibilityIdentifier)
             .accessibilityFocused($focusedElement, equals: .unavailable)
     }
@@ -850,7 +850,7 @@ private struct ReportHistoryUnavailableView: View {
 
     var body: some View {
         WorklightCard {
-            WorklightStatusBadge(kind: .blocked, text: "Unavailable")
+            WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.reportsReportFailure5))
             Text(message)
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)

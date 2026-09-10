@@ -44,7 +44,7 @@ struct SignDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
-                    WorklightStatusBadge(kind: .complete, text: "Sign saved")
+                    WorklightStatusBadge(kind: .complete, text: BundledLocalizationCatalogV1.v30Text(.signDetailSignSaved))
 
                     Text(snapshot.signLabel)
                         .font(.title2.weight(.bold))
@@ -54,14 +54,14 @@ struct SignDetailView: View {
                         .accessibilityAddTraits(.isHeader)
 
                     detailRow(
-                        title: "Customer / site",
+                        title: BundledLocalizationCatalogV1.v30Text(.signDetailCustomerOrSite),
                         value: snapshot.siteLabel,
                         identifier: Self.siteLabelAccessibilityIdentifier
                     )
 
                     if let address = snapshot.address {
                         detailRow(
-                            title: "Address",
+                            title: BundledLocalizationCatalogV1.v30Text(.signDetailAddress),
                             value: address,
                             identifier: Self.addressAccessibilityIdentifier
                         )
@@ -69,7 +69,7 @@ struct SignDetailView: View {
 
                     if let timeZoneID = snapshot.timeZoneID {
                         detailRow(
-                            title: "Time zone",
+                            title: BundledLocalizationCatalogV1.v30Text(.signDetailTimeZone),
                             value: timeZoneID,
                             identifier: Self.timeZoneAccessibilityIdentifier
                         )
@@ -77,29 +77,29 @@ struct SignDetailView: View {
                 }
 
                 WorklightCard {
-                    Button("All signs", action: showAllSigns)
+                    Button(BundledLocalizationCatalogV1.v30Text(.signDetailAllSigns), action: showAllSigns)
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityIdentifier(Self.allSignsAccessibilityIdentifier)
 
-                    Button("Add sign", action: addSign)
+                    Button(BundledLocalizationCatalogV1.v30Text(.signDetailAddSign), action: addSign)
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityIdentifier(Self.addSignAccessibilityIdentifier)
 
                     if let activeIssue {
                         if activeIssue.canRecordWork {
-                            Button("Record work", action: recordWork)
+                            Button(BundledLocalizationCatalogV1.v30Text(.signDetailRecordWork), action: recordWork)
                                 .buttonStyle(WorklightPrimaryButtonStyle())
                                 .accessibilityIdentifier(
                                     Self.recordWorkAccessibilityIdentifier
                                 )
                         } else if activeIssue.status == .recheckDue {
-                            Button("Recheck due", action: openIssue)
+                            Button(BundledLocalizationCatalogV1.v30Text(.signDetailRecheckDue), action: openIssue)
                                 .buttonStyle(WorklightSecondaryButtonStyle())
                                 .accessibilityIdentifier(
                                     Self.recheckDueAccessibilityIdentifier
                                 )
                         } else {
-                            Button("Resolved", action: openIssue)
+                            Button(BundledLocalizationCatalogV1.v30Text(.signDetailResolved), action: openIssue)
                                 .buttonStyle(WorklightSecondaryButtonStyle())
                                 .accessibilityIdentifier(
                                     Self.resolvedIssueAccessibilityIdentifier
@@ -108,18 +108,18 @@ struct SignDetailView: View {
                     }
 
                     if let openReport {
-                        Button("View report", action: openReport)
+                        Button(BundledLocalizationCatalogV1.v30Text(.signDetailViewReport), action: openReport)
                             .buttonStyle(WorklightSecondaryButtonStyle())
-                            .accessibilityHint("Opens the saved report for this sign")
+                            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.signDetailViewReportHint))
                             .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
                     }
 
-                    Button("Report history", action: openReportHistory)
+                    Button(BundledLocalizationCatalogV1.v30Text(.signDetailReportHistory), action: openReportHistory)
                         .buttonStyle(WorklightSecondaryButtonStyle())
-                        .accessibilityHint("Opens report history for this sign")
+                        .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.signDetailReportHistoryHint))
                         .accessibilityIdentifier(Self.reportHistoryAccessibilityIdentifier)
 
-                    Button("Start Check", action: startCheck)
+                    Button(BundledLocalizationCatalogV1.v30Text(.signDetailStartCheck), action: startCheck)
                         .buttonStyle(WorklightPrimaryButtonStyle())
                         .accessibilityIdentifier(Self.startCheckAccessibilityIdentifier)
 
@@ -136,27 +136,27 @@ struct SignDetailView: View {
 
                 if isConfirmingDeletion {
                     WorklightCard {
-                        Text("Delete sign")
+                        Text(BundledLocalizationCatalogV1.v30Text(.signDetailDeleteSignHeading))
                             .font(.title2.weight(.bold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .accessibilityAddTraits(.isHeader)
                             .accessibilityIdentifier(Self.deleteScreenAccessibilityIdentifier)
 
-                        Text("Delete this sign, its photos, and its reports from this app? This cannot be undone. Your free-report count will not reset. Erase All removes the remaining anonymous count.")
+                        Text(BundledLocalizationCatalogV1.v30Text(.signDetailDeleteConfirmationMessage))
                             .font(.body)
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityFocused($deletionMessageFocused)
                             .accessibilityIdentifier(Self.deleteMessageAccessibilityIdentifier)
 
-                        Button("Cancel") {
+                        Button(BundledLocalizationCatalogV1.v30Text(.signDetailCancel)) {
                             isConfirmingDeletion = false
                         }
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .disabled(isDeleting)
                         .accessibilityIdentifier(Self.deleteCancelAccessibilityIdentifier)
 
-                        Button("Delete sign", role: .destructive) {
+                        Button(BundledLocalizationCatalogV1.v30Text(.signDetailDeleteSignAction), role: .destructive) {
                             performDeletion()
                         }
                         .buttonStyle(WorklightPrimaryButtonStyle())
@@ -164,7 +164,7 @@ struct SignDetailView: View {
                         .accessibilityIdentifier(Self.deleteConfirmAccessibilityIdentifier)
                     }
                 } else {
-                    Button("Delete sign", role: .destructive) {
+                    Button(BundledLocalizationCatalogV1.v30Text(.signDetailDeleteSignAction), role: .destructive) {
                         isConfirmingDeletion = true
                         Task { @MainActor in
                             await Task.yield()
@@ -177,7 +177,7 @@ struct SignDetailView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Sign detail")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.signDetailNavigationTitle))
         .navigationBarBackButtonHidden(true)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)

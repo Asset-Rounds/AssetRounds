@@ -9,9 +9,9 @@ struct EraseAllView: View {
     static let eraseAccessibilityIdentifier = "s6.6.erase.confirm"
     static let errorAccessibilityIdentifier = "s6.6.erase.error"
 
-    static let title = "Erase All"
-    static let warning = "Erase all local sign details, notes, photos, reports, and the anonymous free-report count from this app. This cannot be undone."
-    static let subscriptionCopy = "This does not cancel your Apple subscription. Backups saved outside this app are not deleted."
+    static let title = BundledLocalizationCatalogV1.v30Text(.eraseAllEraseLabel)
+    static let warning = BundledLocalizationCatalogV1.v30Text(.eraseAllPhotoLabel)
+    static let subscriptionCopy = BundledLocalizationCatalogV1.v30Text(.eraseAllBackupLabel)
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var confirmationFocused: Bool
@@ -49,7 +49,7 @@ struct EraseAllView: View {
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Type ERASE to continue.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.eraseAllEraseLabel2))
                         .font(.headline)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -77,7 +77,7 @@ struct EraseAllView: View {
                                 lineWidth: 1
                             )
                         }
-                        .accessibilityLabel("Type ERASE")
+                        .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.eraseAllEraseAccessibility))
                         .accessibilityIdentifier(
                             Self.confirmationAccessibilityIdentifier
                         )
@@ -93,7 +93,7 @@ struct EraseAllView: View {
                             )
                     }
 
-                    Button("Cancel") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.eraseAllEraseAction)) {
                         dismiss()
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
@@ -106,7 +106,7 @@ struct EraseAllView: View {
                         if isErasing {
                             HStack(spacing: DesignTokens.Spacing.small) {
                                 ProgressView()
-                                Text("Erasing local data")
+                                Text(BundledLocalizationCatalogV1.v30Text(.eraseAllDataProgress))
                             }
                             .frame(maxWidth: .infinity)
                         } else {

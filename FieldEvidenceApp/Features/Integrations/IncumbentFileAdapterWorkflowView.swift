@@ -62,7 +62,7 @@ struct IncumbentFileAdapterWorkflowView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Data & Portability")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -87,12 +87,12 @@ struct IncumbentFileAdapterWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Data & Portability")
+            Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("A bounded local file adapter is available only when one exact profile is configured and proven.")
+            Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterHeadingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -101,24 +101,24 @@ struct IncumbentFileAdapterWorkflowView: View {
 
     private func availability(_ projection: IncumbentFileAdapterWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Adapter availability", identifier: Self.availabilityAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterAvailabilityHeading), identifier: Self.availabilityAccessibilityIdentifier)
             switch projection.state {
             case .disabledNoSelectedProfile:
-                Label("No adapter profile is configured or proven.", systemImage: "nosign")
+                Label(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNoProfile), systemImage: "nosign")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityFocused($accessibilityFocus, equals: .availability)
-                Text("File selection, import preview, import commit, export, and recovery actions are unavailable. This is a truthful disabled state, not a setup prompt.")
+                Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNoProfileDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             case .enabledExactProductionProfile:
-                Label("One exact production profile is available.", systemImage: "checkmark.circle")
+                Label(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterProfileAvailable), systemImage: "checkmark.circle")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.informationText)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Provider mechanics remain secondary. Every action below requires a supplied, exact canonical command.")
+                Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterProfileAvailableDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -129,10 +129,10 @@ struct IncumbentFileAdapterWorkflowView: View {
 
     private func selectedProfile(_ projection: IncumbentFileAdapterWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Exact profile", identifier: "\(Self.availabilityAccessibilityIdentifier).profile")
-            valueRow("Profile token", value: projection.providerDisplayToken ?? "Unavailable")
-            valueRow("Release identity", value: shortDigest(projection.selectedReleaseSHA256))
-            Text("This token identifies the configured profile only. It does not establish a provider account, connection, acceptance, delivery, security, or success.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterProfileHeading), identifier: "\(Self.availabilityAccessibilityIdentifier).profile")
+            valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterProfileToken), value: projection.providerDisplayToken ?? BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterUnavailable))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterReleaseIdentity), value: shortDigest(projection.selectedReleaseSHA256))
+            Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterProfileDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -142,38 +142,38 @@ struct IncumbentFileAdapterWorkflowView: View {
 
     private func mappingAndDryRun(_ projection: IncumbentFileAdapterWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Mapping and dry run", identifier: Self.mappingAccessibilityIdentifier)
-            Text("Detection, parsing, and mapping are deterministic preview work. Preview makes zero canonical writes and does not mean imported.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterMappingHeading), identifier: Self.mappingAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterMappingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if let inboundPreview {
-                valueRow("Preview rows", value: "\(inboundPreview.mapping.rowCount)")
-                valueRow("Included fields", value: fieldList(inboundPreview.mapping.includedFields))
-                valueRow("Omitted fields", value: fieldList(inboundPreview.mapping.omittedFields))
-                valueRow("Unresolved keys", value: "\(inboundPreview.mapping.unresolvedStableKeys.count)")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterPreviewRows), value: "\(inboundPreview.mapping.rowCount)")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterIncludedFields), value: fieldList(inboundPreview.mapping.includedFields))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterOmittedFields), value: fieldList(inboundPreview.mapping.omittedFields))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterUnresolvedKeys), value: "\(inboundPreview.mapping.unresolvedStableKeys.count)")
                 Text(inboundPreview.isZeroWrite
-                     ? "This preview made zero canonical writes."
-                     : "No canonical write disposition is claimed.")
+                     ? BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterPreviewZeroWrites)
+                     : BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterPreviewNoDisposition))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             } else {
-                Text("No supplied file has been previewed from this surface.")
+                Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNoFilePreview))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             }
             if let canonicalPreview {
-                Text("The C08 canonical-import preview is ready for an explicit begin or commit/cancel command. It is still not an import result.")
+                Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterCanonicalPreviewReady))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                valueRow("Bulk plan", value: shortDigest(canonicalPreview.preview.bulkPlan.planSHA256))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterBulkPlan), value: shortDigest(canonicalPreview.preview.bulkPlan.planSHA256))
             }
             if projection.canDetectParseOrMap {
-                commandButton(title: "Preview supplied file", command: command(named: .previewInbound))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterPreviewSuppliedFile), command: command(named: .previewInbound))
             }
             if projection.canPreviewCanonicalImport {
-                commandButton(title: "Preview canonical import", command: command(named: .previewCanonicalImport))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterPreviewCanonicalImport), command: command(named: .previewCanonicalImport))
             }
         }
         .accessibilityElement(children: .contain)
@@ -181,49 +181,49 @@ struct IncumbentFileAdapterWorkflowView: View {
 
     private func explicitExchangeActions(_ projection: IncumbentFileAdapterWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Explicit exchange actions", identifier: Self.outputAccessibilityIdentifier)
-            Text("Canonical import needs the supplied C08 re-entry, session, revision, and source identity. It is never inferred from a file preview.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterActionsHeading), identifier: Self.outputAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterActionsDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if projection.canCommitCanonicalImport {
-                commandButton(title: "Begin canonical import", command: command(named: .beginCanonicalImport))
-                commandButton(title: "Commit or cancel canonical import", command: command(named: .commitOrCancelCanonicalImport))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterBeginCanonicalImport), command: command(named: .beginCanonicalImport))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterCommitOrCancelCanonicalImport), command: command(named: .commitOrCancelCanonicalImport))
             }
             if projection.canExport {
-                Text("An export result prepares deterministic export bytes and a manifest locally. It never means synced, accepted, ordered, delivered, read, or processed by a provider.")
+                Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterExportDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                commandButton(title: "Prepare deterministic export bytes", command: command(named: .export))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterPrepareExport), command: command(named: .export))
             }
-            commandButton(title: "Recover supplied exchange", command: command(named: .recover))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterRecoverExchange), command: command(named: .recover))
         }
         .accessibilityElement(children: .contain)
     }
 
     private func truthBoundary(_ projection: IncumbentFileAdapterWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Truth boundary", identifier: "\(Self.screenAccessibilityIdentifier).truth")
-            Text("No adapter profile is selected automatically, and no command here browses a provider, creates an account, opens a network connection, or claims a provider result.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterTruthBoundaryHeading), identifier: "\(Self.screenAccessibilityIdentifier).truth")
+            Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterTruthBoundaryDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            valueRow("Preview writes canonical state", value: projection.previewWritesCanonicalState ? "Claimed" : "No")
-            valueRow("Prepared export means synced", value: projection.fileCreatedMeansSynced ? "Claimed" : "No")
-            valueRow("Prepared export means delivered", value: projection.fileCreatedMeansDelivered ? "Claimed" : "No")
-            valueRow("Preview means imported", value: projection.previewMeansImported ? "Claimed" : "No")
+            valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterPreviewWritesState), value: projection.previewWritesCanonicalState ? BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterClaimed) : BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNo))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterExportMeansSynced), value: projection.fileCreatedMeansSynced ? BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterClaimed) : BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNo))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterExportMeansDelivered), value: projection.fileCreatedMeansDelivered ? BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterClaimed) : BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNo))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterPreviewMeansImported), value: projection.previewMeansImported ? BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterClaimed) : BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNo))
         }
         .accessibilityElement(children: .contain)
     }
 
     private var unavailableContext: some View {
         WorklightCard {
-            Label("Data & Portability is unavailable", systemImage: "exclamationmark.triangle.fill")
+            Label(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterUnavailableContext), systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
                 .foregroundStyle(DesignTokens.Colors.blockedText)
                 .accessibilityAddTraits(.isHeader)
-            Text("The current adapter context could not be validated. No import, export-byte preparation, or provider action is available.")
+            Text(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterUnavailableContextDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -254,10 +254,10 @@ struct IncumbentFileAdapterWorkflowView: View {
             Button(title) { perform(command) }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(isPerforming)
-                .accessibilityHint("Uses the supplied exact file-adapter command.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterCommandHint))
                 .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.\(commandIdentifier(command))")
         } else {
-            Text("\(title) is unavailable until its exact canonical command is supplied.")
+            Text(BundledLocalizationCatalogV1.v30IncumbentFileAdapterUnavailableCommand(title: title))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -285,12 +285,12 @@ struct IncumbentFileAdapterWorkflowView: View {
     }
 
     private func fieldList(_ fields: [IncumbentCanonicalFieldV1]) -> String {
-        guard !fields.isEmpty else { return "None" }
+        guard !fields.isEmpty else { return BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterNone) }
         return fields.map(\.rawValue).joined(separator: ", ")
     }
 
     private func shortDigest(_ digest: String?) -> String {
-        guard let digest, digest.count >= 12 else { return "Unavailable" }
+        guard let digest, digest.count >= 12 else { return BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterUnavailable) }
         return String(digest.prefix(12)) + "…"
     }
 
@@ -333,26 +333,26 @@ struct IncumbentFileAdapterWorkflowView: View {
     private func perform(_ command: IncumbentFileAdapterWorkflowCommandV1) {
         guard !isPerforming else { return }
         isPerforming = true
-        operationMessage = "Submitting the supplied file-adapter command…"
+        operationMessage = BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterSubmittingCommand)
         Task { @MainActor in
             defer { isPerforming = false }
             do {
                 let outcome = try coordinator.execute(command)
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterCancelled)
                     return
                 }
                 record(outcome)
                 operationMessage = outcomeText(outcome, command: command)
                 onOutcome?(outcome)
             } catch is CancellationError {
-                operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterCancelled)
             } catch {
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterCancelled)
                     return
                 }
-                operationMessage = "The supplied command was not completed. No file, import, sync, delivery, or provider result is claimed."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterCommandNotCompleted)
             }
         }
     }
@@ -374,18 +374,18 @@ struct IncumbentFileAdapterWorkflowView: View {
     ) -> String {
         switch outcome {
         case .inboundPreview:
-            return "The deterministic mapping preview completed with zero canonical writes. It is not an import."
+            return BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterMappingPreviewComplete)
         case .canonicalPreview:
-            return "The C08 canonical-import preview completed with zero canonical writes. An explicit later command is still required."
+            return BundledLocalizationCatalogV1.v30Text(.incumbentFileAdapterCanonicalPreviewComplete)
         case let .canonicalSession(session):
             if case .beginCanonicalImport(_) = command {
-                return "The canonical-import session is recorded as \(session.state.rawValue). No import result is inferred."
+                return BundledLocalizationCatalogV1.v30IncumbentFileAdapterSessionRecorded(state: session.state.rawValue)
             }
-            return "The canonical-import session is now \(session.state.rawValue). Read the canonical record before claiming an import result."
+            return BundledLocalizationCatalogV1.v30IncumbentFileAdapterSessionCurrent(state: session.state.rawValue)
         case let .exported(data, _):
-            return "Deterministic export bytes and a manifest were prepared locally (\(data.count) byte(s)). This is not a sync, delivery, acceptance, order, or provider result."
+            return BundledLocalizationCatalogV1.v30IncumbentFileAdapterExportPrepared(byteCount: data.count)
         case let .recovered(receipt):
-            return "Recovery completed with \(receipt.disposition.rawValue). It does not create a provider, delivery, or security claim."
+            return BundledLocalizationCatalogV1.v30IncumbentFileAdapterRecoveryComplete(disposition: receipt.disposition.rawValue)
         }
     }
 }

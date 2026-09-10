@@ -67,14 +67,14 @@ struct ReportDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                     WorklightCard {
-                        WorklightStatusBadge(kind: .complete, text: "Report ready")
+                        WorklightStatusBadge(kind: .complete, text: BundledLocalizationCatalogV1.v30Text(.reportDetailReportStatus))
 
                         if state.isAuthorityResolved {
                             WorklightStatusBadge(
                                 kind: state.isCurrentReadyRevision ? .complete : .information,
                                 text: state.isCurrentReadyRevision
-                                    ? "Current revision"
-                                    : "Prior revision"
+                                    ? BundledLocalizationCatalogV1.v30Text(.reportDetailReportLabel)
+                                    : BundledLocalizationCatalogV1.v30Text(.reportDetailReportLabel2)
                             )
                             .accessibilityIdentifier(
                                 Self.revisionStateAccessibilityIdentifier
@@ -100,7 +100,7 @@ struct ReportDetailView: View {
                     if state.unavailableCurrentReportID != nil {
                         WorklightStatusBadge(
                             kind: .attention,
-                            text: "Correction saved, but its PDF couldn’t be created. Retry from the saved report."
+                            text: BundledLocalizationCatalogV1.v30Text(.reportDetailReportRetry)
                         )
                         .accessibilityIdentifier(ReportCorrectionView.failureAccessibilityIdentifier)
                     }
@@ -113,7 +113,7 @@ struct ReportDetailView: View {
                             RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                                 .stroke(DesignTokens.Colors.essentialControlStroke, lineWidth: 1)
                         }
-                        .accessibilityLabel("Report PDF preview")
+                        .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAccessibility))
                         .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
 
                     if let exportErrorMessage {
@@ -127,7 +127,7 @@ struct ReportDetailView: View {
             .padding(DesignTokens.Spacing.medium)
         }
         .id(state.selectedReportID)
-        .navigationTitle("Report")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.reportDetailReportNavigation))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -147,28 +147,28 @@ struct ReportDetailView: View {
                 revisionActions
 
                 HStack(spacing: DesignTokens.Spacing.small) {
-                    Button("Share PDF") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAction)) {
                         showsShareSheet = true
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .frame(maxWidth: .infinity)
-                    .accessibilityHint("Opens the system share sheet for this report PDF")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAccessibility2))
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
 
-                    Button("Save to Files") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAction2)) {
                         showsFilesExporter = true
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .frame(maxWidth: .infinity)
-                    .accessibilityHint("Choose a Files destination for an identical copy of this report PDF")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAccessibility3))
                     .accessibilityIdentifier(Self.saveToFilesAccessibilityIdentifier)
                 }
 
-                Button("Close") {
+                Button(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAction3)) {
                     dismiss()
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
-                .accessibilityHint("Returns to the saved report receipt")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAccessibility4))
                 .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
             }
             .padding(.horizontal, DesignTokens.Spacing.medium)
@@ -191,7 +191,7 @@ struct ReportDetailView: View {
                 if (error as? CocoaError)?.code == .userCancelled {
                     return
                 } else {
-                    exportErrorMessage = "The report could not be saved to Files."
+                    exportErrorMessage = BundledLocalizationCatalogV1.v30Text(.reportDetailReportFailure)
                 }
             }
         }
@@ -217,20 +217,20 @@ struct ReportDetailView: View {
             VStack(spacing: DesignTokens.Spacing.small) {
                 if let source = state.correctionSource,
                    state.isCurrentReadyRevision {
-                    Button("Correct report") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAction4)) {
                         activeCorrectionSource = source
                     }
                     .buttonStyle(WorklightPrimaryButtonStyle())
-                    .accessibilityHint("Change only the report note and keep the prior report.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAccessibility5))
                     .accessibilityIdentifier(Self.correctAccessibilityIdentifier)
                 }
 
                 if let prior = immediatelyPriorDelivery {
-                    Button("View prior report") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAction5)) {
                         selectReport(id: prior.reportID)
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityHint("Opens the immediately prior saved report.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAccessibility6))
                     .accessibilityIdentifier(
                         ReportCorrectionView.priorReportAccessibilityIdentifier
                     )
@@ -238,11 +238,11 @@ struct ReportDetailView: View {
 
                 if !state.isCurrentReadyRevision,
                    state.unavailableCurrentReportID == nil {
-                    Button("View corrected report") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAction6)) {
                         selectReport(id: state.chain.current.reportID)
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityHint("Opens the current corrected report.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAccessibility7))
                     .accessibilityIdentifier(
                         ReportCorrectionView.currentReportAccessibilityIdentifier
                     )

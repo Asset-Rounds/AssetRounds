@@ -182,7 +182,7 @@ struct SignsRootView: View {
                     Button {
                         path.append(Route.settings)
                     } label: {
-                        Label("Settings", systemImage: "gearshape")
+                        Label(BundledLocalizationCatalogV1.v30Text(.signsRootSettings), systemImage: "gearshape")
                             .labelStyle(.iconOnly)
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
@@ -207,7 +207,7 @@ struct SignsRootView: View {
                             select(savedSnapshot)
                             path = NavigationPath()
                         } catch {
-                            loadErrorMessage = "Saved sign data could not be opened."
+                            loadErrorMessage = BundledLocalizationCatalogV1.v30Text(.signsRootSavedDataUnavailable)
                         }
                     }
                 case .settings:
@@ -238,7 +238,7 @@ struct SignsRootView: View {
                             }
                         ) {
                             checkRunnerCoordinator.clearPendingRecheckRequest()
-                            checkNotice = "No check was started."
+                            checkNotice = BundledLocalizationCatalogV1.v30Text(.signsRootNoCheckStarted)
                             path.removeLast()
                         }
                     }
@@ -320,7 +320,7 @@ struct SignsRootView: View {
                     showsSignSelection = true
                 }
             } catch {
-                loadErrorMessage = "Saved sign data could not be opened."
+                loadErrorMessage = BundledLocalizationCatalogV1.v30Text(.signsRootSavedDataUnavailable)
             }
         }
         .sheet(item: $lifecyclePresentation) { _ in
@@ -371,7 +371,7 @@ struct SignsRootView: View {
         do {
             _ = try resumeExistingDraftIfPresent(assetID: value.assetID)
         } catch {
-            checkNotice = "The saved draft could not be resumed safely."
+            checkNotice = BundledLocalizationCatalogV1.v30Text(.signsRootDraftResumeUnavailable)
         }
     }
 
@@ -382,7 +382,7 @@ struct SignsRootView: View {
                 allowed: { path.append(Route.newSign) }
             )
         } catch {
-            checkNotice = "A new sign could not be started safely."
+            checkNotice = BundledLocalizationCatalogV1.v30Text(.signsRootNewSignUnavailable)
         }
     }
 
@@ -403,7 +403,7 @@ struct SignsRootView: View {
                 path.append(Route.check)
             }
         } catch {
-            checkNotice = "A new check could not be started safely."
+            checkNotice = BundledLocalizationCatalogV1.v30Text(.signsRootNewCheckUnavailable)
         }
     }
 
@@ -417,9 +417,9 @@ struct SignsRootView: View {
         case .blockPaid, .blockEvaluation:
             paywallPresentation = PaywallPresentation()
         case .waitForStore:
-            checkNotice = "Checking your subscription. Try again shortly."
+            checkNotice = BundledLocalizationCatalogV1.v30Text(.signsRootSubscriptionChecking)
         case .blockInvalidRequest:
-            checkNotice = "This action could not be started safely."
+            checkNotice = BundledLocalizationCatalogV1.v30Text(.signsRootActionUnavailable)
         }
     }
 
@@ -609,8 +609,8 @@ struct SignsRootView: View {
     private var reportUnavailable: some View {
         ScrollView {
             WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Report unavailable")
-                Text("The saved report could not be opened.")
+                WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.signsRootReportUnavailable))
+                Text(BundledLocalizationCatalogV1.v30Text(.signsRootSavedReportUnavailable))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -624,8 +624,8 @@ struct SignsRootView: View {
     private var reportHistoryUnavailable: some View {
         ScrollView {
             WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "History unavailable")
-                Text("Report history could not be opened.")
+                WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.signsRootHistoryUnavailable))
+                Text(BundledLocalizationCatalogV1.v30Text(.signsRootReportHistoryUnavailable))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -639,7 +639,7 @@ struct SignsRootView: View {
     private var issueUnavailable: some View {
         ScrollView {
             WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Record work")
+                WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.signsRootRecordWork))
             }
             .padding(DesignTokens.Spacing.medium)
         }
@@ -651,9 +651,9 @@ struct SignsRootView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
-                    WorklightStatusBadge(kind: .information, text: "Field Evidence")
+                    WorklightStatusBadge(kind: .information, text: BundledLocalizationCatalogV1.v30Text(.signsRootBrandBadge))
 
-                    Text("Turn tonight's sign check into a clear report.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.signsRootWelcomeMessage))
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -661,42 +661,42 @@ struct SignsRootView: View {
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityFocused($welcomeTitleFocused)
 
-                    Text("Add the first sign you inspect, or look through the bundled sample before you begin.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.signsRootWelcomeInstructions))
                         .font(.body)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Button("Add first sign") {
+                Button(BundledLocalizationCatalogV1.v30Text(.signsRootAddFirstSign)) {
                     beginAddSign()
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .accessibilityIdentifier(Self.addFirstSignAccessibilityIdentifier)
 
-                Button("View sample") {
+                Button(BundledLocalizationCatalogV1.v30Text(.signsRootViewSample)) {
                     path.append(Route.sample)
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityIdentifier(Self.viewSampleAccessibilityIdentifier)
 
                 WorklightCard {
-                    Button("Restore data backup", action: restoreDataBackup)
+                    Button(BundledLocalizationCatalogV1.v30Text(.signsRootRestoreDataBackup), action: restoreDataBackup)
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityIdentifier(Self.restoreDataAccessibilityIdentifier)
 
-                    Button("Restore Purchases") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.signsRootRestorePurchases)) {
                         lifecyclePresentation = LifecyclePresentation()
                     }
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityHint(
-                            "Checks Apple purchase history without restoring inspection data"
+                            BundledLocalizationCatalogV1.v30Text(.signsRootRestorePurchasesHint)
                         )
                         .accessibilityIdentifier(Self.restorePurchasesAccessibilityIdentifier)
                 }
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Signs")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.signsRootNavigationTitle))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.welcomeScreenAccessibilityIdentifier)
@@ -706,12 +706,12 @@ struct SignsRootView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
-                    Text("Signs")
+                    Text(BundledLocalizationCatalogV1.v30Text(.signsRootHeading))
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .accessibilityAddTraits(.isHeader)
 
-                    Text("Choose a sign to view its checks, issues, and reports.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.signsRootInstructions))
                         .font(.body)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -730,13 +730,13 @@ struct SignsRootView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityLabel("\(value.signLabel), \(value.siteLabel)")
+                    .accessibilityLabel(BundledLocalizationCatalogV1.v30SignsRootSignRowAccessibility(signLabel: value.signLabel, siteLabel: value.siteLabel))
                     .accessibilityIdentifier(
                         "\(Self.signRowAccessibilityIdentifier).\(value.assetID.uuidString.lowercased())"
                     )
                 }
 
-                Button("Add sign", action: beginAddSign)
+                Button(BundledLocalizationCatalogV1.v30Text(.signsRootAddSign), action: beginAddSign)
                     .buttonStyle(WorklightPrimaryButtonStyle())
                     .accessibilityIdentifier(Self.addSignAccessibilityIdentifier)
 
@@ -747,7 +747,7 @@ struct SignsRootView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Signs")
+            .navigationTitle(BundledLocalizationCatalogV1.v30Text(.signsRootNavigationTitle))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.signSelectionAccessibilityIdentifier)
@@ -755,7 +755,7 @@ struct SignsRootView: View {
 
     private var sample: some View {
         PackSampleView(pack: pack)
-            .navigationTitle("Sample")
+            .navigationTitle(BundledLocalizationCatalogV1.v30Text(.signsRootSampleNavigationTitle))
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(true)
             .toolbar {
@@ -763,7 +763,7 @@ struct SignsRootView: View {
                     Button {
                         path.removeLast()
                     } label: {
-                        Label("Back", systemImage: "chevron.left")
+                        Label(BundledLocalizationCatalogV1.v30Text(.signsRootBack), systemImage: "chevron.left")
                     }
                     .frame(
                         minWidth: DesignTokens.Control.minimumHitSize,
@@ -778,7 +778,7 @@ struct SignsRootView: View {
     private func loadFailure(message: String) -> some View {
         ScrollView {
             WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Saved data unavailable")
+                WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.signsRootSavedDataUnavailableBadge))
 
                 Text(message)
                     .font(.body)

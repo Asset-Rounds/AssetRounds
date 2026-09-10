@@ -45,7 +45,7 @@ struct VoicePushToTalkDraftPresentationV1: Equatable, Sendable, Identifiable {
 
     init(
         draftID: UUID,
-        label: String = "Existing work draft",
+        label: String = BundledLocalizationCatalogV1.v30Text(.voiceCaptureExistingWorkDraft),
         targetRevision: UInt64,
         manualText: String = "",
         state: VoicePushToTalkDraftStateV1 = .current,
@@ -422,7 +422,7 @@ struct VoicePushToTalkCaptureView: View {
             .padding(DesignTokens.Spacing.medium)
             .accessibilityElement(children: .contain)
         }
-        .navigationTitle("Speak details")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.voiceCaptureNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -506,13 +506,13 @@ struct VoicePushToTalkCaptureView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Speak details")
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("Optional push-to-talk assistance for this existing draft. Press Speak details to start one explicit, on-device capture; there is no continuous listening or wake word.")
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureHeadingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -521,22 +521,22 @@ struct VoicePushToTalkCaptureView: View {
 
     private var draftContext: some View {
         WorklightCard {
-            sectionHeading("Existing draft", identifier: Self.draftAccessibilityIdentifier)
-            valueRow("Draft", value: model.draft.label)
-            valueRow("Draft revision", value: "\(model.draft.targetRevision)")
-            valueRow("Draft state", value: draftStateText(model.draft.state))
-            Text("The complete typed path stays available. Voice proposals are review-only until an explicit per-field request crosses the existing ordinary draft authority.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftHeading), identifier: Self.draftAccessibilityIdentifier)
+            valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraft), value: model.draft.label)
+            valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftRevision), value: "\(model.draft.targetRevision)")
+            valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftState), value: draftStateText(model.draft.state))
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if let context = model.captureContext {
-                valueRow("Voice target revision", value: "\(context.targetRevision)")
-                Text("The capture target is fixed by the supplied context. If that revision changes, the caller must mark this session stale and return to manual entry.")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureTargetRevision), value: "\(context.targetRevision)")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureTargetDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Speak details is unavailable until the caller supplies a current StructuredVoiceCaptureContextV1. Manual entry remains complete.")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureContextUnavailable))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -547,7 +547,7 @@ struct VoicePushToTalkCaptureView: View {
 
     private var captureControls: some View {
         WorklightCard {
-            sectionHeading("Capture", identifier: Self.captureAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.voiceCaptureCaptureHeading), identifier: Self.captureAccessibilityIdentifier)
             Text(captureStateText)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(captureStateColor)
@@ -559,46 +559,46 @@ struct VoicePushToTalkCaptureView: View {
                 captureIndicator
                 countdown
                 if let sessionID = currentSessionID {
-                    Button("Stop speaking") {
-                        send(.stop(sessionID: sessionID), status: "Stop requested. Waiting for the caller's final on-device transcript; no proposal or draft effect is claimed.")
+                    Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureStopSpeaking)) {
+                        send(.stop(sessionID: sessionID), status: BundledLocalizationCatalogV1.v30Text(.voiceCaptureStopRequested))
                     }
                     .buttonStyle(WorklightPrimaryButtonStyle())
                     .keyboardShortcut("x", modifiers: [.command])
-                    .accessibilityHint("Stops this explicit push-to-talk capture. It does not accept a transcript or write the draft.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureStopHint))
                     .accessibilityIdentifier(Self.stopAccessibilityIdentifier)
 
-                    Button("Cancel voice capture") {
-                        send(.cancel(sessionID: sessionID), status: "Cancellation requested. Temporary capture scratch and any unfinished utterance remain subject to the caller's cleanup result; no draft effect is claimed.")
+                    Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureCancelCapture)) {
+                        send(.cancel(sessionID: sessionID), status: BundledLocalizationCatalogV1.v30Text(.voiceCaptureCaptureCancellationRequested))
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityHint("Cancels capture and returns to the complete manual path.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureCancelCaptureHint))
                     .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
                 }
             case .processing:
-                Text("The caller is processing the stopped capture on device. Review begins only after a validated StructuredVoiceProposalV1 is supplied.")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureProcessingDescription))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(Self.processingAccessibilityIdentifier)
                 if let sessionID = currentSessionID {
-                    Button("Cancel voice processing") {
-                        send(.cancel(sessionID: sessionID), status: "Cancellation requested. No transcript, proposal, or draft effect is claimed.")
+                    Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureCancelProcessing)) {
+                        send(.cancel(sessionID: sessionID), status: BundledLocalizationCatalogV1.v30Text(.voiceCaptureProcessingCancellationRequested))
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
                 }
             case .review:
-                Text("A validated proposal is ready. Review every field and choose Accept, Edit, or Reject before requesting review closure.")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureProposalReady))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(Self.processingAccessibilityIdentifier)
                 if let proposalID = model.proposalID {
-                    Button("Discard voice suggestions") {
-                        send(.rejectProposal(proposalID: proposalID), status: "Discard requested. Rejected suggestions remain nonpersistent; no draft rollback or completion is claimed.")
+                    Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureDiscardSuggestions)) {
+                        send(.rejectProposal(proposalID: proposalID), status: BundledLocalizationCatalogV1.v30Text(.voiceCaptureDiscardRequested))
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityHint("Rejects the complete proposal through the existing review authority without changing the existing draft.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureDiscardHint))
                     .accessibilityIdentifier(Self.rejectProposalAccessibilityIdentifier)
                 }
             default:
@@ -607,16 +607,16 @@ struct VoicePushToTalkCaptureView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 if let context = model.captureContext {
-                    Button("Speak details") {
-                        send(.start(context: context), status: "Speak details requested. The caller must start explicit on-device capture; no microphone, transcript, or draft effect is claimed by this button press.")
+                    Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureSpeakDetails)) {
+                        send(.start(context: context), status: BundledLocalizationCatalogV1.v30Text(.voiceCaptureStartRequested))
                     }
                     .buttonStyle(WorklightPrimaryButtonStyle())
                     .disabled(!canStartCapture)
                     .keyboardShortcut("s", modifiers: [.command])
-                    .accessibilityHint("Starts one explicit push-to-talk capture for at most 60 seconds. It does not continuously listen or use a wake word.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureStartHint))
                     .accessibilityIdentifier(Self.speakDetailsAccessibilityIdentifier)
                 } else {
-                    Text("Speak details is unavailable until a current capture context is supplied. Use the manual entry below.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureStartUnavailable))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -624,32 +624,32 @@ struct VoicePushToTalkCaptureView: View {
                 }
             }
             if let scratchDisposition = model.scratchDisposition {
-                valueRow("Temporary scratch disposition", value: scratchDispositionText(scratchDisposition))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchDisposition), value: scratchDispositionText(scratchDisposition))
             }
         }
         .accessibilityElement(children: .contain)
     }
 
     private var captureIndicator: some View {
-        Label("Capture active", systemImage: "mic.fill")
+        Label(BundledLocalizationCatalogV1.v30Text(.voiceCaptureActive), systemImage: "mic.fill")
             .font(.body.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.attentionText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine)
-            .accessibilityValue("On-device capture is active. Stop or cancel explicitly.")
+            .accessibilityValue(BundledLocalizationCatalogV1.v30Text(.voiceCaptureActiveAccessibilityValue))
     }
 
     private var countdown: some View {
         let elapsed = min(model.elapsedSeconds, Self.maximumCaptureSeconds)
         let remaining = Self.maximumCaptureSeconds - elapsed
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Capture time: \(elapsed) of \(Self.maximumCaptureSeconds) seconds; \(remaining) seconds remaining")
+            Text(BundledLocalizationCatalogV1.v30VoiceCaptureTime(elapsed: elapsed, maximum: Self.maximumCaptureSeconds, remaining: remaining))
                 .font(.body.weight(.semibold))
                 .foregroundStyle(remaining == 0 ? DesignTokens.Colors.attentionText : DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             ProgressView(value: Double(elapsed), total: Double(Self.maximumCaptureSeconds))
-                .accessibilityLabel("Capture time limit")
-                .accessibilityValue(remaining == 0 ? "60 seconds reached" : "\(remaining) seconds remaining")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.voiceCaptureTimeLimit))
+                .accessibilityValue(remaining == 0 ? BundledLocalizationCatalogV1.v30Text(.voiceCaptureTimeLimitReached) : BundledLocalizationCatalogV1.v30VoiceCaptureSecondsRemaining(seconds: remaining))
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(Self.countdownAccessibilityIdentifier)
@@ -657,26 +657,26 @@ struct VoicePushToTalkCaptureView: View {
 
     private var transcript: some View {
         WorklightCard {
-            sectionHeading("Transcript", identifier: Self.transcriptAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.voiceCaptureTranscriptHeading), identifier: Self.transcriptAccessibilityIdentifier)
             if let transcript = model.transcript {
                 Text(transcript)
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel("Captured transcript")
+                    .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.voiceCaptureTranscriptLabel))
                     .accessibilityValue(transcript)
-                Text("This transcript is a temporary, on-device review input. It is not a recording archive, correctness proof, diagnosis, compliance finding, identity claim, or final draft result.")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureTranscriptDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 if let proposal = model.proposal, !proposal.unmatchedClauses.isEmpty {
-                    Text("\(proposal.unmatchedClauses.count) transcript segment\(proposal.unmatchedClauses.count == 1 ? "" : "s") needs manual handling. No value is inferred for an unmatched segment.")
+                    Text(BundledLocalizationCatalogV1.v30VoiceCaptureUnmatchedSegments(count: proposal.unmatchedClauses.count))
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.attentionText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text("No transcript is supplied. Return to Speak details or continue with manual entry; no speech result is inferred.")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureNoTranscript))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -688,15 +688,15 @@ struct VoicePushToTalkCaptureView: View {
     @ViewBuilder
     private var fieldReview: some View {
         WorklightCard {
-            sectionHeading("Review each field", identifier: Self.fieldsAccessibilityIdentifier)
-            Text("Each proposal is tied to an exact UTF-8 transcript span. Confidence is informational only and never decides correctness, verification, approval, or acceptance. Every field needs an explicit Accept, Edit, or Reject request.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.voiceCaptureFieldsHeading), identifier: Self.fieldsAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureFieldsDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             let fields = model.presentedFields
             if fields.isEmpty {
-                Text("No structured fields are supplied. Manual entry remains complete; no draft value is inferred.")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureNoFields))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -705,12 +705,12 @@ struct VoicePushToTalkCaptureView: View {
                     fieldCard(field, position: index + 1)
                 }
                 if let proposalID = model.proposalID {
-                    Button("Finish voice review") {
-                        send(.finalizeReview(proposalID: proposalID), status: "Review closure requested through C56. No Saved or Complete claim is made until the caller returns its validated result.")
+                    Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureFinishReview)) {
+                        send(.finalizeReview(proposalID: proposalID), status: BundledLocalizationCatalogV1.v30Text(.voiceCaptureReviewClosureRequested))
                     }
                     .buttonStyle(WorklightPrimaryButtonStyle())
                     .disabled(!model.hasReviewedAllFields || !canReviewFields)
-                    .accessibilityHint(model.hasReviewedAllFields ? "Requests C56 review closure. It does not claim the ordinary draft is Saved or Complete." : "Review every field with Accept, Edit, or Reject before requesting closure.")
+                    .accessibilityHint(model.hasReviewedAllFields ? BundledLocalizationCatalogV1.v30Text(.voiceCaptureFinishReviewHint) : BundledLocalizationCatalogV1.v30Text(.voiceCaptureFinishReviewUnavailableHint))
                     .accessibilityIdentifier(Self.finishReviewAccessibilityIdentifier)
                 }
             }
@@ -723,22 +723,22 @@ struct VoicePushToTalkCaptureView: View {
         position: Int
     ) -> some View {
         let baseID = fieldIdentifier(presentation.field.fieldID)
-        let fieldLabel = "Field \(position): \(presentation.displayLabel)"
+        let fieldLabel = BundledLocalizationCatalogV1.v30VoiceCaptureField(position: position, label: presentation.displayLabel)
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
             Text(fieldLabel)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            valueRow("Field ID", value: presentation.field.fieldID)
-            valueRow("Resolution", value: resolutionText(presentation.field.resolution))
-            valueRow("Proposed value", value: fieldValueText(presentation.field.proposedValue, kind: presentation.field.kind))
-            valueRow("Exact source span", value: sourceSpanText(presentation.field.sourceSpan))
-            valueRow("Source text", value: sourceText(for: presentation.field))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureFieldID), value: presentation.field.fieldID)
+            valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureResolution), value: resolutionText(presentation.field.resolution))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureProposedValue), value: fieldValueText(presentation.field.proposedValue, kind: presentation.field.kind))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureSourceSpan), value: sourceSpanText(presentation.field.sourceSpan))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.voiceCaptureSourceText), value: sourceText(for: presentation.field))
             Text(confidenceText(presentation.confidenceSpan))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Review state: \(reviewStateText(presentation.reviewState))")
+            Text(BundledLocalizationCatalogV1.v30VoiceCaptureReviewState(state: reviewStateText(presentation.reviewState)))
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(reviewStateColor(presentation.reviewState))
                 .fixedSize(horizontal: false, vertical: true)
@@ -752,52 +752,52 @@ struct VoicePushToTalkCaptureView: View {
 
             if editingFieldID == presentation.id {
                 TextField(
-                    "Edit value for \(presentation.displayLabel)",
+                    BundledLocalizationCatalogV1.v30VoiceCaptureEditValue(label: presentation.displayLabel),
                     text: editedValueBinding(for: presentation)
                 )
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1 ... 6)
                 .focused($focusedField, equals: .edit(presentation.id))
-                .accessibilityLabel("Edit \(fieldLabel)")
-                .accessibilityHint("Enter a manual value. The caller validates its type and sends it through the ordinary draft authority; typing does not write the draft.")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30VoiceCaptureEditField(label: fieldLabel))
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureEditFieldHint))
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).edit-field")
 
-                Button("Apply edit for \(fieldLabel)") {
+                Button(BundledLocalizationCatalogV1.v30VoiceCaptureApplyEdit(label: fieldLabel)) {
                     submitEdit(presentation)
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(!canReviewFields)
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).apply-edit")
 
-                Button("Cancel edit for \(fieldLabel)") {
+                Button(BundledLocalizationCatalogV1.v30VoiceCaptureCancelEdit(label: fieldLabel)) {
                     editingFieldID = nil
                     focusedField = nil
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).cancel-edit")
             } else {
-                Button("Accept \(fieldLabel)") {
+                Button(BundledLocalizationCatalogV1.v30VoiceCaptureAcceptField(label: fieldLabel)) {
                     submitAccept(presentation)
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(!canReviewFields || !acceptIsAvailable(presentation.field))
-                .accessibilityHint(acceptIsAvailable(presentation.field) ? "Requests acceptance of this exact structured proposal through C56. It does not claim Saved or Complete." : "Accept is unavailable because this field is ambiguous or unsupported; edit it manually or reject it.")
+                .accessibilityHint(acceptIsAvailable(presentation.field) ? BundledLocalizationCatalogV1.v30Text(.voiceCaptureAcceptHint) : BundledLocalizationCatalogV1.v30Text(.voiceCaptureAcceptUnavailableHint))
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).accept")
 
-                Button("Edit \(fieldLabel)") {
+                Button(BundledLocalizationCatalogV1.v30VoiceCaptureEditField(label: fieldLabel)) {
                     beginEdit(presentation)
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(!canReviewFields)
-                .accessibilityHint("Opens a full keyboard-editable value field. The caller validates the typed value before ordinary draft review.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureEditHint))
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).edit")
 
-                Button("Reject \(fieldLabel)") {
+                Button(BundledLocalizationCatalogV1.v30VoiceCaptureRejectField(label: fieldLabel)) {
                     submitReject(presentation)
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(!canReviewFields)
-                .accessibilityHint("Rejects this proposal field through C56 without writing the rejected value to the draft.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureRejectHint))
                 .accessibilityIdentifier("\(Self.fieldReviewAccessibilityIdentifierPrefix)\(baseID).reject")
             }
         }
@@ -808,8 +808,8 @@ struct VoicePushToTalkCaptureView: View {
 
     private var manualFallback: some View {
         WorklightCard {
-            sectionHeading("Manual entry", identifier: Self.manualFallbackAccessibilityIdentifier)
-            Text("Manual entry is the complete fallback for permission denial or revocation, unsupported locale/device, offline use, interruption, backgrounding, cancellation, stale targets, protected data, storage pressure, and relaunch. Your typed text is not treated as Saved until the ordinary draft authority returns its result.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.voiceCaptureManualEntryHeading), identifier: Self.manualFallbackAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureManualEntryDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -824,16 +824,16 @@ struct VoicePushToTalkCaptureView: View {
                         .stroke(DesignTokens.Colors.essentialControlStroke, lineWidth: 1)
                 }
                 .focused($focusedField, equals: .manual)
-                .accessibilityLabel("Manual draft entry")
-                .accessibilityHint("Type or edit the existing draft with the full keyboard path. Text changes do not start speech and do not write until you explicitly continue.")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.voiceCaptureManualDraftLabel))
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureManualDraftHint))
                 .accessibilityIdentifier(Self.manualEntryFieldAccessibilityIdentifier)
-            Button("Continue with manual entry") {
+            Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureContinueManual)) {
                 submitManualEntry()
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
             .disabled(!model.draft.canEdit)
             .keyboardShortcut("m", modifiers: [.command])
-            .accessibilityHint("Sends the current typed text to the existing ordinary draft authority. It does not claim Saved or Complete.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureContinueManualHint))
             .accessibilityIdentifier("\(Self.manualFallbackAccessibilityIdentifier).continue")
         }
         .accessibilityElement(children: .contain)
@@ -843,29 +843,29 @@ struct VoicePushToTalkCaptureView: View {
     private var recovery: some View {
         if stateRequiresRecovery || model.draft.state != .current {
             WorklightCard {
-                sectionHeading("Recovery", identifier: Self.recoveryAccessibilityIdentifier)
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryHeading), identifier: Self.recoveryAccessibilityIdentifier)
                 Text(recoveryText)
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.attentionText)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("The caller must re-read the current draft/context and fence late callbacks before retrying. This view never infers a partial transcript, proposal, checkpoint, or receipt.")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 if canRetryCapture {
-                    Button("Retry voice capture") {
-                        send(.retry, status: "Retry requested. The caller must re-check permission, lifecycle generations, target revision, and scratch state; no effect is claimed.")
+                    Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureRetry)) {
+                        send(.retry, status: BundledLocalizationCatalogV1.v30Text(.voiceCaptureRetryRequested))
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityHint("Retries only after the caller reports a current valid capture context. Manual entry remains available.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureRetryHint))
                     .accessibilityIdentifier("\(Self.recoveryAccessibilityIdentifier).retry")
                 }
-                Button("Return focus to manual entry") {
+                Button(BundledLocalizationCatalogV1.v30Text(.voiceCaptureReturnManualFocus)) {
                     focusedField = .manual
                     moveAccessibilityFocus(to: .manual)
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
-                .accessibilityHint("Moves focus to the complete keyboard/manual draft path.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureReturnManualFocusHint))
                 .accessibilityIdentifier("\(Self.recoveryAccessibilityIdentifier).manual")
             }
             .accessibilityElement(children: .contain)
@@ -876,7 +876,7 @@ struct VoicePushToTalkCaptureView: View {
     private var errorSummary: some View {
         if let displayedErrorMessage {
             WorklightCard {
-                Label("Voice capture needs attention", systemImage: "exclamationmark.triangle.fill")
+                Label(BundledLocalizationCatalogV1.v30Text(.voiceCaptureNeedsAttention), systemImage: "exclamationmark.triangle.fill")
                     .font(.headline)
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -885,7 +885,7 @@ struct VoicePushToTalkCaptureView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityFocused($accessibilityFocus, equals: .error)
-                Text("No partial canonical draft effect is inferred. Review the current supplied state, preserve the typed fallback, and retry the same intent only after the caller reports recovery.")
+                Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureNeedsAttentionDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -900,7 +900,7 @@ struct VoicePushToTalkCaptureView: View {
         let message = localStatusMessage ?? model.operation.message
         if let message {
             WorklightCard {
-                sectionHeading("Operation status", identifier: "\(Self.statusAccessibilityIdentifier).heading")
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.voiceCaptureOperationStatusHeading), identifier: "\(Self.statusAccessibilityIdentifier).heading")
                 Text(message)
                     .font(.body)
                     .foregroundStyle(operationColor)
@@ -918,20 +918,20 @@ struct VoicePushToTalkCaptureView: View {
 
     private var boundaries: some View {
         WorklightCard {
-            sectionHeading("Accessibility and boundaries", identifier: Self.boundariesAccessibilityIdentifier)
-            Text("Every action has a visible text label and a stable VoiceOver/Voice Control identifier. Switch Control, external keyboard, and motor access use the same buttons and text fields; no microphone gesture, wake word, or icon-only action is required.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.voiceCaptureBoundariesHeading), identifier: Self.boundariesAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureAccessibilityDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("At Accessibility Dynamic Type sizes content reflows vertically without truncation. Leading alignment supports RTL, system controls retain contrast and hit targets, and Reduce Motion removes view-owned state-change animation.")
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureDynamicTypeDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Capture is on-device only, nonpersistent, and has no cloud/network fallback or recording archive. Accepted or edited fields request the existing C56 ordinary draft authority; this screen never claims Saved, Complete, Verified, Approved, identity, authority, diagnosis, compliance, delivery, or legal effect.")
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCapturePrivacyBoundary))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("This is an iPhone contained surface only. Native/root/hosted/physical acceptance and release adoption remain false pending S10.6 reconciliation.")
+            Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureContainmentBoundary))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -994,28 +994,28 @@ struct VoicePushToTalkCaptureView: View {
                   disposition: .accept,
                   reviewedValue: value
               ) else {
-            presentError("This field is not an exact proposal. Edit it manually or reject it; no value was sent.")
+            presentError(BundledLocalizationCatalogV1.v30Text(.voiceCaptureNotExactProposal))
             return
         }
         send(
             .acceptField(proposalID: proposalID, review: review),
-            status: "Accept request sent for \(presentation.displayLabel). Waiting for C56's ordinary draft authority; no Saved or Complete claim is made."
+            status: BundledLocalizationCatalogV1.v30VoiceCaptureAcceptRequested(label: presentation.displayLabel)
         )
     }
 
     private func submitEdit(_ presentation: VoicePushToTalkFieldPresentationV1) {
         guard let proposalID = model.proposalID else {
-            presentError("No current proposal is supplied. Keep the typed fallback and retry after the caller supplies a current review target.")
+            presentError(BundledLocalizationCatalogV1.v30Text(.voiceCaptureNoProposal))
             return
         }
         let value = editedValues[presentation.id, default: ""]
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else {
-            presentError("Enter a value before applying this edit.", focus: .edit(presentation.id))
+            presentError(BundledLocalizationCatalogV1.v30Text(.voiceCaptureEnterEditValue), focus: .edit(presentation.id))
             return
         }
         guard value.utf8.count <= VoiceStructuringLimitsV1.maximumTextUTF8Bytes else {
-            presentError("This edited value is too long for the bounded voice field. Use a shorter value or the manual draft path.", focus: .edit(presentation.id))
+            presentError(BundledLocalizationCatalogV1.v30Text(.voiceCaptureEditValueTooLong), focus: .edit(presentation.id))
             return
         }
         send(
@@ -1025,7 +1025,7 @@ struct VoicePushToTalkCaptureView: View {
                 fieldKind: presentation.field.kind,
                 valueText: value
             ),
-            status: "Edit request sent for \(presentation.displayLabel). The caller must convert and validate the typed value through C56; no Saved or Complete claim is made."
+            status: BundledLocalizationCatalogV1.v30VoiceCaptureEditRequested(label: presentation.displayLabel)
         )
         editingFieldID = nil
         focusedField = nil
@@ -1038,12 +1038,12 @@ struct VoicePushToTalkCaptureView: View {
                   disposition: .reject,
                   reviewedValue: nil
               ) else {
-            presentError("This proposal field cannot be rejected from the supplied state. Keep the manual path available and reload the review target.")
+            presentError(BundledLocalizationCatalogV1.v30Text(.voiceCaptureRejectUnavailable))
             return
         }
         send(
             .rejectField(proposalID: proposalID, review: review),
-            status: "Reject request sent for \(presentation.displayLabel). The rejected value remains nonpersistent; no draft effect is claimed."
+            status: BundledLocalizationCatalogV1.v30VoiceCaptureRejectRequested(label: presentation.displayLabel)
         )
     }
 
@@ -1051,16 +1051,16 @@ struct VoicePushToTalkCaptureView: View {
         localErrorMessage = nil
         let text = manualText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
-            presentError("Enter a manual draft value or keep the existing typed text. No empty value was sent.", focus: .manual)
+            presentError(BundledLocalizationCatalogV1.v30Text(.voiceCaptureEnterManualValue), focus: .manual)
             return
         }
         guard text.utf8.count <= VoiceStructuringLimitsV1.maximumTranscriptUTF8Bytes else {
-            presentError("The manual draft text is above the bounded input limit. Use a shorter value and try again.", focus: .manual)
+            presentError(BundledLocalizationCatalogV1.v30Text(.voiceCaptureManualValueTooLong), focus: .manual)
             return
         }
         send(
             .manualEntry(text: text),
-            status: "Manual-entry request sent to the existing draft authority. No Saved or Complete claim is made."
+            status: BundledLocalizationCatalogV1.v30Text(.voiceCaptureManualRequested)
         )
     }
 
@@ -1101,18 +1101,18 @@ struct VoicePushToTalkCaptureView: View {
     }
 
     private func sourceText(for field: StructuredVoiceFieldProposalV1) -> String {
-        guard let transcript = model.transcript else { return "Source text unavailable; reload the supplied transcript." }
+        guard let transcript = model.transcript else { return BundledLocalizationCatalogV1.v30Text(.voiceCaptureSourceTextUnavailable) }
         let bytes = Array(transcript.utf8)
         let start = field.sourceSpan.start
         let end = field.sourceSpan.end
         guard start >= 0, end > start, end <= bytes.count else {
-            return "Source span unavailable; reload the supplied proposal."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureSourceSpanUnavailable)
         }
         return String(decoding: bytes[start..<end], as: UTF8.self)
     }
 
     private func sourceSpanText(_ span: VoiceTranscriptUTF8SpanV1) -> String {
-        "UTF-8 bytes \(span.start)..<\(span.end) (start \(span.start), length \(span.length))"
+        BundledLocalizationCatalogV1.v30VoiceCaptureSourceSpan(start: span.start, end: span.end, repeatedStart: span.start, length: span.length)
     }
 
     private func fieldValueText(
@@ -1122,9 +1122,9 @@ struct VoicePushToTalkCaptureView: View {
         guard let value else {
             switch kind {
             case .materialDescriptionAndQuantity:
-                return "No structured quantity supplied; manual review required"
+                return BundledLocalizationCatalogV1.v30Text(.voiceCaptureNoStructuredQuantity)
             default:
-                return "No value supplied"
+                return BundledLocalizationCatalogV1.v30Text(.voiceCaptureNoValue)
             }
         }
         switch value {
@@ -1133,12 +1133,12 @@ struct VoicePushToTalkCaptureView: View {
         case .allowedEnum(let word):
             return word
         case .exactNumber(let decimal):
-            return "\(decimalText(decimal.mantissa, scale: decimal.scale)) \(decimal.unit.rawValue.lowercased())"
+            return BundledLocalizationCatalogV1.v30VoiceCaptureDecimalValue(value: decimalText(decimal.mantissa, scale: decimal.scale), unit: decimal.unit.rawValue.lowercased())
         case .durationSeconds(let seconds):
-            return "\(seconds) seconds"
+            return BundledLocalizationCatalogV1.v30VoiceCaptureSeconds(seconds: seconds)
         case .material(let material):
             if let quantity = material.quantity {
-                return "\(decimalText(quantity.mantissa, scale: quantity.scale)) \(quantity.unit.rawValue.lowercased()) \(material.description)"
+                return BundledLocalizationCatalogV1.v30VoiceCaptureMaterialQuantity(value: decimalText(quantity.mantissa, scale: quantity.scale), unit: quantity.unit.rawValue.lowercased(), material: material.description)
             }
             return material.description
         }
@@ -1156,35 +1156,35 @@ struct VoicePushToTalkCaptureView: View {
 
     private func confidenceText(_ span: VoiceTranscriptConfidenceSpanV1?) -> String {
         guard let span else {
-            return "Confidence: not supplied; informational only, not a correctness decision."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureConfidenceUnavailable)
         }
         let percent = Int((span.confidence * 100).rounded())
-        return "Confidence: \(percent)% (informational only; not a correctness, verification, or approval decision)."
+        return BundledLocalizationCatalogV1.v30VoiceCaptureConfidence(percent: percent)
     }
 
     private func resolutionText(_ resolution: VoiceStructuringResolutionV1) -> String {
         switch resolution {
         case .exact:
-            return "Exact explicit grammar match"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureResolutionExactMatch)
         case .ambiguous:
-            return "Ambiguous; manual edit or rejection required"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureResolutionAmbiguous)
         case .unsupported:
-            return "Unsupported; manual entry required"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureResolutionUnsupported)
         }
     }
 
     private func reviewStateText(_ state: VoicePushToTalkFieldReviewStateV1) -> String {
         switch state {
         case .pending:
-            return "Pending explicit decision"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReviewPending)
         case .accepted:
-            return "Acceptance requested; caller result not yet claimed"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReviewAcceptedRequested)
         case .edited:
-            return "Edit requested; caller result not yet claimed"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReviewEditedRequested)
         case .rejected:
-            return "Rejection requested; no value write claimed"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReviewRejectedRequested)
         case .needsManualReview:
-            return "Manual review required"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReviewManualRequired)
         }
     }
 
@@ -1201,37 +1201,37 @@ struct VoicePushToTalkCaptureView: View {
 
     private var captureStateText: String {
         switch model.state {
-        case .ready: return "Ready for one explicit push-to-talk capture"
-        case .capturing: return "Capturing on device"
-        case .processing: return "Processing stopped capture"
-        case .review: return "Review required before draft authority"
-        case .manualFallback: return "Manual fallback available"
-        case .permissionDenied: return "Microphone or speech permission denied"
-        case .permissionRevoked: return "Microphone or speech permission revoked"
-        case .unsupported: return "On-device speech unsupported"
-        case .offline: return "Offline; manual path preserved"
-        case .interrupted: return "Capture interrupted"
-        case .backgrounded: return "Capture stopped after backgrounding"
-        case .cancelled: return "Capture cancelled"
-        case .staleTarget: return "Capture target is stale"
-        case .protectedDataUnavailable: return "Protected data unavailable"
-        case .storageUnavailable: return "Local storage unavailable"
-        case .failed: return "Capture failed; recovery required"
+        case .ready: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateReady)
+        case .capturing: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateCapturing)
+        case .processing: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateProcessing)
+        case .review: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateReview)
+        case .manualFallback: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateManualFallback)
+        case .permissionDenied: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStatePermissionDenied)
+        case .permissionRevoked: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStatePermissionRevoked)
+        case .unsupported: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateUnsupported)
+        case .offline: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateOffline)
+        case .interrupted: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateInterrupted)
+        case .backgrounded: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateBackgrounded)
+        case .cancelled: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateCancelled)
+        case .staleTarget: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateStaleTarget)
+        case .protectedDataUnavailable: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateProtectedDataUnavailable)
+        case .storageUnavailable: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateStorageUnavailable)
+        case .failed: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureStateFailed)
         }
     }
 
     private var captureStateDetail: String {
         switch model.state {
         case .ready:
-            return "Press Speak details only when you want one explicit utterance. The caller supplies the current lifecycle-fenced context and starts the 60-second on-device session."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureFallbackReady)
         case .manualFallback:
             return fallbackDetail
         case .permissionDenied, .permissionRevoked:
-            return "Speech access is unavailable. Manual entry below is complete and remains usable without another permission prompt or a network fallback."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureFallbackPermission)
         case .unsupported:
-            return "This device or locale does not report the required on-device recognition capability. No cloud fallback is used; continue manually."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureFallbackUnsupported)
         case .offline:
-            return "The capture path has no network fallback. Continue with manual entry while the caller rechecks the local capability state."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureFallbackOffline)
         case .interrupted, .backgrounded, .cancelled, .staleTarget, .protectedDataUnavailable,
              .storageUnavailable, .failed:
             return recoveryText
@@ -1242,48 +1242,48 @@ struct VoicePushToTalkCaptureView: View {
 
     private var fallbackDetail: String {
         guard let fallbackReason = model.fallbackReason else {
-            return "The voice path returned to manual entry. No transcript or draft effect is inferred."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureFallbackManual)
         }
-        return "\(fallbackReasonText(fallbackReason)) Manual entry remains complete; no transcript, proposal, or draft effect is inferred."
+        return BundledLocalizationCatalogV1.v30VoiceCaptureFallback(reason: fallbackReasonText(fallbackReason))
     }
 
     private var recoveryText: String {
         switch model.state {
         case .staleTarget:
-            return "The draft target revision changed or could not be revalidated. Reload the current draft/context before retrying; keep the typed fallback."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryStale)
         case .protectedDataUnavailable:
-            return "Protected local data is unavailable. No transcript, proposal, scratch, or draft effect is reconstructed. Retry after protected data becomes available."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryProtectedData)
         case .storageUnavailable:
-            return "Local storage is unavailable or under pressure. No scratch cleanup or draft checkpoint is claimed; retry after storage recovery."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryStorage)
         case .interrupted:
-            return "Audio capture was interrupted. The caller must fence the callback and clean temporary scratch; manual text remains available."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryInterrupted)
         case .backgrounded:
-            return "The app moved to the background. This foreground-only capture does not continue silently; return to manual entry or retry explicitly."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryBackgrounded)
         case .cancelled:
-            return "Capture was cancelled. The unfinished utterance is not a transcript, proposal, or draft write."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryCancelled)
         case .failed:
-            return "The capture or structuring request failed. The caller must report cleanup/retry truth before another attempt."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryFailed)
         case .manualFallback, .permissionDenied, .permissionRevoked, .unsupported, .offline:
             return fallbackDetail
         case .ready, .capturing, .processing, .review:
-            return "Manual entry remains available while the caller supplies a current state."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureRecoveryDefault)
         }
     }
 
     private func fallbackReasonText(_ reason: VoiceCaptureManualFallbackReasonV1) -> String {
         switch reason {
-        case .typeManually: return "Manual entry was selected."
-        case .permissionDenied: return "Microphone or speech permission was denied."
-        case .permissionRevoked: return "Microphone or speech permission was revoked."
-        case .permissionRestricted: return "Microphone or speech permission is restricted."
-        case .permissionNotDetermined: return "Permission is not determined."
-        case .unsupportedLocale: return "The selected locale is unsupported for on-device recognition."
-        case .unsupportedDevice: return "This device does not support the required on-device recognition path."
-        case .protectedDataUnavailable: return "Protected data is unavailable."
-        case .backgrounded: return "The app was backgrounded during foreground-only capture."
-        case .interrupted: return "Audio capture was interrupted."
-        case .cancelled: return "Capture was cancelled."
-        case .unavailable: return "The on-device capture path is unavailable."
+        case .typeManually: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonManual)
+        case .permissionDenied: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonPermissionDenied)
+        case .permissionRevoked: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonPermissionRevoked)
+        case .permissionRestricted: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonPermissionRestricted)
+        case .permissionNotDetermined: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonPermissionNotDetermined)
+        case .unsupportedLocale: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonUnsupportedLocale)
+        case .unsupportedDevice: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonUnsupportedDevice)
+        case .protectedDataUnavailable: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonProtectedDataUnavailable)
+        case .backgrounded: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonBackgrounded)
+        case .interrupted: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonInterrupted)
+        case .cancelled: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonCancelled)
+        case .unavailable: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureReasonUnavailable)
         }
     }
 
@@ -1320,47 +1320,47 @@ struct VoicePushToTalkCaptureView: View {
     private var operationBoundaryText: String {
         switch model.operation.state {
         case .receiptReturned:
-            return "The caller supplied an operation result. This view does not infer Saved, Complete, or any additional canonical effect."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureOperationReceipt)
         case .failed, .stale:
-            return "The operation did not produce a confirmed canonical result. Review the supplied error and reload before retrying."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureOperationFailure)
         case .cancelled:
-            return "Cancellation makes no completion, transcript, proposal, or draft-effect claim."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureOperationCancelled)
         case .requesting, .awaitingReceipt:
-            return "A request is not a durable receipt and does not prove a draft effect."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureOperationPending)
         case .idle:
-            return "No canonical operation result is supplied."
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureOperationNoResult)
         }
     }
 
     private func draftStateText(_ state: VoicePushToTalkDraftStateV1) -> String {
         switch state {
-        case .current: return "Current supplied draft"
-        case .interrupted: return "Draft interrupted; recovery required"
-        case .protectedDataUnavailable: return "Draft held while protected data is unavailable"
-        case .storageUnavailable: return "Draft held while storage is unavailable"
-        case .stale: return "Draft target is stale"
-        case .unavailable: return "Draft unavailable; no draft result claimed"
+        case .current: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftCurrent)
+        case .interrupted: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftInterrupted)
+        case .protectedDataUnavailable: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftProtectedData)
+        case .storageUnavailable: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftStorage)
+        case .stale: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftStale)
+        case .unavailable: return BundledLocalizationCatalogV1.v30Text(.voiceCaptureDraftUnavailable)
         }
     }
 
     private func scratchDispositionText(_ disposition: VoiceScratchDispositionV1) -> String {
         switch disposition {
         case .captureAudioDiscarded:
-            return "Capture audio discarded; scratch cleanup completed"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchDiscarded)
         case .cancelled:
-            return "Cancelled; cleanup requested"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchCancelled)
         case .backgrounded:
-            return "Backgrounded; cleanup requested"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchBackgrounded)
         case .interrupted:
-            return "Interrupted; cleanup requested"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchInterrupted)
         case .permissionRevoked:
-            return "Permission revoked; cleanup requested"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchPermissionRevoked)
         case .unavailable:
-            return "Unavailable; cleanup requested"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchUnavailable)
         case .stale:
-            return "Stale; cleanup requested"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchStale)
         case .failed:
-            return "Failed; cleanup requested"
+            return BundledLocalizationCatalogV1.v30Text(.voiceCaptureScratchFailed)
         }
     }
 }

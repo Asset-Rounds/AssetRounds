@@ -205,7 +205,7 @@ private struct StartupRootView: View {
         Group {
             switch router.route {
             case .checking:
-                ProgressView("Checking local data")
+                ProgressView(BundledLocalizationCatalogV1.v30Text(.appStartupCheckingLocalData))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background {
                         DesignTokens.Colors.canvas
@@ -460,17 +460,17 @@ private struct EraseCleanupPendingView: View {
     var body: some View {
         ScrollView {
             WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Field Evidence")
-                Text("Local data erased")
+                WorklightStatusBadge(kind: .information, text: BundledLocalizationCatalogV1.v30Text(.appErasePendingFieldEvidence))
+                Text(BundledLocalizationCatalogV1.v30Text(.appErasePendingLocalDataErased))
                     .font(.largeTitle.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                Text("Close and reopen the app to finish secure cleanup.")
+                Text(BundledLocalizationCatalogV1.v30Text(.appErasePendingCleanupInstruction))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                ProgressView("Finishing erase")
+                ProgressView(BundledLocalizationCatalogV1.v30Text(.appErasePendingFinishingErase))
             }
             .padding(DesignTokens.Spacing.medium)
         }

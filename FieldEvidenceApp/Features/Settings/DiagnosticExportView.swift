@@ -35,14 +35,14 @@ struct DiagnosticExportView: View {
     var body: some View {
         ScrollView {
             WorklightCard {
-                Text("Diagnostics preview")
+                Text(BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticLabel))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
 
                 Text(
-                    "These counters are best-effort lower-bound signals. They may be incomplete and are not payment, access, or cohort authority."
+                    BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticLabel2)
                 )
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -50,7 +50,7 @@ struct DiagnosticExportView: View {
                 .accessibilityIdentifier(Self.authorityAccessibilityIdentifier)
 
                 Text(
-                    "The export includes only app and device versions, local counters, and bounded system metrics when available. It never includes customer or sign details, addresses, notes, photos, reports, backups, paths, hashes, StoreKit details, credentials, or logs."
+                    BundledLocalizationCatalogV1.v30Text(.diagnosticsPhotoLabel)
                 )
                 .font(.subheadline)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -60,19 +60,19 @@ struct DiagnosticExportView: View {
                 if let prepared {
                     preview(prepared.value)
 
-                    Button("Save diagnostics to Files") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticAction)) {
                         statusMessage = nil
                         showsExporter = true
                     }
                     .buttonStyle(WorklightPrimaryButtonStyle())
                     .accessibilityHint(
-                        "Opens the system Files destination picker for this reviewed diagnostic JSON"
+                        BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticLabel3)
                     )
                     .accessibilityIdentifier(Self.exportAccessibilityIdentifier)
                 } else if let errorMessage {
                     WorklightStatusBadge(kind: .blocked, text: errorMessage)
                 } else {
-                    ProgressView("Preparing privacy-safe diagnostics")
+                    ProgressView(BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticProgress))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -83,7 +83,7 @@ struct DiagnosticExportView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Diagnostics")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticNavigation))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -97,13 +97,13 @@ struct DiagnosticExportView: View {
             switch result {
             case .success:
                 errorMessage = nil
-                statusMessage = "Diagnostic file saved."
+                statusMessage = BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticLabel4)
             case let .failure(error):
                 if (error as? CocoaError)?.code == .userCancelled {
                     return
                 }
                 statusMessage = nil
-                errorMessage = "The diagnostic file could not be saved to Files."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticFailure)
             }
         }
         .task {
@@ -112,7 +112,7 @@ struct DiagnosticExportView: View {
             do {
                 prepared = try await service.prepare()
             } catch {
-                errorMessage = "Diagnostics are unavailable right now. No app data changed."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticFailure2)
             }
         }
     }
@@ -120,9 +120,9 @@ struct DiagnosticExportView: View {
     @ViewBuilder
     private func preview(_ value: DiagnosticExportV1) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("App \(value.app.version) (\(value.app.build))")
-            Text("Device \(value.device.model) · iOS \(value.device.osVersion)")
-            Text("Generated \(value.generatedAt.formatted(date: .abbreviated, time: .shortened))")
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsAppVersionBuild(version: value.app.version, build: value.app.build))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsDeviceModelOS(model: value.device.model, osVersion: value.device.osVersion))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsGeneratedAt(date: value.generatedAt.formatted(date: .abbreviated, time: .shortened)))
         }
         .font(.subheadline)
         .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -130,16 +130,16 @@ struct DiagnosticExportView: View {
 
         let counters = value.counters
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Local counters")
+            Text(BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticLabel5))
                 .font(.headline)
-            Text("First signs: \(counters.firstSignCreated)")
-            Text("Onboarding completions: \(counters.onboardingCompleted)")
-            Text("Reports saved: \(counters.reportSaved)")
-            Text("Rechecks completed: \(counters.recheckCompleted)")
-            Text("Report share sheets: \(counters.reportShareSheetPresented)")
-            Text("Paywalls shown: \(counters.paywallPresented)")
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsFirstSignsCount(count: counters.firstSignCreated))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsOnboardingCompletionsCount(count: counters.onboardingCompleted))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsReportsSavedCount(count: counters.reportSaved))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsRechecksCompletedCount(count: counters.recheckCompleted))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsReportShareSheetsCount(count: counters.reportShareSheetPresented))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsPaywallsShownCount(count: counters.paywallPresented))
             Text(
-                "Purchase results — verified \(counters.purchaseResult.verified), cancelled \(counters.purchaseResult.cancelled), pending \(counters.purchaseResult.pending), unverified \(counters.purchaseResult.unverified), failed \(counters.purchaseResult.failed)"
+                BundledLocalizationCatalogV1.v30DiagnosticsPurchaseResults(verified: counters.purchaseResult.verified, cancelled: counters.purchaseResult.cancelled, pending: counters.purchaseResult.pending, unverified: counters.purchaseResult.unverified, failed: counters.purchaseResult.failed)
             )
         }
         .font(.body)
@@ -150,16 +150,16 @@ struct DiagnosticExportView: View {
 
         if let metricKit = value.metricKit {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                Text("Bounded system summary")
+                Text(BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticLabel6))
                     .font(.headline)
-                Text("Crashes: \(metricKit.crashCount)")
-                Text("Hangs: \(metricKit.hangCount)")
+                Text(BundledLocalizationCatalogV1.v30DiagnosticsCrashesCount(count: metricKit.crashCount))
+                Text(BundledLocalizationCatalogV1.v30DiagnosticsHangsCount(count: metricKit.hangCount))
                 if let bytes = metricKit.peakMemoryBytes {
-                    Text("Peak memory bytes: \(bytes)")
+                    Text(BundledLocalizationCatalogV1.v30DiagnosticsPeakMemoryBytes(bytes: bytes))
                 }
                 if let launch = metricKit.launchTimeMilliseconds {
                     Text(
-                        "Launches — under 500 ms \(launch.under500), 500–999 ms \(launch.from500Through999), 1000–1999 ms \(launch.from1000Through1999), 2000 ms or more \(launch.from2000Up)"
+                        BundledLocalizationCatalogV1.v30DiagnosticsLaunchBuckets(under500: launch.under500, from500Through999: launch.from500Through999, from1000Through1999: launch.from1000Through1999, from2000Up: launch.from2000Up)
                     )
                 }
             }
@@ -169,7 +169,7 @@ struct DiagnosticExportView: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier(Self.metricKitAccessibilityIdentifier)
         } else {
-            Text("No recent bounded system summary is available.")
+            Text(BundledLocalizationCatalogV1.v30Text(.diagnosticsDiagnosticLabel7))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)

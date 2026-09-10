@@ -70,43 +70,43 @@ struct MyDayWorkflowView: View {
             Section {
                 eligibleWork
             } header: {
-                sectionHeading("Eligible work", identifier: Self.eligibleWorkAccessibilityIdentifier)
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.myDayEligibleWorkHeading), identifier: Self.eligibleWorkAccessibilityIdentifier)
             }
 
             Section {
                 planAndOrder
             } header: {
-                sectionHeading("Plan and manual order", identifier: Self.planOrderAccessibilityIdentifier)
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.myDayPlanOrderHeading), identifier: Self.planOrderAccessibilityIdentifier)
             }
 
             Section {
                 readinessAndDuration
             } header: {
-                sectionHeading("Derived readiness and duration", identifier: Self.readinessAccessibilityIdentifier)
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.myDayReadinessHeading), identifier: Self.readinessAccessibilityIdentifier)
             }
 
             Section {
                 startResume
             } header: {
-                sectionHeading("Start or resume", identifier: Self.startResumeAccessibilityIdentifier)
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.myDayStartResumeHeading), identifier: Self.startResumeAccessibilityIdentifier)
             }
 
             Section {
                 carryover
             } header: {
-                sectionHeading("Explicit carryover", identifier: Self.carryoverAccessibilityIdentifier)
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.myDayCarryoverHeading), identifier: Self.carryoverAccessibilityIdentifier)
             }
 
             Section {
                 reconciliationAndBoundaries
             } header: {
-                sectionHeading("Reconciliation and boundaries", identifier: Self.reconciliationAccessibilityIdentifier)
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.myDayReconciliationHeading), identifier: Self.reconciliationAccessibilityIdentifier)
             }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(DesignTokens.Colors.canvas)
-        .navigationTitle("My Day")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.myDayNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .environment(\.editMode, $editMode)
@@ -120,12 +120,12 @@ struct MyDayWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: contentSpacing) {
-            Text("My Day")
+            Text(BundledLocalizationCatalogV1.v30Text(.myDayHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("Plan supplied eligible work in a manual order. Due, readiness, duration, completion, cancellation, and reopen information remains derived from its canonical source.")
+            Text(BundledLocalizationCatalogV1.v30Text(.myDayHeadingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -135,22 +135,22 @@ struct MyDayWorkflowView: View {
     private var eligibleWork: some View {
         WorklightCard {
             if eligibleReferences.isEmpty {
-                Text("No eligible work is supplied. This view does not search for, schedule, or create work.")
+                Text(BundledLocalizationCatalogV1.v30Text(.myDayNoEligibleWork))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Selecting an item asks the supplied coordinator to update a zero-write draft only. It does not save a plan or change due work.")
+                Text(BundledLocalizationCatalogV1.v30Text(.myDayEligibleWorkDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(eligibleReferences, id: \.stableKey) { reference in
-                    Button("Select \(referenceLabel(reference))") {
+                    Button(BundledLocalizationCatalogV1.v30MyDaySelectReference(reference: referenceLabel(reference))) {
                         onSelectEligible(reference)
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier("\(Self.eligibleWorkAccessibilityIdentifier).\(reference.stableKey)")
-                    .accessibilityHint("Requests selection for a zero-write My Day draft.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.myDaySelectHint))
                 }
             }
         }
@@ -160,33 +160,33 @@ struct MyDayWorkflowView: View {
     @ViewBuilder
     private var planAndOrder: some View {
         if let draft {
-            Text("Order is manual. Drag with Reorder enabled, or use Move up and Move down. Derived cues never change this order.")
+            Text(BundledLocalizationCatalogV1.v30Text(.myDayOrderDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button(editMode.isEditing ? "Finish reordering" : "Reorder plan") {
+            Button(editMode.isEditing ? BundledLocalizationCatalogV1.v30Text(.myDayFinishReordering) : BundledLocalizationCatalogV1.v30Text(.myDayReorderPlan)) {
                 editMode = editMode.isEditing ? .inactive : .active
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
-            .accessibilityHint("Enables manual drag reordering. Accessible move controls remain available.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.myDayReorderHint))
 
             ForEach(Array(draft.items.enumerated()), id: \.element.membershipID) { index, item in
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
                     Text("\(index + 1). \(referenceLabel(item.reference))")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
-                    Text(item.estimate.map(estimateText) ?? "No duration estimate supplied")
+                    Text(item.estimate.map(estimateText) ?? BundledLocalizationCatalogV1.v30Text(.myDayNoDurationEstimate))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                     HStack {
-                        Button("Move up") {
+                        Button(BundledLocalizationCatalogV1.v30Text(.myDayMoveUp)) {
                             onMove(.up(membershipID: item.membershipID))
                         }
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .disabled(index == 0)
                         .accessibilityIdentifier("\(Self.planOrderAccessibilityIdentifier).move-up.\(item.membershipID.uuidString.lowercased())")
-                        Button("Move down") {
+                        Button(BundledLocalizationCatalogV1.v30Text(.myDayMoveDown)) {
                             onMove(.down(membershipID: item.membershipID))
                         }
                         .buttonStyle(WorklightSecondaryButtonStyle())
@@ -199,13 +199,13 @@ struct MyDayWorkflowView: View {
             .onMove(perform: requestMove)
 
             Text(savePreview?.zeroWrite == true
-                 ? "A zero-write save preview is supplied. Saving remains a separate explicit coordinator action."
-                 : "No save preview is supplied. This view makes no saved-plan claim.")
+                 ? BundledLocalizationCatalogV1.v30Text(.myDaySavePreviewAvailable)
+                 : BundledLocalizationCatalogV1.v30Text(.myDayNoSavePreview))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
-            Text("No plan draft is supplied. Planning remains needs-attention and automatic prioritization is not used.")
+            Text(BundledLocalizationCatalogV1.v30Text(.myDayNoPlanDraft))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .accessibilityFocused($accessibilityFocus, equals: .plan)
@@ -216,30 +216,30 @@ struct MyDayWorkflowView: View {
     private var readinessAndDuration: some View {
         WorklightCard {
             if let summary {
-                valueRow("Plan duration", value: summary.totalEstimatedMinutes.map { "\($0) minutes" } ?? "No total estimate")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.myDayPlanDuration), value: summary.totalEstimatedMinutes.map { BundledLocalizationCatalogV1.v30MyDayMinutes(minutes: $0) } ?? BundledLocalizationCatalogV1.v30Text(.myDayNoTotalEstimate))
                     .accessibilityIdentifier(Self.durationAccessibilityIdentifier)
-                valueRow("Partial readiness", value: summary.hasPartialReadiness ? "Some supplied work is not ready" : "No partial readiness indicated")
-                valueRow("Unresolved exceptions", value: "\(summary.unresolvedExceptionCount)")
-                Text("Due and readiness cues are derived at the supplied evaluation time. They do not prioritize, schedule, or mutate work.")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.myDayPartialReadiness), value: summary.hasPartialReadiness ? BundledLocalizationCatalogV1.v30Text(.myDaySomeWorkNotReady) : BundledLocalizationCatalogV1.v30Text(.myDayNoPartialReadiness))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.myDayUnresolvedExceptions), value: "\(summary.unresolvedExceptionCount)")
+                Text(BundledLocalizationCatalogV1.v30Text(.myDayReadinessDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(summary.items, id: \.item.membershipID) { item in
-                    Text("\(referenceLabel(item.item.reference)): \(dueCueText(item.dueCue)); \(readinessText(item.readiness)); \(item.estimate.map(estimateText) ?? "no duration estimate")")
+                    Text(BundledLocalizationCatalogV1.v30MyDayItemReadiness(reference: referenceLabel(item.item.reference), dueCue: dueCueText(item.dueCue), readiness: readinessText(item.readiness), estimate: item.estimate.map(estimateText) ?? BundledLocalizationCatalogV1.v30Text(.myDayNoDurationEstimateLowercase)))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text("No derived readiness or duration projection is supplied. No due-state or schedule claim is made.")
+                Text(BundledLocalizationCatalogV1.v30Text(.myDayNoReadinessProjection))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Refresh derived cues", action: onRefreshSummary)
+            Button(BundledLocalizationCatalogV1.v30Text(.myDayRefreshCues), action: onRefreshSummary)
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .keyboardShortcut("r", modifiers: [.command])
-                .accessibilityHint("Requests a fresh derived projection. It does not save or reorder the plan.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.myDayRefreshHint))
         }
         .accessibilityElement(children: .contain)
     }
@@ -249,25 +249,25 @@ struct MyDayWorkflowView: View {
             if let summary {
                 let intents = summary.items.compactMap(\.routeIntent)
                 if intents.isEmpty {
-                    Text("No supplied item currently has an existing Start or Resume route intent.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.myDayNoRouteIntent))
                         .font(.body)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                 } else {
-                    Text("Start and Resume request an existing route only. This view does not claim the route opened or that work began.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.myDayStartResumeDescription))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     ForEach(intents, id: \.reference.stableKey) { intent in
-                        Button("\(intent.action == .start ? "Start" : "Resume") \(referenceLabel(intent.reference))") {
+                        Button(BundledLocalizationCatalogV1.v30MyDayRouteAction(action: intent.action == .start ? BundledLocalizationCatalogV1.v30Text(.myDayStart) : BundledLocalizationCatalogV1.v30Text(.myDayResume), reference: referenceLabel(intent.reference))) {
                             onRequestRoute(intent)
                         }
                         .buttonStyle(WorklightPrimaryButtonStyle())
                         .accessibilityIdentifier("\(Self.startResumeAccessibilityIdentifier).\(intent.reference.stableKey)")
-                        .accessibilityHint("Requests the supplied existing route. It does not start or resume work by itself.")
+                        .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.myDayRouteHint))
                     }
                 }
             } else {
-                Text("Start and Resume are unavailable until a supplied derived projection identifies an existing route intent.")
+                Text(BundledLocalizationCatalogV1.v30Text(.myDayStartResumeUnavailable))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             }
@@ -277,20 +277,20 @@ struct MyDayWorkflowView: View {
 
     private var carryover: some View {
         WorklightCard {
-            Text("Carryover is explicit and only uses supplied eligible memberships. It never moves unfinished work across a date or time zone automatically.")
+            Text(BundledLocalizationCatalogV1.v30Text(.myDayCarryoverDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Text(carryoverPreview?.zeroWrite == true
-                 ? "A zero-write carryover preview is supplied. Commit and recovery remain separate coordinator actions."
-                 : "No carryover preview is supplied. No work has been carried forward.")
+                 ? BundledLocalizationCatalogV1.v30Text(.myDayCarryoverPreviewAvailable)
+                 : BundledLocalizationCatalogV1.v30Text(.myDayNoCarryoverPreview))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("Preview explicit carryover", action: onPreviewCarryover)
+            Button(BundledLocalizationCatalogV1.v30Text(.myDayPreviewCarryover), action: onPreviewCarryover)
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .keyboardShortcut("c", modifiers: [.command])
-                .accessibilityHint("Requests a zero-write carryover preview. It does not carry work forward.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.myDayCarryoverHint))
         }
         .accessibilityElement(children: .contain)
     }
@@ -299,22 +299,22 @@ struct MyDayWorkflowView: View {
         WorklightCard {
             if let summary {
                 ForEach(summary.items, id: \.item.membershipID) { item in
-                    Text("\(referenceLabel(item.item.reference)): \(statusText(item.status)); source state \(sourceStateText(item.sourceState)).")
+                    Text(BundledLocalizationCatalogV1.v30MyDayReconciliationItem(reference: referenceLabel(item.item.reference), status: statusText(item.status), sourceState: sourceStateText(item.sourceState)))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text("No reconciliation projection is supplied. Completion, cancellation, and reopen status is not inferred.")
+                Text(BundledLocalizationCatalogV1.v30Text(.myDayNoReconciliationProjection))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             }
-            Text("Completion, cancellation, and reopen are reconciled from existing canonical sources. This contained surface does not alter schedule truth, create a route engine, send notifications, dispatch work, or write telemetry.")
+            Text(BundledLocalizationCatalogV1.v30Text(.myDayReconciliationDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityFocused($accessibilityFocus, equals: .reconciliation)
-            Text("Stable labels support VoiceOver, Voice Control, Switch Control, keyboard use, and RTL layout. At Accessibility text sizes, content reflows without truncation; Reduce Motion adds no state-change animation.")
+            Text(BundledLocalizationCatalogV1.v30Text(.myDayAccessibilityDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -338,7 +338,7 @@ struct MyDayWorkflowView: View {
         onMove(.toIndex(membershipID: draft.items[sourceIndex].membershipID, index: requestedIndex))
     }
 
-    private func sectionHeading(_ title: LocalizedStringKey, identifier: String) -> some View {
+    private func sectionHeading(_ title: String, identifier: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -361,18 +361,18 @@ struct MyDayWorkflowView: View {
     private func referenceLabel(_ reference: MyDayEligibleReferenceV1) -> String {
         switch reference {
         case .workPacket:
-            return "Work packet"
+            return BundledLocalizationCatalogV1.v30Text(.myDayWorkPacket)
         case .roundSession:
-            return "Round session"
+            return BundledLocalizationCatalogV1.v30Text(.myDayRoundSession)
         case .scheduleOccurrence:
-            return "Scheduled occurrence"
+            return BundledLocalizationCatalogV1.v30Text(.myDayScheduledOccurrence)
         case .resumableDraft:
-            return "Resumable draft"
+            return BundledLocalizationCatalogV1.v30Text(.myDayResumableDraft)
         }
     }
 
     private func estimateText(_ estimate: MyDayEstimateV1) -> String {
-        "\(estimate.wholeMinutes) minute estimate"
+        BundledLocalizationCatalogV1.v30MyDayMinuteEstimate(minutes: estimate.wholeMinutes)
     }
 
     private func dueCueText(_ cue: MyDayDueCueV1) -> String {

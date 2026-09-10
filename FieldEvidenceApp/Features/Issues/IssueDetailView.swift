@@ -59,34 +59,34 @@ struct IssueDetailView: View {
                     if issue.status == .resolved,
                        let recordApprovalResponse {
                         Menu {
-                            Button("Record response", action: recordApprovalResponse)
+                            Button(BundledLocalizationCatalogV1.v30Text(.issueDetailIssueAction), action: recordApprovalResponse)
                                 .accessibilityHint(
-                                    "Opens the response editor for this completed work."
+                                    BundledLocalizationCatalogV1.v30Text(.issueDetailIssueLabel)
                                 )
                                 .accessibilityIdentifier(
                                     Self.signoffRecordResponseAccessibilityIdentifier
                                 )
                         } label: {
-                            Label("More", systemImage: "ellipsis.circle")
+                            Label(BundledLocalizationCatalogV1.v30Text(.issueDetailIssueAccessibility), systemImage: "ellipsis.circle")
                                 .frame(
                                     maxWidth: .infinity,
                                     minHeight: DesignTokens.Control.minimumHitSize
                                 )
                         }
                         .buttonStyle(WorklightSecondaryButtonStyle())
-                        .accessibilityLabel("More")
+                        .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.issueDetailIssueAccessibility))
                         .accessibilityHint(
-                            "More actions for this completed work, including Record response."
+                            BundledLocalizationCatalogV1.v30Text(.issueDetailIssueAction2)
                         )
                         .accessibilityIdentifier(Self.signoffMoreAccessibilityIdentifier)
                     }
 
                     if issue.canRecordWork {
-                        Button("Record work", action: recordWork)
+                        Button(BundledLocalizationCatalogV1.v30Text(.issueDetailIssueAction3), action: recordWork)
                             .buttonStyle(WorklightPrimaryButtonStyle())
                             .accessibilityIdentifier(Self.recordWorkAccessibilityIdentifier)
                     } else if issue.status == .recheckDue {
-                        Button("Start recheck", action: startRecheck)
+                        Button(BundledLocalizationCatalogV1.v30Text(.issueDetailCheckAction), action: startRecheck)
                             .buttonStyle(WorklightPrimaryButtonStyle())
                             .accessibilityIdentifier(Self.startRecheckAccessibilityIdentifier)
                     }
@@ -96,18 +96,18 @@ struct IssueDetailView: View {
                 ForEach(issue.records) { record in
                     WorklightCard {
                         detailRow(
-                            title: "Date",
+                            title: BundledLocalizationCatalogV1.v30Text(.issueDetailIssueLabel2),
                             value: record.performedLocalDate,
                             identifier: Self.workDateAccessibilityIdentifier
                         )
                         detailRow(
-                            title: "Short description",
+                            title: BundledLocalizationCatalogV1.v30Text(.issueDetailIssueLabel3),
                             value: record.description,
                             identifier: Self.workDescriptionAccessibilityIdentifier
                         )
                         if let note = record.note {
                             detailRow(
-                                title: "Note",
+                                title: BundledLocalizationCatalogV1.v30Text(.issueDetailIssueLabel4),
                                 value: note,
                                 identifier: Self.workNoteAccessibilityIdentifier
                             )
@@ -119,7 +119,7 @@ struct IssueDetailView: View {
                                 .scaledToFit()
                                 .frame(maxWidth: image.size.width)
                                 .accessibilityLabel(
-                                    "Add one optional photo showing the work performed."
+                                    BundledLocalizationCatalogV1.v30Text(.issueDetailPhotoLabel)
                                 )
                                 .accessibilityIdentifier(Self.workPhotoAccessibilityIdentifier)
                         }
@@ -148,9 +148,9 @@ struct IssueDetailView: View {
 
     private var statusDisplay: String {
         switch issue.status {
-        case .open: "Record work"
-        case .recheckDue: "Recheck due"
-        case .resolved: "Resolved"
+        case .open: BundledLocalizationCatalogV1.v30Text(.issueDetailIssueAction3)
+        case .recheckDue: BundledLocalizationCatalogV1.v30Text(.issueDetailCheckLabel)
+        case .resolved: BundledLocalizationCatalogV1.v30Text(.issueDetailIssueLabel5)
         }
     }
 

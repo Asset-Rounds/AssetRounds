@@ -20,32 +20,32 @@ struct BackupValidationSummaryView: View {
     var body: some View {
         ScrollView {
             WorklightCard {
-                Text("Backup")
+                Text(BundledLocalizationCatalogV1.v30Text(.backupValidationHeading))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
                     .accessibilityFocused($headingFocused)
 
-                Text(countLabel(summary.incomingSignCount, singular: "sign", plural: "signs"))
+                Text(BundledLocalizationCatalogV1.v30BackupValidationSignCount(count: summary.incomingSignCount))
                     .summaryValue(identifier: Self.signCountAccessibilityIdentifier)
-                Text(countLabel(summary.incomingReportCount, singular: "report", plural: "reports"))
+                Text(BundledLocalizationCatalogV1.v30BackupValidationReportCount(count: summary.incomingReportCount))
                     .summaryValue(identifier: Self.reportCountAccessibilityIdentifier)
-                Text(countLabel(summary.incomingPhotoCount, singular: "photo", plural: "photos"))
+                Text(BundledLocalizationCatalogV1.v30BackupValidationPhotoCount(count: summary.incomingPhotoCount))
                     .summaryValue(identifier: Self.photoCountAccessibilityIdentifier)
 
                 summaryRow(
-                    label: "Date",
+                    label: BundledLocalizationCatalogV1.v30Text(.backupValidationDateLabel),
                     value: Self.timestampFormatter.string(from: summary.exportedAt),
                     identifier: Self.dateAccessibilityIdentifier
                 )
                 summaryRow(
-                    label: "Size",
-                    value: "\(summary.declaredPayloadByteCount) bytes",
+                    label: BundledLocalizationCatalogV1.v30Text(.backupValidationSizeLabel),
+                    value: BundledLocalizationCatalogV1.v30BackupValidationPayloadBytes(byteCount: summary.declaredPayloadByteCount),
                     identifier: Self.sizeAccessibilityIdentifier
                 )
                 summaryRow(
-                    label: "Pack",
+                    label: BundledLocalizationCatalogV1.v30Text(.backupValidationPackLabel),
                     value: summary.packs.isEmpty
                         ? "0"
                         : summary.packs.map {
@@ -54,13 +54,13 @@ struct BackupValidationSummaryView: View {
                     identifier: Self.packsAccessibilityIdentifier
                 )
                 summaryRow(
-                    label: "Counted roots",
+                    label: BundledLocalizationCatalogV1.v30Text(.backupValidationCountedRootsLabel),
                     value: String(summary.consumedRootCount),
                     identifier: Self.rootsAccessibilityIdentifier
                 )
                 summaryRow(
-                    label: "Slots",
-                    value: "\(summary.liveSlotCount) live, \(summary.tombstonedSlotCount) deleted",
+                    label: BundledLocalizationCatalogV1.v30Text(.backupValidationSlotsLabel),
+                    value: BundledLocalizationCatalogV1.v30BackupValidationSlotCounts(liveCount: summary.liveSlotCount, deletedCount: summary.tombstonedSlotCount),
                     identifier: Self.slotsAccessibilityIdentifier
                 )
             }
@@ -94,9 +94,6 @@ struct BackupValidationSummaryView: View {
         .accessibilityIdentifier(identifier)
     }
 
-    private func countLabel(_ count: Int, singular: String, plural: String) -> String {
-        "\(count) \(count == 1 ? singular : plural)"
-    }
 
     private static let timestampFormatter: ISO8601DateFormatter = {
         let value = ISO8601DateFormatter()

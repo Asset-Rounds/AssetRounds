@@ -70,7 +70,7 @@ struct BackupRestoreProgressView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                     WorklightCard {
-                        Text("Restore data backup")
+                        Text(BundledLocalizationCatalogV1.v30Text(.backupRestoreHeading))
                             .font(.title2.weight(.bold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -86,7 +86,7 @@ struct BackupRestoreProgressView: View {
                                 summaryContent(summary)
                             }
                         } else {
-                            Text("Choose a Field Evidence backup to restore.")
+                            Text(BundledLocalizationCatalogV1.v30Text(.backupRestoreChooseInstruction))
                                 .font(.body)
                                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -102,7 +102,9 @@ struct BackupRestoreProgressView: View {
 
                         if isChecking || isRestoring {
                             ProgressView(
-                                isRestoring ? "Restoring backup" : "Checking backup"
+                                isRestoring
+                                    ? BundledLocalizationCatalogV1.v30Text(.backupRestoreRestoringProgress)
+                                    : BundledLocalizationCatalogV1.v30Text(.backupRestoreCheckingProgress)
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .accessibilityIdentifier(Self.progressAccessibilityIdentifier)
@@ -110,7 +112,7 @@ struct BackupRestoreProgressView: View {
                     }
 
                     if validatedPackage == nil {
-                        Button("Choose backup") {
+                        Button(BundledLocalizationCatalogV1.v30Text(.backupRestoreChooseBackupAction)) {
                             guard !isBusy else { return }
                             showsImporter = true
                         }
@@ -118,7 +120,7 @@ struct BackupRestoreProgressView: View {
                         .disabled(isBusy)
                         .accessibilityIdentifier(Self.chooseAccessibilityIdentifier)
                     } else if mode == .replaceExisting {
-                        Button("Back up current data") {
+                        Button(BundledLocalizationCatalogV1.v30Text(.backupRestoreBackupCurrentDataAction)) {
                             guard !isBusy else { return }
                             showsCurrentBackup = true
                         }
@@ -126,20 +128,20 @@ struct BackupRestoreProgressView: View {
                         .disabled(isBusy)
                         .accessibilityIdentifier(Self.backupCurrentAccessibilityIdentifier)
 
-                        Button("Replace current data") {
+                        Button(BundledLocalizationCatalogV1.v30Text(.backupRestoreReplaceCurrentDataAction)) {
                             confirmRestore()
                         }
                         .buttonStyle(WorklightPrimaryButtonStyle())
                         .disabled(isBusy)
                         .accessibilityIdentifier(Self.replaceAccessibilityIdentifier)
                     } else {
-                        Button("Restore data backup") { confirmRestore() }
+                        Button(BundledLocalizationCatalogV1.v30Text(.backupRestoreConfirmRestoreAction)) { confirmRestore() }
                         .buttonStyle(WorklightPrimaryButtonStyle())
                         .disabled(isBusy)
                         .accessibilityIdentifier(Self.confirmAccessibilityIdentifier)
                     }
 
-                    Button("Cancel") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.backupRestoreCancelAction)) {
                         cancel()
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
@@ -148,7 +150,7 @@ struct BackupRestoreProgressView: View {
                 }
                 .padding(DesignTokens.Spacing.medium)
             }
-            .navigationTitle("Restore")
+            .navigationTitle(BundledLocalizationCatalogV1.v30Text(.backupRestoreNavigationTitle))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $showsCurrentBackup) {
                 BackupExportView(
@@ -169,12 +171,12 @@ struct BackupRestoreProgressView: View {
             switch result {
             case let .success(urls):
                 guard let url = urls.first, urls.count == 1 else {
-                    errorMessage = "Backup unavailable"
+                    errorMessage = BundledLocalizationCatalogV1.v30Text(.backupRestoreBackupUnavailableError)
                     return
                 }
                 validateSelection(url)
             case .failure:
-                errorMessage = "Backup unavailable"
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.backupRestoreBackupUnavailableError)
             }
         }
         .task {
@@ -187,7 +189,7 @@ struct BackupRestoreProgressView: View {
                         generationRootURL: currentGenerationRootURL
                     )
                 } catch {
-                    errorMessage = "Current data unavailable"
+                    errorMessage = BundledLocalizationCatalogV1.v30Text(.backupRestoreCurrentDataUnavailableError)
                     return
                 }
             }
@@ -204,18 +206,18 @@ struct BackupRestoreProgressView: View {
 
     @ViewBuilder
     private func summaryContent(_ summary: BackupValidationSummaryV1) -> some View {
-        Text("\(summary.incomingSignCount) \(summary.incomingSignCount == 1 ? "sign" : "signs")")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreIncomingSignCount(count: summary.incomingSignCount))
             .summaryLine()
             .accessibilityIdentifier(Self.signCountAccessibilityIdentifier)
-        Text("\(summary.incomingReportCount) \(summary.incomingReportCount == 1 ? "report" : "reports")")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreIncomingReportCount(count: summary.incomingReportCount))
             .summaryLine()
             .accessibilityIdentifier(Self.reportCountAccessibilityIdentifier)
-        Text("\(summary.incomingPhotoCount) \(summary.incomingPhotoCount == 1 ? "photo" : "photos")")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreIncomingPhotoCount(count: summary.incomingPhotoCount))
             .summaryLine()
             .accessibilityIdentifier(Self.photoCountAccessibilityIdentifier)
-        Text("\(summary.consumedRootCount) counted \(summary.consumedRootCount == 1 ? "root" : "roots")")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreIncomingCountedRootCount(count: summary.consumedRootCount))
             .summaryLine()
-        Text("\(summary.liveSlotCount) live, \(summary.tombstonedSlotCount) deleted")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreIncomingSlotCounts(liveCount: summary.liveSlotCount, deletedCount: summary.tombstonedSlotCount))
             .summaryLine()
     }
 
@@ -223,24 +225,24 @@ struct BackupRestoreProgressView: View {
     private func currentSummaryContent(
         _ summary: BackupRestoreCurrentSummaryV1
     ) -> some View {
-        Text("Current data")
+        Text(BundledLocalizationCatalogV1.v30Text(.backupRestoreCurrentDataHeading))
             .font(.headline)
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(Self.currentSummaryAccessibilityIdentifier)
-        Text("\(summary.signCount) \(summary.signCount == 1 ? "sign" : "signs")")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreCurrentSignCount(count: summary.signCount))
             .summaryLine()
             .accessibilityIdentifier(Self.currentSignCountAccessibilityIdentifier)
-        Text("\(summary.reportCount) \(summary.reportCount == 1 ? "report" : "reports")")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreCurrentReportCount(count: summary.reportCount))
             .summaryLine()
             .accessibilityIdentifier(Self.currentReportCountAccessibilityIdentifier)
-        Text("\(summary.photoCount) \(summary.photoCount == 1 ? "photo" : "photos")")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreCurrentPhotoCount(count: summary.photoCount))
             .summaryLine()
             .accessibilityIdentifier(Self.currentPhotoCountAccessibilityIdentifier)
-        Text("\(summary.consumedRootCount) counted \(summary.consumedRootCount == 1 ? "root" : "roots")")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreCurrentCountedRootCount(count: summary.consumedRootCount))
             .summaryLine()
             .accessibilityIdentifier(Self.currentRootCountAccessibilityIdentifier)
-        Text("Estimated backup size \(formattedBytes(summary.declaredPayloadByteCount))")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreEstimatedSize(size: formattedBytes(summary.declaredPayloadByteCount)))
             .summaryLine()
             .accessibilityIdentifier(Self.currentSizeAccessibilityIdentifier)
     }
@@ -249,16 +251,16 @@ struct BackupRestoreProgressView: View {
     private func incomingSummaryContent(
         _ summary: BackupValidationSummaryV1
     ) -> some View {
-        Text("Incoming backup")
+        Text(BundledLocalizationCatalogV1.v30Text(.backupRestoreIncomingBackupHeading))
             .font(.headline)
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(Self.incomingSummaryAccessibilityIdentifier)
         summaryContent(summary)
-        Text("Backup date \(summary.exportedAt.formatted(date: .abbreviated, time: .shortened))")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreDate(date: summary.exportedAt.formatted(date: .abbreviated, time: .shortened)))
             .summaryLine()
             .accessibilityIdentifier(Self.incomingDateAccessibilityIdentifier)
-        Text("Backup size \(formattedBytes(summary.declaredPayloadByteCount))")
+        Text(BundledLocalizationCatalogV1.v30BackupRestoreSize(size: formattedBytes(summary.declaredPayloadByteCount)))
             .summaryLine()
             .accessibilityIdentifier(Self.incomingSizeAccessibilityIdentifier)
     }
@@ -298,12 +300,12 @@ struct BackupRestoreProgressView: View {
                 do {
                     try importer.discard(stagedPackage)
                 } catch {
-                    errorMessage = "Backup cleanup unavailable"
+                    errorMessage = BundledLocalizationCatalogV1.v30Text(.backupRestoreCleanupUnavailableError)
                     return
                 }
             }
             validatedPackage = nil
-            errorMessage = "Backup unavailable"
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.backupRestoreBackupUnavailableError)
         }
     }
 
@@ -329,7 +331,7 @@ struct BackupRestoreProgressView: View {
                 dismiss()
             } catch {
                 isRestoring = false
-                errorMessage = "Backup could not be restored"
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.backupRestoreCouldNotBeRestoredError)
             }
         }
     }
@@ -349,7 +351,7 @@ struct BackupRestoreProgressView: View {
                 scopedAccess: .alreadyAuthorized
             ).discard(package)
         } catch {
-            errorMessage = "Backup cleanup unavailable"
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.backupRestoreCleanupUnavailableError)
             return false
         }
         validatedPackage = nil

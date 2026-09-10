@@ -49,10 +49,8 @@ struct PartyContactSiteRoleImportView: View {
     static let boundaryAccessibilityIdentifier =
         "v23.p04.c32.import.truth-boundary"
 
-    static let truthBoundaryText =
-        "Preview only means that no canonical state has been written. A commit is explicit and uses one synthetic aggregate row and one canonical workspace command."
-    static let contactSafeDiagnosticsText =
-        "Contact-safe diagnostics show source metadata, row numbers, dispositions, and reason codes. Contact values are never rendered here."
+    static let truthBoundaryText = BundledLocalizationCatalogV1.v30Text(.assetImportTruthBoundary)
+    static let contactSafeDiagnosticsText = BundledLocalizationCatalogV1.v30Text(.assetImportDiagnosticsBoundary)
 
     let coordinator: PartyContactSiteRoleImportCoordinatorV1
     let prepared: PartyContactSiteRoleImportPreparedV1
@@ -116,9 +114,9 @@ struct PartyContactSiteRoleImportView: View {
 
         var label: String {
             switch self {
-            case .information: "Information"
-            case .warning: "Warning"
-            case .error: "Error"
+            case .information: BundledLocalizationCatalogV1.v30Text(.assetImportInformation)
+            case .warning: BundledLocalizationCatalogV1.v30Text(.assetImportWarning)
+            case .error: BundledLocalizationCatalogV1.v30Text(.assetImportError)
             }
         }
 
@@ -140,63 +138,46 @@ struct PartyContactSiteRoleImportView: View {
     }
 
     private enum Copy {
-        static let heading = "Party, contact, and Site-role import"
-        static let disclosure =
-            "Review the exact selected files and deterministic outcomes before any canonical write."
-        static let sources = "Selected source files"
-        static let sourcesOrder =
-            "The source order is fixed: parties, operational contacts, then Site roles."
-        static let sourceSelection =
-            "This prepared selection is immutable. Replacing a source requires a new prepared artifact."
-        static let binding = "Exact import binding"
-        static let bindingDisclosure =
-            "These digests bind the source manifest, source rows, workspace revision, import plan, and synthetic command."
-        static let diagnostics = "Grouped outcomes and diagnostics"
-        static let diagnosticDisclosure =
-            "Every diagnostic is identified by group, row number, disposition, and a stable reason code."
-        static let noDiagnostics = "No source-row diagnostics were reported."
-        static let preview = "Validated zero-write preview"
-        static let previewPending = "Validating the prepared preview…"
-        static let previewFailure =
-            "The preview could not be validated. No canonical write occurs during preview."
-        static let previewNoReceipt =
-            "Preview does not claim a saved receipt, completion, rollback, or export."
-        static let syntheticRow = "Synthetic aggregate row"
-        static let canonicalTarget = "Target: nil (aggregate command)"
-        static let begin = "Start import session"
-        static let beginDisclosure =
-            "Starting a session records resumable import progress; it does not write canonical Party, contact, or Site-role state."
-        static let commit = "Commit import"
-        static let commitDisclosure =
-            "Commit is explicit and delegates one all-or-nothing canonical workspace command to the incumbent writer."
-        static let retryPreview = "Retry preview validation"
-        static let retryBegin = "Retry session start"
-        static let retryCommit = "Retry commit or resume"
-        static let retryCancel = "Retry cancellation and cleanup"
-        static let retryCleanup = "Retry temporary-source cleanup"
-        static let cancel = "Cancel import"
-        static let cancelled =
-            "Import cancelled. Temporary source material was discarded when cleanup was confirmed."
-        static let cancelledBoundary =
-            "Cancellation makes no completion claim and does not write canonical state."
-        static let completed =
-            "Import committed and the durable completion receipt was confirmed."
-        static let completedCleanupPending =
-            "Import committed and its durable receipt was confirmed. Temporary-source cleanup still needs confirmation."
-        static let sessionReady =
-            "The resumable session is ready. Review again, then explicitly commit."
-        static let beginning = "Recording the resumable import session…"
-        static let committing = "Committing or resuming the exact aggregate command…"
-        static let cancelling = "Cancelling the session and discarding temporary source material…"
-        static let cleanupComplete = "Temporary source material was discarded."
-        static let genericFailure =
-            "The result could not be confirmed. Review the durable session and retry; no contact values are shown here."
-        static let retryDisclosure =
-            "Retry uses the same prepared binding and does not infer success from an unconfirmed result."
-        static let done = "Done"
-        static let close = "Close"
-        static let reducedMotion =
-            "Motion is reduced; state changes remain available as text."
+        static let heading = BundledLocalizationCatalogV1.v30Text(.assetImportHeading)
+        static let disclosure = BundledLocalizationCatalogV1.v30Text(.assetImportDisclosure)
+        static let sources = BundledLocalizationCatalogV1.v30Text(.assetImportSources)
+        static let sourcesOrder = BundledLocalizationCatalogV1.v30Text(.assetImportSourcesOrder)
+        static let sourceSelection = BundledLocalizationCatalogV1.v30Text(.assetImportSourceSelection)
+        static let binding = BundledLocalizationCatalogV1.v30Text(.assetImportBinding)
+        static let bindingDisclosure = BundledLocalizationCatalogV1.v30Text(.assetImportBindingDisclosure)
+        static let diagnostics = BundledLocalizationCatalogV1.v30Text(.assetImportDiagnostics)
+        static let diagnosticDisclosure = BundledLocalizationCatalogV1.v30Text(.assetImportDiagnosticDisclosure)
+        static let noDiagnostics = BundledLocalizationCatalogV1.v30Text(.assetImportNoDiagnostics)
+        static let preview = BundledLocalizationCatalogV1.v30Text(.assetImportPreview)
+        static let previewPending = BundledLocalizationCatalogV1.v30Text(.assetImportPreviewPending)
+        static let previewFailure = BundledLocalizationCatalogV1.v30Text(.assetImportPreviewFailure)
+        static let previewNoReceipt = BundledLocalizationCatalogV1.v30Text(.assetImportPreviewNoReceipt)
+        static let syntheticRow = BundledLocalizationCatalogV1.v30Text(.assetImportSyntheticRow)
+        static let canonicalTarget = BundledLocalizationCatalogV1.v30Text(.assetImportCanonicalTarget)
+        static let begin = BundledLocalizationCatalogV1.v30Text(.assetImportBegin)
+        static let beginDisclosure = BundledLocalizationCatalogV1.v30Text(.assetImportBeginDisclosure)
+        static let commit = BundledLocalizationCatalogV1.v30Text(.assetImportCommit)
+        static let commitDisclosure = BundledLocalizationCatalogV1.v30Text(.assetImportCommitDisclosure)
+        static let retryPreview = BundledLocalizationCatalogV1.v30Text(.assetImportRetryPreview)
+        static let retryBegin = BundledLocalizationCatalogV1.v30Text(.assetImportRetryBegin)
+        static let retryCommit = BundledLocalizationCatalogV1.v30Text(.assetImportRetryCommit)
+        static let retryCancel = BundledLocalizationCatalogV1.v30Text(.assetImportRetryCancel)
+        static let retryCleanup = BundledLocalizationCatalogV1.v30Text(.assetImportRetryCleanup)
+        static let cancel = BundledLocalizationCatalogV1.v30Text(.assetImportCancel)
+        static let cancelled = BundledLocalizationCatalogV1.v30Text(.assetImportCancelled)
+        static let cancelledBoundary = BundledLocalizationCatalogV1.v30Text(.assetImportCancelledBoundary)
+        static let completed = BundledLocalizationCatalogV1.v30Text(.assetImportCompleted)
+        static let completedCleanupPending = BundledLocalizationCatalogV1.v30Text(.assetImportCompletedCleanupPending)
+        static let sessionReady = BundledLocalizationCatalogV1.v30Text(.assetImportSessionReady)
+        static let beginning = BundledLocalizationCatalogV1.v30Text(.assetImportBeginning)
+        static let committing = BundledLocalizationCatalogV1.v30Text(.assetImportCommitting)
+        static let cancelling = BundledLocalizationCatalogV1.v30Text(.assetImportCancelling)
+        static let cleanupComplete = BundledLocalizationCatalogV1.v30Text(.assetImportCleanupComplete)
+        static let genericFailure = BundledLocalizationCatalogV1.v30Text(.assetImportGenericFailure)
+        static let retryDisclosure = BundledLocalizationCatalogV1.v30Text(.assetImportRetryDisclosure)
+        static let done = BundledLocalizationCatalogV1.v30Text(.assetImportDone)
+        static let close = BundledLocalizationCatalogV1.v30Text(.assetImportClose)
+        static let reducedMotion = BundledLocalizationCatalogV1.v30Text(.assetImportReducedMotion)
     }
 
     init(
@@ -340,7 +321,7 @@ struct PartyContactSiteRoleImportView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Source \(index + 1): \(sourceLabel(for: file.kind))")
+                Text(BundledLocalizationCatalogV1.v30AssetImportSourceOrdinal(index: index + 1, source: sourceLabel(for: file.kind)))
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -350,7 +331,7 @@ struct PartyContactSiteRoleImportView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("\(file.byteCount) bytes · SHA-256 \(file.sha256)")
+                Text(BundledLocalizationCatalogV1.v30AssetImportSourceByteCount(byteCount: file.byteCount, sha256: file.sha256))
                     .font(.caption.monospaced())
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .textSelection(.enabled)
@@ -361,7 +342,7 @@ struct PartyContactSiteRoleImportView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "Selected source \(index + 1), \(sourceLabel(for: file.kind)), \(file.fileName), \(file.byteCount) bytes, SHA-256 \(file.sha256)"
+            BundledLocalizationCatalogV1.v30AssetImportSourceAccessibility(index: index + 1, source: sourceLabel(for: file.kind), fileName: file.fileName, byteCount: file.byteCount, sha256: file.sha256)
         )
         .accessibilityIdentifier(
             Self.sourceFileAccessibilityIdentifierPrefix
@@ -382,50 +363,50 @@ struct PartyContactSiteRoleImportView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             bindingLine(
-                label: "Source manifest SHA-256",
+                label: BundledLocalizationCatalogV1.v30Text(.assetImportSourceManifestSHA256),
                 value: prepared.sourceManifest.manifestSHA256
             )
             bindingLine(
-                label: "Source binding SHA-256",
+                label: BundledLocalizationCatalogV1.v30Text(.assetImportSourceBindingSHA256),
                 value: prepared.sourceBindingSHA256
             )
             bindingLine(
-                label: "Expected source SHA-256",
+                label: BundledLocalizationCatalogV1.v30Text(.assetImportExpectedSourceSHA256),
                 value: prepared.preview.importPlan.source.sourceSHA256
             )
             bindingLine(
-                label: "Observed source SHA-256",
+                label: BundledLocalizationCatalogV1.v30Text(.assetImportObservedSourceSHA256),
                 value: currentSourceSHA256
             )
             bindingLine(
-                label: "Expected workspace revision SHA-256",
+                label: BundledLocalizationCatalogV1.v30Text(.assetImportExpectedWorkspaceRevisionSHA256),
                 value: prepared.preview.importPlan.workspaceRevisionSHA256
             )
             bindingLine(
-                label: "Observed workspace revision SHA-256",
+                label: BundledLocalizationCatalogV1.v30Text(.assetImportObservedWorkspaceRevisionSHA256),
                 value: currentWorkspaceRevisionSHA256
             )
             bindingLine(
-                label: "Import plan SHA-256",
+                label: BundledLocalizationCatalogV1.v30Text(.assetImportPlanSHA256),
                 value: prepared.preview.importPlan.planSHA256
             )
             bindingLine(
-                label: "Bulk plan SHA-256",
+                label: BundledLocalizationCatalogV1.v30Text(.assetImportBulkPlanSHA256),
                 value: prepared.preview.bulkPlan.planSHA256
             )
 
             if let row = prepared.preview.importPlan.rows.first {
                 bindingLine(
-                    label: "Synthetic row identity SHA-256",
+                        label: BundledLocalizationCatalogV1.v30Text(.assetImportSyntheticRowIdentitySHA256),
                     value: row.identity.identitySHA256
                 )
                 if let command = row.commands.first {
                     bindingLine(
-                        label: "Canonical command",
+                        label: BundledLocalizationCatalogV1.v30Text(.assetImportCanonicalCommand),
                         value: command.kind.rawValue
                     )
                     bindingLine(
-                        label: "Command target",
+                        label: BundledLocalizationCatalogV1.v30Text(.assetImportCommandTarget),
                         value: command.targetStableID.map { $0.uuidString }
                             ?? Copy.canonicalTarget
                     )
@@ -447,7 +428,7 @@ struct PartyContactSiteRoleImportView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label): \(value)")
+        .accessibilityLabel(BundledLocalizationCatalogV1.v30AssetImportValueAccessibility(label: label, value: value))
     }
 
     private var diagnosticsCard: some View {
@@ -505,7 +486,7 @@ struct PartyContactSiteRoleImportView: View {
         count: Int
     ) -> some View {
         Label(
-            "\(severity.label): \(count)",
+            BundledLocalizationCatalogV1.v30AssetImportSeverityCount(severity: severity.label, count: count),
             systemImage: severity.iconName
         )
         .font(.body)
@@ -543,18 +524,18 @@ struct PartyContactSiteRoleImportView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(
-                    "\(severity.label): row \(row.rowIndex), \(dispositionLabel(for: row.disposition))"
+                    BundledLocalizationCatalogV1.v30AssetImportDiagnosticRow(severity: severity.label, rowIndex: row.rowIndex, disposition: dispositionLabel(for: row.disposition))
                 )
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-                Text("Reason: \(row.reason.rawValue)")
+                Text(BundledLocalizationCatalogV1.v30AssetImportReason(reason: row.reason.rawValue))
                     .font(.caption)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Expected revision: \(row.expectedRevision)")
+                Text(BundledLocalizationCatalogV1.v30AssetImportExpectedRevision(revision: row.expectedRevision))
                     .font(.caption.monospaced())
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -564,7 +545,7 @@ struct PartyContactSiteRoleImportView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(severity.label), \(groupLabel(for: row.group)), row \(row.rowIndex), \(dispositionLabel(for: row.disposition)), reason \(row.reason.rawValue), expected revision \(row.expectedRevision)"
+            BundledLocalizationCatalogV1.v30AssetImportDiagnosticAccessibility(severity: severity.label, group: groupLabel(for: row.group), rowIndex: row.rowIndex, disposition: dispositionLabel(for: row.disposition), reason: row.reason.rawValue, revision: row.expectedRevision)
         )
         .accessibilityIdentifier(
             Self.diagnosticAccessibilityIdentifierPrefix + diagnosticKey(row)
@@ -589,7 +570,7 @@ struct PartyContactSiteRoleImportView: View {
                 let rows = preview.importPlan.rows
                 let commandCount = rows.reduce(0) { $0 + $1.commands.count }
                 Label(
-                    "Validated \(rows.count) synthetic row(s), \(commandCount) command(s), \(preview.bulkPlan.atomicity.rawValue)",
+                    BundledLocalizationCatalogV1.v30AssetImportValidatedPreview(rowCount: rows.count, commandCount: commandCount, atomicity: preview.bulkPlan.atomicity.rawValue),
                     systemImage: "checkmark.circle"
                 )
                 .font(.body)
@@ -619,25 +600,25 @@ struct PartyContactSiteRoleImportView: View {
             Text("\(Copy.syntheticRow) \(index + 1)")
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
-            Text("Disposition: \(dispositionLabel(for: row.disposition))")
+            Text(BundledLocalizationCatalogV1.v30AssetImportDisposition(disposition: dispositionLabel(for: row.disposition)))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
-            Text("Reasons: \(row.reasons.map(\.rawValue).joined(separator: ", "))")
+            Text(BundledLocalizationCatalogV1.v30AssetImportReasons(reasons: row.reasons.map(\.rawValue).joined(separator: ", ")))
                 .font(.caption)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Row identity SHA-256: \(row.identity.identitySHA256)")
+            Text(BundledLocalizationCatalogV1.v30AssetImportRowIdentitySHA256(sha256: row.identity.identitySHA256))
                 .font(.caption.monospaced())
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             ForEach(Array(row.commands.enumerated()), id: \.offset) { commandIndex, command in
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Command \(commandIndex + 1): \(command.kind.rawValue)")
+                    Text(BundledLocalizationCatalogV1.v30AssetImportCommandOrdinal(index: commandIndex + 1, kind: command.kind.rawValue))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                     Text(
-                        command.targetStableID.map { "Target: \($0.uuidString)" }
+                        command.targetStableID.map { BundledLocalizationCatalogV1.v30AssetImportTarget(target: $0.uuidString) }
                             ?? Copy.canonicalTarget
                     )
                     .font(.caption)
@@ -649,7 +630,7 @@ struct PartyContactSiteRoleImportView: View {
         .padding(.vertical, DesignTokens.Spacing.small / 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(Copy.syntheticRow) \(index + 1), disposition \(dispositionLabel(for: row.disposition)), reasons \(row.reasons.map(\.rawValue).joined(separator: ", ")), row identity \(row.identity.identitySHA256)"
+            BundledLocalizationCatalogV1.v30AssetImportSyntheticRowAccessibility(index: index + 1, disposition: dispositionLabel(for: row.disposition), reasons: row.reasons.map(\.rawValue).joined(separator: ", "), identitySHA256: row.identity.identitySHA256)
         )
     }
 
@@ -678,7 +659,7 @@ struct PartyContactSiteRoleImportView: View {
         }
         if phase == .cleaningUp {
             operationStatusCard(
-                message: "Discarding temporary source material…",
+                message: BundledLocalizationCatalogV1.v30Text(.assetImportDiscardingTemporarySource),
                 kind: .information,
                 icon: "trash"
             )
@@ -733,7 +714,7 @@ struct PartyContactSiteRoleImportView: View {
 
     private var actionCard: some View {
         WorklightCard {
-            Text("Actions")
+            Text(BundledLocalizationCatalogV1.v30Text(.assetImportActions))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
@@ -1214,9 +1195,9 @@ struct PartyContactSiteRoleImportView: View {
         for kind: PartyContactSiteRoleImportSourceKindV1
     ) -> String {
         switch kind {
-        case .parties: "Parties (PARTIES_V1)"
-        case .partyContacts: "Operational contacts (PARTY_CONTACTS_V1)"
-        case .sitePartyRoles: "Site roles (SITE_PARTY_ROLES_V1)"
+        case .parties: BundledLocalizationCatalogV1.v30Text(.assetImportPartiesSourceLabel)
+        case .partyContacts: BundledLocalizationCatalogV1.v30Text(.assetImportOperationalContactsSourceLabel)
+        case .sitePartyRoles: BundledLocalizationCatalogV1.v30Text(.assetImportSiteRolesSourceLabel)
         }
     }
 
@@ -1224,9 +1205,9 @@ struct PartyContactSiteRoleImportView: View {
         for group: PartyContactSiteRoleImportGroupV1
     ) -> String {
         switch group {
-        case .parties: "Parties"
-        case .contacts: "Operational contacts"
-        case .siteRoles: "Site roles"
+        case .parties: BundledLocalizationCatalogV1.v30Text(.assetImportPartiesGroupLabel)
+        case .contacts: BundledLocalizationCatalogV1.v30Text(.assetImportOperationalContactsGroupLabel)
+        case .siteRoles: BundledLocalizationCatalogV1.v30Text(.assetImportSiteRolesGroupLabel)
         }
     }
 

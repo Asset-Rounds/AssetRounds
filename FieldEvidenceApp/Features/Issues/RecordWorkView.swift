@@ -43,7 +43,7 @@ struct RecordWorkView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
-                    Text("Record work")
+                    Text(BundledLocalizationCatalogV1.v30Text(.recordWorkHeading))
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -52,22 +52,22 @@ struct RecordWorkView: View {
                         .accessibilityFocused($accessibilityFocus, equals: .header)
 
                     DatePicker(
-                        "Date",
+                        BundledLocalizationCatalogV1.v30Text(.recordWorkDateLabel),
                         selection: $performedDate,
                         displayedComponents: .date
                     )
                     .datePickerStyle(.compact)
                     .frame(minHeight: DesignTokens.Control.minimumHitSize)
-                    .accessibilityLabel("Date")
-                    .accessibilityHint("Required")
+                    .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.recordWorkDateAccessibilityLabel))
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.recordWorkRequiredAccessibilityHint))
                     .accessibilityIdentifier(Self.dateAccessibilityIdentifier)
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                        Text("Short description")
+                        Text(BundledLocalizationCatalogV1.v30Text(.recordWorkShortDescriptionLabel))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(DesignTokens.Colors.secondaryText)
 
-                        TextField("Short description", text: $description, axis: .vertical)
+                        TextField(BundledLocalizationCatalogV1.v30Text(.recordWorkShortDescriptionPlaceholder), text: $description, axis: .vertical)
                             .lineLimit(2 ... 5)
                             .focused($fieldFocus)
                             .padding(DesignTokens.Spacing.medium)
@@ -88,8 +88,8 @@ struct RecordWorkView: View {
                                         lineWidth: showsDescriptionValidation ? 2 : 1
                                     )
                             }
-                            .accessibilityLabel("Short description")
-                            .accessibilityHint("Required")
+                            .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.recordWorkShortDescriptionAccessibilityLabel))
+                            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.recordWorkRequiredAccessibilityHint))
                             .accessibilityIdentifier(Self.descriptionAccessibilityIdentifier)
                             .accessibilityFocused(
                                 $accessibilityFocus,
@@ -98,11 +98,11 @@ struct RecordWorkView: View {
                     }
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                        Text("Note")
+                        Text(BundledLocalizationCatalogV1.v30Text(.recordWorkNoteLabel))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(DesignTokens.Colors.secondaryText)
 
-                        TextField("Note", text: $note, axis: .vertical)
+                        TextField(BundledLocalizationCatalogV1.v30Text(.recordWorkNotePlaceholder), text: $note, axis: .vertical)
                             .lineLimit(2 ... 5)
                             .padding(DesignTokens.Spacing.medium)
                             .frame(
@@ -120,21 +120,21 @@ struct RecordWorkView: View {
                                         lineWidth: 1
                                     )
                             }
-                            .accessibilityLabel("Note")
-                            .accessibilityHint("Optional")
+                            .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.recordWorkNoteAccessibilityLabel))
+                            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.recordWorkOptionalAccessibilityHint))
                             .accessibilityIdentifier(Self.noteAccessibilityIdentifier)
                     }
                 }
 
                 WorklightCard {
-                    Text("Add one optional photo showing the work performed.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.recordWorkOptionalPhotoInstruction))
                         .font(.body)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if usesImportedFixtureForUITest {
                         Button(
-                            "Add one optional photo showing the work performed.",
+                            BundledLocalizationCatalogV1.v30Text(.recordWorkOptionalPhotoAction),
                             action: importFixture
                         )
                         .buttonStyle(WorklightSecondaryButtonStyle())
@@ -145,7 +145,7 @@ struct RecordWorkView: View {
                             selection: $selectedPhotoItem,
                             matching: .images
                         ) {
-                            Text("Add one optional photo showing the work performed.")
+                            Text(BundledLocalizationCatalogV1.v30Text(.recordWorkOptionalPhotoAction))
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(WorklightSecondaryButtonStyle())
@@ -159,42 +159,42 @@ struct RecordWorkView: View {
                             .scaledToFit()
                             .frame(maxWidth: image.size.width)
                             .accessibilityLabel(
-                                "Add one optional photo showing the work performed."
+                                BundledLocalizationCatalogV1.v30Text(.recordWorkOptionalPhotoAccessibilityLabel)
                             )
                             .accessibilityIdentifier(Self.photoAccessibilityIdentifier)
                     }
                 }
 
                 if showsDescriptionValidation {
-                    Label("Short description", systemImage: "exclamationmark.circle.fill")
+                    Label(BundledLocalizationCatalogV1.v30Text(.recordWorkShortDescriptionValidationLabel), systemImage: "exclamationmark.circle.fill")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.attentionText)
                         .accessibilityIdentifier(Self.validationAccessibilityIdentifier)
                 }
 
                 if isSaving {
-                    ProgressView("Record work")
+                    ProgressView(BundledLocalizationCatalogV1.v30Text(.recordWorkSavingProgress))
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .accessibilityIdentifier(Self.savingAccessibilityIdentifier)
                         .accessibilityFocused($accessibilityFocus, equals: .saving)
                 }
 
                 if showsFailure {
-                    Label("Record work", systemImage: "exclamationmark.triangle.fill")
+                    Label(BundledLocalizationCatalogV1.v30Text(.recordWorkFailureLabel), systemImage: "exclamationmark.triangle.fill")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.attentionText)
                         .accessibilityIdentifier(Self.failureAccessibilityIdentifier)
                         .accessibilityFocused($accessibilityFocus, equals: .failure)
                 }
 
-                Button("Record work", action: save)
+                Button(BundledLocalizationCatalogV1.v30Text(.recordWorkSaveAction), action: save)
                     .buttonStyle(WorklightPrimaryButtonStyle())
                     .disabled(isSaving)
                     .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Record work")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.recordWorkNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)

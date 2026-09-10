@@ -50,14 +50,14 @@ struct FeedbackView: View {
     var body: some View {
         ScrollView {
             WorklightCard {
-                Text("Send feedback")
+                Text(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackLabel))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(Self.headingAccessibilityIdentifier)
 
                 Text(
-                    "Your message stays editable. Only app version, build, device model, and iOS version are prefilled; customer and inspection content is never prefilled."
+                    BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackLabel2)
                 )
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -72,13 +72,13 @@ struct FeedbackView: View {
                         kind: .blocked,
                         text: errorMessage
                     )
-                    Button("Retry") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackRetry)) {
                         Task { await prepare(force: true) }
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
                 } else {
-                    ProgressView("Preparing privacy-safe feedback context")
+                    ProgressView(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackProgress))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -93,7 +93,7 @@ struct FeedbackView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Feedback")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackNavigation))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -106,14 +106,14 @@ struct FeedbackView: View {
                 mailPresentation = nil
                 switch result {
                 case .cancelled:
-                    statusMessage = "Feedback composer cancelled. No delivery was claimed."
+                    statusMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackLabel3)
                 case .failed:
                     statusMessage = nil
-                    errorMessage = "The feedback composer closed with an error. No delivery was claimed."
+                    errorMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackFailure)
                 case .saved:
-                    statusMessage = "Feedback draft closed. Delivery remains under your control."
+                    statusMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackLabel4)
                 case .sent:
-                    statusMessage = "The system composer finished. The app does not claim delivery."
+                    statusMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackLabel5)
                 }
             }
         }
@@ -128,13 +128,13 @@ struct FeedbackView: View {
             switch result {
             case .success:
                 errorMessage = nil
-                statusMessage = "Diagnostic file saved."
+                statusMessage = BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticLabel)
             case let .failure(error):
                 if (error as? CocoaError)?.code == .userCancelled {
                     return
                 }
                 statusMessage = nil
-                errorMessage = "The diagnostic file could not be saved to Files."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticFailure)
             }
         }
         .task {
@@ -148,42 +148,42 @@ struct FeedbackView: View {
     ) -> some View {
         let value = prepared.value
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Review diagnostics before choosing")
+            Text(BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticLabel2))
                 .font(.headline)
-            Text("File: field-record-diagnostics.json")
-            Text("Size: \(prepared.canonicalData.count) bytes")
-            Text("App \(value.app.version) (\(value.app.build))")
-            Text("Device \(value.device.model) · iOS \(value.device.osVersion)")
-            Text("Generated \(value.generatedAt.formatted(date: .abbreviated, time: .shortened))")
+            Text(BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticLabel3))
+            Text(BundledLocalizationCatalogV1.v30FeedbackDiagnosticSize(bytes: prepared.canonicalData.count))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsAppVersionBuild(version: value.app.version, build: value.app.build))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsDeviceModelOS(model: value.device.model, osVersion: value.device.osVersion))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsGeneratedAt(date: value.generatedAt.formatted(date: .abbreviated, time: .shortened)))
 
             let counters = value.counters
-            Text("First signs: \(counters.firstSignCreated)")
-            Text("Onboarding completions: \(counters.onboardingCompleted)")
-            Text("Reports saved: \(counters.reportSaved)")
-            Text("Rechecks completed: \(counters.recheckCompleted)")
-            Text("Report share sheets: \(counters.reportShareSheetPresented)")
-            Text("Paywalls shown: \(counters.paywallPresented)")
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsFirstSignsCount(count: counters.firstSignCreated))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsOnboardingCompletionsCount(count: counters.onboardingCompleted))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsReportsSavedCount(count: counters.reportSaved))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsRechecksCompletedCount(count: counters.recheckCompleted))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsReportShareSheetsCount(count: counters.reportShareSheetPresented))
+            Text(BundledLocalizationCatalogV1.v30DiagnosticsPaywallsShownCount(count: counters.paywallPresented))
             Text(
-                "Purchase results — verified \(counters.purchaseResult.verified), cancelled \(counters.purchaseResult.cancelled), pending \(counters.purchaseResult.pending), unverified \(counters.purchaseResult.unverified), failed \(counters.purchaseResult.failed)"
+                BundledLocalizationCatalogV1.v30DiagnosticsPurchaseResults(verified: counters.purchaseResult.verified, cancelled: counters.purchaseResult.cancelled, pending: counters.purchaseResult.pending, unverified: counters.purchaseResult.unverified, failed: counters.purchaseResult.failed)
             )
 
             if let metricKit = value.metricKit {
-                Text("Crashes: \(metricKit.crashCount)")
-                Text("Hangs: \(metricKit.hangCount)")
+                Text(BundledLocalizationCatalogV1.v30DiagnosticsCrashesCount(count: metricKit.crashCount))
+                Text(BundledLocalizationCatalogV1.v30DiagnosticsHangsCount(count: metricKit.hangCount))
                 if let bytes = metricKit.peakMemoryBytes {
-                    Text("Peak memory bytes: \(bytes)")
+                    Text(BundledLocalizationCatalogV1.v30DiagnosticsPeakMemoryBytes(bytes: bytes))
                 }
                 if let launch = metricKit.launchTimeMilliseconds {
                     Text(
-                        "Launches — under 500 ms \(launch.under500), 500–999 ms \(launch.from500Through999), 1000–1999 ms \(launch.from1000Through1999), 2000 ms or more \(launch.from2000Up)"
+                        BundledLocalizationCatalogV1.v30DiagnosticsLaunchBuckets(under500: launch.under500, from500Through999: launch.from500Through999, from1000Through1999: launch.from1000Through1999, from2000Up: launch.from2000Up)
                     )
                 }
             } else {
-                Text("No recent bounded system summary is available.")
+                Text(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackLabel6))
             }
 
             Text(
-                "This reviewed JSON never includes customer or sign details, addresses, notes, photos, reports, backups, paths, hashes, StoreKit details, credentials, or logs."
+                BundledLocalizationCatalogV1.v30Text(.feedbackPhotoLabel)
             )
             .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
@@ -204,9 +204,9 @@ struct FeedbackView: View {
         case .blocked:
             WorklightStatusBadge(
                 kind: .blocked,
-                text: "Feedback is unavailable because a support address has not been configured. No app data changed."
+                text: BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackFailure2)
             )
-            Button("Retry") {
+            Button(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackRetry)) {
                 Task { await prepare(force: true) }
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
@@ -214,55 +214,55 @@ struct FeedbackView: View {
 
         case .composer:
             Text(
-                "Choose Attach to include exactly this reviewed JSON, or Don't Attach to open the same editable composer without it."
+                BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackLabel7)
             )
             .font(.body)
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(Self.consentAccessibilityIdentifier)
 
-            Button("Attach") {
+            Button(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackAction)) {
                 presentMail(prepared, choice: .attach)
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
             .accessibilityHint(
-                "Opens the editable system composer with one reviewed diagnostic JSON attachment"
+                BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticLabel4)
             )
             .accessibilityIdentifier(Self.attachAccessibilityIdentifier)
 
-            Button("Don't Attach") {
+            Button(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackAction2)) {
                 presentMail(prepared, choice: .doNotAttach)
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityHint(
-                "Opens the same editable system composer with no diagnostic attachment"
+                BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticLabel5)
             )
             .accessibilityIdentifier(Self.doNotAttachAccessibilityIdentifier)
 
         case .unavailableFallback:
             WorklightStatusBadge(
                 kind: .attention,
-                text: "Mail is unavailable on this device. Nothing was sent."
+                text: BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackFailure3)
             )
 
-            Button("Copy support address") {
+            Button(BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackAction3)) {
                 guard let address = configuration.validatedSupportAddress else {
-                    errorMessage = "The support address is unavailable. Nothing was copied."
+                    errorMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackFailure4)
                     return
                 }
                 UIPasteboard.general.string = address
-                statusMessage = "Support address copied."
+                statusMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackLabel8)
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityIdentifier(Self.copyAddressAccessibilityIdentifier)
 
-            Button("Save diagnostics to Files") {
+            Button(BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticAction)) {
                 statusMessage = nil
                 showsExporter = true
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityHint(
-                "Opens the system Files destination picker for the reviewed diagnostic JSON"
+                BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticLabel6)
             )
             .accessibilityIdentifier(Self.saveDiagnosticsAccessibilityIdentifier)
         }
@@ -274,7 +274,7 @@ struct FeedbackView: View {
     ) {
         guard mailComposer.isAvailable else {
             statusMessage = nil
-            errorMessage = "Mail became unavailable. Nothing was sent."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackFailure5)
             return
         }
         do {
@@ -288,7 +288,7 @@ struct FeedbackView: View {
             mailPresentation = MailPresentation(draft: draft)
         } catch {
             statusMessage = nil
-            errorMessage = "Feedback could not be prepared. No message or attachment was sent."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackFailure6)
         }
     }
 
@@ -298,14 +298,14 @@ struct FeedbackView: View {
         prepared = nil
         statusMessage = nil
         guard configuration.validatedSupportAddress != nil else {
-            errorMessage = "Feedback is unavailable because a support address has not been configured. No app data changed."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.feedbackFeedbackFailure2)
             return
         }
         errorMessage = nil
         do {
             prepared = try await diagnosticService.prepare()
         } catch {
-            errorMessage = "Privacy-safe diagnostics are unavailable right now. No app data changed."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.feedbackDiagnosticFailure2)
         }
     }
 }

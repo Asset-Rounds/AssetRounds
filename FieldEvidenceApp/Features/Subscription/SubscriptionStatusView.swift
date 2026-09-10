@@ -22,71 +22,71 @@ struct SubscriptionLifecyclePresentationV1: Equatable, Sendable {
         case .loading:
             return Self(
                 tone: .information,
-                badge: "Subscription status",
-                title: "Checking subscription…",
-                detail: "Your existing sign details, photos, and reports remain available."
+                badge: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusBadge),
+                title: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusChecking),
+                detail: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusExistingDataAvailable)
             )
         case .neverPaid:
             return Self(
                 tone: .information,
-                badge: "No active subscription",
-                title: "No subscription found",
-                detail: "Your existing data remains available. Restore Purchases checks Apple purchase history; it does not restore inspection data."
+                badge: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusNoActiveBadge),
+                title: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusNotFound),
+                detail: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusNoActiveDetail)
             )
         case let .active(until):
             let badge = latestVerifiedFact?.isIntroductoryOffer == true
-                ? "Trial active"
-                : "Subscription active"
+                ? BundledLocalizationCatalogV1.v30Text(.subscriptionStatusTrialActive)
+                : BundledLocalizationCatalogV1.v30Text(.subscriptionStatusActive)
             let detail: String
             if latestVerifiedFact?.willAutoRenew == false {
-                detail = "Auto-renew is off. Access remains active through the signed date above."
+                detail = BundledLocalizationCatalogV1.v30Text(.subscriptionStatusAutoRenewOff)
             } else if latestVerifiedFact?.isIntroductoryOffer == true {
-                detail = "The introductory trial is active through the signed date above. Renewal is managed by the App Store."
+                detail = BundledLocalizationCatalogV1.v30Text(.subscriptionStatusTrialDetail)
             } else {
-                detail = "Access is active through the signed date above. Renewal is managed by the App Store."
+                detail = BundledLocalizationCatalogV1.v30Text(.subscriptionStatusActiveDetail)
             }
             return Self(
                 tone: .complete,
                 badge: badge,
-                title: "Active until \(dateText(until))",
+                title: BundledLocalizationCatalogV1.v30SubscriptionStatusActiveUntil(date: dateText(until)),
                 detail: detail
             )
         case let .grace(until):
             return Self(
                 tone: .information,
-                badge: "Grace period",
-                title: "Access through \(dateText(until))",
-                detail: "Apple provided a signed grace period. Access does not continue beyond that signed date."
+                badge: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusGracePeriod),
+                title: BundledLocalizationCatalogV1.v30SubscriptionStatusAccessThrough(date: dateText(until)),
+                detail: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusGracePeriodDetail)
             )
         case let .inactive(reason):
             switch reason {
             case .billingRetry:
                 return Self(
                     tone: .blocked,
-                    badge: "Billing retry",
-                    title: "Subscription inactive",
-                    detail: "Apple reported billing retry without signed grace. Existing data remains available."
+                    badge: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusBillingRetry),
+                    title: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusInactive),
+                    detail: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusBillingRetryDetail)
                 )
             case .expired:
                 return Self(
                     tone: .blocked,
-                    badge: "Subscription expired",
-                    title: "Subscription inactive",
-                    detail: "The signed subscription period ended. Existing data remains available."
+                    badge: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusExpired),
+                    title: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusInactive),
+                    detail: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusExpiredDetail)
                 )
             case .refunded:
                 return Self(
                     tone: .blocked,
-                    badge: "Subscription refunded",
-                    title: "Subscription inactive",
-                    detail: "Apple reported a refund. Existing data remains available."
+                    badge: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusRefunded),
+                    title: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusInactive),
+                    detail: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusRefundedDetail)
                 )
             case .revoked:
                 return Self(
                     tone: .blocked,
-                    badge: "Subscription revoked",
-                    title: "Subscription inactive",
-                    detail: "Apple reported a revoked subscription. Existing data remains available."
+                    badge: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusRevoked),
+                    title: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusInactive),
+                    detail: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusRevokedDetail)
                 )
             }
         }
@@ -104,27 +104,27 @@ struct StoreKitRestorePresentationV1: Equatable, Sendable {
         case .restoring:
             return Self(
                 tone: .information,
-                copy: "Restoring purchases…"
+                copy: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusRestoringPurchasesStatus)
             )
         case .restored:
             return Self(
                 tone: .complete,
-                copy: "Purchases restored. Subscription access is updated."
+                copy: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusPurchasesRestored)
             )
         case .noCurrentEntitlement:
             return Self(
                 tone: .blocked,
-                copy: "No current subscription was found. Your existing data is still available."
+                copy: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusNoCurrentSubscription)
             )
         case .unverified:
             return Self(
                 tone: .blocked,
-                copy: "Purchase history couldn’t be verified. Your existing data is still available. Try again."
+                copy: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusPurchaseHistoryUnverified)
             )
         case .failed:
             return Self(
                 tone: .blocked,
-                copy: "Purchases couldn’t be restored. Your existing data is still available. Try again."
+                copy: BundledLocalizationCatalogV1.v30Text(.subscriptionStatusPurchasesRestoreFailed)
             )
         }
     }
@@ -174,11 +174,11 @@ struct SubscriptionStatusView: View {
                     if coordinator.isRestoring {
                         HStack(spacing: DesignTokens.Spacing.small) {
                             ProgressView()
-                            Text("Restoring Purchases…")
+                            Text(BundledLocalizationCatalogV1.v30Text(.subscriptionStatusRestoringPurchases))
                         }
                         .frame(maxWidth: .infinity)
                     } else {
-                        Text("Restore Purchases")
+                        Text(BundledLocalizationCatalogV1.v30Text(.subscriptionStatusRestorePurchases))
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -186,31 +186,31 @@ struct SubscriptionStatusView: View {
                 .disabled(coordinator.isRestoring)
                 .accessibilityIdentifier(Self.restoreAccessibilityIdentifier)
 
-                Button("Manage Subscription") {
+                Button(BundledLocalizationCatalogV1.v30Text(.subscriptionStatusManageSubscription)) {
                     showsManageSubscription = true
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(coordinator.isRestoring)
-                .accessibilityHint("Opens Apple subscription management")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.subscriptionStatusManageHint))
                 .accessibilityIdentifier(Self.manageAccessibilityIdentifier)
 
-                Text("Inspection data and photos stay on this device and do not sync with the subscription. Use a data backup to move them.")
+                Text(BundledLocalizationCatalogV1.v30Text(.subscriptionStatusDataStorageNotice))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button("Close") {
+                Button(BundledLocalizationCatalogV1.v30Text(.subscriptionStatusClose)) {
                     coordinator.clearRestoreResult()
                     close()
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(coordinator.isRestoring)
-                .accessibilityHint("Returns to your existing data")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.subscriptionStatusCloseHint))
                 .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Subscription")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.subscriptionStatusNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)

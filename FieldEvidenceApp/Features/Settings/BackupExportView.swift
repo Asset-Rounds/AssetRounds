@@ -13,7 +13,7 @@ struct BackupExportView: View {
     static let actionAccessibilityIdentifier = "s6.2.backup.action"
     static let exportedAccessibilityIdentifier = "s6.2.backup.exported"
 
-    static let warning = "This backup contains sign details, notes, photos, and reports. It does not contain your subscription. Store and share it securely."
+    static let warning = BundledLocalizationCatalogV1.v30Text(.backupExportPhotoLabel)
 
     private let service: BackupExportService
     private let usesConfirmedDestinationForUITest: Bool
@@ -40,15 +40,15 @@ struct BackupExportView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
                     if let preview {
-                        Text(countLabel(preview.signCount, singular: "sign", plural: "signs"))
+                        Text(BundledLocalizationCatalogV1.v30BackupExportSignCount(count: preview.signCount))
                             .font(.headline)
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .accessibilityIdentifier(Self.signCountAccessibilityIdentifier)
-                        Text(countLabel(preview.reportCount, singular: "report", plural: "reports"))
+                        Text(BundledLocalizationCatalogV1.v30BackupExportReportCount(count: preview.reportCount))
                             .font(.headline)
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .accessibilityIdentifier(Self.reportCountAccessibilityIdentifier)
-                        Text(countLabel(preview.photoCount, singular: "photo", plural: "photos"))
+                        Text(BundledLocalizationCatalogV1.v30BackupExportPhotoCount(count: preview.photoCount))
                             .font(.headline)
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .accessibilityIdentifier(Self.photoCountAccessibilityIdentifier)
@@ -64,7 +64,7 @@ struct BackupExportView: View {
                         .accessibilityFocused($warningFocused)
                 }
 
-                Button("Back up current data") {
+                Button(BundledLocalizationCatalogV1.v30Text(.backupExportBackupAction)) {
                     beginExport()
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
@@ -82,7 +82,7 @@ struct BackupExportView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Back up current data")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.backupExportBackupAction))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -146,9 +146,7 @@ struct BackupExportView: View {
         }
     }
 
-    private func countLabel(_ count: Int, singular: String, plural: String) -> String {
-        "\(count) \(count == 1 ? singular : plural)"
-    }
+
 }
 
 private struct BackupDestinationPicker: UIViewControllerRepresentable {

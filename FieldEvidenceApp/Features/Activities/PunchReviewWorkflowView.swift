@@ -58,7 +58,7 @@ struct PunchReviewWorkflowView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Punch review")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.punchReviewNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -83,12 +83,12 @@ struct PunchReviewWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Punch review workflow")
+            Text(BundledLocalizationCatalogV1.v30Text(.punchReviewHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("Prepare and record the standalone review from its canonical activity record. Installation context is optional and read-only.")
+            Text(BundledLocalizationCatalogV1.v30Text(.punchReviewIntroduction))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -97,11 +97,11 @@ struct PunchReviewWorkflowView: View {
 
     private var invalidContext: some View {
         WorklightCard {
-            Label("Punch review unavailable", systemImage: "exclamationmark.triangle.fill")
+            Label(BundledLocalizationCatalogV1.v30Text(.punchReviewUnavailable), systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
                 .foregroundStyle(DesignTokens.Colors.blockedText)
                 .accessibilityAddTraits(.isHeader)
-            Text("The current review record could not be validated. No workflow command is available from this screen.")
+            Text(BundledLocalizationCatalogV1.v30Text(.punchReviewUnavailableMessage))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -113,12 +113,12 @@ struct PunchReviewWorkflowView: View {
 
     private func readiness(_ projection: PunchReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Readiness", identifier: Self.readinessAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.punchReviewReadiness), identifier: Self.readinessAccessibilityIdentifier)
             if projection.blockers.isEmpty {
-                Label("Recorded readiness has no start blocker.", systemImage: "checkmark.circle.fill")
+                Label(BundledLocalizationCatalogV1.v30Text(.punchReviewNoStartBlocker), systemImage: "checkmark.circle.fill")
                     .foregroundStyle(DesignTokens.Colors.informationText)
             } else {
-                Text("Resolve every recorded blocker before starting.")
+                Text(BundledLocalizationCatalogV1.v30Text(.punchReviewResolveBlockers))
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -135,7 +135,7 @@ struct PunchReviewWorkflowView: View {
                     }
                     .padding(.vertical, 2)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(blocker.kind.rawValue) blocker. \(blocker.reason)")
+                    .accessibilityLabel(BundledLocalizationCatalogV1.v30PunchReviewBlockerAccessibility(kind: blocker.kind.rawValue, reason: blocker.reason))
                 }
             }
         }
@@ -144,18 +144,18 @@ struct PunchReviewWorkflowView: View {
 
     private func preparation(_ projection: PunchReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Preparation", identifier: "\(Self.screenAccessibilityIdentifier).preparation")
-            capabilityRow("Plan", disposition: projection.planDisposition)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.punchReviewPreparation), identifier: "\(Self.screenAccessibilityIdentifier).preparation")
+            capabilityRow(BundledLocalizationCatalogV1.v30Text(.punchReviewPlan), disposition: projection.planDisposition)
             Label(
                 projection.installationSnapshotAvailable
-                    ? "An optional installation snapshot is available as read-only context."
-                    : "No installation snapshot is present; standalone punch review remains available.",
+                    ? BundledLocalizationCatalogV1.v30Text(.punchReviewInstallationSnapshotAvailable)
+                    : BundledLocalizationCatalogV1.v30Text(.punchReviewNoInstallationSnapshot),
                 systemImage: projection.installationSnapshotAvailable ? "doc.text" : "doc.badge.ellipsis"
             )
             .font(.body)
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
-            Text("A missing plan or installation snapshot never fabricates evidence and does not create an installation dependency.")
+            Text(BundledLocalizationCatalogV1.v30Text(.punchReviewPreparationNotice))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -165,15 +165,15 @@ struct PunchReviewWorkflowView: View {
 
     private func execution(_ projection: PunchReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Review execution", identifier: "\(Self.screenAccessibilityIdentifier).execution")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.punchReviewExecution), identifier: "\(Self.screenAccessibilityIdentifier).execution")
             stateLabel(projection.envelope.state)
             operationStatus
 
             switch projection.envelope.state {
             case .ready:
-                commandButton(title: "Start punch review", command: command(named: .start), disabled: !projection.canStart)
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.punchReviewStart), command: command(named: .start), disabled: !projection.canStart)
                 if !projection.canStart {
-                    Text("Start is unavailable until recorded readiness blockers are resolved.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.punchReviewStartUnavailable))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                 }
@@ -182,22 +182,22 @@ struct PunchReviewWorkflowView: View {
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                commandButton(title: "Pause punch review", command: command(named: .pause))
-                commandButton(title: "Record interruption", command: interruptionRecoveryCommand)
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.punchReviewPause), command: command(named: .pause))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.punchReviewRecordInterruption), command: interruptionRecoveryCommand)
             case .paused, .changesRequested:
-                Text("The review is paused or changes were requested. Resume only with the current record and a supplied resume command.")
+                Text(BundledLocalizationCatalogV1.v30Text(.punchReviewPausedNotice))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                commandButton(title: "Resume punch review", command: command(named: .resume))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.punchReviewResume), command: command(named: .resume))
             case .deferred, .unableToComplete, .cancelled:
-                Text("This attempt is interrupted. Recover only by replaying the same supplied mutation identity.")
+                Text(BundledLocalizationCatalogV1.v30Text(.punchReviewInterruptedNotice))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 recoveryButton
             default:
-                Text("This activity is not currently executable from the punch-review workflow surface.")
+                Text(BundledLocalizationCatalogV1.v30Text(.punchReviewNotExecutable))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -208,17 +208,17 @@ struct PunchReviewWorkflowView: View {
 
     private func scopeAndRecheck(_ projection: PunchReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Decisions, corrections, and rechecks", identifier: Self.scopeAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.punchReviewDecisionsCorrectionsRechecks), identifier: Self.scopeAccessibilityIdentifier)
             ForEach(projection.scope, id: \.definition.scopeItemID) { item in
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(item.definition.ordinal + 1). \(item.definition.title)")
+                    Text(BundledLocalizationCatalogV1.v30PunchReviewScopeItemOrdinal(ordinal: item.definition.ordinal + 1, title: item.definition.title))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(decisionText(item.decision))
                         .font(.footnote)
                         .foregroundStyle(item.hasRecordedDecision ? DesignTokens.Colors.informationText : DesignTokens.Colors.secondaryText)
-                    Text("\(item.unresolvedFindingCount) unresolved finding(s), \(item.resolvedFindingCount) resolved finding(s).")
+                    Text(BundledLocalizationCatalogV1.v30PunchReviewFindingCounts(unresolvedCount: item.unresolvedFindingCount, resolvedCount: item.resolvedFindingCount))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                 }
@@ -226,39 +226,39 @@ struct PunchReviewWorkflowView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("\(Self.scopeAccessibilityIdentifier).\(item.definition.scopeItemID)")
             }
-            Text("\(projection.report.correctiveActionSHA256s.count) corrective action record(s) and \(projection.report.verifiedRecheckSHA256s.count) verified recheck record(s) are projected from canonical records.")
+            Text(BundledLocalizationCatalogV1.v30PunchReviewProjectedRecordCounts(correctiveActionCount: projection.report.correctiveActionSHA256s.count, verifiedRecheckCount: projection.report.verifiedRecheckSHA256s.count))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("This screen does not resolve, approve, or hide findings. Record a basis variation only through a supplied canonical command.")
+            Text(BundledLocalizationCatalogV1.v30Text(.punchReviewFindingsBoundary))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            commandButton(title: "Record basis variation", command: command(named: .recordBasisVariation))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.punchReviewRecordBasisVariation), command: command(named: .recordBasisVariation))
         }
         .accessibilityElement(children: .contain)
     }
 
     private func closeoutAndReport(_ projection: PunchReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Closeout and report projection", identifier: Self.reportAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.punchReviewCloseoutAndReportProjection), identifier: Self.reportAccessibilityIdentifier)
             Text(projection.canCloseout
-                 ? "Every scope decision and required finding state is ready for the next recorded closeout action."
-                 : "Closeout remains unavailable until every required scope decision and finding state is recorded.")
+                  ? BundledLocalizationCatalogV1.v30Text(.punchReviewCloseoutReady)
+                  : BundledLocalizationCatalogV1.v30Text(.punchReviewCloseoutUnavailable))
                 .font(.body)
                 .foregroundStyle(projection.canCloseout ? DesignTokens.Colors.informationText : DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             commandButton(title: closeoutActionTitle(projection.nextCloseoutAction), command: command(named: .closeout), disabled: !projection.canCloseout)
             Label(
                 projection.reportReady
-                    ? "Recorded closeout is report-ready for the existing renderer."
-                    : "No recorded closeout is report-ready.",
+                    ? BundledLocalizationCatalogV1.v30Text(.punchReviewReportReady)
+                    : BundledLocalizationCatalogV1.v30Text(.punchReviewReportNotReady),
                 systemImage: projection.reportReady ? "doc.text" : "doc.badge.ellipsis"
             )
             .font(.body.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
-            Text("This view exposes a renderer-neutral projection only. Report-ready does not mean rendered, delivered, accepted, identity-verified, safe, compliant, or approved.")
+            Text(BundledLocalizationCatalogV1.v30Text(.punchReviewReportReadyBoundary))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -268,11 +268,11 @@ struct PunchReviewWorkflowView: View {
 
     private var operatingBoundaries: some View {
         WorklightCard {
-            sectionHeading("Local operating boundaries", identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
-            Text("Offline: this view presents only the current local record and does not claim a network sync.")
-            Text("Permissions: this view does not request camera, location, or other system permission.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.punchReviewLocalBoundaries), identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
+            Text(BundledLocalizationCatalogV1.v30Text(.punchReviewOfflineBoundary))
+            Text(BundledLocalizationCatalogV1.v30Text(.punchReviewPermissionsBoundary))
             if reduceMotion {
-                Text("Reduce Motion is on. State changes are presented without added animation.")
+                Text(BundledLocalizationCatalogV1.v30Text(.punchReviewReduceMotionNotice))
             }
         }
         .font(.footnote)
@@ -297,13 +297,13 @@ struct PunchReviewWorkflowView: View {
     private var recoveryButton: some View {
         Group {
             if let command = interruptionRecoveryCommand {
-                Button("Retry recorded recovery") { perform(command, recovery: true) }
+                Button(BundledLocalizationCatalogV1.v30Text(.punchReviewRetryRecovery)) { perform(command, recovery: true) }
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .disabled(isPerforming)
-                    .accessibilityHint("Replays the same supplied mutation identity and returns its existing receipt or one accepted effect.")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.punchReviewRetryRecoveryHint))
                     .accessibilityIdentifier(Self.recoveryAccessibilityIdentifier)
             } else {
-                Text("No recovery command is supplied. Reopen from the canonical record; unrecorded scratch work is unavailable.")
+                Text(BundledLocalizationCatalogV1.v30Text(.punchReviewNoRecoveryCommand))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .accessibilityIdentifier(Self.recoveryAccessibilityIdentifier)
@@ -317,16 +317,16 @@ struct PunchReviewWorkflowView: View {
             Button(title) { perform(command) }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(disabled || isPerforming)
-                .accessibilityHint("Uses the supplied canonical punch-review command.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.punchReviewCommandHint))
                 .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.\(commandIdentifier(command))")
         } else {
-            Text("\(title) is unavailable until its canonical command is supplied.")
+            Text(BundledLocalizationCatalogV1.v30PunchReviewCommandUnavailable(title: title))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
     }
 
-    private func sectionHeading(_ title: LocalizedStringKey, identifier: String) -> some View {
+    private func sectionHeading(_ title: String, identifier: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -335,7 +335,7 @@ struct PunchReviewWorkflowView: View {
     }
 
     private func stateLabel(_ state: ActivityStateV2) -> some View {
-        Label(state.rawValue.replacingOccurrences(of: "_", with: " "), systemImage: "circle.inset.filled")
+        Label(BundledLocalizationCatalogV1.v30PunchReviewState(state: state.rawValue.replacingOccurrences(of: "_", with: " ")), systemImage: "circle.inset.filled")
             .font(.body.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .accessibilityElement(children: .combine)
@@ -354,31 +354,31 @@ struct PunchReviewWorkflowView: View {
 
     private func planText(_ disposition: PunchReviewPlanDispositionV1) -> String {
         switch disposition {
-        case .available: return "Available from its recorded reference"
-        case .manualFallback: return "Manual fallback required"
-        case .externalLocal: return "External local reference recorded"
-        case .unavailable: return "Unavailable; use recorded manual fallback"
+        case .available: return BundledLocalizationCatalogV1.v30Text(.punchReviewCapabilityAvailable)
+        case .manualFallback: return BundledLocalizationCatalogV1.v30Text(.punchReviewCapabilityManualFallback)
+        case .externalLocal: return BundledLocalizationCatalogV1.v30Text(.punchReviewCapabilityExternalLocal)
+        case .unavailable: return BundledLocalizationCatalogV1.v30Text(.punchReviewCapabilityUnavailable)
         }
     }
 
     private func nextScopeText(_ projection: PunchReviewWorkflowProjectionV1) -> String {
         guard let nextScopeItemID = projection.nextScopeItemID else {
-            return "Every scope item has a recorded decision."
+            return BundledLocalizationCatalogV1.v30Text(.punchReviewAllScopeItemsRecorded)
         }
-        return "Next scope item requiring a decision: \(nextScopeItemID)."
+        return BundledLocalizationCatalogV1.v30PunchReviewNextScopeItem(scopeItemID: nextScopeItemID)
     }
 
     private func decisionText(_ decision: PunchItemProjectionV1?) -> String {
-        guard let decision else { return "No decision recorded" }
-        return "Decision: \(decision.disposition.rawValue.replacingOccurrences(of: "_", with: " "))"
+        guard let decision else { return BundledLocalizationCatalogV1.v30Text(.punchReviewNoDecisionRecorded) }
+        return BundledLocalizationCatalogV1.v30PunchReviewDecision(disposition: decision.disposition.rawValue.replacingOccurrences(of: "_", with: " "))
     }
 
     private func closeoutActionTitle(_ action: PunchReviewCloseoutActionV1?) -> String {
         switch action {
-        case .recordFieldComplete: return "Record field completion"
-        case .submitForReview: return "Submit recorded closeout for review"
-        case .finalizeRecordedCloseout: return "Finalize recorded closeout"
-        case .none: return "Validate closeout"
+        case .recordFieldComplete: return BundledLocalizationCatalogV1.v30Text(.punchReviewRecordFieldCompletion)
+        case .submitForReview: return BundledLocalizationCatalogV1.v30Text(.punchReviewSubmitCloseoutForReview)
+        case .finalizeRecordedCloseout: return BundledLocalizationCatalogV1.v30Text(.punchReviewFinalizeCloseout)
+        case .none: return BundledLocalizationCatalogV1.v30Text(.punchReviewValidateCloseout)
         }
     }
 
@@ -419,7 +419,7 @@ struct PunchReviewWorkflowView: View {
     private func perform(_ command: PunchReviewWorkflowCommandV1, recovery: Bool = false) {
         guard !isPerforming else { return }
         isPerforming = true
-        operationMessage = recovery ? "Replaying the recorded recovery command…" : "Submitting the supplied punch-review command…"
+        operationMessage = recovery ? BundledLocalizationCatalogV1.v30Text(.punchReviewReplayingRecovery) : BundledLocalizationCatalogV1.v30Text(.punchReviewSubmittingCommand)
         Task { @MainActor in
             defer { isPerforming = false }
             do {
@@ -427,19 +427,19 @@ struct PunchReviewWorkflowView: View {
                     ? coordinator.recover(command, context: context)
                     : coordinator.execute(command, context: context))
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no acceptance is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.punchReviewRequestCancelled)
                     return
                 }
-                operationMessage = "The canonical activity record accepted the command. Refresh from that record before continuing."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.punchReviewCommandAccepted)
                 onAccepted?(result)
             } catch is CancellationError {
-                operationMessage = "The request was cancelled. Reload the canonical record before retrying; no acceptance is claimed."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.punchReviewRequestCancelled)
             } catch {
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no acceptance is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.punchReviewRequestCancelled)
                     return
                 }
-                operationMessage = "The supplied command was not accepted. The current record remains the source of truth."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.punchReviewCommandNotAccepted)
             }
         }
     }

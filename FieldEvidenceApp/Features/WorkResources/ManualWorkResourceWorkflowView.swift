@@ -54,7 +54,7 @@ struct ManualWorkResourceWorkflowView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Work resources")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -73,12 +73,12 @@ struct ManualWorkResourceWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Manual work resources")
+            Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("Review a supplied manual time, material, quantity, and direct-cost entry before an explicit canonical action.")
+            Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceHeadingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -87,12 +87,12 @@ struct ManualWorkResourceWorkflowView: View {
 
     private var truthBoundary: some View {
         WorklightCard {
-            sectionHeading("Draft and stock boundary", identifier: Self.draftAccessibilityIdentifier)
-            Label("Editing a draft never changes stock.", systemImage: "pencil.line")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceDraftBoundaryHeading), identifier: Self.draftAccessibilityIdentifier)
+            Label(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceDraftDoesNotChangeStock), systemImage: "pencil.line")
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("A stock movement is attempted only by the explicit Use from stock or Return to stock action. A saved entry or stock movement is shown only after its durable receipt returns.")
+            Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceDraftBoundaryDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -102,19 +102,19 @@ struct ManualWorkResourceWorkflowView: View {
 
     private func draftEntry(_ projection: ManualWorkResourceWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Manual entry", identifier: "\(Self.draftAccessibilityIdentifier).entry")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceManualEntryHeading), identifier: "\(Self.draftAccessibilityIdentifier).entry")
             if projection.hasDraft {
-                valueRow("Time", value: durationText(projection.duration))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceTime), value: durationText(projection.duration))
                 materials(projection.materials)
-                valueRow("Direct cost", value: directCostText(projection.directCost))
-                valueRow("Save readiness", value: projection.canSaveManualEntry ? "Draft supplied" : "No saveable draft")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceDirectCost), value: directCostText(projection.directCost))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceSaveReadiness), value: projection.canSaveManualEntry ? BundledLocalizationCatalogV1.v30Text(.manualWorkResourceDraftSupplied) : BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNoSaveableDraft))
                 commandButton(
-                    title: "Save manual entry",
+                    title: BundledLocalizationCatalogV1.v30Text(.manualWorkResourceSaveEntry),
                     command: command(named: .saveManual),
                     disabled: !projection.canSaveManualEntry
                 )
             } else {
-                Text("No manual entry draft was supplied. No record can be saved from this surface.")
+                Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNoDraft))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -127,11 +127,11 @@ struct ManualWorkResourceWorkflowView: View {
 
     private func materials(_ values: [ManualMaterialLineV1]) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Materials")
+            Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceMaterials))
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
             if values.isEmpty {
-                Text("No material lines supplied.")
+                Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNoMaterials))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             } else {
@@ -140,16 +140,16 @@ struct ManualWorkResourceWorkflowView: View {
                         Text(line.description)
                             .font(.body)
                             .foregroundStyle(DesignTokens.Colors.primaryText)
-                        Text("\(exactDecimal(line.quantity.mantissa, scale: line.quantity.scale)) \(line.unit ?? "units")")
+                        Text(BundledLocalizationCatalogV1.v30ManualWorkResourceQuantity(quantity: exactDecimal(line.quantity.mantissa, scale: line.quantity.scale), unit: line.unit ?? BundledLocalizationCatalogV1.v30Text(.manualWorkResourceUnits)))
                             .font(.footnote)
                             .foregroundStyle(DesignTokens.Colors.secondaryText)
                         if let reference = line.localPartReference {
-                            Text("Frozen part reference: \(reference.displayName)")
+                            Text(BundledLocalizationCatalogV1.v30ManualWorkResourceFrozenPartReference(name: reference.displayName))
                                 .font(.footnote)
                                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         } else {
-                            Text("Manual material line; no stock effect.")
+                            Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceManualMaterialNoStockEffect))
                                 .font(.footnote)
                                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                         }
@@ -163,21 +163,21 @@ struct ManualWorkResourceWorkflowView: View {
 
     private func stockActions(_ projection: ManualWorkResourceWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Optional stock actions", identifier: Self.stockAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceStockActionsHeading), identifier: Self.stockAccessibilityIdentifier)
             Text(stockCapabilityText(projection.stockCapability))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             if projection.stockCapability == .available {
-                Text("Use and Return require the supplied exact stock command. Return is linked to its accepted Use and cannot restore more than its remaining quantity.")
+                Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceStockActionsDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                commandButton(title: "Use from stock", command: command(named: .useFromStock))
-                commandButton(title: "Return to stock", command: command(named: .returnToStock))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.manualWorkResourceUseStock), command: command(named: .useFromStock))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.manualWorkResourceReturnStock), command: command(named: .returnToStock))
             } else {
-                Text("Manual time, material, quantity, and direct-cost entry remains usable without stock capability.")
+                Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNoStockCapabilityDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -188,25 +188,25 @@ struct ManualWorkResourceWorkflowView: View {
 
     private func deterministicOutput(_ projection: ManualWorkResourceWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Deterministic output", identifier: Self.outputAccessibilityIdentifier)
-            Text("The output projects the supplied canonical manual record. Compatible values are shown exactly; mixed units or currencies are not silently totalled.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceOutputHeading), identifier: Self.outputAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceOutputDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("This is not a timer, inventory balance, invoice, tax, payroll, estimate, price authority, or accounting result.")
+            Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceOutputBoundary))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            valueRow("Stock changed", value: projection.stockChanged ? "Recorded" : "Not claimed")
-            valueRow("Saved", value: projection.saved ? "Recorded" : "Not claimed")
+            valueRow(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceStockChanged), value: projection.stockChanged ? BundledLocalizationCatalogV1.v30Text(.manualWorkResourceRecorded) : BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNotClaimed))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceSaved), value: projection.saved ? BundledLocalizationCatalogV1.v30Text(.manualWorkResourceRecorded) : BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNotClaimed))
         }
         .accessibilityElement(children: .contain)
     }
 
     private var operatingBoundaries: some View {
         WorklightCard {
-            sectionHeading("Operating boundaries", identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
-            Text("If a command is interrupted or rejected, reload the canonical record before retrying. This screen never infers a partial save or stock effect.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceBoundariesHeading), identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
+            Text(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceBoundariesDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -237,10 +237,10 @@ struct ManualWorkResourceWorkflowView: View {
             Button(title) { perform(command) }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(disabled || isPerforming)
-                .accessibilityHint("Uses the supplied canonical manual-resource command.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.manualWorkResourceCommandHint))
                 .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.\(commandIdentifier(command))")
         } else {
-            Text("\(title) is unavailable until its canonical command is supplied.")
+            Text(BundledLocalizationCatalogV1.v30ManualWorkResourceUnavailableCommand(title: title))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -268,12 +268,12 @@ struct ManualWorkResourceWorkflowView: View {
     }
 
     private func durationText(_ duration: ManualDurationV1?) -> String {
-        guard let duration else { return "No manual time" }
-        return "\(duration.minutes) minute\(duration.minutes == 1 ? "" : "s")"
+        guard let duration else { return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNoTime) }
+        return BundledLocalizationCatalogV1.v30ManualWorkResourceMinutes(minutes: duration.minutes)
     }
 
     private func directCostText(_ directCost: DirectCostEntryV1?) -> String {
-        guard let directCost else { return "No direct cost" }
+        guard let directCost else { return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceNoDirectCost) }
         let amount = directCost.amount
         return "\(amount.currencyCode) \(exactDecimal(amount.mantissa, scale: amount.minorUnitScale))"
     }
@@ -289,13 +289,13 @@ struct ManualWorkResourceWorkflowView: View {
     private func stockCapabilityText(_ capability: ManualWorkResourceStockCapabilityV1) -> String {
         switch capability {
         case .available:
-            return "Stock capability is available for explicit, supplied actions."
+            return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceStockAvailable)
         case .disabled:
-            return "Stock capability is disabled. No stock action can be performed."
+            return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceStockDisabled)
         case .unavailable:
-            return "Stock capability is unavailable. No stock action can be performed."
+            return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceStockUnavailable)
         case .manualOnly:
-            return "This workflow is manual-only. No stock action can be performed."
+            return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceManualOnly)
         }
     }
 
@@ -329,25 +329,25 @@ struct ManualWorkResourceWorkflowView: View {
     private func perform(_ command: ManualWorkResourceWorkflowCommandV1) {
         guard !isPerforming else { return }
         isPerforming = true
-        operationMessage = "Submitting the supplied manual-resource command…"
+        operationMessage = BundledLocalizationCatalogV1.v30Text(.manualWorkResourceSubmittingCommand)
         Task { @MainActor in
             defer { isPerforming = false }
             do {
                 let outcome = try coordinator.execute(command, context: context)
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.manualWorkResourceCancelled)
                     return
                 }
                 operationMessage = outcomeText(outcome)
                 onOutcome?(outcome)
             } catch is CancellationError {
-                operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.manualWorkResourceCancelled)
             } catch {
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.manualWorkResourceCancelled)
                     return
                 }
-                operationMessage = "The supplied command was not completed. The current canonical record remains the source of truth."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.manualWorkResourceCommandNotCompleted)
             }
         }
     }
@@ -355,11 +355,11 @@ struct ManualWorkResourceWorkflowView: View {
     private func outcomeText(_ outcome: ManualWorkResourceWorkflowOutcomeV1) -> String {
         switch outcome {
         case .manualSaved:
-            return "The manual entry has a durable receipt. Reload the canonical record to show its current state."
+            return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceManualSaved)
         case .stockUsed:
-            return "The explicit stock use and its frozen work-material successor have durable receipts. Reload the canonical record to show their current state."
+            return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceStockUsed)
         case .stockReturned:
-            return "The explicit stock return and its work-material successor have durable receipts. Reload the canonical record to show their current state."
+            return BundledLocalizationCatalogV1.v30Text(.manualWorkResourceStockReturned)
         }
     }
 }

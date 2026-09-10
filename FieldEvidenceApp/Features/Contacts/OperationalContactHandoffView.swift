@@ -28,8 +28,7 @@ struct OperationalContactHandoffView: View {
     /// This is deliberately stronger than the result badge: it stays visible
     /// while the chooser is open and prevents an accepted OS presentation from
     /// being mistaken for communication or navigation completion.
-    static let truthBoundaryText =
-        "Handed off to the system means only that iOS accepted presentation. It does not mean sent, delivered, called, answered, routed, arrived, verified, or consented."
+    static let truthBoundaryText = BundledLocalizationCatalogV1.v30Text(.operationalHandoffTruthBoundary)
 
     let session: OperationalContactHandoffSessionV1
     let subject: OperationalContactHandoffSubjectV1
@@ -110,14 +109,14 @@ struct OperationalContactHandoffView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Operational handoff")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.operationalHandoffNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
+                Button(BundledLocalizationCatalogV1.v30Text(.operationalHandoffCancel)) {
                     finish(.cancelled, shouldDismiss: true)
                 }
                 .disabled(isPerforming)
@@ -143,7 +142,7 @@ struct OperationalContactHandoffView: View {
         ) {
             if let selectedAction {
                 Button(
-                    "Open \(channelLabel(for: selectedAction.kind))"
+                    BundledLocalizationCatalogV1.v30OperationalHandoffOpenChannel(channel: channelLabel(for: selectedAction.kind))
                 ) {
                     handoffTask?.cancel()
                     handoffTask = Task {
@@ -152,14 +151,14 @@ struct OperationalContactHandoffView: View {
                 }
                 .accessibilityIdentifier(Self.confirmationAccessibilityIdentifier)
             }
-            Button("Cancel", role: .cancel) {}
+            Button(BundledLocalizationCatalogV1.v30Text(.operationalHandoffCancel), role: .cancel) {}
         } message: {
             if let selectedAction {
                 Text(
-                    "Review \(channelLabel(for: selectedAction.kind)) for \(selectedAction.displayValue) before opening the system."
+                    BundledLocalizationCatalogV1.v30OperationalHandoffReviewChannel(channel: channelLabel(for: selectedAction.kind), value: selectedAction.displayValue)
                 )
             } else {
-                Text("Choose a channel before confirming the handoff.")
+                Text(BundledLocalizationCatalogV1.v30Text(.operationalHandoffChooseChannelBeforeConfirming))
             }
         }
     }
@@ -189,10 +188,10 @@ struct OperationalContactHandoffView: View {
         WorklightCard {
             ProgressView()
                 .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
-                .accessibilityLabel("Loading handoff options")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.operationalHandoffLoadingAccessibilityLabel))
                 .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).loading")
 
-            Text("Loading the selected Site or Party…")
+            Text(BundledLocalizationCatalogV1.v30Text(.operationalHandoffLoading))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -218,8 +217,8 @@ struct OperationalContactHandoffView: View {
 
                 Text(
                     presentation.snapshot.subject.isSite
-                        ? "Choose Directions for this Site."
-                        : "Choose a contact channel for this Party."
+                        ? BundledLocalizationCatalogV1.v30Text(.operationalHandoffChooseDirections)
+                        : BundledLocalizationCatalogV1.v30Text(.operationalHandoffChooseContactChannel)
                 )
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -227,7 +226,7 @@ struct OperationalContactHandoffView: View {
             }
 
             WorklightCard {
-                Text("Choose a channel")
+                Text(BundledLocalizationCatalogV1.v30Text(.operationalHandoffChooseChannel))
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
@@ -236,7 +235,7 @@ struct OperationalContactHandoffView: View {
                     )
 
                 Text(
-                    "Select one value, then confirm before opening the system."
+                    BundledLocalizationCatalogV1.v30Text(.operationalHandoffSelectValueNotice)
                 )
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -261,7 +260,7 @@ struct OperationalContactHandoffView: View {
         _ unavailable: OperationalContactHandoffUnavailablePresentationV1
     ) -> some View {
         WorklightCard {
-            Text("Handoff unavailable")
+            Text(BundledLocalizationCatalogV1.v30Text(.operationalHandoffUnavailable))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -275,7 +274,7 @@ struct OperationalContactHandoffView: View {
                 .accessibilityFocused($accessibilityFocus, equals: .status)
                 .accessibilityIdentifier(Self.unavailableAccessibilityIdentifier)
 
-            Button("Close") {
+            Button(BundledLocalizationCatalogV1.v30Text(.operationalHandoffClose)) {
                 finish(.dismissed, shouldDismiss: true)
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
@@ -316,7 +315,7 @@ struct OperationalContactHandoffView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     if action.preferred {
-                        Text("Preferred value")
+                        Text(BundledLocalizationCatalogV1.v30Text(.operationalHandoffPreferredValue))
                             .font(.caption)
                             .foregroundStyle(DesignTokens.Colors.secondaryText)
                     }
@@ -345,10 +344,10 @@ struct OperationalContactHandoffView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(channelLabel(for: action.kind)), \(action.displayValue)"
+            BundledLocalizationCatalogV1.v30OperationalHandoffChannelValue(channel: channelLabel(for: action.kind), value: action.displayValue)
         )
-        .accessibilityValue(selected ? "Selected" : "Not selected")
-        .accessibilityHint("Selects this handoff channel")
+        .accessibilityValue(selected ? BundledLocalizationCatalogV1.v30Text(.operationalHandoffSelected) : BundledLocalizationCatalogV1.v30Text(.operationalHandoffNotSelected))
+        .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.operationalHandoffChannelHint))
         .accessibilityIdentifier(
             Self.actionAccessibilityIdentifierPrefix
                 + action.actionID.uuidString.lowercased()
@@ -359,17 +358,17 @@ struct OperationalContactHandoffView: View {
         _ action: OperationalContactHandoffActionPresentationV1
     ) -> some View {
         WorklightCard {
-            Text("Selected channel")
+            Text(BundledLocalizationCatalogV1.v30Text(.operationalHandoffSelectedChannel))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
 
-            Text("\(channelLabel(for: action.kind)): \(action.displayValue)")
+            Text(BundledLocalizationCatalogV1.v30OperationalHandoffSelectedChannelValue(channel: channelLabel(for: action.kind), value: action.displayValue))
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.selectedActionAccessibilityIdentifier)
 
-            Button("Review and open system") {
+            Button(BundledLocalizationCatalogV1.v30Text(.operationalHandoffReviewAndOpen)) {
                 isConfirming = true
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
@@ -379,7 +378,7 @@ struct OperationalContactHandoffView: View {
             )
 
             if isPerforming {
-                ProgressView("Opening system…")
+                ProgressView(BundledLocalizationCatalogV1.v30Text(.operationalHandoffOpeningSystem))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -399,12 +398,12 @@ struct OperationalContactHandoffView: View {
                execution.copyFallbackAvailable,
                execution.result.disposition == .systemUnavailable
                    || execution.result.disposition == .systemRejected {
-                Button("Copy current value") {
+                Button(BundledLocalizationCatalogV1.v30Text(.operationalHandoffCopyCurrentValue)) {
                     copyFallback(for: execution)
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityHint(
-                    "Copies the valid current value without starting another handoff"
+                    BundledLocalizationCatalogV1.v30Text(.operationalHandoffCopyCurrentValueHint)
                 )
                 .accessibilityIdentifier(Self.copyFallbackAccessibilityIdentifier)
             }
@@ -432,8 +431,8 @@ struct OperationalContactHandoffView: View {
     }
 
     private var confirmationTitle: String {
-        guard let selectedAction else { return "Confirm system handoff" }
-        return "Confirm \(channelLabel(for: selectedAction.kind))"
+        guard let selectedAction else { return BundledLocalizationCatalogV1.v30Text(.operationalHandoffConfirmSystemHandoff) }
+        return BundledLocalizationCatalogV1.v30OperationalHandoffConfirmChannel(channel: channelLabel(for: selectedAction.kind))
     }
 
     private var contentSpacing: CGFloat {
@@ -523,7 +522,7 @@ struct OperationalContactHandoffView: View {
             guard !didFinish else { return }
             execution = nil
             statusText =
-                "The handoff could not be prepared. No system handoff was started."
+                BundledLocalizationCatalogV1.v30Text(.operationalHandoffPreparationFailed)
             moveAccessibilityFocus(to: .status)
         }
     }
@@ -533,7 +532,7 @@ struct OperationalContactHandoffView: View {
     ) {
         guard let presentation,
               execution.copyFallbackAvailable else {
-            copyText = "Copy fallback is unavailable for this result."
+            copyText = BundledLocalizationCatalogV1.v30Text(.operationalHandoffCopyFallbackUnavailable)
             return
         }
         switch session.copyFallback(
@@ -542,9 +541,9 @@ struct OperationalContactHandoffView: View {
         ) {
         case .copied:
             copyText =
-                "Copied the current value. No call, message, or directions request was started."
+                BundledLocalizationCatalogV1.v30Text(.operationalHandoffCopyFallbackSucceeded)
         case .unavailable:
-            copyText = "Copy fallback is unavailable for this result."
+            copyText = BundledLocalizationCatalogV1.v30Text(.operationalHandoffCopyFallbackUnavailable)
         }
         moveAccessibilityFocus(to: .status)
     }
@@ -588,19 +587,19 @@ struct OperationalContactHandoffView: View {
     private func subjectLabel(
         for subject: OperationalContactHandoffSubjectV1
     ) -> String {
-        subject.isSite ? "Selected Site" : "Selected Party"
+        subject.isSite ? BundledLocalizationCatalogV1.v30Text(.operationalHandoffSelectedSite) : BundledLocalizationCatalogV1.v30Text(.operationalHandoffSelectedParty)
     }
 
     private func channelLabel(for kind: SystemHandoffKindV1) -> String {
         switch kind {
         case .directions:
-            "Directions"
+            BundledLocalizationCatalogV1.v30Text(.operationalHandoffDirections)
         case .call:
-            "Call"
+            BundledLocalizationCatalogV1.v30Text(.operationalHandoffCall)
         case .text:
-            "Text"
+            BundledLocalizationCatalogV1.v30Text(.operationalHandoffTextMessage)
         case .email:
-            "Email"
+            BundledLocalizationCatalogV1.v30Text(.operationalHandoffEmail)
         }
     }
 }

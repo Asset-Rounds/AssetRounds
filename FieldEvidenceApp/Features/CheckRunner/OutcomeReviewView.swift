@@ -66,8 +66,8 @@ struct OutcomeReviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
             WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Outcome")
-                Text("What did you observe?")
+                WorklightStatusBadge(kind: .information, text: BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewNavigation))
+                Text(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewPrompt))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
@@ -149,7 +149,7 @@ struct OutcomeReviewView: View {
 
             if isRecheck && !isChoosingCouldNotVerify {
                 WorklightCard {
-                    TextField("Optional note", text: $recheckNote, axis: .vertical)
+                    TextField(BundledLocalizationCatalogV1.v30Text(.outcomeReviewOptionalNote), text: $recheckNote, axis: .vertical)
                         .lineLimit(3...6)
                         .frame(
                             minHeight: DesignTokens.Control.minimumHitSize,
@@ -159,7 +159,7 @@ struct OutcomeReviewView: View {
                         .onChange(of: recheckNote) { _, _ in
                             updateRecheckSelection()
                         }
-                    Text("\(recheckNote.count) of 1000 characters")
+                    Text(BundledLocalizationCatalogV1.v30OutcomeReviewCharacterCount(count: recheckNote.count))
                         .font(.caption)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                 }
@@ -167,7 +167,7 @@ struct OutcomeReviewView: View {
 
             if isChoosingVisibleIssue || isChoosingDifferentIssue {
                 WorklightCard {
-                    Text("Choose one visible issue")
+                    Text(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewLabel))
                         .font(.headline)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                     ForEach(coordinator.signPackIssueLabels) { label in
@@ -193,7 +193,7 @@ struct OutcomeReviewView: View {
 
             if isChoosingCouldNotVerify {
                 WorklightCard {
-                    Text("Why could this check not be completed?")
+                    Text(BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckPrompt))
                         .font(.headline)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                     ForEach(coordinator.couldNotVerifyReasons) { reason in
@@ -212,7 +212,7 @@ struct OutcomeReviewView: View {
                     }
 
                     TextField(
-                        "Optional note",
+                        BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewLabel2),
                         text: $couldNotVerifyNote,
                         axis: .vertical
                     )
@@ -224,7 +224,7 @@ struct OutcomeReviewView: View {
                         updateCouldNotVerifySelection()
                     }
 
-                    Text("\(couldNotVerifyNote.count) of 1000 characters")
+                    Text(BundledLocalizationCatalogV1.v30OutcomeReviewCharacterCount(count: couldNotVerifyNote.count))
                         .font(.caption)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                 }
@@ -232,7 +232,7 @@ struct OutcomeReviewView: View {
 
             errorCard
 
-            Button("Continue") {
+            Button(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewAction)) {
                 prepareReview()
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
@@ -241,7 +241,7 @@ struct OutcomeReviewView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Outcome")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewNavigation))
         .accessibilityIdentifier(Self.outcomeScreenAccessibilityIdentifier)
     }
 
@@ -249,47 +249,47 @@ struct OutcomeReviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
             WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Review")
-                Text(isRecheck ? "Review this recheck" : "Review this check")
+                WorklightStatusBadge(kind: .information, text: BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewNavigation2))
+                Text(isRecheck ? BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckLabel) : BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckLabel2))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
-                reviewRow(label: "Outcome", value: review.outcomeDisplay)
+                reviewRow(label: BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewNavigation), value: review.outcomeDisplay)
                     .accessibilityIdentifier(Self.reviewOutcomeAccessibilityIdentifier)
                 if let issue = review.issueLabelDisplay {
-                    reviewRow(label: "Visible issue", value: issue)
+                    reviewRow(label: BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewLabel3), value: issue)
                 }
                 if let reason = review.couldNotVerifyReasonDisplay {
-                    reviewRow(label: "Could not verify", value: reason)
+                    reviewRow(label: BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewFailure), value: reason)
                         .accessibilityIdentifier(
                             Self.reviewCouldNotVerifyAccessibilityIdentifier
                         )
                 }
                 if let note = review.note {
-                    reviewRow(label: "Note", value: note)
+                    reviewRow(label: BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewLabel4), value: note)
                 }
                 reviewRow(
-                    label: "Observed",
-                    value: "\(review.localDate) · \(review.localTime) · \(review.timeZoneID)"
+                    label: BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewLabel5),
+                    value: BundledLocalizationCatalogV1.v30OutcomeReviewObservedDateTimeZone(date: review.localDate, time: review.localTime, timeZone: review.timeZoneID)
                 )
             }
 
             reviewEvidence(
                 review.wideEvidence,
-                purposeDisplay: "Wide view",
+                purposeDisplay: BundledLocalizationCatalogV1.v30Text(.outcomeReviewWideView),
                 isMissing: review.missingPurposeDisplays.contains("Wide view"),
                 identifier: Self.wideEvidenceAccessibilityIdentifier
             )
             reviewEvidence(
                 review.closeEvidence,
-                purposeDisplay: "Close view",
+                purposeDisplay: BundledLocalizationCatalogV1.v30Text(.outcomeReviewCloseView),
                 isMissing: review.missingPurposeDisplays.contains("Close view"),
                 identifier: Self.closeEvidenceAccessibilityIdentifier
             )
 
             WorklightCard {
-                Text("Confirmed")
+                Text(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewLabel6))
                     .font(.headline)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                 Label(review.afterDarkAcknowledgementCopy, systemImage: "checkmark.circle.fill")
@@ -298,14 +298,14 @@ struct OutcomeReviewView: View {
 
             errorCard
 
-            Button(isSaving ? "Saving…" : "Save and finish") {
+            Button(isSaving ? BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewProgress) : BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewProgress2)) {
                 finalize()
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
             .disabled(isSaving)
             .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
 
-            Button("Back") {
+            Button(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewAction2)) {
                 self.review = nil
                 errorMessage = nil
             }
@@ -315,7 +315,7 @@ struct OutcomeReviewView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Review")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewNavigation2))
         .accessibilityIdentifier(Self.reviewScreenAccessibilityIdentifier)
     }
 
@@ -333,7 +333,7 @@ struct OutcomeReviewView: View {
             }
         }
         .buttonStyle(WorklightSecondaryButtonStyle())
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityValue(isSelected ? BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewAccessibility) : BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewAccessibility2))
         .accessibilityIdentifier(identifier)
     }
 
@@ -374,8 +374,8 @@ struct OutcomeReviewView: View {
                 .foregroundStyle(DesignTokens.Colors.primaryText)
             Text(
                 isMissing || evidence == nil
-                    ? "Not captured — Could not verify"
-                    : "Photo saved for this check"
+                    ? BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewFailure2)
+                    : BundledLocalizationCatalogV1.v30Text(.outcomeReviewPhotoLabel)
             )
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -387,7 +387,7 @@ struct OutcomeReviewView: View {
     private var errorCard: some View {
         if let errorMessage {
             WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Check not saved")
+                WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckFailure))
                 Text(errorMessage)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
             }
@@ -504,7 +504,7 @@ struct OutcomeReviewView: View {
             review = try coordinator.prepareReview(assetID: assetID, selection: selection)
             errorMessage = nil
         } catch {
-            errorMessage = "The check could not be prepared for review. Try again."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckFailure2)
         }
     }
 
@@ -528,7 +528,7 @@ struct OutcomeReviewView: View {
                     sourceApp: sourceApp
                 )
             } catch {
-                errorMessage = "The report could not be saved. Your check is still available to retry."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckFailure3)
             }
             isSaving = false
         }

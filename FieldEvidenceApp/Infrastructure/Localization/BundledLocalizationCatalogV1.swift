@@ -3566,12 +3566,21 @@ enum BundledLocalizationCatalogV1 {
         // C01 adds the closed Support & Recovery Center vocabulary. It is
         // additive to the frozen base registry and remains English-only.
         supportedKeys.formUnion(RecoveryCenterLocalizationKeyV1.allCases.map(\.rawValue))
+        // V30 adds semantic English UI keys without replacing any inherited
+        // registry or changing its historical definition/receipt schema.
+        supportedKeys.formUnion(V30EnglishCatalogRegistryV1.keys)
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
         }
         for definition in registry.definitions {
             let rawKey = definition.key.rawValue
+            // V30 substitution entries have a distinct, strictly checked
+            // `.xcstrings` shape below; the historical validator only knows
+            // the legacy direct-plural form.
+            if V30EnglishCatalogRegistryV1.keys.contains(rawKey) {
+                continue
+            }
             guard let rawEntry = strings[rawKey],
                   let entry = rawEntry as? [String: Any],
                   let comment = entry["comment"] as? String,
@@ -3602,6 +3611,15 @@ enum BundledLocalizationCatalogV1 {
                       unit["value"] as? String == definition.englishDefaultValue else {
                     throw LocalizationContractFailureV1.invalidValue
                 }
+            }
+        }
+        for message in V30EnglishCatalogRegistryV1.messages {
+            // Historical source archives predate V30 and need not contain its
+            // additions. Every addition that is present must still be valid.
+            if let entry = strings[message.key] as? [String: Any] {
+                try message.validateCatalogEntry(entry)
+            } else if strings[message.key] != nil {
+                throw LocalizationContractFailureV1.invalidValue
             }
         }
     }

@@ -208,7 +208,7 @@ struct SignoffEnrollmentView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.editorAccessibilityIdentifier)
         }
-        .navigationTitle("Record response")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -229,7 +229,7 @@ struct SignoffEnrollmentView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Record approval response")
+            Text(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -238,7 +238,7 @@ struct SignoffEnrollmentView: View {
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
 
             Text(
-                "Add your typed response about this completed work. The response is your own local assertion and does not change the work record."
+                BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentIntroduction)
             )
             .font(.body)
             .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -248,16 +248,16 @@ struct SignoffEnrollmentView: View {
 
     private var subjectContext: some View {
         WorklightCard {
-            sectionHeading("Completed work", identifier: Self.immutableDetailAccessibilityIdentifier)
-            valueRow("Subject", route.subjectID.uuidString)
-            valueRow("Purpose", route.purpose)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentCompletedWork), identifier: Self.immutableDetailAccessibilityIdentifier)
+            valueRow(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentSubject), route.subjectID.uuidString)
+            valueRow(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentPurpose), route.purpose)
                 .accessibilityIdentifier(Self.purposeAccessibilityIdentifier)
-            valueRow("Completed-work revision", "\(route.subjectRevision)")
+            valueRow(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentCompletedWorkRevision), "\(route.subjectRevision)")
                 .accessibilityIdentifier(Self.revisionAccessibilityIdentifier)
 
             if revisionState == .current {
                 Text(
-                    "This response is bound to the supplied immutable completed-work revision. Review the detail again if the revision becomes stale."
+                    BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentRevisionBindingNotice)
                 )
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -270,7 +270,7 @@ struct SignoffEnrollmentView: View {
                     .accessibilityFocused($accessibilityFocus, equals: .revisionWarning)
             }
 
-            Text("The owner supplies the SignoffHistoryRouteV1 destination after a response action is accepted.")
+            Text(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentHistoryRouteNotice))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -281,12 +281,12 @@ struct SignoffEnrollmentView: View {
 
     private var responseFields: some View {
         WorklightCard {
-            sectionHeading("Your response", identifier: "\(Self.screenAccessibilityIdentifier).fields")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentYourResponse), identifier: "\(Self.screenAccessibilityIdentifier).fields")
             requiredTextField(
-                title: "Typed name",
-                prompt: "Type your name",
+                title: BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentTypedName),
+                prompt: BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentTypedNamePrompt),
                 text: $typedName,
-                hint: "Required. This is a self-entered name and is not identity verification.",
+                hint: BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentTypedNameHint),
                 identifier: Self.typedNameAccessibilityIdentifier,
                 focusTarget: .typedName,
                 field: .typedName,
@@ -295,10 +295,10 @@ struct SignoffEnrollmentView: View {
                 focusedField = .claimedRole
             }
             requiredTextField(
-                title: "Claimed role",
-                prompt: "Type your claimed role",
+                title: BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClaimedRole),
+                prompt: BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClaimedRolePrompt),
                 text: $claimedRole,
-                hint: "Required. This is your claimed role and is not verified authority.",
+                hint: BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClaimedRoleHint),
                 identifier: Self.claimedRoleAccessibilityIdentifier,
                 focusTarget: .claimedRole,
                 field: .claimedRole,
@@ -308,11 +308,11 @@ struct SignoffEnrollmentView: View {
             }
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                Text("Claimed relationship")
+                Text(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClaimedRelationship))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
-                Picker("Claimed relationship", selection: $claimedRelationship) {
-                    Text("Not specified")
+                Picker(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClaimedRelationshipPicker), selection: $claimedRelationship) {
+                    Text(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentNotSpecified))
                         .tag(nil as SitePartyRoleV1?)
                     ForEach(SitePartyRoleV1.allCases, id: \.self) { relationship in
                         Text(relationshipDisplayName(relationship))
@@ -321,9 +321,9 @@ struct SignoffEnrollmentView: View {
                 }
                 .pickerStyle(.menu)
                 .frame(minHeight: DesignTokens.Control.minimumHitSize, alignment: .leading)
-                .accessibilityLabel("Claimed relationship")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClaimedRelationshipAccessibilityLabel))
                 .accessibilityHint(
-                    "Optional. This is a self-entered relationship and is not verified."
+                    BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClaimedRelationshipHint)
                 )
                 .accessibilityIdentifier(Self.claimedRelationshipAccessibilityIdentifier)
             }
@@ -334,7 +334,7 @@ struct SignoffEnrollmentView: View {
     private var disclosure: some View {
         WorklightCard {
             sectionHeading(
-                "What this records",
+                BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentWhatThisRecords),
                 identifier: Self.disclosureSectionAccessibilityIdentifier
             )
             Text(SignoffEnrollmentDisclosureV1.disclosureText)
@@ -348,9 +348,9 @@ struct SignoffEnrollmentView: View {
 
     private var optionalDrawnMark: some View {
         WorklightCard {
-            sectionHeading("Optional drawn mark", identifier: Self.drawnMarkAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentOptionalDrawnMark), identifier: Self.drawnMarkAccessibilityIdentifier)
             Text(
-                "You may leave this blank. A drawn mark is not required, is not biometric, is not identity proof, and is not stored as a copy."
+                BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentDrawnMarkNotice)
             )
             .font(.body)
             .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -388,8 +388,8 @@ struct SignoffEnrollmentView: View {
 
             Text(
                 markStrokes.isEmpty
-                    ? "No drawn mark is present."
-                    : "A temporary drawn mark is present for this screen only."
+                    ? BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentNoDrawnMark)
+                    : BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentTemporaryDrawnMark)
             )
             .font(.footnote)
             .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -397,22 +397,22 @@ struct SignoffEnrollmentView: View {
             .accessibilityIdentifier(Self.drawnMarkStatusAccessibilityIdentifier)
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                Button("Clear drawn mark") {
+                Button(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClearDrawnMark)) {
                     markStrokes.removeAll()
                     activeStrokeID = nil
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(markStrokes.isEmpty || isSubmitting)
-                .accessibilityHint("Removes the temporary mark from this screen.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClearDrawnMarkHint))
                 .accessibilityIdentifier(Self.clearDrawnMarkAccessibilityIdentifier)
 
-                Button("Skip drawn mark") {
+                Button(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentSkipDrawnMark)) {
                     markStrokes.removeAll()
                     activeStrokeID = nil
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(isSubmitting)
-                .accessibilityHint("Continues without a drawn mark. Typed entry remains available.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentSkipDrawnMarkHint))
                 .accessibilityIdentifier(Self.skipDrawnMarkAccessibilityIdentifier)
             }
         }
@@ -421,30 +421,30 @@ struct SignoffEnrollmentView: View {
 
     private var actions: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Button("Record approval response", action: submit)
+            Button(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentRecordApprovalResponse), action: submit)
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(isSubmitting)
                 .accessibilityHint(
-                    "Records your self-asserted response after required fields are valid. It does not verify identity or approval."
+                    BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentRecordApprovalResponseHint)
                 )
                 .accessibilityIdentifier(Self.confirmAccessibilityIdentifier)
 
-            Button("Cancel", action: cancel)
+            Button(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentCancel), action: cancel)
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(isSubmitting)
-                .accessibilityHint("Returns to the completed-work detail without recording a response.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentCancelHint))
                 .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
         }
     }
 
     private var boundaries: some View {
         WorklightCard {
-            sectionHeading("Accessibility and boundaries", identifier: Self.boundariesAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentAccessibilityAndBoundaries), identifier: Self.boundariesAccessibilityIdentifier)
             Text(
-                "Typed entry is complete for VoiceOver, Voice Control, Switch Control, keyboard, and motor access. The drawn mark is optional and has accessible Clear and Skip controls."
+                BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentAccessibilityNotice)
             )
             Text(
-                "This local response does not claim verified identity or authority, final approval, acceptance for another person, a workflow transition, a legal signature or effect, or nonrepudiation."
+                BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentBoundariesNotice)
             )
         }
         .font(.footnote)
@@ -464,9 +464,9 @@ struct SignoffEnrollmentView: View {
         case .current:
             return ""
         case .stale:
-            return "This completed-work revision is stale. Return to the detail and review the current immutable revision before recording a response."
+            return BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentStaleRevision)
         case .unavailable:
-            return "This completed-work revision is unavailable. Return to the detail and review the completed work before recording a response."
+            return BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentUnavailableRevision)
         }
     }
 
@@ -561,13 +561,13 @@ struct SignoffEnrollmentView: View {
 
         let normalizedName = typedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedName.isEmpty else {
-            validationMessage = "Enter a typed name to record your response."
+            validationMessage = BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentEnterTypedName)
             focusedField = .typedName
             moveAccessibilityFocus(to: .typedName)
             return
         }
         guard normalizedName.utf8.count <= PartyAccountabilityLimitsV1.maximumDisplayNameBytes else {
-            validationMessage = "The typed name is too long. Use a shorter name and try again."
+            validationMessage = BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentTypedNameTooLong)
             focusedField = .typedName
             moveAccessibilityFocus(to: .typedName)
             return
@@ -575,13 +575,13 @@ struct SignoffEnrollmentView: View {
 
         let normalizedRole = claimedRole.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedRole.isEmpty else {
-            validationMessage = "Enter a claimed role to record your response."
+            validationMessage = BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentEnterClaimedRole)
             focusedField = .claimedRole
             moveAccessibilityFocus(to: .claimedRole)
             return
         }
         guard normalizedRole.utf8.count <= PartyAccountabilityLimitsV1.maximumDisplayNameBytes else {
-            validationMessage = "The claimed role is too long. Use a shorter role and try again."
+            validationMessage = BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentClaimedRoleTooLong)
             focusedField = .claimedRole
             moveAccessibilityFocus(to: .claimedRole)
             return
@@ -601,7 +601,7 @@ struct SignoffEnrollmentView: View {
         isSubmitting = false
         markStrokes.removeAll()
         activeStrokeID = nil
-        statusMessage = "Record approval response action invoked. This surface does not claim a saved, final, or verified result."
+        statusMessage = BundledLocalizationCatalogV1.v30Text(.signoffEnrollmentResponseActionStatus)
         moveAccessibilityFocus(to: .status)
     }
 
@@ -625,10 +625,11 @@ struct SignoffEnrollmentView: View {
     }
 
     private func relationshipDisplayName(_ relationship: SitePartyRoleV1) -> String {
-        relationship.rawValue
+        let presentedRelationship = relationship.rawValue
             .replacingOccurrences(of: "_", with: " ")
             .lowercased()
             .capitalized
+        return BundledLocalizationCatalogV1.v30SignoffEnrollmentRelationship(relationship: presentedRelationship)
     }
 
     private func moveAccessibilityFocus(to target: FocusTarget) {

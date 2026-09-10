@@ -144,12 +144,12 @@ struct AppShellView: View {
             .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
             .accessibilityValue(
                 exposesColorSchemeForUITest
-                    ? (colorScheme == .dark ? "Dark" : "Light")
+                    ? (colorScheme == .dark ? BundledLocalizationCatalogV1.v30Text(.shellDarkAppearance) : BundledLocalizationCatalogV1.v30Text(.shellLightAppearance))
                     : ""
             )
             .tag(Tab.signs)
             .tabItem {
-                Label("Signs", systemImage: "signpost.right.fill")
+                Label(BundledLocalizationCatalogV1.v30Text(.shellSignsTab), systemImage: "signpost.right.fill")
                     .accessibilityIdentifier(Self.signsTabAccessibilityIdentifier)
             }
 
@@ -166,7 +166,7 @@ struct AppShellView: View {
             }
             .tag(Tab.reports)
             .tabItem {
-                Label("Reports", systemImage: "doc.text.fill")
+                Label(BundledLocalizationCatalogV1.v30Text(.shellReportsTab), systemImage: "doc.text.fill")
                     .accessibilityIdentifier(Self.reportsTabAccessibilityIdentifier)
             }
         }
@@ -198,7 +198,7 @@ struct AppShellView: View {
                 minHeight: DesignTokens.Control.minimumHitSize
             )
             .contentShape(Rectangle())
-            .accessibilityLabel("Settings")
+            .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.shellSettingsAccessibilityLabel))
             .accessibilityIdentifier(Self.settingsButtonAccessibilityIdentifier)
         }
     }
@@ -410,13 +410,13 @@ struct SettingsPlaceholderView: View {
     var body: some View {
         ScrollView {
             WorklightCard {
-                Text("Settings")
+                Text(BundledLocalizationCatalogV1.v30Text(.shellSettingsHeading))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                    Text("Language & Region")
+                    Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageAndRegionHeading))
                         .font(.headline)
                     Text(Locale.autoupdatingCurrent.localizedString(
                         forLanguageCode: effectiveLanguage.effectiveLanguage.rawValue
@@ -424,23 +424,23 @@ struct SettingsPlaceholderView: View {
                     Text(Locale.autoupdatingCurrent.localizedString(
                         forIdentifier: Locale.autoupdatingCurrent.identifier
                     ) ?? Locale.autoupdatingCurrent.identifier)
-                    Text("App language and formatting region do not change your worksite jurisdiction.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageAndRegionJurisdictionNotice))
                         .font(.footnote)
-                    DisclosureGroup("Language support details") {
+                    DisclosureGroup(BundledLocalizationCatalogV1.v30Text(.shellLanguageSupportDetails)) {
                         if let diagnostic = globalizationFallbackDiagnostic {
                             if diagnostic.usedEnglishFallback {
-                                Text("English is being used because no preferred language resource matched.")
+                                Text(BundledLocalizationCatalogV1.v30Text(.shellEnglishFallbackExplanation))
                             } else {
-                                Text("A matching base-language resource is being used.")
+                                Text(BundledLocalizationCatalogV1.v30Text(.shellBaseLanguageFallbackExplanation))
                             }
                         } else {
-                            Text("The language resource selected by iOS is being used.")
+                            Text(BundledLocalizationCatalogV1.v30Text(.shellSystemLanguageExplanation))
                         }
-                        Text("This summary contains no personal data or device language list.")
+                        Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageSupportPrivacyNotice))
                             .font(.footnote)
                     }
                     .accessibilityIdentifier("v30.language-region.support-summary")
-                    Button("Open iOS Settings") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.shellOpenSystemSettings)) {
                         Task {
                             globalizationSettingsUnavailable =
                                 !(await GlobalizationSettingsCoordinatorV1().openAppSettings())
@@ -449,7 +449,7 @@ struct SettingsPlaceholderView: View {
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier("v30.language-region.open-settings")
                     if globalizationSettingsUnavailable {
-                        Text("Settings could not be opened. Open this app’s settings from the iOS Settings app.")
+                        Text(BundledLocalizationCatalogV1.v30Text(.shellSystemSettingsUnavailable))
                             .font(.footnote)
                     }
                 }
@@ -466,7 +466,7 @@ struct SettingsPlaceholderView: View {
                     }
                 }
 
-                NavigationLink("Back up current data") {
+                NavigationLink(BundledLocalizationCatalogV1.v30Text(.shellBackUpCurrentData)) {
                     BackupExportView(
                         modelContext: modelContext,
                         generationRootURL: generationRootURL
@@ -477,35 +477,35 @@ struct SettingsPlaceholderView: View {
                     BackupExportView.settingsEntryAccessibilityIdentifier
                 )
 
-                Button("Restore data backup", action: restoreDataBackup)
+                Button(BundledLocalizationCatalogV1.v30Text(.shellRestoreDataBackup), action: restoreDataBackup)
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier(
                         BackupRestoreProgressView.settingsEntryAccessibilityIdentifier
                     )
 
-                Button("View subscription") {
+                Button(BundledLocalizationCatalogV1.v30Text(.shellViewSubscription)) {
                     paywallPresentation = PaywallPresentation()
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityHint(
-                    "Shows the monthly subscription without changing existing data"
+                    BundledLocalizationCatalogV1.v30Text(.shellViewSubscriptionHint)
                 )
                 .accessibilityIdentifier(
                     PaywallView.settingsEntryAccessibilityIdentifier
                 )
 
-                Button("Restore Purchases") {
+                Button(BundledLocalizationCatalogV1.v30Text(.shellRestorePurchases)) {
                     lifecyclePresentation = LifecyclePresentation()
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityHint(
-                    "Checks Apple purchase history without restoring inspection data"
+                    BundledLocalizationCatalogV1.v30Text(.shellRestorePurchasesHint)
                 )
                 .accessibilityIdentifier(
                     SubscriptionStatusView.settingsRestoreAccessibilityIdentifier
                 )
 
-                NavigationLink("View diagnostics") {
+                NavigationLink(BundledLocalizationCatalogV1.v30Text(.shellViewDiagnostics)) {
                     DiagnosticExportView(
                         diagnosticsStore: diagnosticsStore,
                         metricKitAdapter: metricKitDiagnosticsAdapter
@@ -513,13 +513,13 @@ struct SettingsPlaceholderView: View {
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityHint(
-                    "Previews privacy-safe local counters and bounded system diagnostics before saving"
+                    BundledLocalizationCatalogV1.v30Text(.shellViewDiagnosticsHint)
                 )
                 .accessibilityIdentifier(
                     DiagnosticExportView.settingsEntryAccessibilityIdentifier
                 )
 
-                NavigationLink("Send feedback") {
+                NavigationLink(BundledLocalizationCatalogV1.v30Text(.shellSendFeedback)) {
                     FeedbackView(
                         diagnosticsStore: diagnosticsStore,
                         metricKitAdapter: metricKitDiagnosticsAdapter,
@@ -529,18 +529,18 @@ struct SettingsPlaceholderView: View {
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityHint(
-                    "Reviews privacy-safe diagnostics and asks before attaching them to editable feedback"
+                    BundledLocalizationCatalogV1.v30Text(.shellSendFeedbackHint)
                 )
                 .accessibilityIdentifier(
                     FeedbackView.settingsEntryAccessibilityIdentifier
                 )
 
-                Text("Inspection data and photos are device-local and do not sync with the subscription.")
+                Text(BundledLocalizationCatalogV1.v30Text(.shellSubscriptionDataNotice))
                     .font(.subheadline)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button("Erase All", action: eraseAllAction.call)
+                Button(BundledLocalizationCatalogV1.v30Text(.shellEraseAll), action: eraseAllAction.call)
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .accessibilityIdentifier(
                         EraseAllView.settingsEntryAccessibilityIdentifier
@@ -548,7 +548,7 @@ struct SettingsPlaceholderView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Settings")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.shellSettingsNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -576,18 +576,18 @@ private struct PackUnavailableView: View {
     var body: some View {
         ScrollView {
             WorklightCard {
-                Text("Content unavailable")
+                Text(BundledLocalizationCatalogV1.v30Text(.shellContentUnavailableHeading))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
 
-                Text("The bundled sign content could not be loaded.")
+                Text(BundledLocalizationCatalogV1.v30Text(.shellBundledContentUnavailable))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("No partial or guessed content is shown.")
+                Text(BundledLocalizationCatalogV1.v30Text(.shellNoPartialContentNotice))
                     .font(.subheadline)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)

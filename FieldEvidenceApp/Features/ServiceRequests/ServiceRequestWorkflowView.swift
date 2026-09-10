@@ -110,7 +110,7 @@ struct ServiceRequestWorkflowView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Service request")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.serviceRequestNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -145,12 +145,12 @@ struct ServiceRequestWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Service request")
+            Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("Review a supplied request, its zero-write preview, and explicit next actions. Requester, contact, urgency, and source details remain unverified assertions.")
+            Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestHeadingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -159,17 +159,17 @@ struct ServiceRequestWorkflowView: View {
 
     private var modeAndTruth: some View {
         WorklightCard {
-            sectionHeading("Request mode", identifier: Self.modeAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.serviceRequestModeHeading), identifier: Self.modeAccessibilityIdentifier)
             Label(
-                isPortable ? "Portable submission" : "Manual intake",
+                isPortable ? BundledLocalizationCatalogV1.v30Text(.serviceRequestPortableSubmission) : BundledLocalizationCatalogV1.v30Text(.serviceRequestManualIntake),
                 systemImage: isPortable ? "tray.and.arrow.down" : "square.and.pencil"
             )
             .font(.body.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .accessibilityElement(children: .combine)
             Text(isPortable
-                 ? "Portable data is supplied for review. This surface does not claim delivery, sender identity, portal access, monitoring, or a dispatch outcome."
-                 : "Manual intake is a supplied local source. This surface does not claim a call, message, requester identity, contact verification, urgency verification, or dispatch.")
+                 ? BundledLocalizationCatalogV1.v30Text(.serviceRequestPortableDescription)
+                 : BundledLocalizationCatalogV1.v30Text(.serviceRequestManualDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -179,40 +179,40 @@ struct ServiceRequestWorkflowView: View {
 
     private var draftAndPreview: some View {
         WorklightCard {
-            sectionHeading("Resumable draft and preview", identifier: Self.draftAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.serviceRequestDraftHeading), identifier: Self.draftAccessibilityIdentifier)
             if let preview {
-                Label("A supplied draft preview can be resumed.", systemImage: "arrow.clockwise")
+                Label(BundledLocalizationCatalogV1.v30Text(.serviceRequestDraftAvailable), systemImage: "arrow.clockwise")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.informationText)
                     .accessibilityElement(children: .combine)
-                valueRow("Preview write status", value: preview.zeroWrite ? "Zero-write" : "Unavailable")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.serviceRequestPreviewWriteStatus), value: preview.zeroWrite ? BundledLocalizationCatalogV1.v30Text(.serviceRequestZeroWrite) : BundledLocalizationCatalogV1.v30Text(.serviceRequestUnavailable))
                 valueRow(
-                    "Requested disposition",
-                    value: preview.disposition.map { dispositionText($0) } ?? "Needs triage"
+                    BundledLocalizationCatalogV1.v30Text(.serviceRequestRequestedDisposition),
+                    value: preview.disposition.map { dispositionText($0) } ?? BundledLocalizationCatalogV1.v30Text(.serviceRequestNeedsTriage)
                 )
                 valueRow(
-                    "Capability",
-                    value: preview.capabilityAssessment.map { capabilityText($0) } ?? "Not applicable to manual intake"
+                    BundledLocalizationCatalogV1.v30Text(.serviceRequestCapability),
+                    value: preview.capabilityAssessment.map { capabilityText($0) } ?? BundledLocalizationCatalogV1.v30Text(.serviceRequestNotApplicableManualIntake)
                 )
-                Text("Refreshing the supplied preview must remain zero-write. It does not accept, import, link, dispatch, or create work.")
+                Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestPreviewDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Label("Needs triage before any action", systemImage: "exclamationmark.triangle.fill")
+                Label(BundledLocalizationCatalogV1.v30Text(.serviceRequestNeedsTriageBeforeAction), systemImage: "exclamationmark.triangle.fill")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .accessibilityFocused($accessibilityFocus, equals: .needsTriage)
                     .accessibilityElement(children: .combine)
-                Text("No resumable preview was supplied. No request record, work, contact, receipt, or delivery effect is claimed.")
+                Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestNoPreview))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Refresh zero-write preview", action: onRefreshPreview)
+            Button(BundledLocalizationCatalogV1.v30Text(.serviceRequestRefreshPreview), action: onRefreshPreview)
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .keyboardShortcut("p", modifiers: [.command])
-                .accessibilityHint("Requests only the supplied zero-write preview. No import or work action is performed.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.serviceRequestRefreshHint))
                 .accessibilityIdentifier("\(Self.draftAccessibilityIdentifier).refresh-preview")
         }
         .accessibilityElement(children: .contain)
@@ -220,21 +220,21 @@ struct ServiceRequestWorkflowView: View {
 
     private var duplicateReasons: some View {
         WorklightCard {
-            sectionHeading("Possible duplicates", identifier: Self.duplicateAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.serviceRequestDuplicatesHeading), identifier: Self.duplicateAccessibilityIdentifier)
             let candidates = preview?.duplicateProjection.candidates ?? []
             if candidates.isEmpty {
-                Text("No supplied duplicate suggestions are available. This is not a uniqueness, search, or monitoring claim.")
+                Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestNoDuplicates))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Suggestions are explainable and do not automatically merge, link, close, or replace any request.")
+                Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestDuplicatesDescription))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(candidates, id: \.record.recordID) { candidate in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Suggested request revision \(candidate.record.revision)")
+                        Text(BundledLocalizationCatalogV1.v30ServiceRequestSuggestedRevision(revision: String(candidate.record.revision)))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                         ForEach(candidate.reasons, id: \.self) { reason in
@@ -254,8 +254,8 @@ struct ServiceRequestWorkflowView: View {
 
     private var dispositionChoices: some View {
         WorklightCard {
-            sectionHeading("Explicit dispositions", identifier: Self.dispositionAccessibilityIdentifier)
-            Text("Choose only a separately supplied canonical disposition after reviewing the preview. This screen does not choose or persist one.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.serviceRequestDispositionsHeading), identifier: Self.dispositionAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestDispositionsDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -274,21 +274,21 @@ struct ServiceRequestWorkflowView: View {
 
     private var createWork: some View {
         WorklightCard {
-            sectionHeading("Create work", identifier: Self.workAccessibilityIdentifier)
-            Text("Create work is separate from request intake and disposition. It requires a supplied canonical work action; this button does not claim assignment, dispatch, scheduling, monitoring, an SLA, or completion.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.serviceRequestCreateWorkHeading), identifier: Self.workAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestCreateWorkDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("Create work from supplied request", action: onCreateWork)
+            Button(BundledLocalizationCatalogV1.v30Text(.serviceRequestCreateWork), action: onCreateWork)
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(needsTriage)
                 .keyboardShortcut("w", modifiers: [.command])
                 .accessibilityHint(needsTriage
-                    ? "Unavailable while the request needs triage."
-                    : "Requests the separately supplied canonical work action.")
+                    ? BundledLocalizationCatalogV1.v30Text(.serviceRequestCreateWorkUnavailable)
+                    : BundledLocalizationCatalogV1.v30Text(.serviceRequestCreateWorkHint))
                 .accessibilityIdentifier(Self.workAccessibilityIdentifier)
             if needsTriage {
-                Text("Create work is unavailable until a supplied preview and triage state are available.")
+                Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestCreateWorkNoPreview))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -299,7 +299,7 @@ struct ServiceRequestWorkflowView: View {
 
     private var customerSafeStatus: some View {
         WorklightCard {
-            sectionHeading("Customer-safe status and PDF handoff", identifier: Self.statusAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.serviceRequestStatusHeading), identifier: Self.statusAccessibilityIdentifier)
             if let statusArtifact {
                 valueRow(statusArtifact.title, value: statusArtifact.statusText)
                 if let customerNote = statusArtifact.customerNote {
@@ -308,25 +308,25 @@ struct ServiceRequestWorkflowView: View {
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("This supplied status artifact does not verify the requester, contact, urgency, delivery, dispatch, work completion, or service result.")
+                Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestStatusArtifactDescription))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let stateProjection {
-                valueRow("Current request state", value: stateText(stateProjection.state))
-                Text("This status is an existing canonical request-state projection. It does not verify the requester, contact, urgency, delivery, dispatch, work completion, or service result.")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.serviceRequestCurrentState), value: stateText(stateProjection.state))
+                Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestCurrentStateDescription))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("No canonical status is supplied. The request remains needs-triage and no external status is claimed.")
+                Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestNoStatus))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text(statusArtifact == nil
-                 ? "A customer-safe PDF handoff is not supplied. This view cannot create, render, send, deliver, or confirm a PDF."
-                 : "A customer-safe status artifact is supplied for the existing handoff route. It does not claim delivery, receipt, reading, identity verification, approval, or a service outcome.")
+                 ? BundledLocalizationCatalogV1.v30Text(.serviceRequestNoPdfHandoff)
+                 : BundledLocalizationCatalogV1.v30Text(.serviceRequestPdfHandoffAvailable))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -337,9 +337,9 @@ struct ServiceRequestWorkflowView: View {
 
     private var boundaries: some View {
         WorklightCard {
-            sectionHeading("Accessibility and boundaries", identifier: Self.boundaryAccessibilityIdentifier)
-            Text("All controls have stable labels for VoiceOver, Voice Control, Switch Control, keyboard use, and RTL layout. At Accessibility text sizes, content reflows without relying on truncation.")
-            Text("Errors move focus to needs-triage. Reduce Motion adds no state-change animation. This contained surface makes no network, portal, delivery, dispatch, SLA, monitoring, or contact-verification claim.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.serviceRequestBoundariesHeading), identifier: Self.boundaryAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestAccessibilityDescription))
+            Text(BundledLocalizationCatalogV1.v30Text(.serviceRequestBoundariesDescription))
         }
         .font(.footnote)
         .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -347,7 +347,7 @@ struct ServiceRequestWorkflowView: View {
         .accessibilityElement(children: .contain)
     }
 
-    private func sectionHeading(_ title: LocalizedStringKey, identifier: String) -> some View {
+    private func sectionHeading(_ title: String, identifier: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -368,28 +368,28 @@ struct ServiceRequestWorkflowView: View {
     }
 
     private func capabilityText(_ value: ServiceRequestCapabilityAssessmentV1) -> String {
-        "Proof \(value.proofValidity.rawValue.replacingOccurrences(of: "_", with: " ")); import \(value.importEligibility.rawValue.replacingOccurrences(of: "_", with: " "))"
+        BundledLocalizationCatalogV1.v30ServiceRequestCapability(proof: value.proofValidity.rawValue.replacingOccurrences(of: "_", with: " "), eligibility: value.importEligibility.rawValue.replacingOccurrences(of: "_", with: " "))
     }
 
     private func dispositionText(_ value: ServiceRequestImportDispositionV1) -> String {
         switch value {
-        case .acceptAsNew: return "Accept as new"
-        case .acceptAndLinkDuplicate: return "Accept and link duplicate"
-        case .declineWithReason: return "Decline with reason"
-        case .recordHistoryOnly: return "Record history only"
-        case .keepQuarantined: return "Keep quarantined"
-        case .discardUnimported: return "Discard unimported"
+        case .acceptAsNew: return BundledLocalizationCatalogV1.v30Text(.serviceRequestDispositionAcceptAsNew)
+        case .acceptAndLinkDuplicate: return BundledLocalizationCatalogV1.v30Text(.serviceRequestDispositionAcceptAndLinkDuplicate)
+        case .declineWithReason: return BundledLocalizationCatalogV1.v30Text(.serviceRequestDispositionDeclineWithReason)
+        case .recordHistoryOnly: return BundledLocalizationCatalogV1.v30Text(.serviceRequestDispositionRecordHistoryOnly)
+        case .keepQuarantined: return BundledLocalizationCatalogV1.v30Text(.serviceRequestDispositionKeepQuarantined)
+        case .discardUnimported: return BundledLocalizationCatalogV1.v30Text(.serviceRequestDispositionDiscardUnimported)
         }
     }
 
     private func stateText(_ value: ServiceRequestStateV1) -> String {
         switch value {
-        case .openUntriaged: return "Open — needs triage"
-        case .openAccepted: return "Open — accepted"
-        case .handledByLinkedWork: return "Handled by linked work"
-        case .declined: return "Declined"
-        case .closedNoWork: return "Closed without work"
-        case .superseded: return "Superseded"
+        case .openUntriaged: return BundledLocalizationCatalogV1.v30Text(.serviceRequestStateOpenUntriaged)
+        case .openAccepted: return BundledLocalizationCatalogV1.v30Text(.serviceRequestStateOpenAccepted)
+        case .handledByLinkedWork: return BundledLocalizationCatalogV1.v30Text(.serviceRequestStateHandledByLinkedWork)
+        case .declined: return BundledLocalizationCatalogV1.v30Text(.serviceRequestStateDeclined)
+        case .closedNoWork: return BundledLocalizationCatalogV1.v30Text(.serviceRequestStateClosedNoWork)
+        case .superseded: return BundledLocalizationCatalogV1.v30Text(.serviceRequestStateSuperseded)
         }
     }
 }

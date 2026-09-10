@@ -76,7 +76,7 @@ struct CaptureStepView: View {
                 },
                 onFailure: {
                     presentsCamera = false
-                    errorMessage = "The camera could not take a photo. Choose from Photos or try again."
+                    errorMessage = BundledLocalizationCatalogV1.v30Text(.captureCameraFailure)
                 }
             )
         }
@@ -97,13 +97,13 @@ struct CaptureStepView: View {
                 } else if let errorMessage {
                     failure(message: errorMessage)
                 } else {
-                    ProgressView("Opening active check")
+                    ProgressView(BundledLocalizationCatalogV1.v30Text(.captureCheckProgress))
                         .frame(maxWidth: .infinity, minHeight: 160)
                 }
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Capture")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.captureContentNavigation))
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
     }
 
@@ -128,14 +128,14 @@ struct CaptureStepView: View {
                 preview(candidate)
 
                 HStack(spacing: DesignTokens.Spacing.medium) {
-                    Button("Retake") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.captureContentAction)) {
                         retake(candidate)
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .disabled(isWorking)
                     .accessibilityIdentifier(Self.retakeAccessibilityIdentifier)
 
-                    Button("Use Photo") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.capturePhotoAction)) {
                         usePhoto(candidate)
                     }
                     .buttonStyle(WorklightPrimaryButtonStyle())
@@ -148,7 +148,7 @@ struct CaptureStepView: View {
 
             if let errorMessage {
                 WorklightCard {
-                    WorklightStatusBadge(kind: .blocked, text: "Photo not accepted")
+                    WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.capturePhotoStatus))
                     Text(errorMessage)
                         .font(.body)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -160,7 +160,7 @@ struct CaptureStepView: View {
 
     @ViewBuilder
     private func captureActions(for step: WorkflowDraftStep) -> some View {
-        Button("Take photo") {
+        Button(BundledLocalizationCatalogV1.v30Text(.capturePhotoAction2)) {
             takePhoto(for: step)
         }
         .buttonStyle(WorklightPrimaryButtonStyle())
@@ -168,7 +168,7 @@ struct CaptureStepView: View {
         .accessibilityIdentifier(Self.takePhotoAccessibilityIdentifier)
 
         PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-            Text("Choose from Photos")
+            Text(BundledLocalizationCatalogV1.v30Text(.capturePhotoLabel))
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(WorklightSecondaryButtonStyle())
@@ -177,30 +177,30 @@ struct CaptureStepView: View {
 
         if cameraStatus == .denied || cameraStatus == .restricted {
             WorklightCard {
-                WorklightStatusBadge(kind: .blocked, text: "Camera access unavailable")
-                Text("Choose a photo, open Settings, or leave this check incomplete and return later.")
+                WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.captureCameraFailure2))
+                Text(BundledLocalizationCatalogV1.v30Text(.capturePhotoLabel2))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button("Open Settings") {
+            Button(BundledLocalizationCatalogV1.v30Text(.captureContentAction2)) {
                 openSettings()
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
             .accessibilityIdentifier(Self.openSettingsAccessibilityIdentifier)
         }
 
-        Button("Cannot complete") {
+        Button(BundledLocalizationCatalogV1.v30Text(.captureContentAction3)) {
             showsCouldNotVerify = true
         }
         .buttonStyle(WorklightSecondaryButtonStyle())
         .disabled(isWorking)
-        .accessibilityHint("Opens the reason flow to save this check as incomplete")
+        .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.captureCheckAccessibility))
         .accessibilityIdentifier(Self.cannotCompleteAccessibilityIdentifier)
 
         if usesImportedCaptureFixturesForUITest {
-            Button("Import test photo") {
+            Button(BundledLocalizationCatalogV1.v30Text(.capturePhotoAction3)) {
                 importFixture(for: step)
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
@@ -217,10 +217,10 @@ struct CaptureStepView: View {
                     .scaledToFit()
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
-                    .accessibilityLabel("Imported photo preview")
+                    .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.capturePhotoAccessibility))
                     .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
             } else {
-                Text("The imported photo preview is unavailable.")
+                Text(BundledLocalizationCatalogV1.v30Text(.capturePhotoFailure))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
             }
@@ -229,13 +229,13 @@ struct CaptureStepView: View {
 
     private func failure(message: String) -> some View {
         WorklightCard {
-            WorklightStatusBadge(kind: .blocked, text: "Active check unavailable")
+            WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.captureCheckFailure))
             Text(message)
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("Retry") {
+            Button(BundledLocalizationCatalogV1.v30Text(.captureContentRetry)) {
                 errorMessage = nil
                 loadPreparation()
             }
@@ -248,8 +248,8 @@ struct CaptureStepView: View {
         purpose: SignPack.EvidencePurpose
     ) -> String {
         step == .wide
-            ? "1 of 2 · \(purpose.display)"
-            : "2 of 2 · \(purpose.display)"
+            ? BundledLocalizationCatalogV1.v30CaptureStepStepOfTwo(step: 1, purpose: purpose.display)
+            : BundledLocalizationCatalogV1.v30CaptureStepStepOfTwo(step: 2, purpose: purpose.display)
     }
 
     private func loadPreparation() {
@@ -258,7 +258,7 @@ struct CaptureStepView: View {
             errorMessage = nil
         } catch {
             preparation = nil
-            errorMessage = "The active check could not be opened."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.captureCheckFailure2)
         }
     }
 
@@ -278,7 +278,7 @@ struct CaptureStepView: View {
             cameraStatus = resolvedStatus
             guard resolvedStatus == .authorized else { return }
             guard cameraAdapter.isCameraAvailable() else {
-                errorMessage = "The camera is unavailable. Choose from Photos or return later."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.captureCameraFailure3)
                 return
             }
             if usesImportedCaptureFixturesForUITest {
@@ -300,7 +300,7 @@ struct CaptureStepView: View {
             }
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else {
-                    errorMessage = "The selected photo could not be read. Choose another photo."
+                    errorMessage = BundledLocalizationCatalogV1.v30Text(.capturePhotoFailure2)
                     return
                 }
                 candidate = try await coordinator.importCandidate(
@@ -309,9 +309,9 @@ struct CaptureStepView: View {
                     createdAt: Date()
                 )
             } catch CheckRunnerCoordinatorError.storageUnavailable {
-                errorMessage = "Free space is too low. Free space, then try again."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.captureContentFailure)
             } catch {
-                errorMessage = "The photo could not be imported. Try another photo."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.capturePhotoFailure3)
             }
         }
     }
@@ -328,9 +328,9 @@ struct CaptureStepView: View {
                     createdAt: Date()
                 )
             } catch CheckRunnerCoordinatorError.storageUnavailable {
-                errorMessage = "Free space is too low. Free space, then try again."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.captureContentFailure)
             } catch {
-                errorMessage = "The photo could not be prepared. Choose another photo."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.capturePhotoFailure4)
             }
             isWorking = false
         }
@@ -354,7 +354,7 @@ struct CaptureStepView: View {
         guard let encoded = ProcessInfo.processInfo.environment[environmentKey],
               let sourceData = Data(base64Encoded: encoded) else {
             isWorking = false
-            errorMessage = "The test photo could not be imported."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.capturePhotoFailure5)
             return
         }
 
@@ -366,9 +366,9 @@ struct CaptureStepView: View {
                     createdAt: Date()
                 )
             } catch CheckRunnerCoordinatorError.storageUnavailable {
-                errorMessage = "Free space is too low. Free space, then try again."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.captureContentFailure)
             } catch {
-                errorMessage = "The photo could not be imported. Try another photo."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.capturePhotoFailure3)
             }
             isWorking = false
         }
@@ -383,7 +383,7 @@ struct CaptureStepView: View {
                 try await coordinator.retake(candidate: candidate)
                 self.candidate = nil
             } catch {
-                errorMessage = "The photo could not be cleared. Try again."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.capturePhotoFailure6)
             }
             isWorking = false
         }
@@ -402,7 +402,7 @@ struct CaptureStepView: View {
                 self.candidate = nil
                 preparation = try coordinator.prepareCapture(assetID: assetID)
             } catch {
-                errorMessage = "The photo could not be saved. Try again."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.capturePhotoFailure7)
             }
             isWorking = false
         }

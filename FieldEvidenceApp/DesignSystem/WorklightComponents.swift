@@ -39,10 +39,10 @@ enum WorklightStatusKind: String, CaseIterable {
 
     fileprivate var accessibilityName: String {
         switch self {
-        case .complete: "Complete"
-        case .attention: "Attention"
-        case .blocked: "Blocked"
-        case .information: "Information"
+        case .complete: BundledLocalizationCatalogV1.v30Text(.worklightStatusCompleteAccessibilityName)
+        case .attention: BundledLocalizationCatalogV1.v30Text(.worklightStatusAttentionAccessibilityName)
+        case .blocked: BundledLocalizationCatalogV1.v30Text(.worklightStatusBlockedAccessibilityName)
+        case .information: BundledLocalizationCatalogV1.v30Text(.worklightStatusInformationAccessibilityName)
         }
     }
 
@@ -84,7 +84,12 @@ struct WorklightStatusBadge: View {
         .background(kind.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(kind.accessibilityName): \(text)")
+        .accessibilityLabel(
+            BundledLocalizationCatalogV1.v30WorklightStatusBadgeAccessibilityLabel(
+                status: kind.accessibilityName,
+                detail: text
+            )
+        )
     }
 }
 

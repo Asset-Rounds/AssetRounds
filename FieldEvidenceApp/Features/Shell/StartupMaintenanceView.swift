@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct StartupMaintenanceView: View {
-    static let titleText = "Local data needs attention"
-    static let messageText = "The app stopped to avoid changing or losing local records."
-    static let recoveryStepsText = "If Retry cannot recover this device, delete and reinstall the app. This removes all local app data and does not cancel your Apple subscription. A backup stored outside this app can be restored from Welcome after reinstalling."
-    static let retryButtonText = "Retry checks"
-    static let recoveryButtonText = "Recovery steps"
+    static let titleText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceTitle)
+    static let messageText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceMessage)
+    static let recoveryStepsText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRecoverySteps)
+    static let retryButtonText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRetryChecks)
+    static let recoveryButtonText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRecoveryStepsButton)
 
     static let screenAccessibilityIdentifier = "s2.maintenance.screen"
     static let retryAccessibilityIdentifier = "s2.maintenance.retry"
@@ -55,13 +55,13 @@ struct StartupMaintenanceView: View {
                 .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
 
                 if let restoreDataBackup {
-                    Button("Restore data backup", action: restoreDataBackup)
+                    Button(BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRestoreDataBackup), action: restoreDataBackup)
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityIdentifier(Self.restoreAccessibilityIdentifier)
                 }
 
                 if let eraseAll {
-                    Button("Erase All", action: eraseAll)
+                    Button(BundledLocalizationCatalogV1.v30Text(.startupMaintenanceEraseAll), action: eraseAll)
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .accessibilityIdentifier(Self.eraseAccessibilityIdentifier)
                 }
@@ -76,7 +76,7 @@ struct StartupMaintenanceView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
-                .accessibilityValue(showsRecoverySteps ? "Expanded" : "Collapsed")
+                .accessibilityValue(showsRecoverySteps ? BundledLocalizationCatalogV1.v30Text(.startupMaintenanceExpanded) : BundledLocalizationCatalogV1.v30Text(.startupMaintenanceCollapsed))
                 .accessibilityIdentifier(Self.recoveryButtonAccessibilityIdentifier)
 
                 if showsRecoverySteps {

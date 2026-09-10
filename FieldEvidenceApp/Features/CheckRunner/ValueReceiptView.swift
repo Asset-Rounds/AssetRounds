@@ -25,9 +25,9 @@ struct ValueReceiptView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
-                    WorklightStatusBadge(kind: .complete, text: "Check complete")
+                    WorklightStatusBadge(kind: .complete, text: BundledLocalizationCatalogV1.v30Text(.receiptCheckCompleteBadge))
 
-                    Text("Report saved on this device.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.receiptReportSavedHeading))
                         .font(.title2.weight(.bold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -39,35 +39,35 @@ struct ValueReceiptView: View {
                 }
 
                 if delivery != nil {
-                    Button("View report") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.receiptViewReportAction)) {
                         showsReport = true
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityHint("Opens the report PDF stored on this device")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.receiptViewReportAccessibilityHint))
                     .accessibilityIdentifier(Self.viewReportAccessibilityIdentifier)
 
-                    Button("Share PDF") {
+                    Button(BundledLocalizationCatalogV1.v30Text(.receiptSharePDFAction)) {
                         showsShareSheet = true
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityHint("Opens the system share sheet for this report PDF")
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.receiptSharePDFAccessibilityHint))
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
                 } else if !deliveryUnavailable {
-                    ProgressView("Preparing report PDF")
+                    ProgressView(BundledLocalizationCatalogV1.v30Text(.receiptPreparingReportPDF))
                         .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
                         .accessibilityIdentifier("s4.3.receipt.preparing")
                 }
 
-                Button("Done") {
+                Button(BundledLocalizationCatalogV1.v30Text(.receiptDoneAction)) {
                     dismiss()
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
-                .accessibilityHint("Returns to this sign")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.receiptDoneAccessibilityHint))
                 .accessibilityIdentifier(Self.doneAccessibilityIdentifier)
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Saved")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.receiptSavedNavigationTitle))
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .navigationDestination(isPresented: $showsReport) {
@@ -113,12 +113,12 @@ struct ValueReceiptView: View {
     @ViewBuilder
     private var statusText: some View {
         if delivery != nil {
-            receiptStatus("Your report PDF is ready to view, share, or save to Files.")
+            receiptStatus(BundledLocalizationCatalogV1.v30Text(.receiptPDFReadyStatus))
         } else if deliveryUnavailable {
-            receiptStatus("Your report is saved on this device, but its PDF is not ready.")
+            receiptStatus(BundledLocalizationCatalogV1.v30Text(.receiptPDFNotReadyStatus))
                 .accessibilityIdentifier(Self.deliveryErrorAccessibilityIdentifier)
         } else {
-            receiptStatus("Your photos and check details are stored locally.")
+            receiptStatus(BundledLocalizationCatalogV1.v30Text(.receiptPhotosStoredLocallyStatus))
         }
     }
 

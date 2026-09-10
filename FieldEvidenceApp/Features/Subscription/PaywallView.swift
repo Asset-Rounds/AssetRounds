@@ -44,7 +44,7 @@ struct PaywallView: View {
                     }
                 }
             }
-            .navigationTitle("Subscription")
+            .navigationTitle(BundledLocalizationCatalogV1.v30Text(.paywallNavigationTitle))
             .navigationBarTitleDisplayMode(.inline)
         }
         .background(DesignTokens.Colors.canvas)
@@ -65,7 +65,7 @@ struct PaywallView: View {
     private var loading: some View {
         VStack(spacing: DesignTokens.Spacing.medium) {
             ProgressView()
-            Text("Loading subscription options…")
+            Text(BundledLocalizationCatalogV1.v30Text(.paywallLoadingOptions))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
 
@@ -82,21 +82,21 @@ struct PaywallView: View {
             WorklightCard {
                 WorklightStatusBadge(
                     kind: .blocked,
-                    text: "Subscription unavailable"
+                    text: BundledLocalizationCatalogV1.v30Text(.paywallUnavailableBadge)
                 )
 
-                Text("Subscription details are not available right now.")
+                Text(BundledLocalizationCatalogV1.v30Text(.paywallUnavailableMessage))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
 
-                Text("Your existing sign details, photos, and reports remain available. No price or trial information has been guessed.")
+                Text(BundledLocalizationCatalogV1.v30Text(.paywallUnavailableDataNotice))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button("Retry") {
+                Button(BundledLocalizationCatalogV1.v30Text(.paywallRetry)) {
                     Task { await coordinator.retryProductLoad() }
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
@@ -129,7 +129,7 @@ struct PaywallView: View {
                 result: result
             )
         }
-        .accessibilityValue(coordinator.isPurchasing ? "Purchasing" : "Ready")
+        .accessibilityValue(coordinator.isPurchasing ? BundledLocalizationCatalogV1.v30Text(.paywallPurchasingAccessibilityValue) : BundledLocalizationCatalogV1.v30Text(.paywallReady))
         .accessibilityIdentifier(Self.storeAccessibilityIdentifier)
     }
 
@@ -158,31 +158,31 @@ struct PaywallView: View {
                 .accessibilityIdentifier(Self.productPriceAccessibilityIdentifier)
 
             if presentation.isEligibleForIntroOffer {
-                Text("14 days free")
+                Text(BundledLocalizationCatalogV1.v30Text(.paywallTrialDuration))
                     .font(.headline)
                     .foregroundStyle(DesignTokens.Colors.completeText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(Self.trialAccessibilityIdentifier)
 
-                Text("Then \(presentation.displayPrice) every \(presentation.subscriptionDuration) until canceled.")
+                Text(BundledLocalizationCatalogV1.v30PaywallTrialRenewal(price: presentation.displayPrice, duration: presentation.subscriptionDuration))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(Self.renewalAccessibilityIdentifier)
             } else {
-                Text("Renews at \(presentation.displayPrice) every \(presentation.subscriptionDuration) until canceled.")
+                Text(BundledLocalizationCatalogV1.v30PaywallRenewal(price: presentation.displayPrice, duration: presentation.subscriptionDuration))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(Self.renewalAccessibilityIdentifier)
             }
 
-            Text("Unlimited local signs, checks, rechecks, and report generation while subscribed.")
+            Text(BundledLocalizationCatalogV1.v30Text(.paywallSubscriptionBenefits))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Inspection data and photos stay on this device and do not sync with the subscription. Use a data backup to move them to another device.")
+            Text(BundledLocalizationCatalogV1.v30Text(.paywallDataStorageNotice))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -191,13 +191,13 @@ struct PaywallView: View {
             purchaseStatus
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                Link("Terms", destination: links.terms)
+                Link(BundledLocalizationCatalogV1.v30Text(.paywallTerms), destination: links.terms)
                     .frame(minHeight: DesignTokens.Control.minimumHitSize)
                     .accessibilityIdentifier(Self.termsAccessibilityIdentifier)
-                Link("Privacy", destination: links.privacy)
+                Link(BundledLocalizationCatalogV1.v30Text(.paywallPrivacy), destination: links.privacy)
                     .frame(minHeight: DesignTokens.Control.minimumHitSize)
                     .accessibilityIdentifier(Self.privacyAccessibilityIdentifier)
-                Link("Support", destination: links.support)
+                Link(BundledLocalizationCatalogV1.v30Text(.paywallSupport), destination: links.support)
                     .frame(minHeight: DesignTokens.Control.minimumHitSize)
                     .accessibilityIdentifier(Self.supportAccessibilityIdentifier)
             }
@@ -209,10 +209,10 @@ struct PaywallView: View {
     }
 
     private var closeButton: some View {
-        Button("Close", action: close)
+        Button(BundledLocalizationCatalogV1.v30Text(.paywallClose), action: close)
             .buttonStyle(WorklightSecondaryButtonStyle())
             .disabled(coordinator.isPurchasing)
-            .accessibilityHint("Returns to your existing history")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.paywallCloseHint))
             .accessibilityIdentifier(Self.closeAccessibilityIdentifier)
     }
 
@@ -222,12 +222,12 @@ struct PaywallView: View {
         case .idle:
             EmptyView()
         case .purchasing:
-            WorklightStatusBadge(kind: .information, text: "Purchasing…")
+            WorklightStatusBadge(kind: .information, text: BundledLocalizationCatalogV1.v30Text(.paywallPurchasing))
                 .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
         case .verified:
             WorklightStatusBadge(
                 kind: .complete,
-                text: "Purchase verified. Subscription access is ready."
+                text: BundledLocalizationCatalogV1.v30Text(.paywallPurchaseVerified)
             )
             .accessibilityIdentifier(Self.purchaseStateAccessibilityIdentifier)
         case .cancelled, .pending, .unverified, .failed:

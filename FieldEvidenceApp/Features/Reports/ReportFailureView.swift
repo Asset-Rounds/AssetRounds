@@ -35,10 +35,10 @@ struct ReportFailureView: View {
                     WorklightCard {
                         WorklightStatusBadge(
                             kind: .blocked,
-                            text: "PDF unavailable"
+                            text: BundledLocalizationCatalogV1.v30Text(.reportFailureReportFailure)
                         )
 
-                        Text("This report was saved, but its PDF is not available.")
+                        Text(BundledLocalizationCatalogV1.v30Text(.reportFailureReportFailure2))
                             .font(.title2.weight(.bold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -48,25 +48,25 @@ struct ReportFailureView: View {
                                 Self.headlineAccessibilityIdentifier
                             )
 
-                        Text("Your completed check and saved report remain on this device. Retry report makes one new PDF attempt.")
+                        Text(BundledLocalizationCatalogV1.v30Text(.reportFailureCheckRetry))
                             .font(.body)
                             .foregroundStyle(DesignTokens.Colors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Button(isRetryInProgress ? "Retrying report…" : "Retry report") {
+                        Button(isRetryInProgress ? BundledLocalizationCatalogV1.v30Text(.reportFailureReportRetry) : BundledLocalizationCatalogV1.v30Text(.reportFailureReportRetry2)) {
                             retryReport(id: reportID)
                         }
                         .buttonStyle(WorklightPrimaryButtonStyle())
                         .disabled(isRetryInProgress)
                         .accessibilityLabel(
                             isRetryInProgress
-                                ? "Retry report in progress"
-                                : "Retry report"
+                                ? BundledLocalizationCatalogV1.v30Text(.reportFailureReportRetry3)
+                                : BundledLocalizationCatalogV1.v30Text(.reportFailureReportRetry2)
                         )
                         .accessibilityHint(
                             isRetryInProgress
-                                ? "A retry is already in progress"
-                                : "Makes one new PDF attempt for this saved report"
+                                ? BundledLocalizationCatalogV1.v30Text(.reportFailureReportRetry4)
+                                : BundledLocalizationCatalogV1.v30Text(.reportFailureReportLabel)
                         )
                         .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
                     }

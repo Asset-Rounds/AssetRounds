@@ -60,7 +60,7 @@ struct InstallationWorkflowView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Installation")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.installationWorkflowNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -89,13 +89,13 @@ struct InstallationWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Installation workflow")
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
 
-            Text("Recorded readiness, tasks, as-built facts, and closeout are shown from the current local activity record.")
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowIntroduction))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -104,11 +104,11 @@ struct InstallationWorkflowView: View {
 
     private var invalidContext: some View {
         WorklightCard {
-            Label("Installation workflow unavailable", systemImage: "exclamationmark.triangle.fill")
+            Label(BundledLocalizationCatalogV1.v30Text(.installationWorkflowUnavailable), systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
                 .foregroundStyle(DesignTokens.Colors.blockedText)
                 .accessibilityAddTraits(.isHeader)
-            Text("The current installation record could not be validated. No workflow command is available from this screen.")
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowUnavailableMessage))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -120,13 +120,13 @@ struct InstallationWorkflowView: View {
 
     private func readiness(_ projection: InstallationWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Readiness", identifier: Self.readinessAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.installationWorkflowReadiness), identifier: Self.readinessAccessibilityIdentifier)
             if projection.blockers.isEmpty {
-                Label("Recorded readiness has no start blocker.", systemImage: "checkmark.circle.fill")
+                Label(BundledLocalizationCatalogV1.v30Text(.installationWorkflowNoStartBlocker), systemImage: "checkmark.circle.fill")
                     .foregroundStyle(DesignTokens.Colors.informationText)
                     .accessibilityElement(children: .combine)
             } else {
-                Text("Resolve every recorded blocker before starting.")
+                Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowResolveBlockers))
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -144,7 +144,7 @@ struct InstallationWorkflowView: View {
                     }
                     .padding(.vertical, 2)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(blocker.kind.rawValue) blocker. \(blocker.reason)")
+                    .accessibilityLabel(BundledLocalizationCatalogV1.v30InstallationWorkflowBlockerAccessibility(kind: blocker.kind.rawValue, reason: blocker.reason))
                 }
             }
         }
@@ -153,7 +153,7 @@ struct InstallationWorkflowView: View {
 
     private func execution(_ projection: InstallationWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Execution", identifier: "\(Self.screenAccessibilityIdentifier).execution")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.installationWorkflowExecution), identifier: "\(Self.screenAccessibilityIdentifier).execution")
             stateLabel(projection.envelope.state)
 
             if let operationMessage {
@@ -169,12 +169,12 @@ struct InstallationWorkflowView: View {
             switch projection.envelope.state {
             case .ready:
                 commandButton(
-                    title: "Start installation",
+                    title: BundledLocalizationCatalogV1.v30Text(.installationWorkflowStartInstallation),
                     command: command(named: .start),
                     disabled: !projection.canStart
                 )
                 if !projection.canStart {
-                    Text("Start is unavailable until recorded readiness blockers are resolved.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowStartUnavailable))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                 }
@@ -183,22 +183,22 @@ struct InstallationWorkflowView: View {
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                commandButton(title: "Pause installation", command: command(named: .pause))
-                commandButton(title: "Record interruption", command: interruptionRecoveryCommand)
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.installationWorkflowPauseInstallation), command: command(named: .pause))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.installationWorkflowRecordInterruption), command: interruptionRecoveryCommand)
             case .paused:
-                Text("The activity is paused. Resume only with the current record and a supplied resume command.")
+                Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowPausedNotice))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                commandButton(title: "Resume installation", command: command(named: .resume))
+                commandButton(title: BundledLocalizationCatalogV1.v30Text(.installationWorkflowResumeInstallation), command: command(named: .resume))
             case .deferred, .unableToComplete, .cancelled:
-                Text("This attempt is interrupted. Relaunch does not restore unrecorded scratch work; recover only by replaying the same supplied mutation identity.")
+                Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowInterruptedNotice))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 recoveryButton
             default:
-                Text("This activity is not currently executable from the installation workflow surface.")
+                Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowNotExecutable))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -209,10 +209,10 @@ struct InstallationWorkflowView: View {
 
     private func taskList(_ projection: InstallationWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Ordered tasks", identifier: Self.tasksAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.installationWorkflowOrderedTasks), identifier: Self.tasksAccessibilityIdentifier)
             ForEach(projection.tasks, id: \.definition.taskID) { task in
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(task.definition.ordinal + 1). \(task.definition.title)")
+                    Text(BundledLocalizationCatalogV1.v30InstallationWorkflowTaskOrdinal(ordinal: task.definition.ordinal + 1, title: task.definition.title))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -222,7 +222,7 @@ struct InstallationWorkflowView: View {
                 }
                 .padding(.vertical, 2)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Task \(task.definition.ordinal + 1). \(task.definition.title). \(taskOutcomeText(task.currentResult?.outcome))")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30InstallationWorkflowTaskAccessibility(ordinal: task.definition.ordinal + 1, title: task.definition.title, outcome: taskOutcomeText(task.currentResult?.outcome)))
                 .accessibilityIdentifier("\(Self.tasksAccessibilityIdentifier).\(task.definition.taskID)")
             }
         }
@@ -231,28 +231,28 @@ struct InstallationWorkflowView: View {
 
     private func captureAndVariation(_ projection: InstallationWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("As-built and variations", identifier: "\(Self.screenAccessibilityIdentifier).as-built")
-            Text("Capture as-built facts and a recorded variation only through supplied canonical commands. This screen does not invent placement, measurement, evidence, or variation facts.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.installationWorkflowAsBuiltAndVariations), identifier: "\(Self.screenAccessibilityIdentifier).as-built")
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowAsBuiltNotice))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(projection.report.asBuiltSnapshotSHA256 == nil ? "No as-built snapshot is recorded." : "An as-built snapshot is recorded for the current task-result heads.")
+            Text(projection.report.asBuiltSnapshotSHA256 == nil ? BundledLocalizationCatalogV1.v30Text(.installationWorkflowNoAsBuiltSnapshot) : BundledLocalizationCatalogV1.v30Text(.installationWorkflowAsBuiltSnapshotRecorded))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            commandButton(title: "Record task result", command: command(named: .recordTaskResult))
-            commandButton(title: "Record as-built facts", command: command(named: .recordAsBuilt))
-            commandButton(title: "Record variation", command: command(named: .recordVariation))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.installationWorkflowRecordTaskResult), command: command(named: .recordTaskResult))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.installationWorkflowRecordAsBuiltFacts), command: command(named: .recordAsBuilt))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.installationWorkflowRecordVariation), command: command(named: .recordVariation))
         }
         .accessibilityElement(children: .contain)
     }
 
     private func optionalInputs(_ projection: InstallationWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Optional plan and scan", identifier: "\(Self.screenAccessibilityIdentifier).optional-inputs")
-            capabilityRow("Plan", disposition: projection.planDisposition)
-            capabilityRow("Scan", disposition: projection.scanDisposition)
-            Text("When a plan or scan is unavailable, use only the existing recorded manual fallback. Availability is not evidence that a plan or scan succeeded.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.installationWorkflowOptionalPlanAndScan), identifier: "\(Self.screenAccessibilityIdentifier).optional-inputs")
+            capabilityRow(BundledLocalizationCatalogV1.v30Text(.installationWorkflowPlan), disposition: projection.planDisposition)
+            capabilityRow(BundledLocalizationCatalogV1.v30Text(.installationWorkflowScan), disposition: projection.scanDisposition)
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowOptionalInputNotice))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -262,14 +262,14 @@ struct InstallationWorkflowView: View {
 
     private func closeoutAndReport(_ projection: InstallationWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Closeout and reporting", identifier: Self.reportAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.installationWorkflowCloseoutAndReporting), identifier: Self.reportAccessibilityIdentifier)
             if projection.canCloseout {
-                Text("All ordered tasks are terminal and an as-built snapshot is available for closeout validation.")
+                Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowCloseoutReady))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.informationText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Closeout remains unavailable until required terminal task results and as-built facts are recorded.")
+                Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowCloseoutUnavailable))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -285,8 +285,8 @@ struct InstallationWorkflowView: View {
                 && projection.report.closeoutSHA256 != nil
             Label(
                 reportReady
-                    ? "The accepted recorded closeout is report-ready for the existing renderer."
-                    : "No accepted finalized closeout is report-ready.",
+                    ? BundledLocalizationCatalogV1.v30Text(.installationWorkflowReportReady)
+                    : BundledLocalizationCatalogV1.v30Text(.installationWorkflowReportNotReady),
                 systemImage: reportReady ? "doc.text" : "doc.badge.ellipsis"
             )
             .font(.body.weight(.semibold))
@@ -294,7 +294,7 @@ struct InstallationWorkflowView: View {
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine)
 
-            Text("Report-ready does not mean rendered, sent, delivered, received, reviewed, verified, safe, compliant, permitted, commissioned, approved, or in service.")
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowReportReadyBoundary))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -304,12 +304,12 @@ struct InstallationWorkflowView: View {
 
     private var operatingBoundaries: some View {
         WorklightCard {
-            sectionHeading("Local operating boundaries", identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
-            Text("Offline: this view presents only the current local record and does not claim a network sync.")
-            Text("Permissions: this view does not request camera, location, or other system permission; unavailable capabilities remain explicit.")
-            Text("Protected data and storage: resolve their recorded readiness blockers before starting; this view does not bypass them.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.installationWorkflowLocalBoundaries), identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowOfflineBoundary))
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowPermissionsBoundary))
+            Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowProtectedDataBoundary))
             if reduceMotion {
-                Text("Reduce Motion is on. State changes are presented without added animation.")
+                Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowReduceMotionNotice))
             }
         }
         .font(.footnote)
@@ -321,15 +321,15 @@ struct InstallationWorkflowView: View {
     private var recoveryButton: some View {
         Group {
             if let command = interruptionRecoveryCommand {
-                Button("Retry recorded recovery") {
+                Button(BundledLocalizationCatalogV1.v30Text(.installationWorkflowRetryRecovery)) {
                     perform(command, recovery: true)
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(isPerforming)
-                .accessibilityHint("Replays the same supplied mutation identity and returns its existing receipt or one accepted effect.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.installationWorkflowRetryRecoveryHint))
                 .accessibilityIdentifier(Self.recoveryAccessibilityIdentifier)
             } else {
-                Text("No recovery command is supplied. Reopen from the canonical record; unrecorded scratch work is unavailable.")
+                Text(BundledLocalizationCatalogV1.v30Text(.installationWorkflowNoRecoveryCommand))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .accessibilityIdentifier(Self.recoveryAccessibilityIdentifier)
@@ -347,16 +347,16 @@ struct InstallationWorkflowView: View {
             Button(title) { perform(command) }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(disabled || isPerforming)
-                .accessibilityHint("Uses the supplied canonical installation command.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.installationWorkflowCommandHint))
                 .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.\(commandIdentifier(command))")
         } else {
-            Text("\(title) is unavailable until its canonical command is supplied.")
+            Text(BundledLocalizationCatalogV1.v30InstallationWorkflowCommandUnavailable(title: title))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
     }
 
-    private func sectionHeading(_ title: LocalizedStringKey, identifier: String) -> some View {
+    private func sectionHeading(_ title: String, identifier: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -365,7 +365,7 @@ struct InstallationWorkflowView: View {
     }
 
     private func stateLabel(_ state: ActivityStateV2) -> some View {
-        Label(state.rawValue.replacingOccurrences(of: "_", with: " "), systemImage: "circle.inset.filled")
+        Label(BundledLocalizationCatalogV1.v30InstallationWorkflowState(state: state.rawValue.replacingOccurrences(of: "_", with: " ")), systemImage: "circle.inset.filled")
             .font(.body.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
             .accessibilityElement(children: .combine)
@@ -387,30 +387,30 @@ struct InstallationWorkflowView: View {
 
     private func capabilityText(_ disposition: InstallationOptionalCapabilityDispositionV1) -> String {
         switch disposition {
-        case .available: return "Available from its recorded receipt"
-        case .manualFallback: return "Manual fallback required"
-        case .unavailable: return "Unavailable; use recorded manual fallback"
+        case .available: return BundledLocalizationCatalogV1.v30Text(.installationWorkflowCapabilityAvailable)
+        case .manualFallback: return BundledLocalizationCatalogV1.v30Text(.installationWorkflowCapabilityManualFallback)
+        case .unavailable: return BundledLocalizationCatalogV1.v30Text(.installationWorkflowCapabilityUnavailable)
         }
     }
 
     private func nextTaskText(_ projection: InstallationWorkflowProjectionV1) -> String {
         guard let nextTaskID = projection.nextTaskID else {
-            return "Every ordered task currently has a terminal recorded result."
+            return BundledLocalizationCatalogV1.v30Text(.installationWorkflowAllTasksTerminal)
         }
-        return "Next recorded task: \(nextTaskID)."
+        return BundledLocalizationCatalogV1.v30InstallationWorkflowNextTask(taskID: nextTaskID)
     }
 
     private func taskOutcomeText(_ outcome: InstallationTaskOutcomeV1?) -> String {
-        guard let outcome else { return "Not yet recorded" }
-        return outcome.rawValue.replacingOccurrences(of: "_", with: " ")
+        guard let outcome else { return BundledLocalizationCatalogV1.v30Text(.installationWorkflowNotYetRecorded) }
+        return BundledLocalizationCatalogV1.v30InstallationWorkflowTaskOutcome(outcome: outcome.rawValue.replacingOccurrences(of: "_", with: " "))
     }
 
     private func closeoutActionTitle(_ action: InstallationCloseoutActionV1?) -> String {
         switch action {
-        case .recordFieldComplete: return "Record field completion"
-        case .submitForReview: return "Submit recorded closeout for review"
-        case .finalizeRecordedCloseout: return "Finalize recorded closeout"
-        case .none: return "Validate closeout"
+        case .recordFieldComplete: return BundledLocalizationCatalogV1.v30Text(.installationWorkflowRecordFieldCompletion)
+        case .submitForReview: return BundledLocalizationCatalogV1.v30Text(.installationWorkflowSubmitCloseoutForReview)
+        case .finalizeRecordedCloseout: return BundledLocalizationCatalogV1.v30Text(.installationWorkflowFinalizeCloseout)
+        case .none: return BundledLocalizationCatalogV1.v30Text(.installationWorkflowValidateCloseout)
         }
     }
 
@@ -452,7 +452,7 @@ struct InstallationWorkflowView: View {
     private func perform(_ command: InstallationWorkflowCommandV1, recovery: Bool = false) {
         guard !isPerforming else { return }
         isPerforming = true
-        operationMessage = recovery ? "Replaying the recorded recovery command…" : "Submitting the supplied installation command…"
+        operationMessage = recovery ? BundledLocalizationCatalogV1.v30Text(.installationWorkflowReplayingRecovery) : BundledLocalizationCatalogV1.v30Text(.installationWorkflowSubmittingCommand)
         Task { @MainActor in
             defer { isPerforming = false }
             do {
@@ -463,19 +463,19 @@ struct InstallationWorkflowView: View {
                     result = try await coordinator.execute(command, context: context)
                 }
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no acceptance is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.installationWorkflowRequestCancelled)
                     return
                 }
-                operationMessage = "The canonical activity record accepted the command. Refresh from that record before continuing."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.installationWorkflowCommandAccepted)
                 onAccepted?(result)
             } catch is CancellationError {
-                operationMessage = "The request was cancelled. Reload the canonical record before retrying; no acceptance is claimed."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.installationWorkflowRequestCancelled)
             } catch {
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no acceptance is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.installationWorkflowRequestCancelled)
                     return
                 }
-                operationMessage = "The supplied command was not accepted. The current record remains the source of truth."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.installationWorkflowCommandNotAccepted)
             }
         }
     }

@@ -75,7 +75,7 @@ struct PreflightView: View {
                 ScrollView {
                     Group {
                         if isCheckingForDraft {
-                            ProgressView("Checking for an active check")
+                            ProgressView(BundledLocalizationCatalogV1.v30Text(.preflightCheckingActiveCheck))
                                 .frame(maxWidth: .infinity, minHeight: 160)
                         } else if didFailDraftCheck {
                             loadFailure
@@ -90,8 +90,8 @@ struct PreflightView: View {
         }
         .navigationTitle(
             !isCheckingForDraft && !didFailDraftCheck && hasDraft
-                ? "Capture"
-                : "Ready for night check"
+                ? BundledLocalizationCatalogV1.v30Text(.preflightCaptureNavigationTitle)
+                : BundledLocalizationCatalogV1.v30Text(.preflightReadyForNightCheckNavigationTitle)
         )
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -121,7 +121,7 @@ struct PreflightView: View {
     private var preflight: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
             WorklightCard {
-                WorklightStatusBadge(kind: .information, text: "Ready for night check")
+                WorklightStatusBadge(kind: .information, text: BundledLocalizationCatalogV1.v30Text(.preflightReadyForNightCheckBadge))
 
                 Text(snapshot.signLabel)
                     .font(.title2.weight(.bold))
@@ -132,12 +132,12 @@ struct PreflightView: View {
                 if confirmedTimeZoneID == nil {
                     timeZoneConfirmation
                 } else if let confirmedTimeZoneID {
-                    detailRow(title: "Confirmed time zone", value: confirmedTimeZoneID)
+                    detailRow(title: BundledLocalizationCatalogV1.v30Text(.preflightConfirmedTimeZoneLabel), value: confirmedTimeZoneID)
                 }
             }
 
             WorklightCard {
-                Text("Before you begin")
+                Text(BundledLocalizationCatalogV1.v30Text(.preflightBeforeYouBeginHeading))
                     .font(.headline)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .accessibilityAddTraits(.isHeader)
@@ -165,7 +165,7 @@ struct PreflightView: View {
 
             if let errorMessage {
                 WorklightCard {
-                    WorklightStatusBadge(kind: .blocked, text: "Check not started")
+                    WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.preflightCheckNotStartedBadge))
 
                     Text(errorMessage)
                         .font(.body)
@@ -174,15 +174,15 @@ struct PreflightView: View {
                 }
             }
 
-            Button("Begin check") {
+            Button(BundledLocalizationCatalogV1.v30Text(.preflightBeginCheckAction)) {
                 begin()
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
             .disabled(!canBegin || isBeginning)
-            .accessibilityHint(canBegin ? "Creates or resumes this sign's check" : beginDisabledHint)
+            .accessibilityHint(canBegin ? BundledLocalizationCatalogV1.v30Text(.preflightBeginCheckEnabledHint) : beginDisabledHint)
             .accessibilityIdentifier(Self.beginAccessibilityIdentifier)
 
-            Button("Cancel — no check started", action: cancel)
+            Button(BundledLocalizationCatalogV1.v30Text(.preflightCancelNoCheckStartedAction), action: cancel)
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
         }
@@ -190,11 +190,11 @@ struct PreflightView: View {
 
     private var timeZoneConfirmation: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Site time zone")
+            Text(BundledLocalizationCatalogV1.v30Text(.preflightSiteTimeZoneHeading))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
 
-            TextField("IANA time zone, for example America/New_York", text: $timeZoneID)
+            TextField(BundledLocalizationCatalogV1.v30Text(.preflightTimeZonePlaceholder), text: $timeZoneID)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textContentType(.none)
@@ -208,8 +208,8 @@ struct PreflightView: View {
                     RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                         .stroke(DesignTokens.Colors.essentialControlStroke, lineWidth: 1)
                 }
-                .accessibilityLabel("IANA time zone")
-                .accessibilityHint("Enter a time zone such as America slash New York")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.preflightTimeZoneAccessibilityLabel))
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.preflightTimeZoneAccessibilityHint))
                 .accessibilityIdentifier(Self.timeZoneAccessibilityIdentifier)
                 .onChange(of: timeZoneID) { _, _ in
                     isTimeZoneConfirmed = false
@@ -217,7 +217,7 @@ struct PreflightView: View {
                 }
 
             Toggle(isOn: $isTimeZoneConfirmed) {
-                Text("I confirm this is the site's time zone.")
+                Text(BundledLocalizationCatalogV1.v30Text(.preflightConfirmTimeZoneToggle))
             }
                 .frame(
                     minWidth: DesignTokens.Control.minimumHitSize,
@@ -230,8 +230,8 @@ struct PreflightView: View {
                 .disabled(!hasValidEnteredTimeZone)
                 .accessibilityHint(
                     hasValidEnteredTimeZone
-                        ? "Confirms the entered time zone for this site"
-                        : "Enter a valid IANA time zone first"
+                        ? BundledLocalizationCatalogV1.v30Text(.preflightConfirmTimeZoneEnabledHint)
+                        : BundledLocalizationCatalogV1.v30Text(.preflightConfirmTimeZoneDisabledHint)
                 )
                 .accessibilityIdentifier(Self.timeZoneConfirmationAccessibilityIdentifier)
         }
@@ -239,9 +239,9 @@ struct PreflightView: View {
 
     private var loadFailure: some View {
         WorklightCard {
-            WorklightStatusBadge(kind: .blocked, text: "Active check unavailable")
+            WorklightStatusBadge(kind: .blocked, text: BundledLocalizationCatalogV1.v30Text(.preflightActiveCheckUnavailableBadge))
 
-            Text("The active check could not be opened.")
+            Text(BundledLocalizationCatalogV1.v30Text(.preflightActiveCheckUnavailableMessage))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -266,9 +266,9 @@ struct PreflightView: View {
 
     private var beginDisabledHint: String {
         if !hasValidConfirmedTimeZone {
-            return "Confirm a valid site time zone before beginning"
+            return BundledLocalizationCatalogV1.v30Text(.preflightConfirmValidTimeZoneBeforeBeginningHint)
         }
-        return "Accept both acknowledgements before beginning"
+        return BundledLocalizationCatalogV1.v30Text(.preflightAcceptAcknowledgementsBeforeBeginningHint)
     }
 
     private func begin() {
@@ -288,7 +288,7 @@ struct PreflightView: View {
             )
             hasDraft = true
         } catch {
-            errorMessage = "The check could not be started. Try again."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.preflightCheckCouldNotBeStartedError)
             if let preparation = try? coordinator.prepare(assetID: snapshot.assetID) {
                 confirmedTimeZoneID = preparation.confirmedTimeZoneID
                 hasDraft = preparation.existingDraftID != nil

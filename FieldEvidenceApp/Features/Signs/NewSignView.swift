@@ -61,12 +61,12 @@ struct NewSignView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
-                    Text(siteOptions.isEmpty ? "Add your first sign" : "Add sign")
+                    Text(siteOptions.isEmpty ? BundledLocalizationCatalogV1.v30Text(.newSignAddFirstSign) : BundledLocalizationCatalogV1.v30Text(.newSignAddSign))
                         .font(.title2.weight(.bold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .accessibilityAddTraits(.isHeader)
 
-                    Text("Choose a customer or site, then name the sign you check there.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.newSignInstructions))
                         .font(.body)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -74,16 +74,16 @@ struct NewSignView: View {
 
                 if !siteOptions.isEmpty {
                     WorklightCard {
-                        Text("Customer / site")
+                        Text(BundledLocalizationCatalogV1.v30Text(.newSignCustomerOrSite))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
 
-                        Picker("Customer / site", selection: $siteChoice) {
+                        Picker(BundledLocalizationCatalogV1.v30Text(.newSignCustomerOrSitePicker), selection: $siteChoice) {
                             ForEach(siteOptions) { option in
                                 Text(option.label)
                                     .tag(SiteChoice.existing(option.id))
                             }
-                            Text("New site")
+                            Text(BundledLocalizationCatalogV1.v30Text(.newSignNewSite))
                                 .tag(SiteChoice.new)
                         }
                         .pickerStyle(.menu)
@@ -94,7 +94,7 @@ struct NewSignView: View {
                 WorklightCard {
                     if siteChoice == .new {
                         labeledField(
-                            label: "Customer / site name",
+                            label: BundledLocalizationCatalogV1.v30Text(.newSignCustomerOrSiteName),
                             text: $siteLabel,
                             field: .siteLabel,
                             identifier: Self.siteLabelAccessibilityIdentifier
@@ -102,7 +102,7 @@ struct NewSignView: View {
                     }
 
                     labeledField(
-                        label: "Sign name",
+                        label: BundledLocalizationCatalogV1.v30Text(.newSignSignName),
                         text: $signLabel,
                         field: .signLabel,
                         identifier: Self.signLabelAccessibilityIdentifier
@@ -115,7 +115,7 @@ struct NewSignView: View {
                         withAnimation { showsOptionalDetails.toggle() }
                     } label: {
                         Label(
-                            showsOptionalDetails ? "Hide optional details" : "Add optional details",
+                            showsOptionalDetails ? BundledLocalizationCatalogV1.v30Text(.newSignHideOptionalDetails) : BundledLocalizationCatalogV1.v30Text(.newSignAddOptionalDetails),
                             systemImage: showsOptionalDetails ? "chevron.up" : "chevron.down"
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -126,14 +126,14 @@ struct NewSignView: View {
                     if showsOptionalDetails {
                         VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                             labeledField(
-                                label: "Address (optional)",
+                                label: BundledLocalizationCatalogV1.v30Text(.newSignAddressOptional),
                                 text: $address,
                                 field: nil,
                                 identifier: Self.addressAccessibilityIdentifier
                             )
 
                             labeledField(
-                                label: "IANA time-zone identifier (optional)",
+                                label: BundledLocalizationCatalogV1.v30Text(.newSignTimeZoneIdentifierOptional),
                                 text: $timeZoneID,
                                 field: .timeZoneID,
                                 identifier: Self.timeZoneAccessibilityIdentifier
@@ -141,7 +141,7 @@ struct NewSignView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
 
-                            Toggle("I confirm this exact time-zone identifier", isOn: $isTimeZoneConfirmed)
+                            Toggle(BundledLocalizationCatalogV1.v30Text(.newSignConfirmTimeZoneIdentifier), isOn: $isTimeZoneConfirmed)
                                 .frame(
                                     minWidth: DesignTokens.Control.minimumHitSize,
                                     maxWidth: .infinity,
@@ -162,7 +162,7 @@ struct NewSignView: View {
                     }
                 } else if let selectedSite {
                     WorklightCard {
-                        Text("Using \(selectedSite.label)")
+                        Text(BundledLocalizationCatalogV1.v30NewSignUsingSelectedSite(siteLabel: selectedSite.label))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                         if let address = selectedSite.address {
@@ -178,7 +178,7 @@ struct NewSignView: View {
                         .accessibilityIdentifier(Self.errorAccessibilityIdentifier)
                 }
 
-                Button(isSaving ? "Saving…" : "Save and start check") {
+                Button(isSaving ? BundledLocalizationCatalogV1.v30Text(.newSignSaving) : BundledLocalizationCatalogV1.v30Text(.newSignSaveAndStartCheck)) {
                     save()
                 }
                 .buttonStyle(WorklightPrimaryButtonStyle())
@@ -187,7 +187,7 @@ struct NewSignView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("New sign")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.newSignNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.canvas)
@@ -249,7 +249,7 @@ struct NewSignView: View {
                 handle(error)
             } catch {
                 isSaving = false
-                errorMessage = "The sign could not be saved. Try again."
+                errorMessage = BundledLocalizationCatalogV1.v30Text(.newSignSaveFailure)
             }
         }
     }
@@ -259,11 +259,11 @@ struct NewSignView: View {
         case let .validation(field):
             focus(field)
         case .firstSignAlreadyExists:
-            errorMessage = "The first sign has already been added."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.newSignFirstSignAlreadyAdded)
         case let .accessDenied(decision):
             accessBlocked(decision)
         case .storedDataInvalid, .saveFailed:
-            errorMessage = "The sign could not be saved. Try again."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.newSignSaveFailure)
         }
     }
 
@@ -278,21 +278,21 @@ struct NewSignView: View {
 
         switch field {
         case .siteLabel:
-            errorMessage = "Enter a customer or site name."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.newSignEnterCustomerOrSiteName)
             target = .siteLabel
             requestsKeyboardFocus = true
         case .signLabel:
-            errorMessage = "Enter a sign name."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.newSignEnterSignName)
             target = .signLabel
             requestsKeyboardFocus = true
         case .timeZoneID:
             showsOptionalDetails = true
-            errorMessage = "Enter an exact IANA time-zone identifier."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.newSignEnterTimeZoneIdentifier)
             target = .timeZoneID
             requestsKeyboardFocus = true
         case .timeZoneConfirmation:
             showsOptionalDetails = true
-            errorMessage = "Confirm the exact time-zone identifier."
+            errorMessage = BundledLocalizationCatalogV1.v30Text(.newSignConfirmTimeZoneIdentifierError)
             target = .timeZoneConfirmation
             requestsKeyboardFocus = false
         }

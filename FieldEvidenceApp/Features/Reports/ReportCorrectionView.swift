@@ -63,7 +63,7 @@ struct ReportCorrectionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
                 WorklightCard {
-                    Text("Correct report")
+                    Text(BundledLocalizationCatalogV1.v30Text(.reportCorrectionHeading))
                         .font(.title2.weight(.bold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -71,7 +71,7 @@ struct ReportCorrectionView: View {
                         .accessibilityFocused($accessibilityFocus, equals: .header)
                         .accessibilityIdentifier(Self.headerAccessibilityIdentifier)
 
-                    Text("Change the note only. Evidence, outcome, time, and report history stay unchanged.")
+                    Text(BundledLocalizationCatalogV1.v30Text(.reportCorrectionDisclosure))
                         .font(.body)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -79,12 +79,12 @@ struct ReportCorrectionView: View {
 
                 if showsForm {
                     WorklightCard {
-                        Text("Correction note")
+                        Text(BundledLocalizationCatalogV1.v30Text(.reportCorrectionNoteLabel))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
                             .accessibilityHidden(true)
 
-                        TextField("Correction note", text: $note, axis: .vertical)
+                        TextField(BundledLocalizationCatalogV1.v30Text(.reportCorrectionNotePlaceholder), text: $note, axis: .vertical)
                             .lineLimit(4...8)
                             .padding(.horizontal, DesignTokens.Spacing.small)
                             .frame(
@@ -106,15 +106,15 @@ struct ReportCorrectionView: View {
                             .textInputAutocapitalization(.sentences)
                             .focused($keyboardFocus, equals: .note)
                             .accessibilityFocused($accessibilityFocus, equals: .note)
-                            .accessibilityLabel("Correction note")
-                            .accessibilityHint("Enter a different note, up to 1,000 characters. Leave it blank to remove the current note.")
+                            .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.reportCorrectionNoteAccessibilityLabel))
+                            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportCorrectionNoteAccessibilityHint))
                             .accessibilityIdentifier(Self.noteAccessibilityIdentifier)
                             .onChange(of: note) { _, _ in
                                 validationMessage = nil
                                 if state == .failed { state = .editing }
                             }
 
-                        Text("\(normalizedCharacterCount) of 1,000 characters")
+                        Text(BundledLocalizationCatalogV1.v30ReportCorrectionCharacterCount(count: normalizedCharacterCount))
                             .font(.caption)
                             .foregroundStyle(
                                 normalizedCharacterCount > 1_000
@@ -135,16 +135,16 @@ struct ReportCorrectionView: View {
                 stateContent
 
                 if showsForm {
-                    Button("Save correction", action: save)
+                    Button(BundledLocalizationCatalogV1.v30Text(.reportCorrectionSaveAction), action: save)
                         .buttonStyle(WorklightPrimaryButtonStyle())
                         .disabled(state == .saving)
-                        .accessibilityHint("Creates a new report revision and keeps the prior report.")
+                        .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportCorrectionSaveAccessibilityHint))
                         .accessibilityIdentifier(Self.saveAccessibilityIdentifier)
                 }
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Correct report")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.reportCorrectionNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(hidesBackNavigation)
         .background(DesignTokens.Colors.canvas)
@@ -178,7 +178,7 @@ struct ReportCorrectionView: View {
             EmptyView()
         case .saving:
             WorklightCard {
-                ProgressView("Saving correction")
+                ProgressView(BundledLocalizationCatalogV1.v30Text(.reportCorrectionSavingProgress))
                     .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
                     .accessibilityFocused($accessibilityFocus, equals: .saving)
                     .accessibilityIdentifier(Self.savingAccessibilityIdentifier)
@@ -186,7 +186,7 @@ struct ReportCorrectionView: View {
         case .failed:
             WorklightStatusBadge(
                 kind: .blocked,
-                text: "Correction couldn’t be saved. Nothing changed."
+                text: BundledLocalizationCatalogV1.v30Text(.reportCorrectionSaveFailedError)
             )
             .accessibilityFocused($accessibilityFocus, equals: .failure)
             .accessibilityIdentifier(Self.failureAccessibilityIdentifier)
@@ -199,18 +199,18 @@ struct ReportCorrectionView: View {
             WorklightCard {
                 WorklightStatusBadge(
                     kind: .attention,
-                    text: "Correction saved, but its PDF couldn’t be created. Retry from the saved report."
+                    text: BundledLocalizationCatalogV1.v30Text(.reportCorrectionPDFUnavailableError)
                 )
                 .accessibilityFocused($accessibilityFocus, equals: .failure)
                 .accessibilityIdentifier(Self.failureAccessibilityIdentifier)
 
-                Button("View prior report") {
+                Button(BundledLocalizationCatalogV1.v30Text(.reportCorrectionViewPriorReportAction)) {
                     acknowledgeDeliveryFailureIfNeeded(reportID: reportID)
                     didSelectReport(priorReportID)
                     dismiss()
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
-                .accessibilityHint("Opens the immediately prior saved report.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportCorrectionViewPriorReportAccessibilityHint))
                 .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)
             }
         }
@@ -221,9 +221,9 @@ struct ReportCorrectionView: View {
         priorReportID: UUID?
     ) -> some View {
         WorklightCard {
-            WorklightStatusBadge(kind: .complete, text: "Correction saved")
+            WorklightStatusBadge(kind: .complete, text: BundledLocalizationCatalogV1.v30Text(.reportCorrectionSavedBadge))
 
-            Text("The prior report and evidence remain unchanged.")
+            Text(BundledLocalizationCatalogV1.v30Text(.reportCorrectionPriorReportPreservedMessage))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -231,21 +231,21 @@ struct ReportCorrectionView: View {
                 .accessibilityIdentifier(Self.readyAccessibilityIdentifier)
 
             if let priorReportID {
-                Button("View prior report") {
+                Button(BundledLocalizationCatalogV1.v30Text(.reportCorrectionViewPriorReportAction)) {
                     didSelectReport(priorReportID)
                     dismiss()
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
-                .accessibilityHint("Opens the immediately prior saved report.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportCorrectionViewPriorReportAccessibilityHint))
                 .accessibilityIdentifier(Self.priorReportAccessibilityIdentifier)
             }
 
-            Button("View corrected report") {
+            Button(BundledLocalizationCatalogV1.v30Text(.reportCorrectionViewCorrectedReportAction)) {
                 didSelectReport(currentReportID)
                 dismiss()
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
-            .accessibilityHint("Opens the current corrected report.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportCorrectionViewCorrectedReportAccessibilityHint))
             .accessibilityIdentifier(Self.currentReportAccessibilityIdentifier)
         }
     }
@@ -254,11 +254,11 @@ struct ReportCorrectionView: View {
         guard state != .saving else { return }
         let submittedNote = normalizedNote
         guard normalizedCharacterCount <= 1_000 else {
-            showValidation("Correction note must be 1,000 characters or fewer.")
+            showValidation(BundledLocalizationCatalogV1.v30Text(.reportCorrectionNoteLengthValidation))
             return
         }
         guard submittedNote != source.currentNote else {
-            showValidation("Change the note before saving.")
+            showValidation(BundledLocalizationCatalogV1.v30Text(.reportCorrectionNoteUnchangedValidation))
             return
         }
 

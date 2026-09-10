@@ -58,7 +58,7 @@ struct AdvancedRecurrenceWorkflowView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Scheduling")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -85,13 +85,13 @@ struct AdvancedRecurrenceWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Advanced recurrence")
+            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
 
-            Text("Keep the base schedule simple. Reveal pattern and exception detail only when it is needed.")
+            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceHeadingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -100,11 +100,11 @@ struct AdvancedRecurrenceWorkflowView: View {
 
     private var unavailable: some View {
         WorklightCard {
-            Label("Advanced recurrence is unavailable", systemImage: "exclamationmark.triangle.fill")
+            Label(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceUnavailable), systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
                 .foregroundStyle(DesignTokens.Colors.blockedText)
                 .accessibilityAddTraits(.isHeader)
-            Text("The supplied schedule context could not be validated. No scheduling or reminder action is available from this screen.")
+            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceUnavailableDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -116,22 +116,22 @@ struct AdvancedRecurrenceWorkflowView: View {
 
     private func baseSchedule(_ projection: AdvancedRecurrenceWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Base schedule", identifier: Self.summaryAccessibilityIdentifier)
-            summaryRow("Pattern", value: patternSummary(projection.pattern))
-            summaryRow("Active dates", value: dateRangeSummary(projection.activeRange))
-            summaryRow("Time zone", value: projection.ianaTimeZoneIdentifier)
-            summaryRow("Preview evaluated", value: dateTimeSummary(projection.evaluatedAt))
-            summaryRow("Clock basis", value: display(projection.clockDisposition.rawValue))
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceBaseScheduleHeading), identifier: Self.summaryAccessibilityIdentifier)
+            summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrencePattern), value: patternSummary(projection.pattern))
+            summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceActiveDates), value: dateRangeSummary(projection.activeRange))
+            summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceTimeZone), value: projection.ianaTimeZoneIdentifier)
+            summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrencePreviewEvaluated), value: dateTimeSummary(projection.evaluatedAt))
+            summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceClockBasis), value: display(projection.clockDisposition.rawValue))
 
             if let next = projection.dueQueue.entries.first {
-                summaryRow("Next projected run", value: nextRunSummary(next))
+                summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceNextRun), value: nextRunSummary(next))
             } else {
-                Text("There is no projected next run in the current record.")
+                Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceNoNextRun))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             }
 
-            Text("A projected run is not a scheduled task, completion, reminder set, or owner receipt.")
+            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceProjectedRunDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -143,18 +143,18 @@ struct AdvancedRecurrenceWorkflowView: View {
         WorklightCard {
             DisclosureGroup(isExpanded: $showAdvancedDetails) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                    summaryRow("Ambiguous local time", value: display(projection.ambiguousTimePolicy.rawValue))
-                    summaryRow("Missing local time", value: display(projection.nonexistentTimePolicy.rawValue))
+                    summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceAmbiguousLocalTime), value: display(projection.ambiguousTimePolicy.rawValue))
+                    summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceMissingLocalTime), value: display(projection.nonexistentTimePolicy.rawValue))
                     exceptionPreview(projection)
                     reminderState(projection.reminders)
 
                     if let recoverableCommand {
-                        Button("Retry last supplied command") {
+                        Button(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceRetryCommand)) {
                             perform(recoverableCommand, recovery: true)
                         }
                         .buttonStyle(WorklightSecondaryButtonStyle())
                         .disabled(isPerforming)
-                        .accessibilityHint("Replays the same supplied canonical command and relies on its existing mutation identity.")
+                        .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceRetryHint))
                         .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.recover")
                     }
 
@@ -171,51 +171,51 @@ struct AdvancedRecurrenceWorkflowView: View {
                 .padding(.top, DesignTokens.Spacing.small)
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Advanced exceptions and history controls")
+                    Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceAdvancedControlsHeading))
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
-                    Text(showAdvancedDetails ? "Hide advanced recurrence details." : "Show advanced recurrence details on request.")
+                    Text(showAdvancedDetails ? BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceHideDetails) : BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceShowDetails))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                 }
             }
             .tint(DesignTokens.Colors.primaryText)
             .accessibilityIdentifier(Self.advancedAccessibilityIdentifier)
-            .accessibilityHint("Reveals advanced recurrence, exception preview, and reminder projection detail.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceDetailsHint))
         }
         .accessibilityElement(children: .contain)
     }
 
     private func exceptionPreview(_ projection: AdvancedRecurrenceWorkflowProjectionV1) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            sectionHeading("Preview before commit", identifier: Self.previewAccessibilityIdentifier)
-            Text("Preview shows the current skip, move, add, or override effects without writing a canonical exception.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.advancedRecurrencePreviewHeading), identifier: Self.previewAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrencePreviewDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             if projection.exceptionPreview.effects.isEmpty {
-                Text("The current preview has no affected occurrences.")
+                Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceNoAffectedOccurrences))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             } else {
                 ForEach(projection.exceptionPreview.effects.indices, id: \.self) { index in
                     let effect = projection.exceptionPreview.effects[index]
                     summaryRow(
-                        "Projected effect \(index + 1)",
-                        value: "\(display(effect.disposition.rawValue)); occurrence \(String(describing: effect.occurrenceID))"
+                        BundledLocalizationCatalogV1.v30AdvancedRecurrenceProjectedEffect(index: index + 1),
+                        value: BundledLocalizationCatalogV1.v30AdvancedRecurrenceEffectValue(disposition: display(effect.disposition.rawValue), occurrence: String(describing: effect.occurrenceID))
                     )
                 }
             }
 
-            Text("Preview remains zero-write. Commit only with a separately supplied canonical command that carries this preview and frontier.")
+            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrencePreviewCommitDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            commandButton("Preview supplied exception", command: command(named: .previewException))
+            commandButton(BundledLocalizationCatalogV1.v30Text(.advancedRecurrencePreviewException), command: command(named: .previewException))
             commandButton(
-                "Commit supplied preview and exception",
+                BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceCommitPreview),
                 command: command(named: .commitException),
                 disabled: !projection.canCommitExceptionChange
             )
@@ -224,53 +224,53 @@ struct AdvancedRecurrenceWorkflowView: View {
 
     private func reminderState(_ state: AdvancedRecurrenceReminderStateV1) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            sectionHeading("Reminder projection", identifier: "\(Self.screenAccessibilityIdentifier).reminders")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceReminderHeading), identifier: "\(Self.screenAccessibilityIdentifier).reminders")
             switch state {
             case let .available(reminders):
-                summaryRow("Projected reminders", value: "\(reminders.reminders.count)")
-                Text("A projection does not mean a reminder has been set. Reconciliation is available only through a supplied command and its owner receipt.")
+                summaryRow(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceProjectedReminders), value: "\(reminders.reminders.count)")
+                Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceReminderDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             case .suppressedForClockRollback:
-                Label("Reminder reconciliation is suppressed because the clock basis moved backward.", systemImage: "clock.badge.exclamationmark")
+                Label(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceReconciliationSuppressed), systemImage: "clock.badge.exclamationmark")
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityElement(children: .combine)
             }
-            commandButton("Reconcile supplied reminder projection", command: command(named: .reconcileReminders))
+            commandButton(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceReconcileReminders), command: command(named: .reconcileReminders))
         }
     }
 
     private func projectedHistory(_ projection: AdvancedRecurrenceWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Recorded occurrence history", identifier: Self.historyAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceHistoryHeading), identifier: Self.historyAccessibilityIdentifier)
             if projection.history.isEmpty {
-                Text("No recorded occurrence history is available in the current local schedule record.")
+                Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceNoHistory))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             } else {
                 ForEach(projection.history, id: \.occurrenceID) { row in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Occurrence \(String(describing: row.occurrenceID))")
+                        Text(BundledLocalizationCatalogV1.v30AdvancedRecurrenceOccurrence(occurrence: String(describing: row.occurrenceID)))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(DesignTokens.Colors.primaryText)
-                        Text("Recorded action: \(display(row.action.rawValue)). Recorded state: \(display(row.state.rawValue)).")
+                        Text(BundledLocalizationCatalogV1.v30AdvancedRecurrenceRecordedHistory(action: display(row.action.rawValue), state: display(row.state.rawValue)))
                             .font(.footnote)
                             .foregroundStyle(DesignTokens.Colors.secondaryText)
                         if let dueAt = row.effectiveDueAtUTC {
-                            Text("Effective time: \(dateTimeSummary(dueAt)).")
+                            Text(BundledLocalizationCatalogV1.v30AdvancedRecurrenceEffectiveTime(time: dateTimeSummary(dueAt)))
                                 .font(.footnote)
                                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                         }
                         if let exceptionKind = row.exceptionKind {
-                            Text("Recorded exception: \(display(exceptionKind.rawValue)).")
+                            Text(BundledLocalizationCatalogV1.v30AdvancedRecurrenceRecordedException(exception: display(exceptionKind.rawValue)))
                                 .font(.footnote)
                                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                         }
                         if row.isImmutableHistory {
-                            Text("This history row is immutable.")
+                            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceHistoryImmutable))
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(DesignTokens.Colors.primaryText)
                         }
@@ -280,20 +280,20 @@ struct AdvancedRecurrenceWorkflowView: View {
                 }
             }
 
-            commandButton("Record supplied occurrence event", command: command(named: .recordOccurrence))
-            commandButton("Preview supplied occurrence window", command: command(named: .previewGeneration))
-            commandButton("Generate supplied frozen occurrence plan", command: command(named: .generate))
+            commandButton(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceRecordOccurrence), command: command(named: .recordOccurrence))
+            commandButton(BundledLocalizationCatalogV1.v30Text(.advancedRecurrencePreviewOccurrenceWindow), command: command(named: .previewGeneration))
+            commandButton(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceGenerateOccurrencePlan), command: command(named: .generate))
         }
         .accessibilityElement(children: .contain)
     }
 
     private var boundaries: some View {
         WorklightCard {
-            sectionHeading("Scheduling boundaries", identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
-            Text("This surface does not request calendar permission, create a cloud schedule, run in the background, or claim a server result.")
-            Text("Use a supplied canonical command for any record or generation attempt. Read its owner receipt before treating a completion, schedule, or reminder as recorded.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceBoundariesHeading), identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
+            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceBoundariesDescription))
+            Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceReceiptDescription))
             if reduceMotion {
-                Text("Reduce Motion is on. State changes are presented without added animation.")
+                Text(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceReduceMotionDescription))
             }
         }
         .font(.footnote)
@@ -312,17 +312,17 @@ struct AdvancedRecurrenceWorkflowView: View {
             Button(title) { perform(command) }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(disabled || isPerforming)
-                .accessibilityHint("Uses the supplied canonical scheduling command.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceCommandHint))
                 .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.\(commandIdentifier(command))")
         } else {
-            Text("\(title) is unavailable until its prevalidated canonical command is supplied.")
+            Text(BundledLocalizationCatalogV1.v30AdvancedRecurrenceUnavailableCommand(title: title))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func sectionHeading(_ title: LocalizedStringKey, identifier: String) -> some View {
+    private func sectionHeading(_ title: String, identifier: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -384,7 +384,7 @@ struct AdvancedRecurrenceWorkflowView: View {
         guard !isPerforming else { return }
         isPerforming = true
         recoverableCommand = command
-        operationMessage = "Submitting the supplied scheduling command…"
+        operationMessage = BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceSubmittingCommand)
         Task { @MainActor in
             defer { isPerforming = false }
             do {
@@ -395,19 +395,19 @@ struct AdvancedRecurrenceWorkflowView: View {
                     outcome = try await coordinator.execute(command, context: context)
                 }
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical schedule record before retrying; no effect is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceCancelled)
                     return
                 }
                 operationMessage = outcomeText(outcome)
                 onOutcome?(outcome)
             } catch is CancellationError {
-                operationMessage = "The request was cancelled. Reload the canonical schedule record before retrying; no effect is claimed."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceCancelled)
             } catch {
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical schedule record before retrying; no effect is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceCancelled)
                     return
                 }
-                operationMessage = "The supplied command was not completed. No schedule, completion, reminder, calendar, cloud, or background result is claimed."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceCommandNotCompleted)
             }
         }
     }
@@ -415,42 +415,42 @@ struct AdvancedRecurrenceWorkflowView: View {
     private func outcomeText(_ outcome: AdvancedRecurrenceWorkflowOutcomeV1) -> String {
         switch outcome {
         case .projected:
-            return "The advanced exception preview was recalculated without a canonical exception commit."
+            return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceExceptionPreviewComplete)
         case .generationPreview:
-            return "The supplied occurrence window was previewed without generating a canonical schedule record."
+            return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceOccurrencePreviewComplete)
         case .exceptionCommitted:
-            return "A canonical exception receipt was returned. The exception is saved or updated only as established by that receipt; reload the canonical schedule record."
+            return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceExceptionReceipt)
         case .occurrenceRecorded:
-            return "A canonical mutation receipt was returned. Reload the record before treating an occurrence state as recorded."
+            return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceMutationReceipt)
         case let .occurrencesGenerated(receipt):
             return receipt == nil
-                ? "Generation returned no new canonical receipt. No schedule claim is inferred."
-                : "A canonical generation receipt was returned. Reload the record before treating any projected run as scheduled."
+                ? BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceGenerationNoReceipt)
+                : BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceGenerationReceipt))
         case .remindersReconciled:
-            return "Reminder reconciliation returned a projection. This view does not claim that a reminder was set."
+            return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceReminderReconciled)
         }
     }
 
     private func patternSummary(_ pattern: AdvancedRecurrenceAuthoringPatternV1) -> String {
         switch pattern {
-        case let .daily(interval): return "Every \(interval) day(s)"
+        case let .daily(interval): return BundledLocalizationCatalogV1.v30AdvancedRecurrenceDaily(interval: interval)
         case let .weekly(interval, weekdays):
-            return "Every \(interval) week(s) on \(weekdays.map { weekdayName($0) }.joined(separator: ", "))"
+            return BundledLocalizationCatalogV1.v30AdvancedRecurrenceWeekly(interval: interval, weekdays: weekdays.map { weekdayName($0) }.joined(separator: ", "))
         case let .calendarDay(interval, day, missingDayPolicy):
-            return "Every \(interval) month(s) on day \(day); \(display(missingDayPolicy.rawValue))"
+            return BundledLocalizationCatalogV1.v30AdvancedRecurrenceMonthlyDay(interval: interval, day: day, missingDayPolicy: display(missingDayPolicy.rawValue))
         case let .weekday(interval, ordinal, weekday):
-            return "Every \(interval) month(s), \(display(ordinal.rawValue)) \(weekdayName(weekday))"
-        case let .lastDay(interval): return "Every \(interval) month(s) on the last day"
+            return BundledLocalizationCatalogV1.v30AdvancedRecurrenceMonthlyOrdinal(interval: interval, ordinal: display(ordinal.rawValue), weekday: weekdayName(weekday))
+        case let .lastDay(interval): return BundledLocalizationCatalogV1.v30AdvancedRecurrenceMonthlyLastDay(interval: interval)
         }
     }
 
     private func nextRunSummary(_ entry: DueQueueEntryV1) -> String {
-        let due = entry.effectiveDueAtUTC.map(dateTimeSummary) ?? "No resolved time"
-        return "\(display(entry.state.rawValue)); \(due)"
+        let due = entry.effectiveDueAtUTC.map(dateTimeSummary) ?? BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceNoResolvedTime)
+        return BundledLocalizationCatalogV1.v30AdvancedRecurrenceNextRun(state: display(entry.state.rawValue), due: due)
     }
 
     private func dateRangeSummary(_ range: ScheduleLocalDateRangeV1) -> String {
-        "\(range.startsOn.canonicalString) to \(range.endsOn.canonicalString)"
+        BundledLocalizationCatalogV1.v30AdvancedRecurrenceDateRange(start: range.startsOn.canonicalString, end: range.endsOn.canonicalString)
     }
 
     private func dateTimeSummary(_ date: Date) -> String {
@@ -459,13 +459,13 @@ struct AdvancedRecurrenceWorkflowView: View {
 
     private func weekdayName(_ day: ScheduleWeekdayV1) -> String {
         switch day {
-        case .sunday: return "Sunday"
-        case .monday: return "Monday"
-        case .tuesday: return "Tuesday"
-        case .wednesday: return "Wednesday"
-        case .thursday: return "Thursday"
-        case .friday: return "Friday"
-        case .saturday: return "Saturday"
+        case .sunday: return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceSunday)
+        case .monday: return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceMonday)
+        case .tuesday: return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceTuesday)
+        case .wednesday: return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceWednesday)
+        case .thursday: return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceThursday)
+        case .friday: return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceFriday)
+        case .saturday: return BundledLocalizationCatalogV1.v30Text(.advancedRecurrenceSaturday)
         }
     }
 

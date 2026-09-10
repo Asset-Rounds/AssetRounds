@@ -505,7 +505,7 @@ struct PartsStockWorkflowView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Parts & Stock")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.partsStockNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -567,12 +567,12 @@ struct PartsStockWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Parts & Stock")
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("A Work-local catalog for explicit count, adjustment, transfer, use, return, and archive actions. It does not prove identity, ownership, valuation, delivery, or authority.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockHeadingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -581,17 +581,17 @@ struct PartsStockWorkflowView: View {
 
     private var workEntry: some View {
         WorklightCard {
-            sectionHeading("Work entry", identifier: Self.workRootAccessibilityIdentifier)
-            Text("Visible path: Work → Parts & Stock → catalog or search → item detail. Use and Return remain contextual actions in the supplied work/material lineage.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockWorkEntryHeading), identifier: Self.workRootAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockWorkEntryDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("Open Parts & Stock catalog") {
-                send(.openCatalog, message: "Requested the Parts & Stock catalog. No route-open or live-root adoption is claimed.")
+            Button(BundledLocalizationCatalogV1.v30Text(.partsStockOpenCatalog)) {
+                send(.openCatalog, message: BundledLocalizationCatalogV1.v30Text(.partsStockCatalogRequested))
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
             .disabled(!canRead)
-            .accessibilityHint("Opens the contained catalog view when the caller supplies the route. It does not register a new root.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockOpenCatalogHint))
             .accessibilityIdentifier("\(Self.workRootAccessibilityIdentifier).open")
         }
         .accessibilityElement(children: .contain)
@@ -599,14 +599,14 @@ struct PartsStockWorkflowView: View {
 
     private var availability: some View {
         WorklightCard {
-            sectionHeading("Availability", identifier: Self.availabilityAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockAvailabilityHeading), identifier: Self.availabilityAccessibilityIdentifier)
             WorklightStatusBadge(kind: availabilityKind, text: availabilityText)
             Text(availabilityDetail)
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if model.featurePolicy == .readExportRecoveryOnly {
-                Text("Writes are disabled by the supplied feature policy. Catalog reads, export, recovery, and existing drafts remain preserved.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockWritesDisabled))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -617,22 +617,22 @@ struct PartsStockWorkflowView: View {
 
     private var searchAndLookup: some View {
         WorklightCard {
-            sectionHeading("Search and lookup", identifier: Self.searchAccessibilityIdentifier)
-            Text("Search uses the Work-local catalog and stock-namespaced product identities. Typing or scanning is query-only and never creates a movement, receipt, or durable scan record.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockSearchHeading), identifier: Self.searchAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockSearchDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            TextField("Search parts or product code", text: $searchText)
+            TextField(BundledLocalizationCatalogV1.v30Text(.partsStockSearchPlaceholder), text: $searchText)
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .focused($keyboardFocus, equals: .search)
-                .accessibilityLabel("Search parts or product code")
-                .accessibilityHint("Searches local catalog names and stock product identities. It does not change stock.")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.partsStockSearchLabel))
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockSearchHint))
                 .accessibilityIdentifier(Self.searchFieldAccessibilityIdentifier)
-            Button("Search catalog") {
+            Button(BundledLocalizationCatalogV1.v30Text(.partsStockSearchCatalog)) {
                 submitSearch()
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
@@ -640,7 +640,7 @@ struct PartsStockWorkflowView: View {
             .keyboardShortcut("f", modifiers: [.command])
             .accessibilityIdentifier("\(Self.searchAccessibilityIdentifier).submit")
 
-            Text("Typing or scanning a material line changes no stock. Only the explicit Use from stock action can request a stock mutation.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockSearchBoundary))
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.informationText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -655,36 +655,36 @@ struct PartsStockWorkflowView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
             switch model.scanAvailability {
             case .available:
-                Button("Scan stock code") {
-                    send(.scan, message: "Requested a stock-code scan. Scanning remains query-only; no stock effect is claimed.")
+                Button(BundledLocalizationCatalogV1.v30Text(.partsStockScanCode)) {
+                    send(.scan, message: BundledLocalizationCatalogV1.v30Text(.partsStockScanRequested))
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(!canRead)
-                .accessibilityHint("Scans a stock-namespaced code for local lookup. Manual lookup remains available.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockScanHint))
                 .accessibilityIdentifier(Self.scanAccessibilityIdentifier)
             case .permissionDenied:
-                Text("Camera access was not granted for stock lookup. Enter a stock code manually; manual lookup has the same local, zero-write semantics.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockCameraDenied))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(Self.scanAccessibilityIdentifier)
             case .unavailable, .unsupported:
-                Text("Scan is unavailable here. Enter a stock code manually; no scan permission or network lookup is required.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockScanUnavailable))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier(Self.scanAccessibilityIdentifier)
             }
 
-            TextField("Enter stock code manually", text: $manualLookupText)
+            TextField(BundledLocalizationCatalogV1.v30Text(.partsStockManualLookupPlaceholder), text: $manualLookupText)
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($keyboardFocus, equals: .manualLookup)
-                .accessibilityLabel("Enter stock code manually")
-                .accessibilityHint("Manual lookup is the complete fallback when scanning is unavailable. It does not change stock.")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.partsStockManualLookupLabel))
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockManualLookupHint))
                 .accessibilityIdentifier(Self.manualLookupFieldAccessibilityIdentifier)
-            Button("Look up code manually") {
+            Button(BundledLocalizationCatalogV1.v30Text(.partsStockManualLookupButton)) {
                 submitManualLookup()
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
@@ -698,13 +698,13 @@ struct PartsStockWorkflowView: View {
     private var lookupResult: some View {
         if let lookup = model.lookup, lookup.result != .idle {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                sectionHeading("Lookup result", identifier: "\(Self.lookupAccessibilityIdentifier).result")
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockLookupResultHeading), identifier: "\(Self.lookupAccessibilityIdentifier).result")
                 Text(lookup.message ?? lookupResultText(lookup.result))
                     .font(.body)
                     .foregroundStyle(lookup.result == .found ? DesignTokens.Colors.primaryText : DesignTokens.Colors.attentionText)
                     .fixedSize(horizontal: false, vertical: true)
                 if let matchedPartID = lookup.matchedPartID {
-                    Text("Matched catalog item: \(shortID(matchedPartID))")
+                    Text(BundledLocalizationCatalogV1.v30PartsStockMatchedItem(partID: shortID(matchedPartID)))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -717,8 +717,8 @@ struct PartsStockWorkflowView: View {
 
     private var lowStock: some View {
         WorklightCard {
-            sectionHeading("Low-stock attention", identifier: Self.lowStockAccessibilityIdentifier)
-            Text("Preferred minimum produces an in-app attention only. It is not purchase, reorder, valuation, or availability truth.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockLowStockHeading), identifier: Self.lowStockAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockLowStockDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -729,7 +729,7 @@ struct PartsStockWorkflowView: View {
                     .map { (item, $0) }
             }
             if attentionRows.isEmpty {
-                Text("No below-preferred or unknown balance attention is supplied.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockNoLowStockAttention))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -738,7 +738,7 @@ struct PartsStockWorkflowView: View {
                     let rows = item.detail.attention.filter { $0.isBelowPreferred || isUnknown($0.balance) }
                     ForEach(rows, id: \.locationID) { attention in
                         let location = item.balances.first { $0.id == attention.locationID }?.location.label
-                            ?? "Storage location \(shortID(attention.locationID))"
+                            ?? BundledLocalizationCatalogV1.v30PartsStockStorageLocation(locationID: shortID(attention.locationID))
                         Label(
                             lowStockText(item: item, attention: attention, location: location),
                             systemImage: isUnknown(attention.balance) ? "questionmark.circle" : "exclamationmark.triangle.fill"
@@ -756,32 +756,32 @@ struct PartsStockWorkflowView: View {
 
     private var catalog: some View {
         WorklightCard {
-            sectionHeading("Catalog", identifier: Self.catalogAccessibilityIdentifier)
-            Text("Catalog definitions are Work-local. Select an item to review its supplied unit, product identities, balance projections, and explicit actions.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockCatalogHeading), identifier: Self.catalogAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockCatalogDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             if model.catalog.isEmpty {
-                Text("No catalog items are supplied. This surface does not create a part implicitly from a search, scan, material line, or report.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockNoCatalogItems))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 ForEach(model.catalog) { item in
                     Button {
-                        send(.selectPart(item.id), message: "Selected \(item.detail.part.displayName). The supplied detail remains the source of truth.")
+                        send(.selectPart(item.id), message: BundledLocalizationCatalogV1.v30PartsStockPartSelected(name: item.detail.part.displayName))
                     } label: {
                         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
                             Text(item.detail.part.displayName)
                                 .font(.body.weight(.semibold))
                                 .foregroundStyle(DesignTokens.Colors.primaryText)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("Unit: \(unitText(item.detail.part.canonicalUnit)); product identities: \(item.detail.part.productIdentities.count); revision: \(item.detail.part.revision)")
+                            Text(BundledLocalizationCatalogV1.v30PartsStockCatalogSummary(unit: unitText(item.detail.part.canonicalUnit), identityCount: item.detail.part.productIdentities.count, revision: String(item.detail.part.revision)))
                                 .font(.footnote)
                                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text(item.detail.part.archived ? "Archived catalog definition" : "Active catalog definition")
+                            Text(item.detail.part.archived ? BundledLocalizationCatalogV1.v30Text(.partsStockArchivedDefinition) : BundledLocalizationCatalogV1.v30Text(.partsStockActiveDefinition))
                                 .font(.footnote)
                                 .foregroundStyle(item.detail.part.archived ? DesignTokens.Colors.attentionText : DesignTokens.Colors.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -789,8 +789,8 @@ struct PartsStockWorkflowView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
-                    .accessibilityLabel("View details for \(item.detail.part.displayName)")
-                    .accessibilityHint("Opens the supplied item detail and its explicit stock actions.")
+                    .accessibilityLabel(BundledLocalizationCatalogV1.v30PartsStockViewDetails(name: item.detail.part.displayName))
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockViewDetailsHint))
                     .accessibilityIdentifier("\(Self.catalogItemAccessibilityIdentifierPrefix)\(item.id.uuidString.lowercased())")
                 }
             }
@@ -800,24 +800,24 @@ struct PartsStockWorkflowView: View {
 
     private func detail(for item: PartsStockWorkflowCatalogItemV1) -> some View {
         WorklightCard {
-            sectionHeading("Item detail", identifier: Self.detailAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockDetailHeading), identifier: Self.detailAccessibilityIdentifier)
                 .accessibilityFocused($accessibilityFocus, equals: .selectedPart)
-            Text("\(item.detail.part.displayName), supplied catalog revision \(item.detail.part.revision)")
+            Text(BundledLocalizationCatalogV1.v30PartsStockDetailSummary(name: item.detail.part.displayName, revision: String(item.detail.part.revision)))
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            valueRow("Canonical unit", value: unitText(item.detail.part.canonicalUnit))
-            valueRow("Product identities", value: item.detail.part.productIdentities.isEmpty ? "None supplied" : item.detail.part.productIdentities.map(\.value).joined(separator: ", "))
-            valueRow("Preferred minimum", value: item.detail.part.preferredMinimum.map { quantityText($0, unit: item.detail.part.canonicalUnit) } ?? "Not supplied")
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockCanonicalUnit), value: unitText(item.detail.part.canonicalUnit))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockProductIdentities), value: item.detail.part.productIdentities.isEmpty ? BundledLocalizationCatalogV1.v30Text(.partsStockNoneSupplied) : item.detail.part.productIdentities.map(\.value).joined(separator: ", "))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockPreferredMinimum), value: item.detail.part.preferredMinimum.map { quantityText($0, unit: item.detail.part.canonicalUnit) } ?? BundledLocalizationCatalogV1.v30Text(.partsStockNotSupplied))
 
             if item.balances.isEmpty {
-                Text("No balance projection is supplied. An absent projection is UNKNOWN, not zero; count is required before a quantity-affecting operation.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockNoBalanceProjection))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.attentionText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                    Text("Balance projections")
+                    Text(BundledLocalizationCatalogV1.v30Text(.partsStockBalanceProjections))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                     ForEach(item.balances) { balance in
@@ -838,7 +838,7 @@ struct PartsStockWorkflowView: View {
                 }
             }
 
-            Text("Typing or scanning a material line only edits the supplied work draft. Stock changes only after an explicit Use from stock request is accepted by the canonical owner.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockDetailBoundary))
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.informationText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -850,45 +850,45 @@ struct PartsStockWorkflowView: View {
 
     private func explicitActions(for item: PartsStockWorkflowCatalogItemV1) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            sectionHeading("Explicit actions", identifier: "\(Self.detailAccessibilityIdentifier).actions")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockActionsHeading), identifier: "\(Self.detailAccessibilityIdentifier).actions")
             actionButton(
-                title: "Count",
+                title: BundledLocalizationCatalogV1.v30Text(.partsStockCount),
                 command: .count(item.id),
                 identifier: Self.countAccessibilityIdentifier,
                 enabled: writesAllowed && !item.detail.part.archived,
-                hint: "Records an explicit opening or physical count through the canonical stock owner. UNKNOWN is never treated as zero."
+                hint: BundledLocalizationCatalogV1.v30Text(.partsStockCountHint)
             )
             actionButton(
-                title: "Adjust",
+                title: BundledLocalizationCatalogV1.v30Text(.partsStockAdjust),
                 command: .adjust(item.id),
                 identifier: Self.adjustAccessibilityIdentifier,
                 enabled: writesAllowed && !item.detail.part.archived,
-                hint: "Requests a reasoned adjustment only when the supplied source balance is known."
+                hint: BundledLocalizationCatalogV1.v30Text(.partsStockAdjustHint)
             )
             actionButton(
-                title: "Transfer",
+                title: BundledLocalizationCatalogV1.v30Text(.partsStockTransfer),
                 command: .transfer(item.id),
                 identifier: Self.transferAccessibilityIdentifier,
                 enabled: writesAllowed && !item.detail.part.archived,
-                hint: "Requests one atomic transfer between two supplied known locations."
+                hint: BundledLocalizationCatalogV1.v30Text(.partsStockTransferHint)
             )
             useEditor(for: item)
             actionButton(
-                title: "Archive",
+                title: BundledLocalizationCatalogV1.v30Text(.partsStockArchive),
                 command: .archive(item.id),
                 identifier: Self.archiveAccessibilityIdentifier,
                 enabled: writesAllowed && !item.detail.part.archived && archiveIsEligible(item),
                 hint: archiveIsEligible(item)
-                    ? "Archives only after every affected location is supplied as known zero."
-                    : "Archive is unavailable until every affected location is known zero or its explicit unknown disposition is handled by the canonical owner."
+                    ? BundledLocalizationCatalogV1.v30Text(.partsStockArchiveHint)
+                    : BundledLocalizationCatalogV1.v30Text(.partsStockArchiveUnavailableHint)
             )
             if item.detail.part.archived {
-                Text("This catalog definition is archived. History remains readable; no new quantity-affecting operation is available.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockArchivedDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else if !archiveIsEligible(item) {
-                Text("Archive is blocked until all affected locations are known zero. UNKNOWN is not a zero balance and is never silently abandoned.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockArchiveBlocked))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -899,30 +899,30 @@ struct PartsStockWorkflowView: View {
 
     private func useEditor(for item: PartsStockWorkflowCatalogItemV1) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            sectionHeading("Use from stock", identifier: Self.useAccessibilityIdentifier)
-            Text("Use is explicit and contextual to this catalog item and supplied work/material line. The canonical owner must recheck the known source balance and work revision before decrementing stock.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockUseHeading), identifier: Self.useAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockUseDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            TextField("Quantity to use", text: $useQuantityText)
+            TextField(BundledLocalizationCatalogV1.v30Text(.partsStockUseQuantityPlaceholder), text: $useQuantityText)
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.decimalPad)
                 .focused($keyboardFocus, equals: .useQuantity)
-                .accessibilityLabel("Quantity to use in \(unitText(item.detail.part.canonicalUnit))")
-                .accessibilityHint("Enter an exact nonnegative quantity. No stock changes while typing.")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30PartsStockUseQuantityLabel(unit: unitText(item.detail.part.canonicalUnit)))
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockUseQuantityHint))
                 .accessibilityIdentifier(Self.useQuantityAccessibilityIdentifier)
-            TextField("Material line or work note", text: $useMaterialText, axis: .vertical)
+            TextField(BundledLocalizationCatalogV1.v30Text(.partsStockMaterialPlaceholder), text: $useMaterialText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .focused($keyboardFocus, equals: .useMaterial)
-                .accessibilityLabel("Material line or work note")
-                .accessibilityHint("Typing this line does not change stock. It is sent only when Use from stock is explicitly requested.")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.partsStockMaterialLabel))
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockMaterialHint))
                 .accessibilityIdentifier(Self.useMaterialAccessibilityIdentifier)
-            Button("Use from stock") {
+            Button(BundledLocalizationCatalogV1.v30Text(.partsStockUseButton)) {
                 submitUse(for: item)
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
             .disabled(!writesAllowed || item.detail.part.archived)
-            .accessibilityHint("Requests the only stock-decrementing action in this surface. A durable canonical receipt must be supplied before any effect is shown.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockUseButtonHint))
             .accessibilityIdentifier("\(Self.useAccessibilityIdentifier).submit")
         }
         .accessibilityElement(children: .contain)
@@ -932,8 +932,8 @@ struct PartsStockWorkflowView: View {
     private var returnSection: some View {
         if model.eligibleReturns.isEmpty {
             WorklightCard {
-                sectionHeading("Return boundary", identifier: Self.returnAccessibilityIdentifier)
-                Text("No eligible prior Use is supplied. No standalone Return action is available. A Return can appear only after one exact Use receipt, its work-material lineage, an outstanding quantity, and a known destination are supplied.")
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockReturnBoundaryHeading), identifier: Self.returnAccessibilityIdentifier)
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockNoReturnDescription))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -941,8 +941,8 @@ struct PartsStockWorkflowView: View {
             .accessibilityElement(children: .contain)
         } else {
             WorklightCard {
-                sectionHeading("Return against a prior Use", identifier: Self.returnAccessibilityIdentifier)
-                Text("Return is bound to an eligible prior Use. Each candidate shows its outstanding quantity and destination; the canonical owner rejects stale, concurrent, duplicate, or overflow returns without a partial effect.")
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockReturnHeading), identifier: Self.returnAccessibilityIdentifier)
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockReturnDescription))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -963,18 +963,18 @@ struct PartsStockWorkflowView: View {
                 .font(.body.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            valueRow("Use receipt", value: shortID(candidate.sourceUse.receiptID))
-            valueRow("Used", value: quantityText(candidate.sourceUse.movement.quantity, unit: candidate.sourceUse.movement.unit))
-            valueRow("Outstanding", value: quantityText(candidate.outstandingQuantity, unit: candidate.sourceUse.movement.unit))
-            valueRow("Destination", value: candidate.destination.label)
-            Button("Review return for this Use") {
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockUseReceipt), value: shortID(candidate.sourceUse.receiptID))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockUsed), value: quantityText(candidate.sourceUse.movement.quantity, unit: candidate.sourceUse.movement.unit))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockOutstanding), value: quantityText(candidate.outstandingQuantity, unit: candidate.sourceUse.movement.unit))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockDestination), value: candidate.destination.label)
+            Button(BundledLocalizationCatalogV1.v30Text(.partsStockReviewReturn)) {
                 selectedReturnID = candidate.id
                 returnQuantityText = quantityTextWithoutUnit(candidate.outstandingQuantity)
                 accessibilityFocus = .returnQuantity
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
             .disabled(!writesAllowed)
-            .accessibilityHint("Opens the quantity field for a Return bound to this exact prior Use. It is not a standalone Return.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockReviewReturnHint))
             .accessibilityIdentifier("\(Self.returnCandidateAccessibilityIdentifierPrefix)\(candidate.id.uuidString.lowercased())")
         }
         .accessibilityElement(children: .contain)
@@ -983,24 +983,24 @@ struct PartsStockWorkflowView: View {
 
     private func returnEditor(_ candidate: PartsStockWorkflowReturnPresentationV1) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            sectionHeading("Return quantity", identifier: "\(Self.returnAccessibilityIdentifier).editor")
-            Text("Returning to \(candidate.destination.label). Remaining amount for this Use: \(quantityText(candidate.outstandingQuantity, unit: candidate.sourceUse.movement.unit)).")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockReturnQuantityHeading), identifier: "\(Self.returnAccessibilityIdentifier).editor")
+            Text(BundledLocalizationCatalogV1.v30PartsStockReturning(destination: candidate.destination.label, quantity: quantityText(candidate.outstandingQuantity, unit: candidate.sourceUse.movement.unit)))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            TextField("Quantity to return", text: $returnQuantityText)
+            TextField(BundledLocalizationCatalogV1.v30Text(.partsStockReturnQuantityPlaceholder), text: $returnQuantityText)
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.decimalPad)
                 .focused($keyboardFocus, equals: .returnQuantity)
-                .accessibilityLabel("Quantity to return to \(candidate.destination.label)")
-                .accessibilityHint("Enter a positive quantity no greater than this Use's outstanding amount. The canonical owner checks the ordered return frontier.")
+                .accessibilityLabel(BundledLocalizationCatalogV1.v30PartsStockReturnQuantityLabel(destination: candidate.destination.label))
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockReturnQuantityHint))
                 .accessibilityIdentifier(Self.returnQuantityAccessibilityIdentifier)
-            Button("Return to \(candidate.destination.label)") {
+            Button(BundledLocalizationCatalogV1.v30PartsStockReturnButton(destination: candidate.destination.label)) {
                 submitReturn(candidate)
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
             .disabled(!writesAllowed)
-            .accessibilityHint("Requests a Return against the selected prior Use. It cannot create a free-form positive movement or exceed the outstanding quantity.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockReturnButtonHint))
             .accessibilityIdentifier("\(Self.returnAccessibilityIdentifier).submit")
         }
         .accessibilityElement(children: .contain)
@@ -1008,13 +1008,13 @@ struct PartsStockWorkflowView: View {
 
     private var history: some View {
         WorklightCard {
-            sectionHeading("History", identifier: Self.historyAccessibilityIdentifier)
-            Text("History here is caller-supplied immutable context. It does not replay movements, create a new stock event, or make a balance, delivery, approval, identity, or legal-effect claim.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockHistoryHeading), identifier: Self.historyAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockHistoryDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if model.history.isEmpty {
-                Text("No history projection is supplied. This view does not reconstruct events or infer a receipt.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockNoHistory))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1041,30 +1041,30 @@ struct PartsStockWorkflowView: View {
     @ViewBuilder
     private var draft: some View {
         WorklightCard {
-            sectionHeading("Draft preservation", identifier: Self.draftAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockDraftHeading), identifier: Self.draftAccessibilityIdentifier)
             if let draft = model.draft, draft.state != .absent {
                 Text(draftStateText(draft.state))
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 if let draftID = draft.draftID {
-                    valueRow("Draft", value: shortID(draftID))
+                    valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockDraft), value: shortID(draftID))
                 }
                 if let revision = draft.revision {
-                    valueRow("Draft revision", value: "\(revision)")
+                    valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockDraftRevision), value: "\(revision)")
                 }
-                TextField("Material line draft", text: $draftMaterialText, axis: .vertical)
+                TextField(BundledLocalizationCatalogV1.v30Text(.partsStockDraftMaterialPlaceholder), text: $draftMaterialText, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .focused($keyboardFocus, equals: .draftMaterial)
-                    .accessibilityLabel("Material line draft")
-                    .accessibilityHint("Typing or editing this draft never changes stock. Checkpointing remains an explicit caller action.")
+                    .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.partsStockDraftMaterialLabel))
+                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockDraftMaterialHint))
                     .accessibilityIdentifier("\(Self.draftAccessibilityIdentifier).material")
-                Button("Checkpoint draft") {
+                Button(BundledLocalizationCatalogV1.v30Text(.partsStockCheckpointDraft)) {
                     submitDraftCheckpoint()
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(!draft.canCheckpoint)
-                .accessibilityHint("Requests the existing draft authority to checkpoint this text. The view does not claim Saved until the caller supplies a confirmed state.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockCheckpointHint))
                 .accessibilityIdentifier(Self.checkpointAccessibilityIdentifier)
                 if let message = draft.message {
                     Text(message)
@@ -1072,12 +1072,12 @@ struct PartsStockWorkflowView: View {
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("If protected data, storage, cancellation, interruption, or relaunch occurs, the caller-supplied draft remains the source of truth. Uncheckpointed text is not presented as saved.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockDraftPreservationDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("No draft is supplied. This surface does not create, discard, or infer a draft from a catalog search or typed material line.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockNoDraft))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1088,32 +1088,32 @@ struct PartsStockWorkflowView: View {
 
     private var csv: some View {
         WorklightCard {
-            sectionHeading("Catalog CSV", identifier: Self.csvAccessibilityIdentifier)
-            Text("Exact schema: \(model.csv.schemaIdentifier). Import is preview-first and validates the complete source before any canonical command. Export is deterministic catalog data only.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockCsvHeading), identifier: Self.csvAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30PartsStockCsvSchema(schema: model.csv.schemaIdentifier))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            valueRow("Import", value: csvStateText(model.csv.importState, rows: model.csv.importPlan?.rows.count ?? model.csv.importResult?.expectedRowCount))
-            valueRow("Export", value: csvStateText(model.csv.exportState, rows: nil))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockImport), value: csvStateText(model.csv.importState, rows: model.csv.importPlan?.rows.count ?? model.csv.importResult?.expectedRowCount))
+            valueRow(BundledLocalizationCatalogV1.v30Text(.partsStockExport), value: csvStateText(model.csv.exportState, rows: nil))
             if let message = model.csv.message {
                 Text(message)
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Preview CSV import") {
-                sendWrite(.importCSV, message: "Requested exact \(PartsStockWorkflowCatalogV1.identifier) import preview. Preview is zero-write; no catalog change is claimed.")
+            Button(BundledLocalizationCatalogV1.v30Text(.partsStockPreviewCsvImport)) {
+                sendWrite(.importCSV, message: BundledLocalizationCatalogV1.v30PartsStockImportPreviewRequested(identifier: PartsStockWorkflowCatalogV1.identifier))
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
             .disabled(!model.csv.importAvailable || !writesAllowed)
-            .accessibilityHint("Previews the exact catalog CSV schema before an explicit canonical import command. It does not write during preview.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockPreviewCsvHint))
             .accessibilityIdentifier(Self.importAccessibilityIdentifier)
-            Button("Export catalog CSV") {
-                send(.exportCSV, message: "Requested deterministic \(PartsStockWorkflowCatalogV1.identifier) export. No delivery, sync, or provider result is claimed.")
+            Button(BundledLocalizationCatalogV1.v30Text(.partsStockExportCsv)) {
+                send(.exportCSV, message: BundledLocalizationCatalogV1.v30PartsStockExportRequested(identifier: PartsStockWorkflowCatalogV1.identifier))
             }
             .buttonStyle(WorklightSecondaryButtonStyle())
             .disabled(!model.csv.exportAvailable || !canRead)
-            .accessibilityHint("Exports exact catalog definitions. Balances and internal storage locations are omitted.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partsStockExportCsvHint))
             .accessibilityIdentifier(Self.exportAccessibilityIdentifier)
         }
         .accessibilityElement(children: .contain)
@@ -1121,20 +1121,20 @@ struct PartsStockWorkflowView: View {
 
     private var truthBoundaries: some View {
         WorklightCard {
-            sectionHeading("Truth and accessibility boundaries", identifier: Self.boundariesAccessibilityIdentifier)
-            Text("Customer-safe work-material reports contain only reviewed material snapshots. They never contain stock balances or internal storage locations.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockBoundariesHeading), identifier: Self.boundariesAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockReportBoundary))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("All actions have visible labels and text fallbacks for VoiceOver, Voice Control, Switch Control, keyboard, and motor access. No scan is required; manual lookup is complete. Quantity and revision errors are returned to the caller without a partial canonical effect.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockAccessibilityDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("At Accessibility Dynamic Type sizes content reflows vertically without truncation. Leading alignment, system controls, and text-based labels support RTL. Reduce Motion removes view-owned state-change animation.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockDynamicTypeDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("This contained surface has zero live root adoption before S10.6. It does not claim a route, store write, network lookup, camera permission, receipt, delivery, approval, identity, or legal effect.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partsStockContainmentBoundary))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1146,7 +1146,7 @@ struct PartsStockWorkflowView: View {
     private var errorSummary: some View {
         if let displayedErrorMessage {
             WorklightCard {
-                Label("Action needs attention", systemImage: "xmark.octagon.fill")
+                Label(BundledLocalizationCatalogV1.v30Text(.partsStockActionNeedsAttention), systemImage: "xmark.octagon.fill")
                     .font(.headline)
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1155,7 +1155,7 @@ struct PartsStockWorkflowView: View {
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityFocused($accessibilityFocus, equals: .error)
-                Text("No partial stock, catalog, draft, import, or return effect is inferred. Review the supplied projection and retry the same typed command when the owner reports a recoverable state.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partsStockRecoveryDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1170,7 +1170,7 @@ struct PartsStockWorkflowView: View {
         let message = localOperationMessage ?? model.operation.message
         if let message {
             WorklightCard {
-                sectionHeading("Operation status", identifier: Self.statusAccessibilityIdentifier)
+                sectionHeading(BundledLocalizationCatalogV1.v30Text(.partsStockOperationStatusHeading), identifier: Self.statusAccessibilityIdentifier)
                 Text(message)
                     .font(.body)
                     .foregroundStyle(operationColor)
@@ -1195,7 +1195,7 @@ struct PartsStockWorkflowView: View {
         hint: String
     ) -> some View {
         Button(title) {
-            sendWrite(command, message: "Requested explicit \(title) for the selected catalog item. Waiting for the canonical owner; no completion is inferred.")
+            sendWrite(command, message: BundledLocalizationCatalogV1.v30PartsStockActionRequested(action: title))
         }
         .buttonStyle(WorklightSecondaryButtonStyle())
         .disabled(!enabled)
@@ -1232,35 +1232,35 @@ struct PartsStockWorkflowView: View {
     private func submitSearch() {
         localErrorMessage = nil
         guard searchText.utf8.count <= PartsStockLimitsV1.maximumSearchQueryBytes else {
-            presentError("Search text is too long. Enter at most \(PartsStockLimitsV1.maximumSearchQueryBytes) UTF-8 bytes.", focus: .search)
+            presentError(BundledLocalizationCatalogV1.v30PartsStockSearchTooLong(byteCount: PartsStockLimitsV1.maximumSearchQueryBytes), focus: .search)
             return
         }
-        send(.search(.manualText(searchText)), message: "Searching the Work-local catalog. Search is zero-write.")
+        send(.search(.manualText(searchText)), message: BundledLocalizationCatalogV1.v30Text(.partsStockSearching))
     }
 
     private func submitManualLookup() {
         localErrorMessage = nil
         let value = manualLookupText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else {
-            presentError("Enter a stock code for manual lookup. No stock change occurs while typing.", focus: .manualLookup)
+            presentError(BundledLocalizationCatalogV1.v30Text(.partsStockEnterCode), focus: .manualLookup)
             return
         }
         guard value.utf8.count <= PartsStockLimitsV1.maximumSearchQueryBytes else {
-            presentError("The stock code is too long for local lookup.", focus: .manualLookup)
+            presentError(BundledLocalizationCatalogV1.v30Text(.partsStockCodeTooLong), focus: .manualLookup)
             return
         }
-        send(.search(.manualText(value)), message: "Looking up the stock code locally. Lookup is zero-write and does not create a scan record.")
+        send(.search(.manualText(value)), message: BundledLocalizationCatalogV1.v30Text(.partsStockLookingUpCode))
     }
 
     private func submitUse(for item: PartsStockWorkflowCatalogItemV1) {
         localErrorMessage = nil
         guard !useQuantityText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            presentError("Enter a quantity before requesting Use from stock. Typing the material line alone never changes stock.", focus: .useQuantity)
+            presentError(BundledLocalizationCatalogV1.v30Text(.partsStockEnterUseQuantity), focus: .useQuantity)
             return
         }
         sendWrite(
             .use(partID: item.id, quantityText: useQuantityText, materialText: useMaterialText),
-            message: "Requested explicit Use from stock for \(item.detail.part.displayName). Waiting for a canonical receipt; no decrement is claimed yet."
+            message: BundledLocalizationCatalogV1.v30PartsStockUseRequested(name: item.detail.part.displayName)
         )
     }
 
@@ -1268,21 +1268,21 @@ struct PartsStockWorkflowView: View {
         localErrorMessage = nil
         let quantity = returnQuantityText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !quantity.isEmpty else {
-            presentError("Enter a positive return quantity no greater than the outstanding amount for this Use.", focus: .returnQuantity)
+            presentError(BundledLocalizationCatalogV1.v30Text(.partsStockEnterReturnQuantity), focus: .returnQuantity)
             return
         }
         sendWrite(
             .return(returnID: candidate.id, sourceUseReceiptID: candidate.sourceUse.receiptID, quantityText: quantity),
-            message: "Requested a Return against the selected prior Use to \(candidate.destination.label). The canonical owner must verify the ordered frontier; no return effect is claimed yet."
+            message: BundledLocalizationCatalogV1.v30PartsStockReturnRequested(destination: candidate.destination.label)
         )
     }
 
     private func submitDraftCheckpoint() {
         guard model.draft?.canCheckpoint == true else {
-            presentError("This draft cannot be checkpointed in the current supplied state.", focus: .error)
+            presentError(BundledLocalizationCatalogV1.v30Text(.partsStockCheckpointUnavailable), focus: .error)
             return
         }
-        send(.checkpointDraft(draftMaterialText), message: "Requested a draft checkpoint. No Saved claim is made until the existing draft authority supplies its result.")
+        send(.checkpointDraft(draftMaterialText), message: BundledLocalizationCatalogV1.v30Text(.partsStockCheckpointRequested))
     }
 
     private func send(_ command: PartsStockWorkflowCommandV1, message: String) {
@@ -1317,54 +1317,54 @@ struct PartsStockWorkflowView: View {
 
     private var availabilityText: String {
         switch model.availability {
-        case .ready: return "Ready for supplied local catalog work"
-        case .loading: return "Loading supplied local state"
-        case .featureDisabled: return "Writes disabled; read, export, and recovery preserved"
-        case .offline: return "Offline local operation"
-        case .protectedData: return "Protected data unavailable"
-        case .storageUnavailable: return "Local storage unavailable"
-        case .interrupted: return "Interrupted; recovery needed"
-        case .stale: return "Stale projection; reload needed"
-        case .unavailable: return "Parts & Stock unavailable"
+        case .ready: return BundledLocalizationCatalogV1.v30Text(.partsStockStateReady)
+        case .loading: return BundledLocalizationCatalogV1.v30Text(.partsStockStateLoading)
+        case .featureDisabled: return BundledLocalizationCatalogV1.v30Text(.partsStockStateFeatureDisabled)
+        case .offline: return BundledLocalizationCatalogV1.v30Text(.partsStockStateOffline)
+        case .protectedData: return BundledLocalizationCatalogV1.v30Text(.partsStockStateProtectedData)
+        case .storageUnavailable: return BundledLocalizationCatalogV1.v30Text(.partsStockStateStorageUnavailable)
+        case .interrupted: return BundledLocalizationCatalogV1.v30Text(.partsStockStateInterrupted)
+        case .stale: return BundledLocalizationCatalogV1.v30Text(.partsStockStateStale)
+        case .unavailable: return BundledLocalizationCatalogV1.v30Text(.partsStockStateUnavailable)
         }
     }
 
     private var availabilityDetail: String {
         switch model.availability {
         case .ready:
-            return "The caller supplied a local projection. Every quantity-affecting action still requires an explicit command and a canonical receipt."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateReadyDescription)
         case .loading:
-            return "The projection is not ready. No catalog mutation, draft save, import, return, or stock effect is claimed."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateLoadingDescription)
         case .featureDisabled:
-            return "The feature policy preserves catalog reads, exact export, recovery, and existing drafts while blocking new Count, Adjust, Transfer, Use, Return, and Archive writes."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateFeatureDisabledDescription)
         case .offline:
-            return "This workflow is device-local and has no network dependency. Local reads, manual lookup, drafts, and owner-approved writes can remain available; no remote availability is inferred."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateOfflineDescription)
         case .protectedData:
-            return "Protected local data is unavailable. The last readable state is not reconstructed, and no write is attempted. Retry after the caller reports protected data available."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateProtectedDataDescription)
         case .storageUnavailable:
-            return "Local storage is unavailable or below its preflight requirement. Existing state remains untouched; retry after storage recovery."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateStorageUnavailableDescription)
         case .interrupted:
-            return "An operation was interrupted. Reload canonical projections before retrying; this view never infers a partial effect."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateInterruptedDescription)
         case .stale:
-            return "The supplied revision is stale. Reload the catalog and operation frontier before retrying the same intent."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateStaleDescription)
         case .unavailable:
-            return "The caller could not supply a valid local Parts & Stock projection. No operation is available."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockStateUnavailableDescription)
         }
     }
 
     private var writeDisabledText: String {
         if model.featurePolicy == .readExportRecoveryOnly {
-            return "Parts & Stock writes are disabled. Catalog reads, exact export, recovery, and existing drafts remain available; no stock effect is claimed."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockWriteDisabled)
         }
         switch model.availability {
         case .protectedData:
-            return "Protected data is unavailable. No write was attempted; the existing draft and canonical state remain the source of truth."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockWriteProtectedDataUnavailable)
         case .storageUnavailable:
-            return "Local storage is unavailable. No write was attempted and no partial effect is claimed."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockWriteStorageUnavailable)
         case .stale, .interrupted:
-            return "The supplied projection is not current. Reload before retrying; no partial effect is claimed."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockWriteStale)
         default:
-            return "This action is unavailable in the current supplied state. No write was attempted."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockWriteUnavailable)
         }
     }
 
@@ -1380,27 +1380,27 @@ struct PartsStockWorkflowView: View {
     private var operationBoundaryText: String {
         switch model.operation.state {
         case .receiptConfirmed:
-            return "The caller supplied a canonical receipt. This view reports that fact only; it does not infer additional balance, work, delivery, or customer-report effects."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockOperationReceipt)
         case .failed, .stale:
-            return "The operation did not produce a confirmed canonical effect. Review the error and reload before retrying."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockOperationFailure)
         case .cancelled:
-            return "Cancellation makes no completion or stock-effect claim."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockOperationCancelled)
         case .awaitingReceipt:
-            return "Waiting for the canonical owner. A request is not a receipt and does not prove a stock effect."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockOperationPending)
         case .idle:
-            return "No canonical operation status is supplied."
+            return BundledLocalizationCatalogV1.v30Text(.partsStockOperationNoStatus)
         }
     }
 
     private func lookupResultText(_ result: PartsStockWorkflowLookupResultV1) -> String {
         switch result {
-        case .idle: return "No lookup has been performed."
-        case .found: return "A matching local catalog item was found."
-        case .ambiguous: return "More than one local item matched. Choose an exact catalog item; no stock effect occurred."
-        case .notFound: return "No local catalog item matched. Manual entry remains available; no network lookup was attempted."
-        case .foreign: return "The code does not belong to this Work-local catalog. No cross-workspace item was adopted."
-        case .stale: return "The lookup became stale. Reload the local catalog before selecting an item."
-        case .manualFallback: return "Manual lookup is required. It remains a complete zero-write fallback."
+        case .idle: return BundledLocalizationCatalogV1.v30Text(.partsStockLookupIdle)
+        case .found: return BundledLocalizationCatalogV1.v30Text(.partsStockLookupFound)
+        case .ambiguous: return BundledLocalizationCatalogV1.v30Text(.partsStockLookupAmbiguous)
+        case .notFound: return BundledLocalizationCatalogV1.v30Text(.partsStockLookupNotFound)
+        case .foreign: return BundledLocalizationCatalogV1.v30Text(.partsStockLookupForeign)
+        case .stale: return BundledLocalizationCatalogV1.v30Text(.partsStockLookupStale)
+        case .manualFallback: return BundledLocalizationCatalogV1.v30Text(.partsStockLookupManualFallback)
         }
     }
 
@@ -1412,19 +1412,19 @@ struct PartsStockWorkflowView: View {
         let balance: String
         switch attention.balance {
         case .unknown:
-            balance = "UNKNOWN; count required"
+            balance = BundledLocalizationCatalogV1.v30Text(.partsStockUnknownBalance)
         case .known(let quantity):
             balance = quantityText(quantity, unit: item.detail.part.canonicalUnit)
         }
-        return "\(item.detail.part.displayName), \(location): \(balance)"
+        return BundledLocalizationCatalogV1.v30PartsStockBalanceAccessibility(name: item.detail.part.displayName, location: location, balance: balance)
     }
 
     private func balanceText(_ projection: StockBalanceProjectionV1) -> String {
         switch projection.balance {
         case .unknown:
-            return "Balance: UNKNOWN; count required before quantity-affecting actions"
+            return BundledLocalizationCatalogV1.v30Text(.partsStockUnknownBalanceDescription)
         case .known(let quantity):
-            return "Balance: \(quantityText(quantity, unit: projection.unit)); revision \(projection.locationRevision)"
+            return BundledLocalizationCatalogV1.v30PartsStockBalance(quantity: quantityText(quantity, unit: projection.unit), revision: String(projection.locationRevision))
         }
     }
 
@@ -1462,27 +1462,27 @@ struct PartsStockWorkflowView: View {
     private func csvStateText(_ state: PartsStockWorkflowCSVStateV1, rows: Int?) -> String {
         let base: String
         switch state {
-        case .idle: base = "Not prepared"
-        case .previewing: base = "Preview in progress"
-        case .previewReady: base = "Preview ready; no write"
-        case .committing: base = "Explicit commit in progress"
-        case .receiptConfirmed: base = "Canonical receipt confirmed"
-        case .cancelled: base = "Cancelled; no completion claimed"
-        case .failed: base = "Failed; prior state preserved"
+        case .idle: base = BundledLocalizationCatalogV1.v30Text(.partsStockCsvIdle)
+        case .previewing: base = BundledLocalizationCatalogV1.v30Text(.partsStockCsvPreviewing)
+        case .previewReady: base = BundledLocalizationCatalogV1.v30Text(.partsStockCsvPreviewReady)
+        case .committing: base = BundledLocalizationCatalogV1.v30Text(.partsStockCsvCommitting)
+        case .receiptConfirmed: base = BundledLocalizationCatalogV1.v30Text(.partsStockCsvReceiptConfirmed)
+        case .cancelled: base = BundledLocalizationCatalogV1.v30Text(.partsStockCsvCancelled)
+        case .failed: base = BundledLocalizationCatalogV1.v30Text(.partsStockCsvFailed)
         }
         guard let rows else { return base }
-        return "\(base), \(rows) row\(rows == 1 ? "" : "s")"
+        return BundledLocalizationCatalogV1.v30PartsStockCsvRows(state: base, rows: rows)
     }
 
     private func draftStateText(_ state: PartsStockWorkflowDraftStateV1) -> String {
         switch state {
-        case .absent: return "No draft supplied"
-        case .active: return "Draft supplied"
-        case .dirty: return "Draft has uncheckpointed edits"
-        case .checkpointed: return "Draft checkpoint supplied"
-        case .interrupted: return "Draft interrupted; recovery supplied"
-        case .protectedData: return "Draft held while protected data is unavailable"
-        case .unavailable: return "Draft unavailable; no draft claim made"
+        case .absent: return BundledLocalizationCatalogV1.v30Text(.partsStockDraftAbsent)
+        case .active: return BundledLocalizationCatalogV1.v30Text(.partsStockDraftActive)
+        case .dirty: return BundledLocalizationCatalogV1.v30Text(.partsStockDraftDirty)
+        case .checkpointed: return BundledLocalizationCatalogV1.v30Text(.partsStockDraftCheckpointed)
+        case .interrupted: return BundledLocalizationCatalogV1.v30Text(.partsStockDraftInterrupted)
+        case .protectedData: return BundledLocalizationCatalogV1.v30Text(.partsStockDraftProtectedData)
+        case .unavailable: return BundledLocalizationCatalogV1.v30Text(.partsStockDraftUnavailable)
         }
     }
 

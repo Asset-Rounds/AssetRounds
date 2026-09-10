@@ -77,7 +77,7 @@ struct PartyContactSiteRoleWorkflowView: View {
             .padding(DesignTokens.Spacing.medium)
         }
         .background(DesignTokens.Colors.canvas)
-        .navigationTitle("Parties and contacts")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .transaction { transaction in
@@ -90,12 +90,12 @@ struct PartyContactSiteRoleWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: contentSpacing) {
-            Text("Parties, contacts, and Site roles")
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("Review supplied, zero-write changes before any separate canonical action. Equal names, phone numbers, and email addresses remain distinct assertions, not identity proof.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowIntroduction))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -104,78 +104,78 @@ struct PartyContactSiteRoleWorkflowView: View {
 
     private var partyActions: some View {
         WorklightCard {
-            sectionHeading("Party", identifier: Self.partyAccessibilityIdentifier)
-            Text("Create and edit require a supplied preview. Party retirement is irreversible in this workflow and is never inferred from a contact or Site-role change.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowParty), identifier: Self.partyAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowPartyNotice))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            actionButton("Request Party create preview", operation: .createParty)
-            actionButton("Request Party edit preview", operation: .editParty)
-            actionButton("Request Party retirement preview", operation: .retireParty)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestPartyCreatePreview), operation: .createParty)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestPartyEditPreview), operation: .editParty)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestPartyRetirementPreview), operation: .retireParty)
         }
         .accessibilityElement(children: .contain)
     }
 
     private var contactActions: some View {
         WorklightCard {
-            sectionHeading("Operational contacts", identifier: Self.contactsAccessibilityIdentifier)
-            Text("Contacts are local operational records. This surface neither accesses the system Contacts database nor logs communications, grants marketing permission, or verifies identity.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowOperationalContacts), identifier: Self.contactsAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowContactsNotice))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            actionButton("Request contact create preview", operation: .createContact)
-            actionButton("Request contact edit preview", operation: .editContact)
-            actionButton("Request contact retirement preview", operation: .retireContact)
-            actionButton("Request contact reactivation preview", operation: .reactivateContact)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestContactCreatePreview), operation: .createContact)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestContactEditPreview), operation: .editContact)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestContactRetirementPreview), operation: .retireContact)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestContactReactivationPreview), operation: .reactivateContact)
         }
         .accessibilityElement(children: .contain)
     }
 
     private var preferredContacts: some View {
         WorklightCard {
-            sectionHeading("Preferred contact by kind", identifier: Self.preferredAccessibilityIdentifier)
-            Text("Preferred status is scoped to one supplied Party and contact kind, such as phone or email. It does not make a person preferred for another kind or prove identity.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowPreferredContactByKind), identifier: Self.preferredAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowPreferredContactNotice))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if let impact = contactPreview?.impact, !impact.preferredScopes.isEmpty {
                 ForEach(impact.preferredScopes, id: \.partyContactPreferenceScopeIdentity) { scope in
-                    Text("Supplied \(scope.kind.rawValue.lowercased()) preference scope for one Party; active contacts: \(scope.activeContactPointIDs.count).")
+                    Text(BundledLocalizationCatalogV1.v30PartyContactWorkflowPreferredScope(kind: scope.kind.rawValue.lowercased(), activeContactCount: scope.activeContactPointIDs.count))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text("No preferred-contact scope is supplied.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowNoPreferredScope))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             }
-            actionButton("Request preferred-contact preview", operation: .setPreferredContact)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestPreferredContactPreview), operation: .setPreferredContact)
         }
         .accessibilityElement(children: .contain)
     }
 
     private var siteRoleActions: some View {
         WorklightCard {
-            sectionHeading("Site-role history", identifier: Self.siteRoleAccessibilityIdentifier)
-            Text("Assign and end Site roles through append-only supplied events. Customer is a presentation label for a Site; this view does not create a Party from that label.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowSiteRoleHistory), identifier: Self.siteRoleAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowSiteRoleNotice))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            actionButton("Request Site-role assignment preview", operation: .appendSiteRole)
-            actionButton("Request Site-role reversal preview", operation: .reverseSiteRole)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestSiteRoleAssignmentPreview), operation: .appendSiteRole)
+            actionButton(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowRequestSiteRoleReversalPreview), operation: .reverseSiteRole)
         }
         .accessibilityElement(children: .contain)
     }
 
     private var impactAndWarnings: some View {
         WorklightCard {
-            sectionHeading("Impact preview and warnings", identifier: Self.impactWarningsAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowImpactPreviewAndWarnings), identifier: Self.impactWarningsAccessibilityIdentifier)
             if let impact {
-                valueRow("Preview write status", value: zeroWrite ? "Zero-write" : "Unavailable")
-                valueRow("Operation", value: operationText(impact.operation))
-                valueRow("Cascade count", value: "\(impact.cascadeCount)")
-                valueRow("Identity merge count", value: "\(impact.identityMergeCount)")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowPreviewWriteStatus), value: zeroWrite ? BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowZeroWrite) : BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowUnavailable))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowOperation), value: operationText(impact.operation))
+                valueRow(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowCascadeCount), value: "\(impact.cascadeCount)")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowIdentityMergeCount), value: "\(impact.identityMergeCount)")
                 ForEach(impact.warnings, id: \.rawValue) { warning in
                     Label(warningText(warning), systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
@@ -184,7 +184,7 @@ struct PartyContactSiteRoleWorkflowView: View {
                 }
                 .accessibilityFocused($accessibilityFocus, equals: .warning)
             } else {
-                Text("No impact preview is supplied. No Party, contact, Site-role, preferred-contact, merge, cascade, or saved-change claim is made.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowNoImpactPreview))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -195,23 +195,23 @@ struct PartyContactSiteRoleWorkflowView: View {
 
     private var historicalSnapshots: some View {
         WorklightCard {
-            sectionHeading("Historical snapshots", identifier: Self.historyAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowHistoricalSnapshots), identifier: Self.historyAccessibilityIdentifier)
             if let history {
-                valueRow("Party revisions", value: "\(history.partyRevisions.count)")
-                valueRow("Contact revisions", value: "\(history.contactRevisions.count)")
-                valueRow("Site-role events", value: "\(history.siteRoleEvents.count)")
-                Text("Party and contact history is caller-bounded; Site-role history is append-only. Each supplied snapshot remains historical context rather than current identity proof.")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowPartyRevisions), value: "\(history.partyRevisions.count)")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowContactRevisions), value: "\(history.contactRevisions.count)")
+                valueRow(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowSiteRoleEvents), value: "\(history.siteRoleEvents.count)")
+                Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowHistoryNotice))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(history.partyRevisions, id: \.partyRevisionIdentity) { party in
-                    Text("Party snapshot: \(party.displayName), revision \(party.revision), \(party.state.rawValue.lowercased()).")
+                    Text(BundledLocalizationCatalogV1.v30PartyContactWorkflowPartySnapshot(name: party.displayName, revision: String(party.revision), state: party.state.rawValue.lowercased()))
                         .font(.footnote)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text("No historical snapshot projection is supplied. This screen does not reconstruct or infer history.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowNoHistoricalSnapshot))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             }
@@ -221,32 +221,32 @@ struct PartyContactSiteRoleWorkflowView: View {
 
     private var reversalAndConfirmation: some View {
         WorklightCard {
-            sectionHeading("Reversal and confirmation", identifier: Self.reversalAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowReversalAndConfirmation), identifier: Self.reversalAccessibilityIdentifier)
             if siteRolePreview?.impact.operation == .reverseSiteRole {
-                Text("The supplied Site-role reversal appends a successor tied to the prior role event; it does not erase the prior event.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowReversalNotice))
                     .font(.body)
                     .foregroundStyle(DesignTokens.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Confirm and request Site-role reversal") {
+                Button(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowConfirmSiteRoleReversal)) {
                     confirmation = .siteRoleReversal
                     accessibilityFocus = .confirmation
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
             } else {
-                Text("No Site-role reversal preview is supplied.")
+                Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowNoSiteRoleReversalPreview))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             }
 
             if partyPreview?.impact.operation == .retireParty {
-                Button("Review irreversible Party retirement") {
+                Button(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowReviewIrreversiblePartyRetirement)) {
                     confirmation = .partyRetirement
                     accessibilityFocus = .confirmation
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
             }
             if contactPreview?.impact.operation == .retireContact {
-                Button("Review reversible contact retirement") {
+                Button(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowReviewReversibleContactRetirement)) {
                     confirmation = .contactRetirement
                     accessibilityFocus = .confirmation
                 }
@@ -262,29 +262,29 @@ struct PartyContactSiteRoleWorkflowView: View {
     private var confirmationPanel: some View {
         switch confirmation {
         case .partyRetirement:
-            Text("Party retirement is irreversible here. Confirming requests the supplied canonical action; this view does not claim it completed.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowPartyRetirementConfirmation))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.attentionText)
                 .accessibilityFocused($accessibilityFocus, equals: .confirmation)
-            Button("Confirm and request Party retirement") {
+            Button(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowConfirmPartyRetirement)) {
                 if let partyPreview { onConfirmPartyRetirement(partyPreview) }
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
         case .contactRetirement:
-            Text("Contact retirement is reversible only through a separately supplied reactivation preview. Confirming requests the supplied canonical action; it does not claim completion.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowContactRetirementConfirmation))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.attentionText)
                 .accessibilityFocused($accessibilityFocus, equals: .confirmation)
-            Button("Confirm and request contact retirement") {
+            Button(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowConfirmContactRetirement)) {
                 if let contactPreview { onConfirmContactRetirement(contactPreview) }
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
         case .siteRoleReversal:
-            Text("Site-role reversal preserves the historical predecessor and requests one supplied successor action. It does not erase history or claim completion.")
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowSiteRoleReversalConfirmation))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.attentionText)
                 .accessibilityFocused($accessibilityFocus, equals: .confirmation)
-            Button("Confirm and request Site-role reversal") {
+            Button(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowConfirmSiteRoleReversal)) {
                 if let siteRolePreview { onConfirmSiteRoleReversal(siteRolePreview) }
             }
             .buttonStyle(WorklightPrimaryButtonStyle())
@@ -295,9 +295,9 @@ struct PartyContactSiteRoleWorkflowView: View {
 
     private var boundaries: some View {
         WorklightCard {
-            sectionHeading("Accessibility and boundaries", identifier: Self.boundariesAccessibilityIdentifier)
-            Text("Destructive review moves accessibility focus to the confirmation. Stable labels support VoiceOver, Voice Control, Switch Control, keyboard use, and RTL layout. At Accessibility text sizes, content reflows without truncation; Reduce Motion adds no state-change animation.")
-            Text("No Contacts permission, auto-created Party, communication, marketing, network, telemetry, delivery, verification, or root-navigation claim is made by this contained surface.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowAccessibilityAndBoundaries), identifier: Self.boundariesAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowAccessibilityNotice))
+            Text(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowBoundariesNotice))
         }
         .font(.footnote)
         .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -320,11 +320,11 @@ struct PartyContactSiteRoleWorkflowView: View {
     private func actionButton(_ title: String, operation: PartyContactSiteRoleOperationV1) -> some View {
         Button(title) { onRequestPreview(operation) }
             .buttonStyle(WorklightSecondaryButtonStyle())
-            .accessibilityHint("Requests only a supplied zero-write impact preview.")
+            .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowPreviewHint))
             .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).preview.\(operation.rawValue.lowercased())")
     }
 
-    private func sectionHeading(_ title: LocalizedStringKey, identifier: String) -> some View {
+    private func sectionHeading(_ title: String, identifier: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -345,19 +345,19 @@ struct PartyContactSiteRoleWorkflowView: View {
     }
 
     private func operationText(_ operation: PartyContactSiteRoleOperationV1) -> String {
-        operation.rawValue.replacingOccurrences(of: "_", with: " ").lowercased()
+        BundledLocalizationCatalogV1.v30PartyContactWorkflowOperation(operation: operation.rawValue.replacingOccurrences(of: "_", with: " ").lowercased())
     }
 
     private func warningText(_ warning: PartyContactSiteRoleWarningV1) -> String {
         switch warning {
         case .equalValuesRemainDistinct:
-            return "Equal values remain distinct; no identity merge is inferred."
+            return BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowEqualValuesWarning)
         case .noCascade:
-            return "No hidden cascade is included."
+            return BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowNoHiddenCascadeWarning)
         case .operationalPurposeOnly:
-            return "Operational purpose only; no communication or marketing permission is implied."
+            return BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowOperationalPurposeWarning)
         case .customerAndSiteLabelsArePresentationOnly:
-            return "Customer and Site labels are presentation labels only."
+            return BundledLocalizationCatalogV1.v30Text(.partyContactWorkflowPresentationLabelsWarning)
         }
     }
 }

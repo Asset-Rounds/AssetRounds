@@ -6967,3 +6967,389 @@ enum ScanToWorkLocalizationPolicyV1 {
         }
     }
 }
+
+// V30 metadata supplements the legacy definition instead of changing its
+// encoded fields, memberwise initializer, or historical catalog identity.
+enum V30EnglishArgumentKindV1: String, Codable, Equatable, Sendable {
+    case text
+    case integer
+    case floatingPoint
+    case pluralCount
+
+    var legacyShape: LocalizationMessageShapeV1 {
+        switch self {
+        case .text: return .plain
+        case .integer, .floatingPoint: return .number
+        case .pluralCount: return .integerPlural
+        }
+    }
+}
+
+enum V30EnglishArgumentPrivacyV1: String, Codable, Equatable, Sendable {
+    case aggregateCount
+    case authoredSource
+    case opaqueIdentifier
+    case formattedPresentation
+    case appOwnedState
+}
+
+struct V30EnglishArgumentV1: Equatable, Sendable {
+    let name: String
+    let kind: V30EnglishArgumentKindV1
+    let privacy: V30EnglishArgumentPrivacyV1
+    /// Number of occurrences of this named argument in each complete message.
+    let occurrences: Int
+}
+
+/// The argument order is the order of typed interpolation in the call site.
+/// Formatting never turns an authored value into a catalog key or source data.
+struct V30EnglishPluralSubstitutionV1: Equatable, Sendable {
+    let name: String
+    /// One-based argument position in the typed interpolation call.
+    let argumentIndex: Int
+    let englishOne: String
+    let englishOther: String
+}
+
+/// The argument order is the order of typed interpolation in the call site.
+/// Formatting never turns an authored value into a catalog key or source data.
+struct V30EnglishMessageContractV1: Equatable, Sendable {
+    let key: String
+    let englishDefault: String
+    let translatorComment: String
+    let arguments: [V30EnglishArgumentV1]
+    let englishPluralOne: String?
+    /// The host string containing named `.xcstrings` substitution markers.
+    let englishSubstitutionFormat: String?
+    let substitutions: [V30EnglishPluralSubstitutionV1]
+
+    init(
+        key: String,
+        englishDefault: String,
+        translatorComment: String,
+        arguments: [V30EnglishArgumentV1],
+        englishPluralOne: String? = nil,
+        englishSubstitutionFormat: String? = nil,
+        substitutions: [V30EnglishPluralSubstitutionV1] = []
+    ) {
+        self.key = key
+        self.englishDefault = englishDefault
+        self.translatorComment = translatorComment
+        self.arguments = arguments
+        self.englishPluralOne = englishPluralOne
+        self.englishSubstitutionFormat = englishSubstitutionFormat
+        self.substitutions = substitutions
+    }
+
+    func definition() throws -> LocalizationKeyDefinitionV1 {
+        try validate()
+        return LocalizationKeyDefinitionV1(
+            key: try LocalizationKeyV1(key), meaningID: key,
+            translatorComment: translatorComment,
+            englishDefaultValue: englishDefault,
+            arguments: arguments.map {
+                LocalizationArgumentV1(name: $0.name, shape: $0.kind.legacyShape)
+            }.sorted { $0.name < $1.name },
+            requiredEnglishPluralCategories:
+                (englishPluralOne == nil && substitutions.isEmpty) ? [] : ["one", "other"],
+            state: .active, deprecatedFallbackKey: nil
+        )
+    }
+
+    func validate() throws {
+        _ = try LocalizationKeyV1(key)
+        let requiredCommentFields = [
+            "Screen:", "Meaning:", "Role:", "Arguments:",
+            "Plural/select:", "Accessibility:", "Screenshot:",
+        ]
+        guard key.hasPrefix("v30."), !englishDefault.isEmpty,
+              englishDefault.utf8.count <= 2_000,
+              translatorComment == translatorComment.trimmingCharacters(in: .whitespacesAndNewlines),
+              requiredCommentFields.allSatisfy({ translatorComment.contains($0) }),
+              Set(arguments.map(\.name)).count == arguments.count,
+              arguments.count <= 12,
+              arguments.allSatisfy({ argument in
+                  !argument.name.isEmpty && argument.name.utf8.count <= 80
+                      && argument.name.utf8.allSatisfy {
+                          (65...90).contains($0) || (97...122).contains($0)
+                              || (48...57).contains($0) || $0 == 95
+                      }
+                      && (1...12).contains(argument.occurrences)
+                      && (argument.kind != .pluralCount || argument.privacy == .aggregateCount)
+              }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        try validatePlaceholders(in: englishDefault)
+        if let one = englishPluralOne {
+            // The legacy form varies one complete message on one integer.
+            guard substitutions.isEmpty, englishSubstitutionFormat == nil,
+                  arguments.count == 1, arguments[0].kind == .pluralCount,
+                  !one.isEmpty, one.utf8.count <= 2_000 else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            try validatePlaceholders(in: one)
+        } else if !substitutions.isEmpty || englishSubstitutionFormat != nil {
+            try validateSubstitutionForm()
+        } else if arguments.contains(where: { $0.kind == .pluralCount }) {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+
+    /// Validates all English branches and their exact metadata. Unknown
+    /// variations, missing categories, and extra localizations fail closed.
+    func validateCatalogEntry(_ entry: [String: Any]) throws {
+        try validate()
+        guard entry["comment"] as? String == translatorComment,
+              let localizations = entry["localizations"] as? [String: Any],
+              Set(localizations.keys) == ["en"],
+              let english = localizations["en"] as? [String: Any] else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        if let one = englishPluralOne {
+            guard Set(english.keys) == ["variations"],
+                  let variations = english["variations"] as? [String: Any],
+                  Set(variations.keys) == ["plural"],
+                  let plural = variations["plural"] as? [String: Any],
+                  Set(plural.keys) == ["one", "other"],
+                  let oneBranch = plural["one"] as? [String: Any],
+                  let otherBranch = plural["other"] as? [String: Any] else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            try validateUnit(oneBranch, expected: one)
+            try validateUnit(otherBranch, expected: englishDefault)
+        } else if !substitutions.isEmpty {
+            guard Set(english.keys) == ["stringUnit", "substitutions"],
+                  let format = englishSubstitutionFormat,
+                  let substitutionsObject = english["substitutions"] as? [String: Any],
+                  Set(substitutionsObject.keys) == Set(substitutions.map(\.name)) else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            guard let hostUnit = english["stringUnit"] as? [String: Any] else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            try validateUnitWithoutPlaceholderValidation(["stringUnit": hostUnit], expected: format)
+            for substitution in substitutions {
+                guard let raw = substitutionsObject[substitution.name] as? [String: Any],
+                      Set(raw.keys) == ["argNum", "formatSpecifier", "variations"],
+                      raw["argNum"] as? Int == substitution.argumentIndex,
+                      raw["formatSpecifier"] as? String == "lld",
+                      let variations = raw["variations"] as? [String: Any],
+                      Set(variations.keys) == ["plural"],
+                      let plural = variations["plural"] as? [String: Any],
+                      Set(plural.keys) == ["one", "other"],
+                      let one = plural["one"] as? [String: Any],
+                      let other = plural["other"] as? [String: Any] else {
+                    throw LocalizationContractFailureV1.invalidValue
+                }
+                try validateUnitWithoutPlaceholderValidation(one, expected: substitution.englishOne)
+                try validateUnitWithoutPlaceholderValidation(other, expected: substitution.englishOther)
+            }
+        } else {
+            try validateUnit(english, expected: englishDefault)
+        }
+    }
+
+    private func validateSubstitutionForm() throws {
+        guard englishPluralOne == nil, let format = englishSubstitutionFormat,
+              !format.isEmpty, format.utf8.count <= 2_000,
+              (1...3).contains(substitutions.count),
+              Set(substitutions.map(\.name)).count == substitutions.count,
+              Set(substitutions.map(\.argumentIndex)).count == substitutions.count,
+              substitutions.allSatisfy({ substitution in
+                  !substitution.name.isEmpty && substitution.name.utf8.count <= 80
+                      && substitution.name.utf8.allSatisfy {
+                          (65...90).contains($0) || (97...122).contains($0)
+                              || (48...57).contains($0) || $0 == 95
+                      }
+                      && substitution.argumentIndex > 0
+                      && arguments.indices.contains(substitution.argumentIndex - 1)
+                      && !substitution.englishOne.isEmpty && !substitution.englishOther.isEmpty
+                      && substitution.englishOne.utf8.count <= 2_000
+                      && substitution.englishOther.utf8.count <= 2_000
+              }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        let substitutionIndices = Set(substitutions.map { $0.argumentIndex - 1 })
+        let pluralIndices = Set(arguments.indices.filter { arguments[$0].kind == .pluralCount })
+        guard pluralIndices == substitutionIndices,
+              substitutions.allSatisfy({
+                  let argument = arguments[$0.argumentIndex - 1]
+                  return argument.name == $0.name
+                      && argument.privacy == .aggregateCount
+                      && argument.occurrences == 1
+              }) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        try validateSubstitutionHost(format)
+        for substitution in substitutions {
+            guard isValidSubstitutionLeaf(substitution.englishOne),
+                  isValidSubstitutionLeaf(substitution.englishOther) else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+        }
+        let expandedOther = expandedSubstitutionFormat(format, choosingOneFor: nil)
+        guard expandedOther == englishDefault else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        // The catalog can choose each nested `one` branch independently. Check
+        // every permitted one/other combination without accepting a new default.
+        for oneIndices in 0..<(1 << substitutions.count) {
+            let chosenOne = Set(substitutions.indices.filter { oneIndices & (1 << $0) != 0 })
+            try validatePlaceholders(in: expandedSubstitutionFormat(format, choosingOneFor: chosenOne))
+        }
+    }
+
+    private func validateSubstitutionHost(_ value: String) throws {
+        let bytes = Array(value.utf8)
+        var cursor = 0
+        var counts = [Int](repeating: 0, count: arguments.count)
+        let byName = Dictionary(uniqueKeysWithValues: substitutions.map { ($0.name, $0) })
+        while cursor < bytes.count {
+            guard bytes[cursor] == 37 else { cursor += 1; continue }
+            cursor += 1
+            guard cursor < bytes.count else { throw LocalizationContractFailureV1.invalidValue }
+            if bytes[cursor] == 35, cursor + 1 < bytes.count, bytes[cursor + 1] == 64 {
+                cursor += 2
+                let start = cursor
+                while cursor < bytes.count, bytes[cursor] != 64 { cursor += 1 }
+                guard cursor > start, cursor < bytes.count,
+                      let name = String(bytes: bytes[start..<cursor], encoding: .utf8),
+                      let substitution = byName[name] else {
+                    throw LocalizationContractFailureV1.invalidValue
+                }
+                counts[substitution.argumentIndex - 1] += 1
+                cursor += 1
+                continue
+            }
+            let start = cursor
+            while cursor < bytes.count, (48...57).contains(bytes[cursor]) { cursor += 1 }
+            guard cursor > start, cursor < bytes.count, bytes[cursor] == 36,
+                  let position = Int(String(decoding: bytes[start..<cursor], as: UTF8.self)),
+                  arguments.indices.contains(position - 1) else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            let index = position - 1
+            guard arguments[index].kind != .pluralCount else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            cursor += 1
+            let tail = bytes[cursor...]
+            if tail.starts(with: Array("lld".utf8)), arguments[index].kind == .integer {
+                cursor += 3
+            } else if tail.starts(with: [64]), arguments[index].kind == .text {
+                cursor += 1
+            } else if tail.starts(with: Array("lf".utf8)), arguments[index].kind == .floatingPoint {
+                cursor += 2
+            } else if tail.starts(with: [102]), arguments[index].kind == .floatingPoint {
+                cursor += 1
+            } else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            counts[index] += 1
+        }
+        guard counts == arguments.map(\.occurrences) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+
+    private func expandedSubstitutionFormat(
+        _ format: String, choosingOneFor oneIndices: Set<Int>?
+    ) -> String {
+        substitutions.enumerated().reduce(format) { result, item in
+            let (index, substitution) = item
+            let leaf = oneIndices?.contains(index) == true
+                ? substitution.englishOne : substitution.englishOther
+            return result.replacingOccurrences(
+                of: "%#@" + substitution.name + "@",
+                with: leaf.replacingOccurrences(
+                    of: "%arg", with: "%" + String(substitution.argumentIndex) + "$lld"
+                )
+            )
+        }
+    }
+
+    private func isValidSubstitutionLeaf(_ value: String) -> Bool {
+        let markerBytes = Array("%arg".utf8)
+        let bytes = Array(value.utf8)
+        var cursor = 0
+        var matches = 0
+        while cursor < bytes.count {
+            guard bytes[cursor] == 37 else { cursor += 1; continue }
+            guard cursor + markerBytes.count <= bytes.count,
+                  Array(bytes[cursor..<(cursor + markerBytes.count)]) == markerBytes else {
+                return false
+            }
+            matches += 1
+            cursor += markerBytes.count
+        }
+        return matches == 1
+    }
+
+    private func validateUnit(_ branch: [String: Any], expected: String) throws {
+        try validateUnitWithoutPlaceholderValidation(branch, expected: expected)
+        try validatePlaceholders(in: expected)
+    }
+
+    private func validateUnitWithoutPlaceholderValidation(
+        _ branch: [String: Any], expected: String
+    ) throws {
+        guard Set(branch.keys) == ["stringUnit"],
+              let unit = branch["stringUnit"] as? [String: Any],
+              Set(unit.keys) == ["state", "value"],
+              unit["state"] as? String == "translated",
+              let value = unit["value"] as? String, value == expected else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+
+    private func validatePlaceholders(in value: String) throws {
+        let bytes = Array(value.utf8)
+        var cursor = 0
+        var nextArgument = 0
+        var occurrenceCounts = [Int](repeating: 0, count: arguments.count)
+        var usesPositions: Bool?
+        while cursor < bytes.count {
+            guard bytes[cursor] == 37 else { cursor += 1; continue }
+            cursor += 1
+            if cursor < bytes.count, bytes[cursor] == 37 { cursor += 1; continue }
+            let start = cursor
+            while cursor < bytes.count, (48...57).contains(bytes[cursor]) { cursor += 1 }
+            let positional = cursor > start && cursor < bytes.count && bytes[cursor] == 36
+            let index: Int
+            if positional {
+                guard let position = Int(String(decoding: bytes[start..<cursor], as: UTF8.self)),
+                      position > 0 else { throw LocalizationContractFailureV1.invalidValue }
+                index = position - 1
+                cursor += 1
+            } else {
+                // Numeric widths or precision are deliberately not accepted:
+                // their formatting belongs to the formatting-locale boundary.
+                guard cursor == start else { throw LocalizationContractFailureV1.invalidValue }
+                index = nextArgument
+                nextArgument += 1
+            }
+            guard usesPositions == nil || usesPositions == positional,
+                  arguments.indices.contains(index) else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            usesPositions = positional
+            let tail = bytes[cursor...]
+            let kind = arguments[index].kind
+            if tail.starts(with: Array("lld".utf8)), kind == .integer || kind == .pluralCount {
+                cursor += 3
+            } else if tail.starts(with: [64]), kind == .text {
+                cursor += 1
+            } else if tail.starts(with: Array("lf".utf8)), kind == .floatingPoint {
+                cursor += 2
+            } else if tail.starts(with: [102]), kind == .floatingPoint {
+                cursor += 1
+            } else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            occurrenceCounts[index] += 1
+        }
+        guard occurrenceCounts == arguments.map(\.occurrences) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+    }
+}

@@ -60,7 +60,7 @@ struct RecipientReviewWorkflowView: View {
             }
             .padding(DesignTokens.Spacing.medium)
         }
-        .navigationTitle("Recipient review")
+        .navigationTitle(BundledLocalizationCatalogV1.v30Text(.recipientReviewNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .background(DesignTokens.Colors.canvas)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
@@ -79,12 +79,12 @@ struct RecipientReviewWorkflowView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Text("Recipient review")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewHeading))
                 .font(.title2.weight(.bold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($accessibilityFocus, equals: .heading)
-            Text("Review a portable request offline, without entitlement and outside normal workspaces.")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewHeadingDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -93,8 +93,8 @@ struct RecipientReviewWorkflowView: View {
 
     private var trustDisclosure: some View {
         WorklightCard {
-            sectionHeading("Trust disclosure", identifier: Self.trustAccessibilityIdentifier)
-            Text("A matching response proof shows possession of the request capability and detects a changed response for that request. It does not establish identity, authority, personal review, delivery, read status, legal effect, or approval.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.recipientReviewTrustHeading), identifier: Self.trustAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewTrustDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -105,11 +105,11 @@ struct RecipientReviewWorkflowView: View {
     private var loadingOrUnavailable: some View {
         WorklightCard {
             if operationMessage == nil {
-                Label("Loading recipient review", systemImage: "clock")
+                Label(BundledLocalizationCatalogV1.v30Text(.recipientReviewLoading), systemImage: "clock")
                     .font(.headline)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             } else {
-                Label("Recipient review unavailable", systemImage: "exclamationmark.triangle.fill")
+                Label(BundledLocalizationCatalogV1.v30Text(.recipientReviewUnavailable), systemImage: "exclamationmark.triangle.fill")
                     .font(.headline)
                     .foregroundStyle(DesignTokens.Colors.blockedText)
                     .accessibilityFocused($accessibilityFocus, equals: .errorSummary)
@@ -126,12 +126,12 @@ struct RecipientReviewWorkflowView: View {
 
     private func recipientReadiness(_ projection: RecipientReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Isolated review", identifier: "\(Self.screenAccessibilityIdentifier).readiness")
-            stateRow("Request", value: projection.requestPublicID.rawValue)
-            stateRow("Session", value: lifecycleText(projection.lifecycleState))
-            stateRow("Manifest", value: projection.hasReplayableManifest ? "Replayable" : "Unavailable")
-            stateRow("Request package", value: projection.hasReplayablePackage ? "Replayable" : "Unavailable")
-            Text("This mode does not open or create a normal workspace.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.recipientReviewIsolatedHeading), identifier: "\(Self.screenAccessibilityIdentifier).readiness")
+            stateRow(BundledLocalizationCatalogV1.v30Text(.recipientReviewRequest), value: projection.requestPublicID.rawValue)
+            stateRow(BundledLocalizationCatalogV1.v30Text(.recipientReviewSession), value: lifecycleText(projection.lifecycleState))
+            stateRow(BundledLocalizationCatalogV1.v30Text(.recipientReviewManifest), value: projection.hasReplayableManifest ? BundledLocalizationCatalogV1.v30Text(.recipientReviewReplayable) : BundledLocalizationCatalogV1.v30Text(.recipientReviewUnavailable))
+            stateRow(BundledLocalizationCatalogV1.v30Text(.recipientReviewRequestPackage), value: projection.hasReplayablePackage ? BundledLocalizationCatalogV1.v30Text(.recipientReviewReplayable) : BundledLocalizationCatalogV1.v30Text(.recipientReviewUnavailable))
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewIsolatedDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
@@ -140,81 +140,81 @@ struct RecipientReviewWorkflowView: View {
 
     private func exchangeProtection(_ projection: RecipientReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Exchange protection", identifier: Self.encryptionAccessibilityIdentifier)
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.recipientReviewExchangeProtectionHeading), identifier: Self.encryptionAccessibilityIdentifier)
             switch projection.encryptionAvailability {
             case .manualPassphraseAvailable:
-                Label("Passphrase-encrypted review exchange is available.", systemImage: "lock")
+                Label(BundledLocalizationCatalogV1.v30Text(.recipientReviewEncryptedAvailable), systemImage: "lock")
                     .foregroundStyle(DesignTokens.Colors.informationText)
-                Text("Enter a passphrase again only in the native protected operation. This view does not retain a passphrase, key, or capability.")
+                Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewEncryptedAvailableDescription))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             case .disabled:
-                Label("Encrypted exchange is disabled. Use only the explicit clear/manual path when appropriate.", systemImage: "lock.slash")
+                Label(BundledLocalizationCatalogV1.v30Text(.recipientReviewEncryptedDisabled), systemImage: "lock.slash")
                     .foregroundStyle(DesignTokens.Colors.secondaryText)
             case .unavailable:
-                Label("Encrypted exchange is unavailable. A typed manual fallback remains explicit.", systemImage: "exclamationmark.lock")
+                Label(BundledLocalizationCatalogV1.v30Text(.recipientReviewEncryptedUnavailable), systemImage: "exclamationmark.lock")
                     .foregroundStyle(DesignTokens.Colors.blockedText)
             }
-            Text("Wrong passphrase and damaged encrypted-envelope failures are intentionally presented as one neutral error. Encryption does not establish identity, authority, delivery, approval, or legal effect.")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewEncryptionDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Legacy clear files require an explicit visible warning acknowledgement before they can be replayed or read.")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewClearWarningDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            commandButton(title: "Replay clear request after warning", command: command(named: .replayClearRequest))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.recipientReviewReplayClearRequest), command: command(named: .replayClearRequest))
         }
         .accessibilityElement(children: .contain)
     }
 
     private func recipientResponse(_ projection: RecipientReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Recipient response", identifier: "\(Self.screenAccessibilityIdentifier).response")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.recipientReviewResponseHeading), identifier: "\(Self.screenAccessibilityIdentifier).response")
             Text(projection.canCreateResponse
-                 ? "A canonical response can be created from the supplied request manifest and capability."
-                 : "A response cannot be created until the supplied manifest and request package are available.")
+                 ? BundledLocalizationCatalogV1.v30Text(.recipientReviewResponseAvailable)
+                 : BundledLocalizationCatalogV1.v30Text(.recipientReviewResponseUnavailable))
                 .font(.body)
                 .foregroundStyle(projection.canCreateResponse ? DesignTokens.Colors.primaryText : DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Response author text is self-entered assertion, not verified identity. Review disposition remains a recorded response, not an approval claim by this screen.")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewResponseDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            commandButton(title: "Create supplied response", command: command(named: .createResponse), disabled: !projection.canCreateResponse)
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.recipientReviewCreateResponse), command: command(named: .createResponse), disabled: !projection.canCreateResponse)
         }
         .accessibilityElement(children: .contain)
     }
 
     private var responseReceivedElsewhere: some View {
         WorklightCard {
-            sectionHeading("Response received elsewhere", identifier: "\(Self.screenAccessibilityIdentifier).elsewhere")
-            Text("Record a response received elsewhere only through the supplied canonical command. It remains unverified by AssetRounds and is not applied to the canonical workspace.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.recipientReviewResponseElsewhereHeading), identifier: "\(Self.screenAccessibilityIdentifier).elsewhere")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewResponseElsewhereDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            commandButton(title: "Record unverified external response", command: command(named: .recordResponseReceivedElsewhere))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.recipientReviewRecordExternalResponse), command: command(named: .recordResponseReceivedElsewhere))
         }
         .accessibilityElement(children: .contain)
     }
 
     private func previewAndAcceptance(_ projection: RecipientReviewWorkflowProjectionV1) -> some View {
         WorklightCard {
-            sectionHeading("Preview and explicit acceptance", identifier: Self.previewAccessibilityIdentifier)
-            Text("Preview checks the supplied response and current review basis without a write. Import never applies automatically.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.recipientReviewPreviewHeading), identifier: Self.previewAccessibilityIdentifier)
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewPreviewDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Choose one supplied decision after preview: ACCEPT_AND_APPLY, record as history only, discard unimported, or keep quarantined. Quarantine and discard do not create a workspace receipt.")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewDecisionDescription))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            commandButton(title: "Preview supplied import", command: command(named: .previewImport))
-            commandButton(title: "Explicitly accept and apply", command: command(named: .acceptAndApply))
-            commandButton(title: "Finalize supplied session-only decision", command: command(named: .finalizeSessionOnly))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.recipientReviewPreviewImport), command: command(named: .previewImport))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.recipientReviewAcceptAndApply), command: command(named: .acceptAndApply))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.recipientReviewFinalizeSessionDecision), command: command(named: .finalizeSessionOnly))
             operationStatus
             if projection.previewWrites {
-                Text("Preview write status is unavailable; do not accept or apply until a fresh zero-write preview is supplied.")
+                Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewPreviewUnavailable))
                     .font(.footnote)
                     .foregroundStyle(DesignTokens.Colors.blockedText)
             }
@@ -224,24 +224,24 @@ struct RecipientReviewWorkflowView: View {
 
     private var recovery: some View {
         WorklightCard {
-            sectionHeading("Recovery", identifier: "\(Self.screenAccessibilityIdentifier).recovery")
-            Text("Retry reuses the supplied mutation identity and returns its existing effect or receipt, or no effect. Reload the canonical record after interruption.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.recipientReviewRecoveryHeading), identifier: "\(Self.screenAccessibilityIdentifier).recovery")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewRecoveryDescription))
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            commandButton(title: "Recover supplied acceptance", command: command(named: .recoverAcceptAndApply))
+            commandButton(title: BundledLocalizationCatalogV1.v30Text(.recipientReviewRecoverAcceptance), command: command(named: .recoverAcceptAndApply))
         }
         .accessibilityElement(children: .contain)
     }
 
     private var operatingBoundaries: some View {
         WorklightCard {
-            sectionHeading("Operating boundaries", identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
-            Text("Offline: this surface makes no network, sent, delivered, or read claim.")
-            Text("Customer-safe exchange excludes stable workspace IDs, raw originals, internal notes, contact records, and local paths.")
-            Text("No response is rendered as secure, verified, approved, accepted, signed, or legally effective by this surface.")
+            sectionHeading(BundledLocalizationCatalogV1.v30Text(.recipientReviewBoundariesHeading), identifier: "\(Self.screenAccessibilityIdentifier).boundaries")
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewOfflineBoundary))
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewCustomerSafeBoundary))
+            Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewResponseBoundary))
             if reduceMotion {
-                Text("Reduce Motion is on. State changes are presented without added animation.")
+                Text(BundledLocalizationCatalogV1.v30Text(.recipientReviewReduceMotionDescription))
             }
         }
         .font(.footnote)
@@ -273,16 +273,16 @@ struct RecipientReviewWorkflowView: View {
             Button(title) { perform(command) }
                 .buttonStyle(WorklightPrimaryButtonStyle())
                 .disabled(disabled || isPerforming)
-                .accessibilityHint("Uses the supplied canonical recipient-review command.")
+                .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.recipientReviewCommandHint))
                 .accessibilityIdentifier("\(Self.screenAccessibilityIdentifier).command.\(commandIdentifier(command))")
         } else {
-            Text("\(title) is unavailable until its canonical command is supplied.")
+            Text(BundledLocalizationCatalogV1.v30RecipientReviewUnavailableCommand(title: title))
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
     }
 
-    private func sectionHeading(_ title: LocalizedStringKey, identifier: String) -> some View {
+    private func sectionHeading(_ title: String, identifier: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
             .foregroundStyle(DesignTokens.Colors.primaryText)
@@ -303,7 +303,7 @@ struct RecipientReviewWorkflowView: View {
     }
 
     private func lifecycleText(_ state: PortableExchangeSessionStateV2?) -> String {
-        guard let state else { return "No local review session" }
+        guard let state else { return BundledLocalizationCatalogV1.v30Text(.recipientReviewNoLocalSession) }
         return state.rawValue.replacingOccurrences(of: "_", with: " ")
     }
 
@@ -345,33 +345,33 @@ struct RecipientReviewWorkflowView: View {
             accessibilityFocus = projection?.hasReplayablePackage == false ? .errorSummary : .heading
         } catch {
             projection = nil
-            operationMessage = "The current recipient-review record could not be loaded. No command was accepted."
+            operationMessage = BundledLocalizationCatalogV1.v30Text(.recipientReviewRecordUnavailable)
         }
     }
 
     private func perform(_ command: RecipientReviewWorkflowCommandV1) {
         guard !isPerforming else { return }
         isPerforming = true
-        operationMessage = "Submitting the supplied recipient-review command…"
+        operationMessage = BundledLocalizationCatalogV1.v30Text(.recipientReviewSubmittingCommand)
         Task { @MainActor in
             defer { isPerforming = false }
             do {
                 let outcome = try await coordinator.execute(command, context: context)
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.recipientReviewCancelled)
                     return
                 }
                 operationMessage = outcomeText(outcome)
                 onOutcome?(outcome)
                 await reloadProjection()
             } catch is CancellationError {
-                operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.recipientReviewCancelled)
             } catch {
                 guard !Task.isCancelled else {
-                    operationMessage = "The request was cancelled. Reload the canonical record before retrying; no effect is claimed."
+                    operationMessage = BundledLocalizationCatalogV1.v30Text(.recipientReviewCancelled)
                     return
                 }
-                operationMessage = "The supplied command was not completed. The current record remains the source of truth."
+                operationMessage = BundledLocalizationCatalogV1.v30Text(.recipientReviewCommandNotCompleted)
             }
         }
     }
@@ -379,19 +379,19 @@ struct RecipientReviewWorkflowView: View {
     private func outcomeText(_ outcome: RecipientReviewWorkflowCommandOutcomeV1) -> String {
         switch outcome {
         case .requestReplay:
-            return "The clear request was replayed after its explicit warning acknowledgement."
+            return BundledLocalizationCatalogV1.v30Text(.recipientReviewClearRequestReplayed)
         case .responseCreated:
-            return "The supplied recipient response was created from the canonical request inputs."
+            return BundledLocalizationCatalogV1.v30Text(.recipientReviewResponseCreated)
         case .importPreview:
-            return "The import preview is complete and made no canonical write. Choose an explicit decision."
+            return BundledLocalizationCatalogV1.v30Text(.recipientReviewImportPreviewComplete)
         case .canonicalApplied:
-            return "The explicit canonical application completed. Refresh from the current workspace record."
+            return BundledLocalizationCatalogV1.v30Text(.recipientReviewApplicationComplete)
         case .sessionFinalized:
-            return "The supplied session-only decision was recorded without canonical workspace application."
+            return BundledLocalizationCatalogV1.v30Text(.recipientReviewSessionDecisionComplete)
         case .unverifiedHistoryRecorded:
-            return "The response received elsewhere was recorded as unverified history only."
+            return BundledLocalizationCatalogV1.v30Text(.recipientReviewExternalResponseRecorded)
         case .recovered:
-            return "Recovery completed. Refresh from the canonical record before continuing."
+            return BundledLocalizationCatalogV1.v30Text(.recipientReviewRecoveryComplete)
         }
     }
 }
