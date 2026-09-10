@@ -4,6 +4,8 @@ Selected task: `V23-REVIEW-20260905`.
 
 Current execution disposition: **PAUSED by owner, 2026-09-10**, after the documentation-only policy/checkpoint update in [OWNER_DEFERRALS_20260910.md](OWNER_DEFERRALS_20260910.md). The owner will return with further instructions after the separate S10.6 work. Do not resume this review, compile/test, merge, delete branches, or schedule follow-up work automatically. Earlier next-run and continuation paragraphs below are preserved history, not current dispatch instructions.
 
+The owner's later direct S10 clarification, verified against the source receipt identified in that policy, makes S10.5 **DEFERRED and NON-BLOCKING** for S10.6, phase completion and future expansion integration. Physical testing is deferred until after App Store release with explicit-owner-only resumption; minimum-OS verification remains indefinitely deferred. This narrow prerequisite exception does not waive any other integration/release gate, supply missing evidence, or authorize a merge during this pause.
+
 Owner request: review V23's implementation and all cards for major defects before future integration, fix demonstrated problems, update active model guidance for Astra, and report readiness and remaining requirements. This is a new review task, not a replay of inherited S9 or an acceptance amendment to historical V23 cards.
 
 ## Frozen inputs and isolated output

@@ -18,6 +18,12 @@ The following messages were supplied directly by the owner in this task on 2026-
 
 > So lets fix those policy changes and whatever else is needed and then pause goal. I will come back when done when 10.6 is finished.
 
+The owner subsequently clarified the policy directly in the active S10 task, and explicitly asked it to relay the non-blocking rule to this expansion task:
+
+> Is there anyway I can change policy change to just not include 10.5 going forward until the app is in the app store and I can come back to it for like "bug fixes" or anything.
+
+The source receipt is `C:\AssetRounds\Temp\S10_6_ReleasePreparation\post-release-deferral\OWNER_REQUEST_20260910.json`, SHA256 `2C2F440BDB4EB999DF9DF93793F843AABF382681E85690A01761A8254BE7FE7A`. This task read the receipt and verified that hash. It records S10.5 as non-blocking for S10.6 and phase acceptance, physicalResult DEFERRED, no physical PASS, no automatic resumption, no other release-gate waiver, and no signing/upload/submission authorization. The later clarification supersedes the earlier requirement to supply S10.5 physical proof before integration or final S10 closure; it does not resume the paused merge.
+
 ## Minimum-OS verification: indefinitely deferred
 
 - All seven S10.4 minimum-runtime full profiles and the separate minimum core smoke remain **DEFERRED indefinitely**. There is no due date, retry count, scheduled follow-up or automatic resumption.
@@ -25,20 +31,21 @@ The following messages were supplied directly by the owner in this task on 2026-
 - Preserve the complete fourteen-profile catalog, its 938 visual slots and 84 accessibility rows. The accepted current-runtime scope remains seven profiles, 469 visual cells and 42 accessibility rows; the minimum-runtime 469 cells and 42 rows remain deferred with no PASS, NOT_APPLICABLE, native success or minimum-runtime support claim.
 - Preserve the iOS 18.0 deployment target, all original failures/artifacts, current-runtime assertions and accepted S10.4 E/K/C history. This timing clarification does not hide a known defect affecting retained coverage and does not authorize minimum-runtime CI.
 
-## S10.5 physical testing: deferred to the combined app
+## S10.5 physical testing: deferred and non-blocking
 
-- S10.5 remains **DEFERRED**, because the owner cannot test the app yet and wants to test the finalized app with the expansion included.
-- Owner physical testing is to be revisited only when an expansion-inclusive build is actually available for that testing and the owner supplies further instruction. Do not require the owner to test the current unexpanded app merely to clear this deferral, or automatically request testing when S10.6 repository preparation finishes.
-- Deferral is not completion, a PhysicalExperience PASS, an installation record, an E/K/C receipt, or a waiver of the genuine physical evidence required for final release acceptance. Testing of the eventual combined build must identify that actual build/head; historical unexpanded-app evidence cannot be relabeled as combined-app proof.
+- S10.5 remains **DEFERRED until after App Store release** and is **NON-BLOCKING for S10.6, S10 phase completion and expansion integration**. The owner cannot test now and wants any later testing to involve the completed expansion-inclusive app.
+- Missing S10.5 installation, physical-test evidence or a PhysicalExperience E/K/C receipt must not be treated as an integration or S10.6/phase-completion prerequisite. Do not manufacture such a receipt to satisfy an obsolete unconditional six-stage gate. The active S10 task owns the corresponding prospective authority/validator changes.
+- Only explicit future owner instruction may resume S10.5 after App Store release. Release itself, S10.6 completion, build availability, or an elapsed interval is not an automatic trigger. Do not require the owner to test the current unexpanded app to clear this deferral.
+- Deferral is not completion, a PhysicalExperience PASS, an installation record, or an E/K/C receipt. Any physical result later claimed must identify the actual tested build/head; historical unexpanded-app evidence cannot be relabeled as combined-app proof. Only the S10.5 prerequisite is made non-blocking; other integration and release requirements remain mandatory.
 - Owner-only signing, distribution, credentials, TestFlight/App Store operations, legal assertions and submission remain outside this task. Do not fabricate device, operator, installation, physical, legal or release facts.
 
 ## S10.6 ownership and release boundaries
 
 The separate task **Resume S10.4 verification** currently owns S10.6 preparation in `C:\AssetRounds`, including CURRENT_TASK, the active plan/runbook/contract/activation pins, HANDOFF and the S10.6 evidence/metadata envelope. It confirmed candidate `df52d7517806192b8ccff46923d1add1680ec75f` is committed/pushed and its ordinary GitHub F25 run was dispatched. That is a candidate observation, not a reported CI pass or final S10.6 acceptance.
 
-That task acknowledged the owner's clarifications and reserved incorporation of the minimal prospective active-policy wording until after preserving the current exact-head CI evidence. This review does not edit those shared authority files or claim their new wording has already been applied. Its existing no-minimum-retry and physical-DEFERRED rules remain in force meanwhile.
+That task acknowledged the owner's clarifications, confirmed the later S10.5 non-blocking interpretation, and reserved incorporation of the prospective active-policy amendment until after preserving the current exact-head CI evidence. This review does not edit those shared authority files or claim their new wording/validators have already been applied. Its existing no-minimum-retry and physical-DEFERRED rules remain in force meanwhile.
 
-The owner pause takes precedence over the earlier request to start merging immediately. After the owner returns, re-read the actual S10.6 handoff and distinguish repository preparation from final release acceptance. Hydrate any required source-integration authority against that actual state; do not assume a physical-deferred preparation receipt is an accepted S10.6 final-release receipt. This checkpoint does not advance `main`, waive final gates or silently amend the frozen V23 reconciliation prerequisite.
+The owner pause takes precedence over the earlier request to start merging immediately. After the owner returns, re-read the actual S10.6 handoff and its applied prospective authority, and distinguish repository preparation from acceptance of all remaining gates. Hydrate source-integration authority against that actual state, applying this explicit S10.5 non-blocking exception wherever inherited V23 wording would otherwise require its physical receipt. Do not confuse a preparation-only receipt with S10.6 acceptance of the remaining requirements. Preserve all other reconciliation, exact-head CI, data-survival, brand/accessibility and release gates. This checkpoint does not advance `main`, start a merge, invent acceptance, or authorize release operations.
 
 ## Nonaccepting integration checkpoint
 
