@@ -4393,3 +4393,44 @@ Implementation paths (10 within the 17-path fence):
 - `FieldEvidenceAppTests/V30_P02_C05GlobalizedSearchTests.swift`
 
 Boundary: isolated provisional branch only, no main or Phase 10 access/mutation. Replay/reimplement after S in graph order and requalify all invalidated/native evidence; never merge wholesale. Next unstarted card: V30-P02-C06 - Pseudo, RTL, long-text, and screenshot harness. This entry does not self-record its containing commit.
+
+
+## Card 20 of 55 - V30-P02-C06 - Pseudo, RTL, long-text, and screenshot harness
+
+State: PROVISIONAL_CHECKPOINTED. Graph dependency progress only; native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `9f9fab6beb17d5149128c87b255facd7a3e720b1`, tree `0a4ae5c9d354277cdc4f84291f5378fb543c532f` (C05 checkpoint 41).
+- Observed G0 authority A: `af91111cae0957a6970de450eba262f081e535ff`; M..A is exactly four V30 execution documents. All 13 fence entries match immutable authority and frozen B pins. Both App and AppShell carry the exact pre-issued S10_SHARED_RECONCILIATION_REQUIRED tuples and writer lane V30-P02-C06-PSEUDO-HARNESS-INTEGRATOR.
+- Product implementation E: `ccf39e0e3eaa74bbc5ad4ee64372f10101f38b4a`, tree `69048994543c2634af1d61287b12b18d4c80054c`. No distinct K or hosted candidate.
+- Isolated checkpoint sequence 43: head `2f3deb6d919422af0bcc72e46223d3027c8dc208`, ledger digest `c21bc029fcca5d6222ed46a493ef85a25fee454732c6d8db143c15e0edf306a5`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P02-C06/CHECKPOINT/1`. The append-only receipt preserves candidate history, all raw committed hashes, exact overlap tuples, inventory, corrections and invalidated evidence.
+
+Direct prerequisite evidence:
+- V30-P02-C03: `0a7a4d9d82683a4b2aab06508623fc0a1f910586`, tree `551a18514c114181227dcaf8010c0f1f55f1217a`, checkpoint 37.
+- V30-P02-C04: `d804f60308bcfdcaadf01780d429132e4bcbd77d`, tree `0cde23d9cf27616f10d4465ef4ee5a9ac387791e`, checkpoint 39.
+- V30-P02-C05: `9f9fab6beb17d5149128c87b255facd7a3e720b1`, tree `0a4ae5c9d354277cdc4f84291f5378fb543c532f`, checkpoint 41.
+
+The opt-in synthetic scene exists only under DEBUG && targetEnvironment(simulator), requires both unique launch gates and four closed configuration options, and bypasses mounting StartupRoot. The original Release-preprocessed App and AppShell source text equals A. Normal launch behavior, startup/brand/shell actions and canonical stores remain intact; valid synthetic launches do not register the live MetricKit source. No bundle swizzle, persistent override, network, production analytics, catalog locale, package, target or entitlement was added.
+
+The bounded renderer accents/expands en-XA, doubles plain segments for en-XL, and applies semantic RTL for ar-XB. It preserves declared printf/brace tokens, order, Unicode grapheme bytes, raw identifiers and authored source. One actual English catalog label feeds the pseudo renderer. An internal fixed English-only probe derives fallback from absent pseudo material; unknown lookup produces an opaque marker. Process-local snapshots represent each fixed key's last observed outcome since reset, with one aggregate unknown bucket and no raw unknown key retention. These are synthetic harness diagnostics, not whole-catalog instrumentation or production event counts.
+
+The scene composes real shared Worklight/adaptive/RTL components, a NavigationStack/back path, focused text input and keyboard dismissal, an error/recovery state, diagnostic trigger/reset controls, and an independent final action. Raw serial text uses LTR isolation; Unicode authored fixture Text is explicitly verbatim. A child probe reads actual SwiftUI direction, Dynamic Type, color scheme and contrast rather than echoing the request. Root corrected actual label hit regions and visible counter refresh before accepting the source.
+
+Five authored unit-test methods cover 24 valid configuration combinations, malformed and duplicate gates/options, fixed and repeated-byte transforms, placeholder order/multiplicity, NFD/Hangul/ZWJ/CJK/Arabic output bytes, diagnostic transitions/unknown aggregation/reset and shipping exclusion. The matrix-driven XCUITest reads exactly three cases covering all three supported orientations, Large/AX5, light/dark, normal/increased contrast and all three pseudo profiles. It checks actual environment/geometry/orientation, reachable 44-point controls, raw identifier/authored bytes, navigation, keyboard/input, error/recovery, counters/reset and independent final completion. Four fixture-named screenshot states and per-case runtime JSON attachments are authored. No screenshot, native test, Swift compilation or Simulator run has occurred. Smallest/largest device and whole-product accessibility/linguistic qualification remain pending after reconciliation.
+
+Static validation PASS: immutable package 55 cards/107 edges; typed CI contract WINDOWS_STATIC/selector null; exact fence/B pins and authority-only M..A; seven implementation paths and two S10 overlaps; Release source preservation; exact matrix/contract/source bindings; git diff --check; independent final product/test/contract audit. Run ID/URL/head, runner image/Xcode/Simulator/OS/UDID, xcresult and screenshots are unavailable / NOT_EXECUTED_NO_NATIVE_CREDIT. The optional pinned route remains iPhone 17/iOS 26.2, macos-26, Xcode 26.6 build 17F113; no route was dispatched.
+
+Operational provenance: a delegated relative patch initially added only the two harness blocks to the unrelated foundation checkout. Root inspected and reversed exactly that additive diff, then verified both original raw hashes; patch SHA-256 `21e684add62e68c91179a369fbfd8d244e68d28b146d5378f11b9040f7fe8f16` and before/after hashes are in the receipt. No forbidden C:/AssetRounds or Phase 10 access occurred. Other precommit corrections include a type-name collision, preprocessor brace placement, one stray PackUnavailable brace (removed and baseline equality reproved), stale test expectations and a missing title binding. No failed native result exists to relabel.
+
+Eight C01 source-audit paths are now invalidated: the seven preserved prior C03/C04 differences plus the App path newly changed by C06; AppShell changed again. Exact before/after maps are retained, old C01 fixture/test/checkpoint remain immutable, and no whole-suite pass is claimed. The two legacy V23 UI test files remain unchanged with their post-S10 skips. KNOWN_BUGS was read and remains its template; no defect was accepted. All diagnosed current-card static blockers were corrected; native and prior invalidated evidence remain pending.
+
+Implementation paths (7 within the 13-path fence):
+- `FieldEvidenceApp/App/FieldEvidenceAppApp.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceAppTests/TestSupport/V30PseudoLocalizationHarnessV1.swift`
+- `FieldEvidenceAppTests/V30_P02_C06PseudoLocalizationHarnessTests.swift`
+- `FieldEvidenceAppUITests/Fixtures/V30/PseudoLocalization/pseudo-locale-screenshot-matrix-v1.json`
+- `FieldEvidenceAppUITests/V30_P02_C06PseudoLocalizationUITests.swift`
+- `docs/design/v30/verification/V30P02C06ProvisionalScreenshotHarnessContractV1.json`
+
+Boundary: isolated provisional branch only, no main or Phase 10 read/poll/mutation. Replay/reimplement in graph order after S, preserve accepted Phase 10 design and rerun all invalidated/native evidence; never merge wholesale. Next unstarted card: V30-P02-C07 - Language & Region Settings and report-language controls. This entry does not self-record its containing commit.
