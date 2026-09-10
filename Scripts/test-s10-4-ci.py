@@ -973,6 +973,92 @@ class OriginalFixtures(unittest.TestCase):
             self.assertTrue(result['nativeBootstrapFailure']); self.assertEqual(result['strictOwnedCount'], 0)
             self.assertFalse(result['fullSegmentComplete']); self.assertEqual(result['producerUnitCount'], 5)
 
+    def test_real_minimum_core_smoke_unnumbered_bootstrap_and_hostile_controls(self):
+        # Read-only original verification; this never invokes collect/audit or writes a receipt.
+        original = self.root / 'Temp/S10_4_CI/registry/requests/4745eb04620e419b89047960c70f7a32/originals'
+        run_value = ci.load(original / 'run.json')
+        self.assertEqual(run_value['id'], 34472954538)
+        self.assertEqual(run_value['head_sha'], '7d33a206bcf9ff4c5e767549f9db7632d15fbc4a')
+        source = ci.Source(self.root, run_value['head_sha'], Path(self.snapshot.name) / 'minimum-core-smoke-bootstrap-source')
+        selected = ci.load(original.parent / 'intent.json')
+        inventory_before = ci.cache_inventory(original)
+        verified = ci.verify_collection(original, selected, run_value['id'])
+        self.assertTrue(verified['allAvailableOriginalsVerified'])
+        self.assertEqual(verified['originalFileCount'], 2279)
+        self.assertEqual(verified['originalFilesSHA256'], 'D91A83B554C9AD82D87CA16D75B152A903FB22D79B03878E94E23FC66DC270CD')
+        self.assertEqual(len(source.identity['files']), 15)
+        artifact = ci.wide(original / '10151258208/artifact')
+        reference = ci.load(artifact / 'shared-consumer/consumer-build-reference.json')
+        self.assertEqual(reference['source'], source.identity)
+        jobs = ci.load(original / 'jobs.json')['jobs']
+        native_path = artifact / 'ui-failure-diagnostics/xcresult-test-results.json'
+        native = ci.load(native_path)
+        native_before = native_path.read_bytes()
+        database_hash = ci.sha(artifact / 'UISmoke.xcresult/database.sqlite3')
+        log_path = artifact / 'ui-smoke.log'
+        log = log_path.read_bytes()
+        read_json = ci.load; read_bytes = Path.read_bytes
+        bootstrap = 'FieldEvidenceAppUITests-Runner encountered an error'
+        case = next(r for r in ci.nodes(native) if r.get('nodeType') == 'Test Case')
+        self.assertEqual(case['nodeIdentifier'], bootstrap)
+        self.assertEqual(case['result'], 'Failed')
+
+        def inspect(native_value=native, job_values=jobs, log_value=log):
+            # Only disposable input views change; every source/producer/command/isolation gate executes.
+            with patch.object(ci, 'load', side_effect=lambda p: copy.deepcopy(native_value) if p == native_path else read_json(p)), \
+                 patch.object(Path, 'read_bytes', lambda p: log_value if p == log_path else read_bytes(p)):
+                return ci.consumer_facts(source, artifact, selected, run_value['id'], job_values, 'failure', verified)
+
+        def assert_bootstrap(facts):
+            self.assertTrue(facts['consumerReferenceVerified'])
+            self.assertTrue(facts['nativeBootstrapFailure'])
+            self.assertFalse(facts['nativeUIExecuted']); self.assertEqual(facts['nativeTests'], [])
+            self.assertEqual(facts['nativeEvents'], {})
+            self.assertEqual(facts['producerUnitCount'], 5); self.assertEqual(facts['localUnitCount'], 0)
+            for key in ('strictOwnedCount', 'replayCount', 'ownedJourneyCount', 'candidatePNGCount', 'nativeAttachmentRows'):
+                self.assertEqual(facts[key], 0, key)
+            for key in ('smokeComplete', 'fullSegmentComplete', 'fullShardComplete', 'formalAcceptance', 'humanReviewGranted'):
+                self.assertFalse(facts.get(key, False), key)
+            self.assertEqual(facts['gaps'], ['Native bootstrap produced zero selected tests; no test body, states or journeys executed.'])
+            self.assertTrue(any('unknown to FrontBoard' in value for value in facts['nativeFailures']))
+
+        assert_bootstrap(inspect())
+        numbered = copy.deepcopy(native)
+        numbered_case = next(r for r in ci.nodes(numbered) if r.get('nodeType') == 'Test Case')
+        numbered_case.update(name='FieldEvidenceAppUITests-Runner (1234) encountered an error',
+                             nodeIdentifier='FieldEvidenceAppUITests-Runner (1234) encountered an error')
+        assert_bootstrap(inspect(numbered))
+        for label, identifier, status in (
+            ('foreign runner', 'ForeignRunner encountered an error', 'Failed'),
+            ('prefix', 'x' + bootstrap, 'Failed'), ('suffix', bootstrap + ' trailing', 'Failed'),
+            ('empty PID', 'FieldEvidenceAppUITests-Runner () encountered an error', 'Failed'),
+            ('nonnumeric PID', 'FieldEvidenceAppUITests-Runner (abc) encountered an error', 'Failed'),
+            ('extra whitespace', 'FieldEvidenceAppUITests-Runner  encountered an error', 'Failed'),
+            ('passed system case', bootstrap, 'Passed'), ('false result', bootstrap, False),
+        ):
+            with self.subTest(label=label):
+                bad = copy.deepcopy(native)
+                bad_case = next(r for r in ci.nodes(bad) if r.get('nodeType') == 'Test Case')
+                bad_case.update(nodeIdentifier=identifier, name=identifier, result=status)
+                with self.assertRaises(ci.Rejected): inspect(bad)
+        for identifier in (source.assembler.UI_ID, 'ForeignSuite/foreignTest'):
+            with self.subTest(mixedCase=identifier):
+                bad = copy.deepcopy(native)
+                bad['testNodes'].append(dict(nodeType='Test Case', nodeIdentifier=identifier, result='Failed'))
+                with self.assertRaises(ci.Rejected): inspect(bad)
+        successful_worker = copy.deepcopy(jobs)
+        next(j for j in successful_worker if j['id'] == reference['consumer']['jobID'])['conclusion'] = 'success'
+        with self.assertRaisesRegex(ci.Rejected, 'zero-test result carries native state evidence or successful worker'):
+            inspect(job_values=successful_worker)
+        for marker in ('S10_4_MINIMUM_CORE_SMOKE_CHECKPOINT', 'S10_4_MINIMUM_CORE_SMOKE_COMPLETE', 'S10_4_AX_STATE'):
+            with self.subTest(contradictoryMarker=marker):
+                with self.assertRaises(ci.Rejected): inspect(log_value=log + ('\n' + marker + ' {}\n').encode())
+        # Read-only views and SQLite inspection must leave every retained original byte unchanged.
+        self.assertEqual(native_path.read_bytes(), native_before)
+        self.assertEqual(log_path.read_bytes(), log)
+        self.assertEqual(ci.sha(artifact / 'UISmoke.xcresult/database.sqlite3'), database_hash)
+        self.assertEqual(ci.cache_inventory(original), inventory_before)
+
     def test_real_incomplete_native_export_keeps_source_gates_and_unknown_results(self):
         original = self.root / 'Temp/S10_4_CI/registry/requests/fedc0d09dcc1404dab66abb04d425472/originals'
         run_value = ci.load(original / 'run.json')

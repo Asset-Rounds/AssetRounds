@@ -1562,7 +1562,7 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None, origina
     native = load(native_path)
     cases = [r for r in nodes(native) if r.get('nodeType') == 'Test Case']
     failures = [r.get('name') for r in nodes(native) if r.get('nodeType') == 'Failure Message']
-    system_cases = [r for r in cases if re.fullmatch(r'FieldEvidenceAppUITests-Runner \(\d+\) encountered an error', r.get('nodeIdentifier', '')) and r.get('result') == 'Failed']
+    system_cases = [r for r in cases if re.fullmatch(r'FieldEvidenceAppUITests-Runner(?: \(\d+\))? encountered an error', r.get('nodeIdentifier', '')) and r.get('result') == 'Failed']
     if not cases or len(system_cases) == len(cases):
         require(not failed_start_diagnostics, 'malformed START recovery requires the selected test case, not bootstrap evidence')
         require(not events and job['conclusion'] == 'failure', 'zero-test result carries native state evidence or successful worker')
