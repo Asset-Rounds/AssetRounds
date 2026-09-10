@@ -143,10 +143,11 @@ struct PreflightView: View {
                     .accessibilityAddTraits(.isHeader)
 
                 ForEach(pack.acknowledgements) { acknowledgement in
-                    Toggle(
-                        acknowledgement.copy,
-                        isOn: acknowledgementBinding(for: acknowledgement.key)
-                    )
+                    Toggle(isOn: acknowledgementBinding(for: acknowledgement.key)) {
+                        Text(acknowledgement.copy)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
+                    }
                     .frame(
                         minWidth: DesignTokens.Control.minimumHitSize,
                         maxWidth: .infinity,
@@ -193,6 +194,7 @@ struct PreflightView: View {
             Text(BundledLocalizationCatalogV1.v30Text(.preflightSiteTimeZoneHeading))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
 
             TextField(BundledLocalizationCatalogV1.v30Text(.preflightTimeZonePlaceholder), text: $timeZoneID)
                 .textInputAutocapitalization(.never)
@@ -218,6 +220,8 @@ struct PreflightView: View {
 
             Toggle(isOn: $isTimeZoneConfirmed) {
                 Text(BundledLocalizationCatalogV1.v30Text(.preflightConfirmTimeZoneToggle))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
             }
                 .frame(
                     minWidth: DesignTokens.Control.minimumHitSize,
@@ -314,6 +318,7 @@ struct PreflightView: View {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(value)
                 .font(.body)

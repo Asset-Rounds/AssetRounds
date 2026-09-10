@@ -36,10 +36,11 @@ struct RoundSessionView: View {
 
     @State private var navigationFailure: String?
     @State private var flushing = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: contentSpacing) {
                 header
                 progress
                 readinessStatus
@@ -58,16 +59,23 @@ struct RoundSessionView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(text(.heading)).font(.title2.weight(.semibold))
+            Text(text(.heading))
+                .font(.title2.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
             Text(text(.manualPathDisclosure))
-                .font(.footnote).foregroundStyle(.secondary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var progress: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(text(.progressHeading)).font(.headline)
-            HStack {
+            let countLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+                : AnyLayout(HStackLayout())
+            countLayout {
                 count(text(.completedCount), session.counts.completed)
                 count(text(.incompleteCount), session.counts.undispositioned)
                 count(text(.flaggedCount), session.counts.inaccessible + session.counts.deferred)
@@ -102,30 +110,18 @@ struct RoundSessionView: View {
             ForEach(session.items, id: \.itemID) { item in
                 VStack(alignment: .leading, spacing: 6) {
                     Button { actions.openItem(item.itemID) } label: {
-                        HStack(alignment: .firstTextBaseline) {
-                            Image(systemName: itemSymbol(item)).accessibilityHidden(true)
-                            VStack(alignment: .leading) {
-                                Text(item.selection.labelAtSelection).font(.body.weight(.medium))
-                                Text(itemDetail(item)).font(.footnote).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text("\(item.order + 1)").font(.caption.monospacedDigit())
-                        }
+                        itemButtonLabel(item)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier(RoundSessionAccessibilityIDV1.item.rawValue + "." + item.itemID.uuidString.lowercased())
 
                     let field = projectedField(for: item)
                     let permitsOutOfOrder = field?.packagePermitsOutOfOrderNavigation == true
-                    HStack {
-                        Button(text(.moveEarlier)) { actions.requestReorder(item.itemID, -1) }
-                            .disabled(item.order == 0 || !permitsOutOfOrder)
-                        Button(text(.moveLater)) { actions.requestReorder(item.itemID, 1) }
-                            .disabled(item.order + 1 == session.items.count || !permitsOutOfOrder)
-                        Spacer()
-                        Text(permitsOutOfOrder ? text(.outOfOrderPermitted) : text(field == nil ? .projectionUnavailable : .orderedOnly))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                    reorderControls(
+                        item: item,
+                        permitsOutOfOrder: permitsOutOfOrder,
+                        projectionAvailable: field != nil
+                    )
                 }
                 .padding(.vertical, 8)
             }
@@ -133,12 +129,99 @@ struct RoundSessionView: View {
         .accessibilityIdentifier(RoundSessionAccessibilityIDV1.items.rawValue)
     }
 
+    @ViewBuilder
+    private func itemButtonLabel(_ item: RoundItemV1) -> some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: itemSymbol(item))
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.selection.labelAtSelection)
+                                .font(.body.weight(.medium))
+                            Text(itemDetail(item))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text("\(item.order + 1)")
+                        .font(.caption.monospacedDigit())
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    Image(systemName: itemSymbol(item)).accessibilityHidden(true)
+                    VStack(alignment: .leading) {
+                        Text(item.selection.labelAtSelection).font(.body.weight(.medium))
+                        Text(itemDetail(item)).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text("\(item.order + 1)").font(.caption.monospacedDigit())
+                }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(
+            minWidth: DesignTokens.Control.minimumHitSize,
+            minHeight: DesignTokens.Control.minimumHitSize,
+            alignment: .leading
+        )
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func reorderControls(
+        item: RoundItemV1,
+        permitsOutOfOrder: Bool,
+        projectionAvailable: Bool
+    ) -> some View {
+        let status = permitsOutOfOrder
+            ? text(.outOfOrderPermitted)
+            : text(projectionAvailable ? .orderedOnly : .projectionUnavailable)
+
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout())
+
+        layout {
+            Button { actions.requestReorder(item.itemID, -1) } label: {
+                minimumHitTargetLabel(text(.moveEarlier))
+            }
+                .disabled(item.order == 0 || !permitsOutOfOrder)
+            Button { actions.requestReorder(item.itemID, 1) } label: {
+                minimumHitTargetLabel(text(.moveLater))
+            }
+                .disabled(item.order + 1 == session.items.count || !permitsOutOfOrder)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer()
+            }
+            Text(status)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private var navigationControls: some View {
-        HStack {
-            Button(text(.jumpIncomplete), action: actions.jumpToNextIncomplete)
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout())
+
+        return layout {
+            navigationButtons
+        }
+    }
+
+    private var navigationButtons: some View {
+        Group {
+            Button(action: actions.jumpToNextIncomplete) {
+                minimumHitTargetLabel(text(.jumpIncomplete))
+            }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier(RoundSessionAccessibilityIDV1.jumpIncomplete.rawValue)
-            Button(text(.jumpFlagged), action: actions.jumpToNextFlagged)
+            Button(action: actions.jumpToNextFlagged) {
+                minimumHitTargetLabel(text(.jumpFlagged))
+            }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier(RoundSessionAccessibilityIDV1.jumpFlagged.rawValue)
         }
@@ -147,10 +230,14 @@ struct RoundSessionView: View {
     private var handoffAndRecovery: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(batchHandoffStatus.localizedDescription).font(.body.weight(.medium))
-            Button(text(.batchHandoff), action: actions.requestBatchHandoff)
+            Button(action: actions.requestBatchHandoff) {
+                minimumHitTargetLabel(text(.batchHandoff))
+            }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier(RoundSessionAccessibilityIDV1.handoff.rawValue)
-            Button(text(.recovery), action: actions.requestRecovery)
+            Button(action: actions.requestRecovery) {
+                minimumHitTargetLabel(text(.recovery))
+            }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier(RoundSessionAccessibilityIDV1.recovery.rawValue)
             if fieldPositionAnchor != nil {
@@ -168,7 +255,9 @@ struct RoundSessionView: View {
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier(RoundSessionAccessibilityIDV1.saveFailure.rawValue)
             }
-            Button(flushing ? text(.saving) : text(.back)) { flushAndLeave() }
+            Button { flushAndLeave() } label: {
+                minimumHitTargetLabel(flushing ? text(.saving) : text(.back))
+            }
                 .buttonStyle(.borderedProminent)
                 .disabled(flushing)
                 .accessibilityIdentifier(RoundSessionAccessibilityIDV1.back.rawValue)
@@ -196,6 +285,20 @@ struct RoundSessionView: View {
     private func count(_ label: String, _ value: Int) -> some View {
         VStack(alignment: .leading) { Text("\(value)").font(.title3.monospacedDigit()); Text(label).font(.caption) }
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var contentSpacing: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 24 : 20
+    }
+
+    private func minimumHitTargetLabel(_ title: String) -> some View {
+        Text(title)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(
+                minWidth: DesignTokens.Control.minimumHitSize,
+                minHeight: DesignTokens.Control.minimumHitSize
+            )
+            .contentShape(Rectangle())
     }
 
     private func projectedField(for item: RoundItemV1) -> FieldSectionIndexFieldV1? {

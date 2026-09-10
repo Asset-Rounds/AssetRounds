@@ -369,6 +369,7 @@ struct SettingsPlaceholderView: View {
     @Environment(\.scenePhase) private var globalizationScenePhase
     @State private var effectiveLanguage = SystemLanguageResolverV1().resolve()
     @State private var globalizationSettingsUnavailable = false
+    @AccessibilityFocusState private var globalizationSettingsErrorFocused: Bool
     @State private var globalizationFallbackDiagnostic: EffectiveLanguageFallbackDiagnosticV1?
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
@@ -418,6 +419,8 @@ struct SettingsPlaceholderView: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
                     Text(BundledLocalizationCatalogV1.v30Text(.shellLanguageAndRegionHeading))
                         .font(.headline)
+                        .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                        .accessibilityAddTraits(.isHeader)
                     Text(GlobalizationRTLSemanticsV1.opaqueFallback(
                         Locale.autoupdatingCurrent.localizedString(
                             forLanguageCode: effectiveLanguage.effectiveLanguage.rawValue
@@ -457,6 +460,9 @@ struct SettingsPlaceholderView: View {
                     if globalizationSettingsUnavailable {
                         Text(BundledLocalizationCatalogV1.v30Text(.shellSystemSettingsUnavailable))
                             .font(.footnote)
+                            .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                            .accessibilityFocused($globalizationSettingsErrorFocused)
+                            .onAppear { globalizationSettingsErrorFocused = true }
                     }
                 }
                 .accessibilityElement(children: .contain)

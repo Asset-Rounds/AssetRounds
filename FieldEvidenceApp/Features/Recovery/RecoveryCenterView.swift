@@ -165,39 +165,69 @@ struct RecoveryCenterView: View {
     @ViewBuilder
     private var reliabilityCard: some View {
         WorklightCard {
-            HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.small) {
-                Text(localized(.reliabilityHeading))
-                    .font(.headline)
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
-                Spacer(minLength: DesignTokens.Spacing.small)
-                Text(localized(.freshnessHeading))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
-            }
+            reliabilityHeader
 
             ForEach(Array(projection.reliability.sources.enumerated()), id: \.offset) { _, source in
-                HStack(alignment: .top, spacing: DesignTokens.Spacing.small) {
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                        Text(localized(sourceKey(source.source)))
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(DesignTokens.Colors.primaryText)
-                        Text(localized(stateKey(source.state)))
-                            .font(.subheadline)
-                            .foregroundStyle(DesignTokens.Colors.secondaryText)
-                    }
-                    Spacer(minLength: DesignTokens.Spacing.small)
-                    Text(localized(freshnessKey(source.freshness)))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
-                        .multilineTextAlignment(.trailing)
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityElement(children: .combine)
+                reliabilitySourceRow(source)
             }
 
             if !projection.reliability.failures.isEmpty {
                 failureActions
             }
+        }
+    }
+
+    private var reliabilityHeader: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DesignTokens.Spacing.small))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.small))
+
+        return layout {
+            Text(localized(.reliabilityHeading))
+                .font(.headline)
+                .foregroundStyle(DesignTokens.Colors.primaryText)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: DesignTokens.Spacing.small)
+            }
+            Text(localized(.freshnessHeading))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(DesignTokens.Colors.secondaryText)
+        }
+    }
+
+    private func reliabilitySourceRow(
+        _ source: RecoveryAuthoritySnapshotV1
+    ) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DesignTokens.Spacing.small))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: DesignTokens.Spacing.small))
+
+        return layout {
+            sourceState(source)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: DesignTokens.Spacing.small)
+            }
+            Text(localized(freshnessKey(source.freshness)))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .multilineTextAlignment(
+                    dynamicTypeSize.isAccessibilitySize ? .leading : .trailing
+                )
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func sourceState(
+        _ source: RecoveryAuthoritySnapshotV1
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+            Text(localized(sourceKey(source.source)))
+                .font(.body.weight(.semibold))
+                .foregroundStyle(DesignTokens.Colors.primaryText)
+            Text(localized(stateKey(source.state)))
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Colors.secondaryText)
         }
     }
 
@@ -267,6 +297,27 @@ struct RecoveryCenterView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
+    private func labeledValueRow(
+        label: String,
+        value: String
+    ) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DesignTokens.Spacing.small))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.small))
+
+        return layout {
+            Text(label)
+                .foregroundStyle(DesignTokens.Colors.secondaryText)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: DesignTokens.Spacing.small)
+            }
+            Text(verbatim: value)
+                .foregroundStyle(DesignTokens.Colors.primaryText)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+    }
+
     @ViewBuilder
     private var standardBackupCard: some View {
         WorklightCard {
@@ -280,15 +331,7 @@ struct RecoveryCenterView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if let source = standardBackupSource {
-                HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.small) {
-                    Text(localized(.statusHeading))
-                        .font(.subheadline.weight(.semibold))
-                    Text(localized(stateKey(source.state)))
-                        .font(.subheadline)
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityElement(children: .combine)
+                standardBackupStatusRow(source)
             } else {
                 Text(localized(.backupStandardUnavailable))
                     .font(.body)
@@ -309,6 +352,24 @@ struct RecoveryCenterView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(Self.standardBackupAccessibilityIdentifier)
+    }
+
+    private func standardBackupStatusRow(
+        _ source: RecoveryAuthoritySnapshotV1
+    ) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DesignTokens.Spacing.small))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.small))
+
+        return layout {
+            Text(localized(.statusHeading))
+                .font(.subheadline.weight(.semibold))
+            Text(localized(stateKey(source.state)))
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Colors.secondaryText)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -357,21 +418,14 @@ struct RecoveryCenterView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
 
-                HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.small) {
-                    Text(localized(.supportPreviewEntries))
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
-                    Spacer(minLength: DesignTokens.Spacing.small)
-                    Text(verbatim: preview.entries.count.formatted())
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
-                }
-                HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.small) {
-                    Text(localized(.supportPreviewBytes))
-                        .foregroundStyle(DesignTokens.Colors.secondaryText)
-                    Spacer(minLength: DesignTokens.Spacing.small)
-                    Text(verbatim: preview.totalCanonicalByteCount.formatted())
-                        .foregroundStyle(DesignTokens.Colors.primaryText)
-                }
-                .accessibilityElement(children: .combine)
+                labeledValueRow(
+                    label: localized(.supportPreviewEntries),
+                    value: preview.entries.count.formatted()
+                )
+                labeledValueRow(
+                    label: localized(.supportPreviewBytes),
+                    value: preview.totalCanonicalByteCount.formatted()
+                )
 
                 Text(localized(.supportPreviewPrivacy))
                     .font(.body)

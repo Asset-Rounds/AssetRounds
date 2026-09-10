@@ -70,6 +70,7 @@ struct OutcomeReviewView: View {
                 Text(BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewPrompt))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
 
                 if isRecheck && !startsWithCouldNotVerify {
@@ -253,6 +254,7 @@ struct OutcomeReviewView: View {
                 Text(isRecheck ? BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckLabel) : BundledLocalizationCatalogV1.v30Text(.outcomeReviewCheckLabel2))
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
 
                 reviewRow(label: BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewNavigation), value: review.outcomeDisplay)
@@ -326,9 +328,11 @@ struct OutcomeReviewView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack {
+            HStack(alignment: .top, spacing: DesignTokens.Spacing.small) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 Text(title)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -342,9 +346,11 @@ struct OutcomeReviewView: View {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
             Text(value)
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
     }
@@ -372,6 +378,7 @@ struct OutcomeReviewView: View {
             )
                 .font(.headline)
                 .foregroundStyle(DesignTokens.Colors.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
             Text(
                 isMissing || evidence == nil
                     ? BundledLocalizationCatalogV1.v30Text(.outcomeReviewReviewFailure2)
@@ -379,6 +386,7 @@ struct OutcomeReviewView: View {
             )
                 .font(.body)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityIdentifier(identifier)
     }

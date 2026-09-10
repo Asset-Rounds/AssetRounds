@@ -72,7 +72,7 @@ struct WorklightStatusBadge: View {
     var body: some View {
         Label {
             Text(text)
-                .fixedSize(horizontal: false, vertical: true)
+                .modifier(GlobalizationAdaptiveLayoutPolicyV1())
         } icon: {
             Image(systemName: kind.iconName)
         }
@@ -100,8 +100,10 @@ struct WorklightPrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.headline)
             .multilineTextAlignment(.center)
+            .modifier(GlobalizationAdaptiveLayoutPolicyV1())
             .foregroundStyle(isEnabled ? DesignTokens.Colors.onAccent : DesignTokens.Colors.secondaryText)
             .padding(.horizontal, DesignTokens.Spacing.medium)
+            .padding(.vertical, DesignTokens.Spacing.small)
             .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
             .background(isEnabled ? DesignTokens.Colors.interactionAccent : DesignTokens.Colors.raisedSurface)
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
@@ -124,8 +126,10 @@ struct WorklightSecondaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.headline)
             .multilineTextAlignment(.center)
+            .modifier(GlobalizationAdaptiveLayoutPolicyV1())
             .foregroundStyle(isEnabled ? DesignTokens.Colors.interactionAccent : DesignTokens.Colors.secondaryText)
             .padding(.horizontal, DesignTokens.Spacing.medium)
+            .padding(.vertical, DesignTokens.Spacing.small)
             .frame(
                 minWidth: DesignTokens.Control.minimumHitSize,
                 minHeight: DesignTokens.Control.minimumHitSize

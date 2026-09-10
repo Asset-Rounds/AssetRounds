@@ -25,6 +25,7 @@ struct CaptureStepView: View {
     let cameraAdapter: CameraAdapter
     let cannotComplete: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var preparation: CapturePreparation?
     @State private var candidate: CaptureCandidate?
     @State private var isWorking = false
@@ -127,7 +128,7 @@ struct CaptureStepView: View {
             if let candidate {
                 preview(candidate)
 
-                HStack(spacing: DesignTokens.Spacing.medium) {
+                captureActionLayout {
                     Button(BundledLocalizationCatalogV1.v30Text(.captureContentAction)) {
                         retake(candidate)
                     }
@@ -225,6 +226,12 @@ struct CaptureStepView: View {
                     .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
             }
         }
+    }
+
+    private var captureActionLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: DesignTokens.Spacing.medium))
+            : AnyLayout(HStackLayout(spacing: DesignTokens.Spacing.medium))
     }
 
     private func failure(message: String) -> some View {

@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "shippingCases": [
+    {
+      "id": "english-expansion",
+      "languageTag": "en",
+      "primaryAction": "Continue review",
+      "secondaryAction": "Save for later",
+      "statusText": "Action needed: review all required fields before saving.",
+      "longError": "The selected evidence cannot be saved until every required field has been reviewed and the missing photo is added.",
+      "utf8SHA256": "90de05c9e1cc4528826d714fa543847fbbb48da5774af4568ca355993139d6e0",
+      "utf8ByteCount": 205
+    },
+    {
+      "id": "spanish-expansion",
+      "languageTag": "es",
+      "primaryAction": "Continuar la revisión",
+      "secondaryAction": "Guardar para más tarde",
+      "statusText": "Acción necesaria: revise todos los campos obligatorios antes de guardar.",
+      "longError": "La evidencia seleccionada no se puede guardar hasta que se revisen todos los campos obligatorios y se agregue la fotografía que falta.",
+      "utf8SHA256": "406fc487436f69ed195f7e4e2711e4a864bb1b545d84eebe2e2308c24de2ec83",
+      "utf8ByteCount": 259
+    },
+    {
+      "id": "simplified-chinese-expansion",
+      "languageTag": "zh-Hans",
+      "primaryAction": "继续审核",
+      "secondaryAction": "稍后保存",
+      "statusText": "需要操作：请先审核所有必填字段，然后再保存。",
+      "longError": "在审核所有必填字段并添加缺失照片之前，无法保存所选证据。",
+      "utf8SHA256": "3fdf726fa6f997d11ac9229f95e1dd5ef679dee927734f658a2ef17b8c97a860",
+      "utf8ByteCount": 185
+    },
+    {
+      "id": "traditional-chinese-expansion",
+      "languageTag": "zh-Hant",
+      "primaryAction": "繼續審核",
+      "secondaryAction": "稍後儲存",
+      "statusText": "需要處理：請先檢閱所有必填欄位，然後再儲存。",
+      "longError": "在檢閱所有必填欄位並新增缺少的照片之前，無法儲存所選證據。",
+      "utf8SHA256": "8e064cd4b2fbd111f92e8ca17ae2340b8491cdc2b936e58c5cd94827021935bc",
+      "utf8ByteCount": 188
+    },
+    {
+      "id": "vietnamese-expansion",
+      "languageTag": "vi",
+      "primaryAction": "Tiếp tục xem xét",
+      "secondaryAction": "Lưu để xử lý sau",
+      "statusText": "Cần thao tác: hãy xem xét tất cả trường bắt buộc trước khi lưu.",
+      "longError": "Không thể lưu bằng chứng đã chọn cho đến khi tất cả trường bắt buộc được xem xét và ảnh còn thiếu được thêm vào.",
+      "utf8SHA256": "9babc1b09d1f3199356d09ab69f3570e4dfef160f252e7862a57dae9c45a607a",
+      "utf8ByteCount": 288
+    },
+    {
+      "id": "korean-expansion",
+      "languageTag": "ko",
+      "primaryAction": "검토 계속하기",
+      "secondaryAction": "나중에 저장",
+      "statusText": "조치 필요: 저장하기 전에 모든 필수 필드를 검토하세요.",
+      "longError": "모든 필수 필드를 검토하고 누락된 사진을 추가하기 전에는 선택한 증거를 저장할 수 없습니다.",
+      "utf8SHA256": "345d3735fb9740dc72d9cb6d59ee7845fec443e749e509a7bedd527d858208da",
+      "utf8ByteCount": 243
+    }
+  ],
+  "rtlDiagnostic": {
+    "id": "rtl-diagnostic",
+    "languageTag": "ar-XB",
+    "primaryAction": "متابعة المراجعة",
+    "secondaryAction": "الحفظ لوقت لاحق",
+    "statusText": "يلزم اتخاذ إجراء: راجع جميع الحقول المطلوبة قبل الحفظ.",
+    "longError": "لا يمكن حفظ الدليل المحدد قبل مراجعة جميع الحقول المطلوبة وإضافة الصورة المفقودة AR-42 👩‍🔧.",
+    "utf8SHA256": "e4409b3db5ca423c9b574b1aa3c8f00d6a4c36803b7a655924d7844180198833",
+    "utf8ByteCount": 331
+  },
+  "combiningEmoji": {
+    "source": "Café — 👩‍🔧 — family 👨‍👩‍👧‍👦",
+    "utf8SHA256": "a4204b2c2583c808b5a9b0ce1bda92192d2414f0e24a82d0d681d29f8772bc17",
+    "utf8ByteCount": 59
+  },
+  "dynamicTypeSizes": [
+    "large",
+    "accessibility5"
+  ],
+  "hostWidthPoints": 320,
+  "minimumHitTargetPoints": 44,
+  "provenance": {
+    "translations": "Generated accessibility fixture text only; not a shipping localization catalog.",
+    "rtlDiagnostic": "Generated ar-XB diagnostic case only; it is not a shipping language claim.",
+    "professionalOrNativeFontQualification": "Not claimed; native font execution is pending.",
+    "fontLicensing": "No custom font or font licensing claim is made."
+  }
+}
