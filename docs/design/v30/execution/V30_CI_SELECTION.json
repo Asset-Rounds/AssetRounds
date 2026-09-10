@@ -1,8 +1,8 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
   "branchRef": "refs/heads/phase/v30-globalization",
-  "cardID": "V30-P01-C08",
-  "cardTitle": "Catalog release mechanism, provenance schema, compatibility, and offline integrity",
+  "cardID": "V30-P02-C01",
+  "cardTitle": "English catalog normalization",
   "developmentRouteSHA256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690",
   "hostedDispatchAllowed": false,
   "hostedDispatchUnlockCard": "V30-P00-C05",
@@ -14,7 +14,7 @@
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "a223b5883eaee0eb64bde08f829f8be92c97559d26bd728865d207c16b43da92",
+  "payloadDigest": "4792f6c15f15782719b430d2d263893f3336ad1fe815f9a47d976af4e9be05d5",
   "preS10FinalCredit": false,
   "reason": "Windows-static provisional card; no native dispatch is selected.",
   "schemaVersion": "V30BootstrapPayloadV1",
