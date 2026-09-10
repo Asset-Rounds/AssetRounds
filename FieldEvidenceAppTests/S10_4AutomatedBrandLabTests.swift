@@ -22549,18 +22549,18 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             before: "    private func localizationArguments("
         )
         XCTAssertFalse(configureSource.contains("S10_4_RECHECK_NAV_OBSERVATION"))
-        var uiSourceWithoutObserverOptIn = uiSource
+        var configuredApplicationWithoutObserverOptIn = configuredApplicationSource
         XCTAssertEqual(
-            uiSourceWithoutObserverOptIn.components(separatedBy: observerOptIn).count - 1,
+            configuredApplicationWithoutObserverOptIn.components(separatedBy: observerOptIn).count - 1,
             1
         )
-        uiSourceWithoutObserverOptIn = uiSourceWithoutObserverOptIn.replacingOccurrences(
+        configuredApplicationWithoutObserverOptIn = configuredApplicationWithoutObserverOptIn.replacingOccurrences(
             of: observerOptIn,
             with: ""
         )
         XCTAssertEqual(
-            Data(uiSourceWithoutObserverOptIn.utf8).sha256,
-            "89CDD2B0B1A2750C4D84F19C2650F716D80A8193555CE16E807704D2FACFEFCB"
+            Data(configuredApplicationWithoutObserverOptIn.utf8).sha256,
+            "14CFDCB5C61B661B5BF21D96187BC60F4AE5D909625F6BEAD26F4F490A4CD943"
         )
         let unchangedCurrentRTNavigationSeam =
             "        captureBaseline(\"state.issue.recheck-due\", in: app)\n" +
