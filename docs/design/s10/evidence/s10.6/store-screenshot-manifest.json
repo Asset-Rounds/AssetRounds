@@ -43,7 +43,7 @@
       "store_approved": true,
       "store_reviewer": "palatis3",
       "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
-      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "creative_limitation": "Owner review approved this exact frozen 6.3-inch original. Name, trademark and URL clearance prerequisites are owner-waived for S10.6/main; the five unchanged claims have source/evidence substantiation. Larger-display upload assets and later owner release facts remain pending.",
       "store_review_date": "2026-09-10"
     },
     {
@@ -81,7 +81,7 @@
       "store_approved": true,
       "store_reviewer": "palatis3",
       "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
-      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "creative_limitation": "Owner review approved this exact frozen 6.3-inch original. Name, trademark and URL clearance prerequisites are owner-waived for S10.6/main; the five unchanged claims have source/evidence substantiation. Larger-display upload assets and later owner release facts remain pending.",
       "store_review_date": "2026-09-10"
     },
     {
@@ -119,7 +119,7 @@
       "store_approved": true,
       "store_reviewer": "palatis3",
       "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
-      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "creative_limitation": "Owner review approved this exact frozen 6.3-inch original. Name, trademark and URL clearance prerequisites are owner-waived for S10.6/main; the five unchanged claims have source/evidence substantiation. Larger-display upload assets and later owner release facts remain pending.",
       "store_review_date": "2026-09-10"
     },
     {
@@ -157,7 +157,7 @@
       "store_approved": true,
       "store_reviewer": "palatis3",
       "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
-      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "creative_limitation": "Owner review approved this exact frozen 6.3-inch original. Name, trademark and URL clearance prerequisites are owner-waived for S10.6/main; the five unchanged claims have source/evidence substantiation. Larger-display upload assets and later owner release facts remain pending.",
       "store_review_date": "2026-09-10"
     },
     {
@@ -195,7 +195,7 @@
       "store_approved": true,
       "store_reviewer": "palatis3",
       "store_review_evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
-      "creative_limitation": "Owner human review approved this exact frozen 6.3-inch original for the current five-slot S10.6 phase evidence. Separate dated legal/claim/URL clearance, the required larger-display upload set, and full release readiness remain pending.",
+      "creative_limitation": "Owner review approved this exact frozen 6.3-inch original. Name, trademark and URL clearance prerequisites are owner-waived for S10.6/main; the five unchanged claims have source/evidence substantiation. Larger-display upload assets and later owner release facts remain pending.",
       "store_review_date": "2026-09-10"
     }
   ],
@@ -250,10 +250,10 @@
   ],
   "pending_gates": [
     "required_6_5_or_6_9_screenshot_set",
-    "dated_trademark_name_claim_url_clearance",
     "owner_release_version_build_and_live_inputs",
     "archive_privacy_supply_chain_review",
-    "required_checkpoint_receipts"
+    "required_checkpoint_receipts",
+    "final_f25_evidence"
   ],
   "apple_specification_review": {
     "url": "https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications",
@@ -272,7 +272,7 @@
     "trademark_clearance_status": "NOT_CLEARED",
     "trademark_evidence_id": "",
     "name_clearance_status": "PENDING",
-    "claim_clearance_status": "PENDING",
+    "claim_clearance_status": "SOURCE_REVIEWED",
     "url_clearance_status": "PENDING",
     "dated_clearance_evidence": null,
     "owner_name_attestation": {
@@ -303,6 +303,819 @@
       "source_path": "Temp/S10_6_ReleasePreparation/final-phase-contract/OWNER_WEBSITE_LLC_ATTESTATION_20260910.json",
       "source_sha256": "837164D7E626B3A743A44E5C3BFB553444DB05A42444DE8EAC8A1180685A1AA5",
       "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-website-llc-attestation-20260910\",\n  \"source\": \"direct owner response in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I owj the website and working on getting llc. Confirm it as if today\",\n  \"websiteOwnership\": \"OWNER_ATTESTED\",\n  \"websiteOrDomainURL\": null,\n  \"llcFormation\": \"IN_PROGRESS_OWNER_ATTESTED\",\n  \"registeredEntityName\": null,\n  \"registrationIdentifier\": null,\n  \"separateClearanceReviewer\": null,\n  \"separateClearanceResult\": null,\n  \"interpretation\": \"Record the owner's website-ownership statement and in-progress LLC formation as dated September 10, 2026. No domain, completed LLC registration, separate clearance reviewer/result, or five-claim review was supplied.\"\n}\n"
+    },
+    "owner_clearance_waiver": {
+      "policy_id": "owner-s10.6-name-trademark-url-clearance-waiver-20260910",
+      "status": "OWNER_WAIVED",
+      "evidence_id": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+      "date": "2026-09-10",
+      "owner": "palatis3",
+      "waived_clearances": [
+        "name",
+        "trademark",
+        "url"
+      ],
+      "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/OWNER_DIRECTIVE_20260910.json",
+      "source_sha256": "BD23286FA03EC456B50D637E4DE11FCDAB34383A466FDFAD40F75CBAF8F365E7",
+      "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910\",\n  \"policyID\": \"owner-s10.6-name-trademark-url-clearance-waiver-20260910\",\n  \"source\": \"direct owner instruction in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I approve. Merge into main. We don't need the dated name or trademark or URL clearance.\",\n  \"approvedTerminalImage\": {\n    \"headSHA\": \"75a8856c21e7a4aae5a8e48b40a68bdef6874d94\",\n    \"runID\": \"34536261005\",\n    \"artifactID\": \"10175949736\",\n    \"artifactSHA256\": \"F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467\",\n    \"pathWithinArtifact\": \"ui-final.png\",\n    \"sha256\": \"C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888\",\n    \"status\": \"APPROVED\",\n    \"scope\": \"displayed exact I5 Settings terminal screenshot\",\n    \"futureUnseenImageApproval\": false\n  },\n  \"clearanceObligation\": {\n    \"status\": \"OWNER_WAIVED\",\n    \"waivedClearances\": [\"name\", \"trademark\", \"url\"],\n    \"scope\": [\"S10.6 phase closure\", \"S10 main integration\"],\n    \"positiveLegalClearanceClaimed\": false,\n    \"clearanceReportProvided\": false,\n    \"truthfulFiveStoreClaimSubstantiationWaived\": false,\n    \"actualLiveURLRequirementsWaived\": false\n  },\n  \"mainIntegrationAuthorized\": true,\n  \"nonForceFastForwardRequired\": true,\n  \"remainingEvidenceAndCIRequirementsWaived\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"interpretation\": \"Record approval of the displayed I5 terminal image and remove the three named clearance prerequisites for the current S10.6 phase/main boundary. Preserve truthful source-backed review of the five store claims, actual absent live values, all remaining evidence/receipt/CI requirements, historical originals, and later owner-only release operations. The waiver is not a positive legal clearance result.\"\n}\n"
+    },
+    "claim_substantiation_review": {
+      "status": "PASS",
+      "evidence_id": "s10.6-five-store-claims-source-substantiation-20260910",
+      "date": "2026-09-10",
+      "reviewer": "Codex",
+      "reviewed_repository_head": "99fa4f56486c31c0e7c86fddef4718e8ff734cfc",
+      "source_product_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "claim_ids": [
+        "claim.find-asset",
+        "claim.capture-review",
+        "claim.preview-share-report",
+        "claim.work-recheck-history",
+        "claim.local-data-controls"
+      ],
+      "claims": [
+        {
+          "claim_id": "claim.find-asset",
+          "text": "Find a sign and open its device-local inspection history.",
+          "screen_state_ids": [
+            "state.sign-detail.ready",
+            "state.report-history.ready"
+          ],
+          "status": "SUPPORTED",
+          "support_summary": "The app opens a saved sign, exposes a sign-scoped Report history action, and displays the persisted report-history screen.",
+          "source_bindings": [
+            {
+              "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+              "git_blob": "a39a34e91b21de6cbd6093186e3e5d5da54910cd",
+              "sha256": "6E79F6C89E3063B18A7F250909163DB78F23175C9159BDB4621CB8C2208709B3",
+              "line_reference": "70-74",
+              "role": "Binds live storage to the user-domain Application Support directory."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+              "git_blob": "4b87a98eabc0e888d48813373aef160d4cd21328",
+              "sha256": "E0244763E542717E19E74BCDB9D7F2C29CCFF24F5EC23764841F2B07B41C73F8",
+              "line_reference": "114-124",
+              "role": "Exposes View report and Report history actions on sign detail."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+              "git_blob": "fcdcdf59f2744339b14096f96aed95c1604609f5",
+              "sha256": "63023BB6107A62F0450304F856B8E7CE796B74D4A08E912380C79DF0D75D58BA",
+              "line_reference": "340-386",
+              "role": "Renders chronological report history and opens a stored report."
+            },
+            {
+              "path": "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+              "git_blob": "f1a63c971187a3d7efddc888aaf08f2dc0765cec",
+              "sha256": "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46",
+              "line_reference": "2928-2935; 7093-7133",
+              "role": "Captures sign detail, opens Report history, asserts the history screen and report action, and captures the history state."
+            }
+          ],
+          "evidence_bindings": {
+            "accepted_state_cells": [
+              {
+                "screen_state_id": "state.sign-detail.ready",
+                "cell_id": "cell.sign-detail.ready.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "6EB56317ACBDA532BBDB776B2DB039AF4FC5E78768A1FECBF1C0A2CB7B817710",
+                "candidate_byte_length": 187604,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.sign-detail.ready",
+                "ax_evidence_sha256": "EE7C6D2DF62BB6A5D25264BDBEC3EB3C8746071EF0701156A53A9098B9C06F8F",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.sign-detail.ready",
+                "contrast_evidence_sha256": "6F88738582B637219A27EC1702005686EEA36A53F2FB4A91385A937CCCE774C5",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.sign-detail.ready",
+                  "s10.4-contrast-s10.4.current.default-light-state.sign-detail.ready",
+                  "owner-review-s10.4.current.default-light-state.sign-detail.ready"
+                ]
+              },
+              {
+                "screen_state_id": "state.report-history.ready",
+                "cell_id": "cell.report-history.ready.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "4EAD41895A563AD016DE77FA8139015008C8095DFA9E16B2274F8D2E4DD41EF3",
+                "candidate_byte_length": 185998,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.report-history.ready",
+                "ax_evidence_sha256": "2BE2C1031C386A37757BAB278270344FFFC7F013E0BB1CBD97C86B80C3093F11",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.report-history.ready",
+                "contrast_evidence_sha256": "1C80FB1294D29A0C7A63C29BFEEE80AC134834BAFD1F74854E4E427B3D38C348",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.report-history.ready",
+                  "s10.4-contrast-s10.4.current.default-light-state.report-history.ready",
+                  "owner-review-s10.4.current.default-light-state.report-history.ready"
+                ]
+              }
+            ],
+            "accepted_task_rows": [
+              {
+                "task_id": "one_handed_start",
+                "title": "Create or reopen a sign and reach inspection preflight with one-handed primary actions",
+                "screen_state_ids": [
+                  "state.pack.unavailable",
+                  "state.welcome.empty",
+                  "state.sign-selection.ready",
+                  "state.new-sign.editing",
+                  "state.new-sign.validation-error",
+                  "state.sign-detail.ready",
+                  "state.check-preflight.ready",
+                  "state.paywall.unavailable",
+                  "state.paywall.available",
+                  "state.paywall.purchase-complete"
+                ],
+                "automated_status": "PASS",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-one_handed_start",
+                "ax_evidence_sha256": "C27AB0A5FE4BFE3B1F999C6C103861B35CC8D378DDAD4D4A7D2945D0BAEFDC97",
+                "acceptance_scope": "REQUIRED"
+              },
+              {
+                "task_id": "history_recovery",
+                "title": "Review report history and use explicit device-local recovery, diagnostics, feedback, erase, and purchase-restore controls",
+                "screen_state_ids": [
+                  "state.reports-index.empty",
+                  "state.reports-index.ready",
+                  "state.sign-detail.delete-confirmation",
+                  "state.report-detail.ready",
+                  "state.report-history.ready",
+                  "state.report-comparison.ready",
+                  "state.report-correction.editing",
+                  "state.report-correction.validation-error",
+                  "state.report-correction.saving",
+                  "state.report-correction.completed",
+                  "state.report-pdf.failed",
+                  "state.settings.hub",
+                  "state.backup.ready",
+                  "state.diagnostics.ready",
+                  "state.feedback.review-ready",
+                  "state.feedback.blocked",
+                  "state.erase.confirmation",
+                  "state.restore.choose-backup",
+                  "state.subscription.no-entitlement",
+                  "state.subscription.active"
+                ],
+                "automated_status": "PASS",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-history_recovery",
+                "ax_evidence_sha256": "641450FC47290FED09232882B316CE85D865275704BCC7594CE61D03D28759A1",
+                "acceptance_scope": "REQUIRED"
+              }
+            ]
+          },
+          "limitations": [
+            "Device-local means the app-owned user Application Support store at this product head; the claim does not promise cloud sync or cross-device history."
+          ]
+        },
+        {
+          "claim_id": "claim.capture-review",
+          "text": "Capture wide and close evidence, then review the selected outcome before saving.",
+          "screen_state_ids": [
+            "state.capture.wide-preview",
+            "state.capture.close-preview",
+            "state.check-review.visible-issue"
+          ],
+          "status": "SUPPORTED",
+          "support_summary": "The capture flow presents separate wide and close previews, carries both evidence items into outcome review, and requires the explicit Save and finish action after review.",
+          "source_bindings": [
+            {
+              "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+              "git_blob": "46e6da77fd5f1207079e4e713c45891a4e5a5397",
+              "sha256": "B4A7FDD087CCBE4B0644EA81184209CDEADC960176D5C61CE851A5145FDA0782",
+              "line_reference": "138-160; 239-252",
+              "role": "Displays the captured/imported preview and explicit Retake or Use Photo actions for each capture step."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+              "git_blob": "6f61e6ca121374f4f7d77c7fd8b7ec6c7b566449",
+              "sha256": "82E2AA1A52DBE6A2D0FA8F61B6983F369B87325E0542E2385774F988F2F7697A",
+              "line_reference": "287-316",
+              "role": "Displays Wide view and Close view evidence on the review screen and exposes Save and finish."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+              "git_blob": "9e558fe2c38454f3342574c88de5dec61c8c8ac0",
+              "sha256": "5012A8BEA2CC33961382D783420A239C987DC2E71B62328B436095932242CFA0",
+              "line_reference": "356-430",
+              "role": "Finalizes the reviewed selection into the saved check/report flow."
+            },
+            {
+              "path": "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+              "git_blob": "f1a63c971187a3d7efddc888aaf08f2dc0765cec",
+              "sha256": "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46",
+              "line_reference": "6439-6511",
+              "role": "Accepts Wide view and Close view previews, selects an outcome, asserts both review evidence elements, captures review, then taps Save and finish."
+            }
+          ],
+          "evidence_bindings": {
+            "accepted_state_cells": [
+              {
+                "screen_state_id": "state.capture.wide-preview",
+                "cell_id": "cell.capture.wide-preview.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "B5B769433EA13A40CC27990CCCF9F8184B4E6AF41BE5C467A5E7D877CDD36CA3",
+                "candidate_byte_length": 152372,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.capture.wide-preview",
+                "ax_evidence_sha256": "ACBDE8F636455676B2432C081F42A315157A2A4F158BC9BCCE214533EA57241F",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.capture.wide-preview",
+                "contrast_evidence_sha256": "AA97EE99644EE0577B95CEE920C109D3D0F9E892F9532061247FB6D4C50BF59C",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.capture.wide-preview",
+                  "s10.4-contrast-s10.4.current.default-light-state.capture.wide-preview",
+                  "owner-review-s10.4.current.default-light-state.capture.wide-preview"
+                ]
+              },
+              {
+                "screen_state_id": "state.capture.close-preview",
+                "cell_id": "cell.capture.close-preview.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "A4D7E1F5C2F16F6CCA6442E40B8670E07CB649B0B2845232108C053694518D1A",
+                "candidate_byte_length": 182660,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.capture.close-preview",
+                "ax_evidence_sha256": "F54458BF8548FB7BB0887884736653022F09ACB32AE0EC166D731DA72D0F96BC",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.capture.close-preview",
+                "contrast_evidence_sha256": "0A61F97D85EC7AFAA918B9137A9184F3C8751E381832CC36CBF1FF596A3BE8F6",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.capture.close-preview",
+                  "s10.4-contrast-s10.4.current.default-light-state.capture.close-preview",
+                  "owner-review-s10.4.current.default-light-state.capture.close-preview"
+                ]
+              },
+              {
+                "screen_state_id": "state.check-review.visible-issue",
+                "cell_id": "cell.check-review.visible-issue.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "0A0633401637DA19F49ED1390DB66354B6E4647367CCA13DAB7E6CFA02D8A437",
+                "candidate_byte_length": 296052,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.check-review.visible-issue",
+                "ax_evidence_sha256": "B0A7A65337A861277C2C02790FB58C8CBAC127CE0A129A42109E0F677996C773",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.check-review.visible-issue",
+                "contrast_evidence_sha256": "B0A1C5FE57B147CB1A6685D3D3E8843D4D138A21D98F5E0ACA0D4A3C1CBED947",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.check-review.visible-issue",
+                  "s10.4-contrast-s10.4.current.default-light-state.check-review.visible-issue",
+                  "owner-review-s10.4.current.default-light-state.check-review.visible-issue"
+                ]
+              }
+            ],
+            "accepted_task_rows": [
+              {
+                "task_id": "capture_and_review",
+                "title": "Capture wide and close evidence, select a visible issue, review, save, and open the report",
+                "screen_state_ids": [
+                  "state.check-preflight.ready",
+                  "state.capture.wide-ready",
+                  "state.capture.wide-preview",
+                  "state.capture.close-ready",
+                  "state.capture.close-preview",
+                  "state.capture.camera-denied",
+                  "state.capture.low-storage-error",
+                  "state.check-outcome.visible-issue",
+                  "state.check-outcome.no-visible-issue",
+                  "state.check-outcome.could-not-verify",
+                  "state.check-review.visible-issue",
+                  "state.check-review.no-visible-issue",
+                  "state.check-review.could-not-verify",
+                  "state.receipt.report-saved",
+                  "state.report-detail.ready"
+                ],
+                "automated_status": "PASS",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-capture_and_review",
+                "ax_evidence_sha256": "C3C900F8014311A21292B001E127B5ECC11FD406CCCA8EF88FEEF41F2E202E4C",
+                "acceptance_scope": "REQUIRED"
+              }
+            ]
+          },
+          "limitations": [
+            "Accepted evidence uses deterministic imported-photo fixtures in iOS Simulator; it does not substantiate physical camera hardware performance or photo quality."
+          ]
+        },
+        {
+          "claim_id": "claim.preview-share-report",
+          "text": "Preview and share a saved inspection report.",
+          "screen_state_ids": [
+            "state.receipt.report-saved",
+            "state.report-detail.ready"
+          ],
+          "status": "SUPPORTED",
+          "support_summary": "After a report is saved on the device, its detail screen renders a PDF preview and exposes Share PDF through the system share sheet.",
+          "source_bindings": [
+            {
+              "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+              "git_blob": "832380c3929b70af7cee9e6de8483cb83e4fbdb1",
+              "sha256": "59B875E2FB89CAD9AF4BC02A9214686A95896E3E99FF7581BEACA600AF2CCB72",
+              "line_reference": "35-48",
+              "role": "States that the report was saved on this device and provides the View report action."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+              "git_blob": "52f07535d1561b5307e8cc94252c7afc15e5e5f4",
+              "sha256": "09B2B7B3A747A4D8FACD20735B53B5B63FEDEE788613EFA3F26FC622D12FC64F",
+              "line_reference": "122-131; 163-197",
+              "role": "Renders the PDF preview and exposes Share PDF plus Save to Files delivery actions."
+            },
+            {
+              "path": "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+              "git_blob": "f1a63c971187a3d7efddc888aaf08f2dc0765cec",
+              "sha256": "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46",
+              "line_reference": "7039-7081",
+              "role": "Asserts the saved receipt, opens the report, verifies a hittable preview, and captures the report-detail state."
+            }
+          ],
+          "evidence_bindings": {
+            "accepted_state_cells": [
+              {
+                "screen_state_id": "state.receipt.report-saved",
+                "cell_id": "cell.receipt.report-saved.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "CD9423A4A8C04C8414ACD3D81CFCB6FBF3BDE29B4B03B781EC4B740078257A04",
+                "candidate_byte_length": 139165,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.receipt.report-saved",
+                "ax_evidence_sha256": "D6FF59A711AD900F401AF70F4E9F6B92F511D66FA9855FEDCCA5009141D5C0E0",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.receipt.report-saved",
+                "contrast_evidence_sha256": "4C5F549864C0950E5C7B33508E7FBBD864F0D59B08B1FEBEC8AD48A9C985D9E1",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.receipt.report-saved",
+                  "s10.4-contrast-s10.4.current.default-light-state.receipt.report-saved",
+                  "owner-review-s10.4.current.default-light-state.receipt.report-saved"
+                ]
+              },
+              {
+                "screen_state_id": "state.report-detail.ready",
+                "cell_id": "cell.report-detail.ready.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "2DE26DE0F2AD595CE3B4EB8923E23EA77FB828AFD119327DD977B4C783AF1870",
+                "candidate_byte_length": 240785,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.report-detail.ready",
+                "ax_evidence_sha256": "DE6C9D27DB420AE8755843C9E6990B5705FF6651F863AD78CB746BB5AE9FE182",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.report-detail.ready",
+                "contrast_evidence_sha256": "84F7F0CB5B2AC8D9C469D44F715784ABAC6C9910FF8C2A30056EC3F939B4E467",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.report-detail.ready",
+                  "s10.4-contrast-s10.4.current.default-light-state.report-detail.ready",
+                  "owner-review-s10.4.current.default-light-state.report-detail.ready"
+                ]
+              }
+            ],
+            "accepted_task_rows": [
+              {
+                "task_id": "capture_and_review",
+                "title": "Capture wide and close evidence, select a visible issue, review, save, and open the report",
+                "screen_state_ids": [
+                  "state.check-preflight.ready",
+                  "state.capture.wide-ready",
+                  "state.capture.wide-preview",
+                  "state.capture.close-ready",
+                  "state.capture.close-preview",
+                  "state.capture.camera-denied",
+                  "state.capture.low-storage-error",
+                  "state.check-outcome.visible-issue",
+                  "state.check-outcome.no-visible-issue",
+                  "state.check-outcome.could-not-verify",
+                  "state.check-review.visible-issue",
+                  "state.check-review.no-visible-issue",
+                  "state.check-review.could-not-verify",
+                  "state.receipt.report-saved",
+                  "state.report-detail.ready"
+                ],
+                "automated_status": "PASS",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-capture_and_review",
+                "ax_evidence_sha256": "C3C900F8014311A21292B001E127B5ECC11FD406CCCA8EF88FEEF41F2E202E4C",
+                "acceptance_scope": "REQUIRED"
+              }
+            ]
+          },
+          "limitations": [
+            "Share means the implemented action opens the iOS system share sheet for the report PDF. The evidence does not claim successful delivery to any particular third-party destination."
+          ]
+        },
+        {
+          "claim_id": "claim.work-recheck-history",
+          "text": "Record completed work and preserve the resulting recheck history.",
+          "screen_state_ids": [
+            "state.work.editing",
+            "state.issue.recheck-due",
+            "state.issue.resolved"
+          ],
+          "status": "SUPPORTED",
+          "support_summary": "The work flow records a dated description and optional evidence, advances the issue to recheck due, and retains the issue through the later resolved state.",
+          "source_bindings": [
+            {
+              "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+              "git_blob": "5e2b5c672b27fc9f7617676c9f9644d4b16c5205",
+              "sha256": "CF6C1A3C157DBC86C49B583C635FCD8A008BBEAA5C9A9F625031B34A27E0BAD5",
+              "line_reference": "252-308",
+              "role": "Validates the work entry, constructs the completed work submission, saves it, and returns the updated issue."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+              "git_blob": "2e66dbe6b4411e0f6adafe1967e405103cce2d36",
+              "sha256": "C20F2C1DE8CBAE06ADFF794828C620CE9C65704F12208E7FBB64DFC6931EB7B8",
+              "line_reference": "198-430",
+              "role": "Persists work and recheck transitions while retaining their linked records."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+              "git_blob": "ce8e004c08c5384aa1714015c44f81449d4fd751",
+              "sha256": "65BAEF5BBD7AC873B8EF10AC04B3128FA52C81F1C7D48747FB2256D9120673F7",
+              "line_reference": "38-43; 96-103",
+              "role": "Exposes Record work and Start recheck actions and renders Recheck due or Resolved status."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+              "git_blob": "4b87a98eabc0e888d48813373aef160d4cd21328",
+              "sha256": "E0244763E542717E19E74BCDB9D7F2C29CCFF24F5EC23764841F2B07B41C73F8",
+              "line_reference": "92-110",
+              "role": "Surfaces Record work, Recheck due, and Resolved actions from sign detail."
+            },
+            {
+              "path": "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+              "git_blob": "f1a63c971187a3d7efddc888aaf08f2dc0765cec",
+              "sha256": "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46",
+              "line_reference": "8765-8790; 9396-9403; 10073-10094; 10207-10219",
+              "role": "Enters work, captures the editing state, records it, verifies Recheck due, later verifies Resolved, and records the completed work/recheck journey."
+            }
+          ],
+          "evidence_bindings": {
+            "accepted_state_cells": [
+              {
+                "screen_state_id": "state.work.editing",
+                "cell_id": "cell.work.editing.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "5F9F38453BF642705BE16EF8A428B1D87872EB929F30C73E8B7EF95E39211946",
+                "candidate_byte_length": 183519,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.work.editing",
+                "ax_evidence_sha256": "D142E7FA22D677E5D2DB107325CEC87C79594DDD611C9956BD08141087A4B768",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.work.editing",
+                "contrast_evidence_sha256": "820812863750AF7497CFA166D2A041A13BBFBB249E1183874F2A54CCD9A530DE",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.work.editing",
+                  "s10.4-contrast-s10.4.current.default-light-state.work.editing",
+                  "owner-review-s10.4.current.default-light-state.work.editing"
+                ]
+              },
+              {
+                "screen_state_id": "state.issue.recheck-due",
+                "cell_id": "cell.issue.recheck-due.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "92E98827528E725D217078DA2CFA4027D165350D734A5D64D5F5C26D4A14DB41",
+                "candidate_byte_length": 293443,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.issue.recheck-due",
+                "ax_evidence_sha256": "54B0AFF5663E7F8CBBEFAC8414C08E0A3194A7945DF51C75F6467434D2437F8A",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.issue.recheck-due",
+                "contrast_evidence_sha256": "2CD52F9A17DB19DB9996A610EB8ED0A67BC09B6204AC8E170EC823E3BE8644CC",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.issue.recheck-due",
+                  "s10.4-contrast-s10.4.current.default-light-state.issue.recheck-due",
+                  "owner-review-s10.4.current.default-light-state.issue.recheck-due"
+                ]
+              },
+              {
+                "screen_state_id": "state.issue.resolved",
+                "cell_id": "cell.issue.resolved.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "A9D99B2279982C56298BDBDD214F085F29D0060A09C2A9F041F08929C08C0993",
+                "candidate_byte_length": 277269,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.issue.resolved",
+                "ax_evidence_sha256": "C63C104E8F266C721A274FCACEC8D388A8DD9866A91138449E08183E02A3D88C",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.issue.resolved",
+                "contrast_evidence_sha256": "37CF8544AEA96D11AB6B81A4FD47F0DC45950800DA450099A95D7443FE552B48",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.issue.resolved",
+                  "s10.4-contrast-s10.4.current.default-light-state.issue.resolved",
+                  "owner-review-s10.4.current.default-light-state.issue.resolved"
+                ]
+              }
+            ],
+            "accepted_task_rows": [
+              {
+                "task_id": "work_and_recheck",
+                "title": "Record work, start a recheck, capture evidence, resolve the issue, and verify final status",
+                "screen_state_ids": [
+                  "state.sign-detail.open-issue",
+                  "state.recheck-preflight.ready",
+                  "state.recheck-capture.wide-ready",
+                  "state.recheck-capture.wide-preview",
+                  "state.recheck-capture.close-ready",
+                  "state.recheck-capture.close-preview",
+                  "state.recheck-outcome.resolved",
+                  "state.recheck-outcome.issue-still-visible",
+                  "state.recheck-outcome.different-issue",
+                  "state.recheck-outcome.could-not-verify",
+                  "state.recheck-review.resolved",
+                  "state.recheck-review.issue-still-visible",
+                  "state.recheck-review.different-issue",
+                  "state.recheck-review.could-not-verify",
+                  "state.recheck-receipt.saved",
+                  "state.recheck-report-detail.ready",
+                  "state.issue.open",
+                  "state.issue.different-open",
+                  "state.issue.recheck-due",
+                  "state.issue.resolved",
+                  "state.work.editing",
+                  "state.work.validation-error",
+                  "state.work.saving"
+                ],
+                "automated_status": "PASS",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-work_and_recheck",
+                "ax_evidence_sha256": "79BC8DF488AE830F8DC52BD25EA104F74F589AAF66C6E0896A090674443945AA",
+                "acceptance_scope": "REQUIRED"
+              }
+            ]
+          },
+          "limitations": [
+            "Preservation is substantiated for the implemented device-local record chain and tested relaunch/history behavior; it is not a promise of cloud synchronization or unlimited archival duration."
+          ]
+        },
+        {
+          "claim_id": "claim.local-data-controls",
+          "text": "Back up and restore device-local inspection data through explicit user actions.",
+          "screen_state_ids": [
+            "state.backup.ready",
+            "state.restore.choose-backup"
+          ],
+          "status": "SUPPORTED",
+          "support_summary": "Settings exposes explicit backup and restore entry points; backup requires an explicit export action and restore requires explicit choose, confirm/replace, and cancel actions backed by package export/import/restore services.",
+          "source_bindings": [
+            {
+              "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+              "git_blob": "a39a34e91b21de6cbd6093186e3e5d5da54910cd",
+              "sha256": "6E79F6C89E3063B18A7F250909163DB78F23175C9159BDB4621CB8C2208709B3",
+              "line_reference": "70-74; 302-340",
+              "role": "Uses user-domain Application Support and wires explicit restore actions into the app."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+              "git_blob": "77779e6fd5acd0e7c86e9b247c89feae13c08b15",
+              "sha256": "850D4C16EE31A12DFB78B1D07498BF428EC99FECE6153CF530F0A844C37316C4",
+              "line_reference": "45-97",
+              "role": "Shows data counts and requires Back up current data before presenting the destination picker."
+            },
+            {
+              "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+              "git_blob": "df32da97646aaf05b7a7579aee335bb8874f72ed",
+              "sha256": "6B5126A224E0A62EE00C539CAAF6E4C88369D634F4AB6AC16AA4E4AA2EC71BB8",
+              "line_reference": "105-155",
+              "role": "Requires Choose backup and then Restore data backup or Replace current data, with Cancel available."
+            },
+            {
+              "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+              "git_blob": "94661a18bceb2fc5060a346b424247eeee8151e5",
+              "sha256": "B6DCC3D5F26CD95CB32F4C328496D82A033E0E7FB426D87EFCD2120CD8D9DE7C",
+              "line_reference": "74-180",
+              "role": "Prepares, validates, and writes the user-selected backup package."
+            },
+            {
+              "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+              "git_blob": "0f15caad26d10138128ea9a7999e0e8fc438c426",
+              "sha256": "3305DF4288073FF24EB2EF69CDBD3CDEEAE9D2EED3428D5AC7FF9C4FE85FAD57",
+              "line_reference": "69-199",
+              "role": "Coordinates and validates a user-selected backup package before restore."
+            },
+            {
+              "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+              "git_blob": "41be44f05451161d0ae688351429c1ca10f732fe",
+              "sha256": "D2708F88A8C51794EB255AC413C7356529A64B4B1C324E0FCBA1A7298595AD50",
+              "line_reference": "106-250; 391-470",
+              "role": "Constrains the restore to the app Application Support root and performs the controlled replacement."
+            },
+            {
+              "path": "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+              "git_blob": "f1a63c971187a3d7efddc888aaf08f2dc0765cec",
+              "sha256": "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46",
+              "line_reference": "14016-14026; 14389-14401",
+              "role": "Opens and captures backup readiness, then explicitly opens and captures the restore chooser and cancels it."
+            }
+          ],
+          "evidence_bindings": {
+            "accepted_state_cells": [
+              {
+                "screen_state_id": "state.backup.ready",
+                "cell_id": "cell.backup.ready.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "7FE07225143F72EC32D4EADD6349125D2B77A9305C0B0983CA1539F2B7721086",
+                "candidate_byte_length": 153976,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.backup.ready",
+                "ax_evidence_sha256": "1F0AB6EBB20C394BCB5841E323769C00DF01709396C28FE611944BB1731CE2A1",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.backup.ready",
+                "contrast_evidence_sha256": "4BFB6B15271F7EFD35B38B18BC8EB6BD8255435E11766D7E5F466171E9C091D7",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.backup.ready",
+                  "s10.4-contrast-s10.4.current.default-light-state.backup.ready",
+                  "owner-review-s10.4.current.default-light-state.backup.ready"
+                ]
+              },
+              {
+                "screen_state_id": "state.restore.choose-backup",
+                "cell_id": "cell.restore.choose-backup.default_light",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "candidate_sha256": "62CC37E8E8F3134E2A7B9A2A7321F9125CA9561EB02474DAFB1E59FD8315BD1F",
+                "candidate_byte_length": 114099,
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-state.restore.choose-backup",
+                "ax_evidence_sha256": "3BC5B5750FA38BA2E4F9E0532F2251474C701BE10C8F6DC041DB0B3BBF274529",
+                "contrast_evidence_id": "s10.4-contrast-s10.4.current.default-light-state.restore.choose-backup",
+                "contrast_evidence_sha256": "C310F2E7989E3BDA50307681F066288E5E4F6068901D5BD5EBA6AD45A9A74A66",
+                "result": "PASS",
+                "review_status": "APPROVED",
+                "reviewer": "palatis3",
+                "evidence_ids": [
+                  "github-actions-run-34481147676-job-102884124119-artifact-10155130147",
+                  "s10.4-ax-s10.4.current.default-light-state.restore.choose-backup",
+                  "s10.4-contrast-s10.4.current.default-light-state.restore.choose-backup",
+                  "owner-review-s10.4.current.default-light-state.restore.choose-backup"
+                ]
+              }
+            ],
+            "accepted_task_rows": [
+              {
+                "task_id": "history_recovery",
+                "title": "Review report history and use explicit device-local recovery, diagnostics, feedback, erase, and purchase-restore controls",
+                "screen_state_ids": [
+                  "state.reports-index.empty",
+                  "state.reports-index.ready",
+                  "state.sign-detail.delete-confirmation",
+                  "state.report-detail.ready",
+                  "state.report-history.ready",
+                  "state.report-comparison.ready",
+                  "state.report-correction.editing",
+                  "state.report-correction.validation-error",
+                  "state.report-correction.saving",
+                  "state.report-correction.completed",
+                  "state.report-pdf.failed",
+                  "state.settings.hub",
+                  "state.backup.ready",
+                  "state.diagnostics.ready",
+                  "state.feedback.review-ready",
+                  "state.feedback.blocked",
+                  "state.erase.confirmation",
+                  "state.restore.choose-backup",
+                  "state.subscription.no-entitlement",
+                  "state.subscription.active"
+                ],
+                "automated_status": "PASS",
+                "run_id": "34481147676",
+                "job_id": "102884124119",
+                "artifact_id": "10155130147",
+                "artifact_digest": "sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a",
+                "ax_evidence_id": "s10.4-ax-s10.4.current.default-light-history_recovery",
+                "ax_evidence_sha256": "641450FC47290FED09232882B316CE85D865275704BCC7594CE61D03D28759A1",
+                "acceptance_scope": "REQUIRED"
+              }
+            ]
+          },
+          "limitations": [
+            "The accepted S10.4 state evidence proves the controls and validated native routes in Simulator; it is not physical-device verification and does not claim cloud backup or automatic synchronization."
+          ]
+        }
+      ],
+      "review_scope": "Claim-by-claim source substantiation against the exact frozen native product head and its accepted S10.4 current-profile evidence.",
+      "review_method": "The frozen claim text and ordered state IDs were compared byte-for-byte between the S10.6 store manifest and readiness document. Each claim was then traced to native Swift source at the exact product head, accepted state-level visual and accessibility evidence at the S10.4 evidence head, and the applicable accepted critical-task row. A claim is SUPPORTED only when the implementation and accepted state evidence jointly substantiate the statement within the recorded limitations.",
+      "accepted_automated_evidence_head": "e2189af36a89caf815cf078756341c1f1542f7df",
+      "accepted_automated_receipt_head": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
+      "source_identity_sha256": "FA2E57BD20754B0E9844D8939B7BB4887448DC02D026F5EB635189B80C8E5F7A",
+      "evidence_documents": [
+        {
+          "path": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
+          "blob_commit": "99fa4f56486c31c0e7c86fddef4718e8ff734cfc",
+          "git_blob": "ecd376dc533fc64280a41f127fae654b140170bf",
+          "sha256": "5DBAD4C21E59D8A3CEEBBACF4C63363BDCB47FC93B177B5C12EE7FA01B6EF097",
+          "role": "Frozen claim text, ordered state IDs, and five approved store-candidate bindings."
+        },
+        {
+          "path": "docs/design/s10/s10-store-readiness.json",
+          "blob_commit": "99fa4f56486c31c0e7c86fddef4718e8ff734cfc",
+          "git_blob": "c206c5a2dda21de7712087e6e7707d26f0ea1abe",
+          "sha256": "0A6DB85667D4E40281B6BE3F0F2D4088C3727B8562CC84A820F4AC3803DB671F",
+          "role": "Independent mirror of the five frozen claims; claim statuses remained NOT_RUN before this review."
+        },
+        {
+          "path": "docs/design/s10/s10-visual-regression.json",
+          "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+          "sha256": "D9086AE7D1DB74BEF22D85088BA5356EA55960868B4A36C0A1683215C9A71E64",
+          "role": "Accepted S10.4 evidence: seven current profiles, 469 visual cells, all 67 states, with state-level native artifact, image, AX, contrast, and owner-review bindings."
+        },
+        {
+          "path": "docs/design/s10/s10-accessibility-common-tasks.json",
+          "blob_commit": "e2189af36a89caf815cf078756341c1f1542f7df",
+          "sha256": "CE2BB6143140825749783D00F25D8AF5A8F1290274E39AE59D1421F8AC4E0F49",
+          "role": "Accepted S10.4 evidence: 42 current-profile task rows across the six continuously executed critical journeys."
+        }
+      ],
+      "supplemental_s10_6_ci": {
+        "run_id": "34536261005",
+        "head_sha": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
+        "conclusion": "success",
+        "use": "Procedural provenance only: this run confirms the later S10.6 candidate and its documents passed their selected build, unit, UI, checksum, and budget gates. It is not used as native-head claim-flow evidence and does not replace the S10.4 exact-product-head bindings below.",
+        "record_path": "Temp/S10_6_ReleasePreparation/final-phase-contract/ci-record-34536261005/COMMITTED_EVIDENCE.json",
+        "record_sha256": "1E471DD12D42EDAECF76016183CE76516C44C302CD84A8F813699B62AC7F21A2"
+      },
+      "global_limitations": [
+        "This is a factual source-and-evidence substantiation review, not legal, trademark, name, URL, regulatory, or App Store clearance.",
+        "The accepted behavior evidence was produced in iOS Simulator at the frozen native product head; it is not physical-device verification.",
+        "The review does not establish signing, archive privacy, App Privacy answers, store upload, submission, or release readiness.",
+        "The report does not claim a successful third-party share destination, camera-hardware quality, cloud synchronization, or indefinite retention beyond the implemented device-local persistence and backup controls."
+      ],
+      "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/claim-review/CLAIM_SUBSTANTIATION_REVIEW_FINAL_20260910.json",
+      "source_sha256": "F22626D85C6A661758F0DE512C63B5B7873B7ABA9AD9040E0FC53FB1D4033C41",
+      "sealed_original_utf8": "{\n  \"status\": \"PASS\",\n  \"evidence_id\": \"s10.6-five-store-claims-source-substantiation-20260910\",\n  \"date\": \"2026-09-10\",\n  \"reviewer\": \"Codex\",\n  \"reviewed_repository_head\": \"99fa4f56486c31c0e7c86fddef4718e8ff734cfc\",\n  \"source_product_head\": \"0adebd72ae0226a80e14eaf515ca133072fb1c76\",\n  \"claim_ids\": [\n    \"claim.find-asset\",\n    \"claim.capture-review\",\n    \"claim.preview-share-report\",\n    \"claim.work-recheck-history\",\n    \"claim.local-data-controls\"\n  ],\n  \"claims\": [\n    {\n      \"claim_id\": \"claim.find-asset\",\n      \"text\": \"Find a sign and open its device-local inspection history.\",\n      \"screen_state_ids\": [\n        \"state.sign-detail.ready\",\n        \"state.report-history.ready\"\n      ],\n      \"status\": \"SUPPORTED\",\n      \"support_summary\": \"The app opens a saved sign, exposes a sign-scoped Report history action, and displays the persisted report-history screen.\",\n      \"source_bindings\": [\n        {\n          \"path\": \"FieldEvidenceApp/App/FieldEvidenceAppApp.swift\",\n          \"git_blob\": \"a39a34e91b21de6cbd6093186e3e5d5da54910cd\",\n          \"sha256\": \"6E79F6C89E3063B18A7F250909163DB78F23175C9159BDB4621CB8C2208709B3\",\n          \"line_reference\": \"70-74\",\n          \"role\": \"Binds live storage to the user-domain Application Support directory.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/Signs/SignDetailView.swift\",\n          \"git_blob\": \"4b87a98eabc0e888d48813373aef160d4cd21328\",\n          \"sha256\": \"E0244763E542717E19E74BCDB9D7F2C29CCFF24F5EC23764841F2B07B41C73F8\",\n          \"line_reference\": \"114-124\",\n          \"role\": \"Exposes View report and Report history actions on sign detail.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/Reports/ReportsRootView.swift\",\n          \"git_blob\": \"fcdcdf59f2744339b14096f96aed95c1604609f5\",\n          \"sha256\": \"63023BB6107A62F0450304F856B8E7CE796B74D4A08E912380C79DF0D75D58BA\",\n          \"line_reference\": \"340-386\",\n          \"role\": \"Renders chronological report history and opens a stored report.\"\n        },\n        {\n          \"path\": \"FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift\",\n          \"git_blob\": \"f1a63c971187a3d7efddc888aaf08f2dc0765cec\",\n          \"sha256\": \"C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46\",\n          \"line_reference\": \"2928-2935; 7093-7133\",\n          \"role\": \"Captures sign detail, opens Report history, asserts the history screen and report action, and captures the history state.\"\n        }\n      ],\n      \"evidence_bindings\": {\n        \"accepted_state_cells\": [\n          {\n            \"screen_state_id\": \"state.sign-detail.ready\",\n            \"cell_id\": \"cell.sign-detail.ready.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"6EB56317ACBDA532BBDB776B2DB039AF4FC5E78768A1FECBF1C0A2CB7B817710\",\n            \"candidate_byte_length\": 187604,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.sign-detail.ready\",\n            \"ax_evidence_sha256\": \"EE7C6D2DF62BB6A5D25264BDBEC3EB3C8746071EF0701156A53A9098B9C06F8F\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.sign-detail.ready\",\n            \"contrast_evidence_sha256\": \"6F88738582B637219A27EC1702005686EEA36A53F2FB4A91385A937CCCE774C5\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.sign-detail.ready\",\n              \"s10.4-contrast-s10.4.current.default-light-state.sign-detail.ready\",\n              \"owner-review-s10.4.current.default-light-state.sign-detail.ready\"\n            ]\n          },\n          {\n            \"screen_state_id\": \"state.report-history.ready\",\n            \"cell_id\": \"cell.report-history.ready.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"4EAD41895A563AD016DE77FA8139015008C8095DFA9E16B2274F8D2E4DD41EF3\",\n            \"candidate_byte_length\": 185998,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.report-history.ready\",\n            \"ax_evidence_sha256\": \"2BE2C1031C386A37757BAB278270344FFFC7F013E0BB1CBD97C86B80C3093F11\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.report-history.ready\",\n            \"contrast_evidence_sha256\": \"1C80FB1294D29A0C7A63C29BFEEE80AC134834BAFD1F74854E4E427B3D38C348\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.report-history.ready\",\n              \"s10.4-contrast-s10.4.current.default-light-state.report-history.ready\",\n              \"owner-review-s10.4.current.default-light-state.report-history.ready\"\n            ]\n          }\n        ],\n        \"accepted_task_rows\": [\n          {\n            \"task_id\": \"one_handed_start\",\n            \"title\": \"Create or reopen a sign and reach inspection preflight with one-handed primary actions\",\n            \"screen_state_ids\": [\n              \"state.pack.unavailable\",\n              \"state.welcome.empty\",\n              \"state.sign-selection.ready\",\n              \"state.new-sign.editing\",\n              \"state.new-sign.validation-error\",\n              \"state.sign-detail.ready\",\n              \"state.check-preflight.ready\",\n              \"state.paywall.unavailable\",\n              \"state.paywall.available\",\n              \"state.paywall.purchase-complete\"\n            ],\n            \"automated_status\": \"PASS\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-one_handed_start\",\n            \"ax_evidence_sha256\": \"C27AB0A5FE4BFE3B1F999C6C103861B35CC8D378DDAD4D4A7D2945D0BAEFDC97\",\n            \"acceptance_scope\": \"REQUIRED\"\n          },\n          {\n            \"task_id\": \"history_recovery\",\n            \"title\": \"Review report history and use explicit device-local recovery, diagnostics, feedback, erase, and purchase-restore controls\",\n            \"screen_state_ids\": [\n              \"state.reports-index.empty\",\n              \"state.reports-index.ready\",\n              \"state.sign-detail.delete-confirmation\",\n              \"state.report-detail.ready\",\n              \"state.report-history.ready\",\n              \"state.report-comparison.ready\",\n              \"state.report-correction.editing\",\n              \"state.report-correction.validation-error\",\n              \"state.report-correction.saving\",\n              \"state.report-correction.completed\",\n              \"state.report-pdf.failed\",\n              \"state.settings.hub\",\n              \"state.backup.ready\",\n              \"state.diagnostics.ready\",\n              \"state.feedback.review-ready\",\n              \"state.feedback.blocked\",\n              \"state.erase.confirmation\",\n              \"state.restore.choose-backup\",\n              \"state.subscription.no-entitlement\",\n              \"state.subscription.active\"\n            ],\n            \"automated_status\": \"PASS\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-history_recovery\",\n            \"ax_evidence_sha256\": \"641450FC47290FED09232882B316CE85D865275704BCC7594CE61D03D28759A1\",\n            \"acceptance_scope\": \"REQUIRED\"\n          }\n        ]\n      },\n      \"limitations\": [\n        \"Device-local means the app-owned user Application Support store at this product head; the claim does not promise cloud sync or cross-device history.\"\n      ]\n    },\n    {\n      \"claim_id\": \"claim.capture-review\",\n      \"text\": \"Capture wide and close evidence, then review the selected outcome before saving.\",\n      \"screen_state_ids\": [\n        \"state.capture.wide-preview\",\n        \"state.capture.close-preview\",\n        \"state.check-review.visible-issue\"\n      ],\n      \"status\": \"SUPPORTED\",\n      \"support_summary\": \"The capture flow presents separate wide and close previews, carries both evidence items into outcome review, and requires the explicit Save and finish action after review.\",\n      \"source_bindings\": [\n        {\n          \"path\": \"FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift\",\n          \"git_blob\": \"46e6da77fd5f1207079e4e713c45891a4e5a5397\",\n          \"sha256\": \"B4A7FDD087CCBE4B0644EA81184209CDEADC960176D5C61CE851A5145FDA0782\",\n          \"line_reference\": \"138-160; 239-252\",\n          \"role\": \"Displays the captured/imported preview and explicit Retake or Use Photo actions for each capture step.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift\",\n          \"git_blob\": \"6f61e6ca121374f4f7d77c7fd8b7ec6c7b566449\",\n          \"sha256\": \"82E2AA1A52DBE6A2D0FA8F61B6983F369B87325E0542E2385774F988F2F7697A\",\n          \"line_reference\": \"287-316\",\n          \"role\": \"Displays Wide view and Close view evidence on the review screen and exposes Save and finish.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift\",\n          \"git_blob\": \"9e558fe2c38454f3342574c88de5dec61c8c8ac0\",\n          \"sha256\": \"5012A8BEA2CC33961382D783420A239C987DC2E71B62328B436095932242CFA0\",\n          \"line_reference\": \"356-430\",\n          \"role\": \"Finalizes the reviewed selection into the saved check/report flow.\"\n        },\n        {\n          \"path\": \"FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift\",\n          \"git_blob\": \"f1a63c971187a3d7efddc888aaf08f2dc0765cec\",\n          \"sha256\": \"C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46\",\n          \"line_reference\": \"6439-6511\",\n          \"role\": \"Accepts Wide view and Close view previews, selects an outcome, asserts both review evidence elements, captures review, then taps Save and finish.\"\n        }\n      ],\n      \"evidence_bindings\": {\n        \"accepted_state_cells\": [\n          {\n            \"screen_state_id\": \"state.capture.wide-preview\",\n            \"cell_id\": \"cell.capture.wide-preview.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"B5B769433EA13A40CC27990CCCF9F8184B4E6AF41BE5C467A5E7D877CDD36CA3\",\n            \"candidate_byte_length\": 152372,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.capture.wide-preview\",\n            \"ax_evidence_sha256\": \"ACBDE8F636455676B2432C081F42A315157A2A4F158BC9BCCE214533EA57241F\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.capture.wide-preview\",\n            \"contrast_evidence_sha256\": \"AA97EE99644EE0577B95CEE920C109D3D0F9E892F9532061247FB6D4C50BF59C\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.capture.wide-preview\",\n              \"s10.4-contrast-s10.4.current.default-light-state.capture.wide-preview\",\n              \"owner-review-s10.4.current.default-light-state.capture.wide-preview\"\n            ]\n          },\n          {\n            \"screen_state_id\": \"state.capture.close-preview\",\n            \"cell_id\": \"cell.capture.close-preview.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"A4D7E1F5C2F16F6CCA6442E40B8670E07CB649B0B2845232108C053694518D1A\",\n            \"candidate_byte_length\": 182660,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.capture.close-preview\",\n            \"ax_evidence_sha256\": \"F54458BF8548FB7BB0887884736653022F09ACB32AE0EC166D731DA72D0F96BC\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.capture.close-preview\",\n            \"contrast_evidence_sha256\": \"0A61F97D85EC7AFAA918B9137A9184F3C8751E381832CC36CBF1FF596A3BE8F6\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.capture.close-preview\",\n              \"s10.4-contrast-s10.4.current.default-light-state.capture.close-preview\",\n              \"owner-review-s10.4.current.default-light-state.capture.close-preview\"\n            ]\n          },\n          {\n            \"screen_state_id\": \"state.check-review.visible-issue\",\n            \"cell_id\": \"cell.check-review.visible-issue.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"0A0633401637DA19F49ED1390DB66354B6E4647367CCA13DAB7E6CFA02D8A437\",\n            \"candidate_byte_length\": 296052,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.check-review.visible-issue\",\n            \"ax_evidence_sha256\": \"B0A7A65337A861277C2C02790FB58C8CBAC127CE0A129A42109E0F677996C773\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.check-review.visible-issue\",\n            \"contrast_evidence_sha256\": \"B0A1C5FE57B147CB1A6685D3D3E8843D4D138A21D98F5E0ACA0D4A3C1CBED947\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.check-review.visible-issue\",\n              \"s10.4-contrast-s10.4.current.default-light-state.check-review.visible-issue\",\n              \"owner-review-s10.4.current.default-light-state.check-review.visible-issue\"\n            ]\n          }\n        ],\n        \"accepted_task_rows\": [\n          {\n            \"task_id\": \"capture_and_review\",\n            \"title\": \"Capture wide and close evidence, select a visible issue, review, save, and open the report\",\n            \"screen_state_ids\": [\n              \"state.check-preflight.ready\",\n              \"state.capture.wide-ready\",\n              \"state.capture.wide-preview\",\n              \"state.capture.close-ready\",\n              \"state.capture.close-preview\",\n              \"state.capture.camera-denied\",\n              \"state.capture.low-storage-error\",\n              \"state.check-outcome.visible-issue\",\n              \"state.check-outcome.no-visible-issue\",\n              \"state.check-outcome.could-not-verify\",\n              \"state.check-review.visible-issue\",\n              \"state.check-review.no-visible-issue\",\n              \"state.check-review.could-not-verify\",\n              \"state.receipt.report-saved\",\n              \"state.report-detail.ready\"\n            ],\n            \"automated_status\": \"PASS\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-capture_and_review\",\n            \"ax_evidence_sha256\": \"C3C900F8014311A21292B001E127B5ECC11FD406CCCA8EF88FEEF41F2E202E4C\",\n            \"acceptance_scope\": \"REQUIRED\"\n          }\n        ]\n      },\n      \"limitations\": [\n        \"Accepted evidence uses deterministic imported-photo fixtures in iOS Simulator; it does not substantiate physical camera hardware performance or photo quality.\"\n      ]\n    },\n    {\n      \"claim_id\": \"claim.preview-share-report\",\n      \"text\": \"Preview and share a saved inspection report.\",\n      \"screen_state_ids\": [\n        \"state.receipt.report-saved\",\n        \"state.report-detail.ready\"\n      ],\n      \"status\": \"SUPPORTED\",\n      \"support_summary\": \"After a report is saved on the device, its detail screen renders a PDF preview and exposes Share PDF through the system share sheet.\",\n      \"source_bindings\": [\n        {\n          \"path\": \"FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift\",\n          \"git_blob\": \"832380c3929b70af7cee9e6de8483cb83e4fbdb1\",\n          \"sha256\": \"59B875E2FB89CAD9AF4BC02A9214686A95896E3E99FF7581BEACA600AF2CCB72\",\n          \"line_reference\": \"35-48\",\n          \"role\": \"States that the report was saved on this device and provides the View report action.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/Reports/ReportDetailView.swift\",\n          \"git_blob\": \"52f07535d1561b5307e8cc94252c7afc15e5e5f4\",\n          \"sha256\": \"09B2B7B3A747A4D8FACD20735B53B5B63FEDEE788613EFA3F26FC622D12FC64F\",\n          \"line_reference\": \"122-131; 163-197\",\n          \"role\": \"Renders the PDF preview and exposes Share PDF plus Save to Files delivery actions.\"\n        },\n        {\n          \"path\": \"FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift\",\n          \"git_blob\": \"f1a63c971187a3d7efddc888aaf08f2dc0765cec\",\n          \"sha256\": \"C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46\",\n          \"line_reference\": \"7039-7081\",\n          \"role\": \"Asserts the saved receipt, opens the report, verifies a hittable preview, and captures the report-detail state.\"\n        }\n      ],\n      \"evidence_bindings\": {\n        \"accepted_state_cells\": [\n          {\n            \"screen_state_id\": \"state.receipt.report-saved\",\n            \"cell_id\": \"cell.receipt.report-saved.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"CD9423A4A8C04C8414ACD3D81CFCB6FBF3BDE29B4B03B781EC4B740078257A04\",\n            \"candidate_byte_length\": 139165,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.receipt.report-saved\",\n            \"ax_evidence_sha256\": \"D6FF59A711AD900F401AF70F4E9F6B92F511D66FA9855FEDCCA5009141D5C0E0\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.receipt.report-saved\",\n            \"contrast_evidence_sha256\": \"4C5F549864C0950E5C7B33508E7FBBD864F0D59B08B1FEBEC8AD48A9C985D9E1\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.receipt.report-saved\",\n              \"s10.4-contrast-s10.4.current.default-light-state.receipt.report-saved\",\n              \"owner-review-s10.4.current.default-light-state.receipt.report-saved\"\n            ]\n          },\n          {\n            \"screen_state_id\": \"state.report-detail.ready\",\n            \"cell_id\": \"cell.report-detail.ready.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"2DE26DE0F2AD595CE3B4EB8923E23EA77FB828AFD119327DD977B4C783AF1870\",\n            \"candidate_byte_length\": 240785,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.report-detail.ready\",\n            \"ax_evidence_sha256\": \"DE6C9D27DB420AE8755843C9E6990B5705FF6651F863AD78CB746BB5AE9FE182\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.report-detail.ready\",\n            \"contrast_evidence_sha256\": \"84F7F0CB5B2AC8D9C469D44F715784ABAC6C9910FF8C2A30056EC3F939B4E467\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.report-detail.ready\",\n              \"s10.4-contrast-s10.4.current.default-light-state.report-detail.ready\",\n              \"owner-review-s10.4.current.default-light-state.report-detail.ready\"\n            ]\n          }\n        ],\n        \"accepted_task_rows\": [\n          {\n            \"task_id\": \"capture_and_review\",\n            \"title\": \"Capture wide and close evidence, select a visible issue, review, save, and open the report\",\n            \"screen_state_ids\": [\n              \"state.check-preflight.ready\",\n              \"state.capture.wide-ready\",\n              \"state.capture.wide-preview\",\n              \"state.capture.close-ready\",\n              \"state.capture.close-preview\",\n              \"state.capture.camera-denied\",\n              \"state.capture.low-storage-error\",\n              \"state.check-outcome.visible-issue\",\n              \"state.check-outcome.no-visible-issue\",\n              \"state.check-outcome.could-not-verify\",\n              \"state.check-review.visible-issue\",\n              \"state.check-review.no-visible-issue\",\n              \"state.check-review.could-not-verify\",\n              \"state.receipt.report-saved\",\n              \"state.report-detail.ready\"\n            ],\n            \"automated_status\": \"PASS\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-capture_and_review\",\n            \"ax_evidence_sha256\": \"C3C900F8014311A21292B001E127B5ECC11FD406CCCA8EF88FEEF41F2E202E4C\",\n            \"acceptance_scope\": \"REQUIRED\"\n          }\n        ]\n      },\n      \"limitations\": [\n        \"Share means the implemented action opens the iOS system share sheet for the report PDF. The evidence does not claim successful delivery to any particular third-party destination.\"\n      ]\n    },\n    {\n      \"claim_id\": \"claim.work-recheck-history\",\n      \"text\": \"Record completed work and preserve the resulting recheck history.\",\n      \"screen_state_ids\": [\n        \"state.work.editing\",\n        \"state.issue.recheck-due\",\n        \"state.issue.resolved\"\n      ],\n      \"status\": \"SUPPORTED\",\n      \"support_summary\": \"The work flow records a dated description and optional evidence, advances the issue to recheck due, and retains the issue through the later resolved state.\",\n      \"source_bindings\": [\n        {\n          \"path\": \"FieldEvidenceApp/Features/Issues/RecordWorkView.swift\",\n          \"git_blob\": \"5e2b5c672b27fc9f7617676c9f9644d4b16c5205\",\n          \"sha256\": \"CF6C1A3C157DBC86C49B583C635FCD8A008BBEAA5C9A9F625031B34A27E0BAD5\",\n          \"line_reference\": \"252-308\",\n          \"role\": \"Validates the work entry, constructs the completed work submission, saves it, and returns the updated issue.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/Issues/WorkCoordinator.swift\",\n          \"git_blob\": \"2e66dbe6b4411e0f6adafe1967e405103cce2d36\",\n          \"sha256\": \"C20F2C1DE8CBAE06ADFF794828C620CE9C65704F12208E7FBB64DFC6931EB7B8\",\n          \"line_reference\": \"198-430\",\n          \"role\": \"Persists work and recheck transitions while retaining their linked records.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/Issues/IssueDetailView.swift\",\n          \"git_blob\": \"ce8e004c08c5384aa1714015c44f81449d4fd751\",\n          \"sha256\": \"65BAEF5BBD7AC873B8EF10AC04B3128FA52C81F1C7D48747FB2256D9120673F7\",\n          \"line_reference\": \"38-43; 96-103\",\n          \"role\": \"Exposes Record work and Start recheck actions and renders Recheck due or Resolved status.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/Signs/SignDetailView.swift\",\n          \"git_blob\": \"4b87a98eabc0e888d48813373aef160d4cd21328\",\n          \"sha256\": \"E0244763E542717E19E74BCDB9D7F2C29CCFF24F5EC23764841F2B07B41C73F8\",\n          \"line_reference\": \"92-110\",\n          \"role\": \"Surfaces Record work, Recheck due, and Resolved actions from sign detail.\"\n        },\n        {\n          \"path\": \"FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift\",\n          \"git_blob\": \"f1a63c971187a3d7efddc888aaf08f2dc0765cec\",\n          \"sha256\": \"C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46\",\n          \"line_reference\": \"8765-8790; 9396-9403; 10073-10094; 10207-10219\",\n          \"role\": \"Enters work, captures the editing state, records it, verifies Recheck due, later verifies Resolved, and records the completed work/recheck journey.\"\n        }\n      ],\n      \"evidence_bindings\": {\n        \"accepted_state_cells\": [\n          {\n            \"screen_state_id\": \"state.work.editing\",\n            \"cell_id\": \"cell.work.editing.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"5F9F38453BF642705BE16EF8A428B1D87872EB929F30C73E8B7EF95E39211946\",\n            \"candidate_byte_length\": 183519,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.work.editing\",\n            \"ax_evidence_sha256\": \"D142E7FA22D677E5D2DB107325CEC87C79594DDD611C9956BD08141087A4B768\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.work.editing\",\n            \"contrast_evidence_sha256\": \"820812863750AF7497CFA166D2A041A13BBFBB249E1183874F2A54CCD9A530DE\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.work.editing\",\n              \"s10.4-contrast-s10.4.current.default-light-state.work.editing\",\n              \"owner-review-s10.4.current.default-light-state.work.editing\"\n            ]\n          },\n          {\n            \"screen_state_id\": \"state.issue.recheck-due\",\n            \"cell_id\": \"cell.issue.recheck-due.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"92E98827528E725D217078DA2CFA4027D165350D734A5D64D5F5C26D4A14DB41\",\n            \"candidate_byte_length\": 293443,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.issue.recheck-due\",\n            \"ax_evidence_sha256\": \"54B0AFF5663E7F8CBBEFAC8414C08E0A3194A7945DF51C75F6467434D2437F8A\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.issue.recheck-due\",\n            \"contrast_evidence_sha256\": \"2CD52F9A17DB19DB9996A610EB8ED0A67BC09B6204AC8E170EC823E3BE8644CC\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.issue.recheck-due\",\n              \"s10.4-contrast-s10.4.current.default-light-state.issue.recheck-due\",\n              \"owner-review-s10.4.current.default-light-state.issue.recheck-due\"\n            ]\n          },\n          {\n            \"screen_state_id\": \"state.issue.resolved\",\n            \"cell_id\": \"cell.issue.resolved.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"A9D99B2279982C56298BDBDD214F085F29D0060A09C2A9F041F08929C08C0993\",\n            \"candidate_byte_length\": 277269,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.issue.resolved\",\n            \"ax_evidence_sha256\": \"C63C104E8F266C721A274FCACEC8D388A8DD9866A91138449E08183E02A3D88C\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.issue.resolved\",\n            \"contrast_evidence_sha256\": \"37CF8544AEA96D11AB6B81A4FD47F0DC45950800DA450099A95D7443FE552B48\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.issue.resolved\",\n              \"s10.4-contrast-s10.4.current.default-light-state.issue.resolved\",\n              \"owner-review-s10.4.current.default-light-state.issue.resolved\"\n            ]\n          }\n        ],\n        \"accepted_task_rows\": [\n          {\n            \"task_id\": \"work_and_recheck\",\n            \"title\": \"Record work, start a recheck, capture evidence, resolve the issue, and verify final status\",\n            \"screen_state_ids\": [\n              \"state.sign-detail.open-issue\",\n              \"state.recheck-preflight.ready\",\n              \"state.recheck-capture.wide-ready\",\n              \"state.recheck-capture.wide-preview\",\n              \"state.recheck-capture.close-ready\",\n              \"state.recheck-capture.close-preview\",\n              \"state.recheck-outcome.resolved\",\n              \"state.recheck-outcome.issue-still-visible\",\n              \"state.recheck-outcome.different-issue\",\n              \"state.recheck-outcome.could-not-verify\",\n              \"state.recheck-review.resolved\",\n              \"state.recheck-review.issue-still-visible\",\n              \"state.recheck-review.different-issue\",\n              \"state.recheck-review.could-not-verify\",\n              \"state.recheck-receipt.saved\",\n              \"state.recheck-report-detail.ready\",\n              \"state.issue.open\",\n              \"state.issue.different-open\",\n              \"state.issue.recheck-due\",\n              \"state.issue.resolved\",\n              \"state.work.editing\",\n              \"state.work.validation-error\",\n              \"state.work.saving\"\n            ],\n            \"automated_status\": \"PASS\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-work_and_recheck\",\n            \"ax_evidence_sha256\": \"79BC8DF488AE830F8DC52BD25EA104F74F589AAF66C6E0896A090674443945AA\",\n            \"acceptance_scope\": \"REQUIRED\"\n          }\n        ]\n      },\n      \"limitations\": [\n        \"Preservation is substantiated for the implemented device-local record chain and tested relaunch/history behavior; it is not a promise of cloud synchronization or unlimited archival duration.\"\n      ]\n    },\n    {\n      \"claim_id\": \"claim.local-data-controls\",\n      \"text\": \"Back up and restore device-local inspection data through explicit user actions.\",\n      \"screen_state_ids\": [\n        \"state.backup.ready\",\n        \"state.restore.choose-backup\"\n      ],\n      \"status\": \"SUPPORTED\",\n      \"support_summary\": \"Settings exposes explicit backup and restore entry points; backup requires an explicit export action and restore requires explicit choose, confirm/replace, and cancel actions backed by package export/import/restore services.\",\n      \"source_bindings\": [\n        {\n          \"path\": \"FieldEvidenceApp/App/FieldEvidenceAppApp.swift\",\n          \"git_blob\": \"a39a34e91b21de6cbd6093186e3e5d5da54910cd\",\n          \"sha256\": \"6E79F6C89E3063B18A7F250909163DB78F23175C9159BDB4621CB8C2208709B3\",\n          \"line_reference\": \"70-74; 302-340\",\n          \"role\": \"Uses user-domain Application Support and wires explicit restore actions into the app.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/Settings/BackupExportView.swift\",\n          \"git_blob\": \"77779e6fd5acd0e7c86e9b247c89feae13c08b15\",\n          \"sha256\": \"850D4C16EE31A12DFB78B1D07498BF428EC99FECE6153CF530F0A844C37316C4\",\n          \"line_reference\": \"45-97\",\n          \"role\": \"Shows data counts and requires Back up current data before presenting the destination picker.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift\",\n          \"git_blob\": \"df32da97646aaf05b7a7579aee335bb8874f72ed\",\n          \"sha256\": \"6B5126A224E0A62EE00C539CAAF6E4C88369D634F4AB6AC16AA4E4AA2EC71BB8\",\n          \"line_reference\": \"105-155\",\n          \"role\": \"Requires Choose backup and then Restore data backup or Replace current data, with Cancel available.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\",\n          \"git_blob\": \"94661a18bceb2fc5060a346b424247eeee8151e5\",\n          \"sha256\": \"B6DCC3D5F26CD95CB32F4C328496D82A033E0E7FB426D87EFCD2120CD8D9DE7C\",\n          \"line_reference\": \"74-180\",\n          \"role\": \"Prepares, validates, and writes the user-selected backup package.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift\",\n          \"git_blob\": \"0f15caad26d10138128ea9a7999e0e8fc438c426\",\n          \"sha256\": \"3305DF4288073FF24EB2EF69CDBD3CDEEAE9D2EED3428D5AC7FF9C4FE85FAD57\",\n          \"line_reference\": \"69-199\",\n          \"role\": \"Coordinates and validates a user-selected backup package before restore.\"\n        },\n        {\n          \"path\": \"FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\",\n          \"git_blob\": \"41be44f05451161d0ae688351429c1ca10f732fe\",\n          \"sha256\": \"D2708F88A8C51794EB255AC413C7356529A64B4B1C324E0FCBA1A7298595AD50\",\n          \"line_reference\": \"106-250; 391-470\",\n          \"role\": \"Constrains the restore to the app Application Support root and performs the controlled replacement.\"\n        },\n        {\n          \"path\": \"FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift\",\n          \"git_blob\": \"f1a63c971187a3d7efddc888aaf08f2dc0765cec\",\n          \"sha256\": \"C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46\",\n          \"line_reference\": \"14016-14026; 14389-14401\",\n          \"role\": \"Opens and captures backup readiness, then explicitly opens and captures the restore chooser and cancels it.\"\n        }\n      ],\n      \"evidence_bindings\": {\n        \"accepted_state_cells\": [\n          {\n            \"screen_state_id\": \"state.backup.ready\",\n            \"cell_id\": \"cell.backup.ready.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"7FE07225143F72EC32D4EADD6349125D2B77A9305C0B0983CA1539F2B7721086\",\n            \"candidate_byte_length\": 153976,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.backup.ready\",\n            \"ax_evidence_sha256\": \"1F0AB6EBB20C394BCB5841E323769C00DF01709396C28FE611944BB1731CE2A1\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.backup.ready\",\n            \"contrast_evidence_sha256\": \"4BFB6B15271F7EFD35B38B18BC8EB6BD8255435E11766D7E5F466171E9C091D7\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.backup.ready\",\n              \"s10.4-contrast-s10.4.current.default-light-state.backup.ready\",\n              \"owner-review-s10.4.current.default-light-state.backup.ready\"\n            ]\n          },\n          {\n            \"screen_state_id\": \"state.restore.choose-backup\",\n            \"cell_id\": \"cell.restore.choose-backup.default_light\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"candidate_sha256\": \"62CC37E8E8F3134E2A7B9A2A7321F9125CA9561EB02474DAFB1E59FD8315BD1F\",\n            \"candidate_byte_length\": 114099,\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-state.restore.choose-backup\",\n            \"ax_evidence_sha256\": \"3BC5B5750FA38BA2E4F9E0532F2251474C701BE10C8F6DC041DB0B3BBF274529\",\n            \"contrast_evidence_id\": \"s10.4-contrast-s10.4.current.default-light-state.restore.choose-backup\",\n            \"contrast_evidence_sha256\": \"C310F2E7989E3BDA50307681F066288E5E4F6068901D5BD5EBA6AD45A9A74A66\",\n            \"result\": \"PASS\",\n            \"review_status\": \"APPROVED\",\n            \"reviewer\": \"palatis3\",\n            \"evidence_ids\": [\n              \"github-actions-run-34481147676-job-102884124119-artifact-10155130147\",\n              \"s10.4-ax-s10.4.current.default-light-state.restore.choose-backup\",\n              \"s10.4-contrast-s10.4.current.default-light-state.restore.choose-backup\",\n              \"owner-review-s10.4.current.default-light-state.restore.choose-backup\"\n            ]\n          }\n        ],\n        \"accepted_task_rows\": [\n          {\n            \"task_id\": \"history_recovery\",\n            \"title\": \"Review report history and use explicit device-local recovery, diagnostics, feedback, erase, and purchase-restore controls\",\n            \"screen_state_ids\": [\n              \"state.reports-index.empty\",\n              \"state.reports-index.ready\",\n              \"state.sign-detail.delete-confirmation\",\n              \"state.report-detail.ready\",\n              \"state.report-history.ready\",\n              \"state.report-comparison.ready\",\n              \"state.report-correction.editing\",\n              \"state.report-correction.validation-error\",\n              \"state.report-correction.saving\",\n              \"state.report-correction.completed\",\n              \"state.report-pdf.failed\",\n              \"state.settings.hub\",\n              \"state.backup.ready\",\n              \"state.diagnostics.ready\",\n              \"state.feedback.review-ready\",\n              \"state.feedback.blocked\",\n              \"state.erase.confirmation\",\n              \"state.restore.choose-backup\",\n              \"state.subscription.no-entitlement\",\n              \"state.subscription.active\"\n            ],\n            \"automated_status\": \"PASS\",\n            \"run_id\": \"34481147676\",\n            \"job_id\": \"102884124119\",\n            \"artifact_id\": \"10155130147\",\n            \"artifact_digest\": \"sha256:fbdf9bad648e650add09009c3fdfe8da1c633ab4b070ad5b5e5a239889d7314a\",\n            \"ax_evidence_id\": \"s10.4-ax-s10.4.current.default-light-history_recovery\",\n            \"ax_evidence_sha256\": \"641450FC47290FED09232882B316CE85D865275704BCC7594CE61D03D28759A1\",\n            \"acceptance_scope\": \"REQUIRED\"\n          }\n        ]\n      },\n      \"limitations\": [\n        \"The accepted S10.4 state evidence proves the controls and validated native routes in Simulator; it is not physical-device verification and does not claim cloud backup or automatic synchronization.\"\n      ]\n    }\n  ],\n  \"review_scope\": \"Claim-by-claim source substantiation against the exact frozen native product head and its accepted S10.4 current-profile evidence.\",\n  \"review_method\": \"The frozen claim text and ordered state IDs were compared byte-for-byte between the S10.6 store manifest and readiness document. Each claim was then traced to native Swift source at the exact product head, accepted state-level visual and accessibility evidence at the S10.4 evidence head, and the applicable accepted critical-task row. A claim is SUPPORTED only when the implementation and accepted state evidence jointly substantiate the statement within the recorded limitations.\",\n  \"accepted_automated_evidence_head\": \"e2189af36a89caf815cf078756341c1f1542f7df\",\n  \"accepted_automated_receipt_head\": \"0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3\",\n  \"source_identity_sha256\": \"FA2E57BD20754B0E9844D8939B7BB4887448DC02D026F5EB635189B80C8E5F7A\",\n  \"evidence_documents\": [\n    {\n      \"path\": \"docs/design/s10/evidence/s10.6/store-screenshot-manifest.json\",\n      \"blob_commit\": \"99fa4f56486c31c0e7c86fddef4718e8ff734cfc\",\n      \"git_blob\": \"ecd376dc533fc64280a41f127fae654b140170bf\",\n      \"sha256\": \"5DBAD4C21E59D8A3CEEBBACF4C63363BDCB47FC93B177B5C12EE7FA01B6EF097\",\n      \"role\": \"Frozen claim text, ordered state IDs, and five approved store-candidate bindings.\"\n    },\n    {\n      \"path\": \"docs/design/s10/s10-store-readiness.json\",\n      \"blob_commit\": \"99fa4f56486c31c0e7c86fddef4718e8ff734cfc\",\n      \"git_blob\": \"c206c5a2dda21de7712087e6e7707d26f0ea1abe\",\n      \"sha256\": \"0A6DB85667D4E40281B6BE3F0F2D4088C3727B8562CC84A820F4AC3803DB671F\",\n      \"role\": \"Independent mirror of the five frozen claims; claim statuses remained NOT_RUN before this review.\"\n    },\n    {\n      \"path\": \"docs/design/s10/s10-visual-regression.json\",\n      \"blob_commit\": \"e2189af36a89caf815cf078756341c1f1542f7df\",\n      \"sha256\": \"D9086AE7D1DB74BEF22D85088BA5356EA55960868B4A36C0A1683215C9A71E64\",\n      \"role\": \"Accepted S10.4 evidence: seven current profiles, 469 visual cells, all 67 states, with state-level native artifact, image, AX, contrast, and owner-review bindings.\"\n    },\n    {\n      \"path\": \"docs/design/s10/s10-accessibility-common-tasks.json\",\n      \"blob_commit\": \"e2189af36a89caf815cf078756341c1f1542f7df\",\n      \"sha256\": \"CE2BB6143140825749783D00F25D8AF5A8F1290274E39AE59D1421F8AC4E0F49\",\n      \"role\": \"Accepted S10.4 evidence: 42 current-profile task rows across the six continuously executed critical journeys.\"\n    }\n  ],\n  \"supplemental_s10_6_ci\": {\n    \"run_id\": \"34536261005\",\n    \"head_sha\": \"75a8856c21e7a4aae5a8e48b40a68bdef6874d94\",\n    \"conclusion\": \"success\",\n    \"use\": \"Procedural provenance only: this run confirms the later S10.6 candidate and its documents passed their selected build, unit, UI, checksum, and budget gates. It is not used as native-head claim-flow evidence and does not replace the S10.4 exact-product-head bindings below.\",\n    \"record_path\": \"Temp/S10_6_ReleasePreparation/final-phase-contract/ci-record-34536261005/COMMITTED_EVIDENCE.json\",\n    \"record_sha256\": \"1E471DD12D42EDAECF76016183CE76516C44C302CD84A8F813699B62AC7F21A2\"\n  },\n  \"global_limitations\": [\n    \"This is a factual source-and-evidence substantiation review, not legal, trademark, name, URL, regulatory, or App Store clearance.\",\n    \"The accepted behavior evidence was produced in iOS Simulator at the frozen native product head; it is not physical-device verification.\",\n    \"The review does not establish signing, archive privacy, App Privacy answers, store upload, submission, or release readiness.\",\n    \"The report does not claim a successful third-party share destination, camera-hardware quality, cloud synchronization, or indefinite retention beyond the implemented device-local persistence and backup controls.\"\n  ]\n}\n"
     }
   },
   "physical_verification_blocking": false,

@@ -6,7 +6,7 @@
       "card": "S10.6",
       "selector": "FieldEvidenceAppUITests/S10_6BrandReleaseUITests",
       "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
-      "evidenceStatus": "PASS",
+      "evidenceStatus": "NOT_RUN",
       "physicalVerificationStatus": "DEFERRED",
       "releaseReady": false,
       "physicalVerificationBlocking": false,
@@ -80,9 +80,11 @@
           "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
           "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
         },
-        "humanVisualReview": "PENDING",
+        "humanVisualReview": "APPROVED",
         "formalReleaseAcceptance": false,
-        "physicalPass": false
+        "physicalPass": false,
+        "humanVisualReviewEvidenceID": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+        "humanVisualReviewScope": "displayed exact I5 Settings terminal screenshot"
       }
     }
   },

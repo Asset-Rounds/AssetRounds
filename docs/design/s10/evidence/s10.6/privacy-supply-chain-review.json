@@ -488,10 +488,6 @@
       "status": "PENDING_OWNER_INPUT"
     },
     {
-      "gate": "dated_trademark_name_claim_and_url_clearance",
-      "status": "PENDING_OWNER_INPUT"
-    },
-    {
       "gate": "required_6_5_or_6_9_app_store_screenshot_set",
       "status": "PENDING_EXTERNAL_STORE_ASSET_REVIEW",
       "source_note": "The frozen repository plan contains a 6.3-inch 1206-by-2622 set; preparation context reports the required 6.5/6.9 set is still missing. This is not a new device-CI route."
@@ -601,9 +597,11 @@
       "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
       "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
     },
-    "humanVisualReview": "PENDING",
+    "humanVisualReview": "APPROVED",
     "formalReleaseAcceptance": false,
-    "physicalPass": false
+    "physicalPass": false,
+    "humanVisualReviewEvidenceID": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+    "humanVisualReviewScope": "displayed exact I5 Settings terminal screenshot"
   },
   "physical_deferral_owner_request": {
     "policy_id": "owner-s10-5-nonblocking-post-release-20260910",
@@ -713,5 +711,39 @@
     "source_path": "Temp/S10_6_ReleasePreparation/final-phase-contract/OWNER_WEBSITE_LLC_ATTESTATION_20260910.json",
     "source_sha256": "837164D7E626B3A743A44E5C3BFB553444DB05A42444DE8EAC8A1180685A1AA5",
     "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-website-llc-attestation-20260910\",\n  \"source\": \"direct owner response in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I owj the website and working on getting llc. Confirm it as if today\",\n  \"websiteOwnership\": \"OWNER_ATTESTED\",\n  \"websiteOrDomainURL\": null,\n  \"llcFormation\": \"IN_PROGRESS_OWNER_ATTESTED\",\n  \"registeredEntityName\": null,\n  \"registrationIdentifier\": null,\n  \"separateClearanceReviewer\": null,\n  \"separateClearanceResult\": null,\n  \"interpretation\": \"Record the owner's website-ownership statement and in-progress LLC formation as dated September 10, 2026. No domain, completed LLC registration, separate clearance reviewer/result, or five-claim review was supplied.\"\n}\n"
+  },
+  "owner_terminal_review_record": {
+    "evidence_id": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+    "date": "2026-09-10",
+    "reviewer": "palatis3",
+    "image": {
+      "headSHA": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
+      "runID": "34536261005",
+      "artifactID": "10175949736",
+      "artifactSHA256": "F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467",
+      "pathWithinArtifact": "ui-final.png",
+      "sha256": "C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888",
+      "status": "APPROVED",
+      "scope": "displayed exact I5 Settings terminal screenshot",
+      "futureUnseenImageApproval": false
+    },
+    "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/OWNER_DIRECTIVE_20260910.json",
+    "source_sha256": "BD23286FA03EC456B50D637E4DE11FCDAB34383A466FDFAD40F75CBAF8F365E7",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910\",\n  \"policyID\": \"owner-s10.6-name-trademark-url-clearance-waiver-20260910\",\n  \"source\": \"direct owner instruction in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I approve. Merge into main. We don't need the dated name or trademark or URL clearance.\",\n  \"approvedTerminalImage\": {\n    \"headSHA\": \"75a8856c21e7a4aae5a8e48b40a68bdef6874d94\",\n    \"runID\": \"34536261005\",\n    \"artifactID\": \"10175949736\",\n    \"artifactSHA256\": \"F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467\",\n    \"pathWithinArtifact\": \"ui-final.png\",\n    \"sha256\": \"C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888\",\n    \"status\": \"APPROVED\",\n    \"scope\": \"displayed exact I5 Settings terminal screenshot\",\n    \"futureUnseenImageApproval\": false\n  },\n  \"clearanceObligation\": {\n    \"status\": \"OWNER_WAIVED\",\n    \"waivedClearances\": [\"name\", \"trademark\", \"url\"],\n    \"scope\": [\"S10.6 phase closure\", \"S10 main integration\"],\n    \"positiveLegalClearanceClaimed\": false,\n    \"clearanceReportProvided\": false,\n    \"truthfulFiveStoreClaimSubstantiationWaived\": false,\n    \"actualLiveURLRequirementsWaived\": false\n  },\n  \"mainIntegrationAuthorized\": true,\n  \"nonForceFastForwardRequired\": true,\n  \"remainingEvidenceAndCIRequirementsWaived\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"interpretation\": \"Record approval of the displayed I5 terminal image and remove the three named clearance prerequisites for the current S10.6 phase/main boundary. Preserve truthful source-backed review of the five store claims, actual absent live values, all remaining evidence/receipt/CI requirements, historical originals, and later owner-only release operations. The waiver is not a positive legal clearance result.\"\n}\n"
+  },
+  "owner_clearance_waiver": {
+    "policy_id": "owner-s10.6-name-trademark-url-clearance-waiver-20260910",
+    "status": "OWNER_WAIVED",
+    "evidence_id": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+    "date": "2026-09-10",
+    "owner": "palatis3",
+    "waived_clearances": [
+      "name",
+      "trademark",
+      "url"
+    ],
+    "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/OWNER_DIRECTIVE_20260910.json",
+    "source_sha256": "BD23286FA03EC456B50D637E4DE11FCDAB34383A466FDFAD40F75CBAF8F365E7",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910\",\n  \"policyID\": \"owner-s10.6-name-trademark-url-clearance-waiver-20260910\",\n  \"source\": \"direct owner instruction in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I approve. Merge into main. We don't need the dated name or trademark or URL clearance.\",\n  \"approvedTerminalImage\": {\n    \"headSHA\": \"75a8856c21e7a4aae5a8e48b40a68bdef6874d94\",\n    \"runID\": \"34536261005\",\n    \"artifactID\": \"10175949736\",\n    \"artifactSHA256\": \"F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467\",\n    \"pathWithinArtifact\": \"ui-final.png\",\n    \"sha256\": \"C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888\",\n    \"status\": \"APPROVED\",\n    \"scope\": \"displayed exact I5 Settings terminal screenshot\",\n    \"futureUnseenImageApproval\": false\n  },\n  \"clearanceObligation\": {\n    \"status\": \"OWNER_WAIVED\",\n    \"waivedClearances\": [\"name\", \"trademark\", \"url\"],\n    \"scope\": [\"S10.6 phase closure\", \"S10 main integration\"],\n    \"positiveLegalClearanceClaimed\": false,\n    \"clearanceReportProvided\": false,\n    \"truthfulFiveStoreClaimSubstantiationWaived\": false,\n    \"actualLiveURLRequirementsWaived\": false\n  },\n  \"mainIntegrationAuthorized\": true,\n  \"nonForceFastForwardRequired\": true,\n  \"remainingEvidenceAndCIRequirementsWaived\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"interpretation\": \"Record approval of the displayed I5 terminal image and remove the three named clearance prerequisites for the current S10.6 phase/main boundary. Preserve truthful source-backed review of the five store claims, actual absent live values, all remaining evidence/receipt/CI requirements, historical originals, and later owner-only release operations. The waiver is not a positive legal clearance result.\"\n}\n"
   }
 }

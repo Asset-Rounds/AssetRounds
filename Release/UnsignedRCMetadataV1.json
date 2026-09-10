@@ -46,14 +46,14 @@
     "physicalVerificationStatus": "DEFERRED",
     "storeStatus": "planned",
     "evidenceLockStatus": "template",
-    "finalF25Status": "PASS",
+    "finalF25Status": "NOT_RUN",
     "releaseReady": false,
     "pendingGates": [
       "required_6_5_or_6_9_screenshot_set",
-      "dated_trademark_name_claim_url_clearance",
       "owner_release_version_build_and_live_inputs",
       "archive_privacy_supply_chain_review",
-      "required_checkpoint_receipts"
+      "required_checkpoint_receipts",
+      "final_f25_evidence"
     ],
     "evidencePaths": {
       "storeManifest": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
@@ -136,16 +136,18 @@
         "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
         "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
       },
-      "humanVisualReview": "PENDING",
+      "humanVisualReview": "APPROVED",
       "formalReleaseAcceptance": false,
-      "physicalPass": false
+      "physicalPass": false,
+      "humanVisualReviewEvidenceID": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+      "humanVisualReviewScope": "displayed exact I5 Settings terminal screenshot"
     },
     "phaseEvidence": {
       "schemaVersion": 1,
       "contractID": "s10.6-post-release-physical-deferral-v1",
       "contentStatus": "PENDING",
       "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
-      "candidateHead": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
+      "candidateHead": null,
       "predecessorCheckpointSHA256": [
         "0C7489E55D2546C82047126BB89F5B1A1F1BBA2E0530247E0A75DF510587225F",
         "D15638ADFEA577D7074F17430BF6DB66FB6C55B82D70850FB5BE8B64CF8F506C",
@@ -156,17 +158,17 @@
         {
           "role": "launch_smoke",
           "path": "Release/LaunchSmokeEvidenceIndexV1.json",
-          "sha256": "8EAEA7B2CD71C19EA5F84DE11F64BDE21045E4F31F52238693B969850B106DF2"
+          "sha256": "8B26BD64E620F5B3D3903E6C6DD62FEC410FBEE39B2B36816090F4153AE5457D"
         },
         {
           "role": "privacy_narrative",
           "path": "Release/PrivacyReviewV1.md",
-          "sha256": "5782850594F5795E0033DC3DC33DF0DE66285ADA861DBF83250DB68AFE95C0E8"
+          "sha256": "1FB49B20CB309ECEBADA9122DF233356481584A8067D3F91D572472F91E17C35"
         },
         {
           "role": "store_readiness",
           "path": "docs/design/s10/s10-store-readiness.json",
-          "sha256": "0A6DB85667D4E40281B6BE3F0F2D4088C3727B8562CC84A820F4AC3803DB671F"
+          "sha256": "171D8FCC0447CC71F793D1D4AA7D45A9D9774491E514469FFB20805D589D9F7E"
         },
         {
           "role": "evidence_lock",
@@ -176,17 +178,17 @@
         {
           "role": "store_manifest",
           "path": "docs/design/s10/evidence/s10.6/store-screenshot-manifest.json",
-          "sha256": "5DBAD4C21E59D8A3CEEBBACF4C63363BDCB47FC93B177B5C12EE7FA01B6EF097"
+          "sha256": "71AB7486ED8F3CFC0DF39B97E3FB5361784C381DB0D768359B4B2E40358BF9E6"
         },
         {
           "role": "privacy_supply_chain",
           "path": "docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json",
-          "sha256": "437B4A62CD407802954CD7D61AF8356FDF66BE94A43EBF696078AA2DEC367211"
+          "sha256": "1EEE5B6653C769704EE2B9296AD4116BA58FAAEBDE3020ABC3C6BD0F398CD9A9"
         }
       ],
       "f25": {
-        "status": "PASS",
-        "evidenceID": "s10.6-phase-contract-ci-34536261005"
+        "status": "NOT_RUN",
+        "evidenceID": null
       },
       "humanStoreReview": {
         "status": "APPROVED",
@@ -195,10 +197,10 @@
         "reviewedDate": "2026-09-10"
       },
       "datedClearance": {
-        "status": "PENDING",
-        "evidenceID": null,
-        "date": null,
-        "scope": "trademark_name_five_claims_and_urls"
+        "status": "OWNER_WAIVED",
+        "evidenceID": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+        "date": "2026-09-10",
+        "scope": "name_trademark_url"
       },
       "sealedDeferral": {
         "policyID": "owner-s10-5-nonblocking-post-release-20260910",
@@ -211,7 +213,13 @@
         "releaseVersionBuildLiveInputs": "PENDING",
         "appPrivacy": "PENDING"
       },
-      "releaseReady": false
+      "releaseReady": false,
+      "claimSubstantiation": {
+        "status": "PASS",
+        "evidenceID": "s10.6-five-store-claims-source-substantiation-20260910",
+        "date": "2026-09-10",
+        "reviewer": "Codex"
+      }
     }
   }
 }

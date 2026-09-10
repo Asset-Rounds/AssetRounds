@@ -593,9 +593,11 @@
       "screenshot_ids": [
         "s10.6-candidate-1"
       ],
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "Codex",
+      "evidence_ids": [
+        "s10.6-five-store-claims-source-substantiation-20260910"
+      ]
     },
     {
       "gate_id": "truthful-store-claims",
@@ -609,9 +611,11 @@
       "screenshot_ids": [
         "s10.6-candidate-2"
       ],
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "Codex",
+      "evidence_ids": [
+        "s10.6-five-store-claims-source-substantiation-20260910"
+      ]
     },
     {
       "gate_id": "truthful-store-claims",
@@ -624,9 +628,11 @@
       "screenshot_ids": [
         "s10.6-candidate-3"
       ],
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "Codex",
+      "evidence_ids": [
+        "s10.6-five-store-claims-source-substantiation-20260910"
+      ]
     },
     {
       "gate_id": "truthful-store-claims",
@@ -640,9 +646,11 @@
       "screenshot_ids": [
         "s10.6-candidate-4"
       ],
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "Codex",
+      "evidence_ids": [
+        "s10.6-five-store-claims-source-substantiation-20260910"
+      ]
     },
     {
       "gate_id": "truthful-store-claims",
@@ -655,9 +663,11 @@
       "screenshot_ids": [
         "s10.6-candidate-5"
       ],
-      "status": "NOT_RUN",
-      "reviewer": "",
-      "evidence_ids": []
+      "status": "PASS",
+      "reviewer": "Codex",
+      "evidence_ids": [
+        "s10.6-five-store-claims-source-substantiation-20260910"
+      ]
     }
   ]
 }

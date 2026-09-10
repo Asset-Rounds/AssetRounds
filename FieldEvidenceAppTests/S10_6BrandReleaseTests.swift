@@ -8,6 +8,9 @@ final class S10_6BrandReleaseTests: XCTestCase {
     private let receiptHead = "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3"
     private let physicalResumePolicy = "explicit_owner_request_after_app_store_release"
     private let physicalDeferralPolicyID = "owner-s10-5-nonblocking-post-release-20260910"
+    private let clearanceWaiverPolicyID = "owner-s10.6-name-trademark-url-clearance-waiver-20260910"
+    private let clearanceWaiverEvidenceID = "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910"
+    private let clearanceWaiverSHA256 = "BD23286FA03EC456B50D637E4DE11FCDAB34383A466FDFAD40F75CBAF8F365E7"
 
     private enum PhaseEvidenceState: String, Equatable {
         case pendingPreparation = "PENDING"
@@ -32,6 +35,8 @@ final class S10_6BrandReleaseTests: XCTestCase {
         var sealedDeferralSHA256: String
         var verifiedCIBinding: [String: String] = [:]
         var verifiedTerminalReviews: [String: [String: String]] = [:]
+        var verifiedOwnerWaiverEvidenceIDs: Set<String> = []
+        var verifiedClaimEvidenceIDs: Set<String> = []
     }
 
     private struct PhaseDocuments {
@@ -294,8 +299,16 @@ final class S10_6BrandReleaseTests: XCTestCase {
         XCTAssertTrue(pendingGates.contains("required_checkpoint_receipts"))
         XCTAssertFalse(pendingGates.contains("all_six_checkpoint_receipts"))
         let clearance = try object(manifest, "rights_and_clearance")
-        if hasDatedLegalEvidence(manifest) {
+        if hasDatedLegalEvidence(manifest)
+            || validWaiverAndClaimSubstantiation(store: store, screenshots: manifest) {
             XCTAssertFalse(pendingGates.contains("dated_trademark_name_claim_url_clearance"))
+            if validOwnerClearanceWaiver(manifest) {
+                XCTAssertEqual(clearance["trademark_clearance_status"] as? String, "NOT_CLEARED")
+                XCTAssertEqual(clearance["name_clearance_status"] as? String, "PENDING")
+                XCTAssertEqual(clearance["claim_clearance_status"] as? String, "SOURCE_REVIEWED")
+                XCTAssertEqual(clearance["url_clearance_status"] as? String, "PENDING")
+                XCTAssertTrue(clearance["dated_clearance_evidence"] is NSNull)
+            }
         } else {
             XCTAssertTrue(pendingGates.contains("dated_trademark_name_claim_url_clearance"))
             XCTAssertEqual(clearance["name_clearance_status"] as? String, "PENDING")
@@ -448,6 +461,25 @@ final class S10_6BrandReleaseTests: XCTestCase {
             lock: lock, screenshotManifest: screenshots, privacyReview: review
         ))
 
+        let waiverPending = try makeWaiverPendingFixture(from: source)
+        XCTAssertTrue(validWaiverAndClaimSubstantiation(
+            store: waiverPending.store, screenshots: waiverPending.screenshots
+        ))
+        XCTAssertEqual(validatePhaseContent(
+            waiverPending, activation: activation, assetManifest: assetManifest
+        ), .pendingPreparation)
+        var invalidWaiverScope = waiverPending
+        var invalidScopeBrand = try object(invalidWaiverScope.metadata, "brandRefresh")
+        var invalidScopeEnvelope = try object(invalidScopeBrand, "phaseEvidence")
+        var invalidScopeClearance = try object(invalidScopeEnvelope, "datedClearance")
+        invalidScopeClearance["scope"] = "name_trademark_url_claims"
+        invalidScopeEnvelope["datedClearance"] = invalidScopeClearance
+        invalidScopeBrand["phaseEvidence"] = invalidScopeEnvelope
+        invalidWaiverScope.metadata["brandRefresh"] = invalidScopeBrand
+        XCTAssertNil(validatePhaseContent(
+            invalidWaiverScope, activation: activation, assetManifest: assetManifest
+        ))
+
         let current = PhaseDocuments(
             metadata: metadata, smoke: smoke, stages: stages, store: store,
             lock: lock, screenshots: screenshots, privacy: review
@@ -536,6 +568,107 @@ final class S10_6BrandReleaseTests: XCTestCase {
             ),
             .closed
         )
+
+        let waiverReady = try makeWaiverEvidenceReadyFixture(from: current)
+        var waiverChecks = try fixtureChecks(for: waiverReady, fixtureReady: true)
+        let waiverRights = try object(waiverReady.screenshots, "rights_and_clearance")
+        let waiverRecord = try object(waiverRights, "owner_clearance_waiver")
+        let claimRecord = try object(waiverRights, "claim_substantiation_review")
+        let claimEvidenceID = try string(claimRecord, "evidence_id")
+        waiverChecks.verifiedOwnerWaiverEvidenceIDs = [try string(waiverRecord, "evidence_id")]
+        waiverChecks.verifiedClaimEvidenceIDs = [claimEvidenceID]
+        XCTAssertEqual(validatePhaseContent(
+            waiverReady, activation: activation, assetManifest: assetManifest
+        ), .evidenceReady)
+        XCTAssertEqual(evaluatePhaseEvidence(
+            waiverReady, activation: activation, assetManifest: assetManifest,
+            checks: waiverChecks
+        ), .evidenceReady)
+
+        var waiverClosed = waiverReady
+        waiverClosed.stages = try addingSyntheticReleaseCheckpoint(
+            to: waiverClosed, checks: waiverChecks
+        )
+        XCTAssertEqual(evaluatePhaseEvidence(
+            waiverClosed, activation: activation, assetManifest: assetManifest,
+            checks: waiverChecks
+        ), .closed)
+
+        var waiverMutation = waiverReady
+        var waiverMutationRights = try object(
+            waiverMutation.screenshots, "rights_and_clearance"
+        )
+        waiverMutationRights.removeValue(forKey: "owner_clearance_waiver")
+        waiverMutation.screenshots["rights_and_clearance"] = waiverMutationRights
+        XCTAssertNil(validatePhaseContent(
+            waiverMutation, activation: activation, assetManifest: assetManifest
+        ))
+
+        waiverMutation = waiverReady
+        waiverMutationRights = try object(waiverMutation.screenshots, "rights_and_clearance")
+        var widerWaiver = try object(waiverMutationRights, "owner_clearance_waiver")
+        widerWaiver["waived_clearances"] = ["name", "trademark", "url", "claims"]
+        waiverMutationRights["owner_clearance_waiver"] = widerWaiver
+        waiverMutation.screenshots["rights_and_clearance"] = waiverMutationRights
+        XCTAssertNil(validatePhaseContent(
+            waiverMutation, activation: activation, assetManifest: assetManifest
+        ))
+
+        waiverMutation = waiverReady
+        waiverMutationRights = try object(waiverMutation.screenshots, "rights_and_clearance")
+        var changedWaiver = try object(waiverMutationRights, "owner_clearance_waiver")
+        changedWaiver["sealed_original_utf8"] = try string(
+            changedWaiver, "sealed_original_utf8"
+        ) + "\n"
+        waiverMutationRights["owner_clearance_waiver"] = changedWaiver
+        waiverMutation.screenshots["rights_and_clearance"] = waiverMutationRights
+        XCTAssertNil(validatePhaseContent(
+            waiverMutation, activation: activation, assetManifest: assetManifest
+        ))
+
+        waiverMutation = waiverReady
+        waiverMutationRights = try object(waiverMutation.screenshots, "rights_and_clearance")
+        waiverMutationRights.removeValue(forKey: "claim_substantiation_review")
+        waiverMutation.screenshots["rights_and_clearance"] = waiverMutationRights
+        XCTAssertNil(validatePhaseContent(
+            waiverMutation, activation: activation, assetManifest: assetManifest
+        ))
+
+        waiverMutation = waiverReady
+        waiverMutationRights = try object(waiverMutation.screenshots, "rights_and_clearance")
+        var unsupportedReview = try object(waiverMutationRights, "claim_substantiation_review")
+        var unsupportedClaims = try rows(unsupportedReview, "claims")
+        unsupportedClaims[0]["text"] = "Unsupported changed claim"
+        unsupportedReview["claims"] = unsupportedClaims
+        waiverMutationRights["claim_substantiation_review"] = unsupportedReview
+        waiverMutation.screenshots["rights_and_clearance"] = waiverMutationRights
+        XCTAssertNil(validatePhaseContent(
+            waiverMutation, activation: activation, assetManifest: assetManifest
+        ))
+
+        var unauthenticatedWaiver = waiverChecks
+        unauthenticatedWaiver.verifiedOwnerWaiverEvidenceIDs = []
+        XCTAssertNil(evaluatePhaseEvidence(
+            waiverReady, activation: activation, assetManifest: assetManifest,
+            checks: unauthenticatedWaiver
+        ))
+        var unauthenticatedClaims = waiverChecks
+        unauthenticatedClaims.verifiedClaimEvidenceIDs = []
+        XCTAssertNil(evaluatePhaseEvidence(
+            waiverReady, activation: activation, assetManifest: assetManifest,
+            checks: unauthenticatedClaims
+        ))
+
+        waiverMutation = waiverClosed
+        var waiverStageRows = try rows(waiverMutation.stages, "checkpoints")
+        var waiverEvidenceIDs = try strings(waiverStageRows[4], "evidence_ids")
+        waiverEvidenceIDs.removeAll { $0 == claimEvidenceID }
+        waiverStageRows[4]["evidence_ids"] = waiverEvidenceIDs
+        waiverMutation.stages["checkpoints"] = waiverStageRows
+        XCTAssertNil(evaluatePhaseEvidence(
+            waiverMutation, activation: activation, assetManifest: assetManifest,
+            checks: waiverChecks
+        ))
 
         var mutation = ready
         var mutationBrand = try object(mutation.metadata, "brandRefresh")
@@ -796,7 +929,6 @@ final class S10_6BrandReleaseTests: XCTestCase {
               let ci = documents.privacy["unsigned_preparation_ci"] as? [String: Any],
               let human = envelope["humanStoreReview"] as? [String: Any],
               let clearance = envelope["datedClearance"] as? [String: Any],
-              clearance["scope"] as? String == "trademark_name_five_claims_and_urls",
               let slots = documents.screenshots["slots"] as? [[String: Any]],
               slots.count == 5, slots.allSatisfy(validStoreReviewTuple),
               let pending = brand["pendingGates"] as? [String],
@@ -832,22 +964,31 @@ final class S10_6BrandReleaseTests: XCTestCase {
             else { return false }
         }
         let legalComplete = hasDatedLegalEvidence(documents.screenshots)
+        let waiverComplete = validWaiverAndClaimSubstantiation(
+            store: documents.store, screenshots: documents.screenshots
+        )
         if legalComplete {
             guard let rights = documents.screenshots["rights_and_clearance"] as? [String: Any],
                   let dated = rights["dated_clearance_evidence"] as? [String: Any],
                   clearance["status"] as? String == "PASS",
                   clearance["evidenceID"] as? String == dated["evidence_id"] as? String,
-                  clearance["date"] as? String == dated["date"] as? String
+                  clearance["date"] as? String == dated["date"] as? String,
+                  clearance["scope"] as? String == "trademark_name_five_claims_and_urls"
+            else { return false }
+        } else if waiverComplete {
+            guard validWaiverEnvelope(envelope, documents: documents)
             else { return false }
         } else {
             guard clearance["status"] as? String == "PENDING",
-                  clearance["evidenceID"] is NSNull, clearance["date"] is NSNull
+                  clearance["evidenceID"] is NSNull, clearance["date"] is NSNull,
+                  clearance["scope"] as? String == "trademark_name_five_claims_and_urls"
             else { return false }
         }
         guard pending.contains("store_creative_review") == !storesApproved,
-              pending.contains("dated_trademark_name_claim_url_clearance") == !legalComplete
+              pending.contains("dated_trademark_name_claim_url_clearance")
+                == !(legalComplete || waiverComplete)
         else { return false }
-        return f25Status != "PASS" || !storesApproved || !legalComplete
+        return f25Status != "PASS" || !storesApproved || !(legalComplete || waiverComplete)
             || ci["humanVisualReview"] as? String != "APPROVED"
     }
 
@@ -896,7 +1037,7 @@ final class S10_6BrandReleaseTests: XCTestCase {
                 documents.privacy, activation: activation, manifest: assetManifest
               ),
               reviewedFiveSlotsRemainFrozen(documents),
-              hasDatedLegalEvidence(documents.screenshots),
+              validReadyClearanceEnvelope(envelope, documents: documents),
               let f25 = envelope["f25"] as? [String: Any],
               f25["status"] as? String == "PASS",
               !(f25["evidenceID"] as? String ?? "").isEmpty,
@@ -905,11 +1046,6 @@ final class S10_6BrandReleaseTests: XCTestCase {
               !(human["reviewer"] as? String ?? "").isEmpty,
               !(human["evidenceID"] as? String ?? "").isEmpty,
               isDate(human["reviewedDate"] as? String),
-              let clearance = envelope["datedClearance"] as? [String: Any],
-              clearance["status"] as? String == "PASS",
-              !(clearance["evidenceID"] as? String ?? "").isEmpty,
-              isDate(clearance["date"] as? String),
-              clearance["scope"] as? String == "trademark_name_five_claims_and_urls",
               let sealed = envelope["sealedDeferral"] as? [String: Any],
               sealed["policyID"] as? String == physicalDeferralPolicyID,
               !(sealed["evidenceID"] as? String ?? "").isEmpty,
@@ -1096,11 +1232,10 @@ final class S10_6BrandReleaseTests: XCTestCase {
               checks.verifiedTerminalReviews[humanID] == terminalReviewBinding(privacyCI),
               checks.verifiedCIBinding == ciBinding(privacyCI),
               unsignedCICopiesMatch(documents),
-              hasIndependentDatedLegalEvidence(documents.screenshots, checks: checks),
+              hasAuthenticatedClearanceRoute(documents, checks: checks),
               reviewedFiveSlotsRemainFrozen(documents),
               externallyVerifiedFiveSlots(documents, checks: checks),
               phaseEnvelopeMatchesAuthenticatedGates(documents, checks: checks),
-              reviewedFiveClaimsMatchClearance(documents),
               let privacyGaps = documents.privacy["store_readiness_gaps"] as? [[String: Any]],
               !privacyGaps.contains(where: { $0["gate"] as? String == "dated_trademark_name_claim_and_url_clearance" }),
               let apple = documents.screenshots["apple_specification_review"] as? [String: Any],
@@ -1203,6 +1338,178 @@ final class S10_6BrandReleaseTests: XCTestCase {
         return true
     }
 
+    private func validReadyClearanceEnvelope(
+        _ envelope: [String: Any], documents: PhaseDocuments
+    ) -> Bool {
+        guard let clearance = envelope["datedClearance"] as? [String: Any] else {
+            return false
+        }
+        if hasDatedLegalEvidence(documents.screenshots) {
+            return clearance["status"] as? String == "PASS"
+                && !(clearance["evidenceID"] as? String ?? "").isEmpty
+                && isDate(clearance["date"] as? String)
+                && clearance["scope"] as? String == "trademark_name_five_claims_and_urls"
+                && reviewedFiveClaimsMatchClearance(documents)
+        }
+        return validWaiverEnvelope(envelope, documents: documents)
+    }
+
+    private func validWaiverEnvelope(
+        _ envelope: [String: Any], documents: PhaseDocuments
+    ) -> Bool {
+        guard validWaiverAndClaimSubstantiation(
+                store: documents.store, screenshots: documents.screenshots
+              ),
+              let rights = documents.screenshots["rights_and_clearance"] as? [String: Any],
+              let waiver = rights["owner_clearance_waiver"] as? [String: Any],
+              let review = rights["claim_substantiation_review"] as? [String: Any],
+              let waiverID = waiver["evidence_id"] as? String,
+              let waiverDate = waiver["date"] as? String,
+              let reviewID = review["evidence_id"] as? String,
+              let reviewDate = review["date"] as? String,
+              let reviewer = review["reviewer"] as? String,
+              let clearance = envelope["datedClearance"] as? [String: Any],
+              clearance["status"] as? String == "OWNER_WAIVED",
+              clearance["evidenceID"] as? String == waiverID,
+              clearance["date"] as? String == waiverDate,
+              clearance["scope"] as? String == "name_trademark_url",
+              let claims = envelope["claimSubstantiation"] as? [String: Any],
+              claims["status"] as? String == "PASS",
+              claims["evidenceID"] as? String == reviewID,
+              claims["date"] as? String == reviewDate,
+              claims["reviewer"] as? String == reviewer
+        else { return false }
+        return true
+    }
+
+    private func validWaiverAndClaimSubstantiation(
+        store: [String: Any], screenshots: [String: Any]
+    ) -> Bool {
+        validOwnerClearanceWaiver(screenshots)
+            && validClaimSubstantiation(store: store, screenshots: screenshots)
+    }
+
+    private func validOwnerClearanceWaiver(_ screenshots: [String: Any]) -> Bool {
+        guard let rights = screenshots["rights_and_clearance"] as? [String: Any],
+              rights["trademark_clearance_status"] as? String == "NOT_CLEARED",
+              rights["name_clearance_status"] as? String == "PENDING",
+              rights["claim_clearance_status"] as? String == "SOURCE_REVIEWED",
+              rights["url_clearance_status"] as? String == "PENDING",
+              rights["dated_clearance_evidence"] is NSNull,
+              let waiver = rights["owner_clearance_waiver"] as? [String: Any],
+              waiver["policy_id"] as? String == clearanceWaiverPolicyID,
+              waiver["status"] as? String == "OWNER_WAIVED",
+              waiver["evidence_id"] as? String == clearanceWaiverEvidenceID,
+              waiver["date"] as? String == "2026-09-10",
+              waiver["owner"] as? String == "palatis3",
+              waiver["waived_clearances"] as? [String] == ["name", "trademark", "url"],
+              waiver["source_sha256"] as? String == clearanceWaiverSHA256,
+              let original = waiver["sealed_original_utf8"] as? String,
+              Data(original.utf8).sha256 == clearanceWaiverSHA256,
+              let payload = try? JSONSerialization.jsonObject(with: Data(original.utf8))
+                as? [String: Any],
+              payload["policyID"] as? String == clearanceWaiverPolicyID,
+              payload["evidenceID"] as? String == clearanceWaiverEvidenceID,
+              payload["date"] as? String == "2026-09-10",
+              payload["owner"] as? String == "palatis3",
+              payload["ownerStatement"] as? String
+                == "I approve. Merge into main. We don't need the dated name or trademark or URL clearance.",
+              payload["mainIntegrationAuthorized"] as? Bool == true,
+              payload["remainingEvidenceAndCIRequirementsWaived"] as? Bool == false,
+              payload["signingUploadSubmissionAuthorized"] as? Bool == false,
+              let obligation = payload["clearanceObligation"] as? [String: Any],
+              obligation["status"] as? String == "OWNER_WAIVED",
+              obligation["waivedClearances"] as? [String] == ["name", "trademark", "url"],
+              obligation["positiveLegalClearanceClaimed"] as? Bool == false,
+              obligation["clearanceReportProvided"] as? Bool == false,
+              obligation["truthfulFiveStoreClaimSubstantiationWaived"] as? Bool == false,
+              obligation["actualLiveURLRequirementsWaived"] as? Bool == false
+        else { return false }
+        return true
+    }
+
+    private func validClaimSubstantiation(
+        store: [String: Any], screenshots: [String: Any]
+    ) -> Bool {
+        guard let plan = store["plan"] as? [String: Any],
+              let planned = plan["planned_claims"] as? [[String: Any]],
+              planned.count == 5,
+              let rights = screenshots["rights_and_clearance"] as? [String: Any],
+              let review = rights["claim_substantiation_review"] as? [String: Any],
+              let reviewStatus = review["status"] as? String,
+              reviewStatus == "PASS",
+              let evidenceID = review["evidence_id"] as? String, !evidenceID.isEmpty,
+              let reviewDate = review["date"] as? String, isDate(reviewDate),
+              let reviewer = review["reviewer"] as? String, !reviewer.isEmpty,
+              let reviewSourceHead = review["source_product_head"] as? String,
+              reviewSourceHead == productHead,
+              let claimIDs = review["claim_ids"] as? [String],
+              claimIDs == planned.compactMap({ $0["claim_id"] as? String }),
+              let reviewClaims = review["claims"] as? [[String: Any]],
+              reviewClaims.count == 5,
+              let sourceHash = review["source_sha256"] as? String,
+              isSHA256(sourceHash),
+              let original = review["sealed_original_utf8"] as? String,
+              Data(original.utf8).sha256 == sourceHash,
+              let payload = try? JSONSerialization.jsonObject(with: Data(original.utf8))
+                as? [String: Any],
+              payload["status"] as? String == reviewStatus,
+              payload["evidence_id"] as? String == evidenceID,
+              payload["date"] as? String == reviewDate,
+              payload["reviewer"] as? String == reviewer,
+              payload["source_product_head"] as? String == reviewSourceHead,
+              payload["claim_ids"] as? [String] == claimIDs,
+              let payloadClaims = payload["claims"] as? [[String: Any]],
+              payloadClaims.count == 5,
+              let storeClaims = store["claims"] as? [[String: Any]],
+              storeClaims.count == 5
+        else { return false }
+        for index in planned.indices {
+            let expected = planned[index]
+            let outer = reviewClaims[index]
+            let sealed = payloadClaims[index]
+            let storeClaim = storeClaims[index]
+            for claim in [outer, sealed] {
+                guard claim["claim_id"] as? String == expected["claim_id"] as? String,
+                      claim["text"] as? String == expected["text"] as? String,
+                      claim["screen_state_ids"] as? [String]
+                        == expected["screen_state_ids"] as? [String],
+                      claim["status"] as? String == "SUPPORTED"
+                else { return false }
+            }
+            guard storeClaim["claim_id"] as? String == expected["claim_id"] as? String,
+                  storeClaim["text"] as? String == expected["text"] as? String,
+                  storeClaim["screen_state_ids"] as? [String]
+                    == expected["screen_state_ids"] as? [String],
+                  storeClaim["status"] as? String == "PASS",
+                  storeClaim["reviewer"] as? String == reviewer,
+                  storeClaim["evidence_ids"] as? [String] == [evidenceID]
+            else { return false }
+        }
+        return true
+    }
+
+    private func hasAuthenticatedClearanceRoute(
+        _ documents: PhaseDocuments, checks: AuthenticatedChecks
+    ) -> Bool {
+        if hasDatedLegalEvidence(documents.screenshots) {
+            return hasIndependentDatedLegalEvidence(documents.screenshots, checks: checks)
+                && reviewedFiveClaimsMatchClearance(documents)
+        }
+        guard validWaiverAndClaimSubstantiation(
+                store: documents.store, screenshots: documents.screenshots
+              ),
+              let rights = documents.screenshots["rights_and_clearance"] as? [String: Any],
+              let waiver = rights["owner_clearance_waiver"] as? [String: Any],
+              let waiverID = waiver["evidence_id"] as? String,
+              let claims = rights["claim_substantiation_review"] as? [String: Any],
+              let claimID = claims["evidence_id"] as? String,
+              checks.verifiedOwnerWaiverEvidenceIDs.contains(waiverID),
+              checks.verifiedClaimEvidenceIDs.contains(claimID)
+        else { return false }
+        return true
+    }
+
     private func externallyVerifiedFiveSlots(
         _ documents: PhaseDocuments,
         checks: AuthenticatedChecks
@@ -1237,18 +1544,31 @@ final class S10_6BrandReleaseTests: XCTestCase {
               let f25ID = f25["evidenceID"] as? String,
               let human = envelope["humanStoreReview"] as? [String: Any],
               let humanID = human["evidenceID"] as? String,
-              let clearance = envelope["datedClearance"] as? [String: Any],
-              let clearanceID = clearance["evidenceID"] as? String,
               let sealed = envelope["sealedDeferral"] as? [String: Any],
               let sealedID = sealed["evidenceID"] as? String,
               sealed["sha256"] as? String == checks.sealedDeferralSHA256,
               checks.verifiedHumanEvidenceIDs.contains(humanID),
-              checks.verifiedLegalEvidenceIDs.contains(clearanceID),
               !f25ID.isEmpty, !sealedID.isEmpty
         else { return false }
         let ci = documents.privacy["unsigned_preparation_ci"] as? [String: Any]
-        return ci?["evidenceID"] as? String == f25ID
-            && phaseEnvelopeEvidenceIDs(documents) == [f25ID, humanID, clearanceID, sealedID]
+        guard ci?["evidenceID"] as? String == f25ID,
+              let evidenceIDs = phaseEnvelopeEvidenceIDs(documents)
+        else { return false }
+        if hasDatedLegalEvidence(documents.screenshots) {
+            guard let clearance = envelope["datedClearance"] as? [String: Any],
+                  let clearanceID = clearance["evidenceID"] as? String,
+                  checks.verifiedLegalEvidenceIDs.contains(clearanceID)
+            else { return false }
+            return evidenceIDs == [f25ID, humanID, clearanceID, sealedID]
+        }
+        guard let clearance = envelope["datedClearance"] as? [String: Any],
+              let waiverID = clearance["evidenceID"] as? String,
+              let claims = envelope["claimSubstantiation"] as? [String: Any],
+              let claimID = claims["evidenceID"] as? String,
+              checks.verifiedOwnerWaiverEvidenceIDs.contains(waiverID),
+              checks.verifiedClaimEvidenceIDs.contains(claimID)
+        else { return false }
+        return evidenceIDs == [f25ID, humanID, waiverID, claimID, sealedID]
     }
 
     private func phaseEnvelopeEvidenceIDs(_ documents: PhaseDocuments) -> [String]? {
@@ -1258,13 +1578,23 @@ final class S10_6BrandReleaseTests: XCTestCase {
               let f25ID = f25["evidenceID"] as? String,
               let human = envelope["humanStoreReview"] as? [String: Any],
               let humanID = human["evidenceID"] as? String,
-              let clearance = envelope["datedClearance"] as? [String: Any],
-              let clearanceID = clearance["evidenceID"] as? String,
               let sealed = envelope["sealedDeferral"] as? [String: Any],
-              let sealedID = sealed["evidenceID"] as? String,
-              [f25ID, humanID, clearanceID, sealedID].allSatisfy({ !$0.isEmpty })
+              let sealedID = sealed["evidenceID"] as? String
         else { return nil }
-        return [f25ID, humanID, clearanceID, sealedID]
+        if hasDatedLegalEvidence(documents.screenshots) {
+            guard let clearance = envelope["datedClearance"] as? [String: Any],
+                  let clearanceID = clearance["evidenceID"] as? String,
+                  [f25ID, humanID, clearanceID, sealedID].allSatisfy({ !$0.isEmpty })
+            else { return nil }
+            return [f25ID, humanID, clearanceID, sealedID]
+        }
+        guard let clearance = envelope["datedClearance"] as? [String: Any],
+              let waiverID = clearance["evidenceID"] as? String,
+              let claims = envelope["claimSubstantiation"] as? [String: Any],
+              let claimID = claims["evidenceID"] as? String,
+              [f25ID, humanID, waiverID, claimID, sealedID].allSatisfy({ !$0.isEmpty })
+        else { return nil }
+        return [f25ID, humanID, waiverID, claimID, sealedID]
     }
 
     private func hasIndependentDatedLegalEvidence(
@@ -1567,6 +1897,8 @@ final class S10_6BrandReleaseTests: XCTestCase {
         result.store["screenshots"] = mirrors
 
         var clearance = try object(result.screenshots, "rights_and_clearance")
+        clearance.removeValue(forKey: "owner_clearance_waiver")
+        clearance.removeValue(forKey: "claim_substantiation_review")
         clearance["trademark_clearance_status"] = "CLEARED"
         clearance["trademark_evidence_id"] = "fixture-independent-trademark-clearance"
         clearance["name_clearance_status"] = "PASS"
@@ -1628,6 +1960,91 @@ final class S10_6BrandReleaseTests: XCTestCase {
         return result
     }
 
+    private func makeWaiverPendingFixture(
+        from source: PhaseDocuments
+    ) throws -> PhaseDocuments {
+        var result = PhaseDocuments(
+            metadata: deepCopy(source.metadata), smoke: deepCopy(source.smoke),
+            stages: deepCopy(source.stages), store: deepCopy(source.store),
+            lock: deepCopy(source.lock), screenshots: deepCopy(source.screenshots),
+            privacy: deepCopy(source.privacy)
+        )
+        result.stages["checkpoints"] = Array(try rows(source.stages, "checkpoints").prefix(4))
+        let pending = ["final_f25_evidence"] + laterOwnerPendingGates(includeReceipt: true)
+        var brand = try object(result.metadata, "brandRefresh")
+        brand["preparationStatus"] = "prepared_pending_verification"
+        brand["finalF25Status"] = "NOT_RUN"
+        brand["pendingGates"] = pending
+        brand["releaseReady"] = false
+        var envelope = try object(brand, "phaseEvidence")
+        envelope["contentStatus"] = "PENDING"
+        envelope["candidateHead"] = NSNull()
+        envelope["f25"] = ["status": "NOT_RUN", "evidenceID": NSNull()]
+        envelope["predecessorCheckpointSHA256"] = try rows(result.stages, "checkpoints")
+            .map { canonicalSHA256($0) }
+        brand["phaseEvidence"] = envelope
+        result.metadata["brandRefresh"] = brand
+        result.metadata["releaseReady"] = false
+        var smoke = try object(result.smoke, "finalRCSmoke")
+        var candidate = try object(smoke, "brandedCandidate")
+        candidate["evidenceStatus"] = "NOT_RUN"
+        smoke["brandedCandidate"] = candidate
+        result.smoke["finalRCSmoke"] = smoke
+        result.screenshots["pending_gates"] = pending
+        envelope["requiredNonSelfDocuments"] = try fixtureNonSelfBindings(result)
+        brand["phaseEvidence"] = envelope
+        result.metadata["brandRefresh"] = brand
+        return result
+    }
+
+    private func makeWaiverEvidenceReadyFixture(
+        from source: PhaseDocuments
+    ) throws -> PhaseDocuments {
+        let sourceRights = try object(source.screenshots, "rights_and_clearance")
+        let waiver = try object(sourceRights, "owner_clearance_waiver")
+        let review = try object(sourceRights, "claim_substantiation_review")
+        var result = try makeEvidenceReadyFixture(from: source)
+        var rights = try object(result.screenshots, "rights_and_clearance")
+        rights["owner_clearance_waiver"] = waiver
+        rights["claim_substantiation_review"] = review
+        rights["trademark_clearance_status"] = "NOT_CLEARED"
+        rights["trademark_evidence_id"] = ""
+        rights["name_clearance_status"] = "PENDING"
+        rights["claim_clearance_status"] = "SOURCE_REVIEWED"
+        rights["url_clearance_status"] = "PENDING"
+        rights["dated_clearance_evidence"] = NSNull()
+        result.screenshots["rights_and_clearance"] = rights
+
+        let evidenceID = try string(review, "evidence_id")
+        let reviewer = try string(review, "reviewer")
+        var claims = try rows(result.store, "claims")
+        for index in claims.indices {
+            claims[index]["status"] = "PASS"
+            claims[index]["reviewer"] = reviewer
+            claims[index]["evidence_ids"] = [evidenceID]
+        }
+        result.store["claims"] = claims
+
+        var brand = try object(result.metadata, "brandRefresh")
+        var envelope = try object(brand, "phaseEvidence")
+        envelope["datedClearance"] = [
+            "status": "OWNER_WAIVED",
+            "evidenceID": try string(waiver, "evidence_id"),
+            "date": try string(waiver, "date"),
+            "scope": "name_trademark_url",
+        ]
+        envelope["claimSubstantiation"] = [
+            "status": "PASS",
+            "evidenceID": evidenceID,
+            "date": try string(review, "date"),
+            "reviewer": reviewer,
+        ]
+        envelope["requiredNonSelfDocuments"] = try fixtureNonSelfBindings(result)
+        brand["phaseEvidence"] = envelope
+        result.metadata["brandRefresh"] = brand
+        return result
+    }
+
     private func addingSyntheticReleaseCheckpoint(
         to documents: PhaseDocuments,
         checks: AuthenticatedChecks
@@ -1654,12 +2071,7 @@ final class S10_6BrandReleaseTests: XCTestCase {
                     "sha256": checks.documentHashes[path]!,
                 ]
             },
-            "evidence_ids": [
-                "fixture-f25-originals",
-                "fixture-human-store-review",
-                "fixture-independent-dated-clearance",
-                "fixture-sealed-physical-deferral",
-            ],
+            "evidence_ids": try XCTUnwrap(phaseEnvelopeEvidenceIDs(documents)),
         ])
         result["checkpoints"] = checkpoints
         return result
