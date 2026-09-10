@@ -2,6 +2,115 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+#if DEBUG && targetEnvironment(simulator)
+/// Test-only launch configuration for the C06 screenshot harness. The parser
+/// deliberately requires both gates so a stray pseudo option can never alter a
+/// normal debug launch.
+struct V30PseudoLocalizationLaunchConfigurationV1: Equatable, Sendable {
+    enum Profile: String, CaseIterable, Sendable {
+        case enXA = "en-XA"
+        case arXB = "ar-XB"
+        case enXL = "en-XL"
+
+        var isRightToLeft: Bool { self == .arXB }
+    }
+
+    enum DynamicType: String, CaseIterable, Sendable {
+        case large
+        case accessibility5
+    }
+
+    enum Appearance: String, CaseIterable, Sendable {
+        case light
+        case dark
+    }
+
+    enum Contrast: String, CaseIterable, Sendable {
+        case normal
+        case increased
+    }
+
+    enum ParseError: Error, Equatable, Sendable {
+        case partialActivation
+        case unknownOption
+        case duplicateOption
+        case missingValue
+        case invalidValue
+    }
+
+    static let harnessArgument = "--v30-p02-c06-harness"
+    static let uiTestingArgument = "--v30-ui-testing"
+    static let profileArgument = "--v30-p02-c06-profile"
+    static let dynamicTypeArgument = "--v30-p02-c06-dynamic-type"
+    static let appearanceArgument = "--v30-p02-c06-appearance"
+    static let contrastArgument = "--v30-p02-c06-contrast"
+
+    let profile: Profile
+    let dynamicType: DynamicType
+    let appearance: Appearance
+    let contrast: Contrast
+
+    static func parse(arguments: [String]) throws -> Self? {
+        let hasHarness = arguments.contains(harnessArgument)
+        let hasUITesting = arguments.contains(uiTestingArgument)
+        let containsC06Option = arguments.contains { $0.hasPrefix("--v30-p02-c06-") }
+        guard hasHarness || hasUITesting || containsC06Option else { return nil }
+        guard hasHarness && hasUITesting else { throw ParseError.partialActivation }
+        guard arguments.filter({ $0 == harnessArgument }).count == 1,
+              arguments.filter({ $0 == uiTestingArgument }).count == 1 else {
+            throw ParseError.duplicateOption
+        }
+
+        var values: [String: String] = [:]
+        let valueArguments = Set([
+            profileArgument,
+            dynamicTypeArgument,
+            appearanceArgument,
+            contrastArgument,
+        ])
+        var index = 0
+        while index < arguments.count {
+            let argument = arguments[index]
+            if argument == harnessArgument || argument == uiTestingArgument {
+                index += 1
+                continue
+            }
+            guard !argument.hasPrefix("--v30-p02-c06-") else {
+                guard valueArguments.contains(argument) else {
+                    throw ParseError.unknownOption
+                }
+                guard index + 1 < arguments.count,
+                      !arguments[index + 1].hasPrefix("--") else {
+                    throw ParseError.missingValue
+                }
+                guard values[argument] == nil else { throw ParseError.duplicateOption }
+                values[argument] = arguments[index + 1]
+                index += 2
+                continue
+            }
+            index += 1
+        }
+
+        guard let profileValue = values[profileArgument],
+              let dynamicTypeValue = values[dynamicTypeArgument],
+              let appearanceValue = values[appearanceArgument],
+              let contrastValue = values[contrastArgument],
+              let profile = Profile(rawValue: profileValue),
+              let dynamicType = DynamicType(rawValue: dynamicTypeValue),
+              let appearance = Appearance(rawValue: appearanceValue),
+              let contrast = Contrast(rawValue: contrastValue) else {
+            throw ParseError.invalidValue
+        }
+        return Self(
+            profile: profile,
+            dynamicType: dynamicType,
+            appearance: appearance,
+            contrast: contrast
+        )
+    }
+}
+#endif
+
 @main
 @MainActor
 struct FieldEvidenceAppApp: App {
@@ -41,12 +150,27 @@ struct FieldEvidenceAppApp: App {
     private let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
     private let feedbackConfiguration: FeedbackConfigurationV1
     private let mailComposerAdapter: MailComposerAdapter
+#if DEBUG && targetEnvironment(simulator)
+    private let pseudoLocaleHarness: V30PseudoLocalizationLaunchConfigurationV1?
+#endif
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
+#if DEBUG && targetEnvironment(simulator)
+        let pseudoLocaleHarness = try? V30PseudoLocalizationLaunchConfigurationV1.parse(arguments: arguments)
+        self.pseudoLocaleHarness = pseudoLocaleHarness
+#endif
+#if DEBUG && targetEnvironment(simulator)
+        let metricKitDiagnosticsAdapter = MetricKitDiagnosticsAdapter()
+        if pseudoLocaleHarness == nil {
+            metricKitDiagnosticsAdapter.start()
+        }
+        self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
+#else
         let metricKitDiagnosticsAdapter = MetricKitDiagnosticsAdapter()
         metricKitDiagnosticsAdapter.start()
         self.metricKitDiagnosticsAdapter = metricKitDiagnosticsAdapter
+#endif
         paywallCatalogLinks = arguments.contains(Self.paywallUITestLaunchArgument)
             ? .uiTestFixture
             : nil
@@ -166,6 +290,10 @@ struct FieldEvidenceAppApp: App {
 
     var body: some Scene {
         WindowGroup {
+#if DEBUG && targetEnvironment(simulator)
+            if let pseudoLocaleHarness {
+                PseudoLocalizationScreenshotHarnessView(configuration: pseudoLocaleHarness)
+            } else {
             StartupRootView(
                 router: startupRouter,
                 packLoadResult: packLoadResult,
@@ -182,6 +310,25 @@ struct FieldEvidenceAppApp: App {
                 mailComposerAdapter: mailComposerAdapter
             )
             .preferredColorScheme(preferredColorScheme)
+            }
+#else
+            StartupRootView(
+                router: startupRouter,
+                packLoadResult: packLoadResult,
+                exposesColorSchemeForUITest: exposesColorSchemeForUITest,
+                usesImportedCaptureFixturesForUITest: usesImportedCaptureFixturesForUITest,
+                injectsLowStorageFailureOnceForUITest:
+                    injectsLowStorageFailureOnceForUITest,
+                cameraAdapter: cameraAdapter,
+                applicationSupportURL: applicationSupportURL,
+                selectedRestorePackageForUITest: selectedRestorePackageForUITest,
+                paywallCatalogLinks: paywallCatalogLinks,
+                metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter,
+                feedbackConfiguration: feedbackConfiguration,
+                mailComposerAdapter: mailComposerAdapter
+            )
+            .preferredColorScheme(preferredColorScheme)
+#endif
         }
     }
 }

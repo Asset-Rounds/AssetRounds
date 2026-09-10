@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "cardID": "V30-P02-C06",
+  "matrixID": "pseudo-locale-screenshot-matrix-v1",
+  "status": "PRE_S10_PROVISIONAL",
+  "closedCaseIDs": ["C06-UI-01", "C06-UI-02", "C06-UI-03"],
+  "declaredOptionalRuntimeSelector": {
+    "simulator": "iPhone 17 / iOS 26.2",
+    "selected": false,
+    "executionStatus": "PENDING_POST_S10_HOSTED_EXECUTION"
+  },
+  "screenshotInspection": {
+    "status": "PENDING_POST_S10_HOSTED_EXECUTION",
+    "requiredReview": "Inspect retained screenshot and UI-tree artifacts after a hosted execution; no visual acceptance is claimed by this fixture."
+  },
+  "deferredPhysicalDeviceQualification": {
+    "status": "PENDING_POST_S10_HOSTED_EXECUTION",
+    "plannedEnvelopes": ["smallest-supported-iPhone", "largest-relevant-iPhone"],
+    "note": "This provisional matrix contains no logical canvas-width or physical-device qualification claim."
+  },
+  "cases": [
+    {
+      "id": "C06-UI-01",
+      "profile": "en-XA",
+      "dynamicType": "large",
+      "appearance": "light",
+      "contrast": "normal",
+      "orientation": "portrait",
+      "expectedObservedEnvironment": {
+        "dynamicType": "large",
+        "layoutDirection": "leftToRight",
+        "colorScheme": "light",
+        "contrast": "normal"
+      },
+      "actions": ["navigation-round-trip"],
+      "screenshots": [
+        {"state": "baseline", "attachmentName": "C06-UI-01 baseline"}
+      ],
+      "runtimeObservationAttachmentName": "C06-UI-01 runtime-observation.json"
+    },
+    {
+      "id": "C06-UI-02",
+      "profile": "ar-XB",
+      "dynamicType": "accessibility5",
+      "appearance": "dark",
+      "contrast": "increased",
+      "orientation": "landscapeLeft",
+      "expectedObservedEnvironment": {
+        "dynamicType": "accessibility5",
+        "layoutDirection": "rightToLeft",
+        "colorScheme": "dark",
+        "contrast": "increased"
+      },
+      "actions": ["trigger-error", "recovery", "unresolved-fallback-and-reset"],
+      "screenshots": [
+        {"state": "error", "attachmentName": "C06-UI-02 error"},
+        {"state": "recovery", "attachmentName": "C06-UI-02 recovery"}
+      ],
+      "runtimeObservationAttachmentName": "C06-UI-02 runtime-observation.json"
+    },
+    {
+      "id": "C06-UI-03",
+      "profile": "en-XL",
+      "dynamicType": "accessibility5",
+      "appearance": "light",
+      "contrast": "normal",
+      "orientation": "landscapeRight",
+      "expectedObservedEnvironment": {
+        "dynamicType": "accessibility5",
+        "layoutDirection": "leftToRight",
+        "colorScheme": "light",
+        "contrast": "normal"
+      },
+      "actions": ["input-keyboard"],
+      "screenshots": [
+        {"state": "keyboard", "attachmentName": "C06-UI-03 keyboard"}
+      ],
+      "runtimeObservationAttachmentName": "C06-UI-03 runtime-observation.json"
+    }
+  ],
+  "runtimeEvidence": {
+    "attachmentFormat": "JSON",
+    "requiredFields": [
+      "caseID",
+      "appWindowGeometry",
+      "deviceOrientation",
+      "simulatorModel",
+      "simulatorUDID",
+      "osVersion",
+      "observedEnvironment",
+      "requestedConfiguration",
+      "screenshotAttachmentNames"
+    ]
+  }
+}

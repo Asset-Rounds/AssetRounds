@@ -17,6 +17,395 @@ private extension EnvironmentValues {
     }
 }
 
+#if DEBUG && targetEnvironment(simulator)
+/// Local, resettable evidence for the synthetic C06 renderer. It has no
+/// persistence, telemetry, or connection to production diagnostics.
+struct TestOnlyPseudoLocalizationDiagnosticSnapshotV1: Equatable, Sendable {
+    let resolvedCount: Int
+    let unresolvedKeyCount: Int
+    let unexpectedFallbackCount: Int
+}
+
+
+enum TestOnlyPseudoLocalizationDiagnosticsV1 {
+    private static let lock = NSLock()
+    private static var resolvedIdentifiers = Set<String>()
+    private static var unresolvedIdentifiers = Set<String>()
+    private static var fallbackIdentifiers = Set<String>()
+
+    static func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        resolvedIdentifiers.removeAll()
+        unresolvedIdentifiers.removeAll()
+        fallbackIdentifiers.removeAll()
+    }
+
+    static func snapshot() -> TestOnlyPseudoLocalizationDiagnosticSnapshotV1 {
+        lock.lock()
+        defer { lock.unlock() }
+        return TestOnlyPseudoLocalizationDiagnosticSnapshotV1(
+            resolvedCount: resolvedIdentifiers.count,
+            unresolvedKeyCount: unresolvedIdentifiers.count,
+            unexpectedFallbackCount: fallbackIdentifiers.count
+        )
+    }
+
+    fileprivate static func recordResolved(_ identifier: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        unresolvedIdentifiers.remove(identifier)
+        fallbackIdentifiers.remove(identifier)
+        resolvedIdentifiers.insert(identifier)
+    }
+
+    fileprivate static func recordUnresolved(_ identifier: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        resolvedIdentifiers.remove(identifier)
+        fallbackIdentifiers.remove(identifier)
+        unresolvedIdentifiers.insert(identifier)
+    }
+
+    fileprivate static func recordFallback(_ identifier: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        resolvedIdentifiers.remove(identifier)
+        unresolvedIdentifiers.remove(identifier)
+        fallbackIdentifiers.insert(identifier)
+    }
+}
+
+/// Resolver used solely by the synthetic scene. Unknown identifiers never
+/// become displayed text, which makes an unresolved key visible without
+/// leaking a raw localization key into a screenshot.
+enum TestOnlyPseudoLocalizationResolverV1 {
+    private static let supportedIdentifiers: Set<String> = [
+        "pseudo.title",
+        "pseudo.summary",
+        "pseudo.status",
+        "pseudo.identifier",
+        "pseudo.primaryAction",
+        "pseudo.navigation",
+        "pseudo.input",
+        "pseudo.recovery",
+        "pseudo.error",
+        "pseudo.fallbackProbe",
+    ]
+    private static let englishOnlyProbeValues = [
+        "pseudo.fallbackProbe": "Fallback probe",
+    ]
+    private static let pseudoEligibleIdentifiers = supportedIdentifiers.subtracting(
+        englishOnlyProbeValues.keys
+    )
+
+    static func render(
+        semanticID: String,
+        english: String,
+        configuration: V30PseudoLocalizationLaunchConfigurationV1
+    ) -> String {
+        let diagnosticIdentifier = supportedIdentifiers.contains(semanticID)
+            ? semanticID
+            : "unrecognizedSemanticID"
+        let sourceEnglish = englishOnlyProbeValues[semanticID] ?? english
+        guard supportedIdentifiers.contains(semanticID), !sourceEnglish.isEmpty else {
+            TestOnlyPseudoLocalizationDiagnosticsV1.recordUnresolved(diagnosticIdentifier)
+            return "[unresolved test string]"
+        }
+        guard pseudoEligibleIdentifiers.contains(semanticID) else {
+            TestOnlyPseudoLocalizationDiagnosticsV1.recordFallback(diagnosticIdentifier)
+            return sourceEnglish
+        }
+        TestOnlyPseudoLocalizationDiagnosticsV1.recordResolved(diagnosticIdentifier)
+        return transform(sourceEnglish, profile: configuration.profile)
+    }
+
+    private static func transform(
+        _ english: String,
+        profile: V30PseudoLocalizationLaunchConfigurationV1.Profile
+    ) -> String {
+        let protectedPattern = "%%|%[0-9]+\\$@|%[0-9]+\\$lld|%lld|%@|\\{[^}]+\\}"
+        guard let expression = try? NSRegularExpression(pattern: protectedPattern) else {
+            return transformPlainText(english, profile: profile)
+        }
+        let range = NSRange(english.startIndex..., in: english)
+        let matches = expression.matches(in: english, range: range)
+        var result = ""
+        var cursor = english.startIndex
+        for match in matches {
+            guard let tokenRange = Range(match.range, in: english) else { continue }
+            result += transformPlainText(String(english[cursor..<tokenRange.lowerBound]), profile: profile)
+            result += String(english[tokenRange])
+            cursor = tokenRange.upperBound
+        }
+        result += transformPlainText(String(english[cursor...]), profile: profile)
+        return result
+    }
+
+    private static func transformPlainText(
+        _ text: String,
+        profile: V30PseudoLocalizationLaunchConfigurationV1.Profile
+    ) -> String {
+        switch profile {
+        case .enXA:
+            let accents: [Character: Character] = [
+                "a": "á", "e": "ë", "i": "ï", "o": "ô", "u": "ü",
+                "A": "Á", "E": "Ë", "I": "Ï", "O": "Ô", "U": "Ü",
+            ]
+            let accented = text.map { accents[$0] ?? $0 }.reduce(into: "") { $0.append($1) }
+            return text.isEmpty ? text : "⟦\(accented) ··⟧"
+        case .enXL:
+            return text.isEmpty ? text : "⟦\(text) · \(text)⟧"
+        case .arXB:
+            return text.isEmpty ? text : "\u{202B}⟦\(text)⟧\u{202C}"
+        }
+    }
+}
+
+private struct PseudoLocalizationScreenshotHarnessContentV1 {
+    let title: String
+    let summary: String
+    let status: String
+    let identifierLabel: String
+    let identifierValue = "FE-0427-2026"
+    let primaryAction: String
+    let navigation: String
+    let input: String
+    let recovery: String
+    let error: String
+
+    init(configuration: V30PseudoLocalizationLaunchConfigurationV1) {
+        title = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.title",
+            english: BundledLocalizationCatalogV1.v30Text(
+                .shellSignsTab,
+                languageLocale: Locale(identifier: "en")
+            ),
+            configuration: configuration
+        )
+        summary = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.summary",
+            english: "Review the evidence before completing this round.",
+            configuration: configuration
+        )
+        status = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.status",
+            english: "Requires attention",
+            configuration: configuration
+        )
+        identifierLabel = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.identifier",
+            english: "Serial:",
+            configuration: configuration
+        )
+        primaryAction = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.primaryAction",
+            english: "Continue review",
+            configuration: configuration
+        )
+        navigation = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.navigation",
+            english: "Review navigation",
+            configuration: configuration
+        )
+        input = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.input",
+            english: "Add an inspection note",
+            configuration: configuration
+        )
+        recovery = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.recovery",
+            english: "Recovery remains available",
+            configuration: configuration
+        )
+        error = TestOnlyPseudoLocalizationResolverV1.render(
+            semanticID: "pseudo.error",
+            english: "Synthetic validation message",
+            configuration: configuration
+        )
+    }
+}
+
+private struct PseudoLocalizationObservedEnvironmentV1: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+
+    private var observedDynamicType: String {
+        switch dynamicTypeSize {
+        case .large: return "large"
+        case .accessibility5: return "accessibility5"
+        default: return String(describing: dynamicTypeSize)
+        }
+    }
+
+    var body: some View {
+        Text("layoutDirection \(layoutDirection == .rightToLeft ? "rightToLeft" : "leftToRight") • dynamicType \(observedDynamicType) • colorScheme \(colorScheme == .dark ? "dark" : "light") • contrast \(colorSchemeContrast == .increased ? "increased" : "normal")")
+            .font(.footnote)
+            .accessibilityIdentifier("v30.pseudo.observed-environment")
+    }
+}
+struct PseudoLocalizationScreenshotHarnessView: View {
+    let configuration: V30PseudoLocalizationLaunchConfigurationV1
+    private let content: PseudoLocalizationScreenshotHarnessContentV1
+    @State private var completed = false
+    @State private var note = ""
+    @State private var showsError = false
+    @State private var finalActionCompleted = false
+    @FocusState private var noteIsFocused: Bool
+    @State private var diagnosticSnapshot = TestOnlyPseudoLocalizationDiagnosticSnapshotV1(resolvedCount: 0, unresolvedKeyCount: 0, unexpectedFallbackCount: 0)
+
+    init(configuration: V30PseudoLocalizationLaunchConfigurationV1) {
+        self.configuration = configuration
+        content = PseudoLocalizationScreenshotHarnessContentV1(configuration: configuration)
+    }
+
+    var body: some View {
+        let diagnostics = diagnosticSnapshot
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+                    Text(content.title)
+                        .font(.largeTitle.weight(.bold))
+                        .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                        .accessibilityIdentifier("v30.pseudo.title")
+                        .accessibilityAddTraits(.isHeader)
+
+                    Text(content.summary)
+                        .font(.body)
+                        .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                        .accessibilityIdentifier("v30.pseudo.summary")
+
+                    WorklightCard {
+                        Text(content.status)
+                            .font(.headline)
+                            .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                            .accessibilityIdentifier("v30.pseudo.status")
+                        VStack(alignment: .leading) {
+                            Text(content.identifierLabel)
+                            Text(GlobalizationRTLSemanticsV1.opaqueFallback(nil, identifier: content.identifierValue))
+                                .font(.body.monospaced())
+                                .accessibilityIdentifier("v30.pseudo.identifier")
+                        }
+                        .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                        Button(content.primaryAction) { completed = true }
+                            .buttonStyle(WorklightPrimaryButtonStyle())
+                            .accessibilityIdentifier("v30.pseudo.primary-action")
+                        if completed {
+                            Text("Synthetic review complete")
+                                .font(.footnote)
+                                .accessibilityIdentifier("v30.pseudo.completion")
+                        }
+                    }
+
+                    WorklightCard {
+                        NavigationLink {
+                            Text(content.summary).modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                                .accessibilityIdentifier("v30.pseudo.navigation-destination")
+                        } label: {
+                            Text(content.navigation)
+                                .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                                .frame(minWidth: DesignTokens.Control.minimumHitSize,
+                                       minHeight: DesignTokens.Control.minimumHitSize)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityIdentifier("v30.pseudo.navigation")
+                        TextField(content.input, text: $note, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(minHeight: DesignTokens.Control.minimumHitSize)
+                            .focused($noteIsFocused)
+                            .accessibilityIdentifier("v30.pseudo.input")
+                        Button(content.error) {
+                            noteIsFocused = false
+                            showsError = true
+                        }
+                            .buttonStyle(WorklightSecondaryButtonStyle())
+                            .accessibilityIdentifier("v30.pseudo.error-trigger")
+                        if showsError {
+                            Text(content.error)
+                                .font(.footnote)
+                                .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                                .accessibilityIdentifier("v30.pseudo.error")
+                            Button(content.recovery) { showsError = false }
+                                .buttonStyle(WorklightSecondaryButtonStyle())
+                                .accessibilityIdentifier("v30.pseudo.recovery")
+                        }
+                        Button("Record unresolved diagnostic") {
+                            _ = TestOnlyPseudoLocalizationResolverV1.render(semanticID: "private.unresolved", english: "ignored", configuration: configuration)
+                            diagnosticSnapshot = TestOnlyPseudoLocalizationDiagnosticsV1.snapshot()
+                        }
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityIdentifier("v30.pseudo.unresolved-trigger")
+                        Button("Record fallback diagnostic") {
+                            _ = TestOnlyPseudoLocalizationResolverV1.render(semanticID: "pseudo.fallbackProbe", english: "Fallback probe", configuration: configuration)
+                            diagnosticSnapshot = TestOnlyPseudoLocalizationDiagnosticsV1.snapshot()
+                        }
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityIdentifier("v30.pseudo.fallback-trigger")
+                        Button("Reset diagnostics") {
+                            TestOnlyPseudoLocalizationDiagnosticsV1.reset()
+                            diagnosticSnapshot = TestOnlyPseudoLocalizationDiagnosticsV1.snapshot()
+                        }
+                        .buttonStyle(WorklightSecondaryButtonStyle())
+                        .accessibilityIdentifier("v30.pseudo.diagnostics-reset")
+                    }
+
+                    PseudoLocalizationObservedEnvironmentV1()
+                    Text(verbatim: "NFD: cafe\u{301} • ZWJ: 👩‍🔧 • CJK: 漢字 • Hangul: 한글 • Arabic: العربية")
+                        .font(.footnote)
+                        .accessibilityIdentifier("v30.pseudo.authored-source")
+                    Text(BundledLocalizationCatalogV1.v30Text(
+                        .shellSignsTab,
+                        languageLocale: Locale(identifier: "en")
+                    ))
+                    .font(.footnote)
+                    .accessibilityIdentifier("v30.pseudo.catalog-source")
+
+                    Button(content.primaryAction) { finalActionCompleted = true }
+                        .buttonStyle(WorklightPrimaryButtonStyle())
+                        .accessibilityIdentifier("v30.pseudo.final-action")
+                    if finalActionCompleted {
+                        Text("Synthetic final action completed")
+                            .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                            .accessibilityIdentifier("v30.pseudo.final-completion")
+                    }
+                    Text(
+                        "Profile \(configuration.profile.rawValue) • Dynamic Type \(configuration.dynamicType.rawValue) • \(configuration.appearance.rawValue) • contrast \(configuration.contrast.rawValue) • states navigation/input/recovery/error • resolved \(diagnostics.resolvedCount) • unresolved \(diagnostics.unresolvedKeyCount) • unexpected fallback \(diagnostics.unexpectedFallbackCount)"
+                    )
+                    .font(.footnote)
+                    .modifier(GlobalizationAdaptiveLayoutPolicyV1())
+                    .accessibilityIdentifier("v30.pseudo.diagnostics")
+                }
+                .padding(DesignTokens.Spacing.medium)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { noteIsFocused = false }
+                        .accessibilityIdentifier("v30.pseudo.keyboard-dismiss")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.canvas)
+        .environment(\.layoutDirection, configuration.profile.isRightToLeft ? .rightToLeft : .leftToRight)
+        .environment(
+            \.dynamicTypeSize,
+            configuration.dynamicType == .large ? .large : .accessibility5
+        )
+        .environment(
+            \.colorSchemeContrast,
+            configuration.contrast == .increased ? .increased : .standard
+        )
+        .preferredColorScheme(configuration.appearance == .dark ? .dark : .light)
+        .accessibilityIdentifier("v30.pseudo.screen")
+        .onAppear { diagnosticSnapshot = TestOnlyPseudoLocalizationDiagnosticsV1.snapshot() }
+    }
+}
+#endif
+
 struct AppShellView: View {
     static let screenAccessibilityIdentifier = "s1.shell.screen"
     static let signsTabAccessibilityIdentifier = "s1.tab.signs"
