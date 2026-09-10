@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 13 of 55 — Locale-aware formatting and input grammar
+Card 14 of 55 — Catalog release mechanism, provenance schema, compatibility, and offline integrity
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Implement and test dates, instants/local time, DST, calendars, numbers, currency, percent, units, week rules, paper, addresses, phones, parsing, ambiguous-input rejection, and canonical round trips with Foundation locale-aware APIs.",
+    "required": "Implement the versioned catalog-release schema, validator, compatibility/supersession/rollback, zero-network loading, fallback evidence, and historical lookup. No locale release or reviewer receipt is final before P04-C07 and P05 reconciliation.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "3a28f593e755ac952071777b7e8440457950a010",
-    "tree": "7f67173942a087f86770b10ed8bf99041425ee4f"
+    "head": "36f9c62ef09bff21c47923add3ade6469a82650e",
+    "tree": "0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8"
   },
-  "cardID": "V30-P01-C07",
+  "cardID": "V30-P01-C08",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,8 +33,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
+    "V30-P01-C03",
     "V30-P01-C04",
-    "V30-P01-C05"
+    "V30-P01-C05",
+    "V30-P01-C06"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -75,135 +77,83 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift",
-        "purpose": "Locale formatting and canonical-input grammar contracts.",
+        "path": "FieldEvidenceApp/Domain/Globalization/LocalizationCatalogReleaseContractsV1.swift",
+        "purpose": "Versioned catalog release, compatibility, supersession, rollback, and provenance contracts.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift",
-        "purpose": "Foundation-backed date/number/unit/phone/address formatter and parser.",
+        "path": "FieldEvidenceApp/Infrastructure/Localization/LocalizationCatalogReleaseStoreV1.swift",
+        "purpose": "Offline catalog release storage and historical lookup.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift",
-        "purpose": "DST, calendar, number, unit, paper, parsing, and canonical round-trip tests.",
+        "path": "FieldEvidenceAppTests/V30_P01_C08CatalogReleaseIntegrityTests.swift",
+        "purpose": "Offline integrity and historical lookup tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json",
-        "purpose": "Locale-hostile input grammar fixtures.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/CatalogRelease/catalog-release-cases-v1.json",
+        "purpose": "Catalog release compatibility fixtures.",
         "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "8cd93ce082652e054201409787ba27fb82c63013",
+        "expectedBSHA256": "5d1982421bea62d1ec5339f5a279b6f1f552afa8d90f7dc16f01e389b575dc4f",
+        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+        "purpose": "Make the existing catalog release/compatibility validation authoritative for versioned V30 releases.",
+        "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
         "expectedBBlobOID": "66b140364dbe91ac14a57aa49a9ace8cb9a51140",
         "expectedBSHA256": "c52cfb7a59f8a016c0a5b4dfb9e2b55a09ec73a94411eb3f09e1039c05ca5788",
         "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
-        "purpose": "Route existing typed display formatting through the locale-aware contract without changing canonical values.",
+        "purpose": "Bind existing bundled catalog loading to offline release/provenance/rollback validation.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "19f52a71cb2ded5ac20912bb8634263e7ace1ed6",
-        "expectedBSHA256": "a0065b15ef7059867bb00377bd5b97cbcd2e9ac98c74ea0e154297410773f8bb",
-        "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
-        "purpose": "Bind document language, formatting locale, paper, and provenance to existing report contracts.",
+        "expectedBBlobOID": "69a33d27f8db846dd27ae5e554856a4e12e8aeaf",
+        "expectedBSHA256": "67cbc936089d01bc772330600727ddea7d312a5a52cd8b16f5f3aff3577d8a53",
+        "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "purpose": "Bind the existing source catalog to release digest and historical lookup metadata.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "fc88143bf623ba193458ef3eabcf6f56872df93f",
-        "expectedBSHA256": "b47b36127800c20edba871c80f7b32614f674c8f99d22de1d3ddc3a2450efa05",
-        "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
-        "purpose": "Use locale-aware display formatting in existing PDF/report rendering while preserving canonical snapshots.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "28e7f335a3337fb6e353a94181e67daab40b0a50",
-        "expectedBSHA256": "b4b2627fe05210957e51e54a48841b0cd3b385bf1ba6a384e94e3f6b9a75ecf7",
-        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
-        "purpose": "Preserve canonical timestamps while selecting explicit human-readable report formatting.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "e830455b14706763c3f9be4a930cd27955ef0890",
-        "expectedBSHA256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6",
-        "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-        "purpose": "Replace only locale-sensitive date/number input and display formatting in the existing record-work UI.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c48fbb8f39643d24cef00d49a5ed90313780c1f5",
-        "expectedBSHA256": "8c7dd5d1412895266be2ad1c5bffe743c13db2b1c2074e2f35d5b0e6d947f310",
-        "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
-        "purpose": "Replace only locale-sensitive date/number display formatting in the existing work coordinator.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "862a87c6d5fb3370c535c1a55a8ca077a6d94691",
-        "expectedBSHA256": "29bf9d1baf9377b8f88440a5fdb65cb38aeed765b3d8d5f2b3c1980da15736b5",
-        "path": "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
-        "purpose": "Regression-test locale-formatted report recovery without canonical drift.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "86a55cf4145939361ebdf82af7b16f052ecdb1c4",
-        "expectedBSHA256": "74e2ac75ce267ccc455d15c1780f7e0dfb6c8ff8c19433179719a29b2dd2c00e",
-        "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
-        "purpose": "Regression-test explicit report formatting and delivery behavior.",
+        "expectedBBlobOID": "1134417b3f24bf056cef13cdb133ea61d34c43fc",
+        "expectedBSHA256": "7b1c9163359202e97558078c3a782a03faa543ce7c14198ab1893e2fd65da5df",
+        "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+        "purpose": "Extend existing release/locale validation regression coverage.",
         "serializedSharedPath": true
       }
     ],
-    "cardID": "V30-P01-C07",
+    "cardID": "V30-P01-C08",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
+      "V30-P01-C03",
       "V30-P01-C04",
-      "V30-P01-C05"
+      "V30-P01-C05",
+      "V30-P01-C06"
     ],
-    "ordinal": 13,
-    "preAuthorizedOverlapTuples": [
-      {
-        "boundedPurpose": "replace only locale-sensitive date/number input or display formatting in FieldEvidenceApp/Features/Issues/RecordWorkView.swift; preserve Phase10 visual styling and workflow behavior",
-        "cardID": "V30-P01-C07",
-        "expectedBBlobOID": "e830455b14706763c3f9be4a930cd27955ef0890",
-        "expectedBSHA256": "d8b9376be21c1b441c5f166ed22b851c35de63d8ba056e82ae1d30f4628933e6",
-        "path": "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P01-C07-LOCALE-FORMAT-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "replace only locale-sensitive date/number input or display formatting in FieldEvidenceApp/Features/Issues/WorkCoordinator.swift; preserve Phase10 visual styling and workflow behavior",
-        "cardID": "V30-P01-C07",
-        "expectedBBlobOID": "c48fbb8f39643d24cef00d49a5ed90313780c1f5",
-        "expectedBSHA256": "8c7dd5d1412895266be2ad1c5bffe743c13db2b1c2074e2f35d5b0e6d947f310",
-        "path": "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P01-C07-LOCALE-FORMAT-INTEGRATOR"
-      }
-    ],
-    "s10SharedPaths": [
-      "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-      "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift"
-    ],
+    "ordinal": 14,
+    "preAuthorizedOverlapTuples": [],
+    "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Locale-aware formatting and input grammar"
+    "title": "Catalog release mechanism, provenance schema, compatibility, and offline integrity"
   },
   "fenceSource": {
-    "cardID": "V30-P01-C07",
+    "cardID": "V30-P01-C08",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -214,18 +164,33 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P01-C08",
+  "next": "V30-P02-C01",
   "observedCoordination": {
-    "head": "1638c8ed38af81dade54ba745ab4f24610700469",
-    "ledgerDigest": "104cd56257212830e8e9395f5266af4d4cc7c81250f9845f91e722a491ddf32f",
-    "sequence": 26
+    "head": "d02682ce99608d7eba028802c79d35aae89d3265",
+    "ledgerDigest": "f216c0bd80463419a20bdd5bbe8c67543332c135760e3c6e3a344e5667f9b889",
+    "sequence": 28
   },
-  "ordinal": 13,
-  "outcome": "Implement and test dates, instants/local time, DST, calendars, numbers, currency, percent, units, week rules, paper, addresses, phones, parsing, ambiguous-input rejection, and canonical round trips with Foundation locale-aware APIs.",
-  "payloadDigest": "9da58a445765c5e872a977fe9d92d4f6b076336eac20d4df6734427b77eae6f2",
+  "ordinal": 14,
+  "outcome": "Implement the versioned catalog-release schema, validator, compatibility/supersession/rollback, zero-network loading, fallback evidence, and historical lookup. No locale release or reviewer receipt is final before P04-C07 and P05 reconciliation.",
+  "payloadDigest": "bc527304912b227b8bbdc69981c515912390585e1c87e142e573187931838159",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
+    "V30-P01-C03": {
+      "candidate": {
+        "base": "321eaf374c88ed7733549341c5de8d9505e4d76e",
+        "baseTree": "c783e1ea1c28466025978aebf428dd7c43a1a5b2",
+        "changedPaths": [
+          "FieldEvidenceAppTests/V30_P01_C03TextSurfaceInventoryTests.swift",
+          "Scripts/v30/validate_v30_text_surface_inventory.py",
+          "docs/design/v30/inventory/V30TextBearingSurfaceInventoryV1.json",
+          "docs/design/v30/inventory/V30TextSurfaceDispositionSchemaV1.json"
+        ],
+        "head": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
+        "tree": "0d6e32f5f1aa589b7189b0e9e4dc80e1c822473c"
+      },
+      "sequence": 20
+    },
     "V30-P01-C04": {
       "candidate": {
         "base": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
@@ -280,13 +245,38 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "tree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7"
       },
       "sequence": 24
+    },
+    "V30-P01-C06": {
+      "candidate": {
+        "base": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+        "baseTree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7",
+        "changedPaths": [
+          "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+          "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
+          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+          "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift",
+          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "3a28f593e755ac952071777b7e8440457950a010",
+        "tree": "7f67173942a087f86770b10ed8bf99041425ee4f"
+      },
+      "sequence": 26
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 987,
-  "sourceStartLine": 987,
-  "title": "Locale-aware formatting and input grammar"
+  "sourceEndLine": 988,
+  "sourceStartLine": 988,
+  "title": "Catalog release mechanism, provenance schema, compatibility, and offline integrity"
 }
 ```
