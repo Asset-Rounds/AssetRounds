@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 18 of 55 - Expansion, Dynamic Type, accessibility, and font policy
+Card 19 of 55 - Locale-aware search, sorting, and normalization
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Prevent clipping/unreachable controls, localize accessibility, qualify font fallback/licensing, preserve touch targets/contrast/focus/errors, and pass long-text and accessibility sizes.",
+    "required": "Add versioned derived search normalization, CJK segmentation, Korean composition, diacritics, hostile Turkish/Arabic cases, stable tie-breakers, rebuild/recovery/erase/backup boundaries, and unmodified canonical identifiers.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "0a7a4d9d82683a4b2aab06508623fc0a1f910586",
-    "tree": "551a18514c114181227dcaf8010c0f1f55f1217a"
+    "head": "d804f60308bcfdcaadf01780d429132e4bcbd77d",
+    "tree": "0cde23d9cf27616f10d4465ef4ee5a9ac387791e"
   },
-  "cardID": "V30-P02-C04",
+  "cardID": "V30-P02-C05",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,8 +33,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P02-C01",
-    "V30-P02-C03"
+    "V30-P01-C07",
+    "V30-P02-C02"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -75,235 +75,121 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/DesignSystem/GlobalizationAdaptiveLayoutPolicyV1.swift",
-        "purpose": "Expansion, Dynamic Type, font fallback, touch-target, contrast, and focus policy.",
+        "path": "FieldEvidenceApp/Domain/Search/GlobalizedSearchNormalizationContractsV1.swift",
+        "purpose": "Versioned derived-search normalization and stable tie-breaker contracts.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Features/Globalization/GlobalizationAccessibilityPolicyV1.swift",
-        "purpose": "Localized accessibility and long-text surface policy.",
+        "path": "FieldEvidenceApp/Infrastructure/Search/GlobalizedSearchNormalizationServiceV1.swift",
+        "purpose": "CJK, Hangul, diacritic, Turkish, and Arabic normalization adapter.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift",
-        "purpose": "Dynamic Type, expansion, VoiceOver, and font-policy tests.",
+        "path": "FieldEvidenceAppTests/V30_P02_C05GlobalizedSearchTests.swift",
+        "purpose": "Search rebuild, recovery, erase, backup, and canonical-identifier tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/Accessibility/expansion-and-type-cases-v1.json",
-        "purpose": "Long-text and accessibility-size fixtures.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/Search/globalized-search-cases-v1.json",
+        "purpose": "Locale-aware search and sorting fixtures.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "47dce913f9d74c67372fd74381193e30f6ed3ea8",
-        "expectedBSHA256": "6dffb68fd94398664e9ca9a77a52ab8104be3763df03c061fc806438f93940c4",
-        "path": "FieldEvidenceApp/Domain/Accessibility/SemanticAccessibilityContractsV1.swift",
-        "purpose": "Extend existing accessibility contract for Dynamic Type, localized labels, focus, and reachability.",
+        "expectedBBlobOID": "1e9dbbed51414fdc966cec2b11710ee75ceb1a27",
+        "expectedBSHA256": "abe2182a403cb10cc939ba24884973f9c91b8066c47a0cc500e1ad236169312f",
+        "path": "FieldEvidenceApp/Domain/Search/SearchContractsV1.swift",
+        "purpose": "Version-forward existing search contracts for derived locale normalization and stable ties.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "b4182deee643168333d22bd4a4b12cfd67cd7c92",
+        "expectedBSHA256": "ee649eee8f456857c9b722fe04b2028488c88c73169e8cad737b6f594fbc1ac2",
+        "path": "FieldEvidenceApp/Domain/Search/SearchPersistenceModelsV1.swift",
+        "purpose": "Version-forward existing persisted derived-search models without changing canonical identifiers.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c3cb1fa6103c35effc8b61e0d7016d753be7702a",
+        "expectedBSHA256": "f253fdd2746c3ef862df86f7237433be9b46d42928835e373cd5f673664abe39",
+        "path": "FieldEvidenceApp/Application/Search/SearchCoordinatorV1.swift",
+        "purpose": "Route existing search coordination through versioned locale normalization.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "75c55074e9721a08c66748cdd171ae465b965b7d",
+        "expectedBSHA256": "1a3b2362041a48b0ab300429df82a4d38feea0a1f4f109f7acf5e53ed57ed433",
+        "path": "FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift",
+        "purpose": "Persist locale-normalized derived search rows only.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "450afe0ac8fb7f52c1961823ec4bcec35810297a",
+        "expectedBSHA256": "2dc0505cabab6b611493108e6573b05aa7e13f1439f08d15478d795cce384a11",
+        "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+        "purpose": "Rebuild locale-normalized derived search safely from canonical records.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
-        "expectedBSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
-        "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
-        "purpose": "Apply only Dynamic Type, long-text, touch-target, and accessibility reachability behavior; preserve Phase10 visual tokens and branding.",
+        "expectedBBlobOID": "791d3cebb57ddc4f8844cd0cc6cb5c96c929d4cb",
+        "expectedBSHA256": "bedeea43e25cceba20b2ed35832e4feba24e9e7db08bdc6bbea33631a029b82d",
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+        "purpose": "Restore/rebuild only derived search normalization state.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
-        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
-        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-        "purpose": "Apply only Dynamic Type/long-text navigation reachability; preserve Phase10 shell visual composition.",
-        "serializedSharedPath": true
+        "expectedBBlobOID": "a498c81add042147f40c6a29e5d05c9c52e1657d",
+        "expectedBSHA256": "0707f4aeffe62d6bfcfc025b41ac9af5e129833030c42bd664c044b69a761f9d",
+        "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+        "purpose": "Erase derived locale search state without affecting canonical data.",
+        "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
-        "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
-        "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
-        "purpose": "Apply only Dynamic Type/long-text and accessibility reachability to the backup recovery surface.",
-        "serializedSharedPath": true
+        "expectedBBlobOID": "83fc944c05720c0d132832077a3bf4d571a6284d",
+        "expectedBSHA256": "d3a73015b8774d8bebf71f408093ca20a5ca00a077a55f2800e43003ac82975a",
+        "path": "FieldEvidenceAppTests/V9_19LocalSearchTests.swift",
+        "purpose": "Extend existing local-search normalization/rebuild coverage.",
+        "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "535a86a3312f537f13c10b5db3f7bed3ac0f3945",
-        "expectedBSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
-        "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
-        "purpose": "Apply only Dynamic Type/long-text and accessibility reachability to the backup validation surface.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
-        "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
-        "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-        "purpose": "Apply only Dynamic Type/long-text and accessibility reachability to capture controls.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
-        "expectedBSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
-        "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-        "purpose": "Apply only Dynamic Type/long-text and accessibility reachability to outcome controls.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
-        "expectedBSHA256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955",
-        "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-        "purpose": "Apply only Dynamic Type/long-text and accessibility reachability to preflight controls.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0797274e09f174e1caca359c3ce6b030c41054e6",
-        "expectedBSHA256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8",
-        "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
-        "purpose": "Apply only Dynamic Type/long-text and accessibility reachability to receipt controls.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "1798cf7b2fd27e4005c2877083108b8362cd450f",
-        "expectedBSHA256": "fd97a87be8b5e83f9458f2d8e517c79c552876f9adf5eed3e8472a876edc7af5",
-        "path": "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
-        "purpose": "Apply Dynamic Type/long-text recovery accessibility behavior.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "e594bc96cd26e94f4732de20bde119895f30c02e",
-        "expectedBSHA256": "15b47b3bd21e0eb4d797bdc33867c44ffe441b433a6ac5ec1bf1725e4c9e0c8c",
-        "path": "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift",
-        "purpose": "Apply Dynamic Type/long-text round-session accessibility behavior.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "1134417b3f24bf056cef13cdb133ea61d34c43fc",
-        "expectedBSHA256": "7b1c9163359202e97558078c3a782a03faa543ce7c14198ab1893e2fd65da5df",
-        "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
-        "purpose": "Extend localization/accessibility Dynamic Type regression coverage.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0c9a8a7625da998a7fc2d52fab0de080aa6e74ac",
-        "expectedBSHA256": "fdd82805952e37a313c5f156aed6d53c48511a9e038fdeb8a7272ba611eb2694",
-        "path": "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift",
-        "purpose": "Extend established accessibility golden coverage.",
+        "expectedBBlobOID": "fc13366c237192cc69bcea214813929be3544b4c",
+        "expectedBSHA256": "cf25c460046ee10aa8a2f044cef5e117c18ff418f3272038eea9c1c9ba606f69",
+        "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+        "purpose": "Extend restore/rebuild coverage for derived search state.",
         "serializedSharedPath": true
       }
     ],
-    "cardID": "V30-P02-C04",
+    "cardID": "V30-P02-C05",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
-      "V30-P02-C01",
-      "V30-P02-C03"
+      "V30-P01-C07",
+      "V30-P02-C02"
     ],
-    "ordinal": 18,
-    "preAuthorizedOverlapTuples": [
-      {
-        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/DesignSystem/WorklightComponents.swift; preserve Phase10 visual tokens and branding",
-        "cardID": "V30-P02-C04",
-        "expectedBBlobOID": "209f205aab77a68265f0601696a23a06f4d7ce4c",
-        "expectedBSHA256": "60b2cd11ed0c07e7573906e4cc01e1e3bb4c5b496991eaa79c9874d343e6042d",
-        "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/Shell/AppShellView.swift; preserve Phase10 visual tokens and branding",
-        "cardID": "V30-P02-C04",
-        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
-        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
-        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift; preserve Phase10 visual tokens and branding",
-        "cardID": "V30-P02-C04",
-        "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
-        "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
-        "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift; preserve Phase10 visual tokens and branding",
-        "cardID": "V30-P02-C04",
-        "expectedBBlobOID": "535a86a3312f537f13c10b5db3f7bed3ac0f3945",
-        "expectedBSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
-        "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift; preserve Phase10 visual tokens and branding",
-        "cardID": "V30-P02-C04",
-        "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
-        "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
-        "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift; preserve Phase10 visual tokens and branding",
-        "cardID": "V30-P02-C04",
-        "expectedBBlobOID": "199911f3676695af27f475e62e2d9ea4fb05e34d",
-        "expectedBSHA256": "bfa8424e5cd55367d34c80562567651e23107b7c01995604311fdb5578cebc7b",
-        "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/CheckRunner/PreflightView.swift; preserve Phase10 visual tokens and branding",
-        "cardID": "V30-P02-C04",
-        "expectedBBlobOID": "5e0b1d333ff0124259a863674c7cb308365a13b6",
-        "expectedBSHA256": "0e3a4d543e588ae24a0ed06aaf05d50081341602cdf1fe04b9ddfd0bb945a955",
-        "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "apply only Dynamic Type, long-text, touch-target, and accessibility reachability in FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift; preserve Phase10 visual tokens and branding",
-        "cardID": "V30-P02-C04",
-        "expectedBBlobOID": "0797274e09f174e1caca359c3ce6b030c41054e6",
-        "expectedBSHA256": "57ffc1c79e02a1adad526837339c21baba35f4a41bd340ab547f64eebcc51fd8",
-        "path": "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C04-ADAPTIVE-ACCESSIBILITY-INTEGRATOR"
-      }
-    ],
-    "s10SharedPaths": [
-      "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
-      "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-      "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
-      "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
-      "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-      "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-      "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-      "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift"
-    ],
+    "ordinal": 19,
+    "preAuthorizedOverlapTuples": [],
+    "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Expansion, Dynamic Type, accessibility, and font policy"
+    "title": "Locale-aware search, sorting, and normalization"
   },
   "fenceSource": {
-    "cardID": "V30-P02-C04",
+    "cardID": "V30-P02-C05",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -314,109 +200,73 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P02-C05",
+  "next": "V30-P02-C06",
   "observedCoordination": {
-    "head": "40ca4c7bab5ef834682a912afe5190fa8e2bb672",
-    "ledgerDigest": "e18024c48f80ebdaccc3be616c8887e5d58fd9f08cf905e25ac8ae78c513a0be",
-    "sequence": 37
+    "head": "c4faa21169a2c8e1121a52bfaf3407f3e3e396d5",
+    "ledgerDigest": "0e2d5f157b886d90b5a56a5070280f49959550d74c26e2efab49a4f9be0e9990",
+    "sequence": 39
   },
-  "ordinal": 18,
-  "outcome": "Prevent clipping/unreachable controls, localize accessibility, qualify font fallback/licensing, preserve touch targets/contrast/focus/errors, and pass long-text and accessibility sizes.",
-  "payloadDigest": "531313283e8a43eab0cc90edb73cda7973f20c10f4fb9eaf9c50ee04bd4120c7",
+  "ordinal": 19,
+  "outcome": "Add versioned derived search normalization, CJK segmentation, Korean composition, diacritics, hostile Turkish/Arabic cases, stable tie-breakers, rebuild/recovery/erase/backup boundaries, and unmodified canonical identifiers.",
+  "payloadDigest": "954ab6307ceab26025b734793bf423183ab61f4dff8ef7d53ce27a55e13e15d0",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P02-C01": {
+    "V30-P01-C07": {
       "candidate": {
-        "base": "020c9da6df9c2d9afe741290ecab1b1893d8b2ec",
-        "baseTree": "a7b68fe27452c186cdd9e8c6a244a39c29b5c1ff",
+        "base": "3a28f593e755ac952071777b7e8440457950a010",
+        "baseTree": "7f67173942a087f86770b10ed8bf99041425ee4f",
         "changedPaths": [
-          "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
-          "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
-          "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
-          "FieldEvidenceApp/Features/Accountability/SignoffEnrollmentView.swift",
-          "FieldEvidenceApp/Features/Activities/InstallationWorkflowView.swift",
-          "FieldEvidenceApp/Features/Activities/PunchReviewWorkflowView.swift",
-          "FieldEvidenceApp/Features/AssetImport/PartyContactSiteRoleImportView.swift",
-          "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
-          "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
-          "FieldEvidenceApp/Features/Contacts/OperationalContactHandoffView.swift",
-          "FieldEvidenceApp/Features/Contacts/PartyContactSiteRoleWorkflowView.swift",
-          "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
-          "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+          "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift",
           "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-          "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
-          "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift",
-          "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
-          "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
-          "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
-          "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
-          "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
-          "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
-          "FieldEvidenceApp/Features/ServiceRequests/ServiceRequestWorkflowView.swift",
-          "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
-          "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
-          "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
-          "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
-          "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
-          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-          "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
-          "FieldEvidenceApp/Features/Signs/NewSignView.swift",
-          "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
-          "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
-          "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
-          "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
-          "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
-          "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
           "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
-          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift",
-          "FieldEvidenceApp/Resources/Localizable.xcstrings",
-          "FieldEvidenceAppTests/Fixtures/V30/EnglishCatalog/english-catalog-audit-v1.json",
-          "FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json",
+          "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
+          "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+          "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
-        "tree": "ab8211eed89a7980d4f38246026800b72226afe3"
+        "head": "36f9c62ef09bff21c47923add3ade6469a82650e",
+        "tree": "0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8"
       },
-      "sequence": 33
+      "sequence": 28
     },
-    "V30-P02-C03": {
+    "V30-P02-C02": {
       "candidate": {
-        "base": "69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe",
-        "baseTree": "56016965f7f633eaf605460598e21910c1fc298b",
+        "base": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
+        "baseTree": "ab8211eed89a7980d4f38246026800b72226afe3",
         "changedPaths": [
-          "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
-          "FieldEvidenceApp/Features/Globalization/GlobalizationRTLSemanticsV1.swift",
-          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-          "FieldEvidenceApp/Infrastructure/Localization/BidirectionalTextSafetyV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/RTL/rtl-hostile-cases-v1.json",
-          "FieldEvidenceAppTests/V30_P02_C03RTLSemanticsTests.swift",
+          "FieldEvidenceApp/Application/Globalization/UnicodeEvidenceSafetyCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/UnicodeEvidenceSafetyContractsV1.swift",
+          "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+          "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/Unicode/unicode-evidence-hostile-cases-v1.json",
+          "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+          "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+          "FieldEvidenceAppTests/V30_P02_C02UnicodeEvidenceSafetyTests.swift",
+          "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift",
+          "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "0a7a4d9d82683a4b2aab06508623fc0a1f910586",
-        "tree": "551a18514c114181227dcaf8010c0f1f55f1217a"
+        "head": "69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe",
+        "tree": "56016965f7f633eaf605460598e21910c1fc298b"
       },
-      "sequence": 37
+      "sequence": 35
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 997,
-  "sourceStartLine": 997,
-  "title": "Expansion, Dynamic Type, accessibility, and font policy"
+  "sourceEndLine": 998,
+  "sourceStartLine": 998,
+  "title": "Locale-aware search, sorting, and normalization"
 }
 ```

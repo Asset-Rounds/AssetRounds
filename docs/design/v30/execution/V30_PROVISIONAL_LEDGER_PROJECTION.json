@@ -3,14 +3,14 @@
   "canonicalLedgerExternal": true,
   "creditedCards": [],
   "kind": "PRODUCT_BRANCH_READ_ONLY_PROJECTION",
-  "payloadDigest": "2f7e70e2622603132b6cd575b860a985764de77a889eadb2c74841af1fb14064",
+  "payloadDigest": "d1daea3319710a60fb9524dff82149c312c1d6d644d2be6e54d5bb55a1cd687c",
   "preS10FinalCredit": false,
   "schemaVersion": "V30ProvisionalLedgerProjectionV1",
-  "selectedCard": "V30-P02-C04",
+  "selectedCard": "V30-P02-C05",
   "source": {
-    "head": "717bccdfa6b0da708460667d3a9fbe6e45f6c893",
-    "ledgerDigest": "4ebcb7b8551c4c2a5ba9b119d954edb593b225b1fd9efb24f192bc622d571e65",
-    "sequence": 38
+    "head": "55865dcfd51f3bfb92ac5993895cd9fbd0bc349c",
+    "ledgerDigest": "d7da65e77619aa3e5e5c29b81f3a0918d7aac83549daa4660b32f21ff9cc84f3",
+    "sequence": 40
   },
   "state": "PROVISIONAL_IMPLEMENTING",
   "writeDisposition": "READ_ONLY_OBSERVED_SELECTION; next checkpoint requires later coordination CAS"
