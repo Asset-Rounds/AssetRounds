@@ -4285,3 +4285,41 @@ Implementation paths (10, all inside the 23-path fence):
 - `FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift`
 
 Boundary state: isolated provisional branch only, no main or Phase 10 access/mutation. Replay or reimplement this candidate after accepted S in graph order and rerun invalidated evidence; never merge wholesale. Next unstarted card: V30-P02-C03 - RTL and bidirectional semantics. This entry does not self-record its containing handoff commit.
+
+
+## Card 17 of 55 - V30-P02-C03 - RTL and bidirectional semantics
+
+State: PROVISIONAL_CHECKPOINTED. This is graph-dependency progress only. Native, canonical/final, exact-main, phase-close, post-S10 successor and release credit remain false.
+
+- Frozen B / phase base P: `acbfb68355f903fe98638b6ef22e4814e7b48328`, tree `47e17fae6b73dccd5029ccf4ac7cca659196f225`.
+- Card base M: `69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe`, tree `56016965f7f633eaf605460598e21910c1fc298b` (C02 provisional implementation, checkpoint 35). Direct graph prerequisite P01-C06 remains E `3a28f593e755ac952071777b7e8440457950a010`, tree `7f67173942a087f86770b10ed8bf99041425ee4f`, checkpoint 26.
+- Observed G0 authority A: `da5574d80382f7527ef71987cfb3ee225c1bc714`; M..A changed exactly the four V30 execution documents. All 14 exact allowed paths match the frozen B declarations. The two shared UI paths use the exact pre-issued `V30-P02-C03-RTL-SEMANTICS-INTEGRATOR` tuples, classification S10_SHARED_RECONCILIATION_REQUIRED, and REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT.
+- Product implementation E: `0a7a4d9d82683a4b2aab06508623fc0a1f910586`, tree `551a18514c114181227dcaf8010c0f1f55f1217a`. No distinct infrastructure K and no hosted candidate.
+- Isolated coordination checkpoint: sequence 37, head `40ca4c7bab5ef834682a912afe5190fa8e2bb672`, digest `e18024c48f80ebdaccc3be616c8887e5d58fd9f08cf905e25ac8ae78c513a0be`, request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P02-C03/CHECKPOINT/1`. The receipt appends all candidate history, exact committed paths/hashes, overlap tuples, static findings and evidence invalidations; prior history remains unchanged.
+
+Display-only isolation contains natural text with FSI/PDI and opaque identifiers with LRI/PDI, per paragraph. All 12 Bidi_Control scalars become visible ASCII annotations before wrapping, preventing hostile PDI breakout. Non-whitespace C0/C1 controls are visible, while natural joining/combining text and original CRLF/VT/FF/NEL/LS/PS separators remain intact. Opaque format controls are displayed visibly. No normalization or persistence mutation is introduced.
+
+SwiftUI retains its existing declaration order, leading/trailing behavior, tab tags, navigation placement and semantic icons. The only shared UI deltas prepare accessibility status detail and isolate an opaque language/region fallback identifier. Native layout remains responsible for mirroring; no manual reversal, icon/image/signature/QR transform, visual-token or brand-composition change was introduced. Existing semantic accessibility contracts already establish native direction and logical focus ordering and are unchanged. Arabic is still outside the six-language shipping cohort.
+
+OpenJSON adds a separate display-line projection without changing canonical keys, raw source values, semantic hashes, ordered IDs, structured text or reopen identity. Non-ASCII generic/reviewed/C18/C49 deterministic PDFs use CoreText-shaped, bounded grayscale image XObjects. Canonical inventory and C18/C49 projection-hash metadata are preserved. Printable ASCII deterministic builders retain their old route. Worklight retains exact legacy ASCII wrapping/drawing logic and now handles Unicode grapheme/paragraph boundaries with actual-frame visibility and shaped-glyph checks, including direct captions. Missing glyphs/LastResort, clipped text, overlarge clusters and raster page limits fail through existing typed errors. These are provisional visual changes; PDF text extraction, reading-order/tagging, font embedding/licensing and linguistic qualification are not claimed and remain later-card work.
+
+Six fixed hostile fixtures cover mixed Arabic identifiers/numbers/URLs/phones, every bidi control, C0/C1, all paragraph separators, joined emoji and decomposed accents. Current-card XCTest methods exercise byte-exact helper output, source JSON invariance, native SwiftUI geometry under RTL, actual ASCII and Unicode PDF routes, unsupported glyph behavior, decoded Unicode raster ink, and actual Worklight rendering through a copied private StoreGeneration/evidence fixture plus SnapshotValidatorV1. Authored Arabic/ZWJ snapshot bytes and separators remain exact through validation; tests inspect pagination and report geometry. No XCTest was executed.
+
+Validation: V30 provisional CI-contract validator PASS (WINDOWS_STATIC, selector null); complete external package validation PASS (55 cards / 107 edges and immutable pins); current-task/fence/B/raw-literal checks PASS; all six fixture UTF-8 hashes and balanced isolates PASS; source comparison confirms legacy Worklight draw/wrap logic equality; git diff --check PASS. Independent final renderer and test API audits are static only. Workflow run ID/URL/head, runner image/Xcode/Simulator/UDID, .xcresult and screenshots are NOT_EXECUTED / unavailable with no native credit. No project mutation was needed because synchronized source groups already enroll the new files.
+
+Historical evidence invalidation: C01's test `FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift` compares current UI source hashes to its immutable English-catalog audit fixture. The two authorized shared UI edits change those hashes, so that old test would fail at this C03 head. Its test, fixture and original checkpoint are preserved. The receipt records old/new hashes; 45 other audited UI source hashes remain identical and every raw literal disposition is retained. Current-card selection permits only C03's fenced test class, and no whole-suite pass is claimed. Post-S reconciliation requires authorized requalification or correction of that historical audit along with all invalidated exact-head evidence.
+
+Precommit review corrected wrapping of active isolates, invisible-glyph handling, raster orientation and height bounds, early page-cap enforcement, C18/C49 hash metadata, Swift throwing/split syntax, and legacy ASCII routing. Worklight validation was moved onto the actual drawing frame so captions cannot bypass it. The Worklight test uses the real private fixture setup and allows visual line breaks when checking paginated inspection fragments while preserving raw snapshot assertions. KNOWN_BUGS was read and remains its template; no defect was accepted. Native rendering, layout and post-S qualification remain pending.
+
+Implementation paths (9, all inside the 14-path fence):
+- `FieldEvidenceApp/DesignSystem/WorklightComponents.swift`
+- `FieldEvidenceApp/Features/Globalization/GlobalizationRTLSemanticsV1.swift`
+- `FieldEvidenceApp/Features/Shell/AppShellView.swift`
+- `FieldEvidenceApp/Infrastructure/Localization/BidirectionalTextSafetyV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift`
+- `FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift`
+- `FieldEvidenceAppTests/Fixtures/V30/RTL/rtl-hostile-cases-v1.json`
+- `FieldEvidenceAppTests/V30_P02_C03RTLSemanticsTests.swift`
+
+Boundary state: isolated provisional branch only; no main or Phase 10 access/mutation. Carry both exact shared-path tuples into post-S replay/reimplementation, preserve accepted Phase 10 design, and rerun invalidated evidence in graph order; never merge wholesale. Next unstarted card: V30-P02-C04 - Expansion, Dynamic Type, accessibility, and font policy. This entry does not self-record its containing handoff commit.
