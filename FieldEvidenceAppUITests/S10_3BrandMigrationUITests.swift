@@ -86,6 +86,27 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         ]
     }
 
+    private enum MinimumCoreSmoke {
+        static let contractID = "s10.4.minimum-core-smoke.v1"
+        static let expectedRef = "refs/heads/phase/s10-brand-refresh"
+        static let expectedExecutionLane =
+            "github-xcode-26.6-shared-build-acceptance"
+        static let environmentKeys: Set<String> = [
+            "CI_S10_4_MINIMUM_CORE_SMOKE_ID",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_HEAD",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_REF",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_EXECUTION_LANE",
+        ]
+        static let checkpointIDs = [
+            "launch",
+            "sign-saved",
+            "capture-review",
+            "report-saved",
+            "report-reopened",
+            "settings",
+        ]
+    }
+
     private enum FocusedDiagnosticProbeStop: Error {
         case completed
     }
@@ -1025,6 +1046,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private var segment3ResumePrepared = false
     private var diagnosticProbe: DiagnosticProbe?
     private var diagnosticVisitedSetupCaptureStateIDs: [String] = []
+    private var minimumCoreSmokeHead: String?
+    private var minimumCoreSmokeCheckpointIDs: [String] = []
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -1032,6 +1055,13 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             let environment = ProcessInfo.processInfo.environment
             guard MinimumSegment.environmentKeys.allSatisfy({ environment[$0] == nil }) else {
                 throw AutomationConfigurationError.invalid("Minimum segment keys require the automated brand lab selector")
+            }
+            guard MinimumCoreSmoke.environmentKeys.allSatisfy({
+                environment[$0] == nil
+            }) else {
+                throw AutomationConfigurationError.invalid(
+                    "Minimum core-smoke keys require the automated brand lab selector"
+                )
             }
         }
         if !(self is S10_4DevelopmentProbeUITests) {
@@ -1129,6 +1159,46 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             }
             configuredMinimumSegment = selected
         }
+        let minimumCoreSmokeKeys = MinimumCoreSmoke.environmentKeys
+        let hasMinimumCoreSmokeKeys = minimumCoreSmokeKeys.contains {
+            environment[$0] != nil
+        }
+        var configuredMinimumCoreSmokeHead: String?
+        if hasMinimumCoreSmokeKeys {
+            guard diagnosticProbe == nil,
+                  segment == .none,
+                  !hasMinimumKeys,
+                  minimumCoreSmokeKeys.allSatisfy({ environment[$0] != nil }),
+                  environment["CI_S10_4_MINIMUM_CORE_SMOKE_ID"]
+                    == MinimumCoreSmoke.contractID,
+                  let head = environment["CI_S10_4_MINIMUM_CORE_SMOKE_HEAD"],
+                  head.count == 40,
+                  head.allSatisfy({
+                      ("0"..."9").contains($0) || ("a"..."f").contains($0)
+                  }),
+                  environment["CI_S10_4_MINIMUM_CORE_SMOKE_REF"]
+                    == MinimumCoreSmoke.expectedRef,
+                  environment["CI_S10_4_MINIMUM_CORE_SMOKE_EXECUTION_LANE"]
+                    == MinimumCoreSmoke.expectedExecutionLane,
+                  shard.shardID == "s10.4.minimum.minimum-os",
+                  shard.ordinal == 8,
+                  shard.requirementID == "minimum_os",
+                  shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+                  shard.accessibilityFeature == "voiceover",
+                  shard.appearance == "light",
+                  shard.contrast == "standard",
+                  shard.contentSizeCategory == "UICTContentSizeCategoryL",
+                  shard.locale == "en-US-release",
+                  shard.layoutDirection == "left_to_right",
+                  !shard.differentiateWithoutColor,
+                  !shard.reduceMotion,
+                  !shard.reduceTransparency else {
+                throw AutomationConfigurationError.invalid(
+                    "Minimum core smoke requires its complete closed ordinary minimum-OS tuple"
+                )
+            }
+            configuredMinimumCoreSmokeHead = head
+        }
         var expectedEnvironment = shard.expectedEnvironment
         expectedEnvironment["CI_S10_4_SEGMENT_ID"] = segment.rawValue
         if let diagnosticProbe {
@@ -1148,6 +1218,16 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             expectedEnvironment["CI_S10_4_MINIMUM_SEGMENT_HEAD"] = environment["CI_S10_4_MINIMUM_SEGMENT_HEAD"]!
             expectedEnvironment["CI_S10_4_MINIMUM_SEGMENT_REF"] = "refs/heads/phase/s10-brand-refresh"
             expectedEnvironment["CI_S10_4_MINIMUM_SEGMENT_EXECUTION_LANE"] = "github-xcode-26.6-shared-build-acceptance"
+        }
+        if let configuredMinimumCoreSmokeHead {
+            expectedEnvironment["CI_S10_4_MINIMUM_CORE_SMOKE_ID"] =
+                MinimumCoreSmoke.contractID
+            expectedEnvironment["CI_S10_4_MINIMUM_CORE_SMOKE_HEAD"] =
+                configuredMinimumCoreSmokeHead
+            expectedEnvironment["CI_S10_4_MINIMUM_CORE_SMOKE_REF"] =
+                MinimumCoreSmoke.expectedRef
+            expectedEnvironment["CI_S10_4_MINIMUM_CORE_SMOKE_EXECUTION_LANE"] =
+                MinimumCoreSmoke.expectedExecutionLane
         }
         let observed = Dictionary(uniqueKeysWithValues: environment
             .filter { $0.key.hasPrefix("CI_S10_4_") }
@@ -1193,6 +1273,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         segmentedRouteStateCursor = 0
         automatedSegmentFinished = false
         segment3ResumePrepared = false
+        minimumCoreSmokeHead = configuredMinimumCoreSmokeHead
+        minimumCoreSmokeCheckpointIDs.removeAll()
     }
 
     @MainActor
@@ -1207,6 +1289,737 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private func effectiveAppearanceName(fallback: String) -> String {
         guard let shard = automationShard else { return fallback }
         return shard.appearance == "dark" ? "Dark" : "Light"
+    }
+
+    var minimumCoreSmokeIsConfigured: Bool {
+        minimumCoreSmokeHead != nil
+    }
+
+    @MainActor
+    func runMinimumCoreSmoke() throws {
+        guard let head = minimumCoreSmokeHead,
+              diagnosticProbe == nil,
+              minimumSegment == nil,
+              automationSegment == .none,
+              let shard = automationShard,
+              shard.shardID == "s10.4.minimum.minimum-os",
+              shard.ordinal == 8,
+              shard.requirementID == "minimum_os",
+              shard.deviceProfileID == "iphone-se-3-ios-18.0-minimum",
+              shard.accessibilityFeature == "voiceover",
+              shard.appearance == "light",
+              shard.contrast == "standard",
+              shard.contentSizeCategory == "UICTContentSizeCategoryL",
+              shard.locale == "en-US-release",
+              shard.layoutDirection == "left_to_right",
+              !shard.differentiateWithoutColor,
+              !shard.reduceMotion,
+              !shard.reduceTransparency else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke was invoked without its configured ordinary minimum-OS tuple"
+            )
+        }
+        XCTAssertEqual(head.count, 40)
+
+        applyDeviceAppearance(fallbackIsDark: false)
+        let app = try configuredApplication(
+            appearance: "Light",
+            appearanceFlag: "--s1-ui-test-light-mode",
+            usesAccessibilityXXXL: false
+        )
+        try prepareMinimumCoreSmokeLaunch(app, expectsInjectedFailures: true)
+        app.launch()
+
+        let welcome = element("s2.welcome.screen", in: app)
+        guard welcome.waitForExistence(timeout: 30),
+              element("s1.shell.screen", in: app).exists else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not launch into the fresh welcome route"
+            )
+        }
+        let addFirstSign = try minimumCoreSmokeButton(
+            "s2.welcome.add-first-sign",
+            label: "Add first sign",
+            in: app
+        )
+        recordMinimumCoreSmokeCheckpoint("launch", in: app)
+        addFirstSign.tap()
+
+        guard element("s2.new-sign.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not open the new-sign route"
+            )
+        }
+        let site = try minimumCoreSmokeTextField(
+            "s2.new-sign.site-label",
+            label: "Customer / site name",
+            in: app
+        )
+        site.tap()
+        site.typeText("North Campus")
+        XCTAssertEqual(site.value as? String, "North Campus")
+
+        let sign = try minimumCoreSmokeTextField(
+            "s2.new-sign.sign-label",
+            label: "Sign name",
+            in: app
+        )
+        sign.tap()
+        sign.typeText("Monument Sign\n")
+        guard wait(
+            for: app.keyboards.firstMatch,
+            predicate: "exists == false",
+            timeout: 10
+        ) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke keyboard did not close after sign entry"
+            )
+        }
+        XCTAssertEqual(site.value as? String, "North Campus")
+        XCTAssertEqual(sign.value as? String, "Monument Sign")
+        let saveSign = try minimumCoreSmokeButton(
+            "s2.new-sign.save",
+            label: "Save and start check",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            saveSign,
+            onRoute: "s2.new-sign.screen",
+            in: app
+        )
+        saveSign.tap()
+
+        guard element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not reach the saved sign detail"
+            )
+        }
+        let savedSite = element("s2.sign-detail.site-label", in: app)
+        let savedSign = element("s2.sign-detail.sign-label", in: app)
+        XCTAssertTrue(savedSite.waitForExistence(timeout: 10))
+        XCTAssertTrue(savedSign.waitForExistence(timeout: 10))
+        XCTAssertTrue(savedSite.label.contains("North Campus"))
+        XCTAssertEqual(savedSign.label, "Monument Sign")
+        recordMinimumCoreSmokeCheckpoint("sign-saved", in: app)
+
+        let startCheck = try minimumCoreSmokeButton(
+            "s2.sign-detail.start-check",
+            label: "Start Check",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            startCheck,
+            onRoute: "s2.sign-detail.screen",
+            in: app
+        )
+        startCheck.tap()
+        guard element("s3.preflight.screen", in: app)
+            .waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not open preflight"
+            )
+        }
+        let zone = try minimumCoreSmokeTextField(
+            "s3.preflight.time-zone",
+            label: "IANA time zone",
+            in: app
+        )
+        zone.tap()
+        zone.typeText("America/New_York\n")
+        guard wait(
+            for: app.keyboards.firstMatch,
+            predicate: "exists == false",
+            timeout: 10
+        ), (zone.value as? String) == "America/New_York" else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not retain the entered time zone"
+            )
+        }
+        let initialBeginMatches = app.buttons.matching(
+            identifier: "s3.preflight.begin"
+        )
+        guard initialBeginMatches.firstMatch.waitForExistence(timeout: 10),
+              initialBeginMatches.count == 1,
+              !initialBeginMatches.firstMatch.isEnabled else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke Begin must remain disabled before acknowledgements"
+            )
+        }
+        try minimumCoreSmokeToggle(
+            "s3.preflight.time-zone-confirmed",
+            onRoute: "s3.preflight.screen",
+            in: app
+        )
+        try minimumCoreSmokeToggle(
+            "s3.preflight.after-dark",
+            onRoute: "s3.preflight.screen",
+            in: app
+        )
+        try minimumCoreSmokeToggle(
+            "s3.preflight.safe-position",
+            onRoute: "s3.preflight.screen",
+            in: app
+        )
+        let begin = try minimumCoreSmokeButton(
+            "s3.preflight.begin",
+            label: "Begin check",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            begin,
+            onRoute: "s3.preflight.screen",
+            in: app
+        )
+        begin.tap()
+
+        guard element("s3.capture.screen", in: app)
+            .waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not open capture"
+            )
+        }
+        try minimumCoreSmokeImportPhoto(
+            expectedHeading: "1 of 2 · Wide view",
+            nextHeading: "2 of 2 · Close view",
+            in: app
+        )
+        try minimumCoreSmokeImportPhoto(
+            expectedHeading: "2 of 2 · Close view",
+            nextHeading: nil,
+            in: app
+        )
+
+        guard element("s3.outcome.screen", in: app)
+            .waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not reach outcome selection"
+            )
+        }
+        let noVisibleIssue = try minimumCoreSmokeButton(
+            "s3.outcome.no-visible-issue",
+            label: "No visible issue",
+            in: app
+        )
+        noVisibleIssue.tap()
+        guard wait(
+            for: noVisibleIssue,
+            predicate: "value == 'Selected'",
+            timeout: 10
+        ) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not select the no-visible-issue outcome"
+            )
+        }
+        let continueToReview = try minimumCoreSmokeButton(
+            "s3.outcome.continue",
+            label: "Continue",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            continueToReview,
+            onRoute: "s3.outcome.screen",
+            in: app
+        )
+        continueToReview.tap()
+
+        let review = element("s3.review.screen", in: app)
+        guard review.waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not reach review"
+            )
+        }
+        let reviewOutcome = element("s3.review.outcome", in: app)
+        let wideEvidence = element("s3.review.evidence.wide", in: app)
+        let closeEvidence = element("s3.review.evidence.close", in: app)
+        XCTAssertTrue(reviewOutcome.waitForExistence(timeout: 10))
+        XCTAssertTrue(wideEvidence.waitForExistence(timeout: 10))
+        XCTAssertTrue(closeEvidence.waitForExistence(timeout: 10))
+        XCTAssertTrue(reviewOutcome.label.contains("No visible issue"))
+        XCTAssertTrue(wideEvidence.label.contains("Photo saved for this check"))
+        XCTAssertTrue(closeEvidence.label.contains("Photo saved for this check"))
+        recordMinimumCoreSmokeCheckpoint("capture-review", in: app)
+
+        let saveReport = try minimumCoreSmokeButton(
+            "s3.review.save-report",
+            label: "Save and finish",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            saveReport,
+            onRoute: "s3.review.screen",
+            in: app
+        )
+        saveReport.tap()
+        let receipt = element("s3.receipt.screen", in: app)
+        let savedReceipt = element("s3.receipt.saved", in: app)
+        guard receipt.waitForExistence(timeout: 40),
+              savedReceipt.waitForExistence(timeout: 15),
+              savedReceipt.label == "Report saved on this device.",
+              element("s3.receipt.view-report", in: app)
+                .waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not produce the saved-on-device report receipt"
+            )
+        }
+        recordMinimumCoreSmokeCheckpoint("report-saved", in: app)
+
+        let done = try minimumCoreSmokeButton(
+            "s3.receipt.done",
+            label: "Done",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            done,
+            onRoute: "s3.receipt.screen",
+            in: app
+        )
+        done.tap()
+        guard element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 25) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not return to sign detail"
+            )
+        }
+
+        app.terminate()
+        try prepareMinimumCoreSmokeLaunch(app, expectsInjectedFailures: false)
+        app.launch()
+        guard element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 40) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not reopen the persisted sign"
+            )
+        }
+        let persistedSite = element("s2.sign-detail.site-label", in: app)
+        let persistedSign = element("s2.sign-detail.sign-label", in: app)
+        guard persistedSite.waitForExistence(timeout: 10),
+              persistedSign.waitForExistence(timeout: 10),
+              persistedSite.label.contains("North Campus"),
+              persistedSign.label == "Monument Sign" else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke relaunch did not preserve the saved site and sign values"
+            )
+        }
+        let reportHistory = try minimumCoreSmokeButton(
+            "s4.4.sign-detail.report-history",
+            label: "Report history",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            reportHistory,
+            onRoute: "s2.sign-detail.screen",
+            in: app
+        )
+        reportHistory.tap()
+        guard element("s4.4.history.screen", in: app)
+            .waitForExistence(timeout: 30) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not reopen report history"
+            )
+        }
+        let historyHeader = element("s4.4.history.header", in: app)
+        XCTAssertTrue(historyHeader.waitForExistence(timeout: 20))
+        XCTAssertEqual(historyHeader.label, "Monument Sign")
+        let historyReports = app.buttons.matching(
+            identifier: "s4.4.reports.view-report"
+        )
+        guard historyReports.firstMatch.waitForExistence(timeout: 20),
+              historyReports.count == 1 else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke report history did not contain exactly one report"
+            )
+        }
+        let viewPersistedReport = historyReports.firstMatch
+        XCTAssertEqual(viewPersistedReport.label, "View report")
+        XCTAssertTrue(viewPersistedReport.isEnabled)
+        XCTAssertTrue(viewPersistedReport.isHittable)
+        viewPersistedReport.tap()
+
+        let reportDetail = element("s4.3.report-detail.screen", in: app)
+        let preview = element("s4.3.report-detail.preview", in: app)
+        guard reportDetail.waitForExistence(timeout: 30),
+              preview.waitForExistence(timeout: 20),
+              preview.label == "Report PDF preview",
+              !preview.frame.isNull,
+              !preview.frame.isEmpty else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke reopened report lacks a nonempty PDF preview"
+            )
+        }
+        try minimumCoreSmokeAssertSingleText(
+            "Monument Sign",
+            in: reportDetail
+        )
+        try minimumCoreSmokeAssertSingleText(
+            "North Campus",
+            in: reportDetail
+        )
+        try minimumCoreSmokeAssertSingleText(
+            "No visible issue",
+            in: reportDetail
+        )
+        _ = try minimumCoreSmokeButton(
+            "s4.3.report-detail.share",
+            label: "Share PDF",
+            in: app
+        )
+        recordMinimumCoreSmokeCheckpoint("report-reopened", in: app)
+
+        let closeReport = try minimumCoreSmokeButton(
+            "s4.3.report-detail.close",
+            label: "Close",
+            in: app
+        )
+        closeReport.tap()
+        guard element("s4.4.history.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke report close did not return to history"
+            )
+        }
+        navigateBack(in: app)
+        guard element("s2.sign-detail.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke history back action did not return to the sign"
+            )
+        }
+        let settings = try minimumCoreSmokeButton(
+            "s1.settings.button",
+            label: "Settings",
+            in: app
+        )
+        settings.tap()
+        guard element("s1.settings.screen", in: app)
+            .waitForExistence(timeout: 20) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke did not open Settings"
+            )
+        }
+        let backupEntry = try minimumCoreSmokeButton(
+            "s6.2.backup.settings-entry",
+            label: "Back up current data",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            backupEntry,
+            onRoute: "s1.settings.screen",
+            in: app
+        )
+        XCTAssertTrue(backupEntry.isEnabled)
+        let restoreEntry = try minimumCoreSmokeButton(
+            "s6.5.restore.settings-entry",
+            label: "Restore data backup",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            restoreEntry,
+            onRoute: "s1.settings.screen",
+            in: app
+        )
+        XCTAssertTrue(restoreEntry.isEnabled)
+        recordMinimumCoreSmokeCheckpoint("settings", in: app)
+        completeMinimumCoreSmoke(in: app)
+    }
+
+    @MainActor
+    private func prepareMinimumCoreSmokeLaunch(
+        _ app: XCUIApplication,
+        expectsInjectedFailures: Bool
+    ) throws {
+        let excluded = [
+            "--s3-5-ui-test-low-storage-once",
+            "--s3-6-ui-test-camera-denied-once",
+        ]
+        let observed = app.launchArguments.filter { excluded.contains($0) }
+        if expectsInjectedFailures {
+            guard observed == excluded else {
+                throw AutomationConfigurationError.invalid(
+                    "Configured application did not inject exactly the two expected failure flags"
+                )
+            }
+        } else {
+            guard observed.isEmpty else {
+                throw AutomationConfigurationError.invalid(
+                    "Minimum core smoke relaunch unexpectedly restored a failure flag"
+                )
+            }
+        }
+        app.launchArguments.removeAll { excluded.contains($0) }
+        guard app.launchArguments.allSatisfy({ !excluded.contains($0) }) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke launch retained an injected failure flag"
+            )
+        }
+    }
+
+    @MainActor
+    private func minimumCoreSmokeButton(
+        _ identifier: String,
+        label: String,
+        requiresHittable: Bool = true,
+        in app: XCUIApplication
+    ) throws -> XCUIElement {
+        let matches = app.buttons.matching(identifier: identifier)
+        let button = matches.firstMatch
+        guard button.waitForExistence(timeout: 20),
+              matches.count == 1,
+              button.elementType == .button,
+              button.label == label,
+              button.isEnabled,
+              (!requiresHittable || button.isHittable) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke button is missing or unavailable: \(identifier)"
+            )
+        }
+        return button
+    }
+
+    @MainActor
+    private func minimumCoreSmokeTextField(
+        _ identifier: String,
+        label: String,
+        in app: XCUIApplication
+    ) throws -> XCUIElement {
+        let matches = app.textFields.matching(identifier: identifier)
+        let field = matches.firstMatch
+        guard field.waitForExistence(timeout: 20),
+              matches.count == 1,
+              field.elementType == .textField,
+              field.label == label,
+              field.isEnabled,
+              field.isHittable else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke text field is missing or unavailable: \(identifier)"
+            )
+        }
+        return field
+    }
+
+    @MainActor
+    private func minimumCoreSmokeReveal(
+        _ target: XCUIElement,
+        onRoute routeIdentifier: String,
+        in app: XCUIApplication
+    ) throws {
+        let route = element(routeIdentifier, in: app)
+        guard route.waitForExistence(timeout: 20),
+              target.waitForExistence(timeout: 20),
+              app.state == .runningForeground,
+              app.keyboards.count == 0 else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke reveal route is not ready: \(routeIdentifier)"
+            )
+        }
+        let routeElementType = route.elementType
+        let targetIdentifier = target.identifier
+        let targetElementType = target.elementType
+        for _ in 0..<6 {
+            if target.isHittable { return }
+            // Every smoke target passed here is lower in its source ScrollView.
+            app.swipeUp()
+            guard app.state == .runningForeground,
+                  app.keyboards.count == 0,
+                  route.exists,
+                  route.identifier == routeIdentifier,
+                  route.elementType == routeElementType,
+                  target.exists,
+                  target.identifier == targetIdentifier,
+                  target.elementType == targetElementType else {
+                throw AutomationConfigurationError.invalid(
+                    "Minimum core smoke reveal changed route or target identity: \(routeIdentifier)"
+                )
+            }
+        }
+        guard target.isHittable else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke target is not reachable within six public swipes: \(targetIdentifier)"
+            )
+        }
+    }
+
+    @MainActor
+    private func minimumCoreSmokeToggle(
+        _ identifier: String,
+        onRoute routeIdentifier: String,
+        in app: XCUIApplication
+    ) throws {
+        let matches = app.switches.matching(identifier: identifier)
+        let toggle = matches.firstMatch
+        guard toggle.waitForExistence(timeout: 20),
+              matches.count == 1,
+              toggle.elementType == .switch,
+              toggle.isEnabled,
+              (toggle.value as? String) == "0" else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke acknowledgement is not ready: \(identifier)"
+            )
+        }
+        try minimumCoreSmokeReveal(
+            toggle,
+            onRoute: routeIdentifier,
+            in: app
+        )
+        toggle.tap()
+        guard wait(for: toggle, predicate: "value == '1'", timeout: 10) else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke acknowledgement did not persist: \(identifier)"
+            )
+        }
+    }
+
+    @MainActor
+    private func minimumCoreSmokeImportPhoto(
+        expectedHeading: String,
+        nextHeading: String?,
+        in app: XCUIApplication
+    ) throws {
+        let heading = element("s3.capture.heading", in: app)
+        guard heading.waitForExistence(timeout: 20),
+              heading.label == expectedHeading else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke capture heading changed: \(expectedHeading)"
+            )
+        }
+        let importPhoto = try minimumCoreSmokeButton(
+            "s3.capture.import-fixture",
+            label: "Import test photo",
+            requiresHittable: false,
+            in: app
+        )
+        try minimumCoreSmokeReveal(
+            importPhoto,
+            onRoute: "s3.capture.screen",
+            in: app
+        )
+        importPhoto.tap()
+        let preview = element("s3.capture.preview", in: app)
+        guard preview.waitForExistence(timeout: 20),
+              preview.label == "Imported photo preview" else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke fixture preview was not produced"
+            )
+        }
+        let usePhoto = try minimumCoreSmokeButton(
+            "s3.capture.use-photo",
+            label: "Use Photo",
+            in: app
+        )
+        usePhoto.tap()
+        if let nextHeading {
+            guard wait(
+                for: heading,
+                predicate: "label == %@",
+                argument: nextHeading,
+                timeout: 30
+            ) else {
+                throw AutomationConfigurationError.invalid(
+                    "Minimum core smoke did not advance to close-view capture"
+                )
+            }
+        } else {
+            guard element("s3.outcome.screen", in: app)
+                .waitForExistence(timeout: 30) else {
+                throw AutomationConfigurationError.invalid(
+                    "Minimum core smoke did not advance from capture to outcome"
+                )
+            }
+        }
+    }
+
+    @MainActor
+    private func minimumCoreSmokeAssertSingleText(
+        _ label: String,
+        in scope: XCUIElement
+    ) throws {
+        let matches = scope.staticTexts.matching(
+            NSPredicate(format: "label == %@", label)
+        )
+        guard matches.firstMatch.waitForExistence(timeout: 20),
+              matches.count == 1,
+              matches.firstMatch.label == label else {
+            throw AutomationConfigurationError.invalid(
+                "Minimum core smoke report detail is missing text: \(label)"
+            )
+        }
+    }
+
+    @MainActor
+    private func recordMinimumCoreSmokeCheckpoint(
+        _ checkpointID: String,
+        in app: XCUIApplication
+    ) {
+        guard let head = minimumCoreSmokeHead,
+              minimumCoreSmokeCheckpointIDs.count
+                < MinimumCoreSmoke.checkpointIDs.count,
+              MinimumCoreSmoke.checkpointIDs[minimumCoreSmokeCheckpointIDs.count]
+                == checkpointID,
+              !minimumCoreSmokeCheckpointIDs.contains(checkpointID),
+              automationShard?.shardID == "s10.4.minimum.minimum-os" else {
+            XCTFail("Minimum core smoke checkpoint order or identity changed")
+            return
+        }
+        minimumCoreSmokeCheckpointIDs.append(checkpointID)
+        let attachmentName = "S10.4 minimum core smoke \(checkpointID)"
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(
+            data: screenshot.pngRepresentation,
+            uniformTypeIdentifier: "public.png"
+        )
+        attachment.name = attachmentName
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        printJSONLine(prefix: "S10_4_MINIMUM_CORE_SMOKE_CHECKPOINT", object: [
+            "schemaVersion": 1,
+            "contractID": MinimumCoreSmoke.contractID,
+            "shardID": "s10.4.minimum.minimum-os",
+            "head": head,
+            "ref": MinimumCoreSmoke.expectedRef,
+            "executionLane": MinimumCoreSmoke.expectedExecutionLane,
+            "checkpointID": checkpointID,
+            "ordinal": minimumCoreSmokeCheckpointIDs.count,
+            "attachmentName": attachmentName,
+        ])
+    }
+
+    @MainActor
+    private func completeMinimumCoreSmoke(in app: XCUIApplication) {
+        guard let head = minimumCoreSmokeHead,
+              minimumCoreSmokeCheckpointIDs
+                == MinimumCoreSmoke.checkpointIDs else {
+            XCTFail("Minimum core smoke cannot complete without all six checkpoints")
+            return
+        }
+        let terminalScreenshot = app.screenshot()
+        let terminalAttachment = XCTAttachment(
+            data: terminalScreenshot.pngRepresentation,
+            uniformTypeIdentifier: "public.png"
+        )
+        terminalAttachment.name = "S10.4 minimum core smoke terminal"
+        terminalAttachment.lifetime = .keepAlways
+        add(terminalAttachment)
+        printJSONLine(prefix: "S10_4_MINIMUM_CORE_SMOKE_COMPLETE", object: [
+            "schemaVersion": 1,
+            "contractID": MinimumCoreSmoke.contractID,
+            "shardID": "s10.4.minimum.minimum-os",
+            "head": head,
+            "ref": MinimumCoreSmoke.expectedRef,
+            "executionLane": MinimumCoreSmoke.expectedExecutionLane,
+            "checkpointIDs": minimumCoreSmokeCheckpointIDs,
+            "functionalSmokeComplete": true,
+            "fullMatrixEligible": false,
+        ])
     }
 
     @MainActor
@@ -22487,6 +23300,10 @@ final class S10_4AutomatedBrandLabUITests: S10BrandMigrationRouteUITestCase {
     @MainActor
     func testAutomatedBrandLabShard() throws {
         try configureAutomatedBrandLabShardFromEnvironment()
+        if minimumCoreSmokeIsConfigured {
+            try runMinimumCoreSmoke()
+            return
+        }
         try runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()
     }
 }

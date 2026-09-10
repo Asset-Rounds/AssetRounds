@@ -76,6 +76,11 @@ on:
         required: false
         default: ""
         type: string
+      s10_4_minimum_core_smoke_id:
+        description: Closed explicit minimum core smoke opt-in
+        required: false
+        default: none
+        type: string
       s10_4_segment_source_run_ids:
         description: Closed H411 s10_4_segment_source_run_ids
         required: false
@@ -97,6 +102,7 @@ jobs:
     env:
       CI_S10_4_SHARED_BUILD_MODE: ${{ inputs.s10_4_shared_build_mode }}
       CI_S10_4_SHARED_PAYLOAD_RUN_ID: ${{ inputs.s10_4_shared_payload_run_id }}
+      WORKER_S10_4_MINIMUM_CORE_SMOKE_ID: ${{ inputs.s10_4_minimum_core_smoke_id }}
       WORKER_S10_4_MINIMUM_SEGMENT_ID: ${{ inputs.s10_4_minimum_segment_id }}
       WORKER_S10_4_SHARED_MATRIX_ID: ${{ inputs.s10_4_shared_matrix_id }}
       WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS: ${{ inputs.s10_4_segment_source_run_ids }}
@@ -154,6 +160,17 @@ jobs:
           test -f Scripts/build-smoke.sh
           test -f Scripts/test-smoke.sh
           test -f Scripts/ui-smoke.sh
+          case "$WORKER_S10_4_MINIMUM_CORE_SMOKE_ID" in
+            none) ;;
+            s10.4.minimum-core-smoke.v1)
+              test "$CI_S10_4_SHARED_BUILD_MODE:$DISPATCH_S10_4_EXECUTION_ROLE:$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" = consumer:payload-consumer:github:macos-26
+              test "$DISPATCH_S10_4_SHARD_ID:$DISPATCH_S10_4_SEGMENT_ID:$WORKER_S10_4_MINIMUM_SEGMENT_ID" = s10.4.minimum.minimum-os:none:none
+              test "$DISPATCH_S10_4_PILOT_MODE:$DISPATCH_S10_4_UNIT_ONLY:$DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID" = false:false:none
+              test "$GITHUB_REF" = refs/heads/phase/s10-brand-refresh
+              test -z "$WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS"
+              ;;
+            *) exit 1 ;;
+          esac
           case "$DISPATCH_S10_4_EXECUTION_ROLE" in
             independent | payload-producer | payload-consumer) ;;
             *) exit 1 ;;
@@ -2619,7 +2636,7 @@ jobs:
           test ! -e "$shard_evidence_path/shard-receipt.json"
 
       - name: Retain S10.4 shard evidence
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.s10_4_unit_only == false && inputs.s10_4_diagnostic_probe_id == 'none' && (inputs.s10_4_pilot_mode == false || inputs.s10_4_execution_role == 'payload-consumer') && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' && inputs.s10_4_minimum_segment_id == 'none' }}
+        if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && github.event_name == 'workflow_dispatch' && inputs.s10_4_unit_only == false && inputs.s10_4_diagnostic_probe_id == 'none' && (inputs.s10_4_pilot_mode == false || inputs.s10_4_execution_role == 'payload-consumer') && inputs.run_ui_smoke == true && inputs.s10_4_shard_id != 'none' && inputs.s10_4_segment_id == 'none' && inputs.s10_4_minimum_segment_id == 'none' }}
         shell: bash
         env:
           DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
@@ -5226,6 +5243,11 @@ jobs:
                 uiTestSelectors "UI test bundle" ui
             fi
             if test "${CI_TASK_ID:-}" = "S10.4"; then
+              if test "$WORKER_S10_4_MINIMUM_CORE_SMOKE_ID" = s10.4.minimum-core-smoke.v1; then
+                jq -e '.recordType == "minimum-core-smoke-proof" and .smokeComplete == true and .checkpointCount == 6 and .fullMatrixEligible == false and .fullShardComplete == false and .fullSegmentComplete == false' "$CI_ARTIFACT_DIR/s10-4-minimum-core-smoke-proof.json" > /dev/null
+                test ! -e "$CI_ARTIFACT_DIR/s10-4/$CI_S10_4_SHARD_ID/shard-receipt.json"
+                exit 0
+              fi
               if test "$CI_S10_4_SHARED_BUILD_MODE" = consumer && { test "$CI_S10_4_SEGMENT_ID" != none || test "$WORKER_S10_4_MINIMUM_SEGMENT_ID" != none; }; then
                 test -s "$CI_ARTIFACT_DIR/s10-4-shared-segment-validation.json"
                 jq -e '.validated == true and .nativeUIResult == "Passed"' "$CI_ARTIFACT_DIR/s10-4-shared-segment-validation.json" > /dev/null

@@ -95,8 +95,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokeSource = try text(testSmokePath)
         try assertFile(
             uiSmokePath,
-            byteCount: 79_638,
-            sha256: "50EE2448001D787D157677C38CF1F6E36B73656DDBD4770A447ABD27FAF1DE6C"
+            byteCount: 80_439,
+            sha256: "A8DE01614F20B8C8187D62F4B0D4E489344F4E10EE65DE31C3A679E8196E1FF7"
         )
         let uiSmokeSource = try text(uiSmokePath)
         // H411 shell commands retain the existing native selectors and separate producer units from consumer UI.
@@ -133,7 +133,27 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             XCTAssertTrue(shell.contains("\"${\(command)[@]}\""))
         }
         XCTAssertEqual(sharedAdmissionBodies.count, 2)
-        XCTAssertEqual(sharedAdmissionBodies.first, sharedAdmissionBodies.last)
+        let sharedUnitAdmission = try XCTUnwrap(sharedAdmissionBodies.first)
+        var sharedUIAdmission = try XCTUnwrap(sharedAdmissionBodies.last)
+        let minimumCoreSmokeLaunchKeyAddition =
+            "        if e.get(\"WORKER_S10_4_MINIMUM_CORE_SMOKE_ID\", \"none\") != \"none\":\n" +
+                "            expected_launch_keys.update(\"TEST_RUNNER_CI_S10_4_MINIMUM_CORE_SMOKE_\" + suffix for suffix in (\"ID\", \"HEAD\", \"REF\", \"EXECUTION_LANE\"))\n"
+        XCTAssertEqual(
+            sharedUIAdmission.components(
+                separatedBy: minimumCoreSmokeLaunchKeyAddition
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(minimumCoreSmokeLaunchKeyAddition.utf8.count, 221)
+        XCTAssertEqual(
+            Data(minimumCoreSmokeLaunchKeyAddition.utf8).sha256,
+            "62711A2D89DFB98792458FB7D71013A214C74CC3224F27CD37957DA0EA74A5AE"
+        )
+        sharedUIAdmission = sharedUIAdmission.replacingOccurrences(
+            of: minimumCoreSmokeLaunchKeyAddition,
+            with: ""
+        )
+        XCTAssertEqual(sharedUIAdmission, sharedUnitAdmission)
         let sharedAdmission = try XCTUnwrap(sharedAdmissionBodies.first)
         for required in [
             "mode == script_role and mode in (\"producer\", \"consumer\")",
@@ -741,7 +761,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         try assertFile(
             manifestPath,
             byteCount: 26_259,
-            sha256: "1F26E7392E4EB2446DD03DBF09A6ACFF945FEC00B55AC0C80D870315BD3E6F08"
+            sha256: "F29BB5F29C0876BEAE1C32C7D6A418BC29AB43C8882CCDC0F622922FD042238C"
         )
         try assertFile(
             visualSchemaPath,
@@ -761,8 +781,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let dispatcherPath = ".github/workflows/ios-ci.yml"
         try assertFile(
             dispatcherPath,
-            byteCount: 109_190,
-            sha256: "C4FE0A028B034B00493E4A1E8BB0FE19D44E75F2F06478E390AFF90267D9F04C"
+            byteCount: 111_753,
+            sha256: "64BEB60B465EB71B708FB19FEC2061E6F05FFA74A3D93955A88BB3CADC9D3A85"
         )
         let dispatcherSource = try text(dispatcherPath)
         let unitOnlyJobSource = try boundedSource(
@@ -791,10 +811,105 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
         try assertFile(
             workflowPath,
-            byteCount: 356_606,
-            sha256: "752DFCB991A1352491D957D8184E99F6FF3B8DE83D87607F04F9B611F77A5692"
+            byteCount: 358_152,
+            sha256: "DA888041E1743303935415DD6BEE50D185E892784FC9570C123B888290E4EE25"
         )
         let workflowSource = try text(workflowPath)
+        let minimumCoreSmokePlan = try object(
+            try json("Scripts/s10-4-segment-plan.json"),
+            "minimumCoreSmoke"
+        )
+        XCTAssertEqual(Set(minimumCoreSmokePlan.keys), Set([
+            "schemaVersion", "contractID", "shardID", "ordinal", "segmentID",
+            "executionLane", "runnerProvider", "proofKind", "checkpointCount",
+            "checkpointIDs", "nativeEnvironmentKeys", "fullMatrixEligible",
+            "fullShardComplete", "fullSegmentComplete",
+        ]))
+        XCTAssertEqual(try int(minimumCoreSmokePlan, "schemaVersion"), 1)
+        XCTAssertEqual(
+            try string(minimumCoreSmokePlan, "contractID"),
+            "s10.4.minimum-core-smoke.v1"
+        )
+        XCTAssertEqual(
+            try string(minimumCoreSmokePlan, "shardID"),
+            "s10.4.minimum.minimum-os"
+        )
+        XCTAssertEqual(try int(minimumCoreSmokePlan, "ordinal"), 8)
+        XCTAssertEqual(try string(minimumCoreSmokePlan, "segmentID"), "none")
+        XCTAssertEqual(
+            try string(minimumCoreSmokePlan, "executionLane"),
+            "github-xcode-26.6-shared-build-acceptance"
+        )
+        XCTAssertEqual(try string(minimumCoreSmokePlan, "runnerProvider"), "github")
+        XCTAssertEqual(try string(minimumCoreSmokePlan, "proofKind"), "functional-smoke")
+        XCTAssertEqual(try int(minimumCoreSmokePlan, "checkpointCount"), 6)
+        XCTAssertEqual(try strings(minimumCoreSmokePlan, "checkpointIDs"), [
+            "launch", "sign-saved", "capture-review", "report-saved",
+            "report-reopened", "settings",
+        ])
+        XCTAssertEqual(try strings(minimumCoreSmokePlan, "nativeEnvironmentKeys"), [
+            "CI_S10_4_MINIMUM_CORE_SMOKE_ID",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_HEAD",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_REF",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_EXECUTION_LANE",
+        ])
+        for falseKey in [
+            "fullMatrixEligible", "fullShardComplete", "fullSegmentComplete",
+        ] {
+            XCTAssertEqual(minimumCoreSmokePlan[falseKey] as? Bool, false, falseKey)
+        }
+        let minimumCoreSmokePayloadSource = try text("Scripts/s10-4-build-payload.py")
+        for exact in [
+            "def smoke_contract(root):", "def smoke_environment(environment, root, selected):",
+            "def smoke_binding(root, admission):", "def smoke_proof(root, artifact, reference):",
+            "original.stat().st_size > 0", "unitTestCount']) is int and reference['unitTestCount'] == 0",
+            "producerUnitTestCount']) is int and reference['producerUnitTestCount'] == 5",
+            "fullMatrixEligible=False", "fullShardComplete=False",
+            "fullSegmentComplete=False",
+        ] {
+            XCTAssertTrue(minimumCoreSmokePayloadSource.contains(exact), exact)
+        }
+        let minimumCoreSmokeDispatcherSource = try text(".github/workflows/ios-ci.yml")
+        for exact in [
+            "s10_4_minimum_core_smoke_id:",
+            "default: none",
+            "- s10.4.minimum-core-smoke.v1",
+            "SMOKE_ID: ${{ inputs.s10_4_minimum_core_smoke_id }}",
+            "request['selection']['nativeMode']=smoke",
+            "minimum_core_smoke_id: ${{ inputs.s10_4_minimum_core_smoke_id }}",
+        ] {
+            XCTAssertTrue(minimumCoreSmokeDispatcherSource.contains(exact), exact)
+        }
+        let minimumCoreSmokeWorkerSource = try text(".github/workflows/ios-ci-worker.yml")
+        for exact in [
+            "s10_4_minimum_core_smoke_id:",
+            "WORKER_S10_4_MINIMUM_CORE_SMOKE_ID",
+            "s10.4.minimum-core-smoke.v1",
+            "s10-4-minimum-core-smoke-proof.json",
+            "fullMatrixEligible",
+        ] {
+            XCTAssertTrue(minimumCoreSmokeWorkerSource.contains(exact), exact)
+        }
+        for exact in [
+            "S10_4_SMOKE_ENV", "smoke_environment",
+            "TEST_RUNNER_CI_S10_4_MINIMUM_CORE_SMOKE_",
+            "S10.4 minimum core smoke terminal",
+        ] {
+            XCTAssertTrue(uiSmokeSource.contains(exact), exact)
+        }
+        let minimumCoreSmokeControllerSource = try text("Scripts/s10-4-ci.py")
+        for exact in [
+            "--minimum-core-smoke-id", "minimum_core_smoke_id",
+            "s10.4.minimum-core-smoke.v1", "nativeMode",
+        ] {
+            XCTAssertTrue(minimumCoreSmokeControllerSource.contains(exact), exact)
+        }
+        let minimumCoreSmokeControllerTests = try text("Scripts/test-s10-4-ci.py")
+        for exact in [
+            "minimum_core_smoke", "partial", "foreign", "nativeMode",
+        ] {
+            XCTAssertTrue(minimumCoreSmokeControllerTests.contains(exact), exact)
+        }
         // H412 retains a failed setup's original files, without accepting missing accounting.
         XCTAssertTrue(workflowSource.contains("id: runtime_setup"))
         XCTAssertTrue(workflowSource.contains("RUNTIME_SETUP_OUTCOME: ${{ steps.runtime_setup.outcome }}"))
@@ -1106,7 +1221,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         }
 
         let dispatcherRunName =
-            #"run-name: iOS CI · lane=${{ inputs.execution_lane }} · shard=${{ inputs.s10_4_shard_id }} · head=${{ github.sha }}"#
+            #"run-name: iOS CI · lane=${{ inputs.execution_lane }} · shard=${{ inputs.s10_4_shard_id }} · head=${{ github.sha }}${{ inputs.s10_4_minimum_core_smoke_id != 'none' && format(' · smoke={0}', inputs.s10_4_minimum_core_smoke_id) || '' }}"#
         XCTAssertTrue(
             dispatcherSource.hasPrefix(
                 "name: iOS CI\n\(dispatcherRunName)\n\non:\n"
@@ -1144,8 +1259,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             ).count - 1,
             1
         )
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 1)
-        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 14)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "        type: choice").count - 1, 2)
+        XCTAssertEqual(executionLaneSource.components(separatedBy: "          - ").count - 1, 16)
         for sharedLane in [
             "s10-4-shared-build-producer", "github-xcode-26.6-shared-build-acceptance",
             "s10-4-shared-segment-assembly",
@@ -1514,7 +1629,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let getMacLaneGate =
             #"inputs.execution_lane == 'getmac-xcode-26.6-development-only'"#
         let warpLaneGate =
-            #"    if: ${{ inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'warp-xcode-26.5-development-only') }}"#
+            #"    if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'warp-xcode-26.5-development-only') }}"#
         let bitriseProbeLaneGate =
             #"inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' && inputs.run_ui_smoke == false && inputs.s10_4_shard_id == 'none'"#
         let bitriseLaneGate =
@@ -2841,6 +2956,29 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(workflowSource.components(separatedBy: "  cancel-in-progress: false").count - 1, 1)
         let unitPath = "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
         let unitSource = try text(unitPath)
+        let unitTestMethodExpression = try NSRegularExpression(
+            pattern: "(?m)^    func (test[A-Za-z0-9_]+)\\("
+        )
+        let unitTestMethodRange = NSRange(
+            unitSource.startIndex..<unitSource.endIndex,
+            in: unitSource
+        )
+        let unitTestMethodNames = unitTestMethodExpression.matches(
+            in: unitSource,
+            range: unitTestMethodRange
+        ).compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: unitSource) else {
+                return nil
+            }
+            return String(unitSource[range])
+        }
+        XCTAssertEqual(unitTestMethodNames, [
+            "testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract",
+            "testMinimumOSCameraDeniedLegacyTabCorrectionIsNarrowAndDiagnosticFree",
+            "testFrozenInventoryDerivesExactUnpromotedVisualAndAccessibilityMatrices",
+            "testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory",
+            "testFrozenBrandPaletteProvidesExactOpaqueNormalAndIncreasedContrastTruth",
+        ])
         let repositoryRootHelperSource = try boundedSource(
             unitSource,
             from: "\n    private enum " + "RepositoryRootResolutionError: Error {",
@@ -3466,6 +3604,247 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             0
         )
         let uiSource = try text(sourceParts[0])
+        let minimumCoreSmokeProjectionResult = try minimumCoreSmokeProjection(
+            in: uiSource
+        )
+        let legacyUISource = minimumCoreSmokeProjectionResult.source
+        XCTAssertEqual(legacyUISource.utf8.count, 1_156_205)
+        XCTAssertEqual(minimumCoreSmokeProjectionResult.blocks.count, 8)
+        let minimumCoreSmokeContractSource = try boundedSource(
+            uiSource,
+            from: "    private enum MinimumCoreSmoke {\n",
+            before: "    private enum FocusedDiagnosticProbeStop: Error {\n"
+        )
+        let minimumCoreSmokeAdmissionSource = try boundedSource(
+            uiSource,
+            from: "        let minimumCoreSmokeKeys = MinimumCoreSmoke.environmentKeys\n",
+            before: "        var expectedEnvironment = shard.expectedEnvironment\n"
+        )
+        let minimumCoreSmokeExpectedEnvironmentSource = try boundedSource(
+            uiSource,
+            from: "        if let configuredMinimumCoreSmokeHead {\n",
+            before: "        let observed = Dictionary(uniqueKeysWithValues: environment\n"
+        )
+        let minimumCoreSmokeRouteAndHelpersSource = try boundedSource(
+            uiSource,
+            from: "    var minimumCoreSmokeIsConfigured: Bool {\n",
+            before: "    @MainActor\n    func runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {\n"
+        )
+        let minimumCoreSmokeDispatchSource = try boundedSource(
+            uiSource,
+            from: "        if minimumCoreSmokeIsConfigured {\n",
+            before: "        try runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()\n"
+        )
+
+        let minimumCoreSmokeEnvironmentSource = try boundedSource(
+            minimumCoreSmokeContractSource,
+            from: "        static let environmentKeys: Set<String> = [",
+            before: "        static let checkpointIDs = ["
+        )
+        let minimumCoreSmokeEnvironmentKeys = [
+            "CI_S10_4_MINIMUM_CORE_SMOKE_ID",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_HEAD",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_REF",
+            "CI_S10_4_MINIMUM_CORE_SMOKE_EXECUTION_LANE",
+        ]
+        for key in minimumCoreSmokeEnvironmentKeys {
+            XCTAssertEqual(
+                minimumCoreSmokeEnvironmentSource.components(
+                    separatedBy: "\"\(key)\""
+                ).count - 1,
+                1,
+                key
+            )
+        }
+        XCTAssertEqual(
+            minimumCoreSmokeEnvironmentSource.components(
+                separatedBy: "CI_S10_4_MINIMUM_CORE_SMOKE_"
+            ).count - 1,
+            4
+        )
+        for exact in [
+            "static let contractID = \"s10.4.minimum-core-smoke.v1\"",
+            "static let expectedRef = \"refs/heads/phase/s10-brand-refresh\"",
+            "github-xcode-26.6-shared-build-acceptance",
+            "\"launch\"", "\"sign-saved\"", "\"capture-review\"",
+            "\"report-saved\"", "\"report-reopened\"", "\"settings\"",
+        ] {
+            XCTAssertEqual(
+                minimumCoreSmokeContractSource.components(separatedBy: exact).count - 1,
+                1,
+                exact
+            )
+        }
+
+        for exact in [
+            "diagnosticProbe == nil", "segment == .none", "!hasMinimumKeys",
+            "minimumCoreSmokeKeys.allSatisfy({ environment[$0] != nil })",
+            "head.count == 40", "(\"0\"...\"9\").contains($0)",
+            "(\"a\"...\"f\").contains($0)",
+            "shard.shardID == \"s10.4.minimum.minimum-os\"",
+            "shard.ordinal == 8", "shard.requirementID == \"minimum_os\"",
+            "shard.deviceProfileID == \"iphone-se-3-ios-18.0-minimum\"",
+            "shard.accessibilityFeature == \"voiceover\"",
+            "shard.appearance == \"light\"", "shard.contrast == \"standard\"",
+            "shard.contentSizeCategory == \"UICTContentSizeCategoryL\"",
+            "shard.locale == \"en-US-release\"",
+            "shard.layoutDirection == \"left_to_right\"",
+            "!shard.differentiateWithoutColor", "!shard.reduceMotion",
+            "!shard.reduceTransparency", "configuredMinimumCoreSmokeHead = head",
+        ] {
+            XCTAssertTrue(minimumCoreSmokeAdmissionSource.contains(exact), exact)
+        }
+        XCTAssertTrue(
+            minimumCoreSmokeExpectedEnvironmentSource.contains(
+                "if let configuredMinimumCoreSmokeHead"
+            )
+        )
+        for key in minimumCoreSmokeEnvironmentKeys {
+            XCTAssertEqual(
+                minimumCoreSmokeExpectedEnvironmentSource.components(
+                    separatedBy: "expectedEnvironment[\"\(key)\"]"
+                ).count - 1,
+                1,
+                key
+            )
+        }
+        XCTAssertEqual(
+            minimumCoreSmokeDispatchSource,
+            "        if minimumCoreSmokeIsConfigured {\n" +
+                "            try runMinimumCoreSmoke()\n" +
+                "            return\n" +
+                "        }\n"
+        )
+
+        let minimumCoreSmokeRunSource = try boundedSource(
+            minimumCoreSmokeRouteAndHelpersSource,
+            from: "    @MainActor\n    func runMinimumCoreSmoke() throws {",
+            before: "    @MainActor\n    private func prepareMinimumCoreSmokeLaunch("
+        )
+        let minimumCoreSmokeRevealSource = try boundedSource(
+            minimumCoreSmokeRouteAndHelpersSource,
+            from: "    @MainActor\n    private func minimumCoreSmokeReveal(",
+            before: "    @MainActor\n    private func minimumCoreSmokeToggle("
+        )
+        for exact in [
+            "for _ in 0..<6", "if target.isHittable { return }", "app.swipeUp()",
+            "app.state == .runningForeground", "app.keyboards.count == 0",
+            "route.identifier == routeIdentifier", "route.elementType == routeElementType",
+            "target.identifier == targetIdentifier", "target.elementType == targetElementType",
+            "guard target.isHittable else",
+        ] {
+            XCTAssertTrue(minimumCoreSmokeRevealSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            minimumCoreSmokeRouteAndHelpersSource.components(
+                separatedBy: "app.swipeUp()"
+            ).count - 1,
+            1
+        )
+        XCTAssertFalse(minimumCoreSmokeRunSource.contains("app.swipeUp()"))
+        XCTAssertFalse(minimumCoreSmokeRouteAndHelpersSource.contains("hasKeyboardFocus"))
+        for prohibited in [
+            "captureBaseline(", "performAccessibilityAudit(", "assertMinimumGeometry(",
+            "acceptImportedPhoto(", "acceptImportedPhotoWithoutBaseline(", "setToggle(",
+            "scroll(", "scrollDown(", "sleep(", "press(forDuration:",
+            "coordinate(withNormalizedOffset:", "S10_MIGRATION_STATE", "S10_4_AX_STATE",
+            "S10_4_CONTRAST", "S10_4_COMMON_TASK", "S10_4_FULL_SHARD",
+            "migratedStateIDs.append", "recordMinimumJourney(",
+        ] {
+            XCTAssertFalse(
+                minimumCoreSmokeRouteAndHelpersSource.contains(prohibited),
+                prohibited
+            )
+        }
+        let minimumCoreSmokeCheckpointIDs = [
+            "launch", "sign-saved", "capture-review", "report-saved",
+            "report-reopened", "settings",
+        ]
+        var minimumCoreSmokeCheckpointTail = minimumCoreSmokeRunSource[...]
+        for checkpointID in minimumCoreSmokeCheckpointIDs {
+            let checkpointCall =
+                "recordMinimumCoreSmokeCheckpoint(\"\(checkpointID)\""
+            let range = try XCTUnwrap(
+                minimumCoreSmokeCheckpointTail.range(of: checkpointCall),
+                checkpointID
+            )
+            minimumCoreSmokeCheckpointTail =
+                minimumCoreSmokeCheckpointTail[range.upperBound...]
+            XCTAssertEqual(
+                minimumCoreSmokeRunSource.components(
+                    separatedBy: checkpointCall
+                ).count - 1,
+                1,
+                checkpointID
+            )
+        }
+        XCTAssertEqual(
+            minimumCoreSmokeRunSource.components(
+                separatedBy: "recordMinimumCoreSmokeCheckpoint("
+            ).count - 1,
+            6
+        )
+        for exact in [
+            "!initialBeginMatches.firstMatch.isEnabled",
+            "let persistedSite = element(\"s2.sign-detail.site-label\"",
+            "let persistedSign = element(\"s2.sign-detail.sign-label\"",
+            "persistedSite.label.contains(\"North Campus\")",
+            "persistedSign.label == \"Monument Sign\"",
+            "\"Monument Sign\",\n            in: reportDetail",
+            "\"North Campus\",\n            in: reportDetail",
+            "\"No visible issue\",\n            in: reportDetail",
+            "label: \"Back up current data\"", "label: \"Restore data backup\"",
+        ] {
+            XCTAssertTrue(minimumCoreSmokeRunSource.contains(exact), exact)
+        }
+        XCTAssertEqual(
+            minimumCoreSmokeRunSource.components(
+                separatedBy: "minimumCoreSmokeAssertSingleText("
+            ).count - 1,
+            3
+        )
+        let minimumCoreSmokeSettingsSource = try boundedSource(
+            minimumCoreSmokeRunSource,
+            from: "        guard element(\"s1.settings.screen\", in: app)",
+            before: "        recordMinimumCoreSmokeCheckpoint(\"settings\""
+        )
+        XCTAssertFalse(minimumCoreSmokeSettingsSource.contains(".tap()"))
+        XCTAssertFalse(minimumCoreSmokeSettingsSource.contains("s6.2.backup.screen"))
+        XCTAssertFalse(minimumCoreSmokeSettingsSource.contains("s6.4.restore.screen"))
+        XCTAssertEqual(
+            minimumCoreSmokeRouteAndHelpersSource.components(
+                separatedBy: "prefix: \"S10_4_MINIMUM_CORE_SMOKE_CHECKPOINT\""
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            minimumCoreSmokeRouteAndHelpersSource.components(
+                separatedBy: "prefix: \"S10_4_MINIMUM_CORE_SMOKE_COMPLETE\""
+            ).count - 1,
+            1
+        )
+        XCTAssertEqual(
+            minimumCoreSmokeRouteAndHelpersSource.components(
+                separatedBy: "uniformTypeIdentifier: \"public.png\""
+            ).count - 1,
+            2
+        )
+        XCTAssertTrue(
+            minimumCoreSmokeRouteAndHelpersSource.contains(
+                "\"functionalSmokeComplete\": true"
+            )
+        )
+        XCTAssertTrue(
+            minimumCoreSmokeRouteAndHelpersSource.contains(
+                "\"fullMatrixEligible\": false"
+            )
+        )
+        XCTAssertEqual(
+            minimumCoreSmokeRouteAndHelpersSource.components(
+                separatedBy: "app.launchArguments.removeAll { excluded.contains($0) }"
+            ).count - 1,
+            1
+        )
         // H411: minimum segment admission and native journey evidence remain closed.
         // Insert within the existing selector/contract method; this is not a sixth test.
         do {
@@ -21319,8 +21698,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let planSource = try text(planPath)
         try assertFile(
             planPath,
-            byteCount: 62_410,
-            sha256: "349468A270CD88F614BF64F17D47B310F968DAF6C9F5ECCE729D6F40F4398004"
+            byteCount: 63_223,
+            sha256: "AA85594BB6EB09DB9AE4A2D3C22C0B8D106F4A209A9A7ACF445BCC51C4D8B074"
         )
         XCTAssertFalse(planSource.contains("\r"))
         XCTAssertEqual(try int(plan, "schemaVersion"), 1)
@@ -22415,10 +22794,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_156_205)
+        XCTAssertEqual(uiSource.utf8.count, 1_187_702)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "5B5DB6CED7E85AD60BCB851C02E017E88BD14CCB2A3D8B9DAE8D5D63E4E54E46"
+            "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46"
         )
         let signsRootSource = try text(signsRootPath)
         let observerProjection = try recheckNavigationObserverProjection(
@@ -25572,7 +25951,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             focusedDiagnosticWorkerInputSource.components(
                 separatedBy: "default: none"
             ).count - 1,
-            2
+            3
         )
         let focusedDiagnosticWorkerValidationSource = try boundedSource(
             workerSource,
@@ -27935,6 +28314,119 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(
             Data(projected.utf8).sha256,
             "A70196AB513C3F7B4C461E811DA7555718458E6038FA5D03A24A889D7AF952A6",
+            file: file,
+            line: line
+        )
+        return (projected, blocks)
+    }
+
+    private func minimumCoreSmokeProjection(
+        in source: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> (source: String, blocks: [String]) {
+        XCTAssertEqual(source.utf8.count, 1_187_702, file: file, line: line)
+        XCTAssertEqual(
+            Data(source.utf8).sha256,
+            "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46",
+            file: file,
+            line: line
+        )
+        let bounds = [
+            (
+                "    private enum MinimumCoreSmoke {\n",
+                "    private enum FocusedDiagnosticProbeStop: Error {\n"
+            ),
+            (
+                "    private var minimumCoreSmokeHead: String?\n",
+                "\n    override func setUpWithError() throws {\n"
+            ),
+            (
+                "            guard MinimumCoreSmoke.environmentKeys.allSatisfy({\n",
+                "        }\n        if !(self is S10_4DevelopmentProbeUITests) {\n"
+            ),
+            (
+                "        let minimumCoreSmokeKeys = MinimumCoreSmoke.environmentKeys\n",
+                "        var expectedEnvironment = shard.expectedEnvironment\n"
+            ),
+            (
+                "        if let configuredMinimumCoreSmokeHead {\n",
+                "        let observed = Dictionary(uniqueKeysWithValues: environment\n"
+            ),
+            (
+                "        minimumCoreSmokeHead = configuredMinimumCoreSmokeHead\n",
+                "    }\n\n    @MainActor\n    private func applyDeviceAppearance"
+            ),
+            (
+                "    var minimumCoreSmokeIsConfigured: Bool {\n",
+                "    @MainActor\n    func runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift() throws {\n"
+            ),
+            (
+                "        if minimumCoreSmokeIsConfigured {\n",
+                "        try runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()\n"
+            ),
+        ]
+        let expectedBlockBytes = [743, 107, 304, 2_047, 536, 112, 27_539, 109]
+        let expectedBlockSHA256 = [
+            "8FCFC4DA33D77CB019A42A1DBB37AF1AE490355D115B276839E4C2FA1CD44E7C",
+            "45AB22227885D2BE29C1F1FA0FE7E49047B2E75697B2428E134AF432609BA75C",
+            "9F282CD64E3601FB5568466E02D86D6AFB3E0A80F86201D5E17C58792D42D416",
+            "9D94B8360F878ACE04641571E19F19C7CD25D50F3A19781B902F467F1A866931",
+            "31EEF3C54080D775F2AE5A2F16EA54DF6AB1F0E77F2CF4D5ED885B7BDBC44B88",
+            "0E5AFAB4430BA0CECEA5B441706A78C1F9DF7CDBB9D8625F81AA03308E04DB57",
+            "89240F1C84ACF99202827ABC9D1A95DE6E2D8E24A15F6C0EF14A37DBD1DA75A2",
+            "02CFC266E3667587D21AFAAF7120178630E0D49B0DFA91207CE2E2EA3A9F6C2F",
+        ]
+        var projected = source
+        var blocks = [String]()
+        for (index, bound) in bounds.enumerated() {
+            XCTAssertEqual(
+                projected.components(separatedBy: bound.0).count - 1,
+                1,
+                file: file,
+                line: line
+            )
+            let start = try XCTUnwrap(
+                projected.range(of: bound.0),
+                file: file,
+                line: line
+            )
+            let end = try XCTUnwrap(
+                projected.range(
+                    of: bound.1,
+                    range: start.upperBound..<projected.endIndex
+                ),
+                file: file,
+                line: line
+            )
+            let range = start.lowerBound..<end.lowerBound
+            let block = String(projected[range])
+            XCTAssertEqual(
+                block.utf8.count,
+                expectedBlockBytes[index],
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                Data(block.utf8).sha256,
+                expectedBlockSHA256[index],
+                file: file,
+                line: line
+            )
+            blocks.append(block)
+            projected.removeSubrange(range)
+        }
+        XCTAssertEqual(blocks.count, 8, file: file, line: line)
+        XCTAssertEqual(
+            Data(blocks.joined().utf8).sha256,
+            "A4B7BF561DD708A52EB426D7D16CEAF410A0E206AC9BE9B58C4770C79559539D",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(projected.utf8.count, 1_156_205, file: file, line: line)
+        XCTAssertEqual(
+            Data(projected.utf8).sha256,
+            "5B5DB6CED7E85AD60BCB851C02E017E88BD14CCB2A3D8B9DAE8D5D63E4E54E46",
             file: file,
             line: line
         )

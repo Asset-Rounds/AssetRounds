@@ -705,7 +705,11 @@ def producer_identity(value):
 
 
 def consumer_identity(value, root):
-    exact_keys(value, CONSUMER_FIELDS)
+    exact_keys(value, CONSUMER_FIELDS | ({"nativeMode"} if "nativeMode" in value else set()))
+    if "nativeMode" in value:
+        require(value["nativeMode"] == smoke_contract(root)["contractID"] and
+                value["shardID"] == SMOKE_SHARD and value["segmentID"] == "none" and value["purpose"] == "acceptance",
+                "consumer smoke mode outside explicit tuple")
     for key in ["runID", "runAttempt", "jobID"]:
         positive(value[key])
     require(value["purpose"] in ["acceptance", "diagnostic"], "unknown consumer purpose")
@@ -1248,8 +1252,191 @@ def seal_command(request, output, source):
     return result
 
 
+SMOKE_ID = 's10.4.minimum-core-smoke.v1'
+SMOKE_SHARD = 's10.4.minimum.minimum-os'
+SMOKE_REF = 'refs/heads/phase/s10-brand-refresh'
+SMOKE_LANE = 'github-xcode-26.6-shared-build-acceptance'
+SMOKE_CHECKPOINTS = ['launch', 'sign-saved', 'capture-review', 'report-saved', 'report-reopened', 'settings']
+SMOKE_KEYS = ['CI_S10_4_MINIMUM_CORE_SMOKE_' + suffix for suffix in ('ID', 'HEAD', 'REF', 'EXECUTION_LANE')]
+
+
+def smoke_contract(root):
+    value = load(Path(root) / 'Scripts/s10-4-segment-plan.json')['minimumCoreSmoke']
+    require(value == dict(schemaVersion=1, contractID=SMOKE_ID, shardID=SMOKE_SHARD, ordinal=8,
+                         segmentID='none', executionLane=SMOKE_LANE, runnerProvider='github',
+                         proofKind='functional-smoke', checkpointCount=6, checkpointIDs=SMOKE_CHECKPOINTS,
+                         nativeEnvironmentKeys=SMOKE_KEYS, fullMatrixEligible=False,
+                         fullShardComplete=False, fullSegmentComplete=False), 'unknown smoke source contract')
+    return value
+
+
+def smoke_environment(environment, root, selected):
+    """Closed four-key opt-in; absence retains the historical route."""
+    e = environment
+    present = {k for k in e if k.startswith(('CI_S10_4_MINIMUM_CORE_SMOKE_', 'TEST_RUNNER_CI_S10_4_MINIMUM_CORE_SMOKE_'))}
+    if selected == 'none':
+        require(not present, 'smoke environment without explicit selection')
+        return {}
+    require(selected == smoke_contract(root)['contractID'], 'foreign smoke selection')
+    require(e.get('CI_S10_4_SHARED_BUILD_MODE') == 'consumer' and
+            e.get('CI_S10_4_EXECUTION_ROLE') == 'payload-consumer' and
+            e.get('CI_RUNNER_PROVIDER') == 'github' and e.get('CI_RUNNER_LABEL') == 'macos-26' and
+            e.get('CI_S10_4_SHARD_ID') == SMOKE_SHARD and
+            e.get('CI_S10_4_SEGMENT_ID') == e.get('WORKER_S10_4_MINIMUM_SEGMENT_ID') == 'none' and
+            e.get('CI_S10_4_DIAGNOSTIC_PROBE_ID', 'none') == 'none' and
+            e.get('CI_S10_4_PILOT_MODE') == 'false' and e.get('GITHUB_REF') == SMOKE_REF,
+            'smoke selected outside closed shared minimum tuple')
+    head = e.get('GITHUB_SHA', '')
+    require(re.fullmatch('[0-9a-f]{40}', head) is not None, 'smoke head invalid')
+    expected = dict(zip(SMOKE_KEYS, [SMOKE_ID, head, SMOKE_REF, SMOKE_LANE]))
+    require(present == set(expected) | {'TEST_RUNNER_' + k for k in expected}, 'partial or foreign smoke launch keys')
+    for key, value in expected.items():
+        require(e[key] == e['TEST_RUNNER_' + key] == value, 'conflicting smoke launch binding')
+    require(not any(k.startswith(('CI_S10_4_MINIMUM_SEGMENT_', 'TEST_RUNNER_CI_S10_4_MINIMUM_SEGMENT_',
+                                  'TEST_RUNNER_CI_S10_4_DIAGNOSTIC_')) for k in e), 'mixed smoke native modes')
+    return expected
+
+
+def smoke_binding(root, admission):
+    require(admission['selection'] == dict(shardID=SMOKE_SHARD, segmentID='none', purpose='acceptance', nativeMode=SMOKE_ID),
+            'smoke binding requires explicit selection')
+    fields = dict(contract=smoke_contract(root), source=admission['source'],
+                  sharedBuildIdentitySHA256=admission['sharedBuildIdentitySHA256'],
+                  producerQualificationSHA256=admission['producerQualificationSHA256'])
+    return dict(fields, matrixID=object_sha(fields), fullMatrixEligible=False)
+
+
+def smoke_kernel(root):
+    import types
+    raw = (Path(root) / 'Scripts/s10-4-segment-assembler.sh').read_text(encoding='utf-8')
+    marker = "<<'S10_4_SHARED_SEGMENT_PY'\n"
+    require(raw.count(marker) == 1, 'unknown assembler kernel')
+    body = raw.split(marker, 1)[1].split('\nS10_4_SHARED_SEGMENT_PY', 1)[0]
+    module = types.ModuleType('smoke_exact_assembler')
+    exec(compile(body, '<source assembler>', 'exec'), module.__dict__)
+    return module
+
+
+def smoke_proof(root, artifact, reference):
+    """Facts from original native evidence. Never a full-shard or AX receipt."""
+    import sqlite3
+    root, artifact = Path(root), Path(artifact)
+    contract = smoke_contract(root); c = reference['consumer']
+    consumer_identity(c, root)
+    require(c.get('nativeMode') == SMOKE_ID and reference['source']['head'] == load(artifact / 'shared-producer/admission.json')['source']['head'],
+            'smoke consumer/admission mode or head mismatch')
+    require(reference['productsUnchanged'] is True and reference['diagnosticOnly'] is False and
+            type(reference['unitTestCount']) is int and reference['unitTestCount'] == 0 and
+            type(reference['producerUnitTestCount']) is int and reference['producerUnitTestCount'] == 5, 'smoke frozen product/unit binding')
+    selection = dict(shardID=SMOKE_SHARD, segmentID='none', purpose='acceptance', nativeMode=SMOKE_ID)
+    admission = load(artifact / 'shared-producer/admission.json')
+    require(admission['selection'] == selection and all(admission[k] == reference[k] for k in
+            ('source', 'sharedBuildIdentitySHA256', 'producerQualificationSHA256')), 'smoke admission reference differs')
+    kernel = smoke_kernel(root); ctx = kernel.plan_context(root, SMOKE_SHARD, allow_full=True)
+    native_digest = kernel.native_ui(artifact, c, ctx)
+    tree = load(artifact / 'ui-test-results.json')
+    def walk(value):
+        if isinstance(value, dict):
+            yield value
+            for child in value.values(): yield from walk(child)
+        elif isinstance(value, list):
+            for child in value: yield from walk(child)
+    require(not any(r.get('nodeType') == 'Failure Message' or r.get('isExpectedFailure') is True for r in walk(tree)), 'smoke native failure')
+    log = (artifact / 'ui-smoke.log').read_text(encoding='utf-8')
+    require(log.count('** TEST EXECUTE SUCCEEDED **') == 1 and '** TEST EXECUTE FAILED **' not in log, 'smoke native execution failed')
+    lines = log.splitlines()
+    require(not any(l.startswith(('S10_MIGRATION_STATE', 'S10_4_AX_STATE', 'S10_4_CONTRAST', 'S10_4_SHARD ',
+                                   'S10_4_MINIMUM_SEGMENT_', 'S10_4_SEGMENT_')) for l in lines), 'smoke emitted full/segment evidence')
+    prefix = 'S10_4_MINIMUM_CORE_SMOKE_'
+    events = [(l.split(' ', 1)[0][len(prefix):], decode_bytes(l.split(' ', 1)[1].encode())) for l in lines if l.startswith(prefix)]
+    require([kind for kind, _ in events] == ['CHECKPOINT'] * 6 + ['COMPLETE'], 'smoke checkpoint order/cardinality')
+    identity = dict(schemaVersion=1, contractID=SMOKE_ID, shardID=SMOKE_SHARD, head=reference['source']['head'], ref=SMOKE_REF, executionLane=SMOKE_LANE)
+    names = []
+    for ordinal, checkpoint in enumerate(SMOKE_CHECKPOINTS, 1):
+        name = 'S10.4 minimum core smoke ' + checkpoint
+        expected = dict(identity, checkpointID=checkpoint, ordinal=ordinal, attachmentName=name)
+        require(events[ordinal - 1][1] == expected and type(events[ordinal - 1][1]['ordinal']) is int and type(events[ordinal - 1][1]['schemaVersion']) is int,
+                'smoke checkpoint identity mismatch')
+        names.append(name)
+    require(events[-1][1] == dict(identity, checkpointIDs=SMOKE_CHECKPOINTS, functionalSmokeComplete=True, fullMatrixEligible=False) and
+            type(events[-1][1]['schemaVersion']) is int and events[-1][1]['functionalSmokeComplete'] is True and events[-1][1]['fullMatrixEligible'] is False,
+            'smoke completion identity mismatch')
+    names.append('S10.4 minimum core smoke terminal')
+    exports_root = artifact / 's10-4-smoke-attachments'
+    manifest = load(exports_root / 'manifest.json')
+    require(type(manifest) is list and len(manifest) == 1 and
+            manifest[0]['testIdentifier'].removesuffix('()') == kernel.UI_ID, 'smoke export test ownership')
+    exports = manifest[0]['attachments']
+    def display_name(value):
+        require(type(value) is str, 'smoke export display type')
+        for name in names:
+            if value == name or re.fullmatch(re.escape(name) + r'_0_[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\.png', value):
+                return name
+        raise PayloadError('foreign smoke export display name')
+    require(len(exports) == 7 and {display_name(e['suggestedHumanReadableName']) for e in exports} == set(names), 'smoke attachment closure')
+    require(len({e['exportedFileName'] for e in exports}) == 7 and
+            {p.name for p in exports_root.iterdir()} == {'manifest.json'} | {e['exportedFileName'] for e in exports}, 'smoke duplicate/extra export')
+    database = artifact / 'UISmoke.xcresult/database.sqlite3'; before = sha256_file(database)
+    connection = sqlite3.connect(database.resolve().as_uri() + '?mode=ro&immutable=1', uri=True); connection.row_factory = sqlite3.Row
+    rows = []
+    try:
+        tests = [dict(r) for r in connection.execute('SELECT rowid,* FROM TestCases')]
+        runs = [dict(r) for r in connection.execute('SELECT rowid,* FROM TestCaseRuns')]
+        require(len(tests) == len(runs) == 1 and tests[0]['identifier'].removesuffix('()') == kernel.UI_ID and
+                runs[0]['testCase_fk'] == tests[0]['rowid'] and runs[0]['result'] == 'Success', 'smoke native test ownership/result')
+        for table in ('TestIssues', 'TestErrors', 'ExpectedFailures'):
+            require(connection.execute('SELECT count(*) FROM ' + table).fetchone()[0] == 0, 'smoke native issues present')
+        for name in names:
+            export = next(e for e in exports if display_name(e['suggestedHumanReadableName']) == name)
+            filename = export['exportedFileName']
+            require(re.fullmatch(r'[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}\.png', filename) is not None and
+                    export['isAssociatedWithFailure'] is False and export['deviceId'] == c['simulatorUDID'], 'smoke foreign/failed export')
+            matches = [dict(r) for r in connection.execute('SELECT rowid,* FROM Attachments WHERE uuid=?', (filename[:-4],))]
+            require(len(matches) == 1, 'smoke original UUID missing/duplicate')
+            a = matches[0]
+            require(a['filenameOverride'] == name and a['uniformTypeIdentifier'] == 'public.png' and a['testIssue_fk'] is None,
+                    'smoke native PNG identity')
+            activity_id = a['activity_fk']; seen = set()
+            while activity_id is not None:
+                require(type(activity_id) is int and activity_id not in seen and len(seen) < 1000, 'smoke activity cycle/limit')
+                seen.add(activity_id)
+                activities = [dict(r) for r in connection.execute('SELECT rowid,* FROM Activities WHERE rowid=?', (activity_id,))]
+                require(len(activities) == 1, 'smoke missing original activity')
+                activity = activities[0]
+                require(activity['testCaseRun_fk'] == runs[0]['rowid'] and all(activity[k] == '' for k in ('failureIDs', 'expectedFailureIDs')),
+                        'smoke foreign/failed activity')
+                activity_id = activity['parent_fk']
+            require(seen, 'smoke attachment lacks activity ownership')
+            payload_ref = a['xcResultKitPayloadRefId']
+            require(type(payload_ref) is str and re.fullmatch(r'[A-Za-z0-9_~=-]{1,200}', payload_ref), 'smoke payload reference')
+            original = artifact / 'UISmoke.xcresult/Data' / ('data.' + payload_ref)
+            require(original.is_file() and not original.is_symlink() and original.stat().st_size > 0, 'smoke original PNG payload absent or empty')
+            png = exports_root / filename
+            require(png.is_file() and not png.is_symlink(), 'smoke nonregular PNG')
+            info = kernel.png(png, True)
+            witness = 'File: ' + filename + ', suggested name: "' + export['suggestedHumanReadableName'] + '"'
+            require(lines.count(witness) == 1, 'smoke original exporter witness missing/ambiguous')
+            rows.append(dict(attachmentName=name, exportedFileName=filename, nativeUUID=a['uuid'], nativePayloadReference=payload_ref,
+                             nativePayloadSHA256=sha256_file(original), **info))
+    finally:
+        connection.close()
+    require(sha256_file(database) == before, 'smoke original database changed')
+    require(sha256_file(artifact / 'ui-final.png') == rows[-1]['sha256'], 'smoke terminal PNG mismatch')
+    return dict(schemaVersion=1, contractID=SMOKE_ID, recordType='minimum-core-smoke-proof', source=reference['source'],
+                consumer=c, sharedBuildIdentitySHA256=reference['sharedBuildIdentitySHA256'],
+                producerQualificationSHA256=reference['producerQualificationSHA256'], checkpointIDs=SMOKE_CHECKPOINTS,
+                checkpointCount=6, attachments=rows, nativeXCResultSHA256=native_digest, nativeDatabaseSHA256=before,
+                consumerBuildReferenceSHA256=sha256_file(artifact / 'shared-consumer/consumer-build-reference.json'),
+                github_environment=load(artifact / 's10-4-smoke-environment.json'),
+                smokeComplete=True, fullMatrixEligible=False, fullShardComplete=False, fullSegmentComplete=False)
+
+
+
 def selection_contract(value, root):
-    exact_keys(value, {"shardID", "segmentID", "purpose"})
+    exact_keys(value, {"shardID", "segmentID", "purpose"} | ({"nativeMode"} if "nativeMode" in value else set()))
+    if "nativeMode" in value:
+        require(value == dict(shardID=SMOKE_SHARD, segmentID="none", purpose="acceptance", nativeMode=smoke_contract(root)["contractID"]),
+                "selection smoke mode outside explicit tuple")
     shard = [s for s in shard_contract(root)["shards"] if s["shardID"] == value["shardID"]]
     require(len(shard) == 1 and value["purpose"] in ["acceptance", "diagnostic"], "unknown selection")
     allowed = ["none"]
@@ -1311,6 +1498,8 @@ def restore_command(request, output, source):
     require(str(consumer["runID"]) == os.environ.get("GITHUB_RUN_ID") and
             str(consumer["runAttempt"]) == os.environ.get("GITHUB_RUN_ATTEMPT"), "consumer environment mismatch")
     selection = {k: consumer[k] for k in ["shardID", "segmentID", "purpose"]}
+    if "nativeMode" in consumer: selection["nativeMode"] = consumer["nativeMode"]
+    selection_contract(selection, root)
     seal, admission = admit_source(request, output, source, selection)
     require(consumer["runID"] != admission["producerRunID"] and consumer["simulatorUDID"] != seal["sharedBuildIdentity"]["producer"]["simulatorUDID"], "consumer isolation reused producer")
     value = materialize_shared(seal, admission, output, source)
@@ -2144,6 +2333,13 @@ elif operation=='restore':
     creation=kernel['load'](artifact/'s10-4-shared-simulator-creation-command.json')
     save(artifact/'s10-4-shared-isolation.json',dict(schemaVersion=1,runID=c['runID'],jobID=c['jobID'],
          simulatorUDID=c['simulatorUDID'],isolationID=isolation,createdByThisJob=True,preexistingDevice=False,creationCommand=creation))
+    smoke_id=os.environ.get('WORKER_S10_4_MINIMUM_CORE_SMOKE_ID','none')
+    if smoke_id!='none':
+        assert smoke_id==kernel['smoke_contract'](root)['contractID']
+        c['nativeMode']=smoke_id
+        for key,value in zip(kernel['SMOKE_KEYS'],[smoke_id,os.environ['GITHUB_SHA'],os.environ['GITHUB_REF'],kernel['SMOKE_LANE']]):
+            assert key not in os.environ and 'TEST_RUNNER_'+key not in os.environ
+            append_env(key,value); append_env('TEST_RUNNER_'+key,value)
     save(artifact/'s10-4-shared-consumer.json',c)
     result=invoke('restore',restored,sourceRunID=os.environ['CI_S10_4_SHARED_PAYLOAD_RUN_ID'],consumer=c)
     append_env('CI_S10_4_SHARED_XCTESTRUN_PATH',result['xctestrunPath'])
@@ -2163,9 +2359,15 @@ elif operation=='restore':
     source_map=artifact/'s10-4-shared-source-map.json'
     save(source_map,mapping)
     admission_output=artifact/'shared-dependency-admission'
-    subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--admit-shared-selection',str(restored),
-                    c['shardID'],segment,str(source_map),str(admission_output)],cwd=root,check=True)
-    matrix=kernel['load'](admission_output/'matrix-binding.json')
+    if smoke_id!='none':
+        assert mapping=={}
+        admission_output.mkdir()
+        matrix=kernel['smoke_binding'](root,kernel['load'](restored/'admission.json'))
+        save(admission_output/'matrix-binding.json',matrix)
+    else:
+        subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--admit-shared-selection',str(restored),
+                        c['shardID'],segment,str(source_map),str(admission_output)],cwd=root,check=True)
+        matrix=kernel['load'](admission_output/'matrix-binding.json')
     assert matrix['matrixID']==os.environ['WORKER_S10_4_SHARED_MATRIX_ID']
     append_env('CI_S10_4_MATRIX_BINDING',str(admission_output/'matrix-binding.json'))
     append_env('CI_S10_4_CONSUMER_BUILD_REFERENCE',str(artifact/'shared-consumer/consumer-build-reference.json'))
@@ -2228,7 +2430,13 @@ save(artifact/'s10-4-shared-native-validation.json',dict(schemaVersion=1,validat
      executedUITestCount=1,uiTestIdentifier=identifier,uiResultsSHA256=k['sha256_file'](artifact/'ui-test-results.json'),
      consumerBuildReferenceSHA256=k['sha256_file'](artifact/'shared-consumer/consumer-build-reference.json')))
 segment=c['segmentID']
-if segment!='none':
+if c.get('nativeMode')==k['SMOKE_ID']:
+    k['smoke_environment'](os.environ,root,os.environ['WORKER_S10_4_MINIMUM_CORE_SMOKE_ID'])
+    retained=artifact/'s10-4-smoke-attachments'
+    k['copy_tree'](Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments',retained)
+    save(artifact/'s10-4-smoke-environment.json',k['decode_bytes'](os.environ['CI_S10_4_GITHUB_ENVIRONMENT'].encode()))
+    save(artifact/'s10-4-minimum-core-smoke-proof.json',k['smoke_proof'](root,artifact,reference))
+elif segment!='none':
     retained=artifact/'s10-4-shared-raw-attachments'
     k['copy_tree'](Path(os.environ['RUNNER_TEMP'])/'FieldEvidenceUISmokeAttachments',retained)
     subprocess.run(['bash','Scripts/s10-4-segment-assembler.sh','--collect-shared-segment',str(artifact),

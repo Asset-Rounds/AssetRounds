@@ -8,6 +8,7 @@ its own exact head. Run --help for the deliberately closed command surface.
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 import ctypes
 import datetime as dt
@@ -27,6 +28,7 @@ import uuid
 import zipfile
 
 CONTRACT = 's10.4.ci.v1'
+COLLECTOR_RELEASE = 's10.4-failed-segment-start-audit-v1'
 REPO = 'Asset-Rounds/AssetRounds'
 REF = 'phase/s10-brand-refresh'
 WORKFLOW = 'ios-ci.yml'
@@ -272,13 +274,20 @@ class Source:
                 self.payload.selection_contract({'shardID': sid, 'segmentID': 'none', 'purpose': 'acceptance'}, self.root)
                 rows.append({'kind': 'consumer', 'shardID': sid, 'segmentID': 'none',
                              'provider': 'github', 'dependencies': [], 'owned': 67, 'replay': 0})
-        require(sum(r['kind'] == 'consumer' for r in rows) == 30 and
-                sum(r['kind'] == 'assembly' for r in rows) == 8, 'closed source tuple count changed')
+        expected_consumers = sum(len(self.context(s['shardID'])['segments']) if s['shardID'] in shared['allowedShardIDs'] else 1 for s in self.shards['shards'])
+        require(sum(r['kind'] == 'consumer' for r in rows) == expected_consumers and
+                sum(r['kind'] == 'assembly' for r in rows) == len(shared['allowedShardIDs']), 'closed source tuple catalog differs')
+        if 'minimumCoreSmoke' in self.plan:
+            smoke = self.payload.smoke_contract(self.root)
+            rows.append(dict(kind='consumer', shardID=smoke['shardID'], segmentID=smoke['segmentID'], provider='github',
+                             dependencies=[], owned=0, replay=0, proofKind=smoke['proofKind'], checkpointCount=smoke['checkpointCount'],
+                             nativeMode=smoke['contractID']))
         return rows
 
-    def tuple(self, kind, shard, segment):
+    def tuple(self, kind, shard, segment, native_mode="none"):
         found = [r for r in self.tuples if (r['kind'], r['shardID'], r['segmentID']) == (kind, shard, segment)]
-        require(len(found) == 1, 'tuple outside finite source contract')
+        found = [r for r in found if r.get('nativeMode', 'none') == native_mode]
+        require(len(found) == 1, 'tuple outside finite source contract or explicit native mode missing')
         return found[0]
 
 
@@ -290,10 +299,16 @@ def inputs(row, producer, dependencies):
         require(producer is None, 'producer cannot silently replace selected payload')
     else:
         positive(producer)
-    return {'execution_lane': LANES[row['kind']], 'run_ui_smoke': str(row['kind'] == 'consumer').lower(),
+    selected = {'execution_lane': LANES[row['kind']], 'run_ui_smoke': str(row['kind'] == 'consumer').lower(),
             's10_4_shard_id': row['shardID'], 's10_4_shared_payload_run_id': '' if producer is None else str(producer),
             's10_4_shared_segment_id': row['segmentID'],
             's10_4_segment_source_run_ids': canonical({k: str(v) for k, v in dependencies.items()}).decode() if dependencies else ''}
+    if 'nativeMode' in row:
+        require(row['kind']=='consumer' and row['shardID']=='s10.4.minimum.minimum-os' and row['segmentID']=='none' and
+                row['nativeMode']=='s10.4.minimum-core-smoke.v1' and row['proofKind']=='functional-smoke' and
+                row['owned']==0 and row['checkpointCount']==6 and dependencies=={}, 'foreign smoke dispatch tuple')
+        selected['s10_4_minimum_core_smoke_id']=row['nativeMode']
+    return selected
 
 
 def returned_id(raw):
@@ -306,6 +321,8 @@ def returned_id(raw):
 def run_identity(value, intent, rid):
     positive(rid)
     expected_title = 'iOS CI · lane=' + intent['inputs']['execution_lane'] + ' · shard=' + intent['shardID'] + ' · head=' + intent['head']
+    if intent['inputs'].get('s10_4_minimum_core_smoke_id', 'none') != 'none':
+        expected_title += ' · smoke=' + intent['inputs']['s10_4_minimum_core_smoke_id']
     require(value.get('id') == rid and value.get('head_sha') == intent['head'] and
             value.get('head_branch') == REF and value.get('path') == '.github/workflows/' + WORKFLOW and
             value.get('event') == 'workflow_dispatch' and type(value.get('run_attempt')) is int and value['run_attempt'] == 1,
@@ -316,6 +333,32 @@ def run_identity(value, intent, rid):
     require(value.get('display_title') == expected_title, 'direct run title not yet exact or foreign')
     require(utc(value['created_at']) >= utc(intent['recordedAt']), 'returned run predates durable request')
     return value
+
+
+def artifact_byte_limit(meta, assembly=None):
+    """Only an identity-bound source assembly may contain the larger aggregate."""
+    if assembly is None:
+        return MAX_ARCHIVE
+    require(type(assembly) is tuple and len(assembly) == 3, 'invalid assembly archive context')
+    source, intent, original_run = assembly
+    rid = positive(original_run['id'])
+    run_identity(original_run, intent, rid)
+    require(original_run['status'] == 'completed' and intent['kind'] == 'assembly' and
+            intent['segmentID'] == 'none' and intent['inputs']['execution_lane'] == ASSEMBLY and
+            intent['inputs']['run_ui_smoke'] == 'false', 'larger archive requires terminal source assembly')
+    row = source.tuple('assembly', intent['shardID'], intent['segmentID'])
+    require(row['owned'] == 67 and row['replay'] == 0 and len(row['dependencies']) == 3 and
+            source.head == intent['head'] and digest(canonical(source.identity)) == intent['sourceIdentitySHA256'],
+            'assembly archive source binding differs')
+    expected_name = 'ios-ci-shared-admission-' + str(rid) + '-1-' + intent['shardID']
+    owner = meta['workflow_run']
+    require(meta['name'] == expected_name and owner['id'] == rid and owner['head_sha'] == intent['head'] and
+            owner['head_branch'] == REF and owner['repository_id'] == owner['head_repository_id'] == original_run['repository']['id'],
+            'assembly archive owner or name differs')
+    require(meta['expired'] is False and utc(meta['expires_at']) > utc(now()), 'assembly archive expired')
+    # This bounds only the outer aggregate transport. Every ZIP still has the
+    # same expansion/member/CRC/path checks; individual payload/TAR bounds stay.
+    return MAX_EXPANDED
 
 
 class Transport:
@@ -351,12 +394,12 @@ class Transport:
         require(len({positive(r['id']) for r in rows}) == len(rows), 'duplicate API identity')
         return rows
 
-    def artifact(self, meta, destination):
+    def artifact(self, meta, destination, *, assembly=None):
         positive(meta['id'])
         expected = meta.get('sha256', meta.get('digest', '').removeprefix('sha256:')).upper()
         hash_value(expected)
         size = meta.get('bytes', meta.get('size_in_bytes'))
-        require(type(size) is int and 0 < size <= MAX_ARCHIVE, 'artifact size out of bounds')
+        require(type(size) is int and 0 < size <= artifact_byte_limit(meta, assembly), 'artifact size out of bounds')
         if destination.exists():
             require(destination.stat().st_size == size and sha(destination) == expected, 'cached archive identity changed')
             return
@@ -718,10 +761,11 @@ def terminal_collection(matrix, record, transport):
     if not (root / 'artifacts.json').exists():
         artifacts = transport.pages('actions/runs/' + str(rid) + '/artifacts?per_page=100', 'artifacts')
         save(root / 'artifacts.json', {'total_count': len(artifacts), 'artifacts': artifacts})
+    assembly = (matrix.source(intent['head']), intent, original_run) if intent['kind'] == 'assembly' else None
     for meta in load(root / 'artifacts.json')['artifacts']:
         destination = root / str(positive(meta['id']))
         save(destination / 'metadata.json', meta)
-        transport.artifact(meta, destination / 'original.zip')
+        transport.artifact(meta, destination / 'original.zip', assembly=assembly)
         extract_checked(destination / 'original.zip', destination / 'artifact')
     facts = collection_proof(matrix, root, intent, rid)
     save(record['path'] / 'collection.json', facts)
@@ -1014,7 +1058,7 @@ def validate_retry(history, registry, proposal, retry_id, retry_kind, reason):
 def dispatch(matrix, args):
     # This is the ONLY function that invokes gh workflow run.
     source, review = matrix.fresh()
-    row = source.tuple(args.kind, args.shard, args.segment)
+    row = source.tuple(args.kind, args.shard, args.segment, getattr(args, 'minimum_core_smoke_id', 'none'))
     dependencies = parse_dependencies(args.dependency)
     producer_id = matrix.producer['runID'] if matrix.producer else None
     selected_inputs = inputs(row, producer_id, dependencies)
@@ -1108,7 +1152,7 @@ def import_record(matrix, args):
     source = matrix.source(original['head'])
     kind = next((k for k, lane in LANES.items() if lane == original['inputs']['execution_lane']), None)
     require(kind is not None, 'import route outside finite implemented controller')
-    row = source.tuple(kind, original['inputs']['s10_4_shard_id'], original['inputs']['s10_4_shared_segment_id'])
+    row = source.tuple(kind, original['inputs']['s10_4_shard_id'], original['inputs']['s10_4_shared_segment_id'], original['inputs'].get('s10_4_minimum_core_smoke_id', 'none'))
     mapping = decode(original['inputs']['s10_4_segment_source_run_ids']) if original['inputs']['s10_4_segment_source_run_ids'] else {}
     require(all(type(v) is str and re.fullmatch('[1-9][0-9]*', v) for v in mapping.values()), 'import dependency IDs malformed')
     selected = original['inputs']['s10_4_shared_payload_run_id']
@@ -1225,16 +1269,83 @@ def candidate_state(name, prefix, owned, seen):
     return state
 
 
-def native_events(log):
+def candidate_attachment_count(attachments, prefix):
+    return sum(type(row.get('filenameOverride')) is str and row['filenameOverride'].startswith(prefix)
+               for row in attachments)
+
+
+def retained_failed_start(line_rows, index, marker, payload, log_raw):
+    """Retain one interrupted START as a defect; never reconstruct its JSON."""
+    require(marker == 'S10_4_MINIMUM_SEGMENT_START',
+            'only the recognized malformed minimum-segment START can be retained')
+    warning = re.search(
+        rb'(objc\[[0-9]+\]: Class UIAccessibilityLoaderWebShared is implemented in both [^\r\n]+ '
+        rb'One of the two will be used\. Which one is undefined\.)$', payload)
+    require(warning is not None and payload[:warning.start()].startswith(b'{'),
+            'malformed segmented START lacks the retained duplicate-class warning')
+    require(index + 1 < len(line_rows), 'malformed segmented START continuation absent')
+    following = line_rows[index + 1]
+    require(re.fullmatch(rb',"[A-Za-z][^\r\n]*\}(?:\r\n|\n|\r)?', following['raw']) is not None,
+            'malformed segmented START continuation is not an exact retained suffix line')
+    raw_line = line_rows[index]['raw']; warning_start = line_rows[index]['start'] + len(marker.encode()) + 1 + warning.start()
+    return {
+        'kind': 'MALFORMED_SEGMENTED_START_NATIVE_WARNING_INTERLEAVE',
+        'markerName': marker,
+        'originalMarkerValidJSON': False,
+        'strictParserResult': 'REJECTED',
+        'derivedMarkerCreated': False,
+        'acceptanceClaimed': False,
+        'logSHA256': digest(log_raw),
+        'lineNumber': index + 1,
+        'lineStartByteOffset': line_rows[index]['start'],
+        'lineEndByteOffsetExclusive': line_rows[index]['start'] + len(raw_line),
+        'rawLineBytes': len(raw_line),
+        'rawLineSHA256': digest(raw_line),
+        'rawLineBase64': base64.b64encode(raw_line).decode('ascii'),
+        'rawLineUTF8': raw_line.decode('utf-8'),
+        'followingLineNumber': index + 2,
+        'followingLineStartByteOffset': following['start'],
+        'followingLineEndByteOffsetExclusive': following['start'] + len(following['raw']),
+        'followingRawLineBytes': len(following['raw']),
+        'followingRawLineSHA256': digest(following['raw']),
+        'followingRawLineBase64': base64.b64encode(following['raw']).decode('ascii'),
+        'followingRawLineUTF8': following['raw'].decode('utf-8'),
+        'nativeWarning': warning.group(1).decode('utf-8'),
+        'nativeWarningSHA256': digest(warning.group(1)),
+        'nativeWarningStartByteOffset': warning_start,
+        'nativeWarningEndByteOffsetExclusive': warning_start + len(warning.group(1)),
+    }
+
+
+def native_events(log, failed_start_diagnostics=None):
+    log_raw = log.encode('utf-8') if type(log) is str else log
+    require(type(log_raw) is bytes, 'native log must be UTF-8 text or bytes')
+    try:
+        log_raw.decode('utf-8')
+    except UnicodeDecodeError as error:
+        raise Rejected('native log is not UTF-8') from error
+    line_rows = []
+    offset = 0
+    for raw_line in log_raw.splitlines(keepends=True):
+        line_rows.append({'raw': raw_line, 'start': offset}); offset += len(raw_line)
+    if offset < len(log_raw):
+        line_rows.append({'raw': log_raw[offset:], 'start': offset})
     events = {}
-    for line in log.splitlines():
+    for index, row in enumerate(line_rows):
+        raw_line = row['raw']; line = raw_line.rstrip(b'\r\n').decode('utf-8')
         if line.startswith(('S10_4_SEGMENT_', 'S10_4_MINIMUM_SEGMENT_')):
             match = re.fullmatch(r'(S10_4_[A-Z_]+) (.*)', line)
             require(match is not None, 'malformed segmented marker line')
             try:
                 value = decode(match[2])
             except ValueError as error:
-                raise Rejected('malformed segmented marker JSON') from error
+                if failed_start_diagnostics is None:
+                    raise Rejected('malformed segmented marker JSON') from error
+                require(not failed_start_diagnostics, 'multiple malformed segmented START diagnostics rejected')
+                diagnostic = retained_failed_start(line_rows, index, match[1], match[2].encode('utf-8'), log_raw)
+                diagnostic['strictParserError'] = 'Rejected: malformed segmented marker JSON'
+                failed_start_diagnostics.append(diagnostic)
+                continue
             require(type(value) is dict, 'segmented marker must be an object')
             events.setdefault(match[1], []).append(value)
         else:
@@ -1242,6 +1353,55 @@ def native_events(log):
             if match:
                 events.setdefault(match[1], []).append(decode(match[2]))
     return events
+
+
+def failed_start_raw_marker_proof(log_raw, diagnostic):
+    rows = []
+    offset = 0
+    for index, raw_line in enumerate(log_raw.splitlines(keepends=True), 1):
+        body = raw_line.rstrip(b'\r\n')
+        match = re.match(rb'^\s*(S10_4_[A-Z_]+|S10_MIGRATION_STATE\b)', body)
+        if match:
+            rows.append({'lineNumber': index, 'startByteOffset': offset, 'rawLineSHA256': digest(raw_line),
+                         'markerName': match.group(1).decode('ascii')})
+        offset += len(raw_line)
+    require(rows == [{'lineNumber': diagnostic['lineNumber'], 'startByteOffset': diagnostic['lineStartByteOffset'],
+                      'rawLineSHA256': diagnostic['rawLineSHA256'], 'markerName': diagnostic['markerName']}],
+            'failed malformed START has another raw or malformed native marker line')
+    return {'rawMarkerLineCount': 1, 'soleRawMarkerLine': rows[0],
+            'proof': 'Whole raw UTF-8 log line inventory; malformed lines are not omitted by JSON parsing.'}
+
+
+def require_failed_start_context(ctx, intent):
+    matches = [segment for segment in ctx.get('segments', []) if segment.get('segmentID') == intent['segmentID']]
+    require(ctx.get('minimum') is True and intent['segmentID'] != 'none' and len(matches) == 1,
+            'malformed minimum START recovery requires one source-defined minimum segment')
+
+
+def failed_start_zero_evidence(root, log_raw, diagnostics, events, result, exports, row):
+    """Prove a failed malformed-START original contains no native state evidence."""
+    require(type(log_raw) is bytes and len(diagnostics) == 1, 'failed malformed START raw diagnostic closure missing')
+    raw_marker_proof = failed_start_raw_marker_proof(log_raw, diagnostics[0])
+    require(not events, 'failed malformed START carries another native marker event')
+    require(result.get('nativeTests') and len(result['nativeTests']) == 1 and
+            result['nativeTests'][0].get('result') == 'Failed', 'failed malformed START lacks one selected Failed native case')
+    for key in ('strictOwnedCount', 'strictStateRowCount', 'replayCount', 'ownedJourneyCount', 'candidatePNGCount'):
+        require(result.get(key, 0) == 0, 'failed malformed START has partial native count: ' + key)
+    prefix = 'S10.4 candidate ' + row['shardID'] + ' '
+    require(type(exports) is list and not any(e.get('suggestedHumanReadableName', '').startswith(prefix) for e in exports),
+            'failed malformed START export manifest contains a candidate')
+    require(result.get('nativeCandidateAttachmentRowCount') == 0 and type(result.get('nativeAttachmentRows')) is int,
+            'failed malformed START lacks independent zero SQLite candidate proof')
+    forbidden = [root / 's10-4', root / 's10-4-shared-raw-attachments', root / 'ax', root / 'contrast',
+                 root / 'accessibility', root / 'ui-final.png']
+    require(not any(path.exists() for path in forbidden), 'failed malformed START retains state/candidate output paths')
+    failure_attachments = root / 'ui-failure-attachments'
+    require(failure_attachments.is_dir() and not any(p.suffix.lower() == '.png' for p in failure_attachments.rglob('*') if p.is_file()),
+            'failed malformed START lacks an exact zero-PNG failure export')
+    return {'events': 0, 'strictOwnedStates': 0, 'replayStates': 0, 'ownedJourneys': 0,
+            'candidateExports': 0, 'candidateSQLiteRows': 0, 'candidatePNGs': 0,
+            'rawMarkerProof': raw_marker_proof,
+            'proof': 'Independent raw log, native result, export manifest, SQLite attachment, and output-path closure.'}
 
 
 def replay_rows(source, ctx, row, events):
@@ -1308,7 +1468,7 @@ def unavailable_native_export(root, native_path, log, events, command, job, run_
                 'infoPlistPresent': False, 'databasePresent': False, 'retainedContainerEntries': ['Data', 'Staging']}}
 
 
-def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
+def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None, original_facts=None):
     root = wide(root)
     result = {'localUnitCount': 0, 'producerUnitCount': 0, 'consumerReferenceVerified': False,
               'nativeTests': [], 'nativeFailures': [], 'strictOwnedCount': 0, 'replayCount': 0,
@@ -1316,12 +1476,24 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
               'fullShardComplete': False, 'gaps': []}
     ctx = source.context(intent['shardID']); kernel = source.assembler; payload = source.payload
     reference_path = root / 'shared-consumer/consumer-build-reference.json'
-    log = (root / 'ui-smoke.log').read_text(encoding='utf-8') if (root / 'ui-smoke.log').exists() else ''
-    events = native_events(log)
-    replay = replay_rows(source, ctx, intent, events)
-    result['nativeEvents'] = events
-    result['Code56Observed'] = 'Code=56' in log
+    log_path = root / 'ui-smoke.log'; log_raw = log_path.read_bytes() if log_path.exists() else b''
+    try:
+        log = log_raw.decode('utf-8')
+    except UnicodeDecodeError as error:
+        raise Rejected('native log is not UTF-8') from error
+    strict_marker_error = None
+    try:
+        events = native_events(log_raw)
+    except Rejected as error:
+        strict_marker_error = error; events = None
+    replay = None
+    if strict_marker_error is None:
+        replay = replay_rows(source, ctx, intent, events)
+        result['nativeEvents'] = events
+        result['Code56Observed'] = 'Code=56' in log
     if not reference_path.exists():
+        if strict_marker_error is not None:
+            raise strict_marker_error
         result['gaps'].append('Consumer restore/reference absent; native source/environment binding not established.')
         return result
     ref = load(reference_path); consumer = ref['consumer']
@@ -1354,13 +1526,36 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
     require(not (root / 'UnitTests.xcresult').exists() and not (root / 'Build.xcresult').exists(), 'falsely local build/units')
     result.update(consumerReferenceVerified=True, consumer=consumer, producerUnitCount=5, uiCommand=command_value,
                   sharedBuildIdentitySHA256=ref['sharedBuildIdentitySHA256'], producerQualificationSHA256=ref['producerQualificationSHA256'])
+    failed_start_diagnostics = []
+    if strict_marker_error is not None:
+        require(type(original_facts) is dict and original_facts.get('allAvailableOriginalsVerified') is True and
+                original_facts.get('runID') == rid and original_facts.get('head') == source.head and
+                original_facts.get('conclusion') == run_conclusion == job['conclusion'] == 'failure' and
+                re.fullmatch('[0-9A-F]{64}', original_facts.get('originalFilesSHA256', '')),
+                'malformed START recovery requires the exact verified terminal failed original')
+        require_failed_start_context(ctx, intent)
+        events = native_events(log_raw, failed_start_diagnostics)
+        require(len(failed_start_diagnostics) == 1, 'failed original requires exactly one retained malformed START')
+    if strict_marker_error is not None:
+        replay = replay_rows(source, ctx, intent, events)
+        result['nativeEvents'] = events
+        result['Code56Observed'] = 'Code=56' in log
+    if failed_start_diagnostics:
+        result.update(markerProtocolValid=False, malformedSegmentStartDiagnostics=failed_start_diagnostics,
+                      frozenFailedOriginal={'runID': rid, 'head': source.head,
+                          'sourceIdentitySHA256': digest(canonical(source.identity)),
+                          'originalFilesSHA256': original_facts['originalFilesSHA256'],
+                          'workerJobID': consumer['jobID'], 'runConclusion': run_conclusion,
+                          'workerConclusion': job['conclusion'], 'uiSmokeLogSHA256': digest(log_raw)})
     native_path = root / 'ui-test-results.json'
     if not native_path.exists():
         native_path = root / 'ui-failure-diagnostics/xcresult-test-results.json'
     if not native_path.exists():
+        require(not failed_start_diagnostics, 'malformed START recovery requires an exported selected Failed native case')
         result['gaps'].append('Native UI result export missing.')
         return result
     if native_path.stat().st_size == 0:
+        require(not failed_start_diagnostics, 'malformed START recovery cannot use an empty native result fallback')
         result.update(unavailable_native_export(root, native_path, log, events, command_value, job, run_conclusion))
         result['gaps'].append('Native result bundle/export unavailable after failed finalization; native execution and coverage counts remain unknown.')
         return result
@@ -1369,6 +1564,7 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
     failures = [r.get('name') for r in nodes(native) if r.get('nodeType') == 'Failure Message']
     system_cases = [r for r in cases if re.fullmatch(r'FieldEvidenceAppUITests-Runner \(\d+\) encountered an error', r.get('nodeIdentifier', '')) and r.get('result') == 'Failed']
     if not cases or len(system_cases) == len(cases):
+        require(not failed_start_diagnostics, 'malformed START recovery requires the selected test case, not bootstrap evidence')
         require(not events and job['conclusion'] == 'failure', 'zero-test result carries native state evidence or successful worker')
         result.update(nativeTests=[], nativeSystemFailureCases=system_cases, nativeFailures=failures, nativeUIExecuted=False,
                       nativeBootstrapFailure=True, nativeDevices=native.get('devices', []),
@@ -1384,6 +1580,16 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
     require(len(devices) == 1 and all(devices[0].get(k) == v for k, v in expected.items()), 'native exact consumer device mismatch')
     result.update(nativeTests=cases, nativeFailures=failures, nativeDevices=devices,
                   nativeRuntimeWarnings=[r.get('name') for r in nodes(native) if r.get('nodeType') == 'Runtime Warning'])
+    if intent.get('nativeMode') == 's10.4.minimum-core-smoke.v1':
+        require(intent['inputs'].get('s10_4_minimum_core_smoke_id') == consumer.get('nativeMode') == intent['nativeMode'], 'smoke intent/native identity differs')
+        require(set(events) <= {'S10_4_MINIMUM_CORE_SMOKE_CHECKPOINT', 'S10_4_MINIMUM_CORE_SMOKE_COMPLETE'} and
+                not failed_start_diagnostics, 'smoke falsely carries full/segment markers')
+        # Preserve factual partial/native failure events. Complete ordered identity and
+        # original PNG ownership are verified by smoke_proof only after terminal success.
+        result.update(smokeComplete=False, requiredCheckpointCount=6,
+                      smokeCheckpointCount=len(events.get('S10_4_MINIMUM_CORE_SMOKE_CHECKPOINT', [])))
+        if cases[0]['result'] != 'Passed': result['gaps'].append('Native UI failed; minimum core smoke incomplete.')
+        return result
     ax = events.get('S10_4_AX_STATE', []); contrast = events.get('S10_4_CONTRAST', [])
     verify_state_pairs(source, ctx, ax, contrast)
     row = source.tuple('consumer', intent['shardID'], intent['segmentID'])
@@ -1404,7 +1610,7 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
     if not manifest_path.exists() and row['segmentID'] == 'none' and (shard_root / 'xcresult-attachment-manifest.json').exists():
         manifest_path = shard_root / 'xcresult-attachment-manifest.json'
         full_exports = load(shard_root / 'candidate-exports.json')
-    candidates = []
+    candidates = []; exports = None
     if manifest_path.exists():
         exports = [e for t in load(manifest_path) for e in t['attachments']]
         if full_exports is None:
@@ -1419,8 +1625,10 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
         finally:
             connection.close()
         require(sha(db) == original_db, 'native database mutated')
+        result['nativeDatabaseSHA256'] = original_db
         result['nativeAttachmentRows'] = len(attachments)
         prefix = 'S10.4 candidate ' + row['shardID'] + ' '
+        result['nativeCandidateAttachmentRowCount'] = candidate_attachment_count(attachments, prefix)
         for export in exports:
             name = export['suggestedHumanReadableName']
             if not name.startswith(prefix):
@@ -1444,6 +1652,15 @@ def consumer_facts(source, root, intent, rid, jobs, run_conclusion=None):
         result['gaps'].append('Strict state markers have no exported candidate PNG/native binding; count not accepted.')
     if cases[0]['result'] != 'Passed':
         result['gaps'].append('Native UI failed; no complete segment or full shard.')
+    if failed_start_diagnostics:
+        proof = failed_start_zero_evidence(root, log_raw, failed_start_diagnostics, events, result, exports, row)
+        native_result_path = native_path.relative_to(root).as_posix()
+        result.update(failedMalformedStartZeroEvidence=proof,
+                      failedMalformedStartNativeResult={'path': native_result_path, 'sha256': sha(native_path),
+                          'databaseSHA256': result.get('nativeDatabaseSHA256'),
+                          'selectedTestNodeIdentifier': cases[0]['nodeIdentifier'],
+                          'selectedTestResult': cases[0]['result']})
+        result['gaps'].append('Malformed segmented START retained as a nonaccepting protocol defect; original marker remains invalid.')
     return result
 
 
@@ -1478,6 +1695,8 @@ def verify_github_environment(environment, contract, worker_sha256, provider):
 
 
 def full_shard_proof(source, root, intent, facts):
+    require(intent.get('nativeMode', 'none') == 'none' and facts.get('consumer', {}).get('nativeMode', 'none') == 'none',
+            'functional smoke cannot be promoted to full shard proof')
     root = wide(root); shard = intent['shardID']; ctx = source.context(shard)
     stored = root / 's10-4' / shard; receipt = load(stored / 'shard-receipt.json')
     require(facts['consumerReferenceVerified'] and len(facts['nativeTests']) == 1 and facts['nativeTests'][0]['result'] == 'Passed' and
@@ -1534,7 +1753,8 @@ def audit(matrix, request_id, known_deterministic=False):
     require(record['resolution'] is not None, 'cannot audit unresolved request')
     intent = record['intent']; rid = record['resolution']['runID']; originals = original_root(record)
     source = matrix.source(intent['head']); original = collection_proof(matrix, originals, intent, rid)
-    prior_audits = [load(path) for path in (folder / 'audits').glob('*.json')]
+    prior_audit_paths = sorted((folder / 'audits').glob('*.json'))
+    prior_audits = [load(path) for path in prior_audit_paths]
     require(all(a['runID'] == rid and a['head'] == intent['head'] and
                 a['originalFilesSHA256'] == original['originalFilesSHA256'] for a in prior_audits), 'prior audit provenance changed')
     inherited_deterministic = any(a.get('knownDeterministicFailure') is True for a in prior_audits)
@@ -1551,6 +1771,11 @@ def audit(matrix, request_id, known_deterministic=False):
                          'budgetLines': [line for line in text.splitlines() if re.search(r'Z (?:elapsed_seconds|total_budget_seconds)=', line)],
                          'failureAndWarningLines': [line for line in text.splitlines() if re.search(r'error:|warning:|Code=56|Test Case.*failed|\*\* TEST .*FAILED', line)]})
     result = dict(original, contractID=CONTRACT, auditedAt=now(), completeOriginalAudit=True,
+                  collectorRelease=COLLECTOR_RELEASE, collectorSHA256=sha(Path(__file__).resolve()),
+                  priorAuditBindings=[{'path': path.relative_to(folder).as_posix(), 'sha256': sha(path),
+                                       'completeOriginalAudit': value.get('completeOriginalAudit'),
+                                       'gaps': value.get('gaps', [])}
+                                      for path, value in zip(prior_audit_paths, prior_audits)],
                   knownDeterministicFailure=True if known_deterministic or inherited_deterministic else None,
                   deterministicClassificationBy='explicit root audit invocation' if known_deterministic else
                       ('preserved append-only prior finding' if inherited_deterministic else 'not classified'),
@@ -1571,12 +1796,26 @@ def audit(matrix, request_id, known_deterministic=False):
             if found:
                 require(len(found) == 1, 'ambiguous consumer original artifact')
                 root = originals / str(found[0]['id']) / 'artifact'
-                native = consumer_facts(source, root, intent, rid, jobs, original['conclusion'])
+                native = consumer_facts(source, root, intent, rid, jobs, original['conclusion'], original)
+                if native.get('malformedSegmentStartDiagnostics'):
+                    require(not known_deterministic and not inherited_deterministic,
+                            'malformed START audit prohibited by known deterministic failure history')
                 gaps = result['gaps'] + native.pop('gaps'); result.update(native); result['gaps'] = gaps
                 if result.get('nativeResultUnavailable') is not True:
                     result['nativeUIExecuted'] = bool(result.get('nativeTests'))
                 if original['conclusion'] == 'success' and not original['gaps']:
-                    if intent['segmentID'] != 'none':
+                    if intent.get('nativeMode') == 's10.4.minimum-core-smoke.v1':
+                        require(result['consumerReferenceVerified'] and result['nativeTests'][0]['result']=='Passed' and not result['nativeFailures'], 'smoke native success absent')
+                        producer_id = int(intent['inputs']['s10_4_shared_payload_run_id'])
+                        _, proof = producer_proof(matrix, source, transport, producer_id)
+                        smoke = source.payload.smoke_proof(source.root, root, load(root/'shared-consumer/consumer-build-reference.json'))
+                        require(load(root/'s10-4-minimum-core-smoke-proof.json') == smoke, 'original smoke proof differs')
+                        require(all(smoke[k] == proof[k] for k in ('sharedBuildIdentitySHA256','producerQualificationSHA256')), 'smoke selected producer differs')
+                        manifest=load(source.root/'docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json')
+                        verify_github_environment(smoke['github_environment'],manifest['github_environment_contract'],source.identity['files']['.github/workflows/ios-ci-worker.yml'],'github')
+                        require(not (root/'s10-4'/intent['shardID']/'shard-receipt.json').exists(), 'smoke cannot carry full shard receipt')
+                        result.update(smokeComplete=True, smokeProof=smoke, producerProof=proof)
+                    elif intent['segmentID'] != 'none':
                         producer_id = int(intent['inputs']['s10_4_shared_payload_run_id'])
                         proof_root, proof = producer_proof(matrix, source, transport, producer_id)
                         native_proof = segment_proof(matrix, source, transport, proof_root, intent['shardID'], intent['segmentID'], rid)
@@ -1652,6 +1891,7 @@ def main(argv=None):
         if name == 'audit':
             command_parser.add_argument('--known-deterministic', action='store_true', help='Explicit root forensic classification from originals; blocks same-head retries')
         if name == 'dispatch':
+            command_parser.add_argument('--minimum-core-smoke-id', default='none', choices=('none', 's10.4.minimum-core-smoke.v1'))
             command_parser.add_argument('--kind', choices=tuple(LANES), required=True)
             command_parser.add_argument('--shard', default='none'); command_parser.add_argument('--segment', default='none')
             command_parser.add_argument('--question', required=True); command_parser.add_argument('--dependency', action='append', default=[])

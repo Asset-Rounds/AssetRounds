@@ -53,6 +53,16 @@ def registered(rid, value):
     return {'intent': value, 'resolution': {'runID': rid}}
 
 
+DUPLICATE_CLASS_WARNING = ('objc[35189]: Class UIAccessibilityLoaderWebShared is implemented in both '
+    '/Runtime/WebCore.axbundle/WebCore (0x111) and /Runtime/WebKit.axbundle/WebKit (0x222). '
+    'One of the two will be used. Which one is undefined.')
+
+
+def interrupted_start(extra=''):
+    return ('noise\nS10_4_MINIMUM_SEGMENT_START {"acceptanceEligible":false,"requirementID":"double_length"'
+            + DUPLICATE_CLASS_WARNING + '\n,"schemaVersion":1,"segmentID":"minimum-segment-1"}\n' + extra)
+
+
 class Protocol(unittest.TestCase):
     def setUp(self):
         root = Path(__file__).resolve().parents[1] / 'Temp/S10_4_ci_protocol_tests'
@@ -61,6 +71,131 @@ class Protocol(unittest.TestCase):
         self.path = Path(self.temp.name).resolve()
         self.assertTrue(self.path.is_relative_to(root.resolve()))
         self.addCleanup(self.temp.cleanup)
+
+    def assembly_archive_fixture(self):
+        selected = intent(kind='assembly', segment='none')
+        source = object.__new__(ci.Source)
+        source.head = H
+        source.identity = {'head': H, 'gitTree': '3' * 40, 'files': {'source': 'A' * 64}}
+        selected['sourceIdentitySHA256'] = ci.digest(ci.canonical(source.identity))
+        source.tuples = [dict(row('assembly', 'none'), owned=67, replay=0,
+                              dependencies=['minimum-segment-1', 'minimum-segment-2', 'minimum-segment-3'])]
+        original = run(value=selected, conclusion='success')
+        meta = {'id': 5, 'size_in_bytes': ci.MAX_ARCHIVE + 1, 'digest': 'sha256:' + 'a' * 64,
+                'name': 'ios-ci-shared-admission-3-1-' + SHARD,
+                'expired': False, 'expires_at': (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).isoformat(),
+                'workflow_run': {'id': 3, 'head_sha': H, 'head_branch': ci.REF,
+                                 'repository_id': 77, 'head_repository_id': 77}}
+        return meta, (source, selected, original)
+
+    def test_assembly_archive_limit_requires_original_source_identity(self):
+        meta, context = self.assembly_archive_fixture()
+        self.assertEqual(ci.artifact_byte_limit(meta), ci.MAX_ARCHIVE)
+        self.assertEqual(ci.artifact_byte_limit(meta, context), ci.MAX_EXPANDED)
+        self.assertEqual(ci.MAX_ARCHIVE, 2 * 1024**3)
+        self.assertEqual(ci.MAX_EXPANDED, 8 * 1024**3)
+        self.assertEqual(ci.MAX_MEMBERS, 100000)
+        bad_cases = {
+            'consumer admission': lambda m, c: c[1].update(kind='consumer'),
+            'producer': lambda m, c: c[1].update(kind='producer'),
+            'wrong lane': lambda m, c: c[1]['inputs'].update(execution_lane=ci.CONSUMER),
+            'UI execution': lambda m, c: c[1]['inputs'].update(run_ui_smoke='true'),
+            'segment': lambda m, c: c[1].update(segmentID='minimum-segment-1'),
+            'source tuple missing': lambda m, c: setattr(c[0], 'tuples', []),
+            'source state coverage': lambda m, c: c[0].tuples[0].update(owned=66),
+            'source dependency count': lambda m, c: c[0].tuples[0].update(dependencies=[]),
+            'source head': lambda m, c: setattr(c[0], 'head', P),
+            'source digest': lambda m, c: c[1].update(sourceIdentitySHA256='B' * 64),
+            'run active': lambda m, c: c[2].update(status='in_progress'),
+            'run title': lambda m, c: c[2].update(display_title='other'),
+            'artifact name': lambda m, c: m.update(name='ios-ci-shared-other'),
+            'artifact run': lambda m, c: m['workflow_run'].update(id=4),
+            'artifact head': lambda m, c: m['workflow_run'].update(head_sha=P),
+            'artifact ref': lambda m, c: m['workflow_run'].update(head_branch='main'),
+            'artifact repository': lambda m, c: m['workflow_run'].update(repository_id=78),
+            'artifact fork': lambda m, c: m['workflow_run'].update(head_repository_id=78),
+            'expired flag': lambda m, c: m.update(expired=True),
+            'past expiry': lambda m, c: m.update(expires_at='2000-01-01T00:00:00Z'),
+            'wrong attempt': lambda m, c: c[2].update(run_attempt=2),
+        }
+        for label, change in bad_cases.items():
+            with self.subTest(label=label):
+                altered_meta, altered_context = copy.deepcopy((meta, context))
+                change(altered_meta, altered_context)
+                with self.assertRaises(ci.Rejected): ci.artifact_byte_limit(altered_meta, altered_context)
+
+    def test_assembly_archive_transport_preserves_size_and_no_partial_guards(self):
+        meta, context = self.assembly_archive_fixture()
+        transport = ci.Transport(self.path, self.path / 'assembly-api')
+        target = self.path / 'original.zip'
+        with patch.object(ci.subprocess, 'run') as process:
+            with self.assertRaisesRegex(ci.Rejected, 'size out of bounds'): transport.artifact(meta, target)
+            self.assertFalse(target.with_suffix('.download-incomplete').exists())
+            too_big = dict(meta, size_in_bytes=ci.MAX_EXPANDED + 1)
+            with self.assertRaisesRegex(ci.Rejected, 'size out of bounds'): transport.artifact(too_big, target, assembly=context)
+            for invalid_size in (0, -1, True, '2303084578'):
+                with self.assertRaisesRegex(ci.Rejected, 'size out of bounds'):
+                    transport.artifact(dict(meta, size_in_bytes=invalid_size), target, assembly=context)
+            target.with_suffix('.download-incomplete').write_bytes(b'original partial')
+            with self.assertRaisesRegex(ci.Rejected, 'incomplete original transport retained'):
+                transport.artifact(meta, target, assembly=context)
+            process.assert_not_called()
+        self.assertEqual(target.with_suffix('.download-incomplete').read_bytes(), b'original partial')
+
+    def test_assembly_archive_transport_success_still_checks_exact_bytes_and_digest(self):
+        meta, context = self.assembly_archive_fixture()
+        data = b'finite assembly transport fixture'
+        meta.update(size_in_bytes=len(data), digest='sha256:' + ci.digest(data).lower())
+        transport = ci.Transport(self.path, self.path / 'assembly-success-api')
+        target = self.path / 'assembly-original.zip'
+        def write_original(*args, **kwargs):
+            kwargs['stdout'].write(data)
+            return types.SimpleNamespace(returncode=0, stderr=b'')
+        with patch.object(ci.subprocess, 'run', side_effect=write_original) as process:
+            transport.artifact(meta, target, assembly=context)
+            process.assert_called_once()
+        self.assertEqual(target.read_bytes(), data)
+        with patch.object(ci.subprocess, 'run') as process:
+            transport.artifact(meta, target, assembly=context)
+            with self.assertRaisesRegex(ci.Rejected, 'cached archive identity changed'):
+                transport.artifact(dict(meta, digest='sha256:' + 'b' * 64), target, assembly=context)
+            process.assert_not_called()
+
+    def test_assembly_archive_transport_failure_retains_original_partial(self):
+        meta, context = self.assembly_archive_fixture()
+        data = b'finite failed assembly transport fixture'
+        meta.update(size_in_bytes=len(data), digest='sha256:' + ci.digest(data).lower())
+        transport = ci.Transport(self.path, self.path / 'assembly-failure-api')
+        for label, current in [('digest', dict(meta, digest='sha256:' + 'b' * 64)),
+                               ('length', dict(meta, size_in_bytes=len(data) + 1))]:
+            target = self.path / (label + '.zip')
+            def write_original(*args, **kwargs):
+                kwargs['stdout'].write(data)
+                return types.SimpleNamespace(returncode=0, stderr=b'')
+            with patch.object(ci.subprocess, 'run', side_effect=write_original):
+                with self.assertRaisesRegex(ci.Rejected, 'artifact transport/digest failed'):
+                    transport.artifact(current, target, assembly=context)
+            self.assertFalse(target.exists())
+            self.assertEqual(target.with_suffix('.download-incomplete').read_bytes(), data)
+
+    def test_assembly_archive_cached_boundaries_and_owner_checks(self):
+        meta, context = self.assembly_archive_fixture()
+        transport = ci.Transport(self.path, self.path / 'assembly-cache-api')
+        target = self.path / 'cached.zip'
+        target.touch()
+        for size in (ci.MAX_ARCHIVE + 1, ci.MAX_EXPANDED):
+            with self.subTest(size=size), patch.object(Path, 'stat', return_value=types.SimpleNamespace(st_size=size)), \
+                 patch.object(ci, 'sha', return_value='A' * 64) as hashing, patch.object(ci.subprocess, 'run') as process:
+                transport.artifact(dict(meta, size_in_bytes=size), target, assembly=context)
+                hashing.assert_called_once_with(target)
+                process.assert_not_called()
+        for key, value in [('name', 'foreign-admission'), ('expired', True),
+                           ('expires_at', '2000-01-01T00:00:00Z')]:
+            with self.subTest(key=key), patch.object(ci, 'sha') as hashing, patch.object(ci.subprocess, 'run') as process:
+                with self.assertRaises(ci.Rejected):
+                    transport.artifact(dict(meta, **{key: value}), target, assembly=context)
+                hashing.assert_not_called()
+                process.assert_not_called()
 
     def github_v3_fixture(self, image='20260831.0337.3'):
         contract = {'contract_version': 's10.4-github-image-adoption-v3', 'authority_head': 'a' * 40,
@@ -230,16 +365,48 @@ class Protocol(unittest.TestCase):
                                        assembler=types.SimpleNamespace(Rejected=RuntimeError))
         matrix = types.SimpleNamespace(root=self.path, registry=self.path / 'registry', source=lambda head: source)
         original = {'runID': 3, 'head': H, 'conclusion': 'failure', 'originalFilesSHA256': 'A' * 64, 'gaps': []}
+        prior = folder / 'audits/20260901T000000-rejected.json'
+        ci.save(prior, {'runID': 3, 'head': H, 'completeOriginalAudit': False,
+                        'originalFilesSHA256': 'A' * 64, 'gaps': ['Rejected: malformed segmented marker JSON']})
         native = ci.unavailable_native_export(**self.unavailable_export_fixture())
         native.update(gaps=['Native result unavailable.'], fullSegmentComplete=False, fullShardComplete=False)
         with patch.object(ci, 'records', return_value=[record]), patch.object(ci, 'collection_proof', return_value=original), \
              patch.object(ci, 'Transport'), patch.object(ci, 'consumer_facts', return_value=native) as consumer:
             result = ci.audit(matrix, selected['requestID'])
-        self.assertEqual(consumer.call_args.args[-1], 'failure')
+        self.assertEqual(consumer.call_args.args[-2], 'failure'); self.assertIs(consumer.call_args.args[-1], original)
         self.assertTrue(result['completeOriginalAudit']); self.assertIsNone(result['nativeUIExecuted'])
         self.assertEqual(result['gaps'], ['Native result unavailable.'])
+        self.assertEqual(result['collectorRelease'], ci.COLLECTOR_RELEASE)
+        self.assertEqual(result['collectorSHA256'], ci.sha(Path(ci.__file__).resolve()))
+        self.assertEqual(result['priorAuditBindings'], [{'path': 'audits/' + prior.name, 'sha256': ci.sha(prior),
+            'completeOriginalAudit': False, 'gaps': ['Rejected: malformed segmented marker JSON']}])
         for key in ('fullSegmentComplete', 'fullShardComplete', 'formalAcceptance', 'humanReviewGranted'):
             self.assertIs(result[key], False)
+
+    def test_failed_start_audit_cannot_complete_across_deterministic_history(self):
+        selected = intent(); folder = self.path / 'registry/requests' / selected['requestID']; folder.mkdir(parents=True)
+        record = {'path': folder, 'intent': selected, 'resolution': {'runID': 3}}
+        originals = folder / 'originals'; originals.mkdir()
+        job = {'id': 4, 'name': 'worker', 'conclusion': 'failure', 'started_at': '2026-09-01T00:00:00Z',
+               'completed_at': '2026-09-01T00:00:01Z', 'steps': []}
+        ci.save(originals / 'jobs.json', {'jobs': [job]})
+        ci.save(originals / 'artifacts.json', {'artifacts': [{'id': 5,
+            'name': 'ios-ci-shared-3-1-' + SHARD + '-minimum-segment-1'}]})
+        (originals / 'job-4.log').write_text('failed')
+        ci.save(folder / 'audits/prior.json', {'runID': 3, 'head': H, 'completeOriginalAudit': True,
+            'originalFilesSHA256': 'A' * 64, 'knownDeterministicFailure': True, 'gaps': []})
+        source = types.SimpleNamespace(identity={'files': []}, payload=types.SimpleNamespace(PayloadError=RuntimeError),
+                                       assembler=types.SimpleNamespace(Rejected=RuntimeError))
+        matrix = types.SimpleNamespace(root=self.path, registry=self.path / 'registry', source=lambda head: source)
+        original = {'runID': 3, 'head': H, 'conclusion': 'failure', 'originalFilesSHA256': 'A' * 64, 'gaps': []}
+        native = {'malformedSegmentStartDiagnostics': [{}], 'gaps': [], 'fullSegmentComplete': False,
+                  'fullShardComplete': False}
+        with patch.object(ci, 'records', return_value=[record]), patch.object(ci, 'collection_proof', return_value=original), \
+             patch.object(ci, 'Transport'), patch.object(ci, 'consumer_facts', return_value=native):
+            result = ci.audit(matrix, selected['requestID'])
+        self.assertFalse(result['completeOriginalAudit'])
+        self.assertIn('Rejected: malformed START audit prohibited by known deterministic failure history', result['gaps'])
+        self.assertTrue(result['knownDeterministicFailure'])
 
     def test_history_git_offset_and_checkout_instant_boundaries(self):
         ci.git(self.path, 'init')
@@ -346,6 +513,118 @@ class Protocol(unittest.TestCase):
                     with self.assertRaises(ci.Rejected): ci.consumer_facts(source, self.path, selected, 3, [])
         (self.path / 'ui-smoke.log').write_text('S10_4_SEGMENT_REPLAY\n', encoding='utf-8')
         with self.assertRaises(ci.Rejected): ci.consumer_facts(source, self.path, selected, 3, [])
+
+    def test_valid_marker_path_preserves_replay_validation_and_facts_before_missing_reference(self):
+        segment = 'minimum-segment-1'
+        ctx = {'minimum': True, 'segments': [{'segmentID': segment, 'replayStateIDs': ['state.a']}]}
+        source = types.SimpleNamespace(head=H, assembler=object(), payload=object(), context=lambda _: ctx)
+        selected = {'shardID': SHARD, 'segmentID': segment}
+        replay = {'ordinal': 1, 'stateID': 'state.a', 'segmentID': segment, 'shardID': SHARD,
+                  'setupOnly': True, 'acceptanceEligible': False, 'head': H}
+        prefix = 'S10_4_MINIMUM_SEGMENT_REPLAY '
+        (self.path / 'ui-smoke.log').write_text(prefix + json.dumps(replay) + '\nCode=56\n', encoding='utf-8')
+        result = ci.consumer_facts(source, self.path, selected, 3, [])
+        self.assertEqual(result['nativeEvents'], {'S10_4_MINIMUM_SEGMENT_REPLAY': [replay]})
+        self.assertTrue(result['Code56Observed'])
+        self.assertEqual(result['gaps'], ['Consumer restore/reference absent; native source/environment binding not established.'])
+
+        invalid = copy.deepcopy(replay); invalid['stateID'] = 'state.foreign'
+        for line in (prefix + json.dumps(invalid), 'S10_4_SEGMENT_REPLAY ' + json.dumps(replay)):
+            (self.path / 'ui-smoke.log').write_text(line + '\n', encoding='utf-8')
+            with self.subTest(line=line), self.assertRaises(ci.Rejected):
+                ci.consumer_facts(source, self.path, selected, 3, [])
+
+    def test_failed_start_diagnostic_retains_exact_lines_warning_and_locations_without_reconstruction(self):
+        raw = interrupted_start().encode('utf-8')
+        with self.assertRaises(ci.Rejected):
+            ci.native_events(raw)
+        diagnostics = []
+        self.assertEqual(ci.native_events(raw, diagnostics), {})
+        self.assertEqual(len(diagnostics), 1); diagnostic = diagnostics[0]
+        self.assertFalse(diagnostic['originalMarkerValidJSON']); self.assertFalse(diagnostic['derivedMarkerCreated'])
+        self.assertFalse(diagnostic['acceptanceClaimed']); self.assertEqual(diagnostic['strictParserResult'], 'REJECTED')
+        self.assertEqual(diagnostic['nativeWarning'], DUPLICATE_CLASS_WARNING)
+        self.assertEqual(diagnostic['logSHA256'], ci.digest(raw))
+        lines = raw.splitlines(keepends=True)
+        self.assertEqual(diagnostic['rawLineBase64'], __import__('base64').b64encode(lines[1]).decode('ascii'))
+        self.assertEqual(diagnostic['followingRawLineBase64'], __import__('base64').b64encode(lines[2]).decode('ascii'))
+        self.assertEqual(diagnostic['lineStartByteOffset'], len(lines[0]))
+        self.assertEqual(diagnostic['nativeWarningStartByteOffset'], raw.index(DUPLICATE_CLASS_WARNING.encode()))
+        self.assertEqual(diagnostic['followingLineStartByteOffset'], len(lines[0]) + len(lines[1]))
+
+        hostiles = {
+            'current segment start': interrupted_start().replace('MINIMUM_SEGMENT_START', 'SEGMENT_START'),
+            'malformed state marker': interrupted_start().replace('MINIMUM_SEGMENT_START', 'MINIMUM_SEGMENT_REPLAY'),
+            'warning absent': interrupted_start().replace(DUPLICATE_CLASS_WARNING, 'ordinary output'),
+            'continuation absent': interrupted_start().split('\n,"schemaVersion"', 1)[0] + '\n',
+            'continuation not suffix': interrupted_start().replace(',"schemaVersion":1', '{"schemaVersion":1'),
+            'second malformed start': interrupted_start(interrupted_start()),
+        }
+        for name, value in hostiles.items():
+            with self.subTest(name=name), self.assertRaises(ci.Rejected):
+                ci.native_events(value, [])
+
+    def test_failed_start_zero_evidence_proof_rejects_every_partial_or_missing_input(self):
+        failure = self.path / 'ui-failure-attachments'; failure.mkdir()
+        raw = interrupted_start().encode('utf-8'); diagnostics = []; events = ci.native_events(raw, diagnostics)
+        result = {'nativeTests': [{'result': 'Failed'}], 'strictOwnedCount': 0, 'strictStateRowCount': 0,
+                  'replayCount': 0, 'ownedJourneyCount': 0, 'candidatePNGCount': 0,
+                  'nativeAttachmentRows': 1, 'nativeCandidateAttachmentRowCount': 0}
+        selected = row()
+        expected = ci.failed_start_zero_evidence(self.path, raw, diagnostics, events, result, [], selected)
+        self.assertEqual(expected['candidatePNGs'], 0); self.assertEqual(expected['events'], 0)
+        mutations = {
+            'native success': lambda r, e, x: r['nativeTests'][0].update(result='Passed'),
+            'selected native absent': lambda r, e, x: r.update(nativeTests=[]),
+            'owned state count': lambda r, e, x: r.update(strictOwnedCount=1),
+            'state row count': lambda r, e, x: r.update(strictStateRowCount=1),
+            'replay count': lambda r, e, x: r.update(replayCount=1),
+            'journey count': lambda r, e, x: r.update(ownedJourneyCount=1),
+            'candidate count': lambda r, e, x: r.update(candidatePNGCount=1),
+            'state event': lambda r, e, x: e.update(S10_4_AX_STATE=[{}]),
+            'partial result event': lambda r, e, x: e.update(S10_4_MINIMUM_SEGMENT_RESULT=[{}]),
+            'candidate export': lambda r, e, x: x.append({'suggestedHumanReadableName': 'S10.4 candidate ' + SHARD + ' state.a'}),
+            'candidate SQLite row': lambda r, e, x: r.update(nativeCandidateAttachmentRowCount=1),
+            'missing SQLite proof': lambda r, e, x: r.pop('nativeAttachmentRows'),
+        }
+        for name, mutate in mutations.items():
+            actual = copy.deepcopy(result); events = {}; exports = []; mutate(actual, events, exports)
+            with self.subTest(name=name), self.assertRaises(ci.Rejected):
+                ci.failed_start_zero_evidence(self.path, raw, diagnostics, events, actual, exports, selected)
+        for path in ('s10-4', 's10-4-shared-raw-attachments', 'ax', 'contrast', 'accessibility'):
+            target = self.path / path; target.mkdir()
+            with self.subTest(path=path), self.assertRaises(ci.Rejected):
+                ci.failed_start_zero_evidence(self.path, raw, diagnostics, {}, result, [], selected)
+            target.rmdir()
+        candidate = failure / 'candidate.png'; candidate.write_bytes(b'not accepted')
+        with self.assertRaises(ci.Rejected):
+            ci.failed_start_zero_evidence(self.path, raw, diagnostics, {}, result, [], selected)
+        candidate.unlink()
+        for extra in ('S10_4_AX_STATE {broken\n', ' S10_4_CONTRAST {broken\n',
+                      'S10_4_MINIMUM_SEGMENT_REPLAY {broken\n', 'S10_MIGRATION_STATE state.a\n'):
+            hostile = raw + extra.encode()
+            with self.subTest(raw_marker=extra), self.assertRaises(ci.Rejected):
+                ci.failed_start_zero_evidence(self.path, hostile, diagnostics, {}, result, [], selected)
+
+    def test_candidate_attachment_count_accepts_nullable_unrelated_rows(self):
+        prefix = 'S10.4 candidate ' + SHARD + ' '
+        rows = [{'filenameOverride': None}, {}, {'filenameOverride': 'failure hierarchy'},
+                {'filenameOverride': prefix + 'state.a'}]
+        self.assertEqual(ci.candidate_attachment_count(rows, prefix), 1)
+
+    def test_failed_start_context_is_one_source_defined_minimum_segment_only(self):
+        selected = {'segmentID': 'minimum-segment-1'}
+        ci.require_failed_start_context({'minimum': True, 'segments': [{'segmentID': 'minimum-segment-1'}]}, selected)
+        hostiles = [
+            ({'minimum': False, 'segments': [{'segmentID': 'minimum-segment-1'}]}, selected),
+            ({'minimum': True, 'segments': []}, selected),
+            ({'minimum': True, 'segments': [{'segmentID': 'minimum-segment-2'}]}, selected),
+            ({'minimum': True, 'segments': [{'segmentID': 'minimum-segment-1'}, {'segmentID': 'minimum-segment-1'}]}, selected),
+            ({'minimum': True, 'segments': [{'segmentID': 'none'}]}, {'segmentID': 'none'}),
+        ]
+        for ctx, intent_value in hostiles:
+            with self.subTest(ctx=ctx, intent=intent_value), self.assertRaises(ci.Rejected):
+                ci.require_failed_start_context(ctx, intent_value)
 
     def test_segment_kind_inventory_and_unsegmented_rejection(self):
         source = types.SimpleNamespace(head=H)
@@ -732,6 +1011,328 @@ class OriginalFixtures(unittest.TestCase):
                 ci.consumer_facts(source, artifact, selected, run_value['id'], jobs, 'failure')
             unavailable.assert_not_called()
         self.assertEqual(before, {str(p): ci.sha(p) for p in observed})
+
+    def test_real_failed_interleaved_start_is_complete_nonaccepting_factual_inspection(self):
+        folder = self.root / 'Temp/S10_4_CI/registry/requests/25ca31a0246643f7b2b26d6391369f99'
+        originals = folder / 'originals'; run_value = ci.load(originals / 'run.json')
+        self.assertEqual((run_value['id'], run_value['head_sha'], run_value['conclusion']),
+                         (34423087881, '2927b049bfdd8d5219a70e4d7e2f877ffb9b4000', 'failure'))
+        source = ci.Source(self.root, run_value['head_sha'], Path(self.snapshot.name) / 'failed-start-source')
+        artifact = ci.wide(originals / '10132599696/artifact')
+        reference_path = artifact / 'shared-consumer/consumer-build-reference.json'
+        consumer = ci.load(reference_path)['consumer']
+        selected = {'kind': 'consumer', 'head': source.head, 'shardID': consumer['shardID'], 'segmentID': consumer['segmentID']}
+        jobs = ci.load(originals / 'jobs.json')['jobs']
+        request_intent = ci.load(folder / 'intent.json')
+        original = ci.verify_collection(originals, request_intent, run_value['id'])
+        observed = [reference_path, artifact / 's10-4-shared-ui-command.json', artifact / 'ui-smoke.log',
+                    artifact / 'ui-failure-diagnostics/xcresult-test-results.json', artifact / 'UISmoke.xcresult/database.sqlite3',
+                    artifact / 'ui-failure-attachments/manifest.json']
+        before = {str(path): ci.sha(path) for path in observed}
+        facts = ci.consumer_facts(source, artifact, selected, run_value['id'], jobs, run_value['conclusion'], original)
+        self.assertTrue(facts['consumerReferenceVerified']); self.assertEqual(facts['producerUnitCount'], 5)
+        self.assertFalse(facts['markerProtocolValid']); self.assertEqual(len(facts['malformedSegmentStartDiagnostics']), 1)
+        diagnostic = facts['malformedSegmentStartDiagnostics'][0]
+        self.assertFalse(diagnostic['originalMarkerValidJSON']); self.assertFalse(diagnostic['derivedMarkerCreated'])
+        self.assertIn('Class UIAccessibilityLoaderWebShared is implemented in both', diagnostic['nativeWarning'])
+        self.assertEqual((diagnostic['lineNumber'], diagnostic['lineStartByteOffset'], diagnostic['nativeWarningStartByteOffset']),
+                         (34, 4050, 4387))
+        self.assertEqual(facts['nativeTests'][0]['result'], 'Failed')
+        self.assertEqual((facts['strictOwnedCount'], facts['replayCount'], facts['ownedJourneyCount'], facts['candidatePNGCount']),
+                         (0, 0, 0, 0))
+        self.assertEqual(facts['nativeCandidateAttachmentRowCount'], 0)
+        self.assertEqual(facts['failedMalformedStartZeroEvidence']['events'], 0)
+        self.assertEqual(facts['failedMalformedStartNativeResult']['databaseSHA256'],
+                         '980C2CD7A053C1BC4E497B72B4FC892B0493AA4918EF49C8C2963A127D7BBF7C')
+        self.assertEqual(facts['frozenFailedOriginal']['originalFilesSHA256'], original['originalFilesSHA256'])
+        self.assertFalse(facts['fullSegmentComplete']); self.assertFalse(facts['fullShardComplete'])
+        self.assertIn('Malformed segmented START retained as a nonaccepting protocol defect; original marker remains invalid.', facts['gaps'])
+        self.assertEqual(before, {str(path): ci.sha(path) for path in observed})
+
+        # A failure string alone cannot opt into recovery; the verified terminal original is mandatory.
+        with self.assertRaises(ci.Rejected):
+            ci.consumer_facts(source, artifact, selected, run_value['id'], jobs, 'failure')
+
+        original_load = ci.load
+        command_path = artifact / 's10-4-shared-ui-command.json'
+        for changed in ('source', 'command'):
+            def mutated_load(path):
+                value = original_load(path)
+                if str(path) == str(reference_path) and changed == 'source':
+                    value = copy.deepcopy(value); value['source']['head'] = '0' * 40
+                if str(path) == str(command_path) and changed == 'command':
+                    value = value.copy(); value[-1] = 'build'
+                return value
+            with self.subTest(changed=changed), patch.object(ci, 'load', side_effect=mutated_load), \
+                 patch.object(ci, 'failed_start_zero_evidence') as zero_proof, self.assertRaises(ci.Rejected):
+                ci.consumer_facts(source, artifact, selected, run_value['id'], jobs, 'failure', original)
+            zero_proof.assert_not_called()
+
+        native_path = artifact / 'ui-failure-diagnostics/xcresult-test-results.json'
+        def native_success_load(path):
+            value = original_load(path)
+            if str(path) == str(native_path):
+                value = copy.deepcopy(value)
+                def rewrite(node):
+                    if isinstance(node, dict):
+                        if node.get('nodeType') == 'Test Case': node['result'] = 'Passed'
+                        for child in node.values(): rewrite(child)
+                    elif isinstance(node, list):
+                        for child in node: rewrite(child)
+                rewrite(value)
+            return value
+        with patch.object(ci, 'load', side_effect=native_success_load), self.assertRaises(ci.Rejected):
+            ci.consumer_facts(source, artifact, selected, run_value['id'], jobs, 'failure', original)
+
+        contradictory_jobs = copy.deepcopy(jobs)
+        next(job for job in contradictory_jobs if job['id'] == consumer['jobID'])['conclusion'] = 'success'
+        with self.assertRaises(ci.Rejected):
+            ci.consumer_facts(source, artifact, selected, run_value['id'], contradictory_jobs, 'failure', original)
+
+
+class MinimumCoreSmokeProtocol(unittest.TestCase):
+    """Synthetic protocol fixtures; no native or hosted PASS is claimed."""
+    def setUp(self):
+        import runpy
+        self.payload = types.SimpleNamespace(**runpy.run_path(str(Path(__file__).with_name('s10-4-build-payload.py'))))
+        self.k = self.payload.smoke_proof.__globals__
+        fixture_parent=Path(__file__).resolve().parent/'Temp'
+        fixture_parent.mkdir(exist_ok=True)
+        self.temp = tempfile.TemporaryDirectory(dir=fixture_parent)
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.contract = dict(schemaVersion=1, contractID=self.payload.SMOKE_ID, shardID=SHARD, ordinal=8,
+            segmentID='none', executionLane=self.payload.SMOKE_LANE, runnerProvider='github',
+            proofKind='functional-smoke', checkpointCount=6, checkpointIDs=self.payload.SMOKE_CHECKPOINTS,
+            nativeEnvironmentKeys=self.payload.SMOKE_KEYS, fullMatrixEligible=False, fullShardComplete=False, fullSegmentComplete=False)
+        (self.root/'Scripts').mkdir()
+        self.put('Scripts/s10-4-segment-plan.json', {'minimumCoreSmoke':self.contract})
+        self.env=dict(CI_S10_4_SHARED_BUILD_MODE='consumer', CI_S10_4_EXECUTION_ROLE='payload-consumer',
+            CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26', CI_S10_4_SHARD_ID=SHARD,
+            CI_S10_4_SEGMENT_ID='none', WORKER_S10_4_MINIMUM_SEGMENT_ID='none', CI_S10_4_DIAGNOSTIC_PROBE_ID='none',
+            CI_S10_4_PILOT_MODE='false', GITHUB_REF=self.payload.SMOKE_REF, GITHUB_SHA=H)
+        for key,value in zip(self.payload.SMOKE_KEYS,[self.payload.SMOKE_ID,H,self.payload.SMOKE_REF,self.payload.SMOKE_LANE]):
+            self.env[key]=self.env['TEST_RUNNER_'+key]=value
+
+    def put(self,path,value):
+        p=self.root/path; p.parent.mkdir(parents=True,exist_ok=True)
+        p.write_text(json.dumps(value),encoding='utf-8')
+
+    def test_environment_complete_absent_and_every_partial(self):
+        self.assertEqual(len(self.payload.smoke_environment(self.env,self.root,self.payload.SMOKE_ID)),4)
+        empty={k:v for k,v in self.env.items() if 'MINIMUM_CORE_SMOKE_' not in k}
+        self.assertEqual(self.payload.smoke_environment(empty,self.root,'none'),{})
+        for key in [k for k in self.env if 'MINIMUM_CORE_SMOKE_' in k]:
+            with self.subTest(key=key):
+                bad=dict(self.env); del bad[key]
+                with self.assertRaises(self.payload.PayloadError): self.payload.smoke_environment(bad,self.root,self.payload.SMOKE_ID)
+        with self.assertRaises(self.payload.PayloadError): self.payload.smoke_environment(self.env,self.root,'none')
+
+    def test_environment_foreign_conflicting_and_other_routes(self):
+        for key,value in dict(CI_S10_4_SHARED_BUILD_MODE='producer',CI_S10_4_EXECUTION_ROLE='independent',
+                CI_RUNNER_PROVIDER='bitrise',CI_S10_4_SHARD_ID='s10.4.minimum.double-length',CI_S10_4_SEGMENT_ID='segment-1',
+                WORKER_S10_4_MINIMUM_SEGMENT_ID='minimum-segment-1',CI_S10_4_DIAGNOSTIC_PROBE_ID='minimum-preflight',
+                GITHUB_SHA='2'*40,GITHUB_REF='refs/heads/main',TEST_RUNNER_CI_S10_4_MINIMUM_CORE_SMOKE_EXTRA='x',
+                CI_S10_4_MINIMUM_CORE_SMOKE_ID='foreign',TEST_RUNNER_CI_S10_4_MINIMUM_CORE_SMOKE_HEAD='3'*40).items():
+            with self.subTest(key=key):
+                with self.assertRaises(self.payload.PayloadError): self.payload.smoke_environment(dict(self.env,**{key:value}),self.root,self.payload.SMOKE_ID)
+
+    def test_explicit_dispatch_mode_and_legacy_input_identity(self):
+        old=row(); self.assertNotIn('s10_4_minimum_core_smoke_id',ci.inputs(old,2,{}))
+        smoke=dict(kind='consumer',shardID=SHARD,segmentID='none',provider='github',dependencies=[],owned=0,replay=0,
+                   proofKind='functional-smoke',checkpointCount=6,nativeMode=self.payload.SMOKE_ID)
+        source=ci.Source.__new__(ci.Source); source.tuples=[old,smoke]
+        with self.assertRaises(ci.Rejected): source.tuple('consumer',SHARD,'none')
+        self.assertEqual(source.tuple('consumer',SHARD,'none',self.payload.SMOKE_ID),smoke)
+        selected=ci.inputs(smoke,2,{})
+        self.assertEqual(selected['s10_4_minimum_core_smoke_id'],self.payload.SMOKE_ID)
+        value=intent(); value.update(smoke,inputs=selected)
+        original=run(value=value)
+        with self.assertRaises(ci.Rejected): ci.run_identity(original,value,3)
+        original['display_title']+=' · smoke='+self.payload.SMOKE_ID
+        self.assertEqual(ci.run_identity(original,value,3),original)
+        for changed in (dict(smoke,owned=67),dict(smoke,nativeMode='foreign'),dict(smoke,shardID='s10.4.current.default-light')):
+            with self.assertRaises(ci.Rejected): ci.inputs(changed,2,{})
+        with self.assertRaises(ci.Rejected): ci.full_shard_proof(None,None,smoke,{})
+        with self.assertRaises(ci.Rejected): ci.full_shard_proof(None,None,{},dict(consumer={'nativeMode':self.payload.SMOKE_ID}))
+
+    def test_source_inventory_preserves_every_legacy_tuple(self):
+        import subprocess
+        checkout=next(parent for parent in Path(__file__).resolve().parents if (parent/'.git').exists())
+        def source(path): return subprocess.check_output(['git','show','bba048eb06ecd97945b7f8cd4bede55371c41257:'+path],cwd=checkout)
+        old_ci=types.ModuleType('baseline_ci'); exec(compile(source('Scripts/s10-4-ci.py'),'<baseline>','exec'),old_ci.__dict__)
+        plan=json.loads(source('Scripts/s10-4-segment-plan.json')); shards=json.loads(source('Scripts/s10-4-shards.json'))
+        obj=ci.Source.__new__(ci.Source); obj.plan=plan; obj.shards=shards; obj.root=self.root
+        obj.payload=types.SimpleNamespace(selection_contract=lambda *a:None,smoke_contract=lambda *a:self.contract)
+        obj.context=lambda sid:dict(segments=plan['minimumVerification']['segments'] if sid.startswith('s10.4.minimum.') else plan['segments'])
+        baseline=old_ci.Source.inventory(obj)
+        obj.plan=dict(plan,minimumCoreSmoke=self.contract)
+        current=ci.Source.inventory(obj)
+        self.assertEqual(current[:-1],baseline)
+        self.assertEqual(sum(r['kind']=='consumer' for r in current),sum(r['kind']=='consumer' for r in baseline)+1)
+        self.assertEqual(sum(r['kind']=='assembly' for r in current),sum(r['kind']=='assembly' for r in baseline))
+        self.assertEqual((current[-1]['owned'],current[-1]['checkpointCount']),(0,6))
+
+    def fixture(self):
+        import sqlite3, struct, zlib, subprocess
+        p=self.payload
+        artifact=self.root
+        consumer=dict(nativeMode=p.SMOKE_ID,shardID=SHARD,segmentID='none',purpose='acceptance',simulatorUDID='F'*8+'-FFFF-FFFF-FFFF-'+'F'*12)
+        reference=dict(consumer=consumer,source=dict(head=H),productsUnchanged=True,diagnosticOnly=False,
+            unitTestCount=0,producerUnitTestCount=5,sharedBuildIdentitySHA256='A'*64,producerQualificationSHA256='B'*64)
+        admission={k:reference[k] for k in ('source','sharedBuildIdentitySHA256','producerQualificationSHA256')}
+        admission['selection']=dict(shardID=SHARD,segmentID='none',purpose='acceptance',nativeMode=p.SMOKE_ID)
+        self.put('shared-producer/admission.json',admission)
+        self.put('shared-consumer/consumer-build-reference.json',reference)
+        self.put('ui-test-results.json',{'testNodes':[dict(nodeType='Test Case',result='Passed')]})
+        self.put('s10-4-smoke-environment.json',{'fixture':True})
+        identity=dict(schemaVersion=1,contractID=p.SMOKE_ID,shardID=SHARD,head=H,ref=p.SMOKE_REF,executionLane=p.SMOKE_LANE)
+        events=['S10_4_MINIMUM_CORE_SMOKE_CHECKPOINT '+json.dumps(dict(identity,checkpointID=c,ordinal=i,
+            attachmentName='S10.4 minimum core smoke '+c)) for i,c in enumerate(p.SMOKE_CHECKPOINTS,1)]
+        events.append('S10_4_MINIMUM_CORE_SMOKE_COMPLETE '+json.dumps(dict(identity,checkpointIDs=p.SMOKE_CHECKPOINTS,functionalSmokeComplete=True,fullMatrixEligible=False)))
+        (self.root/'ui-smoke.log').write_text('\n'.join(events+['** TEST EXECUTE SUCCEEDED **']),encoding='utf-8')
+        dbpath=self.root/'UISmoke.xcresult/database.sqlite3'; dbpath.parent.mkdir()
+        db=sqlite3.connect(dbpath)
+        db.executescript('CREATE TABLE TestCases(identifier TEXT); CREATE TABLE TestCaseRuns(testCase_fk INTEGER,result TEXT);'
+            'CREATE TABLE Activities(testCaseRun_fk INTEGER,parent_fk INTEGER,failureIDs TEXT,expectedFailureIDs TEXT);'
+            'CREATE TABLE Attachments(uuid TEXT,filenameOverride TEXT,uniformTypeIdentifier TEXT,testIssue_fk INTEGER,activity_fk INTEGER,xcResultKitPayloadRefId TEXT);'
+            'CREATE TABLE TestIssues(x TEXT); CREATE TABLE TestErrors(x TEXT); CREATE TABLE ExpectedFailures(x TEXT);')
+        ui_id='S10_4AutomatedBrandLabUITests/testAutomatedBrandLabShard'
+        db.execute('INSERT INTO TestCases VALUES(?)',(ui_id+'()',)); db.execute("INSERT INTO TestCaseRuns VALUES(1,'Success')")
+        db.execute("INSERT INTO Activities VALUES(1,NULL,'','')")
+        def chunk(kind,raw): return struct.pack('>I',len(raw))+kind+raw+struct.pack('>I',zlib.crc32(kind+raw)&0xffffffff)
+        png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',750,1334,8,0,0,0,0))+chunk(b'IDAT',zlib.compress(bytes(751*1334)))+chunk(b'IEND',b'')
+        exports=[]; (self.root/'s10-4-smoke-attachments').mkdir(); (dbpath.parent/'Data').mkdir()
+        for i,checkpoint in enumerate(p.SMOKE_CHECKPOINTS+['terminal'],1):
+            uuid=f'{i:08X}-AAAA-AAAA-AAAA-AAAAAAAAAAAA'; name='S10.4 minimum core smoke '+checkpoint
+            filename=uuid+'.png'; ref='payload'+str(i)
+            db.execute('INSERT INTO Attachments VALUES(?,?,?,NULL,1,?)',(uuid,name,'public.png',ref))
+            (self.root/'s10-4-smoke-attachments'/filename).write_bytes(png); (dbpath.parent/'Data'/('data.'+ref)).write_bytes(png)
+            exports.append(dict(suggestedHumanReadableName=name,exportedFileName=filename,isAssociatedWithFailure=False,deviceId=consumer['simulatorUDID']))
+        with (self.root/'ui-smoke.log').open('a',encoding='utf-8') as stream:
+            for e in exports: stream.write('\nFile: '+e['exportedFileName']+', suggested name: "'+e['suggestedHumanReadableName']+'"')
+        db.commit(); db.close()
+        self.put('s10-4-smoke-attachments/manifest.json',[dict(testIdentifier=ui_id+'()',attachments=exports)])
+        (self.root/'ui-final.png').write_bytes(png)
+        # Native identity/source gates have their independent tests; this fixture focuses
+        # on the new event, SQLite ownership and PNG proof, with real PNG validation.
+        checkout=next(parent for parent in Path(__file__).resolve().parents if (parent/'.git').exists())
+        raw=subprocess.check_output(['git','show','bba048eb06ecd97945b7f8cd4bede55371c41257:Scripts/s10-4-segment-assembler.sh'],cwd=checkout).decode()
+        body=raw.split("<<'S10_4_SHARED_SEGMENT_PY'\n",1)[1].split('\nS10_4_SHARED_SEGMENT_PY',1)[0]
+        assembler=types.ModuleType('fixture_assembler'); exec(body,assembler.__dict__)
+        fake=types.SimpleNamespace(UI_ID=ui_id,png=assembler.png,plan_context=lambda *a,**kw:{},native_ui=lambda *a:'D'*64)
+        return reference, fake
+
+    def proof(self, reference, fake):
+        with patch.dict(self.k,consumer_identity=lambda *a:None,smoke_kernel=lambda *a:fake):
+            return self.payload.smoke_proof(self.root,self.root,reference)
+
+    def test_original_checkpoint_sqlite_png_proof_is_not_full(self):
+        reference,fake=self.fixture(); result=self.proof(reference,fake)
+        self.assertTrue(result['smokeComplete']); self.assertEqual(result['checkpointCount'],6)
+        self.assertEqual(len(result['attachments']),7)
+        for key in ('fullMatrixEligible','fullShardComplete','fullSegmentComplete'): self.assertIs(result[key],False)
+
+    def test_missing_duplicate_reordered_wrong_head_and_native_failure_reject(self):
+        reference,fake=self.fixture(); path=self.root/'ui-smoke.log'; original=path.read_text(); lines=original.splitlines()
+        mutations=['\n'.join(lines[1:]),'\n'.join([lines[0]]+lines), '\n'.join([lines[1],lines[0]]+lines[2:]),
+                   original.replace(H,'2'*40),original.replace('capture-review','wrong'),original.replace('SUCCEEDED','FAILED'),
+                   original+'\nS10_MIGRATION_STATE state.welcome.empty']
+        for value in mutations:
+            with self.subTest(value=value[:90]):
+                path.write_text(value)
+                with self.assertRaises(self.payload.PayloadError): self.proof(reference,fake)
+        path.write_text(original)
+        self.put('ui-test-results.json',{'testNodes':[dict(nodeType='Failure Message',name='original native failure')]})
+        with self.assertRaises(self.payload.PayloadError): self.proof(reference,fake)
+
+    def test_duplicate_foreign_missing_corrupt_native_png_reject(self):
+        reference,fake=self.fixture(); path=self.root/'s10-4-smoke-attachments/manifest.json'; original=json.loads(path.read_text())
+        for mutate in ('duplicate','foreign','failed','missing'):
+            value=copy.deepcopy(original)
+            if mutate=='duplicate': value[0]['attachments'][1]=value[0]['attachments'][0]
+            elif mutate=='foreign': value[0]['attachments'][0]['deviceId']='foreign'
+            elif mutate=='failed': value[0]['attachments'][0]['isAssociatedWithFailure']=True
+            else: value[0]['attachments'].pop()
+            path.write_text(json.dumps(value))
+            with self.assertRaises(self.payload.PayloadError): self.proof(reference,fake)
+        path.write_text(json.dumps(original))
+        first=self.root/'s10-4-smoke-attachments'/original[0]['attachments'][0]['exportedFileName']
+        first.write_bytes(b'not png')
+        with self.assertRaises((self.payload.PayloadError,ValueError)): self.proof(reference,fake)
+
+    def test_stale_selection_wrong_source_and_false_units_reject(self):
+        reference,fake=self.fixture()
+        for bad in (dict(reference,source=dict(head='2'*40)),dict(reference,producerUnitTestCount=4),dict(reference,unitTestCount=True),dict(reference,productsUnchanged=False)):
+            with self.assertRaises(self.payload.PayloadError): self.proof(bad,fake)
+        path=self.root/'shared-producer/admission.json'; value=json.loads(path.read_text()); value['selection'].pop('nativeMode'); path.write_text(json.dumps(value))
+        with self.assertRaises(self.payload.PayloadError): self.proof(reference,fake)
+
+    def test_foreign_native_activity_failed_database_and_payload_missing_reject(self):
+        import sqlite3
+        reference,fake=self.fixture(); path=self.root/'UISmoke.xcresult/database.sqlite3'
+        for update,restore in [("UPDATE Activities SET testCaseRun_fk=99","UPDATE Activities SET testCaseRun_fk=1"),
+                ("UPDATE TestCaseRuns SET result='Failure'","UPDATE TestCaseRuns SET result='Success'"),
+                ("INSERT INTO ExpectedFailures VALUES('unexpected')","DELETE FROM ExpectedFailures")]:
+            db=sqlite3.connect(path); db.execute(update); db.commit(); db.close()
+            with self.assertRaises(self.payload.PayloadError): self.proof(reference,fake)
+            db=sqlite3.connect(path); db.execute(restore); db.commit(); db.close()
+        (self.root/'UISmoke.xcresult/Data/data.payload1').unlink()
+        with self.assertRaises(self.payload.PayloadError): self.proof(reference,fake)
+
+    def test_empty_referenced_native_payload_rejected(self):
+        reference,fake=self.fixture()
+        (self.root/'UISmoke.xcresult/Data/data.payload1').write_bytes(b'')
+        with self.assertRaisesRegex(self.payload.PayloadError,'payload absent or empty'):
+            self.proof(reference,fake)
+
+    def test_consumer_facts_retains_smoke_events_and_never_promotes(self):
+        # Exercise the actual factual-consumer/parser seam, not smoke_proof alone.
+        # The independent producer/source admission boundary is synthetic here;
+        # all command, hash, isolation, native identity and marker parsing below run.
+        import shlex
+        reference,fake=self.fixture(); c=reference['consumer']
+        c.update(runID=3,runAttempt=1,jobID=4,runnerName='synthetic-runner',isolationID='E'*8+'-EEEE-EEEE-EEEE-'+'E'*12)
+        products={'synthetic':True}; qualification={'syntheticFiveUnitBoundary':True}
+        identity=dict(source=reference['source'],products=products)
+        reference.update(products=products,sharedBuildIdentitySHA256=self.payload.object_sha(identity),
+                         producerQualificationSHA256=self.payload.object_sha(qualification),xctestrunPath='/synthetic/Smoke.xctestrun')
+        isolation=dict(createdByThisJob=True,preexistingDevice=False,**{key:c[key] for key in ('runID','jobID','simulatorUDID','isolationID')})
+        reference['isolationReceiptSHA256']=ci.digest(ci.canonical(isolation))
+        command=['xcodebuild','-xctestrun',reference['xctestrunPath'],'-destination','platform=iOS Simulator,id='+c['simulatorUDID'],
+                 '-resultBundlePath','/synthetic/UISmoke.xcresult','CODE_SIGNING_ALLOWED=NO',
+                 '-only-testing:FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests','test-without-building']
+        reference['uiCommand']=command
+        self.put('shared-consumer/consumer-build-reference.json',reference)
+        self.put('s10-4-shared-isolation.json',isolation)
+        self.put('s10-4-shared-ui-command.json',command)
+        self.put('shared-producer/shared-build-seal.json',dict(sharedBuildIdentity=identity,producerQualificationSHA256=reference['producerQualificationSHA256']))
+        path=self.root/'ui-smoke.log'; log='Command line invocation:\n'+shlex.join(command)+'\n'+path.read_text(encoding='utf-8'); path.write_text(log,encoding='utf-8',newline='\n')
+        device=dict(simulatorName='iPhone SE (3rd generation)',simulatorRuntime='iOS 18.0',simulatorRuntimeBuild='22A3351')
+        native=dict(testNodes=[dict(nodeType='Test Case',nodeIdentifier=fake.UI_ID+'()',result='Passed')],
+                    devices=[dict(deviceId=c['simulatorUDID'],deviceName=device['simulatorName'],osVersion='18.0',osBuildNumber='22A3351',architecture='arm64',platform='iOS Simulator')])
+        self.put('ui-test-results.json',native)
+        source=types.SimpleNamespace(root=self.root,head=H,identity=reference['source'],payload=self.payload,assembler=fake,
+                                     context=lambda sid:dict(minimum=True,device=device,segments=[]))
+        selected=dict(shardID=SHARD,segmentID='none',nativeMode=self.payload.SMOKE_ID,
+                      inputs=dict(s10_4_minimum_core_smoke_id=self.payload.SMOKE_ID))
+        jobs=[dict(id=4,head_sha=H,run_id=3,runner_name=c['runnerName'],conclusion='success')]
+        with patch.object(self.payload,'consumer_identity',return_value=None), patch.object(self.payload,'qualification',return_value=qualification):
+            result=ci.consumer_facts(source,self.root,selected,3,jobs,'success')
+            self.assertEqual(result['smokeCheckpointCount'],6)
+            self.assertEqual(len(result['nativeEvents']['S10_4_MINIMUM_CORE_SMOKE_COMPLETE']),1)
+            self.assertTrue(result['consumerReferenceVerified'])
+            self.assertFalse(result['smokeComplete']); self.assertFalse(result['fullShardComplete']); self.assertFalse(result['fullSegmentComplete'])
+            self.assertEqual(result['gaps'],[])
+            path.write_text(log+'\nS10_4_AX_STATE {}',encoding='utf-8',newline='\n')
+            with self.assertRaises(ci.Rejected): ci.consumer_facts(source,self.root,selected,3,jobs,'success')
+            # Failed partial execution remains factual and never becomes a success.
+            partial='\n'.join(line for line in log.splitlines() if not line.startswith('S10_4_MINIMUM_CORE_SMOKE_COMPLETE'))
+            partial=partial.replace('** TEST EXECUTE SUCCEEDED **','** TEST EXECUTE FAILED **')
+            path.write_text(partial,encoding='utf-8',newline='\n'); native['testNodes'][0]['result']='Failed'; self.put('ui-test-results.json',native)
+            failed=ci.consumer_facts(source,self.root,selected,3,[dict(jobs[0],conclusion='failure')],'failure')
+            self.assertFalse(failed['smokeComplete']); self.assertFalse(failed['fullShardComplete'])
+            self.assertEqual(failed['smokeCheckpointCount'],6); self.assertTrue(failed['gaps'])
 
 
 if __name__ == '__main__':

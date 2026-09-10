@@ -40,6 +40,13 @@ if ! [[ "$selected_test_class" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || \
   exit 65
 fi
 
+python3 - <<'S10_4_SMOKE_ENV'
+import os, runpy
+from pathlib import Path
+k=runpy.run_path('Scripts/s10-4-build-payload.py')
+k['smoke_environment'](os.environ,Path.cwd(),os.environ.get('WORKER_S10_4_MINIMUM_CORE_SMOKE_ID','none'))
+S10_4_SMOKE_ENV
+
 diagnostic_probe_id="${CI_S10_4_DIAGNOSTIC_PROBE_ID:-none}"
 diagnostic_mode=false
 case "$diagnostic_probe_id" in
@@ -242,6 +249,8 @@ def validate_shared(environment, script_role):
         expected_launch_keys = {"TEST_RUNNER_" + key for key in expected if key.startswith("CI_S10_4_")}
         if minimum_segment != "none":
             expected_launch_keys.update("TEST_RUNNER_" + key for key in minimum_keys)
+        if e.get("WORKER_S10_4_MINIMUM_CORE_SMOKE_ID", "none") != "none":
+            expected_launch_keys.update("TEST_RUNNER_CI_S10_4_MINIMUM_CORE_SMOKE_" + suffix for suffix in ("ID", "HEAD", "REF", "EXECUTION_LANE"))
         require({key for key in e if key.startswith("TEST_RUNNER_CI_S10_4_")} == expected_launch_keys, "closed UI launch keys")
 
     temporary_root = Path(e.get("RUNNER_TEMP", ""))
@@ -1373,6 +1382,7 @@ fi
 
 if ! selected_attachment="$(
   jq -er \
+    --arg smokeID "${WORKER_S10_4_MINIMUM_CORE_SMOKE_ID:-none}" \
     --arg selectedTestClass "$selected_test_class" '
       if type != "array"
       then error("attachment manifest root must be an array")
@@ -1397,6 +1407,8 @@ if ! selected_attachment="$(
               and .isAssociatedWithFailure == false
               and (.suggestedHumanReadableName | type == "string")
               and (.suggestedHumanReadableName | length) > 0
+              and ($smokeID == "none" or .suggestedHumanReadableName == "S10.4 minimum core smoke terminal"
+                   or (.suggestedHumanReadableName | test("^S10[.]4 minimum core smoke terminal_0_[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}[.]png$")))
               and (.exportedFileName | type == "string")
               and (.exportedFileName | length > 4)
               and (.exportedFileName | endswith(".png"))

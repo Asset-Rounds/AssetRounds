@@ -1494,5 +1494,33 @@
         ]
       }
     ]
+  },
+  "minimumCoreSmoke": {
+    "schemaVersion": 1,
+    "contractID": "s10.4.minimum-core-smoke.v1",
+    "shardID": "s10.4.minimum.minimum-os",
+    "ordinal": 8,
+    "segmentID": "none",
+    "executionLane": "github-xcode-26.6-shared-build-acceptance",
+    "runnerProvider": "github",
+    "proofKind": "functional-smoke",
+    "checkpointCount": 6,
+    "checkpointIDs": [
+      "launch",
+      "sign-saved",
+      "capture-review",
+      "report-saved",
+      "report-reopened",
+      "settings"
+    ],
+    "nativeEnvironmentKeys": [
+      "CI_S10_4_MINIMUM_CORE_SMOKE_ID",
+      "CI_S10_4_MINIMUM_CORE_SMOKE_HEAD",
+      "CI_S10_4_MINIMUM_CORE_SMOKE_REF",
+      "CI_S10_4_MINIMUM_CORE_SMOKE_EXECUTION_LANE"
+    ],
+    "fullMatrixEligible": false,
+    "fullShardComplete": false,
+    "fullSegmentComplete": false
   }
 }
