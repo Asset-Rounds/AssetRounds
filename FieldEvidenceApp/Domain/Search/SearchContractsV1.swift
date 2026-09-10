@@ -72,6 +72,7 @@ enum SearchContractFailureV1: Error, Equatable, Sendable {
     case invalidSmartView
     case builtInViewMutation
     case limitExceeded
+    case incompatibleDerivedNormalization
 }
 
 enum SearchContractLimitsV1 {
@@ -719,6 +720,7 @@ enum SearchSortV1: String, CaseIterable, Codable, Hashable, Sendable {
     case oldestFirst = "OLDEST_FIRST"
     case statusThenStableID = "STATUS_THEN_STABLE_ID"
     case dueDateThenStableID = "DUE_DATE_THEN_STABLE_ID"
+    case localizedDisplayIdentity = "LOCALIZED_DISPLAY_IDENTITY"
 }
 
 struct SearchQueryPlanV1: Codable, Equatable, Sendable {
@@ -726,6 +728,9 @@ struct SearchQueryPlanV1: Codable, Equatable, Sendable {
     let schemaVersion: Int
     let query: String
     let normalizedTokens: [String]
+    /// Nil identifies a freshly-created compatibility plan using the exact
+    /// legacy V1 normalization algorithm; it is never relabeled as V30.
+    let globalizedNormalization: GlobalizedSearchDerivedNormalizationV1?
     let scope: SearchScopeV1
     let filters: [SearchFilterV1]
     let sort: SearchSortV1
@@ -736,6 +741,7 @@ struct SearchQueryPlanV1: Codable, Equatable, Sendable {
     init(
         query: String,
         normalizedTokens: [String],
+        globalizedNormalization: GlobalizedSearchDerivedNormalizationV1? = nil,
         scope: SearchScopeV1 = .all,
         filters: [SearchFilterV1] = [],
         sort: SearchSortV1 = .deterministicRelevance,
@@ -746,6 +752,7 @@ struct SearchQueryPlanV1: Codable, Equatable, Sendable {
         schemaVersion = Self.schemaVersion
         self.query = query
         self.normalizedTokens = normalizedTokens
+        self.globalizedNormalization = globalizedNormalization
         self.scope = scope
         self.filters = filters.sorted()
         self.sort = sort
@@ -764,13 +771,75 @@ struct SearchQueryPlanV1: Codable, Equatable, Sendable {
                 allowEmpty: true
               ),
               query.isEmpty == normalizedTokens.isEmpty,
-              SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens),
+              normalizedTokensAreValid,
               filters.count <= SearchContractLimitsV1.maximumFilters,
               Set(filters).count == filters.count,
               (1...500).contains(maximumResults) else {
             throw SearchContractFailureV1.invalidQuery
         }
         try filters.forEach { try $0.validate() }
+    }
+
+    private var normalizedTokensAreValid: Bool {
+        if let globalizedNormalization {
+            guard let queryMaterial = try? GlobalizedSearchNormalizationAlgorithmV1.queryMaterial(
+                from: globalizedNormalization.normalizedText
+            ) else {
+                return false
+            }
+            return globalizedNormalization.normalizedText.utf8.elementsEqual(
+                GlobalizedSearchNormalizationAlgorithmV1.normalizedText(from: query).utf8
+            )
+                && globalizedNormalization.tokens == normalizedTokens
+                && queryMaterial.tokens == globalizedNormalization.tokens
+                && queryMaterial.cjkRunCount == globalizedNormalization.cjkRunCount
+                && queryMaterial.cjkChunkCount == globalizedNormalization.cjkChunkCount
+                && (try? globalizedNormalization.validate(
+                    maximumTokens: SearchContractLimitsV1.maximumQueryTokens
+                )) != nil
+        }
+        return SearchContractValidationV1.normalizedTokensAreCanonical(normalizedTokens)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, query, normalizedTokens, globalizedNormalization
+        case scope, filters, sort, maximumResults, sourceRevision, permitsTypoSuggestions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw SearchContractFailureV1.unsupportedSchemaVersion
+        }
+        try self.init(
+            query: container.decode(String.self, forKey: .query),
+            normalizedTokens: container.decode([String].self, forKey: .normalizedTokens),
+            globalizedNormalization: container.decodeIfPresent(
+                GlobalizedSearchDerivedNormalizationV1.self,
+                forKey: .globalizedNormalization
+            ),
+            scope: container.decode(SearchScopeV1.self, forKey: .scope),
+            filters: container.decode([SearchFilterV1].self, forKey: .filters),
+            sort: container.decode(SearchSortV1.self, forKey: .sort),
+            maximumResults: container.decode(Int.self, forKey: .maximumResults),
+            sourceRevision: container.decode(UInt64.self, forKey: .sourceRevision),
+            permitsTypoSuggestions: container.decode(Bool.self, forKey: .permitsTypoSuggestions)
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try validate()
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(query, forKey: .query)
+        try container.encode(normalizedTokens, forKey: .normalizedTokens)
+        try container.encodeIfPresent(globalizedNormalization, forKey: .globalizedNormalization)
+        try container.encode(scope, forKey: .scope)
+        try container.encode(filters, forKey: .filters)
+        try container.encode(sort, forKey: .sort)
+        try container.encode(maximumResults, forKey: .maximumResults)
+        try container.encode(sourceRevision, forKey: .sourceRevision)
+        try container.encode(permitsTypoSuggestions, forKey: .permitsTypoSuggestions)
     }
 }
 
@@ -1022,7 +1091,12 @@ struct SearchIndexRevisionV1: Codable, Equatable, Hashable, Sendable {
     let generationID: UUID
     let projectionFormatVersion: Int
     let indexedCommitRevision: UInt64
-    init(workspaceID: UUID, generationID: UUID, projectionFormatVersion: Int = 1, indexedCommitRevision: UInt64) throws {
+    init(
+        workspaceID: UUID,
+        generationID: UUID,
+        projectionFormatVersion: Int = SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
+        indexedCommitRevision: UInt64
+    ) throws {
         guard workspaceID != SearchContractValidationV1.zeroUUID,
               generationID != SearchContractValidationV1.zeroUUID,
               projectionFormatVersion > 0 else { throw SearchContractFailureV1.invalidRevision }
@@ -1064,6 +1138,9 @@ struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
     let sourceRevision: UInt64
     let fieldID: String
     let normalizedTokens: [String]
+    /// Nil names a fresh compatibility row produced with the byte-exact legacy
+    /// algorithm. Non-nil rows contain the V30 derived algorithm receipt.
+    let globalizedNormalization: GlobalizedSearchDerivedNormalizationV1?
     let displayIdentity: String
     let locationBreadcrumb: [String]
     let status: String
@@ -1075,13 +1152,15 @@ struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
     init(
         workspaceID: UUID, sourceKind: SearchSourceKindV1, sourceStableID: String,
         sourceRevision: UInt64, fieldID: String, normalizedTokens: [String],
+        globalizedNormalization: GlobalizedSearchDerivedNormalizationV1? = nil,
         displayIdentity: String, locationBreadcrumb: [String], status: String,
         openWorkStableIDs: [String] = [], permittedSnippet: String? = nil,
         dueAt: Date? = nil, sourceTimestamp: Date
     ) throws {
         schemaVersion = Self.schemaVersion; self.workspaceID = workspaceID; self.sourceKind = sourceKind
         self.sourceStableID = sourceStableID; self.sourceRevision = sourceRevision; self.fieldID = fieldID
-        self.normalizedTokens = normalizedTokens; self.displayIdentity = displayIdentity
+        self.normalizedTokens = normalizedTokens; self.globalizedNormalization = globalizedNormalization
+        self.displayIdentity = displayIdentity
         self.locationBreadcrumb = locationBreadcrumb; self.status = status
         self.openWorkStableIDs = openWorkStableIDs.sorted(); self.permittedSnippet = permittedSnippet
         self.dueAt = dueAt
@@ -1096,8 +1175,7 @@ struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
               SearchContractValidationV1.validID(sourceStableID), SearchContractValidationV1.validID(fieldID),
               normalizedTokens.count <= SearchContractLimitsV1.maximumProjectionTokens,
               !normalizedTokens.isEmpty,
-              Set(normalizedTokens).count == normalizedTokens.count,
-              normalizedTokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken),
+              normalizedTokensAreValid,
               SearchContractValidationV1.validDisplayText(displayIdentity, maximumBytes: 240),
               locationBreadcrumb.count <= SearchContractLimitsV1.maximumBreadcrumbComponents,
               locationBreadcrumb.allSatisfy({ SearchContractValidationV1.validDisplayText($0, maximumBytes: 160) }),
@@ -1107,6 +1185,17 @@ struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
               permittedSnippet.map({ SearchContractValidationV1.validDisplayText($0, maximumBytes: SearchContractLimitsV1.maximumSnippetBytes) }) ?? true,
               dueAt.map(SearchContractValidationV1.validDate) ?? true,
               SearchContractValidationV1.validDate(sourceTimestamp) else { throw SearchContractFailureV1.invalidField }
+    }
+
+    private var normalizedTokensAreValid: Bool {
+        if let globalizedNormalization {
+            return globalizedNormalization.tokens == normalizedTokens
+                && (try? globalizedNormalization.validate(
+                    maximumTokens: SearchContractLimitsV1.maximumProjectionTokens
+                )) != nil
+        }
+        return Set(normalizedTokens).count == normalizedTokens.count
+            && normalizedTokens.allSatisfy(SearchContractValidationV1.isCanonicalSearchToken)
     }
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.projectionIdentity < rhs.projectionIdentity }
@@ -1127,7 +1216,7 @@ struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, workspaceID, sourceKind, sourceStableID, sourceRevision, fieldID
-        case normalizedTokens, displayIdentity, locationBreadcrumb, status, openWorkStableIDs
+        case normalizedTokens, globalizedNormalization, displayIdentity, locationBreadcrumb, status, openWorkStableIDs
         case permittedSnippet, dueAt, sourceTimestamp
     }
 
@@ -1143,6 +1232,10 @@ struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
             sourceRevision: container.decode(UInt64.self, forKey: .sourceRevision),
             fieldID: container.decode(String.self, forKey: .fieldID),
             normalizedTokens: container.decode([String].self, forKey: .normalizedTokens),
+            globalizedNormalization: container.decodeIfPresent(
+                GlobalizedSearchDerivedNormalizationV1.self,
+                forKey: .globalizedNormalization
+            ),
             displayIdentity: container.decode(String.self, forKey: .displayIdentity),
             locationBreadcrumb: container.decode([String].self, forKey: .locationBreadcrumb),
             status: container.decode(String.self, forKey: .status),
@@ -1151,6 +1244,26 @@ struct SearchIndexProjectionRecordV1: Codable, Equatable, Comparable, Sendable {
             dueAt: container.decodeIfPresent(Date.self, forKey: .dueAt),
             sourceTimestamp: container.decode(Date.self, forKey: .sourceTimestamp)
         )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try validate()
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(workspaceID, forKey: .workspaceID)
+        try container.encode(sourceKind, forKey: .sourceKind)
+        try container.encode(sourceStableID, forKey: .sourceStableID)
+        try container.encode(sourceRevision, forKey: .sourceRevision)
+        try container.encode(fieldID, forKey: .fieldID)
+        try container.encode(normalizedTokens, forKey: .normalizedTokens)
+        try container.encodeIfPresent(globalizedNormalization, forKey: .globalizedNormalization)
+        try container.encode(displayIdentity, forKey: .displayIdentity)
+        try container.encode(locationBreadcrumb, forKey: .locationBreadcrumb)
+        try container.encode(status, forKey: .status)
+        try container.encode(openWorkStableIDs, forKey: .openWorkStableIDs)
+        try container.encodeIfPresent(permittedSnippet, forKey: .permittedSnippet)
+        try container.encodeIfPresent(dueAt, forKey: .dueAt)
+        try container.encode(sourceTimestamp, forKey: .sourceTimestamp)
     }
 }
 
@@ -1184,20 +1297,38 @@ struct SearchIndexRebuildCheckpointV1: Codable, Equatable, Sendable {
         self.nextCanonicalOffset = nextCanonicalOffset
         self.projectedRecordCount = projectedRecordCount
         self.state = state
-        try validate()
+        try validateCurrent()
     }
 
-    func validate() throws {
+    var isCurrentFormat: Bool {
+        projectionFormatVersion == SearchPersistenceReleaseV1.derivedProjectionFormatVersion
+    }
+
+    func validateCurrent() throws {
         guard operationID != SearchContractValidationV1.zeroUUID,
               source.workspaceID != SearchContractValidationV1.zeroUUID,
               source.generationID != SearchContractValidationV1.zeroUUID,
-              projectionFormatVersion == SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
+              isCurrentFormat,
               nextCanonicalOffset >= 0,
               projectedRecordCount >= 0,
               projectedRecordCount <= SearchContractLimitsV1.maximumProjectionRecords else {
             throw SearchContractFailureV1.invalidRevision
         }
     }
+
+    func validateHistoricalLoad() throws {
+        guard operationID != SearchContractValidationV1.zeroUUID,
+              source.workspaceID != SearchContractValidationV1.zeroUUID,
+              source.generationID != SearchContractValidationV1.zeroUUID,
+              projectionFormatVersion > 0,
+              nextCanonicalOffset >= 0,
+              projectedRecordCount >= 0,
+              projectedRecordCount <= SearchContractLimitsV1.maximumProjectionRecords else {
+            throw SearchContractFailureV1.invalidRevision
+        }
+    }
+
+    func validate() throws { try validateCurrent() }
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, operationID, source, projectionFormatVersion
@@ -1206,17 +1337,17 @@ struct SearchIndexRebuildCheckpointV1: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        guard try container.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        guard schemaVersion == Self.schemaVersion else {
             throw SearchContractFailureV1.unsupportedSchemaVersion
         }
-        try self.init(
-            operationID: container.decode(UUID.self, forKey: .operationID),
-            source: container.decode(SearchSourceRevisionV1.self, forKey: .source),
-            projectionFormatVersion: container.decode(Int.self, forKey: .projectionFormatVersion),
-            nextCanonicalOffset: container.decode(Int.self, forKey: .nextCanonicalOffset),
-            projectedRecordCount: container.decode(Int.self, forKey: .projectedRecordCount),
-            state: container.decode(SearchIndexBuildStateV1.self, forKey: .state)
-        )
+        operationID = try container.decode(UUID.self, forKey: .operationID)
+        source = try container.decode(SearchSourceRevisionV1.self, forKey: .source)
+        projectionFormatVersion = try container.decode(Int.self, forKey: .projectionFormatVersion)
+        nextCanonicalOffset = try container.decode(Int.self, forKey: .nextCanonicalOffset)
+        projectedRecordCount = try container.decode(Int.self, forKey: .projectedRecordCount)
+        state = try container.decode(SearchIndexBuildStateV1.self, forKey: .state)
+        try validateHistoricalLoad()
     }
 }
 

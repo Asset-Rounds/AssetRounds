@@ -1415,15 +1415,17 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
             let operationalSuffix = fieldID == "status"
                 && snapshotBackupStaleIdentities.contains(identity)
                 ? " backup stale" : ""
+            let normalization = try GlobalizedSearchNormalizationServiceV1.normalizeProjectionText(
+                searchable + operationalSuffix
+            )
             return try SearchIndexProjectionRecordV1(
                 workspaceID: workspaceID,
                 sourceKind: value.kind,
                 sourceStableID: value.stableID,
                 sourceRevision: source.commitRevision,
                 fieldID: fieldID,
-                normalizedTokens: SearchCoordinatorV1.normalizedTokens(
-                    searchable + operationalSuffix
-                ),
+                normalizedTokens: normalization.tokens,
+                globalizedNormalization: normalization,
                 displayIdentity: value.display,
                 locationBreadcrumb: value.breadcrumb,
                 status: value.status,
@@ -1992,7 +1994,10 @@ struct ProductionSearchServicesV1 {
         )
         self.source = source
         registry = source.registry
-        searchCoordinator = SearchCoordinatorV1(index: store)
+        searchCoordinator = SearchCoordinatorV1(
+            index: store,
+            displayLocaleIdentifier: Locale.current.identifier
+        )
         rebuildCoordinator = try SearchIndexRebuildCoordinatorV1(
             store: store,
             source: source,

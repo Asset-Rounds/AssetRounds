@@ -46,9 +46,16 @@ struct SearchCoordinatorV1: Sendable {
     }
 
     private let index: any SearchIndexSnapshotProvidingV1
+    private let displayLocaleIdentifier: String
 
-    init(index: any SearchIndexSnapshotProvidingV1) {
+    /// Collation is a presentation input. It never changes index normalization,
+    /// canonical identities, or the locale-independent relevance ordering.
+    init(
+        index: any SearchIndexSnapshotProvidingV1,
+        displayLocaleIdentifier: String = "en_US"
+    ) {
         self.index = index
+        self.displayLocaleIdentifier = displayLocaleIdentifier
     }
 
     func makePlan(
@@ -60,13 +67,15 @@ struct SearchCoordinatorV1: Sendable {
         sourceRevision: UInt64,
         permitsTypoSuggestions: Bool = true
     ) throws -> SearchQueryPlanV1 {
-        let normalizedTokens = Self.normalizedTokens(query)
+        let material = try GlobalizedSearchNormalizationServiceV1.normalizeQuery(query)
+        let normalizedTokens = material.tokens
         guard !normalizedTokens.isEmpty || !filters.isEmpty || sort == .mostRecent else {
             throw SearchContractFailureV1.invalidQuery
         }
         return try SearchQueryPlanV1(
             query: query,
             normalizedTokens: normalizedTokens,
+            globalizedNormalization: material,
             scope: scope,
             filters: filters,
             sort: sort,
@@ -110,6 +119,9 @@ struct SearchCoordinatorV1: Sendable {
 
         let projection = try await index.projection(for: source, registry: registry)
         try Task.checkCancellation()
+        let queryMaterial = try plan.globalizedNormalization
+            ?? GlobalizedSearchNormalizationServiceV1.normalizeQuery(plan.query)
+        let legacyQueryTokens = Self.normalizedTokens(plan.query)
 
         var bestByCanonicalIdentity: [String: Candidate] = [:]
         var inspected = 0
@@ -118,7 +130,12 @@ struct SearchCoordinatorV1: Sendable {
             if inspected.isMultiple(of: 128) { try Task.checkCancellation() }
             guard plan.scope.contains(record.sourceKind),
                   Self.passes(plan.filters, record: record),
-                  let tier = Self.matchTier(plan: plan, record: record) else { continue }
+                  let tier = try Self.matchTier(
+                    plan: plan,
+                    record: record,
+                    queryMaterial: queryMaterial,
+                    legacyQueryTokens: legacyQueryTokens
+                  ) else { continue }
 
             let identity = record.sourceKind.rawValue + ":" + record.sourceStableID
             let candidate = Candidate(record: record, tier: tier)
@@ -151,7 +168,11 @@ struct SearchCoordinatorV1: Sendable {
                 indexRevision: projection.index.indexedCommitRevision
             )
         }
-        results.sort { Self.resultPrecedes($0, $1, sort: plan.sort) }
+        results.sort {
+            Self.resultPrecedes(
+                $0, $1, sort: plan.sort, displayLocaleIdentifier: displayLocaleIdentifier
+            )
+        }
         if results.count > plan.maximumResults {
             results.removeLast(results.count - plan.maximumResults)
         }
@@ -242,22 +263,62 @@ extension SearchCoordinatorV1 {
 private extension SearchCoordinatorV1 {
     static func matchTier(
         plan: SearchQueryPlanV1,
-        record: SearchIndexProjectionRecordV1
-    ) -> SearchMatchTierV1? {
-        if plan.normalizedTokens.isEmpty { return .normalizedExactToken }
-        let stableIdentity = normalize(record.sourceStableID)
-        let displayIdentity = normalize(record.displayIdentity)
-        let normalizedQuery = normalize(plan.query).trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalizedQuery == stableIdentity || normalizedQuery == displayIdentity {
+        record: SearchIndexProjectionRecordV1,
+        queryMaterial: GlobalizedSearchDerivedNormalizationV1,
+        legacyQueryTokens: [String]
+    ) throws -> SearchMatchTierV1? {
+        // Identity is byte-exact. A folded alias can produce a search hit, but
+        // cannot acquire the exact-identity tier or replace the returned ID.
+        if plan.query.utf8.elementsEqual(record.sourceStableID.utf8)
+            || plan.query.utf8.elementsEqual(record.displayIdentity.utf8) {
             return .exactStableOrDisplayIdentity
+        }
+        let queryTokens: [String]
+        let stableIdentity: String
+        let displayIdentity: String
+        let normalizedQuery: String
+        if record.globalizedNormalization != nil {
+            queryTokens = queryMaterial.tokens
+            stableIdentity = try GlobalizedSearchNormalizationServiceV1
+                .normalizeProjectionText(record.sourceStableID).normalizedText
+            displayIdentity = try GlobalizedSearchNormalizationServiceV1
+                .normalizeProjectionText(record.displayIdentity).normalizedText
+            normalizedQuery = queryMaterial.normalizedText
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            // A nil payload is the named legacy V1 policy, retained for fresh
+            // compatibility producers. Never compare current tokens to it.
+            queryTokens = legacyQueryTokens
+            stableIdentity = normalize(record.sourceStableID)
+            displayIdentity = normalize(record.displayIdentity)
+            normalizedQuery = normalize(plan.query)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if queryTokens.isEmpty {
+            return plan.query.isEmpty ? .normalizedExactToken : nil
+        }
+        if normalizedQuery == stableIdentity || normalizedQuery == displayIdentity {
+            return .normalizedExactToken
         }
 
         let recordTokens = record.normalizedTokens
         guard !recordTokens.isEmpty else { return nil }
         var worstTier = SearchMatchTierV1.normalizedExactToken
-        for queryToken in plan.normalizedTokens {
+        for queryToken in queryTokens {
             let tier: SearchMatchTierV1?
-            if recordTokens.contains(queryToken) {
+            if let material = record.globalizedNormalization,
+               GlobalizedSearchNormalizationServiceV1.containsCJK(queryToken) {
+                // Bounded CJK chunks are index storage, not an unordered
+                // character query. Match the whole phrase, including across
+                // a chunk boundary, against its full derived source text.
+                if !material.normalizedText.contains(queryToken) {
+                    tier = nil
+                } else if recordTokens.contains(queryToken) {
+                    tier = .normalizedExactToken
+                } else {
+                    tier = .substring
+                }
+            } else if recordTokens.contains(queryToken) {
                 tier = .normalizedExactToken
             } else if stableIdentity.hasPrefix(queryToken) || displayIdentity.hasPrefix(queryToken) {
                 tier = .prefix
@@ -315,9 +376,18 @@ private extension SearchCoordinatorV1 {
     static func resultPrecedes(
         _ lhs: SearchResultContextV1,
         _ rhs: SearchResultContextV1,
-        sort: SearchSortV1
+        sort: SearchSortV1,
+        displayLocaleIdentifier: String
     ) -> Bool {
         switch sort {
+        case .localizedDisplayIdentity:
+            return GlobalizedSearchNormalizationServiceV1.displayPrecedes(
+                lhsDisplay: lhs.displayIdentity, lhsStableID: lhs.stableID,
+                lhsKind: lhs.sourceKind,
+                rhsDisplay: rhs.displayIdentity, rhsStableID: rhs.stableID,
+                rhsKind: rhs.sourceKind,
+                localeIdentifier: displayLocaleIdentifier
+            )
         case .deterministicRelevance:
             if lhs.rankingKey != rhs.rankingKey {
                 return lhs.rankingKey < rhs.rankingKey
@@ -358,9 +428,41 @@ private extension SearchCoordinatorV1 {
         plan: SearchQueryPlanV1,
         records: [SearchIndexProjectionRecordV1]
     ) throws -> [SearchSuggestionV1] {
+        let currentMaterial = try plan.globalizedNormalization
+            ?? GlobalizedSearchNormalizationServiceV1.normalizeQuery(plan.query)
+        let current = try suggestionsForPolicy(
+            queryTokens: currentMaterial.tokens, scope: plan.scope,
+            records: records.filter { $0.globalizedNormalization != nil }
+        )
+        let legacy = try suggestionsForPolicy(
+            queryTokens: normalizedTokens(plan.query), scope: plan.scope,
+            records: records.filter { $0.globalizedNormalization == nil }
+        )
         var bestByToken: [String: SearchSuggestionV1] = [:]
-        let unmatchedQueryTokens = plan.normalizedTokens.filter { queryToken in
-            !records.lazy.filter({ plan.scope.contains($0.sourceKind) }).contains(where: { record in
+        for suggestion in current + legacy {
+            if let prior = bestByToken[suggestion.suggestedToken] {
+                if suggestion < prior { bestByToken[suggestion.suggestedToken] = suggestion }
+            } else {
+                bestByToken[suggestion.suggestedToken] = suggestion
+            }
+        }
+        return try SearchSuggestionV1.validatedSet(
+            Array(bestByToken.values.sorted().prefix(SearchContractLimitsV1.maximumSuggestions))
+        )
+    }
+
+    static func suggestionsForPolicy(
+        queryTokens: [String],
+        scope: SearchScopeV1,
+        records: [SearchIndexProjectionRecordV1]
+    ) throws -> [SearchSuggestionV1] {
+        var bestByToken: [String: SearchSuggestionV1] = [:]
+        let unmatchedQueryTokens = queryTokens.filter { queryToken in
+            // The existing suggestion contract is a legacy token contract.
+            // Preserve it and avoid inventing CJK spelling corrections.
+            SearchContractValidationV1.isCanonicalSearchToken(queryToken)
+                && !GlobalizedSearchNormalizationServiceV1.containsCJK(queryToken)
+                && !records.lazy.filter({ scope.contains($0.sourceKind) }).contains(where: { record in
                 record.normalizedTokens.contains(where: {
                     $0 == queryToken || $0.hasPrefix(queryToken) || $0.contains(queryToken)
                 })
@@ -368,11 +470,13 @@ private extension SearchCoordinatorV1 {
         }
         guard !unmatchedQueryTokens.isEmpty else { return [] }
         var inspected = 0
-        for record in records where plan.scope.contains(record.sourceKind) {
+        for record in records where scope.contains(record.sourceKind) {
             for candidate in record.normalizedTokens {
                 inspected += 1
                 if inspected.isMultiple(of: 256) { try Task.checkCancellation() }
-                guard !plan.normalizedTokens.contains(candidate) else { continue }
+                guard SearchContractValidationV1.isCanonicalSearchToken(candidate),
+                      !GlobalizedSearchNormalizationServiceV1.containsCJK(candidate),
+                      !queryTokens.contains(candidate) else { continue }
                 for queryToken in unmatchedQueryTokens {
                     let maximumDistance = maximumTypoDistance(forQueryToken: queryToken)
                     guard maximumDistance > 0,

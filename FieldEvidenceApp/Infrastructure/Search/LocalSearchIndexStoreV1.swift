@@ -250,18 +250,9 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
                     generationID: rebuildCheckpoint.source.generationID,
                     commitRevision: rebuildCheckpoint.source.commitRevision
                 )
-                let validatedCheckpoint = try SearchIndexRebuildCheckpointV1(
-                    operationID: rebuildCheckpoint.operationID,
-                    source: source,
-                    projectionFormatVersion: rebuildCheckpoint.projectionFormatVersion,
-                    nextCanonicalOffset: rebuildCheckpoint.nextCanonicalOffset,
-                    projectedRecordCount: rebuildCheckpoint.projectedRecordCount,
-                    state: rebuildCheckpoint.state
-                )
-                guard rebuildCheckpoint.projectedRecordCount == stagedRecords.count,
-                      validatedCheckpoint == rebuildCheckpoint,
-                      rebuildCheckpoint.projectionFormatVersion
-                        == SearchPersistenceReleaseV1.derivedProjectionFormatVersion,
+                try rebuildCheckpoint.validateHistoricalLoad()
+                guard source == rebuildCheckpoint.source,
+                      rebuildCheckpoint.projectedRecordCount == stagedRecords.count,
                       (stagedRecords.isEmpty || rebuildCheckpoint.nextCanonicalOffset > 0),
                       stagedRecords == stagedRecords.sorted(),
                       stagedRecords.allSatisfy({

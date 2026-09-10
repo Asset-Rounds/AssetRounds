@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "purpose": "Deterministic local-search normalization diagnostics; not a shipping localization catalog or language-release claim.",
+    "turkish": "Hostile Turkish dotted and dotless I coverage only; Turkish is not a required shipping locale.",
+    "arabic": "Hostile Arabic meaning-preservation coverage only; Arabic is not a shipping language claim.",
+    "canonical": "Stable IDs and raw source text are canonical fixture inputs. Normalization is derived and disposable."
+  },
+  "shippingCases": [
+    {
+      "id": "english-diacritic",
+      "languageTag": "en",
+      "stableID": "asset-en-cafe-pump",
+      "sourceText": "Café Pump",
+      "sourceUTF8ByteCount": 10,
+      "sourceSHA256": "07d696b4f81f183ca5689aa37d83ffb6653518f73fc6804ef9ebdb3a8a01014a",
+      "query": "cafe",
+      "expectedNormalizedText": "cafe pump",
+      "expectedTokens": ["cafe", "pump"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    },
+    {
+      "id": "spanish-diacritic",
+      "languageTag": "es",
+      "stableID": "asset-es-valvula",
+      "sourceText": "Revisión de válvula",
+      "sourceUTF8ByteCount": 21,
+      "sourceSHA256": "4f042bc8b797baff792427e64a9aa496853ec1a2c3a65bb40d496c65823a5c42",
+      "query": "valvula",
+      "expectedNormalizedText": "revision de valvula",
+      "expectedTokens": ["de", "revision", "valvula"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    },
+    {
+      "id": "simplified-chinese-contiguous",
+      "languageTag": "zh-Hans",
+      "stableID": "asset-zh-hans-pump-station",
+      "sourceText": "北京泵站检查",
+      "sourceUTF8ByteCount": 18,
+      "sourceSHA256": "a795235b782ff275d086cb6e9b2557c248fb516eadd4edff9e5851241e7666f8",
+      "query": "泵站",
+      "expectedNormalizedText": "北京泵站检查",
+      "expectedTokens": ["北京泵站检查"],
+      "expectedCJKRunCount": 1,
+      "expectedCJKChunkCount": 1
+    },
+    {
+      "id": "traditional-chinese-contiguous",
+      "languageTag": "zh-Hant",
+      "stableID": "asset-zh-hant-pump",
+      "sourceText": "臺北幫浦檢查",
+      "sourceUTF8ByteCount": 18,
+      "sourceSHA256": "e14a4699af4afd3df9566b06e7f2f3090908478a2de8344479b96c61f4547203",
+      "query": "幫浦",
+      "expectedNormalizedText": "臺北幫浦檢查",
+      "expectedTokens": ["臺北幫浦檢查"],
+      "expectedCJKRunCount": 1,
+      "expectedCJKChunkCount": 1
+    },
+    {
+      "id": "vietnamese-diacritic",
+      "languageTag": "vi",
+      "stableID": "asset-vi-pump",
+      "sourceText": "Kiểm tra máy bơm",
+      "sourceUTF8ByteCount": 20,
+      "sourceSHA256": "1fdeb06848fe0a2b2e1c7ffec38f2e50c538205d46016600edf3d02213599d08",
+      "query": "kiem",
+      "expectedNormalizedText": "kiem tra may bom",
+      "expectedTokens": ["bom", "kiem", "may", "tra"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    },
+    {
+      "id": "korean-canonical-composition",
+      "languageTag": "ko",
+      "stableID": "asset-ko-hangul-pump",
+      "sourceText": "한글 펌프",
+      "sourceUTF8ByteCount": 19,
+      "sourceSHA256": "0806c99d482427c479c22508175ed7d7255eb27bca9cefe64b85cf6611e1d085",
+      "query": "한글",
+      "expectedNormalizedText": "한글 펌프",
+      "expectedTokens": ["펌프", "한글"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    }
+  ],
+  "hostileCases": [
+    {
+      "id": "turkish-dotless-i",
+      "languageTag": "tr",
+      "stableID": "asset-tr-dotless-kirik",
+      "sourceText": "Kırık",
+      "sourceUTF8ByteCount": 7,
+      "sourceSHA256": "3506d6a13d1e8a828f126328e505550e751d38931694338452801eb514eddfcf",
+      "query": "kırık",
+      "nonMatchingQuery": "kirik",
+      "expectedNormalizedText": "kırık",
+      "expectedTokens": ["kırık"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    },
+    {
+      "id": "turkish-root-i",
+      "languageTag": "tr",
+      "stableID": "asset-tr-root-izmir",
+      "sourceText": "Izmir",
+      "sourceUTF8ByteCount": 5,
+      "sourceSHA256": "2baa66f3094b4398b7b39357c6dde9b182eda6407c7ec600cf4ec44f46f584e2",
+      "query": "izmir",
+      "expectedNormalizedText": "izmir",
+      "expectedTokens": ["izmir"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    },
+    {
+      "id": "turkish-dotted-i",
+      "languageTag": "tr",
+      "stableID": "asset-tr-dotted-izmir",
+      "sourceText": "İzmir",
+      "sourceUTF8ByteCount": 6,
+      "sourceSHA256": "03b3d656a94de9ba4cb124875e1ff1abf37a28439e5fec1d1d5468ee0176342e",
+      "query": "izmir",
+      "expectedNormalizedText": "izmir",
+      "expectedTokens": ["izmir"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    },
+    {
+      "id": "arabic-flag",
+      "languageTag": "ar",
+      "stableID": "asset-ar-flag",
+      "sourceText": "عَلَم",
+      "sourceUTF8ByteCount": 10,
+      "sourceSHA256": "979dc040b1be0b18ff9a892fff48dc16741357038cf3c3797e494b4b34645aa2",
+      "query": "عَلَم",
+      "nonMatchingQuery": "عِلْم",
+      "expectedNormalizedText": "عَلَم",
+      "expectedTokens": ["عَلَم"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    },
+    {
+      "id": "arabic-knowledge",
+      "languageTag": "ar",
+      "stableID": "asset-ar-knowledge",
+      "sourceText": "عِلْم",
+      "sourceUTF8ByteCount": 10,
+      "sourceSHA256": "959f081d0f85f6fc352ac3fae7bfa124dbc18870b6a4ec79208c0ce6824e8f2b",
+      "query": "عِلْم",
+      "nonMatchingQuery": "عَلَم",
+      "expectedNormalizedText": "عِلْم",
+      "expectedTokens": ["عِلْم"],
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0
+    }
+  ],
+  "cjkMeasurement": {
+    "sourceText": "一丁丂七丄丅丆万丈三上下丌不与丏丐丑丒专且丕世丗丘丙业丛东丝丞丟丠両丢丣两严並丧丨丩个",
+    "sourceUTF8ByteCount": 129,
+    "sourceSHA256": "e586ef68621f91cec2ef579c8937e3b65e41f579e08260e0010be4dd7962ab79",
+    "stableID": "asset-cjk-boundary",
+    "crossChunkQuery": "丟丠",
+    "nonMatchingQuery": "丠丟",
+    "expectedCJKRunCount": 1,
+    "expectedCJKChunkCount": 2
+  },
+  "stableTie": {
+    "displayIdentity": "Café Pump",
+    "stableIDs": ["asset-stable-a", "asset-stable-b"],
+    "expectedOrder": ["asset-stable-a", "asset-stable-b"]
+  }
+}

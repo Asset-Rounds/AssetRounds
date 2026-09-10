@@ -1858,6 +1858,137 @@ private final class V30P01C05BackupCanonicalIdentityRestoreTests: XCTestCase {
 
 
 extension S6_4AtomicRestoreTests {
+
+    @MainActor
+    func testV30RestoreDropsDerivedSearchThenRebuildsUnicodeFromRestoredCanonicalRows() async throws {
+        let assetLabel = "Café 漢字 한 مرحبا"
+        let siteAddress = "東京 ١٢٣"
+        let harness = try makeHarness("v30-globalized-search-restore")
+        defer { try? fileManager.removeItem(at: harness.root) }
+
+        let registry = try SearchIndexRebuildCoordinatorV1.makeRegistry()
+        let staleSource = try SearchSourceRevisionV1(
+            workspaceID: harness.session.workspaceIdentity.workspaceID.rawValue,
+            generationID: harness.session.generationID,
+            commitRevision: 1
+        )
+        let staleMaterial = try GlobalizedSearchNormalizationServiceV1
+            .normalizeProjectionText("stale Café")
+        let staleRecord = try SearchIndexProjectionRecordV1(
+            workspaceID: staleSource.workspaceID,
+            sourceKind: .asset,
+            sourceStableID: "stale-asset",
+            sourceRevision: staleSource.commitRevision,
+            fieldID: "asset_label",
+            normalizedTokens: staleMaterial.tokens,
+            globalizedNormalization: staleMaterial,
+            displayIdentity: "stale Café",
+            locationBreadcrumb: [],
+            status: "active",
+            sourceTimestamp: Date(timeIntervalSince1970: 1_786_708_700)
+        )
+        let seededIndex = try LocalSearchIndexStoreV1(applicationSupportURL: harness.support)
+        try await seededIndex.replaceProjection(
+            source: staleSource,
+            records: [staleRecord],
+            registry: registry
+        )
+        let seededRevision = try await seededIndex.revision()
+        XCTAssertEqual(
+            seededRevision?.projectionFormatVersion,
+            SearchPersistenceReleaseV1.derivedProjectionFormatVersion
+        )
+        let seededProjection = try await seededIndex.projection(
+            for: staleSource,
+            registry: registry
+        )
+        XCTAssertEqual(seededProjection.records.first?.globalizedNormalization, staleMaterial)
+
+        let package = try makeSourcePackage(
+            in: harness.root,
+            name: "globalized-search-source",
+            siteAddress: siteAddress
+        ) { source in
+            let asset = try XCTUnwrap(
+                try source.modelContext.fetch(FetchDescriptor<Asset>()).first
+            )
+            asset.label = assetLabel
+        }
+        let validated = try importPackage(package, into: harness.session)
+        let restored = try await BackupRestoreService(
+            applicationSupportURL: harness.support,
+            makeUUID: sequence([
+                uuid("64000000-0000-0000-0000-00000000c501"),
+                uuid("64000000-0000-0000-0000-00000000c502")
+            ])
+        ).restore(
+            validatedPackage: validated,
+            currentModelContext: harness.session.modelContext,
+            currentGenerationID: harness.session.generationID,
+            currentGenerationRootURL: harness.session.generationRootURL
+        )
+
+        let droppedIndex = try LocalSearchIndexStoreV1(applicationSupportURL: harness.support)
+        let droppedRevision = try await droppedIndex.revision()
+        XCTAssertNil(droppedRevision)
+
+        let restoredAsset = try XCTUnwrap(
+            try restored.modelContext.fetch(FetchDescriptor<Asset>()).first
+        )
+        XCTAssertEqual(Array(restoredAsset.label.utf8), Array(assetLabel.utf8))
+        XCTAssertEqual(
+            Array(restoredAsset.id.uuidString.lowercased().utf8),
+            Array("64000000-0000-0000-0000-000000000002".utf8)
+        )
+        let restoredSite = try XCTUnwrap(
+            try restored.modelContext.fetch(FetchDescriptor<Site>()).first
+        )
+        XCTAssertEqual(Array(try XCTUnwrap(restoredSite.address).utf8), Array(siteAddress.utf8))
+
+        let restoredRevision = try SearchSourceRevisionV1(
+            workspaceID: restored.workspaceIdentity.workspaceID.rawValue,
+            generationID: restored.generationID,
+            commitRevision: 42
+        )
+        let canonicalSource = try SwiftDataSearchCanonicalProjectionSourceV1(
+            modelContext: restored.modelContext,
+            workspaceID: restoredRevision.workspaceID,
+            generationID: restoredRevision.generationID,
+            revisionProvider: { restoredRevision }
+        )
+        let rebuilder = try SearchIndexRebuildCoordinatorV1(
+            store: droppedIndex,
+            source: canonicalSource,
+            registry: canonicalSource.registry,
+            privateSystemDiscoveryIndex: nil,
+            privateSystemDiscoverySource: nil
+        )
+        let result = try await rebuilder.rebuildIfNeeded()
+        XCTAssertEqual(result.disposition, .absentBuild)
+        let rebuilt = try await droppedIndex.projection(
+            for: restoredRevision,
+            registry: canonicalSource.registry
+        )
+        let rebuiltAssetLabel = try XCTUnwrap(rebuilt.records.first {
+            $0.sourceKind == .asset && $0.fieldID == "asset_label"
+        })
+        XCTAssertEqual(
+            Array(rebuiltAssetLabel.displayIdentity.utf8),
+            Array(assetLabel.utf8)
+        )
+        let expectedStableID = try WorkspaceEntityIdentityV1(
+            kind: .asset,
+            id: restoredAsset.id
+        ).stableKey
+        XCTAssertEqual(
+            Array(rebuiltAssetLabel.sourceStableID.utf8),
+            Array(expectedStableID.utf8)
+        )
+        XCTAssertEqual(
+            rebuiltAssetLabel.globalizedNormalization,
+            try GlobalizedSearchNormalizationServiceV1.normalizeProjectionText(assetLabel)
+        )
+    }
     @MainActor
     func testV30UnicodeAtomicRestorePreservesExactUTF8ForAuthoredLabelsAndAddress() async throws {
         let siteLabel = "Cafe\u{301} café 👩🏽‍🔧 漢字 한 مرحبا\u{200F}"

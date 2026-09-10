@@ -5,7 +5,7 @@ enum SearchPersistenceReleaseV1: Int, Codable, CaseIterable, Sendable {
     case v7 = 7
     static let predecessorSchemaVersion = 6
     static let canonicalSemanticLabel = "SMART_VIEW_DESCRIPTOR_V1"
-    static let derivedProjectionFormatVersion = 1
+    static let derivedProjectionFormatVersion = 2
 }
 
 /// C38 keeps accountability rows in the same disposable derived index as the
