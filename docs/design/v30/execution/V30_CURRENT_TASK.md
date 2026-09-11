@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 21 of 55 - Language & Region Settings and report-language controls
+Card 22 of 55 - Authored-content and template-language model
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Add localized effective app-language/region display, iOS Settings handoff, truthful unsupported-language fallback, independent report-language selection, and clear language-versus-jurisdiction explanation.",
+    "required": "Distinguish app UI, admin templates, instructions, inspector/customer evidence, derived translations, report chrome, and licensed jurisdiction content. Preserve source and invalidate derived translations after edit/redaction.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "ccf39e0e3eaa74bbc5ad4ee64372f10101f38b4a",
-    "tree": "69048994543c2634af1d61287b12b18d4c80054c"
+    "head": "60815291c28d232c021274fddd352fbe293296ef",
+    "tree": "765ec10f2e1034f25b7fe91646d0bb34482ed886"
   },
-  "cardID": "V30-P02-C07",
+  "cardID": "V30-P03-C01",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,9 +33,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P01-C06",
-    "V30-P01-C07",
-    "V30-P02-C04"
+    "V30-P01-C04",
+    "V30-P02-C02"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -76,134 +75,161 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Features/Settings/GlobalizationSettingsViewV1.swift",
-        "purpose": "Localized effective-language/region and report-language settings view.",
+        "path": "FieldEvidenceApp/Domain/Globalization/AuthoredContentLanguageContractsV1.swift",
+        "purpose": "App/UI/template/evidence/derived-translation/report-chrome content-language distinctions.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Domain/Reporting/ReportLanguageContractsV1.swift",
-        "purpose": "Independent report-language selection contracts.",
+        "path": "FieldEvidenceApp/Application/Globalization/AuthoredContentLanguageCoordinatorV1.swift",
+        "purpose": "Source preservation and derived-translation invalidation coordinator.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Application/Reporting/ReportLanguageCoordinatorV1.swift",
-        "purpose": "Report-language and jurisdiction disclosure coordinator.",
+        "path": "FieldEvidenceAppTests/V30_P03_C01AuthoredContentLanguageTests.swift",
+        "purpose": "Edit/redaction/source/derived-language lifecycle tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P02_C07LanguageRegionSettingsTests.swift",
-        "purpose": "Language, region, report-language, and jurisdiction-separation tests.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/AuthoredContent/authored-content-language-cases-v1.json",
+        "purpose": "Authored-content language fixtures.",
         "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "f28f90aa7b8b19519412ed879788166d01309008",
-        "expectedBSHA256": "8e9814f0a5164b72aea2ba7f7b710e2bd4b20f1b14a3f6ee9306047218a2505d",
-        "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
-        "purpose": "Add typed language/region/report-language preference semantics to existing settings contracts.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "cbcdfe1281de6e98af13f1b12a0e32a6c7b9967b",
-        "expectedBSHA256": "b7ae0570ef54ba29ddb7c308b3f5236e03045297abddc18c3be99ad0b77d0e12",
-        "path": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
-        "purpose": "Persist allowed device-local language/report preferences through the existing adapter.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "b311e66b05b19078c9823b59c91c1f9c81964d49",
-        "expectedBSHA256": "ddb2bb5579ec9c091f268f09a3552b00318165e44e31f87940931acb8029e2f6",
-        "path": "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
-        "purpose": "Expose typed language/region settings capability through the established port.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "8cd93ce082652e054201409787ba27fb82c63013",
-        "expectedBSHA256": "5d1982421bea62d1ec5339f5a279b6f1f552afa8d90f7dc16f01e389b575dc4f",
-        "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
-        "purpose": "Bind Settings effective language to existing catalog/fallback contracts.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "66b140364dbe91ac14a57aa49a9ace8cb9a51140",
-        "expectedBSHA256": "c52cfb7a59f8a016c0a5b4dfb9e2b55a09ec73a94411eb3f09e1039c05ca5788",
-        "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
-        "purpose": "Resolve effective language and localized settings labels through the existing catalog.",
-        "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
         "expectedBBlobOID": "19f52a71cb2ded5ac20912bb8634263e7ace1ed6",
         "expectedBSHA256": "a0065b15ef7059867bb00377bd5b97cbcd2e9ac98c74ea0e154297410773f8bb",
         "path": "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
-        "purpose": "Add independent report-language selection to existing document contracts.",
+        "purpose": "Distinguish authored/source/derived/report-chrome language in existing document contracts.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0a1849d7f3957676e55a017661a73c3d5a1c81f5",
-        "expectedBSHA256": "f9c9b25e7b682586a22591fe2c3905055262a139a1c1506f5bcab0d0def82f75",
-        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
-        "purpose": "Select explicit report language/formatting at the existing render seam.",
+        "expectedBBlobOID": "63991694cff079b0fe82f1ba941c15bf8dde2ffb",
+        "expectedBSHA256": "faedec6276ef31928285437f049ea1ca34c4cacc35e52ccdcde10dc3d0c0c9c5",
+        "path": "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift",
+        "purpose": "Preserve source evidence and historical report snapshot identity across derived translations.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "5319ade880b0d30fecb7cc84adc5033b042c536a",
+        "expectedBSHA256": "7e75d221f29fbf8b7812bcbae7680098758b071e850c7fd45eddf64fbe0e62b2",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+        "purpose": "Register language provenance without creating a parallel report projection path.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c428c9c4f9128188bb9126d08df2fdab39fe71f3",
+        "expectedBSHA256": "84cc28ffe7b87eee1459002852a04f8cca701af8726a94ca5bf032e0407759a1",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+        "purpose": "Invalidate derived translations after canonical edit/redaction through the actual writer boundary.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "28e7f335a3337fb6e353a94181e67daab40b0a50",
-        "expectedBSHA256": "b4b2627fe05210957e51e54a48841b0cd3b385bf1ba6a384e94e3f6b9a75ecf7",
-        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
-        "purpose": "Preserve explicit report language through existing delivery behavior.",
+        "expectedBBlobOID": "ec7e9e1b615baa46195e1b56c1b69bd9b06a03cf",
+        "expectedBSHA256": "c67a1362ecf340894d359affb6b4ffba52768c77f4e08d16ae913bfc0b61d19f",
+        "path": "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift",
+        "purpose": "Preserve authored/source/derived content provenance through the established content contract.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c7d11749e5e30978a538fad5480fec87a19b9fbb",
+        "expectedBSHA256": "29a7de7e0efdf546ba87674f5730b62e07f8d5a6329fc93852fc675da0a613cd",
+        "path": "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift",
+        "purpose": "Bind template/instruction language to the existing survey definition contract.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
-        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
-        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-        "purpose": "Wire only the Globalization Settings route; preserve Phase10 shell navigation/brand composition.",
+        "expectedBBlobOID": "d4a23964c37b46d021c758a05a16b1510b4d0038",
+        "expectedBSHA256": "e012379cfaf64f4dc2315e32e1dc4584029fabcd9ddac0becca6306d8e1ef237",
+        "path": "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift",
+        "purpose": "Register content-language provenance through the existing content registry.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "ab0cd81f65c9822d53505491697f91d0de9d15b1",
+        "expectedBSHA256": "62b1fd6dfefae68ec6beed96e5f743b132adfddc74d7bafdbd350e1a01bf4eb9",
+        "path": "FieldEvidenceApp/Infrastructure/Packs/PackageSandboxRunnerV1.swift",
+        "purpose": "Preserve language provenance and no-translation-service boundary in packaged content execution.",
         "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "57f1e5a4a964646fd28eda62d995241973d8ac2c",
+        "expectedBSHA256": "70ba681ed8b32543eceaca7bb44d7924921c28e62a93cd02ab5344ed4bf8ac27",
+        "path": "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+        "purpose": "Preserve source/derived content provenance in final report snapshot encoding.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "6dbfedde09fbd158b1f44a16e692f5e06e4be0ee",
+        "expectedBSHA256": "d7a2b194dff13e4b63976a288f7ac5aa7561a56df17fb86f717dff1ed18c514d",
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+        "purpose": "Preserve authored source and derived-translation invalidation provenance in canonical backup output.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "54e9abdae8e0daea7810e286cac6de8fc08e71ab",
+        "expectedBSHA256": "1c82f2bb1d449c0a21f65e3e2883c8cb16a06f6211c292aecf070c733c6341a0",
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+        "purpose": "Restore authored source and derived-translation provenance without using current app language.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "f302941d7a5ae65f10418aab396cc6091d98bd50",
+        "expectedBSHA256": "4955715e9476fd26fa59131a14f681cae2cbe01405ba1893294a73e0185e30ce",
+        "path": "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift",
+        "purpose": "Regression-test source/content provenance invariants.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "0b107dd4303f35eb4a4947c506de315edb10e551",
+        "expectedBSHA256": "ac2dd39c003959211c0f310b519f8de3bda1459d6c74c6380a2fed29e00c77e6",
+        "path": "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift",
+        "purpose": "Regression-test template/instruction language semantics.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "7124849b890d0baf1dd6b3027a65de125226b77d",
+        "expectedBSHA256": "1db3b7674933f59f0085ad888cc97c5d422c4940e4852580e8140350272dddcc",
+        "path": "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift",
+        "purpose": "Regression-test report snapshot provenance.",
+        "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P02-C07",
+    "cardID": "V30-P03-C01",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
-      "V30-P01-C06",
-      "V30-P01-C07",
-      "V30-P02-C04"
+      "V30-P01-C04",
+      "V30-P02-C02"
     ],
-    "ordinal": 21,
-    "preAuthorizedOverlapTuples": [
-      {
-        "boundedPurpose": "wire only the V30 Globalization Settings route; preserve Phase10 shell navigation and brand composition",
-        "cardID": "V30-P02-C07",
-        "expectedBBlobOID": "7e37497fe218c1471d0dfc1ec1cd90753ad6e6c3",
-        "expectedBSHA256": "bb6d9bdadd23b6057f265ef30b477c378ae7c7f03680e0fa0e45a038184526a0",
-        "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P02-C07-SETTINGS-SURFACE-INTEGRATOR"
-      }
-    ],
-    "s10SharedPaths": [
-      "FieldEvidenceApp/Features/Shell/AppShellView.swift"
-    ],
+    "ordinal": 22,
+    "preAuthorizedOverlapTuples": [],
+    "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Language & Region Settings and report-language controls"
+    "title": "Authored-content and template-language model"
   },
   "fenceSource": {
-    "cardID": "V30-P02-C07",
+    "cardID": "V30-P03-C01",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -214,98 +240,71 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P03-C01",
+  "next": "V30-P03-C02",
   "observedCoordination": {
-    "head": "2f3deb6d919422af0bcc72e46223d3027c8dc208",
-    "ledgerDigest": "c21bc029fcca5d6222ed46a493ef85a25fee454732c6d8db143c15e0edf306a5",
-    "sequence": 43
+    "head": "8b1e5cee0304f133e10529aecb8da8b2a0edc5dd",
+    "ledgerDigest": "69dc1d9c80feefcc8a089431749286589408191da1d211af8ffebfc69dfb0c52",
+    "sequence": 45
   },
-  "ordinal": 21,
-  "outcome": "Add localized effective app-language/region display, iOS Settings handoff, truthful unsupported-language fallback, independent report-language selection, and clear language-versus-jurisdiction explanation.",
-  "payloadDigest": "e68cdde0d994725ea91ef0b8188548fd9be7ade49cb0ddc4630a17eeb72b097e",
+  "ordinal": 22,
+  "outcome": "Distinguish app UI, admin templates, instructions, inspector/customer evidence, derived translations, report chrome, and licensed jurisdiction content. Preserve source and invalidate derived translations after edit/redaction.",
+  "payloadDigest": "cef49c992ee107020b44da84f9797c762cdcc797af81d41c801387e716e2afe4",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P01-C06": {
+    "V30-P01-C04": {
       "candidate": {
-        "base": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
-        "baseTree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7",
+        "base": "e13882efbfce199ee97b70d9d9e73cc434ce9217",
+        "baseTree": "0d6e32f5f1aa589b7189b0e9e4dc80e1c822473c",
         "changedPaths": [
-          "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
-          "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
-          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
-          "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+          "FieldEvidenceApp/Application/Globalization/GlobalizationAxisCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+          "FieldEvidenceApp/Domain/Globalization/GlobalizationAxisContractsV1.swift",
+          "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+          "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
+          "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+          "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
           "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json",
-          "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift",
-          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
-          "docs/design/v30/execution/V30_CI_SELECTION.json",
-          "docs/design/v30/execution/V30_CURRENT_TASK.md",
-          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
-          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+          "FieldEvidenceAppTests/Fixtures/V30/GlobalizationAxes/axis-matrix-v1.json",
+          "FieldEvidenceAppTests/V30_P01_C04GlobalizationAxisContractTests.swift",
+          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
         ],
-        "head": "3a28f593e755ac952071777b7e8440457950a010",
-        "tree": "7f67173942a087f86770b10ed8bf99041425ee4f"
+        "head": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
+        "tree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13"
       },
-      "sequence": 26
+      "sequence": 22
     },
-    "V30-P01-C07": {
+    "V30-P02-C02": {
       "candidate": {
-        "base": "3a28f593e755ac952071777b7e8440457950a010",
-        "baseTree": "7f67173942a087f86770b10ed8bf99041425ee4f",
+        "base": "86eabf98abee15c8bd14ff5bfb61a149ab09f103",
+        "baseTree": "ab8211eed89a7980d4f38246026800b72226afe3",
         "changedPaths": [
-          "FieldEvidenceApp/Domain/Globalization/LocaleFormatContractsV1.swift",
-          "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
-          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
-          "FieldEvidenceApp/Infrastructure/Localization/LocaleFormattingServiceV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/LocaleFormatting/formatting-grammar-cases-v1.json",
-          "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
-          "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
-          "FieldEvidenceAppTests/V30_P01_C07LocaleFormattingTests.swift",
+          "FieldEvidenceApp/Application/Globalization/UnicodeEvidenceSafetyCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/UnicodeEvidenceSafetyContractsV1.swift",
+          "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+          "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/Unicode/unicode-evidence-hostile-cases-v1.json",
+          "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+          "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+          "FieldEvidenceAppTests/V30_P02_C02UnicodeEvidenceSafetyTests.swift",
+          "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift",
+          "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "36f9c62ef09bff21c47923add3ade6469a82650e",
-        "tree": "0f8e0553b2f3780c1f052648b16dfd9c5b8b03f8"
+        "head": "69b57b7eae71dec8d3ab0ea2cb736fc1d828cfbe",
+        "tree": "56016965f7f633eaf605460598e21910c1fc298b"
       },
-      "sequence": 28
-    },
-    "V30-P02-C04": {
-      "candidate": {
-        "base": "0a7a4d9d82683a4b2aab06508623fc0a1f910586",
-        "baseTree": "551a18514c114181227dcaf8010c0f1f55f1217a",
-        "changedPaths": [
-          "FieldEvidenceApp/DesignSystem/GlobalizationAdaptiveLayoutPolicyV1.swift",
-          "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
-          "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-          "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
-          "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift",
-          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/Accessibility/expansion-and-type-cases-v1.json",
-          "FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift",
-          "docs/design/v30/execution/V30_CI_SELECTION.json",
-          "docs/design/v30/execution/V30_CURRENT_TASK.md",
-          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
-          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
-        ],
-        "head": "d804f60308bcfdcaadf01780d429132e4bcbd77d",
-        "tree": "0cde23d9cf27616f10d4465ef4ee5a9ac387791e"
-      },
-      "sequence": 39
+      "sequence": 35
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1000,
-  "sourceStartLine": 1000,
-  "title": "Language & Region Settings and report-language controls"
+  "sourceEndLine": 1006,
+  "sourceStartLine": 1006,
+  "title": "Authored-content and template-language model"
 }
 ```
