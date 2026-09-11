@@ -9,8 +9,14 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_61AssetServiceReliabilityTests/testSevenServiceReliabilityRowsPersistDistinctUUIDBindingsAndCanonicalBytes",
-    "FieldEvidenceAppTests/V9_61AssetServiceReliabilityTests/testV23P03C53R01RecoveryRoundTripPreservesProjectionAndErasePrivacyBoundary"
+    "FieldEvidenceAppTests/S3_4ResumeRecoveryTests/testC36RestorePublicationReceiptRequiresCanonicalDisjointStageOrder",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompleteKernelEraseMappingsValidateWithoutDroppingRegistrations",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState",
+    "FieldEvidenceAppTests/S8_3DiagnosticPrivacyTests/testBoundedMetricsAndFailedCountersRemainNonAuthoritative",
+    "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testDiagnosticsHealthPersistsAndPendingPublicationUsesStrictCurrentDecoder",
+    "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV9_12R01MigrationResetEraseAndBootstrapRemainDeviceLocal",
+    "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33I01EveryWriterBoundaryRecoversZeroOrCompleteWithoutOrphans",
+    "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33R01BackupRestoreReplayDeleteEraseAndRetentionRemainExact"
   ],
   "uiTestSelectors": []
 }

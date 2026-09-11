@@ -163,9 +163,11 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
 
     func testBoundedMetricsAndFailedCountersRemainNonAuthoritative() async throws {
         let log = DiagnosticsLogProbe()
-        let logger = DiagnosticsLogger { event in
+        let logger = DiagnosticsLogger(sink: { event in
             log.append(event)
-        }
+        }, operationalSink: { code in
+            log.appendOperational(code)
+        })
         let adapter = MetricKitDiagnosticsAdapter(manager: nil, logger: logger)
 
         XCTAssertTrue(adapter.accept(MetricKitSummaryV1(
@@ -233,6 +235,8 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
         let durableCounters = await store.snapshot()
         XCTAssertEqual(durableCounters, .zero)
         XCTAssertTrue(log.snapshot().contains(.countersWriteFailed))
+        XCTAssertTrue(log.operationalSnapshot().isEmpty,
+            "Legacy metric/counter failures must not be diverted into the operational-code sink")
 
         let minimal = try await DiagnosticExportService(
             counters: { durableCounters },
@@ -706,6 +710,19 @@ extension S8_3DiagnosticPrivacyTests {
 private final class DiagnosticsLogProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var events = [DiagnosticsLogEvent]()
+    private var operationalCodes = [OperationalLogCodeV1]()
+
+    func appendOperational(_ code: OperationalLogCodeV1) {
+        lock.lock()
+        defer { lock.unlock() }
+        operationalCodes.append(code)
+    }
+
+    func operationalSnapshot() -> [OperationalLogCodeV1] {
+        lock.lock()
+        defer { lock.unlock() }
+        return operationalCodes
+    }
 
     func append(_ event: DiagnosticsLogEvent) {
         lock.lock()

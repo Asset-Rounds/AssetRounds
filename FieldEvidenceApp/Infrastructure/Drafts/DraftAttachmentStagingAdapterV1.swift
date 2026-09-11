@@ -807,7 +807,7 @@ struct DraftAttachmentRestorePublicationReceiptV1: Codable, Equatable, Sendable 
         }
     }
 
-    private static func uuidLess(_ lhs: UUID, _ rhs: UUID) -> Bool {
+    fileprivate static func uuidLess(_ lhs: UUID, _ rhs: UUID) -> Bool {
         lhs.uuidString.lowercased() < rhs.uuidString.lowercased()
     }
 }
@@ -935,8 +935,8 @@ extension DraftAttachmentStagingAdapterV1 {
                 restoreID: restoreID,
                 workspaceID: workspaceID,
                 sourceManifestSHA256: sourceManifestSHA256,
-                adoptedStageIDs: adopted.sorted(by: Self.uuidLess),
-                reusedStageIDs: reused.sorted(by: Self.uuidLess),
+                adoptedStageIDs: adopted.sorted(by: DraftAttachmentRestorePublicationReceiptV1.uuidLess),
+                reusedStageIDs: reused.sorted(by: DraftAttachmentRestorePublicationReceiptV1.uuidLess),
                 publishedAt: clock()
             )
         } catch let failure as DraftAttachmentStagingFailureV1 {

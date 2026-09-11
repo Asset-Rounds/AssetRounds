@@ -1038,6 +1038,14 @@ final class EraseAllService {
 }
 
 private extension EraseAllService {
+    func validateKernelEraseMappings() throws {
+        do {
+            try KernelDeletionEraseRegistryV4.validate()
+        } catch {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
     struct PrivateSystemDiscoveryEraseBindingV1: Codable {
         let schemaVersion: Int
         let operation: String

@@ -373,11 +373,10 @@ final class OrphanFileCleanupService {
         }
         guard ContentContractValidationV1.validID(reference.contentID),
               UUID(uuidString: reference.workspaceID)?.uuidString.lowercased()
-                == reference.workspaceID,
-              locator.relativePath
-                == "content/\(reference.workspaceID)/\(reference.contentID)/original.bin" else {
+                == reference.workspaceID else {
             throw OrphanFileCleanupServiceError.invalidReference
         }
+        let relativePath = "content/\(reference.workspaceID)/\(reference.contentID)/original.bin"
         let root = try openPinnedRoot(); defer { Darwin.close(root) }
         guard let content = try openRootIfPresent(parent: root, name: "content") else {
             return .init(inspectedFileCount: 0, removedFileCount: 0,
@@ -407,7 +406,7 @@ final class OrphanFileCleanupService {
         }
         try verifySHA256(parent: object.descriptor, leaf: leaf, reference: reference)
         try removeLeaf(parent: object.descriptor, expectedParent: object.identity,
-                       leaf: leaf, relativePath: locator.relativePath)
+                       leaf: leaf, relativePath: relativePath)
         guard try boundedNames(in: object.descriptor).isEmpty,
               Darwin.unlinkat(workspace.descriptor, reference.contentID, AT_REMOVEDIR) == 0,
               Self.entryIsAbsent(parent: workspace.descriptor, name: reference.contentID),

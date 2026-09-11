@@ -633,6 +633,36 @@ enum C33TemporalEvidenceTestSupport {
     }
 
     @MainActor
+    static func cleanupReferences(
+        context: ModelContext, generationRootURL: URL, journal: MutationJournalStoreV1,
+        writerInstanceID: UUID, recovery: any TemporalEvidencePromotionRecoveryPortV1
+    ) async throws -> TemporalEvidenceLiveReferenceClosureV1 {
+        let revision = try journal.currentRevision(writerInstanceID: writerInstanceID)
+        let external = try await TemporalEvidenceDeletionExternalReferenceResolverV1(
+            modelContext: context, generationRootURL: generationRootURL,
+            journal: journal, recovery: recovery
+        ).temporalEvidenceReferences(workspaceID: revision.workspaceID, boundRevision: revision)
+        try external.validate(workspaceID: revision.workspaceID)
+        let clips = try context.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            .map { try $0.value() }.filter { $0.workspaceID == revision.workspaceID }
+        let reservations = try context.fetch(FetchDescriptor<DraftContentReservationRow>())
+            .map { try $0.value() }.filter {
+                $0.workspaceID == revision.workspaceID && $0.reconciliationState != .deleted
+            }
+        guard external.boundRevision == revision, !context.hasChanges,
+              try journal.currentRevision(writerInstanceID: writerInstanceID) == revision else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        return TemporalEvidenceLiveReferenceClosureV1(
+            boundRevision: revision, liveClipContentIDs: Set(clips.map(\.original.contentID)),
+            liveJournalContentIDs: external.journalContentIDs,
+            liveReportContentIDs: Set(external.reportLinks.map(\.contentID)),
+            reservedContentIDs: Set(reservations.map(\.locator.contentID)),
+            recoveryContentIDs: external.recoveryContentIDs
+        )
+    }
+
+    @MainActor
     static func verifyRealBackupRestoreDeleteAndErase(slot: Int) async throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent(
@@ -800,13 +830,23 @@ enum C33TemporalEvidenceTestSupport {
         let cleanup = try OrphanFileCleanupService(
             generationRootURL: deleteSession.generationRootURL
         )
+        let deleteRecovery = try TemporalEvidencePromotionRecoveryFileAdapterV1(
+            generationRootURL: deleteSession.generationRootURL,
+            workspaceID: deleteSession.workspaceID,
+            // Only the actual pending-record reader is used by this observation.
+            verify: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition },
+            remove: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition }
+        )
+        let deleteReferences = try await cleanupReferences(
+            context: deleteSession.modelContext, generationRootURL: deleteSession.generationRootURL,
+            journal: deleteStore, writerInstanceID: deleteWriterInstanceID, recovery: deleteRecovery
+        )
+        XCTAssertFalse(deleteReferences.liveJournalContentIDs.contains(deleted.clip.original.contentID),
+                       "Historical clip envelopes alone do not retain a deleted original")
         let summary = try cleanup.removeCanonicalContentIfUnreferenced(
             reference: deleted.clip.original,
             locator: deleted.clip.locator,
-            liveClipContentIDs: [],
-            liveReportContentIDs: [],
-            reservedContentIDs: [],
-            recoveryContentIDs: []
+            authoritySnapshot: deleteReferences
         )
         XCTAssertEqual(summary.removedFileCount, 1)
         XCTAssertFalse(fileManager.fileExists(atPath: deleteSession.generationRootURL
@@ -1162,6 +1202,7 @@ private final class C33TemporalEvidencePersistentHarness {
                 "C33TemporalEvidence-\(slot)-\(UUID().uuidString)",
                 isDirectory: true
             )
+            .appendingPathComponent(generationID.uuidString.lowercased(), isDirectory: true)
         try FileManager.default.createDirectory(
             at: generationRootURL,
             withIntermediateDirectories: true
@@ -1899,13 +1940,24 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         let cleanup = try OrphanFileCleanupService(
             generationRootURL: derivativeHarness.generationRootURL
         )
+        let derivativeReferences = try await C33TemporalEvidenceTestSupport.cleanupReferences(
+            context: derivativeHarness.context, generationRootURL: derivativeHarness.generationRootURL,
+            journal: derivativeHarness.store, writerInstanceID: derivativeHarness.writerInstanceID,
+            recovery: derivativeHarness.recovery
+        )
+        XCTAssertTrue(derivativeReferences.liveClipContentIDs.contains(derivativeHarness.fixture.clip.original.contentID))
+        XCTAssertFalse(derivativeReferences.liveJournalContentIDs.contains(derivative.content.contentID),
+                       "Validation without canonical derivative registration does not create a journal owner")
+        let originalCleanup = try cleanup.removeCanonicalContentIfUnreferenced(
+            reference: derivativeHarness.fixture.clip.original,
+            locator: derivativeHarness.fixture.clip.locator,
+            authoritySnapshot: derivativeReferences
+        )
+        XCTAssertEqual(originalCleanup.removedFileCount, 0)
         let cleanupSummary = try cleanup.removeCanonicalContentIfUnreferenced(
             reference: derivative.content,
             locator: derivative.locator,
-            liveClipContentIDs: [derivativeHarness.fixture.clip.original.contentID],
-            liveReportContentIDs: [association.contentID],
-            reservedContentIDs: [],
-            recoveryContentIDs: []
+            authoritySnapshot: derivativeReferences
         )
         XCTAssertEqual(cleanupSummary.removedFileCount, 1)
         XCTAssertFalse(FileManager.default.fileExists(atPath: derivativeURL.path))

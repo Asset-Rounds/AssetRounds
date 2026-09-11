@@ -893,8 +893,11 @@ enum C04ShopReportProfileKernelDeletionEraseEnrollmentV1 {
 
     static func validate() throws {
         try C04ShopReportProfileBackupEnrollmentV1.validate(
-            V4BackupRecordsV1(recordsSchemaVersion:
-                C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion)
+            V4BackupRecordsV1(
+                assets: [], evidenceFiles: [], issues: [], packets: [],
+                recordsSchemaVersion: C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion,
+                reports: [], sites: [], workflowRecords: []
+            )
         )
         guard durableFamilies == ["ShopReportProfileRowV1"],
               ordinaryDeleteDisposition == "PRESERVE_APPEND_ONLY_HISTORY",

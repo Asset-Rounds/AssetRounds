@@ -506,14 +506,14 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
             preparationFailure = .protectedDataUnavailable
-            logger.record(.countersWriteFailed)
+            logger.record(DiagnosticsLogEvent.countersWriteFailed)
         } catch DiagnosticsFailure.unsupportedVersion {
             // A newer writer owns these bytes. Downgrade never destroys or
             // rewrites them; a compatible forward upgrade is required.
             preparationFailure = .unsupportedVersion
-            logger.record(.countersWriteFailed)
+            logger.record(DiagnosticsLogEvent.countersWriteFailed)
         } catch DiagnosticsFailure.recoveryRequired {
-            logger.record(.countersWriteFailed)
+            logger.record(DiagnosticsLogEvent.countersWriteFailed)
             // Quarantine the unreadable bytes, recreate the operational file,
             // and persist the visible recovery-required state. The draft is
             // never represented as empty success while its safe copy exists.
@@ -536,7 +536,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 preparationFailure = .recoveryRequired
             }
         } catch {
-            logger.record(.invalidCountersReset)
+            logger.record(DiagnosticsLogEvent.invalidCountersReset)
             if persist(.zero, repairExisting: true) {
                 counters = .zero
                 isPrepared = true
@@ -631,7 +631,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
         guard persist(counters, health: candidate) else {
             throw DiagnosticsFailure.invalidFile
         }
-        health = candidate
+        self.health = candidate
     }
 
     /// Runs an operation whose declared result is `Never`, records its typed
@@ -1244,7 +1244,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                     authorityCheck: cleanupAuthority
                 )
             }
-            logger.record(.countersWriteFailed)
+            logger.record(DiagnosticsLogEvent.countersWriteFailed)
             return false
         }
     }
@@ -1313,7 +1313,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                         expected: currentIdentity,
                         authorityCheck: authorityCheck
                     )
-                    _ = try decodeDiagnostics(data)
+                    _ = try decodeOperationalStore(data)
                     try ProtectedFilePolicyV1.applyAndVerify(
                         .diagnostics,
                         at: countersURL,
@@ -1330,7 +1330,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                     expected: currentIdentity,
                     authorityCheck: authorityCheck
                 )
-                _ = try decodeDiagnostics(data)
+                _ = try decodeOperationalStore(data)
                 try removeOwnedFile(
                     at: backupURL,
                     expected: backupIdentity,
@@ -1340,6 +1340,8 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
             } catch let failure as ProtectedFilePolicyError
                 where failure == .protectedDataUnavailable {
                 throw failure
+            } catch DiagnosticsFailure.unsupportedVersion {
+                throw DiagnosticsFailure.unsupportedVersion
             } catch {
                 guard currentIdentity != backupIdentity else {
                     throw DiagnosticsFailure.invalidFile
@@ -1354,7 +1356,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                     expected: backupIdentity,
                     authorityCheck: authorityCheck
                 )
-                _ = try decodeDiagnostics(backupData)
+                _ = try decodeOperationalStore(backupData)
                 try authorityCheck()
                 try fileManager.replaceItemAt(
                     countersURL,
@@ -1385,7 +1387,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
                 expected: backupIdentity,
                 authorityCheck: authorityCheck
             )
-            _ = try decodeDiagnostics(backupData)
+            _ = try decodeOperationalStore(backupData)
             try authorityCheck()
             try fileManager.moveItem(at: backupURL, to: countersURL)
             try ProtectedFilePolicyV1.applyAndVerify(
@@ -1744,7 +1746,7 @@ actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
     }
 }
 
-private enum DiagnosticsFailure: Error, Equatable {
+enum DiagnosticsFailure: Error, Equatable {
     case invalidFile
     case protectedDataUnavailable
     case sizeLimitExceeded

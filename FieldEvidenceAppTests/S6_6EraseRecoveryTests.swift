@@ -31,6 +31,16 @@ private final class C30EvidenceContextAnchorS6_6EraseRecovery: XCTestCase {
 }
 
 final class S6_6EraseRecoveryTests: XCTestCase {
+    func testCompleteKernelEraseMappingsValidateWithoutDroppingRegistrations() throws {
+        try KernelDeletionEraseRegistryV4.validate()
+        XCTAssertEqual(KernelDeletionEraseRegistryV4.registrations.map(\.kind),
+                       KernelPersistenceV4RecordKind.allCases.sorted())
+        var incomplete = KernelDeletionEraseRegistryV4.registrations
+        incomplete.removeLast()
+        XCTAssertThrowsError(try KernelDeletionEraseRegistryV4.validate(incomplete))
+        try C04ShopReportProfileKernelDeletionEraseEnrollmentV1.validate()
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

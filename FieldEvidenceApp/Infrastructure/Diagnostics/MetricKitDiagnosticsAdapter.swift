@@ -183,7 +183,7 @@ final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber,
     @discardableResult
     func accept(_ summary: MetricKitSummaryV1) -> Bool {
         guard C54EncryptedPortableEnvelopeMetricKitBoundaryV1.validate(summary) else {
-            logger.record(.metricValueDiscarded)
+            logger.record(DiagnosticsLogEvent.metricValueDiscarded)
             return false
         }
         merge(summary)
@@ -267,7 +267,7 @@ final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber,
 
         while let object = enumerator.nextObject() {
             guard let bucket = object as? MXHistogramBucket<UnitDuration> else {
-                logger.record(.metricValueDiscarded)
+                logger.record(DiagnosticsLogEvent.metricValueDiscarded)
                 continue
             }
             let count = Int64(bucket.bucketCount)
@@ -278,7 +278,7 @@ final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber,
                   end.isFinite,
                   start >= 0,
                   end >= start else {
-                logger.record(.metricValueDiscarded)
+                logger.record(DiagnosticsLogEvent.metricValueDiscarded)
                 continue
             }
             guard count > 0 else { continue }
@@ -300,7 +300,7 @@ final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber,
             } else {
                 // A source bucket that crosses an export boundary cannot be
                 // split truthfully, so this best-effort summary undercounts it.
-                logger.record(.metricValueDiscarded)
+                logger.record(DiagnosticsLogEvent.metricValueDiscarded)
                 continue
             }
             acceptedCount = saturatedAdd(acceptedCount, count)
@@ -313,7 +313,7 @@ final class MetricKitDiagnosticsAdapter: NSObject, MXMetricManagerSubscriber,
     ) -> Int64? {
         let value = measurement.converted(to: .bytes).value
         guard value.isFinite, value >= 0 else {
-            logger.record(.metricValueDiscarded)
+            logger.record(DiagnosticsLogEvent.metricValueDiscarded)
             return nil
         }
         if value >= Double(Int64.max) {

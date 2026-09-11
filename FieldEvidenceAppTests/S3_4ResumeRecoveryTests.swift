@@ -1617,6 +1617,33 @@ private struct SeededRecovery {
 private enum ResumeFixtureError: Error { case image }
 
 extension S3_4ResumeRecoveryTests {
+    func testC36RestorePublicationReceiptRequiresCanonicalDisjointStageOrder() throws {
+        let ids = (1...4).map {
+            UUID(uuidString: "20000000-0000-0000-0000-00000000000\($0)")!
+        }
+        func receipt(_ adopted: [UUID], _ reused: [UUID]) throws -> DraftAttachmentRestorePublicationReceiptV1 {
+            try DraftAttachmentRestorePublicationReceiptV1(
+                restoreID: UUID(uuidString: "30000000-0000-0000-0000-000000000001")!,
+                workspaceID: WorkspaceID(rawValue: UUID(uuidString: "40000000-0000-0000-0000-000000000001")!),
+                sourceManifestSHA256: String(repeating: "c", count: 64),
+                adoptedStageIDs: adopted,
+                reusedStageIDs: reused,
+                publishedAt: Date(timeIntervalSince1970: 2)
+            )
+        }
+        let valid = try receipt([ids[0], ids[2]], [ids[1], ids[3]])
+        try valid.validate()
+        XCTAssertEqual(valid.adoptedStageIDs, [ids[0], ids[2]])
+        XCTAssertEqual(valid.reusedStageIDs, [ids[1], ids[3]])
+        XCTAssertFalse(valid.atomicAcrossRoots)
+        XCTAssertTrue(valid.canonicalCommitRequired)
+        XCTAssertThrowsError(try receipt([ids[2], ids[0]], [ids[1], ids[3]]))
+        XCTAssertThrowsError(try receipt([ids[0], ids[2]], [ids[3], ids[1]]))
+        XCTAssertThrowsError(try receipt([ids[0], ids[0]], []))
+        XCTAssertThrowsError(try receipt([], [ids[1], ids[1]]))
+        XCTAssertThrowsError(try receipt([ids[0]], [ids[0]]))
+    }
+
     func testC36AttachmentProcessingJobResumesFromDurableCheckpoint() throws {
         let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!)
         let draftID = UUID(uuidString: "20000000-0000-0000-0000-000000000002")!

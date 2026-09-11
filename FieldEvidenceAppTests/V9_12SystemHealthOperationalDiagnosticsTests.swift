@@ -30,6 +30,76 @@ private final class C30EvidenceContextAnchorV9_12SystemHealthOperationalDiagnost
 
 @MainActor
 final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
+    func testDiagnosticsHealthPersistsAndPendingPublicationUsesStrictCurrentDecoder() async throws {
+        let root = try Self.temporaryRoot("diagnostics-decoder-origin")
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        let instant = Date(timeIntervalSince1970: 1_700_000_000)
+        let store = DiagnosticsStore(applicationSupportURL: root, now: { instant },
+            capacityProvider: { _ in Int64.max })
+        let failure = try OperationalFailureMapperV1.failure(for: StoreMigrationFailure.invalidDigest,
+            at: .persistence, occurredAt: instant)
+        try await store.recordOperationalFailure(failure)
+        let expected = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(expected.health.state, .degraded)
+        XCTAssertEqual(expected.health.failures, [failure])
+        let canonical = try Data(contentsOf: Self.diagnosticsURL(root))
+        let relaunched = DiagnosticsStore(applicationSupportURL: root, now: { instant },
+            capacityProvider: { _ in Int64.max })
+        let reopened = try await relaunched.operationalSupportSnapshot()
+        XCTAssertEqual(reopened, expected)
+
+        // These are disposable actual files, not a decoder stub. Exercise
+        // valid current, corrupt current with valid backup, and backup-only.
+        for mode in 0..<3 {
+            let recoveryRoot = try Self.temporaryRoot("diagnostics-decoder-\(mode)")
+            addTeardownBlock { try FileManager.default.removeItem(at: recoveryRoot) }
+            try Self.writeDiagnosticsBytes(canonical, at: recoveryRoot)
+            let currentURL = Self.diagnosticsURL(recoveryRoot)
+            let backupURL = currentURL.deletingLastPathComponent()
+                .appendingPathComponent(".counters.json.previous")
+            try canonical.write(to: backupURL)
+            try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: backupURL)
+            if mode == 1 {
+                try Self.writeDiagnosticsBytes(canonical + Data(" ".utf8), at: recoveryRoot)
+            } else if mode == 2 {
+                try FileManager.default.removeItem(at: currentURL)
+            }
+            let recovering = DiagnosticsStore(applicationSupportURL: recoveryRoot, now: { instant },
+                capacityProvider: { _ in Int64.max })
+            let recovered = try await recovering.operationalSupportSnapshot()
+            XCTAssertEqual(recovered, expected)
+            XCTAssertEqual(try Data(contentsOf: currentURL), canonical)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: backupURL.path))
+        }
+        let futureRoot = try Self.temporaryRoot("diagnostics-decoder-future")
+        addTeardownBlock { try FileManager.default.removeItem(at: futureRoot) }
+        let futureBytes = Data("{\"schemaVersion\":999}".utf8)
+        try Self.writeDiagnosticsBytes(futureBytes, at: futureRoot)
+        let futureStore = DiagnosticsStore(applicationSupportURL: futureRoot, now: { instant },
+            capacityProvider: { _ in Int64.max })
+        do {
+            _ = try await futureStore.operationalSupportSnapshot()
+            XCTFail("A newer schema must not become an empty successful snapshot")
+        } catch {
+            XCTAssertEqual(error as? DiagnosticsFailure, .unsupportedVersion)
+        }
+        XCTAssertEqual(try Data(contentsOf: Self.diagnosticsURL(futureRoot)), futureBytes)
+        let futureBackupURL = Self.diagnosticsURL(futureRoot).deletingLastPathComponent()
+            .appendingPathComponent(".counters.json.previous")
+        try canonical.write(to: futureBackupURL)
+        try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: futureBackupURL)
+        let futureWithBackup = DiagnosticsStore(applicationSupportURL: futureRoot, now: { instant },
+            capacityProvider: { _ in Int64.max })
+        do {
+            _ = try await futureWithBackup.operationalSupportSnapshot()
+            XCTFail("A supported backup must not replace a newer current schema")
+        } catch {
+            XCTAssertEqual(error as? DiagnosticsFailure, .unsupportedVersion)
+        }
+        XCTAssertEqual(try Data(contentsOf: Self.diagnosticsURL(futureRoot)), futureBytes)
+        XCTAssertEqual(try Data(contentsOf: futureBackupURL), canonical)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

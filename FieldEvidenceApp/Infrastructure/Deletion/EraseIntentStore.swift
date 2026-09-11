@@ -1043,8 +1043,8 @@ private extension EraseIntentStore {
                 relativePath: policyRelativePath(name),
                 within: applicationSupportURL
             ) {
-                try verifyAuthority()
-                try verifyLeaf(
+                try self.verifyAuthority()
+                try self.verifyLeaf(
                     name,
                     descriptor: descriptor,
                     expected: expected
@@ -1067,8 +1067,8 @@ private extension EraseIntentStore {
                 relativePath: policyRelativePath(name),
                 within: applicationSupportURL
             ) {
-                try verifyAuthority()
-                try verifyLeaf(
+                try self.verifyAuthority()
+                try self.verifyLeaf(
                     name,
                     descriptor: descriptor,
                     expected: expected
@@ -1079,7 +1079,7 @@ private extension EraseIntentStore {
         }
     }
 
-    func verifyLeaf(
+    private func verifyLeaf(
         _ name: String,
         descriptor: Int32,
         expected: Identity
@@ -1101,7 +1101,7 @@ private extension EraseIntentStore {
         }
     }
 
-    func verifyPublishedPolicy(
+    private func verifyPublishedPolicy(
         _ kind: OwnedFileKindV1,
         name: String,
         failure: EraseIntentStoreError,
@@ -1271,7 +1271,7 @@ private extension EraseIntentStore {
         )
     }
 
-    func createLeaf(_ name: String, data: Data) throws -> Identity {
+    private func createLeaf(_ name: String, data: Data) throws -> Identity {
         let descriptor = Darwin.openat(
             eraseDescriptor,
             name,
@@ -1320,7 +1320,7 @@ private extension EraseIntentStore {
         }
     }
 
-    func removeIfExact(_ name: String, expected: Identity) throws {
+    private func removeIfExact(_ name: String, expected: Identity) throws {
         guard let current = try readIfPresent(name),
               current.identity == expected,
               Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
