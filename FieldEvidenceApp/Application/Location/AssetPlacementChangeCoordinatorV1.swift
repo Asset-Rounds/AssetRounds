@@ -76,7 +76,7 @@ final class AssetPlacementChangeCoordinatorV1 {
             let reboundPoseEvents = try zip($0.poseEvents, $0.poseEventPredecessors).map {
                 try $0.0.reissued(mutationID: mutationID, predecessor: $0.1)
             }
-            try AssetPlacementChangePlanV1(
+            return try AssetPlacementChangePlanV1(
                 operationID: plan.operationID, mutationID: mutationID, basis: $0.basis,
                 newEventID: $0.newEventID, resultingPhysicalEpisodeID: $0.resultingPhysicalEpisodeID,
                 componentContributions: $0.componentContributions,

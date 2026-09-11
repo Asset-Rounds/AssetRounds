@@ -211,6 +211,7 @@ private actor C39Store: RatingEligibilityStoreV1 {
     private var result: RatingLedgerLoadResultV1
     private var receipts: [UUID: RatingLedgerPersistenceReceiptV1] = [:]
     private(set) var writeCount = 0
+    private(set) var loadCount = 0
     var failAfterNextCommit = false
     private let orderProbe: C39InvocationOrderProbe?
 
@@ -219,7 +220,7 @@ private actor C39Store: RatingEligibilityStoreV1 {
         self.result = result
         self.orderProbe = orderProbe
     }
-    func load() async throws -> RatingLedgerLoadResultV1 { result }
+    func load() async throws -> RatingLedgerLoadResultV1 { loadCount += 1; return result }
     func compareAndSwap(operationID: UUID, expectedRevision: UInt64?,
                         successor: RatingRequestAttemptLedgerStateV1) async throws
         -> RatingLedgerPersistenceReceiptV1 {
@@ -270,6 +271,43 @@ private actor C39Store: RatingEligibilityStoreV1 {
 }
 
 final class V9_102RatingEligibilityWorkflowTests: XCTestCase {
+    @MainActor
+    func testZeroAndEqualOperationIDsRejectBeforeRatingStoreOrNativeEffects() async throws {
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        let valid = C39.id(921)
+        let completions = try C39.completions()
+        let store = C39Store()
+        let adapter = C39Adapter()
+        let coordinator = try RatingEligibilityCoordinatorV1(
+            store: store, nativeRequest: adapter, clock: C39Clock(value: C39.now))
+        for (reservation, invocation) in [(zero, valid), (valid, zero), (valid, valid)] {
+            do {
+                _ = try await coordinator.requestIfEligible(completions: completions,
+                    marketingVersion: C39.version(), buildVersion: C39.build(),
+                    naturalStop: C39.stop(completions: completions),
+                    reservationOperationID: reservation, invocationStatusOperationID: invocation)
+                XCTFail("Invalid operation identities must be rejected before effects")
+            } catch {
+                XCTAssertEqual(error as? RatingEligibilityFailureV1, .invalidValue)
+            }
+        }
+        do {
+            _ = try await coordinator.applyCompletedErase(eraseOperationID: zero, erasedAt: C39.now)
+            XCTFail("Zero erase identity must not load or replace the ledger")
+        } catch {
+            XCTAssertEqual(error as? RatingEligibilityFailureV1, .invalidValue)
+        }
+        let loads = await store.loadCount
+        let snapshot = await store.snapshot()
+        XCTAssertEqual(loads, 0)
+        guard case .absentFreshInstall = snapshot.0 else {
+            return XCTFail("Invalid operation identities must preserve the absent ledger")
+        }
+        XCTAssertEqual(snapshot.1, 0)
+        XCTAssertEqual(adapter.preparationCount, 0)
+        XCTAssertEqual(adapter.callCount, 0)
+    }
+
     @MainActor
     func testV23P04C39G01FinalizedValueReopenRequestsSystemConsiderationExactlyOnce() async throws {
         let corpus = try C39.corpus()

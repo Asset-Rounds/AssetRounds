@@ -1,6 +1,20 @@
 import Foundation
+import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
+
+private struct HierarchyReturnClock: ApplicationClock {
+    let value: Date
+    func now() -> Date { value }
+}
+private struct HierarchyReturnIDs: ApplicationIDSource {
+    func makeID() -> UUID { UUID() }
+}
+private struct HierarchyReturnFiles: ApplicationFileAuthorityV1 {
+    func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
+        "mutation-staging/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+    }
+}
 
 private enum C52ServiceRequestBoundary_V9_LocationHierarchyPlacementCompositionTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
@@ -27,6 +41,169 @@ private final class C30EvidenceContextAnchorV9_LocationHierarchyPlacementComposi
 
 @MainActor
 final class V9_LocationHierarchyPlacementCompositionTests: XCTestCase {
+    @MainActor
+    func testNonemptyHierarchyCommitRebindsPlacementAndPoseThroughCanonicalWriter() throws {
+        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
+            ModelConfiguration("HierarchyReturn", schema: schema, isStoredInMemoryOnly: true,
+                allowsSave: true, cloudKitDatabase: .none)
+        ])
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let workspace = WorkspaceID(), generation = UUID()
+        let now = Date(timeIntervalSince1970: 1_700_000_100)
+        let site = Site(label: "Hierarchy return site")
+        let asset = Asset(siteID: site.id, packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: 1, packContentVersion: 1, label: "Retained asset")
+        let seedMutation = try MutationIDV1(rawValue: UUID())
+        let node = try LocationNodeV1(id: UUID(), workspaceID: workspace, siteID: site.id,
+            parentNodeID: nil, kind: .building, label: "Old building", shortCode: nil,
+            siblingOrder: 0, state: .active, revision: 1,
+            provenance: .init(mutationID: seedMutation, occurredAt: now.addingTimeInterval(-30)))
+        let oldPath = try LocationPathSnapshotV1(siteID: site.id, siteDisplay: site.label,
+            nodes: [.init(nodeID: node.id, kind: node.kind, label: node.label, shortCode: nil, revision: 1)])
+        let newPath = try LocationPathSnapshotV1(siteID: site.id, siteDisplay: site.label, nodes: [])
+        let oldEpisode = try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+        let newEpisode = try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+        let placement = try AssetPlacementEventV1(id: UUID(), workspaceID: workspace, assetID: asset.id,
+            siteID: site.id, locationNodeID: node.id, predecessorEventID: nil, source: .manual,
+            physicalEpisodeID: oldEpisode, continuity: .samePhysicalInstallation, pathSnapshot: oldPath,
+            mutationID: seedMutation, occurredAt: now.addingTimeInterval(-20))
+        let workflow = try WorkflowDefinitionV1(workflowID: "hierarchy.pose.workflow", entryNodeID: "start",
+            declaredFieldIDs: [], nodes: [
+                .init(nodeID: "start", kind: .section, localizationKey: "hierarchy.pose.start", outgoingNodeIDs: ["end"]),
+                .init(nodeID: "end", kind: .terminal, localizationKey: "hierarchy.pose.end", outgoingNodeIDs: [])
+            ])
+        let packageDraft = try InspectionPackageReleaseV1.makeDraft(
+            package: ShippingIlluminatedSignAdapterV1.inspectionPackage(), workflow: workflow)
+        let package = try InspectionPackageReleasePublisherV1.publish(
+            InspectionPackageReleasePublisherV1.test(packageDraft)).release
+        let descriptor = try PoseAxisDescriptorV1(axisID: PoseAxisID(rawValue: "axis.hierarchy"),
+            localizedLabelKey: "pose.hierarchy", semanticRole: .assetForwardAxis,
+            requiredComponents: .azimuthOnly, observationRequirement: .requiredForCompletion,
+            applicability: .applicable)
+        let registryRelease = try PoseAxisRegistryReleaseV1(packageRelease: package,
+            registry: PoseAxisDescriptorRegistryV1(descriptors: [descriptor]))
+        let promoted = try PromotedPackageReleaseV1(releaseRecordID: UUID(), workspaceID: workspace,
+            packageRelease: package, mutationID: seedMutation, promotedAt: now.addingTimeInterval(-30))
+        context.insert(site); context.insert(asset)
+        context.insert(try LocationNodeRow(node)); context.insert(try AssetPlacementEventRow(placement))
+        context.insert(try PromotedPackageReleaseRow(promoted))
+        try context.save()
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspace, replicaID: ReplicaID(rawValue: UUID()))
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generation)
+        let writer = try WorkspaceWriterV1(identity: identity, generationID: generation,
+            initialRevision: journal.currentRevision(writerInstanceID: UUID()),
+            clock: HierarchyReturnClock(value: now), idSource: HierarchyReturnIDs(),
+            fileAuthority: HierarchyReturnFiles(), adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+        func expected(adding identities: [WorkspaceEntityIdentityV1]) throws -> WorkspaceExpectedRevisionV1 {
+            let current = try writer.currentRevision()
+            let known = Set(current.entityRevisions.map(\.identity))
+            return try .init(workspaceID: workspace, generationID: generation,
+                writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision,
+                entityRevisions: current.entityRevisions + identities.filter { !known.contains($0) }.map {
+                    WorkspaceEntityRevisionV1(identity: $0, revision: 0)
+                })
+        }
+        func actor(_ responsibility: ResponsibilityKindV1) throws -> ActorSnapshotV1 {
+            let reference = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Local operator")
+            return try .init(snapshotID: UUID(), workspaceID: workspace, actor: reference,
+                responsibility: responsibility, displayNameAtTime: reference.displayName, capturedAt: now.addingTimeInterval(-10))
+        }
+        let initialPoseID = UUID(), initialPoseMutation = try MutationIDV1(rawValue: UUID())
+        let initialPose = try AssetPoseEventV1(eventID: initialPoseID, workspaceID: workspace,
+            assetID: asset.id, axisDescriptor: descriptor, placementEpisodeID: oldEpisode,
+            placementEventID: placement.id, locationPathSnapshot: oldPath,
+            pose: PlacementPoseV1(disposition: .notObserved, referenceFrame: .unknown,
+                notObservedReason: .sourceUnavailable, descriptor: descriptor), source: .manual,
+            rootObservationEventID: initialPoseID, rootObservedAt: now.addingTimeInterval(-10),
+            predecessor: nil, revision: 1, mutationID: initialPoseMutation, recordedBy: actor(.observedBy),
+            occurredAt: now.addingTimeInterval(-10), recordedAt: now.addingTimeInterval(-9))
+        let initialClosure = try PlacementPoseAdmissionClosureV1(workspaceID: workspace,
+            packageRelease: package, axisRegistryRelease: registryRelease, planRevisions: [], placementEvents: [placement])
+        let poseMutation = try PlacementPoseMutationV1(workspaceID: workspace, mutationID: initialPoseMutation,
+            events: [initialPose], eventPredecessors: [nil], admissionClosure: initialClosure)
+        _ = try writer.execute(.init(mutationID: initialPoseMutation,
+            expectedRevision: expected(adding: poseMutation.affectedIdentities), command: .applyPlacementPose(poseMutation)))
+
+        let operationID = UUID(), standaloneID = UUID(), newPlacementID = UUID(), newPoseID = UUID()
+        let operationMutation = try MutationIDV1(rawValue: operationID)
+        let standaloneMutation = try MutationIDV1(rawValue: standaloneID)
+        let revision = try expected(adding: [
+            .init(kind: .asset, id: asset.id), .init(kind: .locationNode, id: node.id),
+            .init(kind: .assetPlacementEvent, id: newPlacementID), .init(kind: .assetPoseEvent, id: newPoseID)
+        ])
+        let archivedNode = try LocationNodeV1(id: node.id, workspaceID: workspace, siteID: site.id,
+            parentNodeID: nil, kind: node.kind, label: node.label, shortCode: nil, siblingOrder: 0,
+            state: .archived, revision: 2, provenance: .init(mutationID: operationMutation, occurredAt: now))
+        let hierarchy = try LocationHierarchyChangePlanV1(operationID: operationID, workspaceID: workspace,
+            expectedRevision: revision, beforeNodes: [node], afterNodes: [archivedNode], affectedAssetIDs: [asset.id],
+            assetPathChanges: [.init(assetID: asset.id, beforePath: oldPath, afterPath: newPath)],
+            immutablePlacementReferencedNodeIDs: [node.id],
+            consumerImpact: .init(planIDs: [], referenceIDs: [], openRoundIDs: [], scheduleIDs: [], reportConsumerIDs: []),
+            assetBindingsChange: true, operationContinuityDisposition: nil, continuityByAssetID: [asset.id: .physicalMove])
+        let proposedPose = try PlacementPoseV1(disposition: .notObserved, referenceFrame: .unknown,
+            notObservedReason: .physicalMoveReobservationRequired, descriptor: descriptor)
+        let successorPose = try AssetPoseEventV1(eventID: newPoseID, workspaceID: workspace,
+            assetID: asset.id, axisDescriptor: descriptor, placementEpisodeID: newEpisode,
+            placementEventID: newPlacementID, locationPathSnapshot: newPath, pose: proposedPose,
+            source: .placementCarryForward, rootObservationEventID: initialPose.rootObservationEventID,
+            rootObservedAt: initialPose.rootObservedAt, predecessor: initialPose, revision: 2,
+            mutationID: standaloneMutation, recordedBy: actor(.recordedBy), occurredAt: now, recordedAt: now)
+        let intent = try PosePlacementDispositionIntentV1(predecessor: initialPose.reference,
+            proposedPose: proposedPose, disposition: .markNotObserved)
+        let contribution = try PlacementChangeComponentContributionV1(componentID: "hierarchy.pose", componentVersion: 1,
+            warnings: [], requiredContinuityReview: true, intentSHA256: intent.intentSHA256, poseDispositionIntents: [intent])
+        // Admission binds the final hierarchy operation's exact placement
+        // postimage; only the supplied placement/pose commands need rebinding.
+        let finalPlacement = try AssetPlacementEventV1(id: newPlacementID, workspaceID: workspace, assetID: asset.id,
+            siteID: site.id, locationNodeID: nil, predecessorEventID: placement.id, source: .hierarchyRebase,
+            physicalEpisodeID: newEpisode, continuity: .physicalMove, pathSnapshot: newPath,
+            mutationID: operationMutation, occurredAt: now)
+        let closure = try PlacementPoseAdmissionClosureV1(workspaceID: workspace, packageRelease: package,
+            axisRegistryRelease: registryRelease, planRevisions: [], placementEvents: [finalPlacement])
+        let standalone = try AssetPlacementChangePlanV1(operationID: standaloneID, mutationID: standaloneMutation,
+            basis: .init(workspaceID: workspace, expectedRevision: revision, assetID: asset.id,
+                currentPlacement: placement, proposedSiteID: site.id, proposedLocationNodeID: nil,
+                proposedPath: newPath, source: .hierarchyRebase, reviewedContinuity: .physicalMove),
+            newEventID: newPlacementID, resultingPhysicalEpisodeID: newEpisode, componentContributions: [contribution],
+            poseEvents: [successorPose], poseEventPredecessors: [initialPose], poseAdmissionClosure: closure)
+        let coordinator = AssetPlacementChangeCoordinatorV1(writer: writer, idSource: HierarchyReturnIDs(),
+            components: try PlacementChangeComponentRegistryV1(components: [], allowedOrderedComponentIDs: []))
+        let receipt = try coordinator.commitHierarchyChange(hierarchy, placementChanges: [standalone])
+        let rows = try context.fetch(FetchDescriptor<MutationReceiptRow>())
+        let stored = try XCTUnwrap(rows.first { $0.mutationID == operationID })
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: stored.envelopeData)
+        guard case .applyLocationHierarchyChange(let committed) = envelope.command else {
+            return XCTFail("Canonical envelope must retain the nonempty hierarchy command")
+        }
+        let rebound = try XCTUnwrap(committed.placementChanges.first)
+        XCTAssertEqual(committed.plan, hierarchy)
+        XCTAssertEqual(committed.placementChanges.count, 1)
+        XCTAssertEqual(rebound.operationID, operationID)
+        XCTAssertEqual(rebound.mutationID, operationMutation)
+        XCTAssertNotEqual(rebound.mutationID, standalone.mutationID)
+        XCTAssertEqual(rebound.basis, standalone.basis)
+        XCTAssertEqual(rebound.newEventID, newPlacementID)
+        XCTAssertEqual(rebound.resultingPhysicalEpisodeID, newEpisode)
+        XCTAssertEqual(rebound.componentContributions, [contribution])
+        XCTAssertEqual(rebound.poseEventPredecessors, [initialPose])
+        XCTAssertEqual(rebound.poseAdmissionClosure, closure)
+        XCTAssertEqual(rebound.poseEvents, [try successorPose.reissued(mutationID: operationMutation, predecessor: initialPose)])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AssetPlacementEventRow>()).map { try $0.value() }.first { $0.id == newPlacementID }, finalPlacement)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AssetPoseEventRow>()).map { try $0.value() }.first { $0.eventID == newPoseID }, rebound.poseEvents.first)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<LocationNodeRow>()).first?.value(), archivedNode)
+        XCTAssertNotNil(receipt.placementPosePostImagesSHA256)
+        XCTAssertEqual(receipt.commandBodySHA256, try WorkspaceMutationCanonicalV1.sha256(envelope.command))
+        let beforeReplay = try writer.currentRevision()
+        XCTAssertEqual(try coordinator.commitHierarchyChange(hierarchy, placementChanges: [standalone]), receipt)
+        XCTAssertEqual(try writer.currentRevision(), beforeReplay)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MutationReceiptRow>()).count, 2)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AssetPlacementEventRow>()).count, 2)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AssetPoseEventRow>()).count, 2)
+        XCTAssertFalse(context.hasChanges)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

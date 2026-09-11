@@ -9,9 +9,13 @@
   "uiTimeoutSeconds": 0,
   "totalBudgetSeconds": 2400,
   "unitTestSelectors": [
-    "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV9_12I01StoreScratchAndSupportExportRecoverWithoutDuplicateEffects",
-    "FieldEvidenceAppTests/V9_56WorkResourceTests/testCloneOrForkForwardsExactSnapshotArgumentsAndReceipt",
-    "FieldEvidenceAppTests/V9_24AssetSemanticLifecycleTests/testActiveSchemaAssetSemanticCheckpointSurvivesJournalRecoveryAndRejectsDrift"
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testWorkspaceExperiencePortableAuthorityRebindsAndReplaysOneCanonicalEffect",
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testWorkspaceExperienceStaleForeignAndWrongRuntimeAuthorityHaveZeroEffects",
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testArchivedPartUpsertCannotBypassArchiveProofOrRejectAssetSemantics",
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testThrowingMultiAndSingleIdentityWriterGuardsPersistOnlyMatchingCommands",
+    "FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests/testWriterBoundConvenienceReplaysExactRequestAndRejectsChangedMutationWithoutEffects",
+    "FieldEvidenceAppTests/V9_102RatingEligibilityWorkflowTests/testZeroAndEqualOperationIDsRejectBeforeRatingStoreOrNativeEffects",
+    "FieldEvidenceAppTests/V9_LocationHierarchyPlacementCompositionTests/testNonemptyHierarchyCommitRebindsPlacementAndPoseThroughCanonicalWriter"
   ],
   "uiTestSelectors": []
 }

@@ -8,7 +8,7 @@ import SwiftData
 final class EvidenceQualityCoordinatorV1 {
     typealias Submit = (EvidenceQualityMutationCommandV1) throws -> EvidenceQualityMutationReceiptV1
     typealias Query = (EvidenceQualityQueryV1) throws -> EvidenceQualityQueryResultV1
-    typealias ReceiptLookup = (MutationIDV1) throws -> EvidenceQualityMutationReceiptV1?
+    typealias ReceiptLookup = (EvidenceQualityMutationCommandV1) throws -> EvidenceQualityMutationReceiptV1?
     /// Supplied by the C02/content-integrity owner. It verifies that these
     /// exact immutable bytes still belong to this evidence revision and digest.
     typealias ContentIntegrityVerifier = (EvidenceQualityEvidenceBindingV1, Data) throws -> Bool
@@ -150,8 +150,8 @@ final class EvidenceQualityCoordinatorV1 {
         self.init(
             submit: { try workspaceWriter.commitEvidenceQuality($0) },
             query: { try source.result(for: $0) },
-            receiptLookup: { mutationID in
-                try source.snapshot().receipts.first { $0.mutationID == mutationID }
+            receiptLookup: { command in
+                try source.snapshot().receipts.first { $0.mutationID == command.mutationID }
             },
             contentIntegrityVerifier: contentIntegrityVerifier
         )
@@ -231,7 +231,7 @@ final class EvidenceQualityCoordinatorV1 {
     }
 
     private func submitOrRecover(_ command: EvidenceQualityMutationCommandV1) throws -> EvidenceQualityMutationReceiptV1 {
-        if let existing = try receiptLookup(command.mutationID) {
+        if let existing = try receiptLookup(command) {
             try existing.validate(command: command)
             return existing
         }
@@ -247,7 +247,7 @@ final class EvidenceQualityCoordinatorV1 {
         payload: EvidenceQualityMutationPayloadV1,
         submittedAt: Date
     ) throws -> EvidenceQualityMutationCommandV1 {
-        try .init(commandID: UUID(), workspaceID: workspaceID, expectedRevision: expectedRevision,
+        try .init(commandID: mutationID.rawValue, workspaceID: workspaceID, expectedRevision: expectedRevision,
                   mutationID: mutationID, payload: payload, submittedAt: submittedAt)
     }
 

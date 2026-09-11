@@ -1,6 +1,7 @@
 import Foundation
 
 @MainActor final class RatingEligibilityCoordinatorV1 {
+    private static let zeroOperationID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     private let policy: RatingEligibilityPolicyV1
     private let store: any RatingEligibilityStoreV1
     private let nativeRequest: any RatingRequestAdapterV1
@@ -47,8 +48,8 @@ import Foundation
                            reservationOperationID: UUID,
                            invocationStatusOperationID: UUID) async throws -> RatingRequestOutcomeV1 {
         try naturalStop.validate()
-        guard reservationOperationID != UUID.zero,
-              invocationStatusOperationID != UUID.zero,
+        guard reservationOperationID != Self.zeroOperationID,
+              invocationStatusOperationID != Self.zeroOperationID,
               reservationOperationID != invocationStatusOperationID else {
             throw RatingEligibilityFailureV1.invalidValue
         }
@@ -145,7 +146,7 @@ import Foundation
     /// The replacement contains operation identity and time only, no customer data.
     func applyCompletedErase(eraseOperationID: UUID, erasedAt: Date) async throws
         -> RatingEraseOutcomeV1 {
-        guard eraseOperationID != UUID.zero, erasedAt.timeIntervalSinceReferenceDate.isFinite else {
+        guard eraseOperationID != Self.zeroOperationID, erasedAt.timeIntervalSinceReferenceDate.isFinite else {
             throw RatingEligibilityFailureV1.invalidValue
         }
         if case .current(let prior) = try await store.load(), prior.attempts.isEmpty,

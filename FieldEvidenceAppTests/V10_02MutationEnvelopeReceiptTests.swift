@@ -9,7 +9,266 @@ private enum C53AssetServiceReliabilityBoundary_V10_02MutationEnvelopeReceiptTes
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
+/// Compiler regressions exercise the production adapter against the complete
+/// current schema; the older journal fixtures below retain their own scope.
+@MainActor
+private final class CompilerWriterAdmissionHarnessV1 {
+    static let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let container: ModelContainer
+    let context: ModelContext
+    let identity: WorkspaceReplicaIdentityV1
+    let generationID: UUID
+    let assetID: UUID
+    let journal: MutationJournalStoreV1
+    let writer: WorkspaceWriterV1
+
+    init(workspaceID: WorkspaceID = WorkspaceID(rawValue: UUID()), generationID: UUID = UUID(),
+         seedAsset: Bool = false) throws {
+        let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration(
+            "CompilerWriterAdmission", schema: schema, isStoredInMemoryOnly: true,
+            allowsSave: true, cloudKitDatabase: .none)])
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let assetID = UUID()
+        if seedAsset {
+            let site = Site(label: "Writer admission site", timeZoneID: "UTC")
+            context.insert(site)
+            context.insert(Asset(id: assetID, siteID: site.id, packID: "com.field-evidence.c39",
+                packSchemaVersion: 1, packContentVersion: 1, label: "Writer admission asset"))
+            try context.save()
+        }
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: UUID()))
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generationID)
+        let instanceID = UUID()
+        self.container = container; self.context = context; self.identity = identity
+        self.generationID = generationID; self.assetID = assetID; self.journal = journal
+        writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: instanceID),
+            clock: MutationJournalFixedClockV1(), idSource: MutationJournalFixedIDSourceV1(value: instanceID),
+            fileAuthority: MutationJournalFileAuthorityV1(), adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: journal)
+    }
+
+    func makeWriter(instanceID: UUID) throws -> WorkspaceWriterV1 {
+        try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: instanceID),
+            clock: MutationJournalFixedClockV1(), idSource: MutationJournalFixedIDSourceV1(value: instanceID),
+            fileAuthority: MutationJournalFileAuthorityV1(), adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: journal)
+    }
+
+    func expected(_ entities: [WorkspaceEntityRevisionV1], generationID: UUID? = nil,
+                  workspaceRevision: UInt64? = nil, writerInstanceID: UUID? = nil) throws -> WorkspaceExpectedRevisionV1 {
+        let current = try writer.currentRevision()
+        return try WorkspaceExpectedRevisionV1(workspaceID: identity.workspaceID,
+            generationID: generationID ?? current.generationID, writerInstanceID: writerInstanceID ?? current.writerInstanceID,
+            workspaceRevision: workspaceRevision ?? current.revision, entityRevisions: entities)
+    }
+
+    func experienceCommand(generationID: UUID? = nil, workspaceRevision: UInt64? = nil) throws -> WorkspaceExperienceMutationCommandV1 {
+        let mutationID = try MutationIDV1(rawValue: UUID())
+        let template = try StarterWorkspaceTemplateReleaseV1(templateID: UUID(), release: 1,
+            titleKey: "workspace.starter.practice.title", packageReleaseIDs: ["shipping.illuminated-sign.v1"],
+            practiceWatermark: "PRACTICE — NOT FOR FIELD USE")
+        let plan = try StarterWorkspaceInstallPlanV1(planID: UUID(), workspaceID: identity.workspaceID,
+            template: template, mutationID: mutationID, requestedAt: Self.date,
+            explicitUserRequest: true, destinationWasEmpty: true)
+        let revision = try workspaceRevision ?? writer.currentRevision().revision
+        let receipt = try StarterWorkspaceInstallReceiptV1(receiptID: UUID(), plan: plan,
+            resultingWorkspaceRevision: revision + 1, installedAt: Self.date.addingTimeInterval(1), disposition: .committed)
+        let provenance = try PracticeWorkspaceProvenanceV1(provenanceID: UUID(), plan: plan, receipt: receipt, revision: 1)
+        let target = try WorkspaceEntityIdentityV1(kind: .practiceWorkspaceProvenance, id: provenance.provenanceID)
+        return try WorkspaceExperienceMutationCommandV1(workspaceID: identity.workspaceID,
+            expectedRevision: MutationPortableExpectedRevisionV1(expected([.init(identity: target, revision: 0)],
+                generationID: generationID, workspaceRevision: revision)),
+            mutationID: mutationID, plan: plan, installReceipt: receipt, provenance: provenance)
+    }
+
+    func evidenceContext() throws -> EvidenceContextV1 {
+        let actor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: identity.workspaceID,
+            displayName: "Writer context recorder")
+        let recordedBy = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: identity.workspaceID, actor: actor,
+            responsibility: .recordedBy, displayNameAtTime: actor.displayName, capturedAt: Self.date)
+        let temporal = try TemporalContextV1(occurredAtUTC: Self.date, recordedAtUTC: Self.date,
+            localDate: "2027-01-15", localTime: "08:00:00", utcOffsetSeconds: 0,
+            ianaTimeZoneIdentifier: "UTC", localTimeDisposition: .unambiguous)
+        return try EvidenceContextV1(contextID: UUID(), workspaceID: identity.workspaceID,
+            evidenceID: "writer.context.evidence", evidenceSHA256: String(repeating: "f", count: 64),
+            evidenceRevision: 1, assetID: assetID, assetRevision: 1, temporalContext: temporal,
+            userObserved: UserObservedEvidenceContextV1(condition: .unknown, observationNoteCode: "WRITER_CONTEXT"),
+            derivedSolar: nil, controlExpectation: nil, predecessor: nil, revision: 1,
+            mutationID: MutationIDV1(rawValue: UUID()), recordedBy: recordedBy, recordedAt: Self.date.addingTimeInterval(1))
+    }
+
+    struct StorageSnapshot: Equatable {
+        let history: MutationHistorySnapshotV1
+        let mutableCheckpoint: String?
+        let provenance: [Data]
+        let parts: [Data]
+        let contexts: [Data]
+        let assetProducts: [Data]
+        let pendingChanges: Bool
+    }
+
+    func snapshot() throws -> StorageSnapshot {
+        let history = try journal.exportSnapshot()
+        let state = try XCTUnwrap(context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+        return try StorageSnapshot(history: history, mutableCheckpoint: state.mutableSemanticSHA256,
+            provenance: context.fetch(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>()).map(\.canonicalData).sorted(by: { $0.lexicographicallyPrecedes($1) }),
+            parts: context.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).map(\.canonicalData).sorted(by: { $0.lexicographicallyPrecedes($1) }),
+            contexts: context.fetch(FetchDescriptor<EvidenceContextRow>()).map(\.canonicalData).sorted(by: { $0.lexicographicallyPrecedes($1) }),
+            assetProducts: context.fetch(FetchDescriptor<AssetProductIdentityRow>()).map(\.canonicalData).sorted(by: { $0.lexicographicallyPrecedes($1) }),
+            pendingChanges: context.hasChanges)
+    }
+}
+
 final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
+    @MainActor
+    func testWorkspaceExperiencePortableAuthorityRebindsAndReplaysOneCanonicalEffect() throws {
+        let harness = try CompilerWriterAdmissionHarnessV1()
+        let command = try harness.experienceCommand()
+        let originalCommand = try WorkspaceMutationCanonicalV1.data(command)
+        let oldRuntimeID = try harness.writer.currentRevision().writerInstanceID
+        let rebound = try harness.makeWriter(instanceID: UUID())
+        XCTAssertNotEqual(try rebound.currentRevision().writerInstanceID, oldRuntimeID)
+
+        let receipt = try rebound.commitWorkspaceExperience(command)
+        try receipt.validate(command: command)
+        let receiptBytes = try WorkspaceMutationCanonicalV1.data(receipt)
+        let durable = try XCTUnwrap(harness.journal.receipt(mutationID: command.mutationID))
+        XCTAssertEqual(durable.expectedRevision, command.expectedRevision)
+        XCTAssertEqual(durable.resultingRevision.workspaceRevision, 1)
+        let persisted = try XCTUnwrap(harness.context.fetch(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>()).first)
+        XCTAssertEqual(try persisted.value(), command.provenance)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+        let snapshot = try harness.snapshot()
+
+        let restarted = try harness.makeWriter(instanceID: UUID())
+        let replayed = try restarted.commitWorkspaceExperience(command)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(replayed), receiptBytes)
+        XCTAssertEqual(try harness.snapshot(), snapshot)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(command), originalCommand)
+        let wire = try XCTUnwrap(String(data: originalCommand, encoding: .utf8))
+        XCTAssertFalse(wire.contains("writerInstanceID"))
+        XCTAssertFalse(wire.lowercased().contains(oldRuntimeID.uuidString.lowercased()))
+        XCTAssertFalse(try XCTUnwrap(String(data: receiptBytes, encoding: .utf8)).contains("writerInstanceID"))
+        try harness.journal.validateAll()
+    }
+
+    @MainActor
+    func testWorkspaceExperienceStaleForeignAndWrongRuntimeAuthorityHaveZeroEffects() throws {
+        let harness = try CompilerWriterAdmissionHarnessV1()
+        let before = try harness.snapshot()
+        let foreign = try harness.experienceCommand(generationID: UUID())
+        XCTAssertThrowsError(try harness.writer.commitWorkspaceExperience(foreign)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .wrongGeneration)
+        }
+        XCTAssertEqual(try harness.snapshot(), before)
+        let stale = try harness.experienceCommand(workspaceRevision: 1)
+        XCTAssertThrowsError(try harness.writer.commitWorkspaceExperience(stale)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .staleWorkspaceRevision)
+        }
+        XCTAssertEqual(try harness.snapshot(), before)
+
+        let command = try harness.experienceCommand()
+        let wrongRuntime = try harness.expected(command.expectedRevision.entityRevisions, writerInstanceID: UUID())
+        XCTAssertThrowsError(try harness.writer.execute(.init(mutationID: command.mutationID,
+            expectedRevision: wrongRuntime, command: .applyWorkspaceExperience(command)))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .wrongWriterInstance)
+        }
+        XCTAssertEqual(try harness.snapshot(), before)
+        let differentPortable = try harness.expected(command.expectedRevision.entityRevisions, workspaceRevision: 1)
+        XCTAssertThrowsError(try harness.writer.execute(.init(mutationID: command.mutationID,
+            expectedRevision: differentPortable, command: .applyWorkspaceExperience(command)))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try harness.snapshot(), before)
+        try harness.journal.validateAll()
+    }
+
+    @MainActor
+    func testArchivedPartUpsertCannotBypassArchiveProofOrRejectAssetSemantics() throws {
+        let harness = try CompilerWriterAdmissionHarnessV1(seedAsset: true)
+        let archived = try LocalPartDefinitionV1(partID: UUID(), workspaceID: harness.identity.workspaceID,
+            displayName: "Archived without retirement proof", canonicalUnit: .each, archived: true,
+            revision: 1, mutationID: MutationIDV1(rawValue: UUID()))
+        let before = try harness.snapshot()
+        XCTAssertThrowsError(try harness.writer.commitPartsStock(.upsertPart(archived))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try harness.snapshot(), before)
+        let ordinary = try LocalPartDefinitionV1(partID: UUID(), workspaceID: harness.identity.workspaceID,
+            displayName: "Ordinary part", canonicalUnit: .each, archived: false,
+            revision: 1, mutationID: MutationIDV1(rawValue: UUID()))
+        _ = try harness.writer.commitPartsStock(.upsertPart(ordinary))
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).map { try $0.value() }, [ordinary])
+
+        let semanticMutationID = try MutationIDV1(rawValue: UUID())
+        let identifier = AssetProductIdentifierV1(kind: .serial, value: "SN-WRITER-1",
+            normalizedComparisonValue: "sn-writer-1", issuer: "local-record", provenance: .humanRecorded,
+            reviewState: .reviewedAsRecorded, effectiveFrom: CompilerWriterAdmissionHarnessV1.date, effectiveUntil: nil)
+        let product = try AssetProductIdentityV1(identityID: UUID(), workspaceID: harness.identity.workspaceID,
+            assetID: harness.assetID, identifiers: [identifier], predecessorIdentityID: nil,
+            revision: 1, mutationID: semanticMutationID, recordedAt: CompilerWriterAdmissionHarnessV1.date)
+        let semantic = try AssetSemanticsMutationV1(workspaceID: harness.identity.workspaceID,
+            assetID: harness.assetID, expectedAssetRevision: 0, mutationID: semanticMutationID,
+            operation: .appendProductIdentity, productIdentity: product)
+        let expected = try harness.expected([.init(identity: semantic.affectedIdentity, revision: 0)])
+        _ = try harness.writer.execute(.init(mutationID: semanticMutationID,
+            expectedRevision: expected, command: .applyAssetSemantics(semantic)))
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<AssetProductIdentityRow>()).map { try $0.value() }, [product])
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<LocalPartDefinitionRowV1>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 2)
+        XCTAssertEqual(try harness.writer.currentRevision().revision, 2)
+        XCTAssertFalse(harness.context.hasChanges)
+        try harness.journal.validateAll()
+    }
+
+    @MainActor
+    func testThrowingMultiAndSingleIdentityWriterGuardsPersistOnlyMatchingCommands() throws {
+        let fixture = try C05WriterMutationFixtureV1.make()
+        let harness = try CompilerWriterAdmissionHarnessV1(workspaceID: fixture.workspaceID)
+        let targets = try fixture.mutation.concurrencyIdentities
+        XCTAssertEqual(targets.count, 2)
+        let before = try harness.snapshot()
+        let mismatch = try harness.expected(targets.map { .init(identity: $0, revision: 1) })
+        XCTAssertThrowsError(try harness.writer.execute(.init(mutationID: fixture.mutation.mutationID,
+            expectedRevision: mismatch, command: .applyEvidenceMetadata(fixture.mutation)))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try harness.snapshot(), before)
+        let multipleReceipt = try harness.writer.commitEvidenceMetadata(fixture.mutation)
+        XCTAssertEqual(multipleReceipt.mutationReceipt.postImages.count, 2)
+        XCTAssertEqual(try harness.writer.evidenceAssociationHistory(workspaceID: fixture.workspaceID,
+            evidenceID: fixture.association.evidenceID), [fixture.association])
+        XCTAssertEqual(try harness.writer.evidenceSequenceHistory(workspaceID: fixture.workspaceID,
+            sequenceID: fixture.sequence.sequenceID), [fixture.sequence])
+
+        let contextValue = try harness.evidenceContext()
+        let operation = EvidenceContextWriteOperationV1.appendContext(value: contextValue, predecessor: nil)
+        let target = try operation.concurrencyIdentity
+        let afterMultiple = try harness.snapshot()
+        let wrongSingle = try harness.expected([.init(identity: target, revision: 1)])
+        XCTAssertThrowsError(try harness.writer.execute(.init(mutationID: operation.mutationID,
+            expectedRevision: wrongSingle, command: .applyEvidenceContext(operation)))) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .invalidCommand)
+        }
+        XCTAssertEqual(try harness.snapshot(), afterMultiple)
+        let expected = try harness.expected([.init(identity: target, revision: 0)])
+        _ = try harness.writer.execute(.init(mutationID: operation.mutationID,
+            expectedRevision: expected, command: .applyEvidenceContext(operation)))
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<EvidenceContextRow>()).map { try $0.value() }, [contextValue])
+        let singleReceipt = try XCTUnwrap(harness.journal.receipt(mutationID: operation.mutationID))
+        XCTAssertEqual(singleReceipt.postImages.count, 1)
+        XCTAssertEqual(try singleReceipt.postImages.first?.identity, try operation.affectedIdentity)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 2)
+        XCTAssertEqual(try harness.writer.currentRevision().revision, 2)
+        XCTAssertFalse(harness.context.hasChanges)
+        try harness.journal.validateAll()
+    }
+
     func testV23P03C39ReleaseReferenceCanonicalReceiptIsStable() throws {
         let reference = AssetSemanticCatalogReleaseReferenceV1(
             releaseID: UUID(uuidString: "00000000-0000-0000-0000-000000002101")!,

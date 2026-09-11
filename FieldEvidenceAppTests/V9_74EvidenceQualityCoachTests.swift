@@ -6,6 +6,64 @@ import XCTest
 
 @MainActor
 final class V9_74EvidenceQualityCoachTests: XCTestCase {
+    func testWriterBoundConvenienceReplaysExactRequestAndRejectsChangedMutationWithoutEffects() throws {
+        let f = try C10ProductionFixture(useActiveSchema: true)
+        let verifier: EvidenceQualityCoordinatorV1.ContentIntegrityVerifier = { binding, data in
+            !data.isEmpty && binding.contentSHA256 == KernelCanonicalHashV1.sha256(data)
+        }
+        let coordinator = EvidenceQualityCoordinatorV1(workspaceWriter: f.writer,
+            query: { try f.querySource.result(for: $0) }, contentIntegrityVerifier: verifier)
+        let primary = f.capture(id: "writer-bound")
+        let comparison = f.capture(id: "writer-bound-comparison", bytes: [81, 82, 83, 84])
+        let request = try f.request(revision: 1, primary: primary,
+            comparison: comparison, collection: [primary, comparison])
+        guard case let .assessed(assessment, receipt) = try coordinator.assess(request) else {
+            return XCTFail("Actual writer-bound coordinator must persist the assessment")
+        }
+        let originalRevision = try f.writer.currentRevision()
+        let originalSnapshot = try f.querySource.snapshot()
+        let originalReceipt = try XCTUnwrap(try f.journal.receipt(mutationID: request.mutationID))
+        let rows = try f.context.fetch(FetchDescriptor<MutationReceiptRow>())
+        let envelopeBytes = try XCTUnwrap(rows.first { $0.mutationID == request.mutationID.rawValue }).envelopeData
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: envelopeBytes)
+        guard case .applyEvidenceQuality(let command) = envelope.command else {
+            return XCTFail("Durable envelope must contain the real quality command")
+        }
+        XCTAssertEqual(command.commandID, request.mutationID.rawValue)
+        XCTAssertEqual(command.expectedRevision, request.expectedRevision)
+        XCTAssertEqual(command.submittedAt, request.assessedAt)
+        XCTAssertEqual(command.payload, .recordAssessment(assessment))
+        XCTAssertEqual(try f.writer.evidenceQualityReceipt(for: command), receipt)
+        // Both public convenience bindings must recover the same immutable
+        // receipt, including a newly constructed model-context coordinator.
+        let reopened = EvidenceQualityCoordinatorV1(workspaceWriter: f.writer,
+            modelContext: f.context, workspaceID: f.workspaceID,
+            contentIntegrityVerifier: verifier)
+        for current in [coordinator, reopened] {
+            guard case let .assessed(replayedAssessment, replayedReceipt) = try current.assess(request) else {
+                return XCTFail("Exact request retry must replay the original assessment")
+            }
+            XCTAssertEqual(replayedAssessment, assessment)
+            XCTAssertEqual(replayedReceipt, receipt)
+            let changed = f.capture(id: "writer-bound", bytes: [10, 20, 30, 40])
+            let divergent = EvidenceQualityCoordinatorV1.AssessmentRequest(
+                assessmentID: request.assessmentID, workspaceID: request.workspaceID,
+                primary: changed, duplicateComparison: comparison, collection: [changed, comparison],
+                ruleSet: request.ruleSet, assessmentRevision: request.assessmentRevision,
+                mutationID: request.mutationID, expectedRevision: request.expectedRevision,
+                assessedAt: request.assessedAt)
+            XCTAssertThrowsError(try current.assess(divergent))
+        }
+        XCTAssertEqual(try f.writer.currentRevision(), originalRevision)
+        XCTAssertEqual(try f.querySource.snapshot(), originalSnapshot)
+        XCTAssertEqual(try f.journal.receipt(mutationID: request.mutationID), originalReceipt)
+        let finalRows = try f.context.fetch(FetchDescriptor<MutationReceiptRow>())
+        XCTAssertEqual(finalRows.count, 2) // One rule-set publication, one assessment.
+        XCTAssertEqual(try XCTUnwrap(finalRows.first { $0.mutationID == request.mutationID.rawValue }).envelopeData, envelopeBytes)
+        XCTAssertEqual(try f.context.fetch(FetchDescriptor<EvidenceQualityAssessmentRowV1>()).count, 1)
+        XCTAssertFalse(f.context.hasChanges)
+    }
+
     func testV23P04C10G01ClearlyFramedCaptureProducesExactRuleIDsAndThresholdBoundaryResults() throws {
         let f = try C10ProductionFixture()
         let request = try f.request(revision: 1, primary: f.capture(), comparison: f.capture(id: "comparison", bytes: [80, 81, 82, 83]), collection: [f.capture(), f.capture(id: "collection", bytes: [90, 91, 92, 93])])
@@ -135,8 +193,9 @@ private final class C10ProductionFixture {
     private let deletionSink: C10DeletionSink
     var deleteDispositions: [EvidenceQualityLifecycleAdapterV1.DeleteDisposition] { deletionSink.values }
 
-    init(failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil) throws {
-        let schema = Schema(PersistentSchemaV47.models, version: PersistentSchemaV47.versionIdentifier)
+    init(failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil, useActiveSchema: Bool = false) throws {
+        let schema = try useActiveSchema ? PersistentSchemaReleaseRegistryV1.activeSchema()
+            : Schema(PersistentSchemaV47.models, version: PersistentSchemaV47.versionIdentifier)
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C10Production", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
         let modelContext = container.mainContext; modelContext.autosaveEnabled = false
         let generationID = UUID(), identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: UUID()))
@@ -163,7 +222,7 @@ private final class C10ProductionFixture {
         deletionSink = sink
         let productionLifecycle = EvidenceQualityLifecycleAdapterV1(workspaceWriter: selectedWriter, modelContext: modelContext, workspaceID: workspaceID, snapshotRestorer: { [modelContext] snapshot, replace in guard replace else { throw EvidenceQualityFailureV1.invalidValue }; try Self.restore(snapshot, into: modelContext) }, deleteExecutor: { sink.values.append($0) })
         lifecycle = productionLifecycle
-        coordinator = EvidenceQualityCoordinatorV1(submit: { [productionLifecycle] in try productionLifecycle.replay($0) }, query: { [productionLifecycle] in try productionLifecycle.search($0) }, receiptLookup: { [modelContext] id in try modelContext.fetch(FetchDescriptor<EvidenceQualityMutationReceiptRowV1>()).map { try $0.value() }.first { $0.mutationID == id } }, contentIntegrityVerifier: { binding, data in !data.isEmpty && binding.contentSHA256 == KernelCanonicalHashV1.sha256(data) })
+        coordinator = EvidenceQualityCoordinatorV1(submit: { [productionLifecycle] in try productionLifecycle.replay($0) }, query: { [productionLifecycle] in try productionLifecycle.search($0) }, receiptLookup: { [modelContext] command in try modelContext.fetch(FetchDescriptor<EvidenceQualityMutationReceiptRowV1>()).map { try $0.value() }.first { $0.mutationID == command.mutationID } }, contentIntegrityVerifier: { binding, data in !data.isEmpty && binding.contentSHA256 == KernelCanonicalHashV1.sha256(data) })
     }
 
     func capture(id: String = "golden", revision: UInt64 = 1, bytes: [UInt8] = [64, 65, 66, 67], blur: Int64 = 250_000) -> EvidenceQualityCoordinatorV1.CanonicalCapture {
