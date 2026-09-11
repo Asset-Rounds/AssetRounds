@@ -8,6 +8,36 @@ final class V9_80LightingDayInventoryTests: XCTestCase {
         let good = try C17LightingDayInventoryReportProjectionV1(
             workflow: fixture.workflow, admission: fixture.admission, poseSnapshots: fixture.poses)
         XCTAssertEqual(good.conditions.first?.poseEvent?.axisID.rawValue, "axis.owner_defined_beam_17")
+        let repeated = try C17LightingDayInventoryReportProjectionV1(
+            workflow: fixture.workflow, admission: fixture.admission, poseSnapshots: fixture.poses)
+        XCTAssertEqual(repeated, good)
+        let basis = DayReportDigestBasis(projectionVersion: good.projectionVersion,
+            workspaceID: good.workspaceID, workflowID: good.workflowID,
+            workflowRevision: good.workflowRevision, workflowSHA256: good.workflowSHA256,
+            systemID: good.systemID, systemRevision: good.systemRevision, systemSHA256: good.systemSHA256,
+            packageRelease: good.packageRelease, state: good.state, conditions: good.conditions,
+            unknownOrNotObservedCount: good.unknownOrNotObservedCount,
+            daylightEnergizedObservationCount: good.daylightEnergizedObservationCount,
+            nightFollowupPlanID: good.nightFollowupPlanID, nightFollowupPlanSHA256: good.nightFollowupPlanSHA256,
+            offlineReadinessSourceSHA256: good.offlineReadinessSourceSHA256,
+            offlineReadinessManifestSHA256: good.offlineReadinessManifestSHA256,
+            claimBoundary: good.claimBoundary)
+        XCTAssertEqual(good.projectionSHA256, try LightingDayInventoryCanonicalCodecV1.sha256(basis))
+        let bytes = try LightingDayInventoryCanonicalCodecV1.encode(good)
+        XCTAssertEqual(try LightingDayInventoryCanonicalCodecV1.encode(repeated), bytes)
+        let roundTrip = try LightingDayInventoryCanonicalCodecV1.decode(
+            C17LightingDayInventoryReportProjectionV1.self, from: bytes)
+        try roundTrip.validate()
+        XCTAssertEqual(roundTrip, good)
+        XCTAssertEqual(try LightingDayInventoryCanonicalCodecV1.encode(roundTrip), bytes)
+        var tampered = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        tampered["projectionSHA256"] = String(repeating: "0", count: 64)
+        let invalid = try LightingDayInventoryCanonicalCodecV1.decoder().decode(
+            C17LightingDayInventoryReportProjectionV1.self,
+            from: JSONSerialization.data(withJSONObject: tampered))
+        XCTAssertThrowsError(try invalid.validate()) {
+            XCTAssertEqual($0 as? LightingDayInventoryFailureV1, .invalidValue)
+        }
         let frozen = try C17LightingDayInventoryFrozenSnapshotV1(
             workflow: fixture.workflow, admission: fixture.admission,
             poseSnapshots: fixture.poses, capturedAt: fixture.date)
@@ -70,6 +100,19 @@ final class V9_80LightingDayInventoryTests: XCTestCase {
         XCTAssertThrowsError(try C17LightingDayInventoryFrozenSnapshotV1(
             workflow: fixture.workflow, admission: admission, poseSnapshots: poses,
             capturedAt: fixture.date), file: file, line: line)
+    }
+
+    private struct DayReportDigestBasis: Codable {
+        let projectionVersion: String; let workspaceID: WorkspaceID
+        let workflowID: UUID; let workflowRevision: UInt64; let workflowSHA256: String
+        let systemID: UUID; let systemRevision: UInt64; let systemSHA256: String
+        let packageRelease: LightingPackageReleaseReferenceV1
+        let state: LightingDayInventoryWorkflowStateV1
+        let conditions: [C17LightingDayConditionReportProjectionV1]
+        let unknownOrNotObservedCount: Int; let daylightEnergizedObservationCount: Int
+        let nightFollowupPlanID: UUID?; let nightFollowupPlanSHA256: String?
+        let offlineReadinessSourceSHA256: String?; let offlineReadinessManifestSHA256: String?
+        let claimBoundary: String
     }
 
     private struct ReportPoseDigestBasis: Codable {

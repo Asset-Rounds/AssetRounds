@@ -786,7 +786,19 @@ struct C17LightingDayInventoryReportProjectionV1: Codable, Equatable, Sendable {
         offlineReadinessSourceSHA256 = workflow.nightFollowupPlan?.offlineReadinessSourceSHA256
         offlineReadinessManifestSHA256 = workflow.nightFollowupPlan?.offlineReadinessManifestSHA256
         claimBoundary = Self.claimBoundary
-        projectionSHA256 = try LightingDayInventoryCanonicalCodecV1.sha256(basisWithoutDigest)
+        let basis = Basis(projectionVersion: projectionVersion, workspaceID: workspaceID,
+                          workflowID: workflowID, workflowRevision: workflowRevision,
+                          workflowSHA256: workflowSHA256, systemID: systemID,
+                          systemRevision: systemRevision, systemSHA256: systemSHA256,
+                          packageRelease: packageRelease, state: state, conditions: conditions,
+                          unknownOrNotObservedCount: unknownOrNotObservedCount,
+                          daylightEnergizedObservationCount: daylightEnergizedObservationCount,
+                          nightFollowupPlanID: nightFollowupPlanID,
+                          nightFollowupPlanSHA256: nightFollowupPlanSHA256,
+                          offlineReadinessSourceSHA256: offlineReadinessSourceSHA256,
+                          offlineReadinessManifestSHA256: offlineReadinessManifestSHA256,
+                          claimBoundary: claimBoundary)
+        projectionSHA256 = try LightingDayInventoryCanonicalCodecV1.sha256(basis)
         try validate()
     }
 
